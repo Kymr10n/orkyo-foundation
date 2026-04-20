@@ -1,0 +1,3 @@
+-- Migration: Add utilization requirements
+-- Copy from 008_add_utilization_requirements.sql
+-- ...

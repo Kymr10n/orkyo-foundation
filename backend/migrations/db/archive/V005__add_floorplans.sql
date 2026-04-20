@@ -1,0 +1,3 @@
+-- Migration: Add floorplans
+-- Copy from 004_add_floorplans.sql
+-- ...

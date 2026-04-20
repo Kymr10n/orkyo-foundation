@@ -1,0 +1,3 @@
+-- Migration: Tenant template
+-- Copy from 002_tenant_template.sql
+-- ...

@@ -1,0 +1,3 @@
+-- Migration: Add criteria
+-- Copy from 006_add_criteria.sql
+-- ...

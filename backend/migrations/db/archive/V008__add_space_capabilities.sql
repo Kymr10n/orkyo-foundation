@@ -1,0 +1,3 @@
+-- Migration: Add space capabilities
+-- Copy from 007_add_space_capabilities.sql
+-- ...

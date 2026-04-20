@@ -1,0 +1,3 @@
+-- Migration: Add spaces
+-- Copy from 005_add_spaces.sql
+-- ...
