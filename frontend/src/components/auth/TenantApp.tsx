@@ -1,0 +1,92 @@
+/**
+ * TenantApp — SPA wrapper for tenant subdomains ({slug}.orkyo.com).
+ *
+ * Standard React Router app with RequireAuth guards.
+ * If the session is invalid, the machine redirects to the BFF login endpoint.
+ * Does NOT include apex-only routes (TOS, onboarding, tenant-select).
+ */
+
+import { useEffect, lazy, Suspense } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { RequireAuth } from '@/components/auth/RequireAuth';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { LoginPage } from '@/pages/LoginPage';
+import { TenantSuspendedPage } from '@/pages/TenantSuspendedPage';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { BreakGlassBanner } from '@/components/break-glass/BreakGlassBanner';
+import { useAuth } from '@/contexts/AuthContext';
+import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@/constants/auth';
+
+// Lazy-loaded pages — split into separate chunks to reduce initial bundle size
+const AboutPage = lazy(() => import('@/pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const AccountPage = lazy(() => import('@/pages/AccountPage').then(m => ({ default: m.AccountPage })));
+const AdminPage = lazy(() => import('@/pages/AdminPage').then(m => ({ default: m.AdminPage })));
+const UtilizationPage = lazy(() => import('@/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
+const SpacesPage = lazy(() => import('@/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
+const ConflictsPage = lazy(() => import('@/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
+const RequestsPage = lazy(() => import('@/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const MessagesPage = lazy(() => import('@/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
+
+/** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/requests", "/conflicts", "/settings", "/admin"];
+
+function FloatingThemeToggle() {
+  const { pathname } = useLocation();
+  const hasTopBar = APP_LAYOUT_PREFIXES.some((prefix) => {
+    if (prefix === '/') return pathname === '/';
+    return pathname === prefix || pathname.startsWith(prefix + '/');
+  });
+  if (hasTopBar) return null;
+  return <ThemeToggle variant="floating" />;
+}
+
+export function TenantApp() {
+  const { authStage, membership, send } = useAuth();
+
+  // Session expiry on a tenant subdomain — trigger the BFF login redirect.
+  // The machine's LOGIN event fires performLogin which navigates to the BFF.
+  useEffect(() => {
+    if (authStage === AUTH_STAGES.UNAUTHENTICATED) {
+      send({ type: AUTH_EVENTS.LOGIN });
+    }
+  }, [authStage, send]);
+
+  // Suspended tenant on its own subdomain — show the suspension page directly.
+  // The same-origin POST to /api/tenant/reactivate works here because the
+  // backend resolves the tenant from the subdomain.
+  if (authStage === AUTH_STAGES.SELECTING_TENANT && membership?.state === TENANT_STATUS.SUSPENDED) {
+    return (
+      <>
+        <ThemeToggle variant="floating" />
+        <TenantSuspendedPage />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <FloatingThemeToggle />
+      <BreakGlassBanner />
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center h-screen"><div className="text-muted-foreground">Loading...</div></div>}>
+      <Routes>
+        {/* /login is intentionally kept for direct navigation recovery when a
+            session expires on a tenant subdomain — the user can sign back in
+            and be returned to the same subdomain context. */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
+        <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth requireMembership={false}><AdminPage /></RequireAuth>} />
+        <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+        <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
+          <Route index element={<UtilizationPage />} />
+          <Route path="spaces" element={<SpacesPage />} />
+          <Route path="requests" element={<RequestsPage />} />
+          <Route path="conflicts" element={<ConflictsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+      </Routes>
+      </Suspense>
+    </>
+  );
+}

@@ -1,0 +1,31 @@
+# Build outputs
+**/bin/
+**/obj/
+*.user
+
+# NuGet
+*.nupkg
+**/.nuget/
+
+# VS / Rider
+.vs/
+.idea/
+*.suo
+
+# Coverage
+coverage/
+*.cobertura.xml
+
+# Node
+node_modules/
+.pnp
+.pnp.js
+dist/
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
