@@ -6,6 +6,16 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AssemblyName>Orkyo.Migrations</AssemblyName>
     <RootNamespace>Orkyo.Migrations</RootNamespace>
+
+    <!-- NuGet packaging -->
+    <PackageId>Orkyo.Migrations</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Orkyo</Authors>
+    <Description>Orkyo Migrations — database schema migrations for the Orkyo domain (sites, spaces, requests, scheduling).</Description>
+    <PackageTags>orkyo;migrations;database;postgresql</PackageTags>
+    <RepositoryUrl>https://github.com/Kymr10n/orkyo-foundation</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>

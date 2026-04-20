@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Api.Tests" />
+    <InternalsVisibleTo Include="Orkyo.Foundation.Tests" />
   </ItemGroup>
 
   <ItemGroup>
