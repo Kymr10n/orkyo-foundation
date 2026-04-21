@@ -234,27 +234,49 @@ public static partial class MigrationEngine
 
     /// <summary>
     /// Finds the migrations root directory.
-    /// Docker: /infra/db/migrations (mounted/copied into image).
-    /// Local: walks up from startDirectory until infra/db/migrations is found.
+    /// Supports both the legacy infra-mounted layout and the split-repo layout.
+    ///
+    /// Search order:
+    /// 1. Legacy Docker mount: /infra/db/migrations
+    /// 2. Published output: <app>/db
+    /// 3. Repository layouts discovered by walking upward:
+    ///    - infra/db/migrations
+    ///    - db
+    ///    - backend/migrations/db
     /// </summary>
     public static string FindMigrationsRoot(string? startDirectory = null)
     {
-        const string dockerPath = "/infra/db/migrations";
-        if (Directory.Exists(dockerPath))
-            return dockerPath;
+        var candidates = new List<string>();
+
+        static void AddCandidate(ICollection<string> list, string path)
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                list.Add(Path.GetFullPath(path));
+            }
+        }
+
+        AddCandidate(candidates, "/infra/db/migrations");
+        AddCandidate(candidates, Path.Combine(AppContext.BaseDirectory, "db"));
 
         var dir = startDirectory ?? Directory.GetCurrentDirectory();
-        while (dir != null)
+        while (!string.IsNullOrWhiteSpace(dir))
         {
-            var candidate = Path.Combine(dir, "infra", "db", "migrations");
-            if (Directory.Exists(candidate))
-                return candidate;
+            AddCandidate(candidates, Path.Combine(dir, "infra", "db", "migrations"));
+            AddCandidate(candidates, Path.Combine(dir, "db"));
+            AddCandidate(candidates, Path.Combine(dir, "backend", "migrations", "db"));
             dir = Directory.GetParent(dir)?.FullName;
         }
 
+        foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (Directory.Exists(candidate))
+                return candidate;
+        }
+
         throw new InvalidOperationException(
-            "Could not find migrations directory (infra/db/migrations). " +
-            "Checked /infra/db/migrations (Docker) and searched upward from current directory.");
+            "Could not find migrations directory. Checked legacy Docker mount, published output, " +
+            "and repository layouts for infra/db/migrations, db, and backend/migrations/db.");
     }
 
     /// <summary>

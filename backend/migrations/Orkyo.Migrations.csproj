@@ -21,4 +21,13 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="8.0.5" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="db/**">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/db/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
