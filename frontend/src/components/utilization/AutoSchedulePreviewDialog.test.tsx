@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { AutoSchedulePreviewDialog } from './AutoSchedulePreviewDialog';
+import { AutoSchedulePreviewDialog } from '@/features/utilization/auto-schedule-preview';
 import type { AutoSchedulePreviewResponse } from '@/lib/api/auto-schedule-api';
 
 const mockPreview: AutoSchedulePreviewResponse = {
