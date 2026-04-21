@@ -14,7 +14,7 @@ import {
   Claims,
   ErrorCodes,
   Roles,
-} from "@/contracts";
+} from "./index";
 import { describe, expect, it } from "vitest";
 
 describe("Contract Alignment - API Headers", () => {

@@ -19,7 +19,7 @@ import type {
   RequestRequirement,
   RequestStatus,
   UpdateRequestRequest,
-} from "@/types/requests";
+} from "../src/types/requests";
 import { describe, expect, it } from "vitest";
 
 // ─────────────────────────────────────────────────────────────────────

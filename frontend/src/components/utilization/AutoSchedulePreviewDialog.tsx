@@ -1,4 +1,9 @@
 import {
+  formatSolverKind,
+  SchedulingReasonLabels,
+  type AutoSchedulePreviewResponse,
+} from "@/lib/api/auto-schedule-api";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -8,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import type { AutoSchedulePreviewResponse } from "@/lib/api/auto-schedule-api";
 
 interface Props {
   open: boolean;
@@ -18,16 +22,6 @@ interface Props {
   onApply: () => void;
   onClose: () => void;
 }
-
-const REASON_LABELS: Record<string, string> = {
-  NoCompatibleSpace: "No compatible space",
-  DateWindowTooTight: "Date window too tight",
-  InsufficientCapacity: "Insufficient capacity",
-  BlockedByFixedAssignments: "Blocked by existing assignments",
-  InvalidDuration: "Invalid duration",
-  MissingRequiredData: "Missing required data",
-  InternalSolverLimit: "Solver limit reached",
-};
 
 export function AutoSchedulePreviewDialog({
   open,
@@ -57,11 +51,7 @@ export function AutoSchedulePreviewDialog({
             <section className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border p-3">
                 <div className="text-xs text-muted-foreground">Solver</div>
-                <div className="text-sm font-medium">
-                  {preview.solverUsed === "OrToolsCpSat"
-                    ? "OR-Tools CP-SAT"
-                    : "Greedy"}
-                </div>
+                <div className="text-sm font-medium">{formatSolverKind(preview.solverUsed)}</div>
               </div>
               <div className="rounded-lg border p-3">
                 <div className="text-xs text-muted-foreground">Scheduled</div>
@@ -135,7 +125,7 @@ export function AutoSchedulePreviewDialog({
                         </span>
                         :{" "}
                         {entry.reasonCodes
-                          .map((c) => REASON_LABELS[c] ?? c)
+                          .map((c) => SchedulingReasonLabels[c] ?? c)
                           .join(", ")}
                       </li>
                     ))}
