@@ -1,5 +1,4 @@
 using Api.Models;
-using Orkyo.Shared;
 
 namespace Api.Services;
 
@@ -12,8 +11,8 @@ public class TenantContext
     public required string Status { get; init; }
     public string? SuspensionReason { get; init; }
 
-    public bool IsSuspended => string.Equals(Status, TenantStatusConstants.Suspended, StringComparison.OrdinalIgnoreCase);
-    public bool IsActive => string.Equals(Status, TenantStatusConstants.Active, StringComparison.OrdinalIgnoreCase);
+    public bool IsSuspended => TenantStatusPolicy.IsSuspended(Status);
+    public bool IsActive => TenantStatusPolicy.IsActive(Status);
 }
 
 public interface ITenantResolver
