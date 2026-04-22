@@ -1,9 +1,13 @@
 /**
- * TenantApp — SPA wrapper for tenant subdomains ({slug}.orkyo.com).
+ * TenantApp — Shared SPA wrapper for tenant subdomains ({slug}.orkyo.com).
  *
- * Standard React Router app with RequireAuth guards.
+ * Standard React Router app with RequireAuth guards for shared, product-agnostic routes.
  * If the session is invalid, the machine redirects to the BFF login endpoint.
  * Does NOT include apex-only routes (TOS, onboarding, tenant-select).
+ * Does NOT include SaaS-specific routes (AdminPage — defined in SaaS composition).
+ *
+ * For SaaS multi-tenant composition: extend with AdminPage and additional admin routes.
+ * For Community single-tenant: use shared routes as-is, or add custom admin routes if needed.
  */
 
 import { useEffect, lazy, Suspense } from 'react';
@@ -20,7 +24,6 @@ import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@/constants/auth';
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle size
 const AboutPage = lazy(() => import('@/pages/AboutPage').then(m => ({ default: m.AboutPage })));
 const AccountPage = lazy(() => import('@/pages/AccountPage').then(m => ({ default: m.AccountPage })));
-const AdminPage = lazy(() => import('@/pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const UtilizationPage = lazy(() => import('@/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
 const SpacesPage = lazy(() => import('@/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
 const ConflictsPage = lazy(() => import('@/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
@@ -29,7 +32,7 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ defa
 const MessagesPage = lazy(() => import('@/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/requests", "/conflicts", "/settings", "/admin"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/requests", "/conflicts", "/settings"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -76,7 +79,6 @@ export function TenantApp() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage /></RequireAuth>} />
-        <Route path="/admin" element={<RequireAuth requireMembership={false}><AdminPage /></RequireAuth>} />
         <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />

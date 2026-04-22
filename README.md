@@ -12,7 +12,7 @@ Contains NO runtime wiring. No `Program.cs`, no DI registration, no middleware.
 - **OrgContext + IOrgContextAccessor** — pluggable org identity (injected by product repos)
 - **Validators** — FluentValidation rules for all request/command types
 - **Scheduler engine** — constraint-based space assignment
-- **Shared frontend components** — domain React components, hooks, and pages (see `frontend/`)
+- **Shared frontend components** — domain React components, hooks, pages, and routing infrastructure (see `frontend/` and [ARCHITECTURE.md](frontend/ARCHITECTURE.md))
 - **Migrations** — domain schema published as `Orkyo.Foundation.Migrations`
 
 ## Structure

@@ -13,7 +13,7 @@ import { useSchedulingSettings, useOffTimes } from "@/hooks/useScheduling";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@/components/utilization/AutoScheduleButton";
-import { AutoSchedulePreviewDialog } from "@/features/utilization/auto-schedule-preview";
+import { AutoSchedulePreviewDialog } from "@/components/utilization/AutoSchedulePreviewDialog";
 import type { AutoSchedulePreviewResponse } from "@/lib/api/auto-schedule-api";
 import { exportUtilization } from "@/lib/utils/export-handlers";
 import { updateRequest, createRequest, moveRequest } from "@/lib/api/request-api";

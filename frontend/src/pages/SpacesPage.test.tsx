@@ -1,0 +1,44 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { SpacesPage } from './SpacesPage';
+
+vi.mock('@/store/app-store', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useAppStore: vi.fn((selector: any) =>
+    selector({ selectedSiteId: null }),
+  ),
+}));
+
+vi.mock('@/components/spaces/SpaceManagementPanel', () => ({
+  SpaceManagementPanel: ({ siteId }: { siteId: string }) => (
+    <div data-testid="space-panel">site={siteId}</div>
+  ),
+}));
+
+describe('SpacesPage', () => {
+  it('shows prompt when no site is selected', () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SpacesPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Please select a site to manage spaces.')).toBeInTheDocument();
+  });
+
+  it('renders SpaceManagementPanel when site is selected', async () => {
+    const { useAppStore } = await import('@/store/app-store');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(useAppStore).mockImplementation((selector: any) =>
+      selector({ selectedSiteId: 'site-1' }) as never,
+    );
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SpacesPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('space-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('space-panel').textContent).toContain('site=site-1');
+  });
+});
