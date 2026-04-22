@@ -26,13 +26,14 @@ public static class TenantOwnershipTransferPolicy
         string? newOwnerRole,
         string? newOwnerMembershipStatus)
     {
-        if (!tenantFound)
+        var ownerDecision = TenantOwnerAccessPolicy.Evaluate(tenantFound, ownerUserId, currentOwnerId, isSiteAdmin);
+        if (ownerDecision == TenantOwnerAccessDecision.TenantNotFound)
             return TenantOwnershipTransferDecision.TenantNotFound;
 
-        if (ownerUserId != currentOwnerId && !isSiteAdmin)
+        if (ownerDecision == TenantOwnerAccessDecision.NotOwner)
             return TenantOwnershipTransferDecision.NotCurrentOwner;
 
-        if (string.Equals(tenantStatus, TenantStatusConstants.Deleting, StringComparison.OrdinalIgnoreCase))
+        if (TenantOwnerAccessPolicy.IsDeleting(tenantStatus))
             return TenantOwnershipTransferDecision.TenantDeleting;
 
         if (!newOwnerMembershipFound)

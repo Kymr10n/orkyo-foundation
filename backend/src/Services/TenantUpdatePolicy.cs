@@ -22,13 +22,14 @@ public static class TenantUpdatePolicy
         string? tenantStatus,
         string? displayName)
     {
-        if (!tenantFound)
+        var ownerDecision = TenantOwnerAccessPolicy.Evaluate(tenantFound, ownerUserId, actorUserId, isSiteAdmin);
+        if (ownerDecision == TenantOwnerAccessDecision.TenantNotFound)
             return TenantUpdateDecision.TenantNotFound;
 
-        if (ownerUserId != actorUserId && !isSiteAdmin)
+        if (ownerDecision == TenantOwnerAccessDecision.NotOwner)
             return TenantUpdateDecision.NotOwner;
 
-        if (string.Equals(tenantStatus, TenantStatusConstants.Deleting, StringComparison.OrdinalIgnoreCase))
+        if (TenantOwnerAccessPolicy.IsDeleting(tenantStatus))
             return TenantUpdateDecision.TenantDeleting;
 
         if (displayName != null && string.IsNullOrWhiteSpace(displayName))

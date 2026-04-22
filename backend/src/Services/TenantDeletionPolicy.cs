@@ -22,13 +22,14 @@ public static class TenantDeletionPolicy
 {
     public static TenantDeleteDecision EvaluateDelete(bool tenantFound, Guid? ownerUserId, Guid actorUserId, bool isSiteAdmin, string? status)
     {
-        if (!tenantFound)
+        var ownerDecision = TenantOwnerAccessPolicy.Evaluate(tenantFound, ownerUserId, actorUserId, isSiteAdmin);
+        if (ownerDecision == TenantOwnerAccessDecision.TenantNotFound)
             return TenantDeleteDecision.TenantNotFound;
 
-        if (ownerUserId != actorUserId && !isSiteAdmin)
+        if (ownerDecision == TenantOwnerAccessDecision.NotOwner)
             return TenantDeleteDecision.NotOwner;
 
-        if (string.Equals(status, TenantStatusConstants.Deleting, StringComparison.OrdinalIgnoreCase))
+        if (TenantOwnerAccessPolicy.IsDeleting(status))
             return TenantDeleteDecision.AlreadyDeleting;
 
         return TenantDeleteDecision.Allowed;
@@ -36,13 +37,14 @@ public static class TenantDeletionPolicy
 
     public static TenantCancelDeletionDecision EvaluateCancelDeletion(bool tenantFound, Guid? ownerUserId, Guid actorUserId, bool isSiteAdmin, string? status)
     {
-        if (!tenantFound)
+        var ownerDecision = TenantOwnerAccessPolicy.Evaluate(tenantFound, ownerUserId, actorUserId, isSiteAdmin);
+        if (ownerDecision == TenantOwnerAccessDecision.TenantNotFound)
             return TenantCancelDeletionDecision.TenantNotFound;
 
-        if (ownerUserId != actorUserId && !isSiteAdmin)
+        if (ownerDecision == TenantOwnerAccessDecision.NotOwner)
             return TenantCancelDeletionDecision.NotOwner;
 
-        if (!string.Equals(status, TenantStatusConstants.Deleting, StringComparison.OrdinalIgnoreCase))
+        if (!TenantOwnerAccessPolicy.IsDeleting(status))
             return TenantCancelDeletionDecision.NotDeleting;
 
         return TenantCancelDeletionDecision.Allowed;
