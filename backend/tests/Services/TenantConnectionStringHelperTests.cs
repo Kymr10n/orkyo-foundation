@@ -19,7 +19,7 @@ public class TenantConnectionStringHelperTests
     [Fact]
     public void BuildTenantDatabaseConnectionString_ShouldPreserveOtherSegments()
     {
-        const string controlPlane = "Host=db.example.com;Port=5432;Database=control_plane;Username=app;Password=secret;Ssl Mode=Require";
+        const string controlPlane = "Host=db.example.com;Port=5432;Database=control_plane;Username=app;Password=test-password;Ssl Mode=Require";
 
         var tenantConnection = TenantConnectionStringHelper.BuildTenantDatabaseConnectionString(controlPlane, "tenant_blue");
 
