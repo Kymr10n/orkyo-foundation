@@ -61,7 +61,7 @@ const mockAdmins: userApi.UserWithRole[] = [
 
 const renderOrganizationSettings = () => {
   return render(
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrowserRouter>
       <OrganizationSettings />
     </BrowserRouter>
   );

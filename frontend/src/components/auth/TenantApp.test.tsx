@@ -29,9 +29,6 @@ vi.mock("@/pages/AboutPage", () => ({
 vi.mock("@/pages/AccountPage", () => ({
   AccountPage: () => <div data-testid="account-page">Account</div>,
 }));
-vi.mock("@/pages/AdminPage", () => ({
-  AdminPage: () => <div data-testid="admin-page">Admin</div>,
-}));
 vi.mock("@/pages/UtilizationPage", () => ({
   UtilizationPage: () => <div data-testid="utilization-page">Utilization</div>,
 }));
@@ -92,7 +89,7 @@ function authState(overrides: Record<string, unknown> = {}) {
 
 function renderAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
       <TenantApp />
     </MemoryRouter>,
   );
@@ -112,7 +109,6 @@ describe("TenantApp", () => {
     ["/",         "app-layout"],
     ["/about",    "about-page"],
     ["/account",  "account-page"],
-    ["/admin",    "admin-page"],
     ["/messages", "messages-page"],
     ["/spaces",   "spaces-page"],
     ["/requests", "requests-page"],

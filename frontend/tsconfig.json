@@ -1,12 +1,21 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "strict": true,
+    "jsx": "react-jsx",
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals", "node"]
+    "types": ["vitest/globals", "vite/client", "node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@foundation/contracts/*": ["./contracts/*"],
+      "@foundation/src/*": ["./src/*"]
+    }
   },
-  "include": ["contracts/**/*.ts", "src/types/**/*.ts"]
+  "include": ["contracts/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
 }

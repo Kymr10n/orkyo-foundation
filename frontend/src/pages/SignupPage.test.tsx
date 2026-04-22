@@ -19,7 +19,6 @@ function renderSignup(search = '') {
   return render(
     <MemoryRouter
       initialEntries={[`/signup${search}`]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <SignupPage />
     </MemoryRouter>,

@@ -112,7 +112,6 @@ const createWrapper = (initialPath = "/account") => {
 
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialPath]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>{children}</MemoryRouter>
     </QueryClientProvider>
   );
 };

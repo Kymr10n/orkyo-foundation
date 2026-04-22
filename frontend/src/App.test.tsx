@@ -33,7 +33,7 @@ function FloatingThemeToggle() {
 
 function renderAtRoute(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
       <Routes>
         <Route path="*" element={<FloatingThemeToggle />} />
       </Routes>

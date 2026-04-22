@@ -9,7 +9,7 @@ vi.mock('@/lib/api/feedback-api', () => ({
 
 function renderFeedbackButton() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
       <FeedbackButton />
     </MemoryRouter>,
   );

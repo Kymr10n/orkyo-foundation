@@ -56,7 +56,7 @@ const mockSearchResponse: SearchResponse = {
 
 function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: boolean) => void }) {
   return render(
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrowserRouter>
       <CommandPalette open={props.open} onOpenChange={props.onOpenChange ?? vi.fn()} />
     </BrowserRouter>
   );
@@ -418,7 +418,7 @@ describe('CommandPalette', () => {
     it('preserves search query when dialog reopens', async () => {
       const onOpenChange = vi.fn();
       const { rerender } = render(
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter>
           <CommandPalette open={true} onOpenChange={onOpenChange} />
         </BrowserRouter>
       );
@@ -430,14 +430,14 @@ describe('CommandPalette', () => {
       
       // Close the dialog
       rerender(
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter>
           <CommandPalette open={false} onOpenChange={onOpenChange} />
         </BrowserRouter>
       );
       
       // Reopen the dialog
       rerender(
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter>
           <CommandPalette open={true} onOpenChange={onOpenChange} />
         </BrowserRouter>
       );

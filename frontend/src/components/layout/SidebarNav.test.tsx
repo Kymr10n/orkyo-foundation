@@ -16,7 +16,6 @@ function renderSidebar(initialPath = '/') {
   return render(
     <MemoryRouter
       initialEntries={[initialPath]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <SidebarNav />
     </MemoryRouter>,

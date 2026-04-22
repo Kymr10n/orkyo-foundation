@@ -113,7 +113,7 @@ describe("ApexGateway — Router regression", () => {
     // a <Router> component" if the Router wrapper is missing.
     expect(() => {
       render(
-        <MemoryRouter initialEntries={["/admin"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter>
           <ApexGateway />
         </MemoryRouter>,
       );

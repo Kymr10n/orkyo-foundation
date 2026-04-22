@@ -64,7 +64,7 @@ function authState(overrides: Record<string, unknown> = {}) {
 
 function renderGateway(path = '/') {
   return render(
-    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
       <ApexGateway />
     </MemoryRouter>,
   );

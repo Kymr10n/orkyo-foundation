@@ -45,7 +45,7 @@ vi.mock('@/components/tour/TourDialog', () => ({
 
 function renderLayout() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
       <AppLayout />
     </MemoryRouter>,
   );

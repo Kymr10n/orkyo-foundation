@@ -27,7 +27,7 @@ vi.mock("react-router-dom", async () => {
 function renderTour(props: { open?: boolean; onClose?: () => void } = {}) {
   const onClose = props.onClose ?? vi.fn();
   render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter>
       <TourDialog open={props.open ?? true} onClose={onClose} />
     </MemoryRouter>,
   );

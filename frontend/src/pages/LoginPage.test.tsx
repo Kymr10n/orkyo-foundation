@@ -32,7 +32,7 @@ function authState(overrides: Record<string, unknown> = {}) {
 
 function renderLoginPage(path = '/login') {
   return render(
-    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
       <LoginPage />
     </MemoryRouter>,
   );

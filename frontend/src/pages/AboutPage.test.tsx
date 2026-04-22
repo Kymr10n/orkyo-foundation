@@ -16,7 +16,7 @@ vi.mock('react-router-dom', async () => {
 
 const renderAboutPage = () => {
   return render(
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrowserRouter>
       <AboutPage />
     </BrowserRouter>
   );

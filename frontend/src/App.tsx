@@ -52,12 +52,7 @@ function App() {
   // Local dev: ApexGateway for pipeline, TenantApp when ready
   if (isLocalDev) {
     return (
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
+      <BrowserRouter>
         <AuthProvider>
           <LocalDevShell />
         </AuthProvider>
@@ -70,12 +65,7 @@ function App() {
   // Apex domain: auth pipeline + BrowserRouter (AdminPage uses useNavigate)
   if (!subdomain) {
     return (
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
+      <BrowserRouter>
         <AuthProvider>
           <ThemeToggle variant="floating" />
           <ApexGateway />
@@ -86,12 +76,7 @@ function App() {
 
   // Tenant subdomain: standard SPA
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <BrowserRouter>
       <AuthProvider>
         <TenantApp />
       </AuthProvider>

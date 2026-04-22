@@ -19,7 +19,7 @@ vi.mock('@/components/spaces/SpaceManagementPanel', () => ({
 describe('SpacesPage', () => {
   it('shows prompt when no site is selected', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <SpacesPage />
       </MemoryRouter>,
     );
@@ -34,7 +34,7 @@ describe('SpacesPage', () => {
     );
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <SpacesPage />
       </MemoryRouter>,
     );
