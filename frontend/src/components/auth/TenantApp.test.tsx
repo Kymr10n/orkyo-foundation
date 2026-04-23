@@ -89,7 +89,7 @@ function authState(overrides: Record<string, unknown> = {}) {
 
 function renderAt(path: string) {
   return render(
-      <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <TenantApp />
     </MemoryRouter>,
   );

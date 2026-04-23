@@ -193,12 +193,19 @@ export const useAppStore = create<AppState>((set) => ({
       const resolved = resolveTheme(theme);
       if (typeof document !== "undefined") {
         document.documentElement.classList.toggle("dark", resolved === "dark");
-        // Share resolved theme with Keycloak via cookie
-        document.cookie = `${COOKIE_NAMES.THEME}=${resolved};path=/;max-age=31536000;SameSite=Lax;Secure`;
+        writeThemeCookie(resolved);
       }
       return { theme, resolvedTheme: resolved };
     }),
 }));
+
+/** Persist resolved theme so server-rendered surfaces (e.g. Keycloak) can pick it up. */
+function writeThemeCookie(resolved: "dark" | "light"): void {
+  if (typeof document === "undefined") return;
+  const isSecure = typeof location !== "undefined" && location.protocol === "https:";
+  const secureFlag = isSecure ? ";Secure" : "";
+  document.cookie = `${COOKIE_NAMES.THEME}=${resolved};path=/;max-age=31536000;SameSite=Lax${secureFlag}`;
+}
 
 /** Resolve "system" to actual dark/light based on OS preference */
 function resolveTheme(theme: "dark" | "light" | "system"): "dark" | "light" {
@@ -217,7 +224,7 @@ if (typeof window !== "undefined" && window.matchMedia) {
     if (state.theme === "system") {
       const resolved = e.matches ? "dark" : "light";
       document.documentElement.classList.toggle("dark", resolved === "dark");
-      document.cookie = `${COOKIE_NAMES.THEME}=${resolved};path=/;max-age=31536000;SameSite=Lax;Secure`;
+      writeThemeCookie(resolved);
       useAppStore.setState({ resolvedTheme: resolved });
     }
   });

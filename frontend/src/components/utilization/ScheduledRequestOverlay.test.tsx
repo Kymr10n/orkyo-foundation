@@ -138,9 +138,11 @@ describe("ScheduledRequestOverlay resize", () => {
 
   function getResizeHandles() {
     const overlay = screen.getByTitle(/Test Request/);
-    const children = overlay.querySelectorAll(":scope > div");
-    const left = Array.from(children).find((el) => el.classList.contains("left-0"));
-    const right = Array.from(children).find((el) => el.classList.contains("right-0"));
+    // Note: happy-dom does not support the `:scope` pseudo-class in selectors,
+    // so iterate the live children list directly.
+    const children = Array.from(overlay.children);
+    const left = children.find((el) => el.classList.contains("left-0"));
+    const right = children.find((el) => el.classList.contains("right-0"));
     return { overlay, left: left!, right: right! };
   }
 

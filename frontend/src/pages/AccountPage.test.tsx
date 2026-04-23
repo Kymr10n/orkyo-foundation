@@ -77,6 +77,7 @@ vi.mock("@foundation/src/lib/api/security-api", () => ({
   getMfaStatus: () =>
     Promise.resolve({ totpEnabled: false, recoveryCodesConfigured: false }),
   removeMfa: vi.fn(),
+  enableMfa: vi.fn().mockResolvedValue({ message: "ok" }),
 }));
 
 const mockMemberships = [
@@ -112,6 +113,7 @@ const createWrapper = (initialPath = "/account") => {
 
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialPath]}>{children}</MemoryRouter>
     </QueryClientProvider>
   );
 };
