@@ -7,7 +7,7 @@
 
 import { apiGet, apiPut, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
-import { ApiHeaders } from "@/contracts/apiHeaders";
+import { ApiHeaders } from "@foundation/contracts/apiHeaders";
 import { TENANT_HEADER_NAME } from "@/constants/http";
 import type { ApiRequestOptions } from "@/lib/core/api-client";
 

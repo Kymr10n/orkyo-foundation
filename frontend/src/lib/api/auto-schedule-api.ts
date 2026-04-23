@@ -62,7 +62,7 @@ export interface AutoSchedulePreviewResponse {
   fingerprint: string;
 }
 
-interface AutoScheduleApplyResponse {
+export interface AutoScheduleApplyResponse {
   createdAssignments: number;
   unscheduledCount: number;
 }

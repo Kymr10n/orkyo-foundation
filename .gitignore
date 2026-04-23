@@ -30,3 +30,6 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# TypeScript project references build artifacts
+frontend/.tsbuild/

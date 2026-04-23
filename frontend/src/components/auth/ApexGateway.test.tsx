@@ -12,24 +12,11 @@ vi.mock('@/pages/TosPage', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TosPage: (props: any) => <div data-testid="tos-page" data-tos-version={props.tosVersion} />,
 }));
-vi.mock('@/pages/AdminPage', () => ({
-  AdminPage: () => <div data-testid="admin-page" />,
-}));
 vi.mock('@/pages/AccountPage', () => ({
   AccountPage: () => <div data-testid="account-page" />,
 }));
 vi.mock('@/pages/OnboardingPage', () => ({
   OnboardingPage: () => <div data-testid="onboarding-page" />,
-}));
-vi.mock('@/pages/TenantSelectPage', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  TenantSelectPage: (props: any) => (
-    <div
-      data-testid="tenant-select-page"
-      data-tenant-count={props.tenants?.length ?? 0}
-      data-has-admin-link={!!props.onAdminPage}
-    />
-  ),
 }));
 vi.mock('@/pages/RequestAccessPage', () => ({
   RequestAccessPage: () => <div data-testid="request-access-page" />,
@@ -47,7 +34,20 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-import { ApexGateway } from './ApexGateway';
+import { ApexGateway, type TenantSelectPageRenderArgs } from './ApexGateway';
+
+// ── Slot stubs (Admin/TenantSelect are SaaS composition concerns; foundation
+//    tests inject minimal renderers that mirror the previous mock contracts) ──
+
+const renderAdminPageStub = () => <div data-testid="admin-page" />;
+
+const renderTenantSelectPageStub = (args: TenantSelectPageRenderArgs) => (
+  <div
+    data-testid="tenant-select-page"
+    data-tenant-count={args.tenants?.length ?? 0}
+    data-has-admin-link={!!args.onAdminPage}
+  />
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,8 +64,11 @@ function authState(overrides: Record<string, unknown> = {}) {
 
 function renderGateway(path = '/') {
   return render(
-      <MemoryRouter>
-      <ApexGateway />
+    <MemoryRouter initialEntries={[path]}>
+      <ApexGateway
+        renderAdminPage={renderAdminPageStub}
+        renderTenantSelectPage={renderTenantSelectPageStub}
+      />
     </MemoryRouter>,
   );
 }

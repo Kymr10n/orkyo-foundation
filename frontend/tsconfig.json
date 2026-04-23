@@ -8,7 +8,11 @@
     "esModuleInterop": true,
     "strict": true,
     "jsx": "react-jsx",
-    "noEmit": true,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
     "skipLibCheck": true,
     "types": ["vitest/globals", "vite/client", "node"],
     "paths": {
@@ -17,5 +21,5 @@
       "@foundation/src/*": ["./src/*"]
     }
   },
-  "include": ["contracts/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
+  "include": ["contracts/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "vitest.config.ts"]
 }

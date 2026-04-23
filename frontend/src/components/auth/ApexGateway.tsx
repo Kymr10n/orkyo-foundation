@@ -12,8 +12,8 @@
  *   error_network          → AuthErrorScreen
  *   tos_required           → TosPage
  *   no_tenants             → OnboardingPage
- *   no_tenants_admin       → AdminPage  (site admin with no tenants)
- *   selecting_tenant       → TenantSelectPage  (multi-tenant, suspended, deleting, site admin hub)
+ *   no_tenants_admin       → renderAdminPage()  (SaaS-injected; site admin with no tenants)
+ *   selecting_tenant       → renderTenantSelectPage(...)  (SaaS-injected; multi-tenant hub)
  *   redirecting_to_tenant  → LoadingSpinner  (machine entry action handles redirect)
  *   logging_out            → LoadingSpinner
  *   ready                  → LoadingSpinner  (LocalDevShell swaps to TenantApp)
@@ -25,23 +25,46 @@
  * Direct URL overrides (canAccessAdminPage / canAccessAccountPage):
  *   These are computed in AuthContext from authStage + isSiteAdmin, so the
  *   access logic stays in the context layer rather than in this renderer.
+ *
+ * Composition contract:
+ *   `renderAdminPage` and `renderTenantSelectPage` are SaaS-specific concerns
+ *   (multi-tenant administration). Foundation does not own those pages — the
+ *   composition layer (orkyo-saas) injects them. Community / single-tenant
+ *   shells may omit both slots, since their auth flows never reach the
+ *   `no_tenants_admin` or `selecting_tenant` stages.
  */
 
+import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, type TenantMembership } from '@/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@/constants/auth';
 import { LoginPage } from '@/pages/LoginPage';
 import { TosPage } from '@/pages/TosPage';
-import { AdminPage } from '@/pages/AdminPage';
 import { AccountPage } from '@/pages/AccountPage';
 import { OnboardingPage } from '@/pages/OnboardingPage';
-import { TenantSelectPage } from '@/pages/TenantSelectPage';
 import { RequestAccessPage } from '@/pages/RequestAccessPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { AuthErrorScreen } from '@/components/ui/AuthErrorScreen';
 
-export function ApexGateway() {
+export interface TenantSelectPageRenderArgs {
+  tenants: TenantMembership[];
+  onSelect: (membership: TenantMembership) => void;
+  onCancel: () => void;
+  onAdminPage?: () => void;
+}
+
+export interface ApexGatewayProps {
+  /** Renders the multi-tenant admin hub. Provided by SaaS composition. */
+  renderAdminPage?: () => ReactNode;
+  /** Renders the tenant selection page. Provided by SaaS composition. */
+  renderTenantSelectPage?: (args: TenantSelectPageRenderArgs) => ReactNode;
+}
+
+export function ApexGateway({
+  renderAdminPage,
+  renderTenantSelectPage,
+}: ApexGatewayProps = {}) {
   const { authStage, sessionData, send, canAccessAdminPage, canAccessAccountPage } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -59,8 +82,8 @@ export function ApexGateway() {
 
   // Direct URL access overrides the pipeline for authenticated users.
   // Access conditions are computed in AuthContext (isSiteAdmin + authStage check).
-  if (isAdminRoute && canAccessAdminPage) {
-    return <AdminPage />;
+  if (isAdminRoute && canAccessAdminPage && renderAdminPage) {
+    return <>{renderAdminPage()}</>;
   }
 
   if (isAccountRoute && canAccessAccountPage) {
@@ -115,17 +138,22 @@ export function ApexGateway() {
       );
 
     case AUTH_STAGES.NO_TENANTS_ADMIN:
-      return <AdminPage />;
+      return renderAdminPage
+        ? <>{renderAdminPage()}</>
+        : <LoadingSpinner message={AUTH_MESSAGES.LOADING} />;
 
     case AUTH_STAGES.SELECTING_TENANT:
-      return (
-        <TenantSelectPage
-          tenants={sessionData?.tenants ?? []}
-          onSelect={(m) => send({ type: AUTH_EVENTS.TENANT_SELECTED, membership: m })}
-          onCancel={() => send({ type: AUTH_EVENTS.LOGOUT })}
-          onAdminPage={canAccessAdminPage ? () => navigate('/admin') : undefined}
-        />
-      );
+      return renderTenantSelectPage
+        ? <>{renderTenantSelectPage({
+            tenants: sessionData?.tenants ?? [],
+            onSelect: (membership: TenantMembership) =>
+              send({ type: AUTH_EVENTS.TENANT_SELECTED, membership }),
+            onCancel: () => send({ type: AUTH_EVENTS.LOGOUT }),
+            onAdminPage: canAccessAdminPage && renderAdminPage
+              ? () => navigate('/admin')
+              : undefined,
+          })}</>
+        : <LoadingSpinner message={AUTH_MESSAGES.LOADING} />;
 
     case AUTH_STAGES.REDIRECTING_TO_TENANT:
       return <LoadingSpinner message={AUTH_MESSAGES.REDIRECTING} />;

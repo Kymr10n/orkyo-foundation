@@ -17,7 +17,7 @@ interface UploadFloorplanResponse {
   metadata: FloorplanMetadata;
 }
 
-interface FloorplanViewData {
+export interface FloorplanViewData {
   blobUrl: string;
   widthPx: number;
   heightPx: number;
