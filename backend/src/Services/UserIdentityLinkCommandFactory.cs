@@ -30,4 +30,21 @@ public static class UserIdentityLinkCommandFactory
         command.Parameters.AddWithValue(UserIdentityLinkQueryContract.LastLoginUserIdParameterName, userId);
         return command;
     }
+
+    public static NpgsqlCommand CreateSelectKeycloakSubjectByUserIdCommand(NpgsqlConnection connection, Guid userId)
+    {
+        var command = new NpgsqlCommand(
+            UserIdentityLinkQueryContract.BuildSelectKeycloakSubjectByUserIdSql(), connection);
+        command.Parameters.AddWithValue(UserIdentityLinkQueryContract.UserIdParameterName, userId);
+        return command;
+    }
+}
+
+public static class UserIdentityLinkScalarFlow
+{
+    /// <summary>
+    /// Read the Keycloak <c>provider_subject</c> scalar result. Returns <c>null</c>
+    /// when the user has no Keycloak identity.
+    /// </summary>
+    public static string? ReadKeycloakSubject(object? scalarResult) => scalarResult as string;
 }

@@ -53,4 +53,15 @@ public static class UserIdentityLinkQueryContract
             SET last_login_at = NOW(), updated_at = NOW()
             WHERE id = @id";
     }
+
+    /// <summary>
+    /// SELECT the Keycloak <c>provider_subject</c> for a given user id, or <c>NULL</c>
+    /// if the user has no Keycloak identity. <c>LIMIT 1</c> is intentional: the
+    /// (provider, provider_subject) unique key allows multiple identities per user
+    /// only across distinct providers; this query needs the keycloak one.
+    /// </summary>
+    public static string BuildSelectKeycloakSubjectByUserIdSql()
+    {
+        return "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1";
+    }
 }
