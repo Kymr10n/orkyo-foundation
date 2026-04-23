@@ -64,4 +64,33 @@ public static class UserIdentityLinkQueryContract
     {
         return "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1";
     }
+
+    /// <summary>
+    /// Canonical SELECT-column order for identity rows returned from
+    /// <see cref="BuildSelectIdentitiesByUserIdSql"/>. Matches
+    /// <see cref="UserIdentityRow"/> constructor argument order.
+    /// </summary>
+    public const string IdentitySelectColumns =
+        "id, provider, provider_subject, provider_email, created_at";
+
+    /// <summary>
+    /// SELECT all identity-link rows for a given user id. Ordering is unspecified
+    /// at the contract layer; callers (or the schema's natural insertion order)
+    /// may determine order.
+    /// </summary>
+    public static string BuildSelectIdentitiesByUserIdSql()
+    {
+        return $"SELECT {IdentitySelectColumns} FROM user_identities WHERE user_id = @userId";
+    }
 }
+
+/// <summary>
+/// Row projection for the <c>user_identities</c> listing read path. Field order
+/// mirrors <see cref="UserIdentityLinkQueryContract.IdentitySelectColumns"/>.
+/// </summary>
+public sealed record UserIdentityRow(
+    Guid Id,
+    string Provider,
+    string ProviderSubject,
+    string? ProviderEmail,
+    DateTime CreatedAt);

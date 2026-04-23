@@ -38,6 +38,37 @@ public static class UserIdentityLinkCommandFactory
         command.Parameters.AddWithValue(UserIdentityLinkQueryContract.UserIdParameterName, userId);
         return command;
     }
+
+    public static NpgsqlCommand CreateSelectIdentitiesByUserIdCommand(NpgsqlConnection connection, Guid userId)
+    {
+        var command = new NpgsqlCommand(
+            UserIdentityLinkQueryContract.BuildSelectIdentitiesByUserIdSql(), connection);
+        command.Parameters.AddWithValue(UserIdentityLinkQueryContract.UserIdParameterName, userId);
+        return command;
+    }
+}
+
+public static class UserIdentityLinkReaderFlow
+{
+    /// <summary>
+    /// Drain an <see cref="NpgsqlDataReader"/> whose row shape matches
+    /// <see cref="UserIdentityLinkQueryContract.IdentitySelectColumns"/> and project
+    /// each row into a <see cref="UserIdentityRow"/>. Allocates and returns a list.
+    /// </summary>
+    public static async Task<List<UserIdentityRow>> ReadIdentitiesAsync(NpgsqlDataReader reader)
+    {
+        var rows = new List<UserIdentityRow>();
+        while (await reader.ReadAsync())
+        {
+            rows.Add(new UserIdentityRow(
+                Id: reader.GetGuid(0),
+                Provider: reader.GetString(1),
+                ProviderSubject: reader.GetString(2),
+                ProviderEmail: reader.IsDBNull(3) ? null : reader.GetString(3),
+                CreatedAt: reader.GetDateTime(4)));
+        }
+        return rows;
+    }
 }
 
 public static class UserIdentityLinkScalarFlow

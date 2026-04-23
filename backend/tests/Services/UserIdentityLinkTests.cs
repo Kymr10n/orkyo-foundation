@@ -107,4 +107,37 @@ public class UserIdentityLinkCommandFactoryTests
         cmd.Parameters[0].ParameterName.Should().Be("id");
         cmd.Parameters[0].Value.Should().Be(userId);
     }
+
+    [Fact]
+    public void CreateSelectIdentitiesByUserIdCommand_BindsUserIdParameter()
+    {
+        var userId = Guid.NewGuid();
+
+        using var cmd = UserIdentityLinkCommandFactory.CreateSelectIdentitiesByUserIdCommand(
+            connection: null!, userId);
+
+        cmd.Parameters.Should().ContainSingle();
+        cmd.Parameters[0].ParameterName.Should().Be("userId");
+        cmd.Parameters[0].Value.Should().Be(userId);
+    }
+}
+
+public class UserIdentityListQueryContractTests
+{
+    [Fact]
+    public void IdentitySelectColumns_AreStableAndInProjectionOrder()
+    {
+        UserIdentityLinkQueryContract.IdentitySelectColumns
+            .Should().Be("id, provider, provider_subject, provider_email, created_at");
+    }
+
+    [Fact]
+    public void BuildSelectIdentitiesByUserIdSql_SelectsCanonicalColumnsFilteredByUserId()
+    {
+        var sql = UserIdentityLinkQueryContract.BuildSelectIdentitiesByUserIdSql();
+
+        sql.Should().Contain($"SELECT {UserIdentityLinkQueryContract.IdentitySelectColumns}");
+        sql.Should().Contain("FROM user_identities");
+        sql.Should().Contain("WHERE user_id = @userId");
+    }
 }
