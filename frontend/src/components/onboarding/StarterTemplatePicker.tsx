@@ -10,8 +10,8 @@
  *   • Manufacturing  – industry preset
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
+import { Badge } from "@foundation/src/components/ui/badge";
 import {
   FilePlus,
   LayoutDashboard,
@@ -20,7 +20,7 @@ import {
   Factory,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@foundation/src/lib/utils";
 
 export interface StarterTemplate {
   key: string;

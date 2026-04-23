@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { RequestScheduleSection } from './RequestScheduleSection';
-import type { Space } from '@/types/space';
+import type { Space } from '@foundation/src/types/space';
 import type { ReactNode } from 'react';
 
-vi.mock('@/components/ui/collapsible', () => ({
+vi.mock('@foundation/src/components/ui/collapsible', () => ({
   Collapsible: ({ children, open }: { children: ReactNode; open: boolean }) =>
     open ? <div>{children}</div> : <div>{(children as ReactNode[])?.[0]}</div>,
   CollapsibleTrigger: ({ children }: { children: ReactNode }) => <button>{children}</button>,
   CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/select', () => ({
+vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectValue: ({ placeholder }: { placeholder: string }) => <span>{placeholder}</span>,
@@ -19,20 +19,20 @@ vi.mock('@/components/ui/select', () => ({
   SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/label', () => ({
+vi.mock('@foundation/src/components/ui/label', () => ({
   Label: ({ children }: { children: ReactNode }) => <label>{children}</label>,
 }));
 
-vi.mock('@/components/ui/date-time-picker', () => ({
+vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
   DateTimePicker: ({ placeholder, id }: { placeholder: string; id: string }) =>
     <input data-testid={id} placeholder={placeholder} />,
 }));
 
-vi.mock('@/constants', () => ({
+vi.mock('@foundation/src/constants', () => ({
   SPACE_NONE_PLACEHOLDER: '__none__',
 }));
 
-vi.mock('@/lib/utils/picker-utils', () => ({
+vi.mock('@foundation/src/lib/utils/picker-utils', () => ({
   combineDateTimeFields: (d: string, t: string) => d && t ? `${d}T${t}` : '',
   splitDateTimeFields: vi.fn(),
 }));

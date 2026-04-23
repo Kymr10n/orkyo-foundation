@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CreateSpaceDialog } from './CreateSpaceDialog';
-import type { SpaceGeometry } from '@/types/space';
+import type { SpaceGeometry } from '@foundation/src/types/space';
 
 const mockGeometry: SpaceGeometry = {
   type: 'rectangle',

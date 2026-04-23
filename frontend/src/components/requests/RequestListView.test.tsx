@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestListView } from './RequestListView';
-import type { Request } from '@/types/requests';
+import type { Request } from '@foundation/src/types/requests';
 
 // Mock virtualizer so all items render in jsdom (no DOM measurements)
 vi.mock('@tanstack/react-virtual', () => ({

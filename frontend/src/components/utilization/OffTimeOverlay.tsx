@@ -1,5 +1,5 @@
 import React from "react";
-import type { OffTimeRange } from "@/domain/scheduling/types";
+import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeColumn } from "./scheduler-types";
 
 interface OffTimeOverlayProps {

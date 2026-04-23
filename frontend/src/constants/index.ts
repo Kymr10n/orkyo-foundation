@@ -1,6 +1,6 @@
 /**
  * Constants barrel export.
- * Import from '@/constants' to access all constants.
+ * Import from '@foundation/src/constants' to access all constants.
  */
 
 export * from "./app";

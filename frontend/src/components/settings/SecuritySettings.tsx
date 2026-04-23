@@ -1,9 +1,9 @@
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
-import { getSecurityInfo } from "@/lib/api/security-api";
+import { getSecurityInfo } from "@foundation/src/lib/api/security-api";
 import { PasswordSection } from "./PasswordSection";
 import { MfaSection } from "./MfaSection";
 import { SessionsSection } from "./SessionsSection";

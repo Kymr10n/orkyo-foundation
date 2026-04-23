@@ -1,7 +1,7 @@
-import { type Space } from '@/types/space';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
+import { type Space } from '@foundation/src/types/space';
+import { Button } from '@foundation/src/components/ui/button';
+import { ScrollArea } from '@foundation/src/components/ui/scroll-area';
+import { cn } from '@foundation/src/lib/utils';
 import { Square, Pentagon, Edit, Trash2, Settings } from 'lucide-react';
 
 interface SpaceListProps {

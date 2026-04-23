@@ -4,14 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TenantConfigSettings } from "./TenantConfigSettings";
-import type { TenantSettingsResponse } from "@/lib/api/tenant-settings-api";
+import type { TenantSettingsResponse } from "@foundation/src/lib/api/tenant-settings-api";
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
 const mockUpdateMutateAsync = vi.fn();
 const mockResetMutateAsync = vi.fn();
 
-vi.mock("@/hooks/useTenantSettings", () => ({
+vi.mock("@foundation/src/hooks/useTenantSettings", () => ({
   useTenantSettings: vi.fn(),
   useUpdateTenantSettings: vi.fn(() => ({
     mutateAsync: mockUpdateMutateAsync,
@@ -28,7 +28,7 @@ vi.mock("@/hooks/useTenantSettings", () => ({
 import {
   useTenantSettings,
   useUpdateTenantSettings,
-} from "@/hooks/useTenantSettings";
+} from "@foundation/src/hooks/useTenantSettings";
 
 // Auth mock — mutable so tests can override
 let mockAuth: any = {
@@ -42,7 +42,7 @@ let mockAuth: any = {
   },
 };
 
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => mockAuth,
 }));
 

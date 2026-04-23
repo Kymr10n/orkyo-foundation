@@ -1,5 +1,5 @@
-import { apiGet, apiPut } from "@/lib/core/api-client";
-import { API_PATHS } from "@/lib/core/api-paths";
+import { apiGet, apiPut } from "@foundation/src/lib/core/api-client";
+import { API_PATHS } from "@foundation/src/lib/core/api-paths";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface UserPreferences {

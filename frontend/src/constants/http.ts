@@ -3,7 +3,7 @@
  * Centralized to prevent string literal duplication across codebase.
  */
 
-import { ApiHeaders } from "@/contracts";
+import { ApiHeaders } from "@foundation/src/contracts";
 
 /** Header name for tenant context (development/testing) */
 export const TENANT_HEADER_NAME = ApiHeaders.TenantSlug;

@@ -5,7 +5,7 @@
  * The endpoint is anonymous (no auth required), but we send auth if available.
  */
 
-import { TENANT_HEADER_NAME } from "@/constants/http";
+import { TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import { apiPost } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 

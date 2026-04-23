@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useSchedulingConflicts } from './useSchedulingConflicts';
-import type { Request } from '@/types/requests';
-import type { Space } from '@/types/space';
+import type { Request } from '@foundation/src/types/requests';
+import type { Space } from '@foundation/src/types/space';
 
 const { mockSetConflicts } = vi.hoisted(() => ({
   mockSetConflicts: vi.fn(),
 }));
 
-vi.mock('@/store/app-store', () => {
+vi.mock('@foundation/src/store/app-store', () => {
   const mockStore = {
     setConflicts: mockSetConflicts,
     conflicts: new Map(),
@@ -21,19 +21,19 @@ vi.mock('@/store/app-store', () => {
   };
 });
 
-vi.mock('@/domain/scheduling/schedule-preview', () => ({
+vi.mock('@foundation/src/domain/scheduling/schedule-preview', () => ({
   buildPreviewSchedule: vi.fn(() => []),
 }));
 
-vi.mock('@/domain/scheduling/schedule-validator', () => ({
+vi.mock('@foundation/src/domain/scheduling/schedule-validator', () => ({
   evaluateSchedule: vi.fn(() => new Map()),
 }));
 
-vi.mock('@/domain/scheduling/capability-matcher', () => ({
+vi.mock('@foundation/src/domain/scheduling/capability-matcher', () => ({
   validateSpaceRequirements: vi.fn(() => []),
 }));
 
-vi.mock('@/lib/api/space-capability-api', () => ({
+vi.mock('@foundation/src/lib/api/space-capability-api', () => ({
   getSpaceCapabilities: vi.fn(() => Promise.resolve([])),
 }));
 
@@ -71,7 +71,7 @@ describe('useSchedulingConflicts', () => {
   });
 
   it('syncs scheduling validation to store', async () => {
-    const { evaluateSchedule } = await import('@/domain/scheduling/schedule-validator');
+    const { evaluateSchedule } = await import('@foundation/src/domain/scheduling/schedule-validator');
     const mockEval = vi.mocked(evaluateSchedule);
     const conflicts = new Map([['r1', [{ type: 'overlap' }]]]);
     mockEval.mockReturnValue(conflicts as never);

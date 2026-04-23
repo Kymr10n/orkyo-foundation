@@ -1,6 +1,6 @@
 import { createCrudHooks } from "./useMutations";
-import { createSite, deleteSite, getSites, updateSite } from "@/lib/api/site-api";
-import type { Site, CreateSiteRequest, UpdateSiteRequest } from "@/types/site";
+import { createSite, deleteSite, getSites, updateSite } from "@foundation/src/lib/api/site-api";
+import type { Site, CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types/site";
 
 const sitesHooks = createCrudHooks<Site, CreateSiteRequest, UpdateSiteRequest>({
   queryKey: () => ["sites"],

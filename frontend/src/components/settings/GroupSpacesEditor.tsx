@@ -1,21 +1,21 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Site } from "@/lib/api/site-api";
-import { getSites } from "@/lib/api/site-api";
-import { getSpaces, updateSpace } from "@/lib/api/space-api";
-import type { Space } from "@/types/space";
+} from "@foundation/src/components/ui/dialog";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
+import type { Site } from "@foundation/src/lib/api/site-api";
+import { getSites } from "@foundation/src/lib/api/site-api";
+import { getSpaces, updateSpace } from "@foundation/src/lib/api/space-api";
+import type { Space } from "@foundation/src/types/space";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { logger } from "@/lib/core/logger";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface GroupSpacesEditorProps {
   open: boolean;

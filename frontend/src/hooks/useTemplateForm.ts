@@ -1,7 +1,7 @@
 import { useEffect, useReducer } from "react";
-import type { Criterion, CriterionValue } from "@/types/criterion";
-import type { Template } from "@/types/templates";
-import type { DurationUnit } from "@/types/requests";
+import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
+import type { Template } from "@foundation/src/types/templates";
+import type { DurationUnit } from "@foundation/src/types/requests";
 
 export interface TemplateFormState {
   name: string;

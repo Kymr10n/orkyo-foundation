@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 // Mock the store
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (state: Record<string, unknown>) => unknown) => {
     const state = {
       theme: 'dark',
@@ -20,7 +20,7 @@ vi.mock('@/store/app-store', () => ({
 // Alternatively, we test via the App component, but that requires many mocks.
 // The cleanest approach: extract and test the conditional logic.
 import { useLocation } from 'react-router-dom';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 
 const APP_LAYOUT_ROUTES = ["/", "/spaces", "/requests", "/conflicts", "/settings", "/admin"];
 

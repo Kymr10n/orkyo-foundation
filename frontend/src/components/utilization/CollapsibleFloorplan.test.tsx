@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { CollapsibleFloorplan } from "./CollapsibleFloorplan";
-import type { Request } from "@/types/requests";
+import type { Request } from "@foundation/src/types/requests";
 
 function renderWithQuery(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -17,7 +17,7 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 let mockSelectedSiteId: string | null = null;
-vi.mock("@/store/app-store", () => ({
+vi.mock("@foundation/src/store/app-store", () => ({
   useAppStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
     selector({ selectedSiteId: mockSelectedSiteId }),
 }));
@@ -27,7 +27,7 @@ const mockFloorplan = vi.hoisted(() => ({
   isLoading: false,
   error: null as unknown,
 }));
-vi.mock("@/hooks/useFloorplan", () => ({
+vi.mock("@foundation/src/hooks/useFloorplan", () => ({
   useFloorplanViewData: () => mockFloorplan,
 }));
 
@@ -36,7 +36,7 @@ const mockSpaces = vi.hoisted(() => ({
   isLoading: false,
   error: null as unknown,
 }));
-vi.mock("@/hooks/useSpaces", () => ({
+vi.mock("@foundation/src/hooks/useSpaces", () => ({
   useSpaces: () => mockSpaces,
 }));
 

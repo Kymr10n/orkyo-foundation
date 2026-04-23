@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { PauseCircle, RefreshCw, LogOut, Mail } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
-import { AUTH_EVENTS, SUSPENSION_REASON } from '@/constants/auth';
-import { API_BASE_URL, getApiHeaders } from '@/lib/core/api-utils';
+import { Button } from '@foundation/src/components/ui/button';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { AUTH_EVENTS, SUSPENSION_REASON } from '@foundation/src/constants/auth';
+import { API_BASE_URL, getApiHeaders } from '@foundation/src/lib/core/api-utils';
 
 export function TenantSuspendedPage() {
   const { membership, send } = useAuth();

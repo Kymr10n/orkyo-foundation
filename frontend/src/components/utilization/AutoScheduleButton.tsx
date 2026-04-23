@@ -1,11 +1,11 @@
 import { WandSparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@foundation/src/components/ui/tooltip";
 
 interface Props {
   disabled?: boolean;

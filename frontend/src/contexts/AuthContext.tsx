@@ -14,17 +14,17 @@
 import type React from 'react';
 import { createContext, useContext, useMemo } from 'react';
 import { useMachine } from '@xstate/react';
-import { authMachine } from '@/machines/authMachine';
-import type { AuthMachineEvent } from '@/machines/authMachine';
-import { STORAGE_KEYS } from '@/constants/storage';
+import { authMachine } from '@foundation/src/machines/authMachine';
+import type { AuthMachineEvent } from '@foundation/src/machines/authMachine';
+import { STORAGE_KEYS } from '@foundation/src/constants/storage';
 import {
   AUTH_STAGES,
   AUTH_EVENTS,
   LOADING_STAGES,
   UNAUTHENTICATED_STAGES,
-} from '@/constants/auth';
-import type { AuthStage } from '@/constants/auth';
-import { logger } from '@/lib/core/logger';
+} from '@foundation/src/constants/auth';
+import type { AuthStage } from '@foundation/src/constants/auth';
+import { logger } from '@foundation/src/lib/core/logger';
 
 // ── Re-exported types (consumed by pages, components, api-utils) ──────────────
 

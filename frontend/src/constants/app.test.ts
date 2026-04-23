@@ -11,7 +11,7 @@ import {
   VALIDATION_MESSAGES,
 } from "./app";
 import { FileText, Layers } from "lucide-react";
-import type { PlanningMode } from "@/types/requests";
+import type { PlanningMode } from "@foundation/src/types/requests";
 
 // ── Time defaults ─────────────────────────────────────────────────────────────
 

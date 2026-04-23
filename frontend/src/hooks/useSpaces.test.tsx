@@ -9,11 +9,11 @@ import {
   useDeleteSpace,
   useMoveSpace,
 } from './useSpaces';
-import * as spaceApi from '@/lib/api/space-api';
-import type { Space, SpaceGeometry } from '@/types/space';
-import { createTestQueryWrapper } from '@/test-utils';
+import * as spaceApi from '@foundation/src/lib/api/space-api';
+import type { Space, SpaceGeometry } from '@foundation/src/types/space';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/space-api');
+vi.mock('@foundation/src/lib/api/space-api');
 
 const mockSpace: Space = {
   id: 'space-1',

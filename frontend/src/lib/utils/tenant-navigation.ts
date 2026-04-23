@@ -10,7 +10,7 @@
  * Other modules should call these helpers — never read subdomainPrefix directly.
  */
 
-import { runtimeConfig } from "@/config/runtime";
+import { runtimeConfig } from "@foundation/src/config/runtime";
 
 // ── Hostname helpers (pure, no side-effects) ─────────────────────────────────
 

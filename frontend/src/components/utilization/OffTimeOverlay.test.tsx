@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { OffTimeOverlay } from './OffTimeOverlay';
-import type { OffTimeRange } from '@/domain/scheduling/types';
+import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import type { TimeColumn } from './scheduler-types';
 
 function makeColumns(startMs: number, endMs: number, count: number): TimeColumn[] {

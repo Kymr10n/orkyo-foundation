@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@foundation/src/components/ui/button";
+import { DialogFooter } from "@foundation/src/components/ui/dialog";
 
 interface DialogFormFooterProps {
   onCancel: () => void;

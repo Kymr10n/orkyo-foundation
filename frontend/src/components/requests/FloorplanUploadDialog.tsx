@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
+import { Button } from '@foundation/src/components/ui/button';
 import { Upload, X, FileImage } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { uploadFloorplan, type FloorplanMetadata } from '@/lib/api/floorplan-api';
+import { cn } from '@foundation/src/lib/utils';
+import { uploadFloorplan, type FloorplanMetadata } from '@foundation/src/lib/api/floorplan-api';
 
 interface FloorplanUploadDialogProps {
   siteId: string;

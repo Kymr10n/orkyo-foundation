@@ -1,27 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { AUTH_STAGES, AUTH_MESSAGES } from '@/constants/auth';
+import { AUTH_STAGES, AUTH_MESSAGES } from '@foundation/src/constants/auth';
 
 // ── Mock page components ──────────────────────────────────────────────────────
 
-vi.mock('@/pages/LoginPage', () => ({
+vi.mock('@foundation/src/pages/LoginPage', () => ({
   LoginPage: () => <div data-testid="login-page" />,
 }));
-vi.mock('@/pages/TosPage', () => ({
+vi.mock('@foundation/src/pages/TosPage', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TosPage: (props: any) => <div data-testid="tos-page" data-tos-version={props.tosVersion} />,
 }));
-vi.mock('@/pages/AccountPage', () => ({
+vi.mock('@foundation/src/pages/AccountPage', () => ({
   AccountPage: () => <div data-testid="account-page" />,
 }));
-vi.mock('@/pages/OnboardingPage', () => ({
+vi.mock('@foundation/src/pages/OnboardingPage', () => ({
   OnboardingPage: () => <div data-testid="onboarding-page" />,
 }));
-vi.mock('@/pages/RequestAccessPage', () => ({
+vi.mock('@foundation/src/pages/RequestAccessPage', () => ({
   RequestAccessPage: () => <div data-testid="request-access-page" />,
 }));
-vi.mock('@/pages/SignupPage', () => ({
+vi.mock('@foundation/src/pages/SignupPage', () => ({
   SignupPage: () => <div data-testid="signup-page" />,
 }));
 
@@ -30,7 +30,7 @@ vi.mock('@/pages/SignupPage', () => ({
 const mockSend = vi.fn();
 const mockUseAuth = vi.fn();
 
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 

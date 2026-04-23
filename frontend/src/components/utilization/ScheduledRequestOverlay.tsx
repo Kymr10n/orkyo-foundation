@@ -2,18 +2,18 @@ import React, { useCallback, useRef } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, Layers } from "lucide-react";
-import { useSchedulerStore, MIN_DURATION_FLOOR_MS, RESIZE_MOVE_THRESHOLD_PX } from "@/store/scheduler-store";
-import { useResizeGesture } from "@/hooks/useResizeGesture";
-import type { ResizeGeometry } from "@/hooks/useResizeGesture";
+import { useSchedulerStore, MIN_DURATION_FLOOR_MS, RESIZE_MOVE_THRESHOLD_PX } from "@foundation/src/store/scheduler-store";
+import { useResizeGesture } from "@foundation/src/hooks/useResizeGesture";
+import type { ResizeGeometry } from "@foundation/src/hooks/useResizeGesture";
 import {
   selectRequestDisplayData,
   isOutsideView,
-} from "@/domain/scheduling/schedule-selectors";
-import type { PreviewEntry, ValidationResult } from "@/domain/scheduling/schedule-model";
-import type { ScheduleIndex } from "@/domain/scheduling/schedule-index";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/domain/scheduling/schedule-selectors";
+import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
+import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
+import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
-import { formatMinutesHuman } from "@/lib/utils/utils";
+import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverlay({
   request,

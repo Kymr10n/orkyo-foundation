@@ -2,10 +2,10 @@ import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CreateTemplateDialog } from './CreateTemplateDialog';
-import * as criteriaApi from '@/lib/api/criteria-api';
+import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
 
-vi.mock('@/lib/api/criteria-api');
-vi.mock('@/lib/api/template-api');
+vi.mock('@foundation/src/lib/api/criteria-api');
+vi.mock('@foundation/src/lib/api/template-api');
 
 describe('CreateTemplateDialog', () => {
   let queryClient: QueryClient;

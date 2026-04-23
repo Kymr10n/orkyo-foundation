@@ -2,7 +2,7 @@ import type {
   SchedulingSettings,
   OffTimeDefinition,
   OffTimeType,
-} from "@/domain/scheduling/types";
+} from "@foundation/src/domain/scheduling/types";
 import { apiGet, apiPut, apiPost, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 

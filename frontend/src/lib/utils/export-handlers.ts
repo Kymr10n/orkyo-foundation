@@ -1,10 +1,10 @@
-import type { Request, RequestStatus } from '@/types/requests';
-import type { Space, GeometryType } from '@/types/space';
-import type { Criterion, CriterionDataType } from '@/types/criterion';
-import type { Site } from '@/types/site';
-import type { Conflict } from '@/types/requests';
-import type { Template } from '@/types/templates';
-import type { User } from '@/types/auth';
+import type { Request, RequestStatus } from '@foundation/src/types/requests';
+import type { Space, GeometryType } from '@foundation/src/types/space';
+import type { Criterion, CriterionDataType } from '@foundation/src/types/criterion';
+import type { Site } from '@foundation/src/types/site';
+import type { Conflict } from '@foundation/src/types/requests';
+import type { Template } from '@foundation/src/types/templates';
+import type { User } from '@foundation/src/types/auth';
 import {
   arrayToCSV,
   csvToArray,

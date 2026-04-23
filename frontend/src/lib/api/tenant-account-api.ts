@@ -5,7 +5,7 @@
  * and require only OIDC authentication.
  */
 
-import { TENANT_HEADER_NAME } from "@/constants/http";
+import { TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import { apiGet, apiPost, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 

@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SpaceCapabilitiesEditor } from "./SpaceCapabilitiesEditor";
-import * as criteriaApi from "@/lib/api/criteria-api";
-import * as spaceCapApi from "@/lib/api/space-capability-api";
-import type { Criterion } from "@/types/criterion";
+import * as criteriaApi from "@foundation/src/lib/api/criteria-api";
+import * as spaceCapApi from "@foundation/src/lib/api/space-capability-api";
+import type { Criterion } from "@foundation/src/types/criterion";
 
-vi.mock("@/lib/api/criteria-api");
-vi.mock("@/lib/api/space-capability-api");
-vi.mock("@/lib/core/logger", () => ({
+vi.mock("@foundation/src/lib/api/criteria-api");
+vi.mock("@foundation/src/lib/api/space-capability-api");
+vi.mock("@foundation/src/lib/core/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

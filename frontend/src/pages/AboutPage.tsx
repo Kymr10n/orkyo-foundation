@@ -1,7 +1,7 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { formatBuildTime } from "@/lib/utils/formatBuildTime";
+import { Button } from "@foundation/src/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
+import { Separator } from "@foundation/src/components/ui/separator";
+import { formatBuildTime } from "@foundation/src/lib/utils/formatBuildTime";
 import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 

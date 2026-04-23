@@ -1,8 +1,8 @@
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import type { Criterion, CriterionValue } from "@/types/criterion";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
+import { Switch } from "@foundation/src/components/ui/switch";
+import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 
 interface CriterionRequirementInputProps {
   criterion: Criterion;

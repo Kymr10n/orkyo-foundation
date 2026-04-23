@@ -14,20 +14,20 @@ const { mockClearMembership, mockRenew, mockGetStatus, mockExit, mockNavigateToA
 
 let mockMembership: Record<string, unknown> | null = null;
 
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({
     membership: mockMembership,
     clearMembership: mockClearMembership,
   }),
 }));
 
-vi.mock('@/lib/api/admin-api', () => ({
+vi.mock('@foundation/src/lib/api/admin-api', () => ({
   renewBreakGlassSession: mockRenew,
   getBreakGlassSessionStatus: mockGetStatus,
   auditBreakGlassExit: mockExit,
 }));
 
-vi.mock('@/lib/utils/tenant-navigation', () => ({
+vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: mockNavigateToApex,
 }));
 

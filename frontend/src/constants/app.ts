@@ -3,7 +3,7 @@
  */
 
 import { FileText, Layers } from "lucide-react";
-import type { PlanningMode } from "@/types/requests";
+import type { PlanningMode } from "@foundation/src/types/requests";
 
 // Time defaults
 export const DEFAULT_START_TIME = "09:00";

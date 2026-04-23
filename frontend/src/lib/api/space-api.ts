@@ -2,7 +2,7 @@
  * API client for Space CRUD operations
  */
 
-import type { Space, CreateSpaceRequest, UpdateSpaceRequest } from '@/types/space';
+import type { Space, CreateSpaceRequest, UpdateSpaceRequest } from '@foundation/src/types/space';
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 

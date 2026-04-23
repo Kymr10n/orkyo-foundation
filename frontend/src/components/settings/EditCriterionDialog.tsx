@@ -5,15 +5,15 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { ErrorAlert } from '@/components/ui/ErrorAlert';
-import { DialogFormFooter } from '@/components/ui/DialogFormFooter';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import type { Criterion } from '@/types/criterion';
-import { useUpdateCriterion } from '@/hooks/useCriteria';
+} from '@foundation/src/components/ui/dialog';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
+import { Input } from '@foundation/src/components/ui/input';
+import { Label } from '@foundation/src/components/ui/label';
+import { Textarea } from '@foundation/src/components/ui/textarea';
+import { Badge } from '@foundation/src/components/ui/badge';
+import type { Criterion } from '@foundation/src/types/criterion';
+import { useUpdateCriterion } from '@foundation/src/hooks/useCriteria';
 import { EnumValueEditor } from './EnumValueEditor';
 
 interface EditCriterionDialogProps {

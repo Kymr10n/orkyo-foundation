@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AutoSchedulePreviewDialog } from './AutoSchedulePreviewDialog';
-import type { AutoSchedulePreviewResponse } from '@/lib/api/auto-schedule-api';
+import type { AutoSchedulePreviewResponse } from '@foundation/src/lib/api/auto-schedule-api';
 
 const mockPreview: AutoSchedulePreviewResponse = {
   solverUsed: 'OrToolsCpSat',

@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@foundation/src/components/ui/button';
+import { Card } from '@foundation/src/components/ui/card';
+import { Badge } from '@foundation/src/components/ui/badge';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 import { EditCriterionDialog } from './EditCriterionDialog';
-import { getDataTypeColor } from '@/lib/utils';
-import type { CreateCriterionRequest } from '@/types/criterion';
-import type { Criterion } from '@/types/criterion';
-import { useExportHandler, useImportHandler } from '@/hooks/useImportExport';
-import { exportCriteria, importCriteria } from '@/lib/utils/export-handlers';
-import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@/hooks/useCriteria';
-import { logger } from '@/lib/core/logger';
+import { getDataTypeColor } from '@foundation/src/lib/utils';
+import type { CreateCriterionRequest } from '@foundation/src/types/criterion';
+import type { Criterion } from '@foundation/src/types/criterion';
+import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
+import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
+import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
+import { logger } from '@foundation/src/lib/core/logger';
 
 export function CriteriaSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);

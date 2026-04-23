@@ -1,6 +1,6 @@
 /**
  * Hooks barrel export
- * Import from '@/hooks' to access all custom hooks
+ * Import from '@foundation/src/hooks' to access all custom hooks
  */
 
 export * from "./useCommandPalette";

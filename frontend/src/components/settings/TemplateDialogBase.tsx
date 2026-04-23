@@ -1,38 +1,38 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { ErrorAlert } from "@/components/ui/ErrorAlert";
-import { DialogFormFooter } from "@/components/ui/DialogFormFooter";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@foundation/src/components/ui/dialog";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
+import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { getCriteria } from "@/lib/api/criteria-api";
-import { createTemplate, updateTemplate } from "@/lib/api/template-api";
-import { getDataTypeColor } from "@/lib/utils";
-import type { Criterion, CriterionValue } from "@/types/criterion";
-import type { Template } from "@/types/templates";
-import type { DurationUnit } from "@/types/requests";
+} from "@foundation/src/components/ui/select";
+import { Separator } from "@foundation/src/components/ui/separator";
+import { Textarea } from "@foundation/src/components/ui/textarea";
+import { getCriteria } from "@foundation/src/lib/api/criteria-api";
+import { createTemplate, updateTemplate } from "@foundation/src/lib/api/template-api";
+import { getDataTypeColor } from "@foundation/src/lib/utils";
+import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
+import type { Template } from "@foundation/src/types/templates";
+import type { DurationUnit } from "@foundation/src/types/requests";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
-import { useTemplateForm } from "@/hooks/useTemplateForm";
-import { logger } from "@/lib/core/logger";
+import { useTemplateForm } from "@foundation/src/hooks/useTemplateForm";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface TemplateDialogBaseProps {
   open: boolean;

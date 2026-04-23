@@ -11,19 +11,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@foundation/src/components/ui/card";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@foundation/src/components/ui/tabs";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +31,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@foundation/src/components/ui/dialog";
 import {
   Building2,
   LogOut,
@@ -47,22 +47,22 @@ import {
   Pencil,
   Check,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { SecuritySettings } from "@/components/settings/SecuritySettings";
-import { PlanCards } from "@/components/plans/PlanCards";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
+import { PlanCards } from "@foundation/src/components/plans/PlanCards";
 import {
   getTenantMemberships,
   leaveTenant,
   deleteTenant,
   type TenantMembership,
-} from "@/lib/api/tenant-account-api";
+} from "@foundation/src/lib/api/tenant-account-api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getUserProfile, updateUserProfile } from "@/lib/api/security-api";
+import { getUserProfile, updateUserProfile } from "@foundation/src/lib/api/security-api";
 import {
   navigateToTenantSubdomain,
   navigateToApex,
-} from "@/lib/utils/tenant-navigation";
-import { logger } from "@/lib/core/logger";
+} from "@foundation/src/lib/utils/tenant-navigation";
+import { logger } from "@foundation/src/lib/core/logger";
 
 type Membership = TenantMembership;
 

@@ -8,19 +8,19 @@
  */
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { navigateToApex } from "@/lib/utils/tenant-navigation";
+import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@foundation/src/components/ui/card";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,15 +31,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@foundation/src/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@foundation/src/components/ui/select";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import {
   Loader2,
   Building2,
@@ -50,13 +50,13 @@ import {
   Download,
   Check,
 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { updateTenant, transferTenantOwnership } from "@/lib/api/tenant-management-api";
-import { deleteTenant } from "@/lib/api/tenant-account-api";
-import { getUsers, type UserWithRole } from "@/lib/api/user-api";
-import { exportTenantData } from "@/lib/api/export-api";
-import { downloadFile } from "@/lib/utils/import-export";
-import { logger } from "@/lib/core/logger";
+import { Checkbox } from "@foundation/src/components/ui/checkbox";
+import { updateTenant, transferTenantOwnership } from "@foundation/src/lib/api/tenant-management-api";
+import { deleteTenant } from "@foundation/src/lib/api/tenant-account-api";
+import { getUsers, type UserWithRole } from "@foundation/src/lib/api/user-api";
+import { exportTenantData } from "@foundation/src/lib/api/export-api";
+import { downloadFile } from "@foundation/src/lib/utils/import-export";
+import { logger } from "@foundation/src/lib/core/logger";
 
 export function OrganizationSettings() {
   const { membership, appUser, clearMembership } = useAuth();

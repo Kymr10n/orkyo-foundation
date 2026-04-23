@@ -1,19 +1,19 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@/constants";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Separator } from "@foundation/src/components/ui/separator";
+import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
 import {
   canHaveChildren,
   computeDerivedValues,
   getAncestorIds,
   getDirectChildren,
-} from "@/domain/request-tree";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/domain/request-tree";
+import type { Request } from "@foundation/src/types/requests";
 import {
   formatDateDisplay,
   formatDuration,
   getStatusColor,
-} from "@/lib/utils/utils";
+} from "@foundation/src/lib/utils/utils";
 import { ChevronRight, Edit, X } from "lucide-react";
 import React, { useMemo } from "react";
 

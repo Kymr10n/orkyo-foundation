@@ -10,7 +10,7 @@ import {
 import { runtimeConfig } from '../../config/runtime';
 import * as AuthContext from '../../contexts/AuthContext';
 
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   getAuthTokenSync: vi.fn(),
   getTenantSlugSync: vi.fn(),
 }));
@@ -20,7 +20,7 @@ const { mockRedirectToLogin, mockNavigateToApex } = vi.hoisted(() => ({
   mockNavigateToApex: vi.fn(() => true),
 }));
 
-vi.mock(import('@/lib/utils/tenant-navigation'), async (importOriginal) => {
+vi.mock(import('@foundation/src/lib/utils/tenant-navigation'), async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -29,7 +29,7 @@ vi.mock(import('@/lib/utils/tenant-navigation'), async (importOriginal) => {
   };
 });
 
-vi.mock('@/lib/core/csrf', () => ({
+vi.mock('@foundation/src/lib/core/csrf', () => ({
   getCsrfToken: vi.fn(() => null),
   CSRF_HEADER_NAME: 'X-CSRF-Token',
   isMutatingMethod: (m: string) => ['POST','PUT','PATCH','DELETE'].includes(m.toUpperCase()),

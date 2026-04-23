@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestRequirementsSection } from './RequestRequirementsSection';
-import type { Criterion } from '@/types/criterion';
+import type { Criterion } from '@foundation/src/types/criterion';
 import type { ReactNode } from 'react';
 
-vi.mock('@/components/ui/collapsible', () => ({
+vi.mock('@foundation/src/components/ui/collapsible', () => ({
   Collapsible: ({ children, open }: { children: ReactNode; open: boolean }) =>
     open ? <div>{children}</div> : <div>{(children as ReactNode[])?.[0]}</div>,
   CollapsibleTrigger: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) =>
@@ -12,7 +12,7 @@ vi.mock('@/components/ui/collapsible', () => ({
   CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/select', () => ({
+vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectValue: ({ placeholder }: { placeholder: string }) => <span>{placeholder}</span>,
@@ -20,11 +20,11 @@ vi.mock('@/components/ui/select', () => ({
   SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/badge', () => ({
+vi.mock('@foundation/src/components/ui/badge', () => ({
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
 
-vi.mock('@/components/ui/button', () => ({
+vi.mock('@foundation/src/components/ui/button', () => ({
   Button: ({ children, onClick, disabled, ...props }: { children: ReactNode; onClick?: () => void; disabled?: boolean } & Record<string, unknown>) =>
     <button onClick={onClick} disabled={disabled} {...props}>{children}</button>,
 }));

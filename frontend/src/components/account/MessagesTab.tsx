@@ -7,10 +7,10 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
+import { Badge } from '@foundation/src/components/ui/badge';
+import { Button } from '@foundation/src/components/ui/button';
+import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import {
   Megaphone,
   AlertCircle,
@@ -25,7 +25,7 @@ import {
   type UserAnnouncement,
   getActiveAnnouncements,
   markAnnouncementRead,
-} from '@/lib/api/user-announcements-api';
+} from '@foundation/src/lib/api/user-announcements-api';
 import { formatDistanceToNow } from 'date-fns';
 
 export function MessagesTab() {

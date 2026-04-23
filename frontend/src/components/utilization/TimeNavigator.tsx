@@ -1,11 +1,11 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+} from "@foundation/src/components/ui/popover";
+import { Calendar } from "@foundation/src/components/ui/calendar";
+import { cn } from "@foundation/src/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import type { TimeScale } from "./ScaleSelect";

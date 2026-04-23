@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateSpaceRequirements } from './capability-matcher';
-import type { Request } from '@/types/requests';
-import type { SpaceCapability } from '@/lib/api/space-capability-api';
+import type { Request } from '@foundation/src/types/requests';
+import type { SpaceCapability } from '@foundation/src/lib/api/space-capability-api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

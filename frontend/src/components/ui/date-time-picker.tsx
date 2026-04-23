@@ -2,17 +2,17 @@ import { useState, useCallback } from "react";
 import { format, parse, setHours, setMinutes, isValid } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@foundation/src/lib/utils";
+import { Button } from "@foundation/src/components/ui/button";
+import { Calendar } from "@foundation/src/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@foundation/src/components/ui/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@foundation/src/components/ui/select";
 
 interface DateTimePickerProps {
   /** ISO-like local string "YYYY-MM-DDTHH:mm" or empty */
@@ -28,7 +28,7 @@ function toLocalString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-import { HOURS, MINUTES_5 } from "@/lib/utils/picker-utils";
+import { HOURS, MINUTES_5 } from "@foundation/src/lib/utils/picker-utils";
 
 export function DateTimePicker({
   value,

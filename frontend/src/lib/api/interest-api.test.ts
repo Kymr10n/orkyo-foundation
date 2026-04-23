@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerInterest } from "./interest-api";
 import * as apiClient from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
-import { TENANT_HEADER_NAME } from "@/constants/http";
+import { TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 
 vi.mock("../core/api-client");
 

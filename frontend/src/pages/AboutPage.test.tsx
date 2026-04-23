@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AboutPage } from './AboutPage';
-import { formatBuildTime } from '@/lib/utils/formatBuildTime';
+import { formatBuildTime } from '@foundation/src/lib/utils/formatBuildTime';
 
 // Mock navigate
 const mockNavigate = vi.fn();

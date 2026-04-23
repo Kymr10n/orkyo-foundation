@@ -7,7 +7,7 @@ const mockMutateAsync = vi.fn(() =>
   Promise.resolve({ id: 'new', code: 'hq', name: 'Headquarters' }),
 );
 
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('@foundation/src/components/ui/dialog', () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -16,11 +16,11 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/ErrorAlert', () => ({
+vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
   ErrorAlert: ({ message }: { message: string | null }) => message ? <div role="alert">{message}</div> : null,
 }));
 
-vi.mock('@/components/ui/DialogFormFooter', () => ({
+vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   DialogFormFooter: ({ submitLabel, onCancel, isSubmitting }: { submitLabel: string; onCancel: () => void; isSubmitting: boolean }) => (
     <div>
       <button type="button" onClick={onCancel}>Cancel</button>
@@ -29,14 +29,14 @@ vi.mock('@/components/ui/DialogFormFooter', () => ({
   ),
 }));
 
-vi.mock('@/hooks/useSites', () => ({
+vi.mock('@foundation/src/hooks/useSites', () => ({
   useCreateSite: () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
 }));
 
-vi.mock('@/lib/utils', async (importOriginal) => {
+vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,

@@ -7,7 +7,7 @@ import type {
   MoveRequestRequest,
   Request,
   UpdateRequestRequest,
-} from "@/types/requests";
+} from "@foundation/src/types/requests";
 import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 

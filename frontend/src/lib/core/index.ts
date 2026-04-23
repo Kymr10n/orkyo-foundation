@@ -1,6 +1,6 @@
 /**
  * Core infrastructure barrel export
- * Import from '@/lib/core' to access core infrastructure
+ * Import from '@foundation/src/lib/core' to access core infrastructure
  */
 
 export * from "./api-client";

@@ -7,11 +7,11 @@ import {
   useUpdateSpaceGroup,
   useDeleteSpaceGroup
 } from './useGroups';
-import * as groupsApi from '@/lib/api/space-groups-api';
-import type { SpaceGroup } from '@/types/spaceGroup';
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@/test-utils';
+import * as groupsApi from '@foundation/src/lib/api/space-groups-api';
+import type { SpaceGroup } from '@foundation/src/types/spaceGroup';
+import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/space-groups-api');
+vi.mock('@foundation/src/lib/api/space-groups-api');
 
 const mockGroup: SpaceGroup = {
   id: 'group-1',

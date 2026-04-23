@@ -5,11 +5,11 @@
  */
 
 import { useReducer } from 'react';
-import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@/constants';
-import { formatDateForInput, formatTimeForInput } from '@/lib/utils';
-import type { Request, DurationUnit, PlanningMode } from '@/types/requests';
-import type { CriterionValue } from '@/types/criterion';
-import type { Template } from '@/types/templates';
+import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@foundation/src/constants';
+import { formatDateForInput, formatTimeForInput } from '@foundation/src/lib/utils';
+import type { Request, DurationUnit, PlanningMode } from '@foundation/src/types/requests';
+import type { CriterionValue } from '@foundation/src/types/criterion';
+import type { Template } from '@foundation/src/types/templates';
 
 export interface RequestFormState {
   // Basic info

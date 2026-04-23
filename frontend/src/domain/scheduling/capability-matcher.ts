@@ -1,5 +1,5 @@
-import type { Request, Conflict } from "@/types/requests";
-import type { SpaceCapability } from "@/lib/api/space-capability-api";
+import type { Request, Conflict } from "@foundation/src/types/requests";
+import type { SpaceCapability } from "@foundation/src/lib/api/space-capability-api";
 
 /**
  * Validates if a space's capabilities meet a request's requirements.

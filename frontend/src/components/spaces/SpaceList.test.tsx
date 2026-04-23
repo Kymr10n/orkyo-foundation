@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SpaceList } from './SpaceList';
-import type { Space } from '@/types/space';
+import type { Space } from '@foundation/src/types/space';
 
 function makeSpace(overrides: Partial<Space> = {}): Space {
   return {

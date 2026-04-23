@@ -3,14 +3,14 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SpacesPage } from './SpacesPage';
 
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   useAppStore: vi.fn((selector: any) =>
     selector({ selectedSiteId: null }),
   ),
 }));
 
-vi.mock('@/components/spaces/SpaceManagementPanel', () => ({
+vi.mock('@foundation/src/components/spaces/SpaceManagementPanel', () => ({
   SpaceManagementPanel: ({ siteId }: { siteId: string }) => (
     <div data-testid="space-panel">site={siteId}</div>
   ),
@@ -27,7 +27,7 @@ describe('SpacesPage', () => {
   });
 
   it('renders SpaceManagementPanel when site is selected', async () => {
-    const { useAppStore } = await import('@/store/app-store');
+    const { useAppStore } = await import('@foundation/src/store/app-store');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(useAppStore).mockImplementation((selector: any) =>
       selector({ selectedSiteId: 'site-1' }) as never,

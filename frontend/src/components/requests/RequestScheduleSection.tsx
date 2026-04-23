@@ -1,11 +1,11 @@
-import { Label } from "@/components/ui/label";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { SPACE_NONE_PLACEHOLDER } from "@/constants";
-import { combineDateTimeFields, splitDateTimeFields } from "@/lib/utils/picker-utils";
-import type { Space } from "@/types/space";
-import type { useRequestForm } from "@/hooks/useRequestForm";
+import { Label } from "@foundation/src/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
+import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
+import { SPACE_NONE_PLACEHOLDER } from "@foundation/src/constants";
+import { combineDateTimeFields, splitDateTimeFields } from "@foundation/src/lib/utils/picker-utils";
+import type { Space } from "@foundation/src/types/space";
+import type { useRequestForm } from "@foundation/src/hooks/useRequestForm";
 import { Calendar, ChevronDown, MapPin } from "lucide-react";
 
 interface RequestScheduleSectionProps {

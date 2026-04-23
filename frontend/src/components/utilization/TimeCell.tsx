@@ -1,7 +1,7 @@
 import React from "react";
 import { useDroppable } from "@dnd-kit/core";
-import type { Space } from "@/types/space";
-import type { Request } from "@/types/requests";
+import type { Space } from "@foundation/src/types/space";
+import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
 
 export const TimeCell = React.memo(function TimeCell({

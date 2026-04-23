@@ -4,12 +4,12 @@ import { PlanCards } from './PlanCards';
 
 // Mock the interest API
 const mockRegisterInterest = vi.fn();
-vi.mock('@/lib/api/interest-api', () => ({
+vi.mock('@foundation/src/lib/api/interest-api', () => ({
   registerInterest: (...args: unknown[]) => mockRegisterInterest(...args),
 }));
 
 // Mock AuthContext
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({
     membership: { tenantId: 'tenant-abc-123', slug: 'acme', displayName: 'ACME Corp' },
     appUser: { id: 'user-1', email: 'owner@acme.com', displayName: 'Owner' },

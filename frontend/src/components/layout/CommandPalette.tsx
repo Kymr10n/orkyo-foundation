@@ -15,16 +15,16 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { VisuallyHidden } from "@/components/ui/visually-hidden";
-import { cn } from "@/lib/utils";
-import { globalSearch, type SearchResult } from "@/lib/api/search-api";
-import { useAppStore } from "@/store/app-store";
-import { logger } from "@/lib/core/logger";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
+import { VisuallyHidden } from "@foundation/src/components/ui/visually-hidden";
+import { cn } from "@foundation/src/lib/utils";
+import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-api";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { logger } from "@foundation/src/lib/core/logger";
 
 // Icon mapping for entity types
 const typeIcons: Record<SearchResult["type"], React.ReactNode> = {

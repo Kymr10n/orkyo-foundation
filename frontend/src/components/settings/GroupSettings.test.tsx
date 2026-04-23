@@ -9,14 +9,14 @@ const mockCreateMutateAsync = vi.fn(() => Promise.resolve({ id: 'new-group' }));
 const mockUpdateMutateAsync = vi.fn(() => Promise.resolve({ id: 'g1' }));
 const mockDeleteMutateAsync = vi.fn(() => Promise.resolve());
 
-vi.mock('@/hooks/useGroups', () => ({
+vi.mock('@foundation/src/hooks/useGroups', () => ({
   useCreateSpaceGroup: () => ({ mutateAsync: mockCreateMutateAsync }),
   useUpdateSpaceGroup: () => ({ mutateAsync: mockUpdateMutateAsync }),
   useDeleteSpaceGroup: () => ({ mutateAsync: mockDeleteMutateAsync }),
 }));
 
 const mockGetSpaceGroups = vi.fn((): Promise<Record<string, unknown>[]> => Promise.resolve([]));
-vi.mock('@/lib/api/space-groups-api', () => ({
+vi.mock('@foundation/src/lib/api/space-groups-api', () => ({
   getSpaceGroups: () => mockGetSpaceGroups(),
 }));
 

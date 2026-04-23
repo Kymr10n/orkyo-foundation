@@ -1,16 +1,16 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { getDataTypeColor, formatDuration, formatMinutesHuman, getStatusColor } from "@/lib/utils";
-import type { Request } from "@/types/requests";
-import type { CriterionValue } from "@/types/criterion";
+} from "@foundation/src/components/ui/dialog";
+import { Separator } from "@foundation/src/components/ui/separator";
+import { getDataTypeColor, formatDuration, formatMinutesHuman, getStatusColor } from "@foundation/src/lib/utils";
+import type { Request } from "@foundation/src/types/requests";
+import type { CriterionValue } from "@foundation/src/types/criterion";
 import { Calendar, Clock, MapPin, Tag, FileText } from "lucide-react";
 
 interface RequestDetailsDialogProps {

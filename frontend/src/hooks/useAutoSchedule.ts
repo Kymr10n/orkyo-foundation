@@ -2,13 +2,13 @@ import { useMutation } from "@tanstack/react-query";
 import {
   previewAutoSchedule,
   applyAutoSchedule,
-} from "@/lib/api/auto-schedule-api";
+} from "@foundation/src/lib/api/auto-schedule-api";
 import type {
   AutoSchedulePreviewRequest,
   AutoScheduleApplyRequest,
-} from "@/lib/api/auto-schedule-api";
-import { useAuth } from "@/contexts/AuthContext";
-import { useTenantSettings } from "@/hooks/useTenantSettings";
+} from "@foundation/src/lib/api/auto-schedule-api";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useTenantSettings } from "@foundation/src/hooks/useTenantSettings";
 
 export function usePreviewAutoSchedule() {
   return useMutation({

@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { FloorplanUploadDialog } from './FloorplanUploadDialog';
 
-vi.mock('@/lib/api/floorplan-api', () => ({
+vi.mock('@foundation/src/lib/api/floorplan-api', () => ({
   uploadFloorplan: vi.fn(),
 }));
 
-import { uploadFloorplan } from '@/lib/api/floorplan-api';
+import { uploadFloorplan } from '@foundation/src/lib/api/floorplan-api';
 
 const defaultProps = {
   siteId: 'site-1',

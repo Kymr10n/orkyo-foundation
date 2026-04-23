@@ -4,8 +4,8 @@
  */
 
 import jsPDF from 'jspdf';
-import type { Request } from '@/types/requests';
-import type { Space } from '@/types/space';
+import type { Request } from '@foundation/src/types/requests';
+import type { Space } from '@foundation/src/types/space';
 import { format } from 'date-fns';
 
 interface GanttExportOptions {

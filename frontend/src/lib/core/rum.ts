@@ -12,7 +12,7 @@
  * To ship metrics to a backend collector, set `VITE_RUM_ENDPOINT`.
  */
 
-import { runtimeConfig } from '@/config/runtime';
+import { runtimeConfig } from '@foundation/src/config/runtime';
 
 interface WebVital {
   name: string;

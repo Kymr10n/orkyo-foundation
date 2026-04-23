@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import { AccountPage } from "@/pages/AccountPage";
+import { AccountPage } from "@foundation/src/pages/AccountPage";
 
 // Mock navigate
 const mockNavigate = vi.fn();
@@ -21,7 +21,7 @@ let mockMembership: { tenantId: string; slug: string } | null = null;
 let mockIsSiteAdmin = false;
 const mockSend = vi.fn();
 
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => ({
     membership: mockMembership,
     setMembership: mockSetMembership,
@@ -40,7 +40,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 // Mock tenant navigation
-vi.mock("@/lib/utils/tenant-navigation", () => ({
+vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
   navigateToTenantSubdomain: vi.fn(() => false),
   navigateToApex: vi.fn(() => false),
 }));
@@ -50,7 +50,7 @@ const mockGetTenantMemberships = vi.fn();
 const mockLeaveTenant = vi.fn();
 const mockDeleteTenant = vi.fn();
 
-vi.mock("@/lib/api/tenant-account-api", () => ({
+vi.mock("@foundation/src/lib/api/tenant-account-api", () => ({
   getTenantMemberships: () => mockGetTenantMemberships(),
   leaveTenant: (...args: unknown[]) => mockLeaveTenant(...args),
   deleteTenant: (...args: unknown[]) => mockDeleteTenant(...args),
@@ -59,7 +59,7 @@ vi.mock("@/lib/api/tenant-account-api", () => ({
 // Mock security-api (used by Profile tab)
 const mockUpdateUserProfile = vi.fn().mockResolvedValue({ message: "ok", displayName: "Bob Smith" });
 
-vi.mock("@/lib/api/security-api", () => ({
+vi.mock("@foundation/src/lib/api/security-api", () => ({
   getUserProfile: () =>
     Promise.resolve({
       email: "test@example.com",

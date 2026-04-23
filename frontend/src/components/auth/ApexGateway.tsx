@@ -36,16 +36,16 @@
 
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth, type TenantMembership } from '@/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@/constants/auth';
-import { LoginPage } from '@/pages/LoginPage';
-import { TosPage } from '@/pages/TosPage';
-import { AccountPage } from '@/pages/AccountPage';
-import { OnboardingPage } from '@/pages/OnboardingPage';
-import { RequestAccessPage } from '@/pages/RequestAccessPage';
-import { SignupPage } from '@/pages/SignupPage';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { AuthErrorScreen } from '@/components/ui/AuthErrorScreen';
+import { useAuth, type TenantMembership } from '@foundation/src/contexts/AuthContext';
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@foundation/src/constants/auth';
+import { LoginPage } from '@foundation/src/pages/LoginPage';
+import { TosPage } from '@foundation/src/pages/TosPage';
+import { AccountPage } from '@foundation/src/pages/AccountPage';
+import { OnboardingPage } from '@foundation/src/pages/OnboardingPage';
+import { RequestAccessPage } from '@foundation/src/pages/RequestAccessPage';
+import { SignupPage } from '@foundation/src/pages/SignupPage';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { AuthErrorScreen } from '@foundation/src/components/ui/AuthErrorScreen';
 
 export interface TenantSelectPageRenderArgs {
   tenants: TenantMembership[];

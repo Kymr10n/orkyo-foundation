@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { navigateToApex } from "@/lib/utils/tenant-navigation";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import {
   ArrowLeft,
   UserPlus,
@@ -12,9 +12,9 @@ import {
   AlertCircle,
   Clock,
 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { API_BASE_URL } from "@/lib/core/api-utils";
-import { API_PATHS } from "@/lib/core/api-paths";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
+import { API_PATHS } from "@foundation/src/lib/core/api-paths";
 
 interface InvitationDetails {
   email: string;

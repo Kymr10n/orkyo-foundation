@@ -3,17 +3,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { RequestsPage } from '@/pages/RequestsPage';
+import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
+import { RequestsPage } from '@foundation/src/pages/RequestsPage';
 
 // Mock the useExportHandler and useImportHandler hooks
-vi.mock('@/hooks/useImportExport', () => ({
+vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(() => vi.fn()),
   useImportHandler: vi.fn(() => vi.fn()),
 }));
 
 // Mock the store
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
     const mockState = {
       selectedSiteId: 'site-1',
@@ -29,7 +29,7 @@ const mockExpandAll = vi.fn();
 const mockSetSelectedId = vi.fn();
 let mockSelectedId: string | null = null;
 
-vi.mock('@/store/request-tree-store', () => ({
+vi.mock('@foundation/src/store/request-tree-store', () => ({
   useRequestTreeStore: vi.fn(() => ({
     expandedIds: new Set<string>(),
     toggle: mockToggle,
@@ -43,7 +43,7 @@ vi.mock('@/store/request-tree-store', () => ({
 const mockGetRequests = vi.fn((_?: any): Promise<any[]> => Promise.resolve([]));
 
 // Mock request-api — RequestsPage calls getRequests() directly in a useEffect
-vi.mock('@/lib/api/request-api', () => ({
+vi.mock('@foundation/src/lib/api/request-api', () => ({
   getRequests: (siteId: unknown) => mockGetRequests(siteId),
   createRequest: vi.fn(),
   updateRequest: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock('@/lib/api/request-api', () => ({
 }));
 
 // Mock the useRequests hook
-vi.mock('@/hooks/useUtilization', () => ({
+vi.mock('@foundation/src/hooks/useUtilization', () => ({
   useRequests: vi.fn(() => ({
     data: [],
     isLoading: false,
@@ -71,7 +71,7 @@ vi.mock('@/hooks/useUtilization', () => ({
 }));
 
 // Mock the spaces hook
-vi.mock('@/hooks/useSpaces', () => ({
+vi.mock('@foundation/src/hooks/useSpaces', () => ({
   useSpaces: vi.fn(() => ({
     data: [],
     isLoading: false,
@@ -79,7 +79,7 @@ vi.mock('@/hooks/useSpaces', () => ({
 }));
 
 // Mock child components to isolate page logic
-vi.mock('@/components/requests/RequestTreeView', () => ({
+vi.mock('@foundation/src/components/requests/RequestTreeView', () => ({
   RequestTreeView: ({ entries, onSelect, onEdit, onDelete, onAddChild, onAddSibling, onAddExisting, onMoveTo, onDrop }: any) => (
     <div data-testid="tree-view">
       {(entries as { request: { id: string; name: string; parentRequestId?: string | null } }[]).map((e) => (
@@ -99,7 +99,7 @@ vi.mock('@/components/requests/RequestTreeView', () => ({
   ),
 }));
 
-vi.mock('@/components/requests/RequestListView', () => ({
+vi.mock('@foundation/src/components/requests/RequestListView', () => ({
   RequestListView: ({ requests, onSelect, onEdit, onDelete }: any) => (
     <div data-testid="list-view">
       {(requests as { id: string; name: string }[]).map((r) => (
@@ -114,7 +114,7 @@ vi.mock('@/components/requests/RequestListView', () => ({
   ),
 }));
 
-vi.mock('@/components/requests/RequestDetailPanel', () => ({
+vi.mock('@foundation/src/components/requests/RequestDetailPanel', () => ({
   RequestDetailPanel: ({ request, onEdit, onClose, onNavigate }: any) => (
     <div data-testid="detail-panel">
       <span>{(request as { name: string }).name}</span>
@@ -125,7 +125,7 @@ vi.mock('@/components/requests/RequestDetailPanel', () => ({
   ),
 }));
 
-vi.mock('@/components/requests/RequestFormDialog', () => ({
+vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
   RequestFormDialog: ({ open, onSave, onOpenChange }: any) =>
     open ? (
       <div data-testid="form-dialog">
@@ -136,7 +136,7 @@ vi.mock('@/components/requests/RequestFormDialog', () => ({
     ) : null,
 }));
 
-vi.mock('@/components/requests/AddExistingRequestsDialog', () => ({
+vi.mock('@foundation/src/components/requests/AddExistingRequestsDialog', () => ({
   AddExistingRequestsDialog: ({ onConfirm, onOpenChange }: any) => (
     <div data-testid="add-existing-dialog">
       <button data-testid="confirm-add-existing" onClick={() => onConfirm(['r-orphan'])}>Confirm</button>
@@ -145,7 +145,7 @@ vi.mock('@/components/requests/AddExistingRequestsDialog', () => ({
   ),
 }));
 
-vi.mock('@/components/requests/MoveToDialog', () => ({
+vi.mock('@foundation/src/components/requests/MoveToDialog', () => ({
   MoveToDialog: ({ onConfirm, onOpenChange }: any) => (
     <div data-testid="move-to-dialog">
       <button data-testid="confirm-move" onClick={() => onConfirm('r-target')}>Confirm</button>
@@ -154,12 +154,12 @@ vi.mock('@/components/requests/MoveToDialog', () => ({
   ),
 }));
 
-vi.mock('@/lib/utils/export-handlers', () => ({
+vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   exportRequests: vi.fn(),
   importRequests: vi.fn(() => Promise.resolve([])),
 }));
 
-vi.mock('@/domain/request-tree', () => ({
+vi.mock('@foundation/src/domain/request-tree', () => ({
   buildRequestTree: vi.fn((requests: any[]) => {
     return requests
       .filter((r: any) => !r.parentRequestId)
@@ -201,7 +201,7 @@ vi.mock('@/domain/request-tree', () => ({
   canHaveChildren: vi.fn(() => true),
 }));
 
-vi.mock('@/lib/utils/utils', async (importOriginal) => {
+vi.mock('@foundation/src/lib/utils/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -452,7 +452,7 @@ describe('RequestsPage', () => {
   // --- Confirm delete calls deleteRequest ---
 
   it('confirms delete and reloads requests', async () => {
-    const { deleteRequest } = await import('@/lib/api/request-api');
+    const { deleteRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(deleteRequest).mockResolvedValue(undefined as any);
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
@@ -548,7 +548,7 @@ describe('RequestsPage', () => {
   // --- Save new request via form dialog ---
 
   it('saves a new request from form dialog', async () => {
-    const { createRequest } = await import('@/lib/api/request-api');
+    const { createRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(createRequest).mockResolvedValue(undefined as any);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
@@ -566,7 +566,7 @@ describe('RequestsPage', () => {
   // --- Save edited request ---
 
   it('saves an edited request from form dialog', async () => {
-    const { updateRequest } = await import('@/lib/api/request-api');
+    const { updateRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(updateRequest).mockResolvedValue(undefined as any);
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
@@ -629,7 +629,7 @@ describe('RequestsPage', () => {
   // --- Drop handler ---
 
   it('handles drag-and-drop reparent', async () => {
-    const { moveRequest } = await import('@/lib/api/request-api');
+    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(moveRequest).mockResolvedValue(undefined as any);
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },

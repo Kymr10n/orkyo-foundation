@@ -3,14 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GroupSpacesEditor } from "./GroupSpacesEditor";
-import * as siteApi from "@/lib/api/site-api";
-import * as spaceApi from "@/lib/api/space-api";
+import * as siteApi from "@foundation/src/lib/api/site-api";
+import * as spaceApi from "@foundation/src/lib/api/space-api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-vi.mock("@/lib/api/site-api");
-vi.mock("@/lib/api/space-api");
-vi.mock("@/lib/core/logger", () => ({
+vi.mock("@foundation/src/lib/api/site-api");
+vi.mock("@foundation/src/lib/api/space-api");
+vi.mock("@foundation/src/lib/core/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

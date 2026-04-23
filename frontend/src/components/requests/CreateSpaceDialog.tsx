@@ -9,13 +9,13 @@
  */
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@foundation/src/components/ui/dialog';
+import { Button } from '@foundation/src/components/ui/button';
+import { Input } from '@foundation/src/components/ui/input';
+import { Label } from '@foundation/src/components/ui/label';
+import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
-import type { SpaceGeometry, CreateSpaceRequest } from '@/types/space';
+import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
 
 interface CreateSpaceDialogProps {
   open: boolean;

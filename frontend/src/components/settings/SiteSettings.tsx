@@ -1,16 +1,16 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { Card } from "@/components/ui/card";
-import { type Site } from "@/lib/api/site-api";
-import type { CreateSiteRequest } from "@/types/site";
+import { Card } from "@foundation/src/components/ui/card";
+import { type Site } from "@foundation/src/lib/api/site-api";
+import type { CreateSiteRequest } from "@foundation/src/types/site";
 import { AlertCircle, Edit, MapPin, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CreateSiteDialog } from "./CreateSiteDialog";
 import { EditSiteDialog } from "./EditSiteDialog";
-import { useExportHandler, useImportHandler } from '@/hooks/useImportExport';
-import { exportSites, importSites } from '@/lib/utils/export-handlers';
-import { useSites, useDeleteSite, useCreateSite } from "@/hooks/useSites";
-import { logger } from "@/lib/core/logger";
+import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
+import { exportSites, importSites } from '@foundation/src/lib/utils/export-handlers';
+import { useSites, useDeleteSite, useCreateSite } from "@foundation/src/hooks/useSites";
+import { logger } from "@foundation/src/lib/core/logger";
 
 export function SiteSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);

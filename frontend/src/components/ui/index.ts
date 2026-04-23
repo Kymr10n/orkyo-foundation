@@ -2,10 +2,10 @@
  * UI Components Barrel Export
  *
  * Central export point for all UI components.
- * Import from '@/components/ui' instead of individual files.
+ * Import from '@foundation/src/components/ui' instead of individual files.
  *
  * Example:
- *   import { Button, Badge, Select, SelectContent } from '@/components/ui';
+ *   import { Button, Badge, Select, SelectContent } from '@foundation/src/components/ui';
  */
 
 // Alert Dialog

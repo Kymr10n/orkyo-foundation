@@ -1,16 +1,16 @@
 import { useState, useCallback } from "react";
 import { Clock } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@foundation/src/lib/utils";
+import { Button } from "@foundation/src/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@foundation/src/components/ui/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@foundation/src/components/ui/select";
 
 interface TimePickerProps {
   /** "HH:mm" string or empty */
@@ -23,7 +23,7 @@ interface TimePickerProps {
   minuteStep?: number;
 }
 
-import { HOURS } from "@/lib/utils/picker-utils";
+import { HOURS } from "@foundation/src/lib/utils/picker-utils";
 
 export function TimePicker({
   value,

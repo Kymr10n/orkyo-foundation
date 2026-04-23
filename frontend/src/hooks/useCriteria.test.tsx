@@ -7,11 +7,11 @@ import {
   useUpdateCriterion,
   useDeleteCriterion
 } from './useCriteria';
-import * as criteriaApi from '@/lib/api/criteria-api';
-import type { Criterion } from '@/types/criterion';
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@/test-utils';
+import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
+import type { Criterion } from '@foundation/src/types/criterion';
+import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/criteria-api');
+vi.mock('@foundation/src/lib/api/criteria-api');
 
 const mockCriterion: Criterion = {
   id: 'criterion-1',

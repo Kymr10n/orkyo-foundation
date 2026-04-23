@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquarePlus, Bug, Lightbulb, HelpCircle, MoreHorizontal, Loader2, CheckCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@foundation/src/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,24 +9,24 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+} from '@foundation/src/components/ui/dialog';
+import { Input } from '@foundation/src/components/ui/input';
+import { Label } from '@foundation/src/components/ui/label';
+import { Textarea } from '@foundation/src/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { submitFeedback, type FeedbackType } from '@/lib/api/feedback-api';
+} from '@foundation/src/components/ui/select';
+import { submitFeedback, type FeedbackType } from '@foundation/src/lib/api/feedback-api';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@foundation/src/components/ui/tooltip';
 
 const feedbackTypes: { value: FeedbackType; label: string; icon: React.ReactNode; description: string }[] = [
   { value: 'bug', label: 'Bug Report', icon: <Bug className="h-4 w-4" />, description: 'Something isn\'t working correctly' },

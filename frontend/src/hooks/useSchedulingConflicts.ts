@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from "react";
-import { useAppStore } from "@/store/app-store";
-import { buildPreviewSchedule } from "@/domain/scheduling/schedule-preview";
-import { evaluateSchedule } from "@/domain/scheduling/schedule-validator";
-import { validateSpaceRequirements } from "@/domain/scheduling/capability-matcher";
-import { getSpaceCapabilities } from "@/lib/api/space-capability-api";
-import type { Request } from "@/types/requests";
-import type { Space } from "@/types/space";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
+import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
+import { validateSpaceRequirements } from "@foundation/src/domain/scheduling/capability-matcher";
+import { getSpaceCapabilities } from "@foundation/src/lib/api/space-capability-api";
+import type { Request } from "@foundation/src/types/requests";
+import type { Space } from "@foundation/src/types/space";
 
 /**
  * Manages all conflict detection for the utilization page:

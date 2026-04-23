@@ -15,12 +15,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
 import { AuthProvider, useAuth, debugAuth, getTenantSlugSync } from "./AuthContext";
 import type { AppUser, TenantMembership } from "./AuthContext";
-import { AUTH_STAGES } from "@/constants/auth";
-import { getCurrentSubdomain, consumeBreakGlassCookie } from "@/lib/utils/tenant-navigation";
+import { AUTH_STAGES } from "@foundation/src/constants/auth";
+import { getCurrentSubdomain, consumeBreakGlassCookie } from "@foundation/src/lib/utils/tenant-navigation";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock("@/config/runtime", () => ({
+vi.mock("@foundation/src/config/runtime", () => ({
   runtimeConfig: {
     apiBaseUrl: "http://localhost:5000",
     defaultTenant: "",
@@ -29,13 +29,13 @@ vi.mock("@/config/runtime", () => ({
   },
 }));
 
-vi.mock("@/lib/core/csrf", () => ({
+vi.mock("@foundation/src/lib/core/csrf", () => ({
   getCsrfToken: vi.fn(() => null),
   CSRF_HEADER_NAME: 'X-CSRF-Token',
   isMutatingMethod: vi.fn(() => false),
 }));
 
-vi.mock("@/lib/utils/tenant-navigation", () => ({
+vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
   getCurrentSubdomain: vi.fn(() => null),
   consumeBreakGlassCookie: vi.fn(() => null),
   navigateToTenantSubdomain: vi.fn(() => false),

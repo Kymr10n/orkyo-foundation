@@ -5,8 +5,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { exportGanttChartToPDF } from './gantt-pdf-export';
-import type { Request } from '@/types/requests';
-import type { Space } from '@/types/space';
+import type { Request } from '@foundation/src/types/requests';
+import type { Space } from '@foundation/src/types/space';
 
 // Create mock PDF instance
 const mockPDFInstance = {

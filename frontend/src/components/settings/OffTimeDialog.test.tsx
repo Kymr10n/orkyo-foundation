@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { OffTimeDialog } from './OffTimeDialog';
 
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('@foundation/src/components/ui/dialog', () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -12,22 +12,22 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/alert', () => ({
+vi.mock('@foundation/src/components/ui/alert', () => ({
   Alert: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
   AlertDescription: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({ selectedSiteId: 'site-1' }),
   ),
 }));
 
-vi.mock('@/lib/api/space-api', () => ({
+vi.mock('@foundation/src/lib/api/space-api', () => ({
   getSpaces: vi.fn(() => Promise.resolve([{ id: 's1', code: 'R101', name: 'Room 101' }])),
 }));
 
-vi.mock('@/domain/scheduling/types', () => ({
+vi.mock('@foundation/src/domain/scheduling/types', () => ({
   OFF_TIME_TYPE_LABELS: { maintenance: 'Maintenance', holiday: 'Holiday', custom: 'Custom' },
 }));
 

@@ -1,6 +1,6 @@
 import { apiDelete, apiGet, apiPost, apiPut } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
-import type { Template, CreateTemplateRequest, UpdateTemplateRequest } from '@/types/templates';
+import type { Template, CreateTemplateRequest, UpdateTemplateRequest } from '@foundation/src/types/templates';
 
 /**
  * Get all templates for a specific entity type

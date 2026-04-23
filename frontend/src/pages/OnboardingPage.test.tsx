@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock PlanCards — uses useAuth internally
-vi.mock('@/components/plans/PlanCards', () => ({
+vi.mock('@foundation/src/components/plans/PlanCards', () => ({
   PlanCards: () => <div data-testid="plan-cards">Plans</div>,
 }));
 
@@ -13,7 +13,7 @@ const mockGetStarterTemplates = vi.fn();
 const mockGetTenantMemberships = vi.fn();
 const mockCancelTenantDeletion = vi.fn();
 
-vi.mock('@/lib/api/tenant-account-api', () => ({
+vi.mock('@foundation/src/lib/api/tenant-account-api', () => ({
   canCreateTenant: () => mockCanCreateTenant(),
   createTenant: (...args: unknown[]) => mockCreateTenant(...args),
   getStarterTemplates: () => mockGetStarterTemplates(),
@@ -21,7 +21,7 @@ vi.mock('@/lib/api/tenant-account-api', () => ({
   cancelTenantDeletion: (...args: unknown[]) => mockCancelTenantDeletion(...args),
 }));
 
-import { OnboardingPage } from '@/pages/OnboardingPage';
+import { OnboardingPage } from '@foundation/src/pages/OnboardingPage';
 
 const MOCK_TEMPLATES = [
   { key: 'empty', name: 'Empty', description: 'Start from scratch', icon: 'file-plus', includesDemoData: false },

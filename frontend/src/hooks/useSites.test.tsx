@@ -2,11 +2,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from './useSites';
-import * as siteApi from '@/lib/api/site-api';
-import type { Site } from '@/lib/api/site-api';
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@/test-utils';
+import * as siteApi from '@foundation/src/lib/api/site-api';
+import type { Site } from '@foundation/src/lib/api/site-api';
+import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/site-api');
+vi.mock('@foundation/src/lib/api/site-api');
 
 const mockSite: Site = {
   id: 'site-1',

@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PresetSettings } from './PresetSettings';
-import * as presetApi from '@/lib/api/preset-api';
+import * as presetApi from '@foundation/src/lib/api/preset-api';
 
-vi.mock('@/lib/api/preset-api');
+vi.mock('@foundation/src/lib/api/preset-api');
 
 describe('PresetSettings', () => {
   let queryClient: QueryClient;

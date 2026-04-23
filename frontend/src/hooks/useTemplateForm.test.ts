@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { templateFormReducer, getDefaultValueForCriterion } from './useTemplateForm';
 import type { TemplateFormState } from './useTemplateForm';
-import type { Criterion } from '@/types/criterion';
-import type { Template } from '@/types/templates';
+import type { Criterion } from '@foundation/src/types/criterion';
+import type { Template } from '@foundation/src/types/templates';
 
 function makeState(overrides: Partial<TemplateFormState> = {}): TemplateFormState {
   return {

@@ -2,16 +2,16 @@ import React, { useMemo } from "react";
 import { GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { selectSpaceOverlapCount } from "@/domain/scheduling/schedule-selectors";
-import type { PreviewSchedule, ValidationResult } from "@/domain/scheduling/schedule-model";
-import type { ScheduleIndex } from "@/domain/scheduling/schedule-index";
-import type { Request } from "@/types/requests";
-import type { Space } from "@/types/space";
+import { selectSpaceOverlapCount } from "@foundation/src/domain/scheduling/schedule-selectors";
+import type { PreviewSchedule, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
+import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
+import type { Request } from "@foundation/src/types/requests";
+import type { Space } from "@foundation/src/types/space";
 import { TimeCell } from "./TimeCell";
 import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
 import { OffTimeOverlay } from "./OffTimeOverlay";
 import type { TimeColumn } from "./scheduler-types";
-import type { OffTimeRange } from "@/domain/scheduling/types";
+import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 
 // Constants for row height calculation
 const BASE_ROW_HEIGHT = 52; // Base height for a single request

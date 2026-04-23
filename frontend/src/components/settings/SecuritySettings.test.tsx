@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { SecuritySettings } from './SecuritySettings';
 
 const mockSend = vi.fn();
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({ send: mockSend }),
 }));
 
@@ -15,7 +15,7 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: () => mockQueryResult.current,
 }));
 
-vi.mock('@/lib/api/security-api', () => ({
+vi.mock('@foundation/src/lib/api/security-api', () => ({
   getSecurityInfo: vi.fn(),
 }));
 

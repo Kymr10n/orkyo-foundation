@@ -6,7 +6,7 @@
  * literals for time math.
  */
 
-import type { DurationUnit } from "@/types/requests";
+import type { DurationUnit } from "@foundation/src/types/requests";
 
 // ---------------------------------------------------------------------------
 // Base time-unit conversions

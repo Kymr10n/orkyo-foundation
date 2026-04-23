@@ -1,12 +1,12 @@
 import { Monitor, Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useAppStore } from "@/store/app-store";
+} from "@foundation/src/components/ui/dropdown-menu";
+import { useAppStore } from "@foundation/src/store/app-store";
 
 const themeOptions = [
   { value: "light" as const, label: "Light", icon: Sun },

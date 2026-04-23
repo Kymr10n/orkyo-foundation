@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { EditSpaceDialog } from './EditSpaceDialog';
-import { createTestQueryWrapper } from '@/test-utils';
-import type { Space } from '@/types/space';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import type { Space } from '@foundation/src/types/space';
 
 const mockMutateAsync = vi.fn();
 
-vi.mock('@/hooks/useSpaces', () => ({
+vi.mock('@foundation/src/hooks/useSpaces', () => ({
   useUpdateSpace: vi.fn(() => ({
     mutateAsync: mockMutateAsync,
     isPending: false,

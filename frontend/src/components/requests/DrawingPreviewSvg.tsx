@@ -1,4 +1,4 @@
-import type { Coordinate, DrawingMode } from "@/types/space";
+import type { Coordinate, DrawingMode } from "@foundation/src/types/space";
 
 interface DrawingPreviewSvgProps {
   drawingMode: DrawingMode;

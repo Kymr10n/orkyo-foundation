@@ -1,12 +1,12 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@foundation/src/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -14,16 +14,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@/constants";
-import { canHaveChildren } from "@/domain/request-tree";
+} from "@foundation/src/components/ui/table";
+import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
+import { canHaveChildren } from "@foundation/src/domain/request-tree";
 import {
   formatDateDisplay,
   formatDuration,
   formatStatusLabel,
   getStatusColor,
-} from "@/lib/utils/utils";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/lib/utils/utils";
+import type { Request } from "@foundation/src/types/requests";
 import { Edit, Link, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import React, { useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";

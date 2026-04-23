@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SidebarNav } from './SidebarNav';
 
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({
       isSidebarCollapsed: false,

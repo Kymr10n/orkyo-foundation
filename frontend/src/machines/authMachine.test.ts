@@ -7,7 +7,7 @@ import { createActor, waitFor, fromPromise } from 'xstate';
 const mockGetCurrentSubdomain = vi.fn<() => string | null>(() => null);
 const mockConsumeBreakGlassCookie = vi.fn<() => { sessionId: string; tenantId: string } | null>(() => null);
 
-vi.mock('@/lib/utils/tenant-navigation', () => ({
+vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   getCurrentSubdomain: (...args: unknown[]) => mockGetCurrentSubdomain(...(args as [])),
   navigateToTenantSubdomain: vi.fn(),
   consumeBreakGlassCookie: (...args: unknown[]) => mockConsumeBreakGlassCookie(...(args as [])),
@@ -27,15 +27,15 @@ Object.defineProperty(window, 'location', {
   writable: true,
 });
 
-vi.mock('@/config/runtime', () => ({
+vi.mock('@foundation/src/config/runtime', () => ({
   runtimeConfig: { apiBaseUrl: 'http://localhost:5000', baseDomain: '' },
 }));
 
-vi.mock('@/constants/storage', () => ({
+vi.mock('@foundation/src/constants/storage', () => ({
   STORAGE_KEYS: { ACTIVE_MEMBERSHIP: 'membership', TENANT_SLUG: 'slug' },
 }));
 
-vi.mock('@/constants/auth', () => ({
+vi.mock('@foundation/src/constants/auth', () => ({
   AUTH_EVENTS: {
     LOGIN: 'LOGIN',
     LOGOUT: 'LOGOUT',

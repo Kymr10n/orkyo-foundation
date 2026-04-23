@@ -3,7 +3,7 @@ import {
   getTenantSettings,
   updateTenantSettings,
   resetTenantSetting,
-} from "@/lib/api/tenant-settings-api";
+} from "@foundation/src/lib/api/tenant-settings-api";
 
 const TENANT_SETTINGS_QUERY_KEY = ["tenant-settings"] as const;
 

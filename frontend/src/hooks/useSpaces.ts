@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createSpace, deleteSpace, getSpaces, updateSpace } from "@/lib/api/space-api";
-import type { CreateSpaceRequest, SpaceGeometry, Space as SpaceType, UpdateSpaceRequest } from "@/types/space";
+import { createSpace, deleteSpace, getSpaces, updateSpace } from "@foundation/src/lib/api/space-api";
+import type { CreateSpaceRequest, SpaceGeometry, Space as SpaceType, UpdateSpaceRequest } from "@foundation/src/types/space";
 
 // Query hook
 export function useSpaces(siteId: string | null) {

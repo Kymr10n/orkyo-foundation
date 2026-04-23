@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useResizeGesture } from "./useResizeGesture";
 import type { ResizeGestureCallbacks, ResizeGeometry, ResizeGestureResult } from "./useResizeGesture";
-import type { ResizeEdge } from "@/domain/scheduling/schedule-model";
+import type { ResizeEdge } from "@foundation/src/domain/scheduling/schedule-model";
 
 // ---------------------------------------------------------------------------
 // Helpers

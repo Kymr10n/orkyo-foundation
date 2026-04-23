@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestTreeView } from './RequestTreeView';
-import type { Request } from '@/types/requests';
-import type { FlatTreeEntry } from '@/domain/request-tree';
+import type { Request } from '@foundation/src/types/requests';
+import type { FlatTreeEntry } from '@foundation/src/domain/request-tree';
 
 // Mock request-tree-store (used by TreeRow for expandedIds)
 const mockExpandedIds = new Set<string>();
 const mockExpandAll = vi.fn();
 const mockCollapseAll = vi.fn();
-vi.mock('@/store/request-tree-store', () => ({
+vi.mock('@foundation/src/store/request-tree-store', () => ({
   useRequestTreeStore: vi.fn((selector: (s: {
     expandedIds: Set<string>;
     expandAll: (ids: string[]) => void;

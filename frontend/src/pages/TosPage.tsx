@@ -6,13 +6,13 @@
  */
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@foundation/src/components/ui/button";
+import { Checkbox } from "@foundation/src/components/ui/checkbox";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { Loader2, FileText } from "lucide-react";
-import { acceptTos } from "@/lib/api/session-api";
-import { logger } from "@/lib/core/logger";
+import { acceptTos } from "@foundation/src/lib/api/session-api";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface TosPageProps {
   /** Called after successful TOS acceptance (e.g. refresh the pipeline). */

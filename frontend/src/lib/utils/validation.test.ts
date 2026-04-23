@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateSpaceRequirements } from './validation';
-import type { Request, RequestRequirement } from '@/types/requests';
-import type { SpaceCapability } from '@/lib/api/space-capability-api';
+import type { Request, RequestRequirement } from '@foundation/src/types/requests';
+import type { SpaceCapability } from '@foundation/src/lib/api/space-capability-api';
 
 // Helper to create minimal valid Request objects for testing
 function createTestRequest(overrides: Partial<Request> & { requirements?: RequestRequirement[] } = {}): Request {

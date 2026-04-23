@@ -1,4 +1,4 @@
-import type { CriterionValue } from '@/types/criterion';
+import type { CriterionValue } from '@foundation/src/types/criterion';
 import { apiGet, apiPost, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 

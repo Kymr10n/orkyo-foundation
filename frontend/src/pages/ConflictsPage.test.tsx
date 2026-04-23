@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ConflictsPage } from '@/pages/ConflictsPage';
+import { ConflictsPage } from '@foundation/src/pages/ConflictsPage';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { Request } from '@/types/requests';
+import type { Request } from '@foundation/src/types/requests';
 
 // Mock the store
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
     const mockState = {
       conflicts: new Map([
@@ -45,7 +45,7 @@ vi.mock('@/store/app-store', () => ({
 }));
 
 // Mock the useUtilization hook
-vi.mock('@/hooks/useUtilization', () => ({
+vi.mock('@foundation/src/hooks/useUtilization', () => ({
   useRequests: vi.fn(() => ({
     data: [
       {
@@ -144,7 +144,7 @@ describe('ConflictsPage', () => {
   describe('without conflicts', () => {
     it('should display empty state message', async () => {
       // Mock empty conflicts
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map(),
@@ -159,7 +159,7 @@ describe('ConflictsPage', () => {
 
     it('should display success message in description', async () => {
       // Mock empty conflicts
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map(),
@@ -176,7 +176,7 @@ describe('ConflictsPage', () => {
 
     it('should not render any conflict items', async () => {
       // Mock empty conflicts
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map(),
@@ -194,7 +194,7 @@ describe('ConflictsPage', () => {
   describe('partial conflicts', () => {
     it('should use singular form for single conflict', async () => {
       // Mock single conflict
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map([
@@ -231,7 +231,7 @@ describe('ConflictsPage', () => {
 
     it('should display warning icon for warning severity', async () => {
       // Need warnings in the data for this test
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map([
@@ -262,7 +262,7 @@ describe('ConflictsPage', () => {
   describe('styling', () => {
     it('should apply error badge styling', async () => {
       // Reset to error severity for this test
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map([
@@ -292,7 +292,7 @@ describe('ConflictsPage', () => {
 
     it('should apply warning badge styling', async () => {
       // Need to re-mock with warning severity for this test
-      const { useAppStore } = await import('@/store/app-store');
+      const { useAppStore } = await import('@foundation/src/store/app-store');
       vi.mocked(useAppStore).mockImplementation((selector: any) => {
         const mockState = {
           conflicts: new Map([

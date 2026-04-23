@@ -12,7 +12,7 @@
  * This is a pure function with no side effects.
  */
 
-import type { Request } from "@/types/requests";
+import type { Request } from "@foundation/src/types/requests";
 import type { DraftInteraction, PreviewEntry, PreviewSchedule } from "./schedule-model";
 import { toScheduledEntry } from "./schedule-model";
 

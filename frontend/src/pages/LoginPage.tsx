@@ -13,13 +13,13 @@
  * - TenantApp /login route (session recovery on tenant subdomain)
  */
 
-import { useAuth, debugAuth } from "@/contexts/AuthContext";
+import { useAuth, debugAuth } from "@foundation/src/contexts/AuthContext";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { AUTH_MESSAGES } from "@/constants/auth";
+import { Button } from "@foundation/src/components/ui/button";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { AUTH_MESSAGES } from "@foundation/src/constants/auth";
 
 export function LoginPage() {
   const { isAuthenticated, isLoading, login, error } = useAuth();

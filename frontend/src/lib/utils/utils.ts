@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { RequestFormData } from "@/components/requests/RequestFormDialog"
-import type { CreateRequestRequest, UpdateRequestRequest } from "@/types/requests"
+import type { RequestFormData } from "@foundation/src/components/requests/RequestFormDialog"
+import type { CreateRequestRequest, UpdateRequestRequest } from "@foundation/src/types/requests"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

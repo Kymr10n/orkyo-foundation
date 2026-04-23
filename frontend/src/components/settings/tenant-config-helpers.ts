@@ -6,7 +6,7 @@ import {
   Mail,
   Calendar,
 } from "lucide-react";
-import type { TenantSettingDescriptor } from "@/lib/api/tenant-settings-api";
+import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
 
 export const CATEGORY_META: Record<
   string,

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from "@/constants/auth";
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from "@foundation/src/constants/auth";
 
 const mockSend = vi.fn();
 const mockUseAuth = vi.fn();
 
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
   debugAuth: vi.fn(),
 }));

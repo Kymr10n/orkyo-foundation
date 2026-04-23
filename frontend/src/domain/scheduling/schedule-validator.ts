@@ -12,7 +12,7 @@
  * given preview schedule. It must never be called inside a store action.
  */
 
-import type { Conflict } from "@/types/requests";
+import type { Conflict } from "@foundation/src/types/requests";
 import { buildIndex, getOverlapping } from "./schedule-index";
 import type { PreviewSchedule, ValidationResult } from "./schedule-model";
 

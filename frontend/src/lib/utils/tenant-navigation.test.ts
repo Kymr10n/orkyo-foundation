@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockConfig = vi.hoisted(() => ({ baseDomain: '', subdomainPrefix: '' }));
 
-vi.mock('@/config/runtime', () => ({
+vi.mock('@foundation/src/config/runtime', () => ({
   runtimeConfig: mockConfig,
 }));
 

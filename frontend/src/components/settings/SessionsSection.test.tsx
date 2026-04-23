@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SessionsSection } from './SessionsSection';
-import { createTestQueryWrapper } from '@/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/security-api', () => ({
+vi.mock('@foundation/src/lib/api/security-api', () => ({
   getSessions: vi.fn(),
   revokeSession: vi.fn(),
   logoutAllSessions: vi.fn(),
 }));
 
-const { getSessions, revokeSession, logoutAllSessions } = await import('@/lib/api/security-api');
+const { getSessions, revokeSession, logoutAllSessions } = await import('@foundation/src/lib/api/security-api');
 
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {

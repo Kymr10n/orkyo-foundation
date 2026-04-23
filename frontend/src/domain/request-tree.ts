@@ -5,7 +5,7 @@
  * They operate on flat request arrays and produce tree structures.
  */
 
-import type { DurationUnit, PlanningMode, Request } from "@/types/requests";
+import type { DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import {
   DURATION_TO_MINUTES,
   MS_PER_MINUTE,

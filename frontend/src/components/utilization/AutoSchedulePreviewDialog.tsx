@@ -5,10 +5,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+} from "@foundation/src/components/ui/dialog";
+import { Button } from "@foundation/src/components/ui/button";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import type { AutoSchedulePreviewResponse } from "@/lib/api/auto-schedule-api";
+import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 
 interface Props {
   open: boolean;

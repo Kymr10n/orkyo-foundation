@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/store/app-store";
-import { cn } from "@/lib/utils";
+import { Button } from "@foundation/src/components/ui/button";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { cn } from "@foundation/src/lib/utils";
 import {
   AlertTriangle,
   Box,

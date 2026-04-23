@@ -8,23 +8,23 @@ const mockRefetch = vi.fn();
 
 let mockCriteriaData: { data: unknown[]; isLoading: boolean; error: Error | null; refetch?: () => void };
 
-vi.mock('@/hooks/useCriteria', () => ({
+vi.mock('@foundation/src/hooks/useCriteria', () => ({
   useCriteria: () => mockCriteriaData,
   useCreateCriterion: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteCriterion: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),
 }));
 
-vi.mock('@/hooks/useImportExport', () => ({
+vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(),
   useImportHandler: vi.fn(),
 }));
 
-vi.mock('@/lib/utils/export-handlers', () => ({
+vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   exportCriteria: vi.fn(),
   importCriteria: vi.fn(),
 }));
 
-vi.mock('@/lib/utils', async (importOriginal) => {
+vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,

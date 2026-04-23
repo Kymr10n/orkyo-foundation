@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -6,16 +6,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@foundation/src/components/ui/select";
 import {
   type ExportContext,
   type ExportFormat,
@@ -23,7 +23,7 @@ import {
   getExportFilename,
   getSupportedFormats,
   isImportSupported,
-} from "@/lib/utils/import-export";
+} from "@foundation/src/lib/utils/import-export";
 import { AlertCircle, Download, Upload } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 

@@ -3,16 +3,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import type { Site } from "@/lib/api/site-api";
-import { isValidSlug } from "@/lib/utils";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Textarea } from "@foundation/src/components/ui/textarea";
+import type { Site } from "@foundation/src/lib/api/site-api";
+import { isValidSlug } from "@foundation/src/lib/utils";
 import { useState } from "react";
-import { useCreateSite } from "@/hooks/useSites";
-import { ErrorAlert } from "@/components/ui/ErrorAlert";
-import { DialogFormFooter } from "@/components/ui/DialogFormFooter";
+import { useCreateSite } from "@foundation/src/hooks/useSites";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
+import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
 
 interface CreateSiteDialogProps {
   open: boolean;

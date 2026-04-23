@@ -1,21 +1,21 @@
-import { CreateSpaceDialog } from "@/components/requests/CreateSpaceDialog";
-import { FloorplanUploadDialog } from "@/components/requests/FloorplanUploadDialog";
-import { SpaceDrawingCanvas } from "@/components/requests/SpaceDrawingCanvas";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { CreateSpaceDialog } from "@foundation/src/components/requests/CreateSpaceDialog";
+import { FloorplanUploadDialog } from "@foundation/src/components/requests/FloorplanUploadDialog";
+import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
+import { Button } from "@foundation/src/components/ui/button";
+import { Separator } from "@foundation/src/components/ui/separator";
 import {
   deleteFloorplan,
   fetchFloorplanImageUrl,
   type FloorplanMetadata,
   getFloorplanMetadata,
-} from "@/lib/api/floorplan-api";
-import { cn } from "@/lib/utils";
+} from "@foundation/src/lib/api/floorplan-api";
+import { cn } from "@foundation/src/lib/utils";
 import type {
   CreateSpaceRequest,
   DrawingMode,
   SpaceGeometry,
   Space as SpaceType,
-} from "@/types/space";
+} from "@foundation/src/types/space";
 import {
   MapPin,
   Maximize2,
@@ -32,16 +32,16 @@ import { useSearchParams } from "react-router-dom";
 import { EditSpaceDialog } from "./EditSpaceDialog";
 import { SpaceCapabilitiesEditor } from "./SpaceCapabilitiesEditor";
 import { SpaceList } from "./SpaceList";
-import { useExportHandler, useImportHandler } from "@/hooks/useImportExport";
-import { exportSpaces, importSpaces } from "@/lib/utils/export-handlers";
+import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
+import { exportSpaces, importSpaces } from "@foundation/src/lib/utils/export-handlers";
 import {
   useSpaces,
   useCreateSpace,
   useUpdateSpace,
   useDeleteSpace,
   useMoveSpace,
-} from "@/hooks/useSpaces";
-import { logger } from "@/lib/core/logger";
+} from "@foundation/src/hooks/useSpaces";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface SpaceManagementPanelProps {
   siteId: string;

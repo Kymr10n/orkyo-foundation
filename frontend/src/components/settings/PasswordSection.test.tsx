@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PasswordSection } from './PasswordSection';
-import { createTestQueryWrapper } from '@/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/security-api', () => ({
+vi.mock('@foundation/src/lib/api/security-api', () => ({
   changePassword: vi.fn(),
 }));
 
-const { changePassword } = await import('@/lib/api/security-api');
+const { changePassword } = await import('@foundation/src/lib/api/security-api');
 
 const defaultProps = {
   isFederated: false,

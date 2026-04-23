@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { FeedbackButton } from './FeedbackButton';
 
-vi.mock('@/lib/api/feedback-api', () => ({
+vi.mock('@foundation/src/lib/api/feedback-api', () => ({
   submitFeedback: vi.fn(() => Promise.resolve()),
 }));
 

@@ -1,5 +1,5 @@
 import { AlertTriangle, WifiOff, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@foundation/src/components/ui/button';
 
 interface AuthErrorScreenProps {
   variant: 'backend' | 'network';

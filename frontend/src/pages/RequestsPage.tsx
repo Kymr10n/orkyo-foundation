@@ -1,12 +1,12 @@
 import {
     RequestFormDialog,
     type RequestFormData,
-} from "@/components/requests/RequestFormDialog";
-import { RequestDetailPanel } from "@/components/requests/RequestDetailPanel";
-import { RequestTreeView } from "@/components/requests/RequestTreeView";
-import { RequestListView } from "@/components/requests/RequestListView";
-import { AddExistingRequestsDialog } from "@/components/requests/AddExistingRequestsDialog";
-import { MoveToDialog } from "@/components/requests/MoveToDialog";
+} from "@foundation/src/components/requests/RequestFormDialog";
+import { RequestDetailPanel } from "@foundation/src/components/requests/RequestDetailPanel";
+import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
+import { RequestListView } from "@foundation/src/components/requests/RequestListView";
+import { AddExistingRequestsDialog } from "@foundation/src/components/requests/AddExistingRequestsDialog";
+import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -16,28 +16,28 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from "@foundation/src/components/ui/alert-dialog";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@foundation/src/components/ui/tooltip";
 import {
     createRequest,
     deleteRequest,
     getRequests,
     moveRequest,
     updateRequest,
-} from "@/lib/api/request-api";
-import { useAppStore } from "@/store/app-store";
+} from "@foundation/src/lib/api/request-api";
+import { useAppStore } from "@foundation/src/store/app-store";
 import type {
     CreateRequestRequest,
     PlanningMode,
     Request,
-} from "@/types/requests";
+} from "@foundation/src/types/requests";
 import {
     buildRequestTree,
     flattenTree,
@@ -46,8 +46,8 @@ import {
     getDescendantIds,
     getNextSortOrder,
     canHaveChildren,
-} from "@/domain/request-tree";
-import { useRequestTreeStore } from "@/store/request-tree-store";
+} from "@foundation/src/domain/request-tree";
+import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import {
     Calendar,
     Filter,
@@ -59,11 +59,11 @@ import {
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useExportHandler, useImportHandler } from "@/hooks/useImportExport";
-import { exportRequests, importRequests } from "@/lib/utils/export-handlers";
-import { buildCreatePayload, buildUpdatePayload } from "@/lib/utils/utils";
-import { deleteRequestSubtree } from "@/lib/api/request-api";
-import { logger } from "@/lib/core/logger";
+import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
+import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
+import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
+import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
+import { logger } from "@foundation/src/lib/core/logger";
 
 type ViewMode = "tree" | "list";
 

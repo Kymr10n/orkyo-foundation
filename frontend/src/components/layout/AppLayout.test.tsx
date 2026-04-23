@@ -3,23 +3,23 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({ selectedSiteId: 'site-1', setSelectedSiteId: vi.fn() }),
   ),
 }));
 
-vi.mock('@/lib/api/site-api', () => ({
+vi.mock('@foundation/src/lib/api/site-api', () => ({
   getSites: vi.fn(() =>
     Promise.resolve([{ id: 'site-1', code: 'hq', name: 'HQ' }]),
   ),
 }));
 
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({ appUser: { isSuperAdmin: false, hasSeenTour: true } }),
 }));
 
-vi.mock('@/hooks/useCommandPalette', () => ({
+vi.mock('@foundation/src/hooks/useCommandPalette', () => ({
   useCommandPalette: () => ({ isOpen: false, setIsOpen: vi.fn(), open: vi.fn() }),
 }));
 
@@ -39,7 +39,7 @@ vi.mock('./TopBar', () => ({
   TopBar: () => <header data-testid="topbar" />,
 }));
 
-vi.mock('@/components/tour/TourDialog', () => ({
+vi.mock('@foundation/src/components/tour/TourDialog', () => ({
   TourDialog: () => null,
 }));
 

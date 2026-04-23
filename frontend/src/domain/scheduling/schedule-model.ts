@@ -8,7 +8,7 @@
  * - DraftInteraction describes a single in-flight user gesture
  */
 
-import type { Conflict, DurationUnit, Request } from "@/types/requests";
+import type { Conflict, DurationUnit, Request } from "@foundation/src/types/requests";
 import { DURATION_UNIT_MS, MS_PER_MINUTE } from "../constants";
 
 // ---------------------------------------------------------------------------

@@ -4,21 +4,21 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SiteSettings } from './SiteSettings';
-import type * as siteApi from '@/lib/api/site-api';
+import type * as siteApi from '@foundation/src/lib/api/site-api';
 
-vi.mock('@/lib/api/site-api');
-vi.mock('@/hooks/useSites', () => ({
+vi.mock('@foundation/src/lib/api/site-api');
+vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: vi.fn(),
   useDeleteSite: vi.fn(),
   useCreateSite: vi.fn(),
   useUpdateSite: vi.fn(),
 }));
-vi.mock('@/hooks/useImportExport', () => ({
+vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(() => ({ handleExport: vi.fn() })),
   useImportHandler: vi.fn(() => ({ handleImport: vi.fn(), isImporting: false })),
 }));
 
-import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@/hooks/useSites';
+import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@foundation/src/hooks/useSites';
 
 describe('SiteSettings', () => {
   let queryClient: QueryClient;

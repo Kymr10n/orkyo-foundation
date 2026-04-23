@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type * as ReactRouterDom from "react-router-dom";
-import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from "@/constants/auth";
+import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from "@foundation/src/constants/auth";
 
 // ── Mock page components ────────────────────────────────────────────────
 
 // AppLayout uses <Outlet> for nested routes — replicate that in the mock
-vi.mock("@/components/layout/AppLayout", async () => {
+vi.mock("@foundation/src/components/layout/AppLayout", async () => {
   const { Outlet } =
     await vi.importActual<typeof ReactRouterDom>(
       "react-router-dom",
@@ -20,43 +20,43 @@ vi.mock("@/components/layout/AppLayout", async () => {
     ),
   };
 });
-vi.mock("@/pages/LoginPage", () => ({
+vi.mock("@foundation/src/pages/LoginPage", () => ({
   LoginPage: () => <div data-testid="login-page">Login</div>,
 }));
-vi.mock("@/pages/AboutPage", () => ({
+vi.mock("@foundation/src/pages/AboutPage", () => ({
   AboutPage: () => <div data-testid="about-page">About</div>,
 }));
-vi.mock("@/pages/AccountPage", () => ({
+vi.mock("@foundation/src/pages/AccountPage", () => ({
   AccountPage: () => <div data-testid="account-page">Account</div>,
 }));
-vi.mock("@/pages/UtilizationPage", () => ({
+vi.mock("@foundation/src/pages/UtilizationPage", () => ({
   UtilizationPage: () => <div data-testid="utilization-page">Utilization</div>,
 }));
-vi.mock("@/pages/SpacesPage", () => ({
+vi.mock("@foundation/src/pages/SpacesPage", () => ({
   SpacesPage: () => <div data-testid="spaces-page">Spaces</div>,
 }));
-vi.mock("@/pages/ConflictsPage", () => ({
+vi.mock("@foundation/src/pages/ConflictsPage", () => ({
   ConflictsPage: () => <div data-testid="conflicts-page">Conflicts</div>,
 }));
-vi.mock("@/pages/RequestsPage", () => ({
+vi.mock("@foundation/src/pages/RequestsPage", () => ({
   RequestsPage: () => <div data-testid="requests-page">Requests</div>,
 }));
-vi.mock("@/pages/SettingsPage", () => ({
+vi.mock("@foundation/src/pages/SettingsPage", () => ({
   SettingsPage: () => <div data-testid="settings-page">Settings</div>,
 }));
-vi.mock("@/pages/MessagesPage", () => ({
+vi.mock("@foundation/src/pages/MessagesPage", () => ({
   MessagesPage: () => <div data-testid="messages-page">Messages</div>,
 }));
-vi.mock("@/components/layout/ThemeToggle", () => ({
+vi.mock("@foundation/src/components/layout/ThemeToggle", () => ({
   ThemeToggle: () => null,
 }));
-vi.mock("@/pages/TenantSuspendedPage", () => ({
+vi.mock("@foundation/src/pages/TenantSuspendedPage", () => ({
   TenantSuspendedPage: () => <div data-testid="tenant-suspended-page">Suspended</div>,
 }));
 
 // ── Mock RequireAuth — pass through children ────────────────────────────
 
-vi.mock("@/components/auth/RequireAuth", () => ({
+vi.mock("@foundation/src/components/auth/RequireAuth", () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -65,13 +65,13 @@ vi.mock("@/components/auth/RequireAuth", () => ({
 const mockSend = vi.fn();
 const mockUseAuth = vi.fn();
 
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
 // ── Mock tenant navigation (legacy — no longer used by TenantApp) ────────
 
-vi.mock("@/lib/utils/tenant-navigation", () => ({
+vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
   redirectToLogin: vi.fn(),
 }));
 

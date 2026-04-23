@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InviteUserDialog } from './InviteUserDialog';
-import * as userApi from '@/lib/api/user-api';
+import * as userApi from '@foundation/src/lib/api/user-api';
 
-vi.mock('@/lib/api/user-api');
+vi.mock('@foundation/src/lib/api/user-api');
 
 describe('InviteUserDialog', () => {
   let queryClient: QueryClient;

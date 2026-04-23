@@ -8,8 +8,8 @@
  * - Coordinate transformation (screen to floorplan coordinates)
  */
 
-import { cn } from "@/lib/utils";
-import type { Coordinate, DrawingMode, SpaceGeometry } from "@/types/space";
+import { cn } from "@foundation/src/lib/utils";
+import type { Coordinate, DrawingMode, SpaceGeometry } from "@foundation/src/types/space";
 import {
   type MouseEvent as ReactMouseEvent,
   useEffect,

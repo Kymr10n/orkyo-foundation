@@ -3,23 +3,23 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TemplateSettings } from './TemplateSettings';
-import { getTemplates, deleteTemplate } from '@/lib/api/template-api';
+import { getTemplates, deleteTemplate } from '@foundation/src/lib/api/template-api';
 
 const mockGetTemplates = vi.mocked(getTemplates);
 const mockDeleteTemplate = vi.mocked(deleteTemplate);
 
-vi.mock('@/lib/api/template-api', () => ({
+vi.mock('@foundation/src/lib/api/template-api', () => ({
   getTemplates: vi.fn(() => Promise.resolve([])),
   createTemplate: vi.fn(),
   deleteTemplate: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('@/hooks/useImportExport', () => ({
+vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(),
   useImportHandler: vi.fn(),
 }));
 
-vi.mock('@/lib/utils/export-handlers', () => ({
+vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   exportTemplates: vi.fn(),
   importTemplates: vi.fn(),
 }));

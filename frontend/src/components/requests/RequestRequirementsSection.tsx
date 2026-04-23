@@ -1,10 +1,10 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getDataTypeColor } from "@/lib/utils";
-import type { useRequestForm } from "@/hooks/useRequestForm";
-import type { Criterion, CriterionValue } from "@/types/criterion";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
+import { getDataTypeColor } from "@foundation/src/lib/utils";
+import type { useRequestForm } from "@foundation/src/hooks/useRequestForm";
+import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { CriterionRequirementInput } from "./CriterionRequirementInput";
 

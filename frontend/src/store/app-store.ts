@@ -1,7 +1,7 @@
-import { type User } from "@/types/auth";
-import { type Conflict } from "@/types/requests";
-import { STORAGE_KEYS } from "@/constants/storage";
-import { COOKIE_NAMES } from "@/constants/http";
+import { type User } from "@foundation/src/types/auth";
+import { type Conflict } from "@foundation/src/types/requests";
+import { STORAGE_KEYS } from "@foundation/src/constants/storage";
+import { COOKIE_NAMES } from "@foundation/src/constants/http";
 import { create } from "zustand";
 
 interface AppState {

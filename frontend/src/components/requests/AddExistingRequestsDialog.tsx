@@ -1,6 +1,6 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -8,12 +8,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@/constants";
-import { getDescendantIds, wouldCreateCycle } from "@/domain/request-tree";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
+import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
+import { getDescendantIds, wouldCreateCycle } from "@foundation/src/domain/request-tree";
+import type { Request } from "@foundation/src/types/requests";
 import { Search } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 

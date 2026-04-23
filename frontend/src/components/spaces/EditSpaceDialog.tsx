@@ -7,7 +7,7 @@
  * - Error handling and validation
  */
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +15,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import type { Space } from "@/types/space";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Textarea } from "@foundation/src/components/ui/textarea";
+import type { Space } from "@foundation/src/types/space";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useUpdateSpace } from "@/hooks/useSpaces";
+import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
 
 interface EditSpaceDialogProps {
   space: Space;

@@ -8,16 +8,16 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@foundation/src/components/ui/card";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -25,9 +25,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@foundation/src/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMfaStatus, removeMfa, enableMfa } from "@/lib/api/security-api";
+import { getMfaStatus, removeMfa, enableMfa } from "@foundation/src/lib/api/security-api";
 import { formatDistanceToNow } from "date-fns";
 
 export function MfaSection() {

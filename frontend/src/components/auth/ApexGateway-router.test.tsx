@@ -13,10 +13,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { AUTH_STAGES } from "@/constants/auth";
+import { AUTH_STAGES } from "@foundation/src/constants/auth";
 
 const mockUseAuth = vi.fn();
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 

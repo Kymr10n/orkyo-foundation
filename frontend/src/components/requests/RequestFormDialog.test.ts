@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { combineDateTimeToISO } from '@/lib/utils';
-import { VALIDATION_MESSAGES } from '@/constants';
+import { combineDateTimeToISO } from '@foundation/src/lib/utils';
+import { VALIDATION_MESSAGES } from '@foundation/src/constants';
 
 describe('RequestFormDialog - Validation Logic', () => {
   describe('Date/Time validation', () => {

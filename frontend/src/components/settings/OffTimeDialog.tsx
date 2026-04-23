@@ -5,26 +5,26 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { Switch } from "@/components/ui/switch";
+} from "@foundation/src/components/ui/dialog";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
+import { Switch } from "@foundation/src/components/ui/switch";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@foundation/src/components/ui/select";
 import { Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useAppStore } from "@/store/app-store";
-import { getSpaces } from "@/lib/api/space-api";
-import type { Space } from "@/types/space";
-import type { OffTimeDefinition, OffTimeType } from "@/domain/scheduling/types";
-import { OFF_TIME_TYPE_LABELS } from "@/domain/scheduling/types";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { getSpaces } from "@foundation/src/lib/api/space-api";
+import type { Space } from "@foundation/src/types/space";
+import type { OffTimeDefinition, OffTimeType } from "@foundation/src/domain/scheduling/types";
+import { OFF_TIME_TYPE_LABELS } from "@foundation/src/domain/scheduling/types";
 
 interface OffTimeDialogProps {
   open: boolean;

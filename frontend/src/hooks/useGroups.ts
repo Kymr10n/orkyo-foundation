@@ -1,6 +1,6 @@
 import { createCrudHooks } from "./useMutations";
-import { createSpaceGroup, deleteSpaceGroup, getSpaceGroups, updateSpaceGroup } from "@/lib/api/space-groups-api";
-import type { SpaceGroup, CreateSpaceGroupRequest, UpdateSpaceGroupRequest } from "@/types/spaceGroup";
+import { createSpaceGroup, deleteSpaceGroup, getSpaceGroups, updateSpaceGroup } from "@foundation/src/lib/api/space-groups-api";
+import type { SpaceGroup, CreateSpaceGroupRequest, UpdateSpaceGroupRequest } from "@foundation/src/types/spaceGroup";
 
 const spaceGroupHooks = createCrudHooks<SpaceGroup, CreateSpaceGroupRequest, UpdateSpaceGroupRequest, string | null>({
   queryKey: (siteId) => ["space-groups", siteId],

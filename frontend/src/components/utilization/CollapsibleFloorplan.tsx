@@ -1,9 +1,9 @@
-import { SpaceDrawingCanvas } from "@/components/requests/SpaceDrawingCanvas";
-import { Button } from "@/components/ui/button";
-import { useFloorplanViewData } from "@/hooks/useFloorplan";
-import { useSpaces } from "@/hooks/useSpaces";
-import { useAppStore } from "@/store/app-store";
-import type { Request } from "@/types/requests";
+import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
+import { Button } from "@foundation/src/components/ui/button";
+import { useFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
+import { useSpaces } from "@foundation/src/hooks/useSpaces";
+import { useAppStore } from "@foundation/src/store/app-store";
+import type { Request } from "@foundation/src/types/requests";
 import { ChevronDown, ChevronUp, GripHorizontal, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";

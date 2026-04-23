@@ -3,8 +3,8 @@ import {
     fetchSpaces,
     scheduleRequest,
     type ScheduleRequestData,
-} from "@/lib/api/utilization-api";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/lib/api/utilization-api";
+import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Fetch all requests

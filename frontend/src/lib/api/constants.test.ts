@@ -6,7 +6,7 @@ import {
   DEFAULT_DURATION_UNIT,
   SPACE_NONE_PLACEHOLDER,
   VALIDATION_MESSAGES,
-} from '@/constants';
+} from '@foundation/src/constants';
 
 describe('Constants', () => {
   describe('Time defaults', () => {

@@ -10,16 +10,16 @@
  */
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Building2, Plus, Loader2, LogOut, AlertCircle, ArrowLeft, CheckCircle2, RotateCcw } from "lucide-react";
-import { canCreateTenant, createTenant, getStarterTemplates, getTenantMemberships, cancelTenantDeletion, type TenantMembership } from "@/lib/api/tenant-account-api";
-import { PlanCards } from "@/components/plans/PlanCards";
-import { StarterTemplatePicker, type StarterTemplate } from "@/components/onboarding/StarterTemplatePicker";
-import { logger } from "@/lib/core/logger";
+import { canCreateTenant, createTenant, getStarterTemplates, getTenantMemberships, cancelTenantDeletion, type TenantMembership } from "@foundation/src/lib/api/tenant-account-api";
+import { PlanCards } from "@foundation/src/components/plans/PlanCards";
+import { StarterTemplatePicker, type StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface OnboardingPageProps {
   /** Called after successful tenant creation (e.g. refresh the pipeline). */

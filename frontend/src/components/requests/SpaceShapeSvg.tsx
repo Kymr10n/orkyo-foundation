@@ -1,4 +1,4 @@
-import type { Coordinate, DrawingMode, SpaceGeometry } from "@/types/space";
+import type { Coordinate, DrawingMode, SpaceGeometry } from "@foundation/src/types/space";
 
 interface SpaceShapeSvgProps {
   space: { id: string; name: string; code?: string; geometry?: SpaceGeometry };

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestDetailPanel } from './RequestDetailPanel';
-import type { Request } from '@/types/requests';
+import type { Request } from '@foundation/src/types/requests';
 
 // ---------------------------------------------------------------------------
 // Fixtures

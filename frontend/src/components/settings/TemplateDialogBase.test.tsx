@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { TemplateDialogBase } from './TemplateDialogBase';
 
 // ── UI mocks ──────────────────────────────────────────
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('@foundation/src/components/ui/dialog', () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
     open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -14,12 +14,12 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
 
-vi.mock('@/components/ui/ErrorAlert', () => ({
+vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
   ErrorAlert: ({ message }: { message: string | null }) =>
     message ? <div role="alert">{message}</div> : null,
 }));
 
-vi.mock('@/components/ui/DialogFormFooter', () => ({
+vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   DialogFormFooter: ({ submitLabel, onCancel, isSubmitting }: any) => (
     <div>
       <button type="button" onClick={onCancel}>Cancel</button>
@@ -28,11 +28,11 @@ vi.mock('@/components/ui/DialogFormFooter', () => ({
   ),
 }));
 
-vi.mock('@/components/ui/scroll-area', () => ({
+vi.mock('@foundation/src/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/separator', () => ({
+vi.mock('@foundation/src/components/ui/separator', () => ({
   Separator: () => <hr />,
 }));
 
@@ -55,16 +55,16 @@ const mockGetCriteria = vi.fn(() =>
   ]),
 );
 
-vi.mock('@/lib/api/template-api', () => ({
+vi.mock('@foundation/src/lib/api/template-api', () => ({
   createTemplate: (...args: unknown[]) => mockCreateTemplate(...args),
   updateTemplate: (...args: unknown[]) => mockUpdateTemplate(...args),
 }));
 
-vi.mock('@/lib/api/criteria-api', () => ({
+vi.mock('@foundation/src/lib/api/criteria-api', () => ({
   getCriteria: () => mockGetCriteria(),
 }));
 
-vi.mock('@/lib/utils', async (importOriginal) => {
+vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, getDataTypeColor: () => 'bg-blue-100 text-blue-800' };
 });

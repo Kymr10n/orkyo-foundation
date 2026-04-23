@@ -5,9 +5,9 @@
  */
 
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import { ChevronLeft } from "lucide-react";
-import { MessagesTab } from "@/components/account/MessagesTab";
+import { MessagesTab } from "@foundation/src/components/account/MessagesTab";
 
 export function MessagesPage() {
   const navigate = useNavigate();

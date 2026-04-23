@@ -11,12 +11,12 @@
  * re-derivation of auth state.
  */
 
-import { useAuth, debugAuth } from "@/contexts/AuthContext";
+import { useAuth, debugAuth } from "@foundation/src/contexts/AuthContext";
 import { useEffect, useState } from "react";
-import { logger } from "@/lib/core/logger";
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, LOADING_STAGES, UNAUTHENTICATED_STAGES } from "@/constants/auth";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { AuthErrorScreen } from "@/components/ui/AuthErrorScreen";
+import { logger } from "@foundation/src/lib/core/logger";
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, LOADING_STAGES, UNAUTHENTICATED_STAGES } from "@foundation/src/constants/auth";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { AuthErrorScreen } from "@foundation/src/components/ui/AuthErrorScreen";
 
 /** Delay before showing a spinner so fast auth checks don't flash. */
 const SPINNER_DELAY_MS = 200;

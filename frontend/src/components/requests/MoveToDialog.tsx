@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -6,16 +6,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@/constants";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
+import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
 import {
   canHaveChildren,
   getDescendantIds,
   wouldCreateCycle,
-} from "@/domain/request-tree";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/domain/request-tree";
+import type { Request } from "@foundation/src/types/requests";
 import { CornerDownRight, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 

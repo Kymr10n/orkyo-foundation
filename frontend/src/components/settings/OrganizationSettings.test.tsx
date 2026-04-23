@@ -3,14 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import { OrganizationSettings } from './OrganizationSettings';
-import * as tenantApi from '@/lib/api/tenant-management-api';
-import * as tenantsApi from '@/lib/api/tenant-account-api';
-import * as userApi from '@/lib/api/user-api';
+import * as tenantApi from '@foundation/src/lib/api/tenant-management-api';
+import * as tenantsApi from '@foundation/src/lib/api/tenant-account-api';
+import * as userApi from '@foundation/src/lib/api/user-api';
 
 // Mock APIs
-vi.mock('@/lib/api/tenant-management-api');
-vi.mock('@/lib/api/tenant-account-api');
-vi.mock('@/lib/api/user-api');
+vi.mock('@foundation/src/lib/api/tenant-management-api');
+vi.mock('@foundation/src/lib/api/tenant-account-api');
+vi.mock('@foundation/src/lib/api/user-api');
 
 // Mock navigate
 const mockNavigate = vi.fn();
@@ -25,7 +25,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 // Mock AuthContext
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => mockAuth,
 }));
 

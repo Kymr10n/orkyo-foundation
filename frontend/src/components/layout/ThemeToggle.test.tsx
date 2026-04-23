@@ -9,7 +9,7 @@ const mockSetTheme = vi.fn();
 let mockTheme = 'system' as 'dark' | 'light' | 'system';
 let mockResolvedTheme = 'dark' as 'dark' | 'light';
 
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (state: Record<string, unknown>) => unknown) => {
     const state = {
       theme: mockTheme,

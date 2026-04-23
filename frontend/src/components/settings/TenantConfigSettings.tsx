@@ -13,16 +13,16 @@ import {
   AlertCircle,
   Check,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@foundation/src/components/ui/button";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { Separator } from "@foundation/src/components/ui/separator";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
 import {
   useTenantSettings,
   useUpdateTenantSettings,
   useResetTenantSetting,
-} from "@/hooks/useTenantSettings";
-import type { TenantSettingDescriptor, SettingScope } from "@/lib/api/tenant-settings-api";
+} from "@foundation/src/hooks/useTenantSettings";
+import type { TenantSettingDescriptor, SettingScope } from "@foundation/src/lib/api/tenant-settings-api";
 import { validate } from "./tenant-config-helpers";
 import { CategoryCard } from "./CategoryCard";
 import { SettingsPageHeader } from "./SettingsPageHeader";

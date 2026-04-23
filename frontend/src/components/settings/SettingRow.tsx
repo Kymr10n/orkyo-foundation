@@ -1,16 +1,16 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Switch } from "@foundation/src/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@foundation/src/components/ui/tooltip";
 import { RotateCcw, Loader2, Info } from "lucide-react";
-import type { TenantSettingDescriptor } from "@/lib/api/tenant-settings-api";
+import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
 import { isModified, formatRange, isColorSetting, validate } from "./tenant-config-helpers";
 
 interface SettingRowProps {

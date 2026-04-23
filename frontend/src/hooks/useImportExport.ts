@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from 'react';
-import type { ExportFormat, ImportFormat, ExportContext } from '@/lib/utils/import-export';
+import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
 
 interface ExportEvent {
   context: ExportContext;

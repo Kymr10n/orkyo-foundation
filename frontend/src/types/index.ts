@@ -1,6 +1,6 @@
 /**
  * Types barrel export
- * Import from '@/types' to access all type definitions
+ * Import from '@foundation/src/types' to access all type definitions
  */
 
 export * from "./auth";

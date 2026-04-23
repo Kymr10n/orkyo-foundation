@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SettingRow } from './SettingRow';
-import type { TenantSettingDescriptor } from '@/lib/api/tenant-settings-api';
+import type { TenantSettingDescriptor } from '@foundation/src/lib/api/tenant-settings-api';
 
 vi.mock('./tenant-config-helpers', () => ({
   isModified: vi.fn((d) => d.currentValue !== d.defaultValue),

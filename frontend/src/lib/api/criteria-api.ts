@@ -1,4 +1,4 @@
-import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest } from '@/types/criterion';
+import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest } from '@foundation/src/types/criterion';
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 

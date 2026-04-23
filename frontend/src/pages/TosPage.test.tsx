@@ -4,11 +4,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // Mock session-api
 const mockAcceptTos = vi.fn();
 
-vi.mock('@/lib/api/session-api', () => ({
+vi.mock('@foundation/src/lib/api/session-api', () => ({
   acceptTos: (...args: unknown[]) => mockAcceptTos(...args),
 }));
 
-import { TosPage } from '@/pages/TosPage';
+import { TosPage } from '@foundation/src/pages/TosPage';
 
 const defaultProps = {
   onAccept: vi.fn().mockResolvedValue(undefined),

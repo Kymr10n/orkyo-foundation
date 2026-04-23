@@ -5,22 +5,22 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { ErrorAlert } from '@/components/ui/ErrorAlert';
-import { DialogFormFooter } from '@/components/ui/DialogFormFooter';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+} from '@foundation/src/components/ui/dialog';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
+import { Input } from '@foundation/src/components/ui/input';
+import { Label } from '@foundation/src/components/ui/label';
+import { Textarea } from '@foundation/src/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import type { Criterion, CriterionDataType } from '@/types/criterion';
-import { useCreateCriterion } from '@/hooks/useCriteria';
-import { isValidSlug } from '@/lib/utils';
+} from '@foundation/src/components/ui/select';
+import type { Criterion, CriterionDataType } from '@foundation/src/types/criterion';
+import { useCreateCriterion } from '@foundation/src/hooks/useCriteria';
+import { isValidSlug } from '@foundation/src/lib/utils';
 import { EnumValueEditor } from './EnumValueEditor';
 
 interface CreateCriterionDialogProps {

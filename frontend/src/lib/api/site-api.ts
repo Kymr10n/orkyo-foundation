@@ -4,7 +4,7 @@
 
 import { apiDelete, apiGet, apiPost, apiPut } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
-import type { Site, CreateSiteRequest, UpdateSiteRequest } from "@/types/site";
+import type { Site, CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types/site";
 
 export type { Site };
 

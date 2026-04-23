@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import {
   StarterTemplatePicker,
   type StarterTemplate,
-} from '@/components/onboarding/StarterTemplatePicker';
+} from '@foundation/src/components/onboarding/StarterTemplatePicker';
 
 const TEMPLATES: StarterTemplate[] = [
   { key: 'empty', name: 'Empty', description: 'Start from scratch', icon: 'file-plus', includesDemoData: false },

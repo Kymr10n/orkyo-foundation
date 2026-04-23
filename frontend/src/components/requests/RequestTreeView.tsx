@@ -1,34 +1,34 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@foundation/src/components/ui/dropdown-menu";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@/constants";
+} from "@foundation/src/components/ui/tooltip";
+import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
 import {
   canHaveChildren,
   computeDerivedValuesFromChildren,
   type DerivedValues,
   type FlatTreeEntry,
-} from "@/domain/request-tree";
+} from "@foundation/src/domain/request-tree";
 import {
   formatDateDisplay,
   formatDuration,
   formatStatusLabel,
   getStatusDotColor,
-} from "@/lib/utils/utils";
-import { useRequestTreeStore } from "@/store/request-tree-store";
-import type { Request } from "@/types/requests";
+} from "@foundation/src/lib/utils/utils";
+import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
+import type { Request } from "@foundation/src/types/requests";
 import {
   DndContext,
   DragOverlay,

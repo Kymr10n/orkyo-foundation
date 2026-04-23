@@ -2,9 +2,9 @@ import type {
   CreateSpaceGroupRequest,
   SpaceGroup,
   UpdateSpaceGroupRequest,
-} from "@/types/spaceGroup";
+} from "@foundation/src/types/spaceGroup";
 import { apiDelete, apiGet, apiPost, apiPut } from "../core/api-client";
-import { logger } from "@/lib/core/logger";
+import { logger } from "@foundation/src/lib/core/logger";
 
 export async function getSpaceGroups(): Promise<SpaceGroup[]> {
   try {

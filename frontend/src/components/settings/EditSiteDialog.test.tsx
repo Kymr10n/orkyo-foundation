@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { EditSiteDialog } from './EditSiteDialog';
 
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('@foundation/src/components/ui/dialog', () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -12,11 +12,11 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/ErrorAlert', () => ({
+vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
   ErrorAlert: ({ message }: { message: string | null }) => message ? <div role="alert">{message}</div> : null,
 }));
 
-vi.mock('@/components/ui/DialogFormFooter', () => ({
+vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   DialogFormFooter: ({ submitLabel, onCancel, isSubmitting }: { submitLabel: string; onCancel: () => void; isSubmitting: boolean }) => (
     <div>
       <button type="button" onClick={onCancel}>Cancel</button>
@@ -29,7 +29,7 @@ const mockUpdateMutateAsync = vi.fn(() =>
   Promise.resolve({ id: 's1', code: 'hq', name: 'Updated HQ', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' }),
 );
 
-vi.mock('@/hooks/useSites', () => ({
+vi.mock('@foundation/src/hooks/useSites', () => ({
   useUpdateSite: () => ({
     mutateAsync: mockUpdateMutateAsync,
     isPending: false,

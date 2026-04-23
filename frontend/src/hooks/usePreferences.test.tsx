@@ -2,14 +2,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { usePreferences, useUpdatePreferences, type UserPreferences } from "./usePreferences";
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from "@/test-utils";
+import { createTestQueryWrapper, createTestQueryClientWithSpy } from "@foundation/src/test-utils";
 
-vi.mock("@/lib/core/api-client", () => ({
+vi.mock("@foundation/src/lib/core/api-client", () => ({
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }));
 
-import * as apiClient from "@/lib/core/api-client";
+import * as apiClient from "@foundation/src/lib/core/api-client";
 
 const mockPreferences: UserPreferences = {
   spaceOrder: ["space-1", "space-2", "space-3"],

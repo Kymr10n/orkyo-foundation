@@ -22,7 +22,7 @@
  */
 
 import { create } from "zustand";
-import type { DraftInteraction, DraftResize, ResizeEdge } from "@/domain/scheduling/schedule-model";
+import type { DraftInteraction, DraftResize, ResizeEdge } from "@foundation/src/domain/scheduling/schedule-model";
 
 /** Minimum pixel delta before a resize gesture becomes "active". */
 export const RESIZE_MOVE_THRESHOLD_PX = 5;

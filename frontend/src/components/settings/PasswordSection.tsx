@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { Lock, Shield, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@foundation/src/components/ui/card";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -18,9 +18,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@foundation/src/components/ui/dialog";
 import { useMutation } from "@tanstack/react-query";
-import { changePassword } from "@/lib/api/security-api";
+import { changePassword } from "@foundation/src/lib/api/security-api";
 
 interface PasswordSectionProps {
   isFederated: boolean;

@@ -1,18 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { TimePicker } from "@/components/ui/time-picker";
+import { Button } from "@foundation/src/components/ui/button";
+import { Label } from "@foundation/src/components/ui/label";
+import { Switch } from "@foundation/src/components/ui/switch";
+import { TimePicker } from "@foundation/src/components/ui/time-picker";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@foundation/src/components/ui/select";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@foundation/src/components/ui/alert-dialog";
 import {
   Clock,
   Globe,
@@ -36,7 +36,7 @@ import {
   Pencil,
   RotateCcw,
 } from "lucide-react";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore } from "@foundation/src/store/app-store";
 import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
@@ -45,10 +45,10 @@ import {
   useCreateOffTime,
   useUpdateOffTime,
   useDeleteOffTime,
-} from "@/hooks/useScheduling";
-import type { SchedulingSettings as SchedulingSettingsType } from "@/domain/scheduling/types";
-import type { OffTimeDefinition } from "@/domain/scheduling/types";
-import { OFF_TIME_TYPE_LABELS } from "@/domain/scheduling/types";
+} from "@foundation/src/hooks/useScheduling";
+import type { SchedulingSettings as SchedulingSettingsType } from "@foundation/src/domain/scheduling/types";
+import type { OffTimeDefinition } from "@foundation/src/domain/scheduling/types";
+import { OFF_TIME_TYPE_LABELS } from "@foundation/src/domain/scheduling/types";
 import { OffTimeDialog } from "./OffTimeDialog";
 
 const COMMON_TIMEZONES = [

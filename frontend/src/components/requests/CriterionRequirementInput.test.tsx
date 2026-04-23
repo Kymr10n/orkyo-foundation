@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { CriterionRequirementInput } from './CriterionRequirementInput';
-import type { Criterion } from '@/types/criterion';
+import type { Criterion } from '@foundation/src/types/criterion';
 
 describe('CriterionRequirementInput', () => {
   describe('Boolean type', () => {

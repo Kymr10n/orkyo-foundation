@@ -1,4 +1,4 @@
-import type { Space } from "@/types/space";
+import type { Space } from "@foundation/src/types/space";
 
 export interface TimeColumn {
   start: Date;

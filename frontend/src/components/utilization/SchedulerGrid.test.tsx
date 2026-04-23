@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SchedulerGrid } from '@/components/utilization/SchedulerGrid';
-import { SpaceRow } from '@/components/utilization/SpaceRow';
-import { TimeCell } from '@/components/utilization/TimeCell';
-import { ScheduledRequestOverlay } from '@/components/utilization/ScheduledRequestOverlay';
-import { GroupHeader } from '@/components/utilization/GroupHeader';
-import type { Request } from '@/types/requests';
-import type { Space } from '@/types/space';
-import type { SpaceGroup } from '@/types/spaceGroup';
+import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
+import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
+import { TimeCell } from '@foundation/src/components/utilization/TimeCell';
+import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/ScheduledRequestOverlay';
+import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
+import type { Request } from '@foundation/src/types/requests';
+import type { Space } from '@foundation/src/types/space';
+import type { SpaceGroup } from '@foundation/src/types/spaceGroup';
 import { DndContext } from '@dnd-kit/core';
 
 // Mock the store
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
     const mockState = {
       currentView: { start: new Date('2024-01-01'), end: new Date('2024-01-31') },
@@ -29,7 +29,7 @@ vi.mock('@/store/app-store', () => ({
 }));
 
 // Mock the space groups API
-vi.mock('@/lib/api/space-groups-api', () => ({
+vi.mock('@foundation/src/lib/api/space-groups-api', () => ({
   getSpaceGroups: vi.fn(() => Promise.resolve([])),
 }));
 

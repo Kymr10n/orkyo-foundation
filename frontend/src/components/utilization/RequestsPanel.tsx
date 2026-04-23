@@ -1,21 +1,21 @@
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Input } from "@foundation/src/components/ui/input";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import type { Request, RequestStatus } from "@/types/requests";
-import { buildRequestTree, flattenTree, canBeScheduled, canHaveChildren } from "@/domain/request-tree";
-import type { FlatTreeEntry } from "@/domain/request-tree";
+} from "@foundation/src/components/ui/select";
+import type { Request, RequestStatus } from "@foundation/src/types/requests";
+import { buildRequestTree, flattenTree, canBeScheduled, canHaveChildren } from "@foundation/src/domain/request-tree";
+import type { FlatTreeEntry } from "@foundation/src/domain/request-tree";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
-import { getPlanningModeIcon } from "@/constants";
+import { getPlanningModeIcon } from "@foundation/src/constants";
 import React, { useState, useMemo, useCallback } from "react";
-import { formatMinutesHuman } from "@/lib/utils/utils";
+import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 interface RequestsPanelProps {
   requests: Request[];

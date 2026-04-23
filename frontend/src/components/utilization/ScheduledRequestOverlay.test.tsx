@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
-import { useSchedulerStore, RESIZE_MOVE_THRESHOLD_PX, MIN_DURATION_FLOOR_MS } from "@/store/scheduler-store";
-import { buildIndex } from "@/domain/scheduling/schedule-index";
-import type { PreviewEntry, PreviewSchedule, ValidationResult } from "@/domain/scheduling/schedule-model";
-import type { Request } from "@/types/requests";
+import { useSchedulerStore, RESIZE_MOVE_THRESHOLD_PX, MIN_DURATION_FLOOR_MS } from "@foundation/src/store/scheduler-store";
+import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
+import type { PreviewEntry, PreviewSchedule, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
+import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
 
 // ---------------------------------------------------------------------------

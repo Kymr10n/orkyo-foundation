@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPreviewSchedule } from './schedule-preview';
 import type { DraftResize } from './schedule-model';
-import type { Request } from '@/types/requests';
+import type { Request } from '@foundation/src/types/requests';
 
 // ---------------------------------------------------------------------------
 // Helpers

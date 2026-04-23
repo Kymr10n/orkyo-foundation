@@ -16,7 +16,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 // Mock the announcements API
-vi.mock('@/lib/api/user-announcements-api', () => ({
+vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({
   getActiveAnnouncements: vi.fn().mockResolvedValue({ announcements: [] }),
   markAnnouncementRead: vi.fn().mockResolvedValue(undefined),
 }));

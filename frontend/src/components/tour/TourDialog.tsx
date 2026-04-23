@@ -7,9 +7,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from "@foundation/src/components/ui/dialog";
+import { Button } from "@foundation/src/components/ui/button";
+import { Badge } from "@foundation/src/components/ui/badge";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -22,7 +22,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { markTourSeen } from "@/lib/api/session-api";
+import { markTourSeen } from "@foundation/src/lib/api/session-api";
 
 interface TourStep {
   icon: React.ComponentType<{ className?: string }>;

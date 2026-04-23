@@ -12,24 +12,24 @@
 
 import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
-import { RequireAuth } from '@/components/auth/RequireAuth';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { LoginPage } from '@/pages/LoginPage';
-import { TenantSuspendedPage } from '@/pages/TenantSuspendedPage';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { BreakGlassBanner } from '@/components/break-glass/BreakGlassBanner';
-import { useAuth } from '@/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@/constants/auth';
+import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
+import { AppLayout } from '@foundation/src/components/layout/AppLayout';
+import { LoginPage } from '@foundation/src/pages/LoginPage';
+import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
+import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
+import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
 
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle size
-const AboutPage = lazy(() => import('@/pages/AboutPage').then(m => ({ default: m.AboutPage })));
-const AccountPage = lazy(() => import('@/pages/AccountPage').then(m => ({ default: m.AccountPage })));
-const UtilizationPage = lazy(() => import('@/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
-const SpacesPage = lazy(() => import('@/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
-const ConflictsPage = lazy(() => import('@/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
-const RequestsPage = lazy(() => import('@/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
-const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const MessagesPage = lazy(() => import('@/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
+const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const AccountPage = lazy(() => import('@foundation/src/pages/AccountPage').then(m => ({ default: m.AccountPage })));
+const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
+const SpacesPage = lazy(() => import('@foundation/src/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
+const ConflictsPage = lazy(() => import('@foundation/src/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
+const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
+const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
 const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/requests", "/conflicts", "/settings"];

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,18 +9,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { ErrorAlert } from "@/components/ui/ErrorAlert";
-import { createInvitation, type CreateInvitationRequest } from "@/lib/api/user-api";
+} from "@foundation/src/components/ui/select";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
+import { createInvitation, type CreateInvitationRequest } from "@foundation/src/lib/api/user-api";
 
 interface InviteUserDialogProps {
   open: boolean;

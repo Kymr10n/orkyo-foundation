@@ -1,12 +1,12 @@
-import { useAppStore } from "@/store/app-store";
-import { useRequests } from "@/hooks/useUtilization";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { useRequests } from "@foundation/src/hooks/useUtilization";
 import { AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
-import { useExportHandler } from "@/hooks/useImportExport";
-import { exportConflicts } from "@/lib/utils/export-handlers";
-import type { Conflict, Request } from "@/types/requests";
+import { useExportHandler } from "@foundation/src/hooks/useImportExport";
+import { exportConflicts } from "@foundation/src/lib/utils/export-handlers";
+import type { Conflict, Request } from "@foundation/src/types/requests";
 import React, { useMemo } from "react";
-import { logger } from "@/lib/core/logger";
+import { logger } from "@foundation/src/lib/core/logger";
 
 type ConflictWithRequest = Conflict & { request: Request };
 

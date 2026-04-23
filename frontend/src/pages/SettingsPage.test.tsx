@@ -3,42 +3,42 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
 
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({
     membership: { isTenantAdmin: true, tier: 'Professional' },
   }),
 }));
 
-vi.mock('@/hooks/useSites', () => ({
+vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: () => ({ data: [{ id: 's1', name: 'HQ' }, { id: 's2', name: 'Branch' }] }),
 }));
 
 // Mock all settings sub-components
-vi.mock('@/components/settings/CriteriaSettings', () => ({
+vi.mock('@foundation/src/components/settings/CriteriaSettings', () => ({
   CriteriaSettings: () => <div data-testid="criteria-settings" />,
 }));
-vi.mock('@/components/settings/GroupSettings', () => ({
+vi.mock('@foundation/src/components/settings/GroupSettings', () => ({
   GroupSettings: () => <div data-testid="group-settings" />,
 }));
-vi.mock('@/components/settings/PresetSettings', () => ({
+vi.mock('@foundation/src/components/settings/PresetSettings', () => ({
   PresetSettings: () => <div data-testid="preset-settings" />,
 }));
-vi.mock('@/components/settings/TemplateSettings', () => ({
+vi.mock('@foundation/src/components/settings/TemplateSettings', () => ({
   TemplateSettings: () => <div data-testid="template-settings" />,
 }));
-vi.mock('@/components/settings/SiteSettings', () => ({
+vi.mock('@foundation/src/components/settings/SiteSettings', () => ({
   SiteSettings: () => <div data-testid="site-settings" />,
 }));
-vi.mock('@/components/settings/UserSettings', () => ({
+vi.mock('@foundation/src/components/settings/UserSettings', () => ({
   UserSettings: () => <div data-testid="user-settings" />,
 }));
-vi.mock('@/components/settings/OrganizationSettings', () => ({
+vi.mock('@foundation/src/components/settings/OrganizationSettings', () => ({
   OrganizationSettings: () => <div data-testid="org-settings" />,
 }));
-vi.mock('@/components/settings/TenantConfigSettings', () => ({
+vi.mock('@foundation/src/components/settings/TenantConfigSettings', () => ({
   TenantConfigSettings: () => <div data-testid="config-settings" />,
 }));
-vi.mock('@/components/settings/SchedulingSettings', () => ({
+vi.mock('@foundation/src/components/settings/SchedulingSettings', () => ({
   SchedulingSettings: () => <div data-testid="scheduling-settings" />,
 }));
 

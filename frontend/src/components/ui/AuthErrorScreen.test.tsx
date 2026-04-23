@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AuthErrorScreen } from './AuthErrorScreen';
-import { AUTH_MESSAGES } from '@/constants/auth';
+import { AUTH_MESSAGES } from '@foundation/src/constants/auth';
 
 describe('AuthErrorScreen', () => {
   it('renders backend error variant with correct title and detail', () => {

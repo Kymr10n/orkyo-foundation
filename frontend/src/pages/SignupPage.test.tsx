@@ -3,15 +3,15 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SignupPage } from './SignupPage';
 
-vi.mock('@/lib/utils/tenant-navigation', () => ({
+vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: vi.fn(),
 }));
 
-vi.mock('@/lib/core/api-utils', () => ({
+vi.mock('@foundation/src/lib/core/api-utils', () => ({
   API_BASE_URL: 'http://localhost:5000',
 }));
 
-vi.mock('@/lib/core/api-paths', () => ({
+vi.mock('@foundation/src/lib/core/api-paths', () => ({
   API_PATHS: { INVITATION_VALIDATE: '/api/invitations/validate' },
 }));
 

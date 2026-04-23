@@ -2,10 +2,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { UtilizationPage } from "@/pages/UtilizationPage";
-import { navigateTime } from "@/lib/utils/time-navigation";
-import { expandRecurrence } from "@/domain/scheduling/recurrence";
-import { generateWeekendRanges } from "@/domain/scheduling/weekend-ranges";
+import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
+import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
+import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -18,7 +18,7 @@ const mockUseOffTimes = vi.fn((_?: any): any => ({ data: [] }));
 
 // Mock AuthContext — default: admin
 let mockRole = "admin";
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => ({
     membership: {
       tenantId: "tenant-1",
@@ -45,7 +45,7 @@ const mockSetIsFloorplanCollapsed = vi.fn();
 const mockSetSelectedRequestId = vi.fn();
 const mockSetConflicts = vi.fn();
 
-vi.mock("@/store/app-store", () => ({
+vi.mock("@foundation/src/store/app-store", () => ({
   useAppStore: Object.assign(
     vi.fn((selector: any) => {
       const mockState: any = {
@@ -77,24 +77,24 @@ vi.mock("@/store/app-store", () => ({
   ),
 }));
 
-vi.mock("@/store/scheduler-store", () => ({
+vi.mock("@foundation/src/store/scheduler-store", () => ({
   useSchedulerStore: Object.assign(vi.fn((sel: any) => sel ? sel({}) : {}), {
     getState: () => ({ finalizeDraft: vi.fn() }),
   }),
 }));
 
 // Mock hooks
-vi.mock("@/hooks/usePreferences", () => ({
+vi.mock("@foundation/src/hooks/usePreferences", () => ({
   usePreferences: vi.fn(() => ({ data: null, isLoading: false })),
   useUpdatePreferences: vi.fn(() => ({ mutate: vi.fn() })),
 }));
 
-vi.mock("@/hooks/useScheduling", () => ({
+vi.mock("@foundation/src/hooks/useScheduling", () => ({
   useSchedulingSettings: (arg?: any) => mockUseSchedulingSettings(arg),
   useOffTimes: (arg?: any) => mockUseOffTimes(arg),
 }));
 
-vi.mock("@/hooks/useSchedulingConflicts", () => ({
+vi.mock("@foundation/src/hooks/useSchedulingConflicts", () => ({
   useSchedulingConflicts: vi.fn(() => ({ conflictingRequestIds: new Set() })),
 }));
 
@@ -103,31 +103,31 @@ const mockApplyMutateAsync = vi.fn(() => Promise.resolve());
 const mockScheduleMutate = vi.fn();
 const mockScheduleMutateAsync = vi.fn(() => Promise.resolve());
 
-vi.mock("@/hooks/useAutoSchedule", () => ({
+vi.mock("@foundation/src/hooks/useAutoSchedule", () => ({
   useAutoScheduleAvailable: (arg?: any) => mockUseAutoScheduleAvailable(arg),
   usePreviewAutoSchedule: vi.fn(() => ({ mutateAsync: mockPreviewMutateAsync, isPending: false })),
   useApplyAutoSchedule: vi.fn(() => ({ mutateAsync: mockApplyMutateAsync, isPending: false })),
 }));
 
-vi.mock("@/hooks/useUtilization", () => ({
+vi.mock("@foundation/src/hooks/useUtilization", () => ({
   useRequests: (arg?: any) => mockUseRequests(arg),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
   useSpaces: (arg?: any) => mockUseSpaces(arg),
 }));
 
-vi.mock("@/hooks/useImportExport", () => ({
+vi.mock("@foundation/src/hooks/useImportExport", () => ({
   useExportHandler: vi.fn((_key: string, handler: any) => { capturedExportHandler = handler; }),
 }));
 
 // Mock API modules called by handlers
-vi.mock("@/lib/api/request-api", () => ({
+vi.mock("@foundation/src/lib/api/request-api", () => ({
   updateRequest: vi.fn(() => Promise.resolve()),
   createRequest: vi.fn(() => Promise.resolve()),
   moveRequest: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/lib/utils/utils", async (importOriginal) => {
+vi.mock("@foundation/src/lib/utils/utils", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -136,28 +136,28 @@ vi.mock("@/lib/utils/utils", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/utils/export-handlers", () => ({
+vi.mock("@foundation/src/lib/utils/export-handlers", () => ({
   exportUtilization: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/domain/request-tree", () => ({
+vi.mock("@foundation/src/domain/request-tree", () => ({
   wouldCreateCycle: vi.fn(() => false),
   getNextSortOrder: vi.fn(() => 0),
 }));
 
-vi.mock("@/lib/api/space-capability-api", () => ({
+vi.mock("@foundation/src/lib/api/space-capability-api", () => ({
   getSpaceCapabilities: vi.fn(() => Promise.resolve([])),
 }));
 
-vi.mock("@/domain/scheduling/capability-matcher", () => ({
+vi.mock("@foundation/src/domain/scheduling/capability-matcher", () => ({
   validateSpaceRequirements: vi.fn(() => []),
 }));
 
-vi.mock("@/domain/scheduling/recurrence", () => ({
+vi.mock("@foundation/src/domain/scheduling/recurrence", () => ({
   expandRecurrence: vi.fn(() => []),
 }));
 
-vi.mock("@/domain/scheduling/weekend-ranges", () => ({
+vi.mock("@foundation/src/domain/scheduling/weekend-ranges", () => ({
   generateWeekendRanges: vi.fn(() => []),
 }));
 
@@ -175,7 +175,7 @@ vi.mock("@dnd-kit/core", () => ({
 }));
 
 // Mock heavy child components — capture callbacks for handler testing
-vi.mock("@/components/utilization/CollapsibleFloorplan", () => ({
+vi.mock("@foundation/src/components/utilization/CollapsibleFloorplan", () => ({
   CollapsibleFloorplan: ({ onToggle }: any) => (
     <div data-testid="collapsible-floorplan">
       <button data-testid="toggle-floorplan" onClick={onToggle}>Toggle</button>
@@ -183,7 +183,7 @@ vi.mock("@/components/utilization/CollapsibleFloorplan", () => ({
   ),
 }));
 
-vi.mock("@/components/utilization/RequestsPanel", () => ({
+vi.mock("@foundation/src/components/utilization/RequestsPanel", () => ({
   RequestsPanel: ({ isLoading, onCreateChild }: any) => (
     <div data-testid="requests-panel">
       {isLoading ? "panel-loading" : "panel-ready"}
@@ -192,7 +192,7 @@ vi.mock("@/components/utilization/RequestsPanel", () => ({
   ),
 }));
 
-vi.mock("@/components/utilization/SchedulerGrid", () => ({
+vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
   SchedulerGrid: ({ onRequestDoubleClick, onRequestResize, onTimeCursorClick }: any) => (
     <div data-testid="scheduler-grid">
       {onRequestDoubleClick && <button data-testid="dblclick-request" onClick={() => onRequestDoubleClick("r1")}>DblClick</button>}
@@ -202,11 +202,11 @@ vi.mock("@/components/utilization/SchedulerGrid", () => ({
   ),
 }));
 
-vi.mock("@/components/utilization/ScaleSelect", () => ({
+vi.mock("@foundation/src/components/utilization/ScaleSelect", () => ({
   ScaleSelect: () => <div data-testid="scale-select" />,
 }));
 
-vi.mock("@/components/utilization/TimeNavigator", () => ({
+vi.mock("@foundation/src/components/utilization/TimeNavigator", () => ({
   TimeNavigator: ({ onPrevious, onNext, onToday }: any) => (
     <div data-testid="time-navigator">
       <button data-testid="nav-prev" onClick={onPrevious}>Prev</button>
@@ -216,13 +216,13 @@ vi.mock("@/components/utilization/TimeNavigator", () => ({
   ),
 }));
 
-vi.mock("@/components/utilization/AutoScheduleButton", () => ({
+vi.mock("@foundation/src/components/utilization/AutoScheduleButton", () => ({
   AutoScheduleButton: ({ onClick, disabled }: any) => (
     <button data-testid="auto-schedule-btn" onClick={onClick} disabled={disabled}>Auto-Schedule</button>
   ),
 }));
 
-vi.mock("@/components/utilization/AutoSchedulePreviewDialog", () => ({
+vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () => ({
   AutoSchedulePreviewDialog: ({ open, onApply, onClose, applyError }: any) => open ? (
     <div data-testid="preview-dialog">
       <button data-testid="apply-schedule" onClick={onApply}>Apply</button>
@@ -232,7 +232,7 @@ vi.mock("@/components/utilization/AutoSchedulePreviewDialog", () => ({
   ) : null,
 }));
 
-vi.mock("@/components/requests/RequestFormDialog", () => ({
+vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
   RequestFormDialog: ({ open, onSave, onOpenChange }: any) => open ? (
     <div data-testid="request-form-dialog">
       <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
@@ -241,7 +241,7 @@ vi.mock("@/components/requests/RequestFormDialog", () => ({
   ) : null,
 }));
 
-vi.mock("@/components/requests/RequestDetailsDialog", () => ({
+vi.mock("@foundation/src/components/requests/RequestDetailsDialog", () => ({
   RequestDetailsDialog: ({ open }: any) => open ? <div data-testid="details-dialog" /> : null,
 }));
 
@@ -516,7 +516,7 @@ describe("UtilizationPage", () => {
   // --- Save request from edit dialog ---
 
   it("saves request from edit dialog", async () => {
-    const { updateRequest } = await import("@/lib/api/request-api");
+    const { updateRequest } = await import("@foundation/src/lib/api/request-api");
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", spaceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -553,7 +553,7 @@ describe("UtilizationPage", () => {
   // --- Save child request ---
 
   it("saves child request from create-child dialog", async () => {
-    const { createRequest } = await import("@/lib/api/request-api");
+    const { createRequest } = await import("@foundation/src/lib/api/request-api");
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -572,7 +572,7 @@ describe("UtilizationPage", () => {
   // --- Export handler ---
 
   it("calls exportUtilization via export handler for pdf", async () => {
-    const { exportUtilization } = await import("@/lib/utils/export-handlers");
+    const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -587,7 +587,7 @@ describe("UtilizationPage", () => {
   });
 
   it("export handler ignores non-pdf formats", async () => {
-    const { exportUtilization } = await import("@/lib/utils/export-handlers");
+    const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -761,7 +761,7 @@ describe("UtilizationPage", () => {
   });
 
   it("handleDragEnd reparents request in tree", async () => {
-    const { moveRequest } = await import("@/lib/api/request-api");
+    const { moveRequest } = await import("@foundation/src/lib/api/request-api");
     mockUseRequests.mockReturnValue({
       data: [{ id: "r1", name: "Task 1" }, { id: "r2", name: "Parent" }],
       isLoading: false,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Request } from "@/types/requests";
+import type { Request } from "@foundation/src/types/requests";
 import {
   buildRequestTree,
   flattenTree,

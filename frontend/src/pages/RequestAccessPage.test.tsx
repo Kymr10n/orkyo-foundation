@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RequestAccessPage } from './RequestAccessPage';
 
-vi.mock('@/lib/utils/tenant-navigation', () => ({
+vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: vi.fn(),
 }));
 
-vi.mock('@/lib/core/api-utils', () => ({
+vi.mock('@foundation/src/lib/core/api-utils', () => ({
   API_BASE_URL: 'http://localhost:5000',
 }));
 

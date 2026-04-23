@@ -3,7 +3,7 @@
  * Provides structured logging with levels and automatic stripping in production builds
  */
 
-import { runtimeConfig } from '@/config/runtime';
+import { runtimeConfig } from '@foundation/src/config/runtime';
 
 const isDevelopment = runtimeConfig.isDev;
 

@@ -1,18 +1,18 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { useAuth } from '@/contexts/AuthContext';
-import { CriteriaSettings } from '@/components/settings/CriteriaSettings';
-import { GroupSettings } from '@/components/settings/GroupSettings';
-import { PresetSettings } from '@/components/settings/PresetSettings';
-import { TemplateSettings } from '@/components/settings/TemplateSettings';
-import { SiteSettings } from '@/components/settings/SiteSettings';
-import { UserSettings } from '@/components/settings/UserSettings';
-import { OrganizationSettings } from '@/components/settings/OrganizationSettings';
-import { TenantConfigSettings } from '@/components/settings/TenantConfigSettings';
-import { SchedulingSettings } from '@/components/settings/SchedulingSettings';
-import { useSites } from '@/hooks/useSites';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { CriteriaSettings } from '@foundation/src/components/settings/CriteriaSettings';
+import { GroupSettings } from '@foundation/src/components/settings/GroupSettings';
+import { PresetSettings } from '@foundation/src/components/settings/PresetSettings';
+import { TemplateSettings } from '@foundation/src/components/settings/TemplateSettings';
+import { SiteSettings } from '@foundation/src/components/settings/SiteSettings';
+import { UserSettings } from '@foundation/src/components/settings/UserSettings';
+import { OrganizationSettings } from '@foundation/src/components/settings/OrganizationSettings';
+import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
+import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
+import { useSites } from '@foundation/src/hooks/useSites';
 
 export function SettingsPage() {
   const { membership } = useAuth();

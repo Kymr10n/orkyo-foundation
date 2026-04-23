@@ -4,9 +4,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@foundation/src/components/ui/card";
 import { Settings2 } from "lucide-react";
-import type { TenantSettingDescriptor } from "@/lib/api/tenant-settings-api";
+import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
 import { SettingRow } from "./SettingRow";
 import { CATEGORY_META } from "./tenant-config-helpers";
 

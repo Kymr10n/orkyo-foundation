@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchFloorplanViewData } from "@/lib/api/floorplan-api";
+import { fetchFloorplanViewData } from "@foundation/src/lib/api/floorplan-api";
 
 export function useFloorplanViewData(siteId: string | null, enabled = true) {
   return useQuery({

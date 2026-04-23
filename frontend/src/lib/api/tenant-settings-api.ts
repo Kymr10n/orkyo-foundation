@@ -8,8 +8,8 @@
 import { apiGet, apiPut, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 import { ApiHeaders } from "@foundation/contracts/apiHeaders";
-import { TENANT_HEADER_NAME } from "@/constants/http";
-import type { ApiRequestOptions } from "@/lib/core/api-client";
+import { TENANT_HEADER_NAME } from "@foundation/src/constants/http";
+import type { ApiRequestOptions } from "@foundation/src/lib/core/api-client";
 
 // ── Types ───────────────────────────────────────────────────────────
 

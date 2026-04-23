@@ -5,14 +5,14 @@
  * No Bearer token is sent from the frontend.
  */
 
-import { runtimeConfig } from "@/config/runtime";
-import { API_ERROR_CODES, type ApiErrorBody } from "@/constants/api-error-codes";
-import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@/constants/http";
-import { STORAGE_KEYS } from "@/constants/storage";
-import { getTenantSlugSync } from "@/contexts/AuthContext";
-import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@/lib/core/csrf";
-import { logger } from "@/lib/core/logger";
-import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@/lib/utils/tenant-navigation";
+import { runtimeConfig } from "@foundation/src/config/runtime";
+import { API_ERROR_CODES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
+import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@foundation/src/constants/http";
+import { STORAGE_KEYS } from "@foundation/src/constants/storage";
+import { getTenantSlugSync } from "@foundation/src/contexts/AuthContext";
+import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
+import { logger } from "@foundation/src/lib/core/logger";
+import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@foundation/src/lib/utils/tenant-navigation";
 
 /**
  * Get common headers for API requests.

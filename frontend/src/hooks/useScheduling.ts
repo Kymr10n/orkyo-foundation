@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { SchedulingSettings, OffTimeDefinition } from "@/domain/scheduling/types";
+import type { SchedulingSettings, OffTimeDefinition } from "@foundation/src/domain/scheduling/types";
 import {
   getSchedulingSettings,
   upsertSchedulingSettings,
@@ -8,7 +8,7 @@ import {
   createOffTime,
   updateOffTime,
   deleteOffTime,
-} from "@/lib/api/scheduling-api";
+} from "@foundation/src/lib/api/scheduling-api";
 
 // ── Query keys ──────────────────────────────────────────────────
 

@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useRef } from "react";
-import type { ResizeEdge } from "@/domain/scheduling/schedule-model";
+import type { ResizeEdge } from "@foundation/src/domain/scheduling/schedule-model";
 
 // ---------------------------------------------------------------------------
 // Types

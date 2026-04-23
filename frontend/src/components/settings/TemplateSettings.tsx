@@ -1,22 +1,22 @@
  
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@foundation/src/components/ui/badge";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Button } from "@foundation/src/components/ui/button";
+import { Card } from "@foundation/src/components/ui/card";
 import {
     deleteTemplate,
     getTemplates,
     createTemplate,
-} from "@/lib/api/template-api";
-import type { Template, CreateTemplateRequest } from "@/types/templates";
+} from "@foundation/src/lib/api/template-api";
+import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import { EditTemplateDialog } from "./EditTemplateDialog";
-import { useExportHandler, useImportHandler } from '@/hooks/useImportExport';
-import { exportTemplates, importTemplates } from '@/lib/utils/export-handlers';
-import { logger } from '@/lib/core/logger';
+import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
+import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/export-handlers';
+import { logger } from '@foundation/src/lib/core/logger';
 
 interface TemplateSettingsProps {
   entityType?: 'request' | 'space' | 'group';

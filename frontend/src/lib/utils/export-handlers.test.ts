@@ -15,10 +15,10 @@ import {
   exportUsers,
   importUsers,
 } from './export-handlers';
-import type { Space } from '@/types/space';
-import type { Request, Conflict } from '@/types/requests';
-import type { Criterion } from '@/types/criterion';
-import type { Site } from '@/types/site';
+import type { Space } from '@foundation/src/types/space';
+import type { Request, Conflict } from '@foundation/src/types/requests';
+import type { Criterion } from '@foundation/src/types/criterion';
+import type { Site } from '@foundation/src/types/site';
 
 // Mock downloadFile
 let mockDownloadFile = vi.fn();

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useAppStore } from '@/store/app-store';
-import type { Conflict } from '@/types/requests';
-import type { User } from '@/types/auth';
+import { useAppStore } from '@foundation/src/store/app-store';
+import type { Conflict } from '@foundation/src/types/requests';
+import type { User } from '@foundation/src/types/auth';
 
 describe('useAppStore - authentication', () => {
   beforeEach(() => {

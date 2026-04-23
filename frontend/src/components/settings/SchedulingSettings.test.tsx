@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { SchedulingSettings } from './SchedulingSettings';
 
 const mockUseAppStore = vi.fn();
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: (sel: any) => mockUseAppStore(sel),
 }));
 
@@ -21,7 +21,7 @@ const mockSettings = {
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: mockSettings, isLoading: false }));
 const mockUseOffTimes = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 
-vi.mock('@/hooks/useScheduling', () => ({
+vi.mock('@foundation/src/hooks/useScheduling', () => ({
   useSchedulingSettings: (siteId: any) => mockUseSchedulingSettings(siteId),
   useUpsertSchedulingSettings: () => ({ mutateAsync: vi.fn() }),
   useDeleteSchedulingSettings: () => ({ mutateAsync: vi.fn() }),
@@ -31,7 +31,7 @@ vi.mock('@/hooks/useScheduling', () => ({
   useDeleteOffTime: () => ({ mutateAsync: vi.fn() }),
 }));
 
-vi.mock('@/domain/scheduling/types', () => ({
+vi.mock('@foundation/src/domain/scheduling/types', () => ({
   OFF_TIME_TYPE_LABELS: { maintenance: 'Maintenance', holiday: 'Holiday', custom: 'Custom' },
 }));
 

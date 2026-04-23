@@ -11,9 +11,9 @@ import {
   X,
   RefreshCw,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Card } from "@foundation/src/components/ui/card";
+import { Badge } from "@foundation/src/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getUsers,
@@ -24,12 +24,12 @@ import {
   createInvitation,
   type UserWithRole,
   type Invitation,
-} from "@/lib/api/user-api";
+} from "@foundation/src/lib/api/user-api";
 import { InviteUserDialog } from "./InviteUserDialog";
 import { EditUserRoleDialog } from "./EditUserRoleDialog";
-import { useExportHandler, useImportHandler } from '@/hooks/useImportExport';
-import { exportUsers, importUsers } from '@/lib/utils/export-handlers';
-import { logger } from '@/lib/core/logger';
+import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
+import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
+import { logger } from '@foundation/src/lib/core/logger';
 
 export function UserSettings() {
   const queryClient = useQueryClient();

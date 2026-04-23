@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { Card } from "@/components/ui/card";
+import { Card } from "@foundation/src/components/ui/card";
 import {
     Dialog,
     DialogContent,
@@ -8,9 +8,9 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import {
     Table,
     TableBody,
@@ -18,21 +18,21 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+} from "@foundation/src/components/ui/table";
+import { Textarea } from "@foundation/src/components/ui/textarea";
 import {
     useCreateSpaceGroup,
     useDeleteSpaceGroup,
     useUpdateSpaceGroup
-} from "@/hooks/useGroups";
-import { getSpaceGroups } from "@/lib/api/space-groups-api";
-import type { CreateSpaceGroupRequest, SpaceGroup } from "@/types/spaceGroup";
+} from "@foundation/src/hooks/useGroups";
+import { getSpaceGroups } from "@foundation/src/lib/api/space-groups-api";
+import type { CreateSpaceGroupRequest, SpaceGroup } from "@foundation/src/types/spaceGroup";
 import { Pencil, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GroupCapabilitiesEditor } from "./GroupCapabilitiesEditor";
 import { GroupSpacesEditor } from "./GroupSpacesEditor";
-import { logger } from "@/lib/core/logger";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface GroupSettingsProps {
   editGroupId?: string | null;

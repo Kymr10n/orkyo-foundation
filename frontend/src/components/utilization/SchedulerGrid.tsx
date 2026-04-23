@@ -1,23 +1,23 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getSpaceGroups } from "@/lib/api/space-groups-api";
+import { getSpaceGroups } from "@foundation/src/lib/api/space-groups-api";
 // Domain pipeline
-import { buildPreviewSchedule } from "@/domain/scheduling/schedule-preview";
-import { buildIndex } from "@/domain/scheduling/schedule-index";
-import { evaluateSchedule } from "@/domain/scheduling/schedule-validator";
-import { useSchedulerStore } from "@/store/scheduler-store";
-import { useAppStore } from "@/store/app-store";
+import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
+import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
+import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
+import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
+import { useAppStore } from "@foundation/src/store/app-store";
 import { useShallow } from "zustand/react/shallow";
-import type { Request } from "@/types/requests";
-import type { Space } from "@/types/space";
-import type { SpaceGroup } from "@/types/spaceGroup";
+import type { Request } from "@foundation/src/types/requests";
+import type { Space } from "@foundation/src/types/space";
+import type { SpaceGroup } from "@foundation/src/types/spaceGroup";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { addDays, addHours, addMinutes, addMonths, addWeeks, format, isWeekend, startOfDay, startOfHour, startOfMonth, startOfWeek } from "date-fns";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn, SpacesByGroup } from "./scheduler-types";
 import { GroupHeader } from "./GroupHeader";
 import { SpaceRow } from "./SpaceRow";
-import type { OffTimeRange } from "@/domain/scheduling/types";
+import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 
 interface SchedulerGridProps {
   spaces: Space[];

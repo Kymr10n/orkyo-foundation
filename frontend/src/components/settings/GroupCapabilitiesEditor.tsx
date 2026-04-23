@@ -1,32 +1,32 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
 import {
     Dialog,
     DialogContent,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from "@foundation/src/components/ui/dialog";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { getCriteria } from "@/lib/api/criteria-api";
+} from "@foundation/src/components/ui/select";
+import { getCriteria } from "@foundation/src/lib/api/criteria-api";
 import {
     addGroupCapability,
     deleteGroupCapability,
     getGroupCapabilities
-} from "@/lib/api/group-capability-api";
-import { getDataTypeColor } from "@/lib/utils";
-import type { Criterion, CriterionValue } from "@/types/criterion";
+} from "@foundation/src/lib/api/group-capability-api";
+import { getDataTypeColor } from "@foundation/src/lib/utils";
+import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
-import { logger } from "@/lib/core/logger";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface GroupCapabilitiesEditorProps {
   open: boolean;

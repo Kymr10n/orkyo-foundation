@@ -1,6 +1,6 @@
 import { createCrudHooks } from "./useMutations";
-import { createCriterion, deleteCriterion, getCriteria, updateCriterion } from "@/lib/api/criteria-api";
-import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest } from "@/types/criterion";
+import { createCriterion, deleteCriterion, getCriteria, updateCriterion } from "@foundation/src/lib/api/criteria-api";
+import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest } from "@foundation/src/types/criterion";
 
 const CRITERIA_QUERY_KEY = ["criteria"] as const;
 

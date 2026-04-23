@@ -13,16 +13,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, RefreshCw, Shield, X } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@foundation/src/components/ui/button';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
 import {
   type BreakGlassSessionStatus,
   auditBreakGlassExit,
   getBreakGlassSessionStatus,
   renewBreakGlassSession,
-} from '@/lib/api/admin-api';
-import { navigateToApex } from '@/lib/utils/tenant-navigation';
-import { logger } from '@/lib/core/logger';
+} from '@foundation/src/lib/api/admin-api';
+import { navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
+import { logger } from '@foundation/src/lib/core/logger';
 
 /**
  * Below this threshold we switch the banner to a destructive treatment to

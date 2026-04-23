@@ -1,8 +1,8 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +10,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@foundation/src/components/ui/dialog";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
+import { Textarea } from "@foundation/src/components/ui/textarea";
 import {
   applyPreset,
   downloadPreset,
@@ -25,7 +25,7 @@ import {
   type PresetApplication,
   type PresetApplicationResult,
   type PresetValidationResult,
-} from "@/lib/api/preset-api";
+} from "@foundation/src/lib/api/preset-api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,

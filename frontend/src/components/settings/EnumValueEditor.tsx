@@ -1,8 +1,8 @@
 import { X, Plus } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Input } from '@foundation/src/components/ui/input';
+import { Label } from '@foundation/src/components/ui/label';
+import { Badge } from '@foundation/src/components/ui/badge';
+import { Button } from '@foundation/src/components/ui/button';
 import { useState } from 'react';
 
 interface EnumValueEditorProps {

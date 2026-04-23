@@ -1,6 +1,6 @@
 /**
  * API clients barrel export
- * Import from '@/lib/api' to access all API clients
+ * Import from '@foundation/src/lib/api' to access all API clients
  */
 
 export * from "./admin-api";

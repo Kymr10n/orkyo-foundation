@@ -4,7 +4,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
+} from "@foundation/src/components/ui/select";
 
 export type TimeScale = "year" | "month" | "week" | "day" | "hour";
 

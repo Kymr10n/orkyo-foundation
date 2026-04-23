@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isModified, formatRange, isColorSetting, validate } from './tenant-config-helpers';
-import type { TenantSettingDescriptor } from '@/lib/api/tenant-settings-api';
+import type { TenantSettingDescriptor } from '@foundation/src/lib/api/tenant-settings-api';
 
 function makeDescriptor(overrides: Partial<TenantSettingDescriptor> = {}): TenantSettingDescriptor {
   return {

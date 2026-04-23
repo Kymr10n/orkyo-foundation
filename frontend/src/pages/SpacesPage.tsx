@@ -1,5 +1,5 @@
-import { SpaceManagementPanel } from '@/components/spaces/SpaceManagementPanel';
-import { useAppStore } from '@/store/app-store';
+import { SpaceManagementPanel } from '@foundation/src/components/spaces/SpaceManagementPanel';
+import { useAppStore } from '@foundation/src/store/app-store';
 import { useSearchParams } from 'react-router-dom';
 
 export function SpacesPage() {

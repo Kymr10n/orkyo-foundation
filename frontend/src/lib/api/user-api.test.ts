@@ -10,19 +10,19 @@ import {
   deleteUser,
 } from "./user-api";
 
-vi.mock("@/contexts/AuthContext", () => ({
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
   getAuthTokenSync: () => null,
   getTenantSlugSync: () => null,
 }));
 
-vi.mock("@/lib/core/csrf", () => ({
+vi.mock("@foundation/src/lib/core/csrf", () => ({
   getCsrfToken: () => "test-csrf-token",
   CSRF_HEADER_NAME: "X-CSRF-Token",
   isMutatingMethod: (m: string) =>
     ["POST", "PUT", "PATCH", "DELETE"].includes(m.toUpperCase()),
 }));
 
-vi.mock("@/config/runtime", () => ({
+vi.mock("@foundation/src/config/runtime", () => ({
   runtimeConfig: { apiBaseUrl: "http://localhost:5000", baseDomain: "" },
 }));
 

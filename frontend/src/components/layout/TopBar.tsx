@@ -1,16 +1,16 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@foundation/src/components/ui/button";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-} from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/contexts/AuthContext";
-import { getSites } from "@/lib/api/site-api";
-import { getUnreadAnnouncementCount } from "@/lib/api/user-announcements-api";
-import { useAppStore } from "@/store/app-store";
-import { navigateToApex } from "@/lib/utils/tenant-navigation";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
+} from "@foundation/src/components/ui/popover";
+import { Separator } from "@foundation/src/components/ui/separator";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { getSites } from "@foundation/src/lib/api/site-api";
+import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
+import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -19,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@foundation/src/components/ui/select";
 import {
     ArrowLeftRight,
     Building,
@@ -38,13 +38,13 @@ import {
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, useState } from "react";
-import type { ExportContext, ExportFormat, ImportFormat } from "@/lib/utils/import-export";
-import { isImportSupported } from "@/lib/utils/import-export";
-import { logger } from "@/lib/core/logger";
+import type { ExportContext, ExportFormat, ImportFormat } from "@foundation/src/lib/utils/import-export";
+import { isImportSupported } from "@foundation/src/lib/utils/import-export";
+import { logger } from "@foundation/src/lib/core/logger";
 
 // Lazy load the import/export dialog to reduce initial bundle size
 const ImportExportDialog = lazy(() =>
-  import("@/components/system/ImportExportDialog").then((m) => ({
+  import("@foundation/src/components/system/ImportExportDialog").then((m) => ({
     default: m.ImportExportDialog,
   }))
 );

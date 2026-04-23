@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { ImportExportDialog } from './ImportExportDialog';
 
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('@foundation/src/components/ui/dialog', () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -12,7 +12,7 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/lib/utils/import-export', () => ({
+vi.mock('@foundation/src/lib/utils/import-export', () => ({
   getExportFilename: () => 'export-test.csv',
   getSupportedFormats: () => ({ export: ['csv', 'json'], import: ['csv', 'json'] }),
   isImportSupported: () => true,

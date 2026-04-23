@@ -9,7 +9,7 @@ import { MessagesTab } from './MessagesTab';
 const mockGetActiveAnnouncements = vi.fn();
 const mockMarkAnnouncementRead = vi.fn();
 
-vi.mock('@/lib/api/user-announcements-api', () => ({
+vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({
   getActiveAnnouncements: (...args: unknown[]) => mockGetActiveAnnouncements(...args),
   markAnnouncementRead: (...args: unknown[]) => mockMarkAnnouncementRead(...args),
 }));

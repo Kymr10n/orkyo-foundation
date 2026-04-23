@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import {
   ArrowLeft,
   UserPlus,
@@ -9,9 +9,9 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { navigateToApex } from "@/lib/utils/tenant-navigation";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { API_BASE_URL } from "@/lib/core/api-utils";
+import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
 
 export function RequestAccessPage() {
   const [submitted, setSubmitted] = useState(false);

@@ -1,2 +1,2 @@
 // Re-export from canonical domain location for backwards compatibility.
-export { validateSpaceRequirements } from "@/domain/scheduling/capability-matcher";
+export { validateSpaceRequirements } from "@foundation/src/domain/scheduling/capability-matcher";

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { EditCriterionDialog } from './EditCriterionDialog';
 
-vi.mock('@/components/ui/dialog', () => ({
+vi.mock('@foundation/src/components/ui/dialog', () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -12,11 +12,11 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/ui/ErrorAlert', () => ({
+vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
   ErrorAlert: ({ message }: { message: string | null }) => message ? <div role="alert">{message}</div> : null,
 }));
 
-vi.mock('@/components/ui/DialogFormFooter', () => ({
+vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   DialogFormFooter: () => <div><button type="submit">Save</button></div>,
 }));
 
@@ -24,7 +24,7 @@ const mockMutateAsync = vi.fn(() =>
   Promise.resolve({ id: 'c1', name: 'Capacity', dataType: 'Number', description: 'Updated', unit: 'seats', enumValues: [] }),
 );
 
-vi.mock('@/hooks/useCriteria', () => ({
+vi.mock('@foundation/src/hooks/useCriteria', () => ({
   useUpdateCriterion: () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,

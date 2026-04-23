@@ -10,11 +10,11 @@
  */
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
+import { Input } from "@foundation/src/components/ui/input";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -22,11 +22,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@foundation/src/components/ui/dialog";
 import { Check, Sparkles, Building, Loader2, Mail } from "lucide-react";
-import { registerInterest } from "@/lib/api/interest-api";
-import { useAuth } from "@/contexts/AuthContext";
-import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/generated/plan-data";
+import { registerInterest } from "@foundation/src/lib/api/interest-api";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { PLAN_LIMITS, PLAN_FEATURES } from "@foundation/src/lib/generated/plan-data";
 
 interface PlanCardsProps {
   /** User's email, pre-filled in interest form. Falls back to auth context. */

@@ -1,6 +1,6 @@
-import type { Request } from "@/types/requests";
-import type { Space } from "@/types/space";
-import { durationToMs } from "@/domain/scheduling/schedule-model";
+import type { Request } from "@foundation/src/types/requests";
+import type { Space } from "@foundation/src/types/space";
+import { durationToMs } from "@foundation/src/domain/scheduling/schedule-model";
 import { apiGet, apiPatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 

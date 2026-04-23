@@ -23,16 +23,16 @@ const { mockNavigateToApex, mockUseAuth } = vi.hoisted(() => ({
 const mockSwitchTenant = vi.fn();
 const mockLogout = vi.fn();
 
-vi.mock('@/contexts/AuthContext', () => ({
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock('@/lib/utils/tenant-navigation', () => ({
+vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: mockNavigateToApex,
   getCurrentSubdomain: vi.fn(() => null),
 }));
 
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: unknown) => unknown) =>
     selector({ scale: 1, anchorTs: new Date('2026-01-01'), user: null, selectedSiteId: null, setUser: vi.fn(), setSelectedSiteId: vi.fn() })
   ),
@@ -49,8 +49,8 @@ vi.mock('@tanstack/react-query', () => ({
   }),
 }));
 
-vi.mock('@/lib/api/site-api', () => ({ getSites: vi.fn() }));
-vi.mock('@/lib/api/user-announcements-api', () => ({ getUnreadAnnouncementCount: vi.fn() }));
+vi.mock('@foundation/src/lib/api/site-api', () => ({ getSites: vi.fn() }));
+vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({ getUnreadAnnouncementCount: vi.fn() }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 /**
  * Utility functions barrel export
- * Import from '@/lib/utils' to access utilities
+ * Import from '@foundation/src/lib/utils' to access utilities
  */
 
 export * from "./export-handlers";

@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MfaSection } from './MfaSection';
-import { createTestQueryWrapper } from '@/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
-vi.mock('@/lib/api/security-api', () => ({
+vi.mock('@foundation/src/lib/api/security-api', () => ({
   getMfaStatus: vi.fn(),
   removeMfa: vi.fn(),
   enableMfa: vi.fn(),
 }));
 
-const { getMfaStatus, removeMfa, enableMfa } = await import('@/lib/api/security-api');
+const { getMfaStatus, removeMfa, enableMfa } = await import('@foundation/src/lib/api/security-api');
 
 function renderMfa() {
   const wrapper = createTestQueryWrapper();

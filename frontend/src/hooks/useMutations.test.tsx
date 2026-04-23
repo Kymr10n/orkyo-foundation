@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createCrudHooks } from "./useMutations";
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from "@/test-utils";
+import { createTestQueryWrapper, createTestQueryClientWithSpy } from "@foundation/src/test-utils";
 
 interface TestItem {
   id: string;

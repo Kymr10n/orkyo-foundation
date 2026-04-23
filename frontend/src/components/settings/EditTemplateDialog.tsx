@@ -1,5 +1,5 @@
 import { TemplateDialogBase } from "./TemplateDialogBase";
-import type { Template } from "@/types/templates";
+import type { Template } from "@foundation/src/types/templates";
 
 interface EditTemplateDialogProps {
   open: boolean;

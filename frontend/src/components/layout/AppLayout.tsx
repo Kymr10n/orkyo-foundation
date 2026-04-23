@@ -1,15 +1,15 @@
-import { getSites } from "@/lib/api/site-api";
-import { useAppStore } from "@/store/app-store";
+import { getSites } from "@foundation/src/lib/api/site-api";
+import { useAppStore } from "@foundation/src/store/app-store";
 import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
-import { useCommandPalette } from "@/hooks/useCommandPalette";
-import { useAuth } from "@/contexts/AuthContext";
-import { TourDialog } from "@/components/tour/TourDialog";
-import { logger } from "@/lib/core/logger";
+import { useCommandPalette } from "@foundation/src/hooks/useCommandPalette";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { TourDialog } from "@foundation/src/components/tour/TourDialog";
+import { logger } from "@foundation/src/lib/core/logger";
 
 export function AppLayout() {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);

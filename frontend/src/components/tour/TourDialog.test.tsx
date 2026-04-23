@@ -8,7 +8,7 @@ import { TourDialog } from "./TourDialog";
 // ─── mocks ───────────────────────────────────────────────────────────────────
 
 const mockMarkTourSeen = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/lib/api/session-api", () => ({
+vi.mock("@foundation/src/lib/api/session-api", () => ({
   markTourSeen: () => mockMarkTourSeen(),
 }));
 

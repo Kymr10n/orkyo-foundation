@@ -4,14 +4,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { CommandPalette } from './CommandPalette';
-import * as searchApi from '@/lib/api/search-api';
-import type { SearchResponse, SearchResult } from '@/lib/api/search-api';
+import * as searchApi from '@foundation/src/lib/api/search-api';
+import type { SearchResponse, SearchResult } from '@foundation/src/lib/api/search-api';
 
 // Mock the search API
-vi.mock('@/lib/api/search-api');
+vi.mock('@foundation/src/lib/api/search-api');
 
 // Mock the store
-vi.mock('@/store/app-store', () => ({
+vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
     const state = {
       selectedSiteId: 'site-1',

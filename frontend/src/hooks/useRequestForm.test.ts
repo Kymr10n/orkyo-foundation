@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { formReducer, buildInitialState } from './useRequestForm';
 import type { RequestFormState } from './useRequestForm';
-import type { Request } from '@/types/requests';
-import type { Template } from '@/types/templates';
+import type { Request } from '@foundation/src/types/requests';
+import type { Template } from '@foundation/src/types/templates';
 
 function makeState(overrides: Partial<RequestFormState> = {}): RequestFormState {
   return {

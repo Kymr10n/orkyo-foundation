@@ -36,16 +36,16 @@
  */
 
 import { setup, assign, fromPromise } from 'xstate';
-import { runtimeConfig } from '@/config/runtime';
-import { STORAGE_KEYS } from '@/constants/storage';
-import { AUTH_EVENTS, AUTH_MESSAGES, TENANT_STATUS } from '@/constants/auth';
+import { runtimeConfig } from '@foundation/src/config/runtime';
+import { STORAGE_KEYS } from '@foundation/src/constants/storage';
+import { AUTH_EVENTS, AUTH_MESSAGES, TENANT_STATUS } from '@foundation/src/constants/auth';
 import {
   getCurrentSubdomain,
   navigateToTenantSubdomain,
   consumeBreakGlassCookie,
   getApexOrigin,
-} from '@/lib/utils/tenant-navigation';
-import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@/contexts/AuthContext';
+} from '@foundation/src/lib/utils/tenant-navigation';
+import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
