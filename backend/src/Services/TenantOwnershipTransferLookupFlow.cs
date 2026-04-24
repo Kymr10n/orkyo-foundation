@@ -30,13 +30,23 @@ public static class TenantOwnershipTransferLookupFlow
         Guid tenantId,
         Guid newOwnerId)
     {
-        await using var ownerStatusCmd = TenantOwnerStatusCommandFactory.CreateSelectByTenantIdCommand(connection, tenantId);
-        await using var ownerStatusReader = await ownerStatusCmd.ExecuteReaderAsync();
-        var ownerStatus = await TenantOwnerStatusReaderFlow.ReadSingleOrNotFoundAsync(ownerStatusReader);
+        // Each reader must be fully disposed before starting the next command on the same
+        // connection — Npgsql does not support concurrent active result sets. Scoping each
+        // read inside its own block guarantees `await using` runs the async disposal before
+        // the second ExecuteReaderAsync is invoked.
+        TenantOwnerStatusSnapshot ownerStatus;
+        {
+            await using var ownerStatusCmd = TenantOwnerStatusCommandFactory.CreateSelectByTenantIdCommand(connection, tenantId);
+            await using var ownerStatusReader = await ownerStatusCmd.ExecuteReaderAsync();
+            ownerStatus = await TenantOwnerStatusReaderFlow.ReadSingleOrNotFoundAsync(ownerStatusReader);
+        }
 
-        await using var membershipCmd = TenantMembershipRoleStatusCommandFactory.CreateSelectByTenantAndUserCommand(connection, tenantId, newOwnerId);
-        await using var membershipReader = await membershipCmd.ExecuteReaderAsync();
-        var membership = await TenantMembershipRoleStatusReaderFlow.ReadSingleOrNotFoundAsync(membershipReader);
+        TenantMembershipRoleStatusSnapshot membership;
+        {
+            await using var membershipCmd = TenantMembershipRoleStatusCommandFactory.CreateSelectByTenantAndUserCommand(connection, tenantId, newOwnerId);
+            await using var membershipReader = await membershipCmd.ExecuteReaderAsync();
+            membership = await TenantMembershipRoleStatusReaderFlow.ReadSingleOrNotFoundAsync(membershipReader);
+        }
 
         return FromSnapshots(ownerStatus, membership);
     }
