@@ -55,6 +55,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
     /// <summary>
+    /// Builds an <see cref="Api.Services.IDbConnectionFactory"/> backed by the
+    /// fixture's control-plane, tenant, and admin connection strings. Use this
+    /// to compose foundation services under test without reaching for SaaS's
+    /// concrete <c>DbConnectionFactory</c>.
+    /// </summary>
+    public TestDbConnectionFactory CreateConnectionFactory() =>
+        new(ControlPlaneConnectionString, TestTenantConnectionString, AdminConnectionString);
+
+    /// <summary>
     /// Opens a new <see cref="NpgsqlConnection"/> to the control-plane database.
     /// The caller is responsible for disposal.
     /// </summary>

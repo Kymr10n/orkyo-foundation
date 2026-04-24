@@ -47,7 +47,6 @@ public static class ConfigKeys
     public const string AppBaseUrl = "APP_BASE_URL";
     public const string CorsAllowedOrigins = "CORS_ALLOWED_ORIGINS";
     public const string FileStoragePath = "FILE_STORAGE_PATH";
-    public const string DefaultTenantDb = "DEFAULT_TENANT_DB";
     public const string InitialAdminEmail = "INITIAL_ADMIN_EMAIL";
 
     // ── Tenant resolution ───────────────────────────────────────────────────
