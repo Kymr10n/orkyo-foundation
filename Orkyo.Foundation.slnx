@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/migrations/">
+    <Project Path="backend/migrations/Orkyo.Migrations.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="backend/shared/Orkyo.Shared.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="backend/src/Orkyo.Foundation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="backend/tests/Orkyo.Foundation.Tests.csproj" />
+  </Folder>
+</Solution>

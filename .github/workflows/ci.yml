@@ -20,13 +20,13 @@ jobs:
           dotnet-version: "10.x"
 
       - name: Restore
-        run: dotnet restore backend/OrkyoFoundation.slnx
+        run: dotnet restore Orkyo.Foundation.slnx
 
       - name: Build
-        run: dotnet build backend/OrkyoFoundation.slnx -c Release --no-restore
+        run: dotnet build Orkyo.Foundation.slnx -c Release --no-restore
 
       - name: Test
-        run: dotnet test backend/OrkyoFoundation.slnx -c Release --no-build --verbosity normal
+        run: dotnet test Orkyo.Foundation.slnx -c Release --no-build --verbosity normal
 
   frontend-contracts:
     name: Validate frontend contracts
