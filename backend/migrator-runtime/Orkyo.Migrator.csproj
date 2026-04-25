@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Orkyo.Migrator</RootNamespace>
+    <AssemblyName>Orkyo.Migrator</AssemblyName>
+
+    <PackageId>Orkyo.Migrator</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Orkyo</Authors>
+    <Description>Migration runner for Orkyo. Composes IMigrationModule registrations into Apply/DryRun/ValidateOnly executions against a single Postgres database, with advisory locking, checksum validation, and an explicit history table (orkyo_schema_migrations).</Description>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
+    <PackageReference Include="dbup-core" Version="6.0.4" />
+    <PackageReference Include="dbup-postgresql" Version="6.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\migration-abstractions\Orkyo.Migration.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Orkyo.Foundation.Tests" />
+  </ItemGroup>
+</Project>

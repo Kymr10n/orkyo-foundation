@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/migration-abstractions/">
+    <Project Path="backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj" />
+  </Folder>
+  <Folder Name="/migrator-runtime/">
+    <Project Path="backend/migrator-runtime/Orkyo.Migrator.csproj" />
+  </Folder>
   <Folder Name="/migrations/">
     <Project Path="backend/migrations/Orkyo.Migrations.csproj" />
   </Folder>
