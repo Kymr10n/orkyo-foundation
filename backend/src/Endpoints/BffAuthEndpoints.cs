@@ -400,7 +400,7 @@ public static class BffAuthEndpoints
     }
 
     [ExcludeFromCodeCoverage]
-    internal static async Task<string> ResolvePostLoginRedirectAsync(
+    public static async Task<string> ResolvePostLoginRedirectAsync(
         string returnTo,
         Guid userId,
         bool isSiteAdmin,

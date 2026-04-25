@@ -13,7 +13,7 @@ public static class DiagnosticsAdminEndpoints
 {
     public static void MapDiagnosticsAdminEndpoints(this WebApplication app)
     {
-        // Public version endpoint — no auth required
+        // Public version endpoint �� no auth required
         app.MapGet("/api/version", (DeploymentConfig deploymentConfig) =>
             Results.Ok(new
             {
@@ -24,6 +24,18 @@ public static class DiagnosticsAdminEndpoints
             .WithTags("Infrastructure")
             .WithName("GetVersion")
             .WithSummary("Returns application version and build info (public, no auth)");
+
+        // Legacy API info endpoint (v1 compat)
+        app.MapGet("/api/v1/info", (DeploymentConfig deploymentConfig) =>
+            Results.Ok(new
+            {
+                name = "Orkyo API",
+                version = deploymentConfig.Version ?? "unknown",
+            }))
+            .AsInfrastructureEndpoint()
+            .WithTags("Infrastructure")
+            .WithName("GetApiInfo")
+            .WithSummary("Returns API name and version (public, no auth)");
 
         // Admin diagnostics endpoint
         var group = app.MapGroup("/api/admin")

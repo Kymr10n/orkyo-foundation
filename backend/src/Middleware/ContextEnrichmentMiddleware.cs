@@ -47,7 +47,7 @@ public sealed class ContextEnrichmentMiddleware
     private static readonly TimeSpan CacheTtl = TimePolicyConstants.CacheTtl;
 
     /// <summary>Clear all caches (for integration tests).</summary>
-    internal static void ClearCache()
+    public static void ClearCache()
     {
         _principalCache.Compact(1.0);
         _roleCache.Compact(1.0);

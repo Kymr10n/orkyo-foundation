@@ -21,7 +21,7 @@ public class TenantSettingsService : ITenantSettingsService
     private static readonly TimeSpan CacheTtl = TimePolicyConstants.CacheTtl;
 
     /// <summary>Clear all cached settings (used by integration tests after direct DB cleanup).</summary>
-    internal static void ClearCache()
+    public static void ClearCache()
     {
         _cache.Clear();
         lock (_siteCacheLock) { _siteCache = null; }

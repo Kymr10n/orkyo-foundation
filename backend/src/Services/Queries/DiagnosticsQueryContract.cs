@@ -17,9 +17,10 @@ public static class DiagnosticsQueryContract
 
     /// <summary>
     /// COUNT of rows in the migration tracking table.
+    /// Uses orkyo_schema_migrations (Orkyo.Migrator); falls back gracefully if not present.
     /// </summary>
     public static string BuildMigrationCountSql() =>
-        "SELECT COUNT(*) FROM _migrations";
+        "SELECT COUNT(*) FROM orkyo_schema_migrations";
 
     /// <summary>
     /// MAX(created_at) over <c>audit_events</c> rows newer than
