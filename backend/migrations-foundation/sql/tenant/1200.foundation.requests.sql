@@ -4,6 +4,7 @@
 -- V009 (parent_request_id, planning_mode, sort_order + tree FK + indexes).
 
 CREATE TABLE public.requests (
+    -- Column order matches legacy V001 + V005 + V009 (each ALTER appended at the end).
     id                        uuid                     DEFAULT gen_random_uuid() NOT NULL,
     name                      character varying(200)   NOT NULL,
     description               text,
@@ -13,11 +14,13 @@ CREATE TABLE public.requests (
     end_ts                    timestamp with time zone,
     minimal_duration_value    integer                  NOT NULL,
     minimal_duration_unit     character varying(20)    NOT NULL,
+    status                    character varying(20)    DEFAULT 'planned'::character varying NOT NULL,
+    created_at                timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at                timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     earliest_start_ts         timestamp with time zone,
     latest_end_ts             timestamp with time zone,
     actual_duration_value     integer,
     actual_duration_unit      character varying(20),
-    status                    character varying(20)    DEFAULT 'planned'::character varying NOT NULL,
 
     -- V005
     scheduling_settings_apply boolean                  NOT NULL DEFAULT true,
@@ -26,9 +29,6 @@ CREATE TABLE public.requests (
     parent_request_id         uuid,
     planning_mode             character varying(20)    NOT NULL DEFAULT 'leaf',
     sort_order                integer                  NOT NULL DEFAULT 0,
-
-    created_at                timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at                timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT requests_pkey PRIMARY KEY (id),
     CONSTRAINT requests_space_id_fkey

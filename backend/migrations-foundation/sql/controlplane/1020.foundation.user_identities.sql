@@ -11,11 +11,17 @@ CREATE TABLE public.user_identities (
 
     CONSTRAINT user_identities_pkey PRIMARY KEY (id),
     CONSTRAINT user_identities_provider_provider_subject_key UNIQUE (provider, provider_subject),
-    CONSTRAINT user_identities_provider_check
-        CHECK (provider IN ('google', 'azure', 'github', 'keycloak')),
     CONSTRAINT user_identities_user_id_fkey
         FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE
 );
+
+-- The provider CHECK was historically dropped + re-added via ALTER TABLE in V004
+-- to extend it for 'keycloak'. Postgres serializes inline-vs-ALTER-added CHECKs
+-- differently in pg_dump output even though they are semantically identical, so
+-- we keep the ALTER form for byte-equivalence with adopted prod databases.
+ALTER TABLE public.user_identities
+    ADD CONSTRAINT user_identities_provider_check
+    CHECK (provider IN ('google', 'azure', 'github', 'keycloak'));
 
 CREATE INDEX idx_user_identities_user_id
     ON public.user_identities USING btree (user_id);

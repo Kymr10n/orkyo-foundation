@@ -1,5 +1,6 @@
 -- Spaces — physical or logical sub-units of a site. Folds V008 capacity column.
 
+-- Column order matches legacy V001 (group_id appended at end of V001) + V008 (capacity appended).
 CREATE TABLE public.spaces (
     id          uuid                     DEFAULT gen_random_uuid() NOT NULL,
     site_id     uuid                     NOT NULL,
@@ -9,10 +10,10 @@ CREATE TABLE public.spaces (
     is_physical boolean                  DEFAULT false NOT NULL,
     geometry    jsonb,
     properties  jsonb                    DEFAULT '{}'::jsonb,
-    group_id    uuid,
-    capacity    integer                  DEFAULT 1 NOT NULL,
     created_at  timestamp with time zone DEFAULT now() NOT NULL,
     updated_at  timestamp with time zone DEFAULT now() NOT NULL,
+    group_id    uuid,
+    capacity    integer                  DEFAULT 1 NOT NULL,
 
     CONSTRAINT spaces_pkey PRIMARY KEY (id),
     CONSTRAINT spaces_site_id_fkey  FOREIGN KEY (site_id)  REFERENCES public.sites(id)        ON DELETE CASCADE,

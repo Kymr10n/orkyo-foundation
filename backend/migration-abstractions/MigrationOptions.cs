@@ -26,4 +26,18 @@ public sealed record MigrationOptions
     /// Typically the deploying release tag or commit SHA.
     /// </summary>
     public string? AppliedByVersion { get; init; }
+
+    /// <summary>
+    /// One-time legacy-adoption set: migration ids that should be marked as already
+    /// applied in <c>orkyo_schema_migrations</c> without executing their SQL. Used during
+    /// the cutover from a hand-rolled migration runner whose history table the new
+    /// runner cannot read. Idempotent — re-running is a no-op.
+    /// </summary>
+    /// <remarks>
+    /// Per target. The CLI's <c>--adopt-legacy &lt;baseline.json&gt;</c> flag reads the
+    /// per-target list from a baseline file and populates this set for each
+    /// <c>RunAsync</c> call. Empty by default; production runs without
+    /// <c>--adopt-legacy</c> never adopt.
+    /// </remarks>
+    public IReadOnlySet<string> AdoptIds { get; init; } = new HashSet<string>();
 }

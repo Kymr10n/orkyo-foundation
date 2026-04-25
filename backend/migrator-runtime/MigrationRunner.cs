@@ -76,6 +76,16 @@ public sealed class MigrationRunner
         await historyConnection.OpenAsync(ct);
         var history = new MigrationHistory(historyConnection);
         await history.EnsureTableExistsAsync(ct);
+
+        // Legacy adoption: mark requested ids as already-applied (idempotent) before the
+        // rest of the flow reads applied state. Anything in AdoptIds that doesn't match a
+        // known script for this target is reported as an error so a typo in the baseline
+        // file fails fast rather than silently skipping cutover.
+        if (options.AdoptIds.Count > 0)
+        {
+            await AdoptIdsAsync(history, ordered, options, ct);
+        }
+
         var applied = await history.LoadAppliedAsync(ct);
 
         ValidateAppliedChecksums(ordered, applied);
@@ -139,6 +149,48 @@ public sealed class MigrationRunner
                 ? new MigrationResult(s, MigrationOutcome.Applied, null, null)
                 : new MigrationResult(s, MigrationOutcome.Skipped, null, null))
             .ToList();
+    }
+
+    private async Task AdoptIdsAsync(
+        MigrationHistory history,
+        IReadOnlyList<MigrationScript> ordered,
+        MigrationOptions options,
+        CancellationToken ct)
+    {
+        // The AdoptIds set may contain ids for either target — we filter to scripts that
+        // match the current run. Ids that don't match any script for this target are
+        // unknown to us *for this run*; they're not necessarily errors (they may match
+        // the other target's run), so we silently skip them here.
+        var byId = ordered.ToDictionary(s => s.Id, StringComparer.Ordinal);
+        var version = options.AppliedByVersion ?? "legacy-adoption";
+        var inserted = 0;
+        var skipped = 0;
+        foreach (var id in options.AdoptIds)
+        {
+            if (!byId.TryGetValue(id, out var script))
+            {
+                // Not a script for this target — leave to a different RunAsync call.
+                continue;
+            }
+            if (await history.AdoptAppliedAsync(script, version, ct))
+            {
+                inserted++;
+                _logger.LogInformation(
+                    "Adopted '{Id}' (module {Module}) as already-applied (legacy cutover)",
+                    script.Id, script.Module);
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+
+        if (inserted > 0 || skipped > 0)
+        {
+            _logger.LogInformation(
+                "Legacy adoption summary: {Inserted} new rows recorded, {Skipped} already present",
+                inserted, skipped);
+        }
     }
 
     private static void ValidateAppliedChecksums(
