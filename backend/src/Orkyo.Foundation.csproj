@@ -31,9 +31,11 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageReference Include="Npgsql" Version="8.0.5" />
     <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="Google.OrTools" Version="9.*" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.16" />
   </ItemGroup>
 </Project>

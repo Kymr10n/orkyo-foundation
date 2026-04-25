@@ -1,3 +1,5 @@
+using Api.Services;
+
 namespace Api.Security;
 
 /// <summary>
@@ -38,6 +40,36 @@ public sealed class CurrentPrincipal : ICurrentPrincipal
 
     /// <summary>Set the principal context (called by middleware)</summary>
     public void SetContext(PrincipalContext context) => _context = context;
+}
+
+/// <summary>
+/// Scoped implementation of ICurrentTenant.
+/// Populated by ContextEnrichmentMiddleware during request processing.
+/// </summary>
+public sealed class CurrentTenant : ICurrentTenant
+{
+    private TenantContext? _context;
+
+    public bool HasTenant => _context != null;
+
+    public Guid TenantId => _context?.TenantId ?? Guid.Empty;
+
+    public string TenantSlug => _context?.TenantSlug ?? string.Empty;
+
+    public string TenantDbConnectionString => _context?.TenantDbConnectionString ?? string.Empty;
+
+    public Guid RequireTenantId()
+    {
+        if (_context == null)
+            throw new InvalidOperationException("Tenant context required");
+        return _context.TenantId;
+    }
+
+    /// <summary>Get the underlying tenant context for DB access</summary>
+    public TenantContext? GetTenantContext() => _context;
+
+    /// <summary>Set the tenant context (called by middleware)</summary>
+    public void SetContext(TenantContext context) => _context = context;
 }
 
 /// <summary>

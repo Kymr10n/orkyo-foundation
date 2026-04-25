@@ -38,9 +38,14 @@ public static class MigrationCli
         {
             var parsed = CliArgs.Parse(args);
 
-            var connectionString = Environment.GetEnvironmentVariable("CONTROL_PLANE_CONNECTION_STRING")
+            // Read using ASP.NET Core's standard env-var convention (ConnectionStrings:ControlPlane →
+            // ConnectionStrings__ControlPlane). Fall back to the legacy CONTROL_PLANE_CONNECTION_STRING
+            // for docker-compose configs that haven't been updated yet.
+            var connectionString =
+                Environment.GetEnvironmentVariable("ConnectionStrings__ControlPlane")
+                ?? Environment.GetEnvironmentVariable("CONTROL_PLANE_CONNECTION_STRING")
                 ?? throw new InvalidOperationException(
-                    "CONTROL_PLANE_CONNECTION_STRING is not set. " +
+                    "Neither ConnectionStrings__ControlPlane nor CONTROL_PLANE_CONNECTION_STRING is set. " +
                     "The migrator needs a connection to the control-plane database to run any command.");
 
             var appVersion = Environment.GetEnvironmentVariable("APP_VERSION");
