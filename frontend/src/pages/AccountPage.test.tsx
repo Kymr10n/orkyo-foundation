@@ -456,7 +456,21 @@ describe("AccountPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 
-  it("shows Plans tab when membership exists", async () => {
+  it("shows Plans tab when membership exists and renderPlanCards is provided", async () => {
+    const Wrapper = createWrapper();
+
+    render(
+      <Wrapper>
+        <AccountPage renderPlanCards={() => <div>Plans content</div>} />
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Plans")).toBeInTheDocument();
+    });
+  });
+
+  it("hides Plans tab when renderPlanCards is not provided", async () => {
     const Wrapper = createWrapper();
 
     render(
@@ -466,8 +480,10 @@ describe("AccountPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Plans")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /profile/i })).toBeInTheDocument();
     });
+
+    expect(screen.queryByText("Plans")).not.toBeInTheDocument();
   });
 
   it("hides Plans tab when no membership", async () => {
@@ -660,7 +676,20 @@ describe("AccountPage", () => {
     expect(screen.getByText(/initiate deletion of all organization data/i)).toBeInTheDocument();
   });
 
-  it("renders all four tab triggers", async () => {
+  it("renders all four tab triggers when renderPlanCards is provided", async () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><AccountPage renderPlanCards={() => <div>Plans</div>} /></Wrapper>);
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /profile/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("tab", { name: /organizations/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /plans/i })).toBeInTheDocument();
+  });
+
+  it("renders three tab triggers when renderPlanCards is not provided", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><AccountPage /></Wrapper>);
 
@@ -670,7 +699,7 @@ describe("AccountPage", () => {
 
     expect(screen.getByRole("tab", { name: /organizations/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /plans/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /plans/i })).not.toBeInTheDocument();
   });
 
   // --- Leave tenant flow ---

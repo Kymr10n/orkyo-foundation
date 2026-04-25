@@ -49,7 +49,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
-import { PlanCards } from "@foundation/src/components/plans/PlanCards";
 import {
   getTenantMemberships,
   leaveTenant,
@@ -72,7 +71,12 @@ const roleColors: Record<string, string> = {
   viewer: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
 };
 
-export function AccountPage() {
+interface AccountPageProps {
+  /** Optional plan comparison tab content (SaaS-injected). */
+  renderPlanCards?: () => React.ReactNode;
+}
+
+export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -310,7 +314,7 @@ export function AccountPage() {
             <Shield className="h-4 w-4" />
             Security
           </TabsTrigger>
-          {activeMembership && !isSiteAdmin && (
+          {activeMembership && !isSiteAdmin && renderPlanCards && (
             <TabsTrigger value="plans" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               Plans
@@ -607,9 +611,9 @@ export function AccountPage() {
           </Card>
         </TabsContent>
 
-        {activeMembership && !isSiteAdmin && (
+        {activeMembership && !isSiteAdmin && renderPlanCards && (
           <TabsContent value="plans" className="mt-6">
-            <PlanCards />
+            {renderPlanCards()}
           </TabsContent>
         )}
       </Tabs>

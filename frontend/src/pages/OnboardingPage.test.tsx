@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-// Mock PlanCards — uses useAuth internally
-vi.mock('@foundation/src/components/plans/PlanCards', () => ({
-  PlanCards: () => <div data-testid="plan-cards">Plans</div>,
-}));
-
 // Mock tenants-api
 const mockCanCreateTenant = vi.fn();
 const mockCreateTenant = vi.fn();

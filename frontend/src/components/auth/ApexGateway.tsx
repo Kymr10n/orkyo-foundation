@@ -59,11 +59,14 @@ export interface ApexGatewayProps {
   renderAdminPage?: () => ReactNode;
   /** Renders the tenant selection page. Provided by SaaS composition. */
   renderTenantSelectPage?: (args: TenantSelectPageRenderArgs) => ReactNode;
+  /** Renders plan comparison cards on OnboardingPage and AccountPage. Provided by SaaS composition. */
+  renderPlanCards?: () => ReactNode;
 }
 
 export function ApexGateway({
   renderAdminPage,
   renderTenantSelectPage,
+  renderPlanCards,
 }: ApexGatewayProps = {}) {
   const { authStage, sessionData, send, canAccessAdminPage, canAccessAccountPage } = useAuth();
   const { pathname } = useLocation();
@@ -87,7 +90,7 @@ export function ApexGateway({
   }
 
   if (isAccountRoute && canAccessAccountPage) {
-    return <AccountPage />;
+    return <AccountPage renderPlanCards={renderPlanCards} />;
   }
 
   switch (authStage) {
@@ -134,6 +137,7 @@ export function ApexGateway({
         <OnboardingPage
           onComplete={() => send({ type: AUTH_EVENTS.TENANT_CREATED })}
           onCancel={() => send({ type: AUTH_EVENTS.LOGOUT })}
+          renderPlanCards={renderPlanCards}
         />
       );
 

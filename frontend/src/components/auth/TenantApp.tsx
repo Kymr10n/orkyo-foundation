@@ -44,7 +44,12 @@ function FloatingThemeToggle() {
   return <ThemeToggle variant="floating" />;
 }
 
-export function TenantApp() {
+export interface TenantAppProps {
+  /** Renders plan comparison cards on the /account Plans tab. Provided by SaaS composition. */
+  renderPlanCards?: () => React.ReactNode;
+}
+
+export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
   const { authStage, membership, send } = useAuth();
 
   // Session expiry on a tenant subdomain — trigger the BFF login redirect.
@@ -78,7 +83,7 @@ export function TenantApp() {
             and be returned to the same subdomain context. */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
-        <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage /></RequireAuth>} />
+        <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage renderPlanCards={renderPlanCards} /></RequireAuth>} />
         <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />

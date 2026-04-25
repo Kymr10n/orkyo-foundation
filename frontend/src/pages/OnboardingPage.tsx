@@ -17,7 +17,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Building2, Plus, Loader2, LogOut, AlertCircle, ArrowLeft, CheckCircle2, RotateCcw } from "lucide-react";
 import { canCreateTenant, createTenant, getStarterTemplates, getTenantMemberships, cancelTenantDeletion, type TenantMembership } from "@foundation/src/lib/api/tenant-account-api";
-import { PlanCards } from "@foundation/src/components/plans/PlanCards";
 import { StarterTemplatePicker, type StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -26,6 +25,8 @@ interface OnboardingPageProps {
   onComplete: () => Promise<void> | void;
   /** Called when the user signs out. */
   onCancel: () => void;
+  /** Optional plan comparison section rendered below the wizard (SaaS-injected). */
+  renderPlanCards?: () => React.ReactNode;
 }
 
 type WizardStep = "form" | "template";
@@ -66,7 +67,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
   );
 }
 
-export function OnboardingPage({ onComplete, onCancel }: OnboardingPageProps) {
+export function OnboardingPage({ onComplete, onCancel, renderPlanCards }: OnboardingPageProps) {
   const [canCreate, setCanCreate] = useState<boolean | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [slug, setSlug] = useState("");
@@ -417,10 +418,10 @@ export function OnboardingPage({ onComplete, onCancel }: OnboardingPageProps) {
       </Card>
 
       {/* Plan comparison — only show before wizard starts to avoid distraction */}
-      {!wizardActive && (
+      {!wizardActive && renderPlanCards && (
         <div className="w-full max-w-4xl">
           <h2 className="text-lg font-semibold text-center mb-4">Available Plans</h2>
-          <PlanCards />
+          {renderPlanCards()}
         </div>
       )}
     </div>
