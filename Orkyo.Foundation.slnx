@@ -5,8 +5,8 @@
   <Folder Name="/migrator-runtime/">
     <Project Path="backend/migrator-runtime/Orkyo.Migrator.csproj" />
   </Folder>
-  <Folder Name="/migrations/">
-    <Project Path="backend/migrations/Orkyo.Migrations.csproj" />
+  <Folder Name="/migrations-foundation/">
+    <Project Path="backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj" />
   </Folder>
   <Folder Name="/shared/">
     <Project Path="backend/shared/Orkyo.Shared.csproj" />

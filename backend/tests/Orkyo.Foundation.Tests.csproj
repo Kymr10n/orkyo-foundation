@@ -24,8 +24,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Orkyo.Foundation.csproj" />
-    <ProjectReference Include="..\migrations\Orkyo.Migrations.csproj" />
     <ProjectReference Include="..\migration-abstractions\Orkyo.Migration.Abstractions.csproj" />
+    <ProjectReference Include="..\migrator-runtime\Orkyo.Migrator.csproj" />
+    <ProjectReference Include="..\migrations-foundation\Orkyo.Foundation.Migrations.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,19 +1,26 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
-using Orkyo.Migrations;
+using Orkyo.Foundation.Migrations;
+using Orkyo.Migrations.Abstractions;
+using Orkyo.Migrator;
 using Testcontainers.PostgreSql;
 
 namespace Orkyo.Foundation.Tests.Integration;
 
 /// <summary>
-/// Integration-test Postgres fixture: boots a containerized PostgreSQL 16 instance,
-/// applies the foundation-owned control-plane migrations to the <c>control_plane</c> database
-/// and tenant migrations to a single <c>test_tenant</c> database, and exposes connection
-/// strings for both. Reusable across collections via <see cref="PostgresCollection"/>.
-///
-/// The fixture deliberately uses the existing <c>Orkyo.Migrations</c> engine rather than
-/// a test-only schema-spinner: tests therefore exercise the same migration path as dev/prod,
-/// providing regression coverage for the migrations themselves.
+/// Integration-test Postgres fixture for the foundation repo: boots a containerized
+/// PostgreSQL 16 instance and applies the foundation <see cref="IMigrationModule"/> set
+/// (currently empty by design — see migration inventory) to a control-plane and a
+/// tenant database.
 /// </summary>
+/// <remarks>
+/// The fixture intentionally does NOT load SaaS migrations: the test-placement rule
+/// requires tests for SaaS-owned services to live in <c>orkyo-saas/backend/tests</c>.
+/// Any test in this project that touches SaaS-owned tables (tenants, users, etc.)
+/// is mis-placed and should be moved to the SaaS test project — leaving it here
+/// will surface as a runtime "table does not exist" error against this fixture.
+/// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
     public const string ControlPlaneDatabase = "control_plane";
@@ -25,48 +32,33 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithDatabase("postgres")
         .Build();
 
-    /// <summary>Admin connection string (to the <c>postgres</c> bootstrap DB).</summary>
     public string AdminConnectionString => _container.GetConnectionString();
 
-    /// <summary>Connection string for the migrated <c>control_plane</c> database.</summary>
     public string ControlPlaneConnectionString =>
-        MigrationEngine.BuildConnectionString(AdminConnectionString, ControlPlaneDatabase);
+        BuildConnectionString(AdminConnectionString, ControlPlaneDatabase);
 
-    /// <summary>Connection string for the migrated <c>test_tenant</c> database.</summary>
     public string TestTenantConnectionString =>
-        MigrationEngine.BuildConnectionString(AdminConnectionString, TestTenantDatabase);
+        BuildConnectionString(AdminConnectionString, TestTenantDatabase);
 
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
 
-        var migrationsRoot = MigrationEngine.FindMigrationsRoot();
-        await MigrationEngine.MigrateDatabaseAsync(
-            AdminConnectionString,
-            ControlPlaneDatabase,
-            Path.Combine(migrationsRoot, "control-plane"));
+        await CreateDatabaseAsync(ControlPlaneDatabase);
+        await CreateDatabaseAsync(TestTenantDatabase);
 
-        await MigrationEngine.MigrateDatabaseAsync(
-            AdminConnectionString,
-            TestTenantDatabase,
-            Path.Combine(migrationsRoot, "tenant"));
+        var runner = BuildRunner();
+        await runner.RunAsync(ControlPlaneConnectionString, MigrationTargetDatabase.ControlPlane,
+            "orkyo:control-plane");
+        await runner.RunAsync(TestTenantConnectionString, MigrationTargetDatabase.Tenant,
+            $"orkyo:tenant:{TestTenantDatabase}");
     }
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
-    /// <summary>
-    /// Builds an <see cref="Api.Services.IDbConnectionFactory"/> backed by the
-    /// fixture's control-plane, tenant, and admin connection strings. Use this
-    /// to compose foundation services under test without reaching for SaaS's
-    /// concrete <c>DbConnectionFactory</c>.
-    /// </summary>
     public TestDbConnectionFactory CreateConnectionFactory() =>
         new(ControlPlaneConnectionString, TestTenantConnectionString, AdminConnectionString);
 
-    /// <summary>
-    /// Opens a new <see cref="NpgsqlConnection"/> to the control-plane database.
-    /// The caller is responsible for disposal.
-    /// </summary>
     public async Task<NpgsqlConnection> OpenControlPlaneConnectionAsync()
     {
         var conn = new NpgsqlConnection(ControlPlaneConnectionString);
@@ -74,23 +66,38 @@ public sealed class PostgresFixture : IAsyncLifetime
         return conn;
     }
 
-    /// <summary>
-    /// Opens a new <see cref="NpgsqlConnection"/> to the migrated tenant database.
-    /// The caller is responsible for disposal.
-    /// </summary>
     public async Task<NpgsqlConnection> OpenTestTenantConnectionAsync()
     {
         var conn = new NpgsqlConnection(TestTenantConnectionString);
         await conn.OpenAsync();
         return conn;
     }
+
+    private async Task CreateDatabaseAsync(string dbName)
+    {
+        await using var conn = new NpgsqlConnection(AdminConnectionString);
+        await conn.OpenAsync();
+        await using var check = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @n", conn);
+        check.Parameters.AddWithValue("n", dbName);
+        if (await check.ExecuteScalarAsync() is not null) return;
+        await using var create = new NpgsqlCommand($"CREATE DATABASE \"{dbName}\"", conn);
+        await create.ExecuteNonQueryAsync();
+    }
+
+    private static MigrationRunner BuildRunner()
+    {
+        var services = new ServiceCollection()
+            .AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning))
+            .AddOrkyoMigrationPlatform()
+            .AddFoundationMigrations()
+            .BuildServiceProvider();
+        return services.GetRequiredService<MigrationRunner>();
+    }
+
+    private static string BuildConnectionString(string baseConnectionString, string database) =>
+        new NpgsqlConnectionStringBuilder(baseConnectionString) { Database = database }.ConnectionString;
 }
 
-/// <summary>
-/// xUnit collection marker: test classes tagged <c>[Collection(PostgresCollection.Name)]</c>
-/// share a single <see cref="PostgresFixture"/> instance, so the container starts once
-/// per test run instead of per test class.
-/// </summary>
 [CollectionDefinition(Name)]
 public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>
 {
