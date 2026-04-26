@@ -27,6 +27,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EditSpaceDialog } from "./EditSpaceDialog";
@@ -63,6 +64,7 @@ export function SpaceManagementPanel({
   const resizeSpaceMutation = useMoveSpace(siteId);
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
   const [floorplanMetadata, setFloorplanMetadata] =
     useState<FloorplanMetadata | null>(null);
   const [floorplanBlobUrl, setFloorplanBlobUrl] = useState<string | null>(null);
@@ -155,6 +157,7 @@ export function SpaceManagementPanel({
 
     try {
       await deleteFloorplan(siteId);
+      await queryClient.invalidateQueries({ queryKey: ['floorplan-view-data', siteId] });
       setFloorplanMetadata(null);
       setFloorplanBlobUrl(null);
     } catch (error) {

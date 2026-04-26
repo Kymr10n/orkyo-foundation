@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
 import { Upload, X, FileImage } from 'lucide-react';
@@ -18,6 +19,7 @@ export function FloorplanUploadDialog({
   onOpenChange,
   onUploadComplete,
 }: FloorplanUploadDialogProps) {
+  const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -93,6 +95,7 @@ export function FloorplanUploadDialog({
 
     try {
       const metadata = await uploadFloorplan(siteId, selectedFile, setProgress);
+      await queryClient.invalidateQueries({ queryKey: ['floorplan-view-data', siteId] });
       onUploadComplete(metadata);
       onOpenChange(false);
       // Reset state
