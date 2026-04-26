@@ -86,7 +86,7 @@ echo "── 2. SaaS frontend public icons ────────────�
 sync_favicon_pack "../orkyo-saas/frontend/public"
 
 echo ""
-echo "── 3. Community frontend public icons (future) ─────────────────────────────"
+echo "── 3. Community frontend public icons ──────────────────────────────────────"
 sync_favicon_pack "../orkyo-community/frontend/public"
 
 echo ""
