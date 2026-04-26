@@ -30,7 +30,7 @@ function authState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderLoginPage(path = '/login') {
+function renderLoginPage(_path = '/login') {
   return render(
       <MemoryRouter>
       <LoginPage />

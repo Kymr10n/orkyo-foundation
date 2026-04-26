@@ -9,7 +9,7 @@ public class DiagnosticsQueryContractTests
     [Fact]
     public void BuildMigrationCountSql_TargetsMigrationTrackingTable() =>
         DiagnosticsQueryContract.BuildMigrationCountSql()
-            .Should().Be("SELECT COUNT(*) FROM _migrations");
+            .Should().Be("SELECT COUNT(*) FROM orkyo_schema_migrations");
 
     [Fact]
     public void RecentAuditActivityInterval_LocksTwoHourLookbackPolicy() =>
@@ -43,7 +43,7 @@ public class DiagnosticsCommandFactoryTests
         using var cmd = DiagnosticsCommandFactory.CreateMigrationCountCommand(connection: null!);
 
         cmd.Parameters.Should().BeEmpty();
-        cmd.CommandText.Should().Be("SELECT COUNT(*) FROM _migrations");
+        cmd.CommandText.Should().Be("SELECT COUNT(*) FROM orkyo_schema_migrations");
     }
 
     [Fact]

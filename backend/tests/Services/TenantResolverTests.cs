@@ -26,7 +26,7 @@ public class TenantResolverTests
     }
 
     [Fact]
-    public async Task InvalidateCache_ShouldEvictEntry_CaseInsensitively()
+    public void InvalidateCache_ShouldEvictEntry_CaseInsensitively()
     {
         var resolver = CreateResolver();
         var tenant = MakeTenant("acme");
@@ -34,8 +34,11 @@ public class TenantResolverTests
 
         resolver.InvalidateCache("acme");
 
-        var value = await resolver.ResolveTenantAsync("AcMe", null);
-        value.Should().BeNull();
+        // Verify cache no longer holds the entry — avoids a real DB call
+        var stillCached = TenantResolverCacheFlow.TryGetFresh(
+            GetCache(), "AcMe", DateTime.UtcNow, out var ctx);
+        stillCached.Should().BeFalse();
+        ctx.Should().BeNull();
     }
 
     [Fact]
