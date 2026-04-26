@@ -1,0 +1,696 @@
+/* Orkyo Keycloak Login Theme
+ * Custom template with minimal, centered design
+ * Matches Orkyo application dark theme
+ */
+
+/* Self-hosted Inter variable font (eliminates external Google Fonts dependency) */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ========================================
+   CSS Variables - Orkyo Dark Theme (default)
+   ======================================== */
+
+:root {
+  --orkyo-bg: #0c0d0f;
+  --orkyo-fg: #c8ccd4;
+  --orkyo-muted: #8a8f99;
+  --orkyo-input-bg: #1c1f24;
+  --orkyo-border: #2a2e36;
+  --orkyo-primary: #3B5BDB;
+  --orkyo-primary-hover: #364FC7;
+  --orkyo-primary-active: #253DA0;
+  --orkyo-link: #55a8ff;
+  --orkyo-error: #ef4444;
+  --orkyo-error-bg: rgba(239, 68, 68, 0.1);
+  --orkyo-button-secondary-hover: rgba(255, 255, 255, 0.05);
+}
+
+/* ========================================
+   CSS Variables - Orkyo Light Theme
+   ======================================== */
+
+:root.light {
+  --orkyo-bg: #ffffff;
+  --orkyo-fg: #1a1a2e;
+  --orkyo-muted: #64748b;
+  --orkyo-input-bg: #f1f5f9;
+  --orkyo-border: #e2e8f0;
+  --orkyo-primary: #3B5BDB;
+  --orkyo-primary-hover: #364FC7;
+  --orkyo-primary-active: #253DA0;
+  --orkyo-link: #2563eb;
+  --orkyo-error: #dc2626;
+  --orkyo-error-bg: rgba(220, 38, 38, 0.08);
+  --orkyo-button-secondary-hover: rgba(0, 0, 0, 0.04);
+}
+
+/* ========================================
+   Reset & Base
+   ======================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--orkyo-fg);
+  background: var(--orkyo-bg);
+  min-height: 100vh;
+}
+
+body.orkyo-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+/* ========================================
+   Login Container
+   ======================================== */
+
+.orkyo-login-container {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.orkyo-login-card {
+  width: 100%;
+}
+
+/* ========================================
+   Header / Branding
+   ======================================== */
+
+.orkyo-login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.orkyo-logo {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 1rem;
+}
+
+.orkyo-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--orkyo-fg);
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.025em;
+}
+
+.orkyo-subtitle {
+  font-size: 0.875rem;
+  color: var(--orkyo-muted);
+  margin: 0;
+}
+
+/* ========================================
+   Form Heading (contextual per-page title)
+   ======================================== */
+
+.orkyo-form-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--orkyo-fg);
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+/* ========================================
+   Form Elements
+   ======================================== */
+
+.orkyo-form-group {
+  margin-bottom: 1.25rem;
+}
+
+.orkyo-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--orkyo-fg);
+  margin-bottom: 0.5rem;
+}
+
+.orkyo-input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--orkyo-fg);
+  background: var(--orkyo-input-bg);
+  border: 1px solid var(--orkyo-border);
+  border-radius: 0.5rem;
+  outline: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.orkyo-input:focus {
+  border-color: var(--orkyo-primary);
+  box-shadow: 0 0 0 2px var(--orkyo-primary);
+}
+
+.orkyo-input::placeholder {
+  color: var(--orkyo-muted);
+}
+
+/* ========================================
+   Label row (label + inline link like "Forgot password?")
+   ======================================== */
+
+.orkyo-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.orkyo-label-row .orkyo-label {
+  margin-bottom: 0;
+}
+
+.orkyo-label-link {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+/* ========================================
+   Password wrapper with show/hide toggle
+   ======================================== */
+
+.orkyo-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.orkyo-password-wrapper .orkyo-input {
+  padding-right: 2.5rem;
+}
+
+.orkyo-password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--orkyo-muted);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+
+.orkyo-password-toggle:hover {
+  color: var(--orkyo-fg);
+}
+
+/* ========================================
+   Form Options (Remember Me)
+   ======================================== */
+
+.orkyo-form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.orkyo-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--orkyo-muted);
+  cursor: pointer;
+}
+
+.orkyo-checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--orkyo-primary);
+  cursor: pointer;
+}
+
+.orkyo-link {
+  font-size: 0.875rem;
+  color: var(--orkyo-link);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.orkyo-link:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   Submit Button
+   ======================================== */
+
+.orkyo-form-actions {
+  margin-top: 0.5rem;
+}
+
+.orkyo-button-primary {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #ffffff;
+  background: var(--orkyo-primary);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.orkyo-button-primary:hover {
+  background: var(--orkyo-primary-hover);
+}
+
+.orkyo-button-primary:active {
+  background: var(--orkyo-primary-active);
+}
+
+.orkyo-button-primary:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--orkyo-bg), 0 0 0 4px var(--orkyo-primary);
+}
+
+.orkyo-button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.orkyo-button-secondary {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--orkyo-fg);
+  background: transparent;
+  border: 1px solid var(--orkyo-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.orkyo-button-secondary:hover {
+  background: var(--orkyo-button-secondary-hover);
+  border-color: var(--orkyo-border);
+}
+
+/* ========================================
+   Social / Identity Provider Login
+   ======================================== */
+
+.orkyo-social-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.orkyo-social-divider::before,
+.orkyo-social-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--orkyo-border);
+}
+
+.orkyo-social-divider span {
+  font-size: 0.8125rem;
+  color: var(--orkyo-muted);
+  white-space: nowrap;
+}
+
+.orkyo-social-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Reset all anchor behavior inside social providers */
+.orkyo-social-providers a,
+.orkyo-social-providers a:link,
+.orkyo-social-providers a:visited,
+.orkyo-social-providers a:hover,
+.orkyo-social-providers a:active {
+  text-decoration: none;
+  color: inherit;
+}
+
+a.orkyo-social-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--orkyo-fg);
+  background: var(--orkyo-input-bg);
+  border: 1px solid var(--orkyo-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+a.orkyo-social-button:link,
+a.orkyo-social-button:visited {
+  color: var(--orkyo-fg);
+  text-decoration: none;
+}
+
+a.orkyo-social-button:hover {
+  background: var(--orkyo-border);
+  border-color: rgba(255, 255, 255, 0.15);
+  text-decoration: none;
+  color: var(--orkyo-fg);
+}
+
+a.orkyo-social-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--orkyo-bg), 0 0 0 4px var(--orkyo-primary);
+}
+
+a.orkyo-social-button:active {
+  transform: scale(0.985);
+}
+
+.orkyo-social-icon {
+  flex-shrink: 0;
+}
+
+a.orkyo-social-button span {
+  letter-spacing: 0.01em;
+}
+
+/* Google-specific button branding (white bg per Google guidelines) */
+a.orkyo-social-google,
+a.orkyo-social-google:link,
+a.orkyo-social-google:visited {
+  background: #ffffff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  font-weight: 500;
+}
+
+a.orkyo-social-google:hover {
+  background: #f7f8f8;
+  border-color: #c6c9cd;
+  color: #3c4043;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+a.orkyo-social-google:active {
+  background: #eef0f1;
+}
+
+:root.light a.orkyo-social-google,
+:root.light a.orkyo-social-google:link,
+:root.light a.orkyo-social-google:visited {
+  background: #ffffff;
+  color: #3c4043;
+  border-color: #dadce0;
+}
+
+:root.light a.orkyo-social-google:hover {
+  background: #f7f8f8;
+  border-color: #c6c9cd;
+  color: #3c4043;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ========================================
+   Alerts / Messages
+   ======================================== */
+
+.orkyo-alert {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.orkyo-alert-error {
+  background: var(--orkyo-error-bg);
+  color: var(--orkyo-error);
+}
+
+.orkyo-alert-success {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+:root.light .orkyo-alert-success {
+  color: #15803d;
+}
+
+.orkyo-alert-warning {
+  background: rgba(234, 179, 8, 0.1);
+  color: #eab308;
+}
+
+.orkyo-alert-info {
+  background: rgba(85, 168, 255, 0.1);
+  color: var(--orkyo-link);
+}
+
+.orkyo-error {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--orkyo-error);
+  margin-top: 0.5rem;
+}
+
+/* ========================================
+   Info Section (registration link, etc.)
+   ======================================== */
+
+.orkyo-login-info {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--orkyo-muted);
+}
+
+.orkyo-login-info a {
+  color: var(--orkyo-link);
+  text-decoration: none;
+}
+
+.orkyo-login-info a:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   Form Footer (Forgot Password)
+   ======================================== */
+
+.orkyo-form-footer {
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+/* ========================================
+   Request Access Section
+   ======================================== */
+
+.orkyo-request-access {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--orkyo-border);
+  font-size: 0.875rem;
+  color: var(--orkyo-muted);
+}
+
+.orkyo-request-access .orkyo-link {
+  margin-left: 0.5rem;
+}
+
+/* ========================================
+   Info / Verify Email Pages
+   ======================================== */
+
+.orkyo-info-content,
+.orkyo-verify-email {
+  text-align: center;
+}
+
+.orkyo-info-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--orkyo-fg);
+  margin-bottom: 1rem;
+}
+
+.orkyo-info-text {
+  font-size: 0.875rem;
+  color: var(--orkyo-fg);
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.orkyo-text-muted {
+  color: var(--orkyo-muted);
+}
+
+.orkyo-button-link {
+  display: inline-block;
+  text-decoration: none;
+  padding: 0.75rem 1.5rem;
+  margin-top: 0.5rem;
+}
+
+/* ========================================
+   Password Reset Page
+   ======================================== */
+
+.orkyo-reset-password {
+  text-align: left;
+}
+
+.orkyo-reset-password .orkyo-info-text {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+/* ========================================
+   TOTP / MFA Setup Page
+   ======================================== */
+
+.orkyo-totp-setup {
+  text-align: center;
+}
+
+.orkyo-totp-setup .orkyo-info-text {
+  text-align: left;
+  margin-bottom: 1.25rem;
+}
+
+.orkyo-totp-qr {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.orkyo-totp-qr img {
+  width: 200px;
+  height: 200px;
+  border-radius: 0.5rem;
+  image-rendering: pixelated;
+  /* Guarantee a white quiet zone so the QR is scannable in dark mode */
+  background: #ffffff;
+  padding: 8px;
+}
+
+.orkyo-totp-manual {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.orkyo-totp-manual summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.orkyo-totp-manual summary::-webkit-details-marker {
+  display: none;
+}
+
+.orkyo-totp-manual summary::after {
+  content: '▼';
+  font-size: 0.6rem;
+  transition: transform 0.15s ease;
+}
+
+.orkyo-totp-manual[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.orkyo-totp-setup .orkyo-form-group {
+  text-align: left;
+}
+
+.orkyo-totp-setup .orkyo-form-actions {
+  margin-top: 1rem;
+}
+
+/* Formatted TOTP secret + copy button */
+.orkyo-totp-secret-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.orkyo-totp-secret-code {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: var(--orkyo-fg);
+  word-break: break-all;
+}
+
+.orkyo-copy-btn {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--orkyo-link);
+  background: transparent;
+  border: 1px solid var(--orkyo-border);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.orkyo-copy-btn:hover {
+  background: var(--orkyo-button-secondary-hover);
+}
