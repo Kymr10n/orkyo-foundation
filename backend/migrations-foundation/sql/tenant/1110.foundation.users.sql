@@ -3,7 +3,7 @@
 -- Folds in V003 (keycloak columns).
 
 -- Column order matches legacy V001 + V003 (V003 added keycloak columns at the end).
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
     id                uuid                     DEFAULT gen_random_uuid() NOT NULL,
     email             character varying(320)   NOT NULL,
     created_at        timestamp with time zone DEFAULT now() NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE public.users (
     CONSTRAINT users_email_key UNIQUE (email)
 );
 
-CREATE UNIQUE INDEX idx_users_keycloak_id
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_keycloak_id
     ON public.users USING btree (keycloak_id)
     WHERE keycloak_id IS NOT NULL;
 
