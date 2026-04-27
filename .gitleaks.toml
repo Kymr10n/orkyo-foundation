@@ -1,0 +1,11 @@
+title = "Orkyo Foundation Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and CI config — no real secrets"
+paths = [
+  # Test-only values in CI workflow
+  '''\.github/workflows/release-ci\.yml''',
+]

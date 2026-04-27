@@ -1,0 +1,518 @@
+name: CI
+
+# Triggers:
+#   pull_request to main  — security audit + build + test (no image push)
+#   push to main          — full pipeline including KC image build + push
+#   push to v* tags       — publish NuGet/npm + promote KC image + GH Release
+#   workflow_dispatch     — manual full pipeline run
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: release-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  KC_IMAGE: ghcr.io/kymr10n/keycloak
+  KC_VERSION: "26.1"
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # SECURITY AUDIT — gates all downstream jobs
+  # ─────────────────────────────────────────────
+  security-audit:
+    name: security-audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for secret scan + migration lint)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ── Dependency vulnerability audit ───────────────────────────────────
+      - name: NuGet — restore for audit
+        run: dotnet restore Orkyo.Foundation.slnx
+
+      - name: NuGet — check for vulnerable packages
+        run: |
+          output=$(dotnet list Orkyo.Foundation.slnx package --vulnerable --include-transitive 2>&1)
+          echo "$output"
+          if echo "$output" | grep -qi "has the following vulnerable packages"; then
+            echo "::error::Vulnerable NuGet packages detected — update before merging"
+            exit 1
+          fi
+
+      - name: npm — install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+      - name: npm — audit production dependencies
+        run: npm audit --audit-level=high --omit=dev
+        working-directory: frontend
+
+      # ── License scan (community publishes packages — license compatibility matters) ─
+      - name: npm — license scan
+        run: |
+          npx --yes license-checker@^25.0.1 \
+            --summary \
+            --excludePrivatePackages \
+            --failOn "GPL-2.0;GPL-3.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0"
+        working-directory: frontend
+
+      # ── Secret scan ───────────────────────────────────────────────────────
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+      # ── Repository filesystem scan ────────────────────────────────────────
+      - name: Trivy — filesystem scan
+        uses: aquasecurity/trivy-action@0.31.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      # ── Migration lint ────────────────────────────────────────────────────
+      - name: Migration header lint
+        run: bash scripts/ci/lint-migration-headers.sh backend/migrations-foundation/sql
+
+  # ─────────────────────────────────────────────
+  # BACKEND CI
+  # ─────────────────────────────────────────────
+  backend-ci:
+    name: backend-ci
+    runs-on: ubuntu-latest
+    needs: [security-audit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-
+
+      - name: Restore (locked mode)
+        run: dotnet restore Orkyo.Foundation.slnx --locked-mode
+
+      - name: Format check
+        run: dotnet format Orkyo.Foundation.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build Orkyo.Foundation.slnx -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: |
+          dotnet test Orkyo.Foundation.slnx \
+            -c Release --no-build \
+            --verbosity normal \
+            --logger GitHubActions \
+            --collect:"XPlat Code Coverage" \
+            --results-directory backend/TestResults
+
+      - name: Upload backend coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          directory: backend/TestResults
+          flags: backend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Pack dry-run (validate packages build)
+        run: |
+          dotnet pack backend/shared/Orkyo.Shared.csproj \
+            -c Release --no-build -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/src/Orkyo.Foundation.csproj \
+            -c Release --no-build -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
+            -c Release --no-build -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+
+  # ─────────────────────────────────────────────
+  # FRONTEND CI
+  # ─────────────────────────────────────────────
+  frontend-ci:
+    name: frontend-ci
+    runs-on: ubuntu-latest
+    needs: [security-audit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Type check
+        run: npm run typecheck
+        working-directory: frontend
+
+      - name: Test with coverage
+        run: npm test -- --run --coverage --reporter=verbose
+        working-directory: frontend
+
+      - name: Upload frontend coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: frontend/coverage/cobertura-coverage.xml
+          flags: frontend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Publish dry-run (validate package config)
+        run: npm publish --dry-run
+        working-directory: frontend
+
+  # ─────────────────────────────────────────────
+  # KEYCLOAK DRY BUILD — validates Dockerfile
+  # ─────────────────────────────────────────────
+  keycloak-dry-build:
+    name: keycloak-dry-build
+    runs-on: ubuntu-latest
+    needs: [security-audit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build Keycloak image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: keycloak
+          push: false
+          tags: keycloak-test:${{ github.sha }}
+
+  # ─────────────────────────────────────────────
+  # BUILD & PUSH KC IMAGE — main branch only
+  # ─────────────────────────────────────────────
+  build-keycloak-image:
+    name: Build Keycloak Image
+    runs-on: ubuntu-latest
+    needs: [backend-ci, frontend-ci, keycloak-dry-build]
+    if: >-
+      !failure() && !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push (sha tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: keycloak
+          push: true
+          tags: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          cache-from: type=gha,scope=keycloak
+          cache-to: type=gha,mode=max,scope=keycloak
+
+  # ─────────────────────────────────────────────
+  # CONTAINER SCAN — after image is pushed
+  # ─────────────────────────────────────────────
+  container-scan:
+    name: Container Scan
+    runs-on: ubuntu-latest
+    needs: [build-keycloak-image]
+    if: >-
+      !failure() && !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Trivy — image scan
+        uses: aquasecurity/trivy-action@0.31.0
+        with:
+          image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+
+      - name: Verify non-root container
+        run: |
+          uid=$(docker run --rm \
+            ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }} \
+            id -u 2>/dev/null || echo "1000")
+          echo "Container UID: $uid"
+          if [ "$uid" = "0" ]; then
+            echo "::error::Container runs as root — must use non-root user"
+            exit 1
+          fi
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          format: spdx-json
+          output-file: sbom-keycloak.spdx.json
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-keycloak-${{ github.sha }}
+          path: sbom-keycloak.spdx.json
+          retention-days: 90
+
+  # ─────────────────────────────────────────────
+  # PUBLISH — v* tags only (promote, never rebuild)
+  # ─────────────────────────────────────────────
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: [backend-ci, frontend-ci, keycloak-dry-build]
+    if: >-
+      !failure() && !cancelled() &&
+      startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJOR="${VERSION%%.*}"
+          MINOR="${VERSION%.*}"
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "MAJOR=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "MINOR=$MINOR" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: $VERSION (major=$MAJOR minor=$MINOR)"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # ── Provenance gate ───────────────────────────────────────────────────
+      - name: Verify SHA image exists in GHCR
+        run: |
+          IMAGE="${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}"
+          echo "Checking: $IMAGE"
+          if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "::error::SHA image not found: $IMAGE"
+            echo "::error::Push to main must succeed before creating a release tag."
+            exit 1
+          fi
+          echo "Image verified: $IMAGE"
+
+      # ── NuGet packages ────────────────────────────────────────────────────
+      - name: Restore
+        run: dotnet restore Orkyo.Foundation.slnx
+
+      - name: Build
+        run: dotnet build Orkyo.Foundation.slnx -c Release --no-restore
+
+      - name: Pack Orkyo.Shared
+        run: |
+          dotnet pack backend/shared/Orkyo.Shared.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
+      - name: Pack Orkyo.Foundation
+        run: |
+          dotnet pack backend/src/Orkyo.Foundation.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
+      - name: Pack Orkyo.Foundation.Migrations
+        run: |
+          dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
+      - name: Push NuGet packages to GitHub Packages
+        run: |
+          dotnet nuget push ./nupkgs/*.nupkg \
+            --source "https://nuget.pkg.github.com/Kymr10n/index.json" \
+            --api-key ${{ secrets.GHCR_TOKEN }} \
+            --skip-duplicate
+
+      # ── npm package ───────────────────────────────────────────────────────
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "@orkyo:registry=https://npm.pkg.github.com" > frontend/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> frontend/.npmrc
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Set npm package version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+        working-directory: frontend
+
+      - name: Publish npm package
+        run: npm publish
+        working-directory: frontend
+
+      # ── KC image promotion (re-tag, no rebuild) ───────────────────────────
+      - name: Promote KC image to version tags
+        env:
+          SHA_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          V_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.VERSION }}
+          MINOR_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.MINOR }}
+          MAJOR_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.MAJOR }}
+        run: |
+          docker pull "$SHA_TAG"
+          docker tag "$SHA_TAG" "$V_TAG"
+          docker tag "$SHA_TAG" "$MINOR_TAG"
+          docker tag "$SHA_TAG" "$MAJOR_TAG"
+          docker push "$V_TAG"
+          docker push "$MINOR_TAG"
+          docker push "$MAJOR_TAG"
+          echo "Promoted: $V_TAG / $MINOR_TAG / $MAJOR_TAG"
+
+      # ── SBOM ──────────────────────────────────────────────────────────────
+      - name: Generate SBOM for release
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          format: spdx-json
+          output-file: sbom-keycloak.spdx.json
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GHCR_TOKEN }}
+
+      # ── GitHub Release ────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            sbom-keycloak.spdx.json \
+            --generate-notes \
+            --title "Foundation ${{ github.ref_name }}" \
+            --notes-start-tag "$(git tag --sort=-version:refname | sed -n '2p')"
+
+  # ─────────────────────────────────────────────
+  # EVIDENCE BUNDLE — always runs, collects results
+  # ─────────────────────────────────────────────
+  release-evidence-bundle:
+    name: Release Evidence
+    runs-on: ubuntu-latest
+    needs:
+      - security-audit
+      - backend-ci
+      - frontend-ci
+      - keycloak-dry-build
+      - build-keycloak-image
+      - container-scan
+      - publish
+    if: always()
+
+    steps:
+      - name: Collect job results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = ${{ toJSON(needs) }};
+            const lines = ['# Release Evidence Bundle', '',
+              `**Run:** ${context.runId}`,
+              `**SHA:** ${context.sha}`,
+              `**Ref:** ${context.ref}`,
+              `**Triggered by:** ${context.eventName}`,
+              '',
+              '## Job Results', ''];
+            for (const [job, result] of Object.entries(jobs)) {
+              const icon = result.result === 'success' ? '✅'
+                : result.result === 'skipped' ? '⏭️' : '❌';
+              lines.push(`${icon} **${job}**: ${result.result}`);
+            }
+            const summary = lines.join('\n');
+            await core.summary.addRaw(summary).write();
+            console.log(summary);

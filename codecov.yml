@@ -1,0 +1,51 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        # Allow up to 1% regression before failing PR
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        # New code in PRs must have 80% coverage
+        target: 80%
+        only_pulls: true
+
+comment:
+  layout: condensed_header, files, condensed_footer
+  require_changes: true
+  require_base: true
+
+flags:
+  backend:
+    paths:
+      - backend/src/**
+      - backend/shared/**
+    carryforward: true
+  frontend:
+    paths:
+      - frontend/src/**
+      - frontend/contracts/**
+    carryforward: true
+
+ignore:
+  # Backend — test projects, migrations, DI, plumbing
+  - "backend/tests/**"
+  - "backend/migrations-foundation/**"
+  - "backend/migration-abstractions/**"
+  - "backend/migrator-runtime/**"
+  - "backend/src/DependencyInjection/**"
+  - "backend/src/Extensions/**"
+  - "backend/**/*Options.cs"
+  - "backend/**/*Settings.cs"
+  - "backend/**/*Constants.cs"
+  # Frontend — test infrastructure, type-only files, config
+  - "frontend/src/**/*.test.*"
+  - "frontend/src/**/*.spec.*"
+  - "frontend/src/test-utils/**"
+  - "frontend/src/**/*.d.ts"
+  - "frontend/vite.config.*"
+  - "frontend/eslint.config.*"

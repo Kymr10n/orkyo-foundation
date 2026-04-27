@@ -1,7 +1,9 @@
 {
-  "name": "orkyo-foundation-frontend-contracts",
-  "private": true,
+  "name": "@orkyo/foundation",
   "version": "0.1.0",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b",

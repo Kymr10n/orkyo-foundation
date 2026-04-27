@@ -1,0 +1,9 @@
+# Trivy CVE exceptions for orkyo-foundation
+#
+# Format:
+#   CVE-YYYY-NNNNN  # Impact | Reason | Added: YYYY-MM-DD | Review: YYYY-MM-DD
+#
+# Policy: time-bound only. Review date must be within 14 days of added date.
+# Remove entries once the upstream fix is available.
+
+# (no exceptions at initial setup)
