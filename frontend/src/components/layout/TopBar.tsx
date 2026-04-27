@@ -159,7 +159,7 @@ export function TopBar() {
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-muted-foreground" />
           <Select
-            value={selectedSiteId || undefined}
+            value={selectedSiteId ?? ''}
             onValueChange={setSelectedSiteId}
             disabled={isLoadingSites || sites.length === 0}
           >
