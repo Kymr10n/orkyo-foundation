@@ -50,7 +50,7 @@ jobs:
       - name: Trivy — scan refreshed image
         id: trivy
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.31.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-security-refresh
           severity: HIGH,CRITICAL
@@ -60,7 +60,7 @@ jobs:
 
       - name: Create or reopen issue on vulnerability found
         if: steps.trivy.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = '🔒 Security: HIGH/CRITICAL CVEs in Keycloak base image';
