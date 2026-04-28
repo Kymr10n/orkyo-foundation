@@ -1,5 +1,5 @@
 {
-  "name": "@orkyo/foundation",
+  "name": "@kymr10n/foundation",
   "version": "0.1.0",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

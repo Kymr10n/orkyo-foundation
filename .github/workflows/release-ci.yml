@@ -455,7 +455,7 @@ jobs:
       # ── npm package ───────────────────────────────────────────────────────
       - name: Configure npm for GitHub Packages
         run: |
-          echo "@orkyo:registry=https://npm.pkg.github.com" > frontend/.npmrc
+          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> frontend/.npmrc
 
       - name: Install frontend dependencies
