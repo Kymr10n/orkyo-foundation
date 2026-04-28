@@ -463,7 +463,7 @@ jobs:
         working-directory: frontend
 
       - name: Set npm package version
-        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
         working-directory: frontend
 
       - name: Publish npm package
