@@ -228,7 +228,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Build Keycloak image (no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: keycloak
           push: false
@@ -261,7 +261,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build and push (sha tag)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: keycloak
           push: true

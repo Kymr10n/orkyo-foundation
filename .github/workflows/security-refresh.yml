@@ -38,7 +38,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build refreshed image (no-cache on KC base)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: keycloak
           push: true
