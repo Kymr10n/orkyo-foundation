@@ -14,6 +14,12 @@
         "resolved": "8.9.0",
         "contentHash": "Y5RDjxaVlxWX2yy0X/ay1tJjSKMOtjepSb83mmfngFS63hm3LsoZNj6nhmImzm1ifRmpF9ouvmHjx9nNwnkpDg=="
       },
+      "GitHubActionsTestLogger": {
+        "type": "Direct",
+        "requested": "[3.0.3, )",
+        "resolved": "3.0.3",
+        "contentHash": "JxXg+LV8l8iEgB7YxptZYNIYxw2LnhZMuwiwzSFOxD+wGgU26T4ol70DUyFSMg6B9afDYblJ3gPk4FaN4kjzrA=="
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[17.14.1, )",
