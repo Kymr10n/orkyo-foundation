@@ -134,9 +134,13 @@ public static class FloorplanEndpoints
             if (reader.IsDBNull(0)) return Results.Content("null", "application/json");
             return Results.Ok(new
             {
-                imagePath = reader.GetString(0), mimeType = reader.GetString(1),
-                fileSizeBytes = reader.GetInt64(2), widthPx = reader.GetInt32(3), heightPx = reader.GetInt32(4),
-                uploadedAt = reader.GetDateTime(5), uploadedByUserId = reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6)
+                imagePath = reader.GetString(0),
+                mimeType = reader.GetString(1),
+                fileSizeBytes = reader.GetInt64(2),
+                widthPx = reader.GetInt32(3),
+                heightPx = reader.GetInt32(4),
+                uploadedAt = reader.GetDateTime(5),
+                uploadedByUserId = reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6)
             });
         })
         .WithName("GetFloorplanMetadata")

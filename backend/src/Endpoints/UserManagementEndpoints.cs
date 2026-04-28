@@ -93,9 +93,14 @@ public static class UserManagementEndpoints
         {
             users = users.Select(u => new
             {
-                id = u.Id, email = u.Email, displayName = u.DisplayName,
-                role = u.Role.ToString().ToLowerInvariant(), status = u.Status.ToString().ToLowerInvariant(),
-                isTenantAdmin = u.IsTenantAdmin, createdAt = u.CreatedAt, lastLoginAt = u.LastLoginAt
+                id = u.Id,
+                email = u.Email,
+                displayName = u.DisplayName,
+                role = u.Role.ToString().ToLowerInvariant(),
+                status = u.Status.ToString().ToLowerInvariant(),
+                isTenantAdmin = u.IsTenantAdmin,
+                createdAt = u.CreatedAt,
+                lastLoginAt = u.LastLoginAt
             })
         });
     }
@@ -154,7 +159,11 @@ public static class UserManagementEndpoints
         {
             invitations = invitations.Select(i => new
             {
-                id = i.Id, email = i.Email, role = i.Role.ToString().ToLowerInvariant(), expiresAt = i.ExpiresAt, createdAt = i.CreatedAt
+                id = i.Id,
+                email = i.Email,
+                role = i.Role.ToString().ToLowerInvariant(),
+                expiresAt = i.ExpiresAt,
+                createdAt = i.CreatedAt
             })
         });
     }

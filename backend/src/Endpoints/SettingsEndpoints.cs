@@ -25,8 +25,15 @@ public static class SettingsEndpoints
                 var descriptors = settingsService.GetDescriptors();
                 var result = descriptors.Select(d => new
                 {
-                    d.Key, d.Category, d.DisplayName, d.Description, d.ValueType,
-                    d.DefaultValue, d.Scope, d.MinValue, d.MaxValue,
+                    d.Key,
+                    d.Category,
+                    d.DisplayName,
+                    d.Description,
+                    d.ValueType,
+                    d.DefaultValue,
+                    d.Scope,
+                    d.MinValue,
+                    d.MaxValue,
                     CurrentValue = GetPropertyValue(current, d.Key)
                 });
                 return Results.Ok(new { settings = result });
@@ -46,8 +53,15 @@ public static class SettingsEndpoints
                 var descriptors = settingsService.GetDescriptors();
                 var result = descriptors.Select(d => new
                 {
-                    d.Key, d.Category, d.DisplayName, d.Description, d.ValueType,
-                    d.DefaultValue, d.Scope, d.MinValue, d.MaxValue,
+                    d.Key,
+                    d.Category,
+                    d.DisplayName,
+                    d.Description,
+                    d.ValueType,
+                    d.DefaultValue,
+                    d.Scope,
+                    d.MinValue,
+                    d.MaxValue,
                     CurrentValue = GetPropertyValue(updated, d.Key)
                 });
                 return Results.Ok(new { settings = result });

@@ -59,7 +59,7 @@ public sealed class LegacyAdoptionBaseline
     public IReadOnlySet<string> IdsFor(MigrationTargetDatabase target) => target switch
     {
         MigrationTargetDatabase.ControlPlane => ControlPlaneIds,
-        MigrationTargetDatabase.Tenant       => TenantIds,
+        MigrationTargetDatabase.Tenant => TenantIds,
         _ => throw new ArgumentOutOfRangeException(nameof(target), target, "Unknown migration target."),
     };
 
@@ -73,7 +73,7 @@ public sealed class LegacyAdoptionBaseline
     private sealed class BaselineDto
     {
         [JsonPropertyName("applied_by_version")] public string? AppliedByVersion { get; set; }
-        [JsonPropertyName("controlplane")]       public string[]? ControlPlane { get; set; }
-        [JsonPropertyName("tenant")]             public string[]? Tenant { get; set; }
+        [JsonPropertyName("controlplane")] public string[]? ControlPlane { get; set; }
+        [JsonPropertyName("tenant")] public string[]? Tenant { get; set; }
     }
 }

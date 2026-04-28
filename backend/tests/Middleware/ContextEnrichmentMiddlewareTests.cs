@@ -58,9 +58,11 @@ public class ContextEnrichmentMiddlewareTests
     private static TenantContext CreateTenantContext(Guid? tenantId = null, string slug = "test") =>
         new()
         {
-            TenantId = tenantId ?? Guid.NewGuid(), TenantSlug = slug,
+            TenantId = tenantId ?? Guid.NewGuid(),
+            TenantSlug = slug,
             TenantDbConnectionString = $"Host=localhost;Database=tenant_{slug}",
-            Tier = ServiceTier.Free, Status = "active"
+            Tier = ServiceTier.Free,
+            Status = "active"
         };
 
     private Task InvokeMiddleware(HttpContext context) =>
@@ -140,8 +142,11 @@ public class ContextEnrichmentMiddlewareTests
         var internalUserId = Guid.NewGuid();
         var linkedPrincipal = new PrincipalContext
         {
-            UserId = internalUserId, Email = "linked@example.com", DisplayName = "Linked User",
-            AuthProvider = AuthProvider.Keycloak, ExternalSubject = subject
+            UserId = internalUserId,
+            Email = "linked@example.com",
+            DisplayName = "Linked User",
+            AuthProvider = AuthProvider.Keycloak,
+            ExternalSubject = subject
         };
         _mockIdentityLinkService.Setup(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject)).ReturnsAsync(linkedPrincipal);
 
@@ -171,8 +176,12 @@ public class ContextEnrichmentMiddlewareTests
         var tenant = CreateTenantContext();
         var linkedPrincipal = new PrincipalContext
         {
-            UserId = internalUserId, Email = "siteadmin@example.com", DisplayName = "Site Admin",
-            AuthProvider = AuthProvider.Keycloak, ExternalSubject = subject, IsSiteAdmin = true
+            UserId = internalUserId,
+            Email = "siteadmin@example.com",
+            DisplayName = "Site Admin",
+            AuthProvider = AuthProvider.Keycloak,
+            ExternalSubject = subject,
+            IsSiteAdmin = true
         };
         _mockIdentityLinkService.Setup(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject)).ReturnsAsync(linkedPrincipal);
         _mockBreakGlass.Setup(s => s.HasActiveSession(internalUserId, tenant.TenantSlug)).Returns(true);
