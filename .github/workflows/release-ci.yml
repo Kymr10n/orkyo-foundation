@@ -504,8 +504,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ASSETS=""
+          [ -f sbom-keycloak.spdx.json ] && ASSETS="sbom-keycloak.spdx.json"
           gh release create "${{ github.ref_name }}" \
-            sbom-keycloak.spdx.json \
+            $ASSETS \
             --generate-notes \
             --title "Foundation ${{ github.ref_name }}" \
             --notes-start-tag "$(git tag --sort=-version:refname | sed -n '2p')"
