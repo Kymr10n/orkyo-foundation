@@ -1,4 +1,4 @@
-FROM quay.io/keycloak/keycloak:26.1
+FROM quay.io/keycloak/keycloak:26.6.1
 
 # Bake the complete Orkyo theme into the image.
 # All theme files (templates, CSS, messages, theme.properties) live here in foundation.

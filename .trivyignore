@@ -6,4 +6,6 @@
 # Policy: time-bound only. Review date must be within 14 days of added date.
 # Remove entries once the upstream fix is available.
 
-# (no exceptions at initial setup)
+CVE-2026-4282  # HIGH | Keycloak: Privilege escalation via forged token — no upstream fix yet | Added: 2026-04-28 | Review: 2026-05-12
+CVE-2026-4634  # HIGH | Keycloak: Denial of Service via excessive resource usage — no upstream fix yet | Added: 2026-04-28 | Review: 2026-05-12
+CVE-2026-4636  # HIGH | Keycloak: UMA policy bypass allows authenticated access — no upstream fix yet | Added: 2026-04-28 | Review: 2026-05-12
