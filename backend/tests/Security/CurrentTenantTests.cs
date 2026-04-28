@@ -32,8 +32,11 @@ public class CurrentTenantTests
         var tenantId = Guid.NewGuid();
         tenant.SetContext(new TenantContext
         {
-            TenantId = tenantId, TenantSlug = "test-tenant",
-            TenantDbConnectionString = "Host=localhost", Tier = ServiceTier.Professional, Status = "active"
+            TenantId = tenantId,
+            TenantSlug = "test-tenant",
+            TenantDbConnectionString = "Host=localhost",
+            Tier = ServiceTier.Professional,
+            Status = "active"
         });
 
         tenant.RequireTenantId().Should().Be(tenantId);
@@ -45,8 +48,11 @@ public class CurrentTenantTests
         var tenant = new CurrentTenant();
         tenant.SetContext(new TenantContext
         {
-            TenantId = Guid.NewGuid(), TenantSlug = "acme",
-            TenantDbConnectionString = "Host=localhost", Tier = ServiceTier.Enterprise, Status = "active"
+            TenantId = Guid.NewGuid(),
+            TenantSlug = "acme",
+            TenantDbConnectionString = "Host=localhost",
+            Tier = ServiceTier.Enterprise,
+            Status = "active"
         });
 
         tenant.HasTenant.Should().BeTrue();
@@ -58,8 +64,11 @@ public class CurrentTenantTests
         var tenant = new CurrentTenant();
         var ctx = new TenantContext
         {
-            TenantId = Guid.NewGuid(), TenantSlug = "acme",
-            TenantDbConnectionString = "Host=localhost", Tier = ServiceTier.Enterprise, Status = "active"
+            TenantId = Guid.NewGuid(),
+            TenantSlug = "acme",
+            TenantDbConnectionString = "Host=localhost",
+            Tier = ServiceTier.Enterprise,
+            Status = "active"
         };
         tenant.SetContext(ctx);
         tenant.GetTenantContext().Should().BeSameAs(ctx);

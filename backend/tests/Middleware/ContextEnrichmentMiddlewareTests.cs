@@ -193,8 +193,11 @@ public class ContextEnrichmentMiddlewareTests
         var tenant = CreateTenantContext();
         var linkedPrincipal = new PrincipalContext
         {
-            UserId = internalUserId, Email = "siteadmin@example.com", AuthProvider = AuthProvider.Keycloak,
-            ExternalSubject = subject, IsSiteAdmin = true
+            UserId = internalUserId,
+            Email = "siteadmin@example.com",
+            AuthProvider = AuthProvider.Keycloak,
+            ExternalSubject = subject,
+            IsSiteAdmin = true
         };
         _mockIdentityLinkService.Setup(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject)).ReturnsAsync(linkedPrincipal);
 
@@ -212,7 +215,10 @@ public class ContextEnrichmentMiddlewareTests
         var userId = Guid.NewGuid();
         var principal = new PrincipalContext
         {
-            UserId = userId, Email = "kc@example.com", AuthProvider = AuthProvider.Keycloak, ExternalSubject = subject
+            UserId = userId,
+            Email = "kc@example.com",
+            AuthProvider = AuthProvider.Keycloak,
+            ExternalSubject = subject
         };
         _mockIdentityLinkService.Setup(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject)).ReturnsAsync(principal);
 

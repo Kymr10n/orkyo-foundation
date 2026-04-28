@@ -11,8 +11,10 @@ public class CurrentPrincipalTests
         var userId = Guid.NewGuid();
         principal.SetContext(new PrincipalContext
         {
-            UserId = userId, Email = "user@example.com",
-            AuthProvider = AuthProvider.Keycloak, ExternalSubject = "kc-sub-123"
+            UserId = userId,
+            Email = "user@example.com",
+            AuthProvider = AuthProvider.Keycloak,
+            ExternalSubject = "kc-sub-123"
         });
 
         principal.RequireUserId().Should().Be(userId);
@@ -40,8 +42,10 @@ public class CurrentPrincipalTests
         var principal = new CurrentPrincipal();
         principal.SetContext(new PrincipalContext
         {
-            UserId = Guid.NewGuid(), Email = "user@example.com",
-            AuthProvider = AuthProvider.Keycloak, ExternalSubject = "kc-sub-456"
+            UserId = Guid.NewGuid(),
+            Email = "user@example.com",
+            AuthProvider = AuthProvider.Keycloak,
+            ExternalSubject = "kc-sub-456"
         });
 
         principal.RequireExternalSubject().Should().Be("kc-sub-456");
@@ -53,8 +57,10 @@ public class CurrentPrincipalTests
         var principal = new CurrentPrincipal();
         principal.SetContext(new PrincipalContext
         {
-            UserId = Guid.NewGuid(), Email = "user@example.com",
-            AuthProvider = AuthProvider.Local, ExternalSubject = null
+            UserId = Guid.NewGuid(),
+            Email = "user@example.com",
+            AuthProvider = AuthProvider.Local,
+            ExternalSubject = null
         });
 
         ((Action)(() => principal.RequireExternalSubject())).Should().Throw<ArgumentException>()

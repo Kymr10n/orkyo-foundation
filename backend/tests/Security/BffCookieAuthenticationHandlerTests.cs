@@ -26,8 +26,10 @@ public class BffCookieAuthenticationHandlerTests
     private readonly BffOptions _bffOptions = new() { CookieName = CookieName };
     private readonly KeycloakOptions _keycloakOptions = new()
     {
-        BaseUrl = "https://auth.orkyo.com", Realm = "orkyo",
-        BackendClientId = "orkyo-backend", BackendClientSecret = "test-secret",
+        BaseUrl = "https://auth.orkyo.com",
+        Realm = "orkyo",
+        BackendClientId = "orkyo-backend",
+        BackendClientSecret = "test-secret",
     };
 
     public BffCookieAuthenticationHandlerTests()
@@ -57,11 +59,16 @@ public class BffCookieAuthenticationHandlerTests
     private BffSessionRecord CreateSession(string? accessToken = null, DateTimeOffset? tokenExpiresAt = null) =>
         new()
         {
-            SessionId = TestSessionId, UserId = "user-123", ExternalSubject = "ext-sub-123",
-            AccessToken = accessToken ?? CreateTestJwt(), RefreshToken = "refresh-token-value",
-            IdToken = "id-token-value", ExpiresAt = DateTimeOffset.UtcNow.AddHours(8),
+            SessionId = TestSessionId,
+            UserId = "user-123",
+            ExternalSubject = "ext-sub-123",
+            AccessToken = accessToken ?? CreateTestJwt(),
+            RefreshToken = "refresh-token-value",
+            IdToken = "id-token-value",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(8),
             TokenExpiresAt = tokenExpiresAt ?? DateTimeOffset.UtcNow.AddMinutes(5),
-            CreatedAt = DateTimeOffset.UtcNow, LastActivityAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastActivityAt = DateTimeOffset.UtcNow,
         };
 
     private async Task<AuthenticateResult> RunAuthenticateAsync(HttpContext httpContext)
