@@ -36,6 +36,34 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
+  # CHANGE DETECTION — runs immediately, gates KC jobs
+  # ─────────────────────────────────────────────
+  detect-changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+    outputs:
+      keycloak: ${{ steps.result.outputs.keycloak }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            keycloak:
+              - 'keycloak/**'
+              - '.trivyignore'
+
+      - name: Resolve keycloak flag
+        id: result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "keycloak=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "keycloak=${{ steps.filter.outputs.keycloak }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ─────────────────────────────────────────────
   # SECURITY AUDIT — gates all downstream jobs
   # ─────────────────────────────────────────────
   security-audit:
@@ -220,7 +248,8 @@ jobs:
   keycloak-dry-build:
     name: keycloak-dry-build
     runs-on: ubuntu-latest
-    needs: [security-audit]
+    needs: [security-audit, detect-changes]
+    if: needs.detect-changes.outputs.keycloak == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -242,7 +271,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend-ci, frontend-ci, keycloak-dry-build]
     if: >-
-      !failure() && !cancelled() &&
+      needs.keycloak-dry-build.result == 'success' &&
+      needs.backend-ci.result == 'success' &&
+      needs.frontend-ci.result == 'success' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main'
     permissions:
@@ -276,10 +307,7 @@ jobs:
     name: Container Scan
     runs-on: ubuntu-latest
     needs: [build-keycloak-image]
-    if: >-
-      !failure() && !cancelled() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main'
+    if: needs.build-keycloak-image.result == 'success'
 
     steps:
       - uses: actions/checkout@v4
@@ -377,16 +405,17 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       # ── Provenance gate ───────────────────────────────────────────────────
-      - name: Verify SHA image exists in GHCR
+      - name: Check KC image exists for this SHA
+        id: kc-check
         run: |
           IMAGE="${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}"
-          echo "Checking: $IMAGE"
-          if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
-            echo "::error::SHA image not found: $IMAGE"
-            echo "::error::Push to main must succeed before creating a release tag."
-            exit 1
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "KC image found: $IMAGE"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::KC image not found for this SHA — KC files unchanged, skipping KC promotion"
           fi
-          echo "Image verified: $IMAGE"
 
       # ── NuGet packages ────────────────────────────────────────────────────
       - name: Restore
@@ -443,6 +472,7 @@ jobs:
 
       # ── KC image promotion (re-tag, no rebuild) ───────────────────────────
       - name: Promote KC image to version tags
+        if: steps.kc-check.outputs.exists == 'true'
         env:
           SHA_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
           V_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.VERSION }}
@@ -460,6 +490,7 @@ jobs:
 
       # ── SBOM ──────────────────────────────────────────────────────────────
       - name: Generate SBOM for release
+        if: steps.kc-check.outputs.exists == 'true'
         uses: anchore/sbom-action@v0
         with:
           image: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
@@ -486,6 +517,7 @@ jobs:
     name: Release Evidence
     runs-on: ubuntu-latest
     needs:
+      - detect-changes
       - security-audit
       - backend-ci
       - frontend-ci
