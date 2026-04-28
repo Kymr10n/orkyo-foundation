@@ -99,7 +99,7 @@ jobs:
 
       # ── Repository filesystem scan ────────────────────────────────────────
       - name: Trivy — filesystem scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -292,7 +292,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Trivy — image scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
           severity: HIGH,CRITICAL
