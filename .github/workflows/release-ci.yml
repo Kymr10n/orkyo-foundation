@@ -1,28 +1,31 @@
 name: CI
 
 # Triggers:
-#   pull_request to main  — security audit + build + test (no image push)
-#   push to main          — full pipeline including KC image build + push
-#   push to v* tags       — publish NuGet/npm + promote KC image + GH Release
-#   workflow_dispatch     — manual full pipeline run
+#   pull_request to main    — security audits + build + test (no image push)
+#   push to main            — + KC image build + push (keycloak changes only)
+#   push to v* tags         — publish NuGet/npm + promote KC image + GH Release
+#   nightly 02:00 UTC       — security audits + build + test (if code changed)
+#   workflow_dispatch       — manual full pipeline run
 
 on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - '*.md'
+      - '**.md'
       - 'docs/**'
   push:
     branches: [main]
     tags: ['v*']
     paths-ignore:
-      - '*.md'
+      - '**.md'
       - 'docs/**'
+  schedule:
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 concurrency:
   group: release-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -36,7 +39,41 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
-  # CHANGE DETECTION — runs immediately, gates KC jobs
+  # NIGHTLY CHANGE CHECK
+  # ─────────────────────────────────────────────
+  nightly-change-check:
+    name: Nightly Change Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+    steps:
+      - name: Check for code changes since last successful nightly
+        id: check
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-ci.yml',
+              event: 'schedule',
+              status: 'success',
+              per_page: 1,
+            });
+            if (runs.workflow_runs.length === 0) {
+              core.setOutput('has_changes', 'true');
+              return;
+            }
+            const lastSha = runs.workflow_runs[0].head_sha;
+            core.setOutput('has_changes', lastSha !== context.sha ? 'true' : 'false');
+            if (lastSha === context.sha) core.notice('No changes since last nightly — skipping');
+
+  # ─────────────────────────────────────────────
+  # CHANGE DETECTION — gates KC jobs
   # ─────────────────────────────────────────────
   detect-changes:
     name: detect-changes
@@ -64,68 +101,28 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────
-  # SECURITY AUDIT — gates all downstream jobs
+  # SECURITY AUDITS — three parallel jobs, all gate downstream builds
   # ─────────────────────────────────────────────
-  security-audit:
-    name: security-audit
+  audit-secrets:
+    name: audit / secrets + fs
     runs-on: ubuntu-latest
+    needs: [nightly-change-check]
+    if: >-
+      github.event_name != 'schedule' ||
+      needs.nightly-change-check.outputs.has_changes == 'true'
 
     steps:
-      - name: Checkout (full history for secret scan + migration lint)
+      - name: Checkout (full history for secret scan)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      # ── Dependency vulnerability audit ───────────────────────────────────
-      - name: NuGet — restore for audit
-        run: dotnet restore Orkyo.Foundation.slnx
-
-      - name: NuGet — check for vulnerable packages
-        run: |
-          output=$(dotnet list Orkyo.Foundation.slnx package --vulnerable --include-transitive 2>&1)
-          echo "$output"
-          if echo "$output" | grep -qi "has the following vulnerable packages"; then
-            echo "::error::Vulnerable NuGet packages detected — update before merging"
-            exit 1
-          fi
-
-      - name: npm — install frontend deps
-        run: npm ci
-        working-directory: frontend
-
-      - name: npm — audit production dependencies
-        run: npm audit --audit-level=high --omit=dev
-        working-directory: frontend
-
-      # ── License scan (community publishes packages — license compatibility matters) ─
-      - name: npm — license scan
-        run: |
-          npx --yes license-checker@^25.0.1 \
-            --summary \
-            --excludePrivatePackages \
-            --failOn "GPL-2.0;GPL-3.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0"
-        working-directory: frontend
-
-      # ── Secret scan ───────────────────────────────────────────────────────
       - name: Gitleaks secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
 
-      # ── Repository filesystem scan ────────────────────────────────────────
       - name: Trivy — filesystem scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -135,9 +132,69 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
 
-      # ── Migration lint ────────────────────────────────────────────────────
       - name: Migration header lint
         run: bash scripts/ci/lint-migration-headers.sh backend/migrations-foundation/sql
+
+  audit-nuget:
+    name: audit / NuGet
+    runs-on: ubuntu-latest
+    needs: [nightly-change-check]
+    if: >-
+      github.event_name != 'schedule' ||
+      needs.nightly-change-check.outputs.has_changes == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Orkyo.Foundation.slnx
+
+      - name: Check for vulnerable packages
+        run: |
+          output=$(dotnet list Orkyo.Foundation.slnx package --vulnerable --include-transitive 2>&1)
+          echo "$output"
+          if echo "$output" | grep -qi "has the following vulnerable packages"; then
+            echo "::error::Vulnerable NuGet packages detected — update before merging"
+            exit 1
+          fi
+
+  audit-npm:
+    name: audit / npm
+    runs-on: ubuntu-latest
+    needs: [nightly-change-check]
+    if: >-
+      github.event_name != 'schedule' ||
+      needs.nightly-change-check.outputs.has_changes == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+      - name: npm audit
+        run: npm audit --audit-level=high --omit=dev
+        working-directory: frontend
+
+      - name: License scan
+        run: |
+          npx --yes license-checker@^25.0.1 \
+            --summary \
+            --excludePrivatePackages \
+            --failOn "GPL-2.0;GPL-3.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0"
+        working-directory: frontend
 
   # ─────────────────────────────────────────────
   # BACKEND CI
@@ -145,7 +202,7 @@ jobs:
   backend-ci:
     name: backend-ci
     runs-on: ubuntu-latest
-    needs: [security-audit]
+    needs: [audit-secrets, audit-nuget, audit-npm]
 
     steps:
       - uses: actions/checkout@v4
@@ -188,14 +245,18 @@ jobs:
           flags: backend
           token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Pack dry-run (validate packages build)
+      - name: Pack dry-run (validate all publishable packages build cleanly)
         run: |
           dotnet pack backend/shared/Orkyo.Shared.csproj \
-            -c Release --no-build -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/migrator-runtime/Orkyo.Migrator.csproj \
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/src/Orkyo.Foundation.csproj \
-            -c Release --no-build -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
-            -c Release --no-build -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
 
   # ─────────────────────────────────────────────
   # FRONTEND CI
@@ -203,7 +264,7 @@ jobs:
   frontend-ci:
     name: frontend-ci
     runs-on: ubuntu-latest
-    needs: [security-audit]
+    needs: [audit-secrets, audit-nuget, audit-npm]
 
     steps:
       - uses: actions/checkout@v4
@@ -248,7 +309,7 @@ jobs:
   keycloak-dry-build:
     name: keycloak-dry-build
     runs-on: ubuntu-latest
-    needs: [security-audit, detect-changes]
+    needs: [audit-secrets, detect-changes]
     if: needs.detect-changes.outputs.keycloak == 'true'
 
     steps:
@@ -356,7 +417,7 @@ jobs:
           retention-days: 90
 
   # ─────────────────────────────────────────────
-  # PUBLISH — v* tags only (promote, never rebuild)
+  # PUBLISH — v* tags only (never rebuild from source)
   # ─────────────────────────────────────────────
   publish:
     name: Publish
@@ -429,6 +490,20 @@ jobs:
       - name: Pack Orkyo.Shared
         run: |
           dotnet pack backend/shared/Orkyo.Shared.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
+      - name: Pack Orkyo.Migration.Abstractions
+        run: |
+          dotnet pack backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
+      - name: Pack Orkyo.Migrator
+        run: |
+          dotnet pack backend/migrator-runtime/Orkyo.Migrator.csproj \
             -c Release --no-build \
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o ./nupkgs
@@ -527,8 +602,11 @@ jobs:
     name: Release Evidence
     runs-on: ubuntu-latest
     needs:
+      - nightly-change-check
       - detect-changes
-      - security-audit
+      - audit-secrets
+      - audit-nuget
+      - audit-npm
       - backend-ci
       - frontend-ci
       - keycloak-dry-build

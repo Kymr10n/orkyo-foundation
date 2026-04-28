@@ -5,7 +5,7 @@ name: Security Refresh
 
 on:
   schedule:
-    - cron: '17 2 * * *'  # 02:17 UTC daily
+    - cron: '30 2 * * *'  # 02:30 UTC daily (after nightly CI at 02:00)
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   KC_IMAGE: ghcr.io/kymr10n/keycloak
-  KC_VERSION: "26.1"
+  KC_VERSION: "26.6"
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
