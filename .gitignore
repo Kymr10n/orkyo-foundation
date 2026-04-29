@@ -31,5 +31,9 @@ dist/
 .DS_Store
 Thumbs.db
 
-# TypeScript project references build artifacts
+# TypeScript build artifacts
 frontend/.tsbuild/
+frontend/**/*.d.ts.map
+frontend/contracts/*.js
+frontend/contracts/*.d.ts
+frontend/src/**/*.js
