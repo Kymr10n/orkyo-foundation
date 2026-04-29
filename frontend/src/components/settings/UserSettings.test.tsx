@@ -11,6 +11,14 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(),
   useImportHandler: vi.fn(),
 }));
+vi.mock('./InviteUserDialog', () => ({
+  InviteUserDialog: ({ open, onSuccess }: any) =>
+    open ? <button data-testid="invite-success" onClick={() => onSuccess()}>Invite Done</button> : null,
+}));
+vi.mock('./EditUserRoleDialog', () => ({
+  EditUserRoleDialog: ({ open, onSuccess }: any) =>
+    open ? <button data-testid="role-success" onClick={() => onSuccess()}>Role Done</button> : null,
+}));
 
 describe('UserSettings', () => {
   let queryClient: QueryClient;
@@ -323,5 +331,45 @@ describe('UserSettings', () => {
       expect(screen.getByText(/Expires:/)).toBeInTheDocument();
       expect(screen.getByText(/Sent:/)).toBeInTheDocument();
     });
+  });
+
+  it('clicking Invite User button opens invite dialog', async () => {
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('admin@example.com'));
+    const inviteBtns = screen.getAllByRole('button').filter(b => b.textContent?.includes('Invite'));
+    if (inviteBtns.length > 0) await user.click(inviteBtns[0]);
+    await waitFor(() => expect(screen.getByTestId('invite-success')).toBeInTheDocument());
+  });
+
+  it('onSuccess of InviteUserDialog closes dialog', async () => {
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('admin@example.com'));
+    const inviteBtns = screen.getAllByRole('button').filter(b => b.textContent?.includes('Invite'));
+    if (inviteBtns.length > 0) await user.click(inviteBtns[0]);
+    await waitFor(() => screen.getByTestId('invite-success'));
+    await user.click(screen.getByTestId('invite-success'));
+    await waitFor(() => expect(screen.queryByTestId('invite-success')).not.toBeInTheDocument());
+  });
+
+  it('clicking Edit user role button opens edit dialog (setEditingUser)', async () => {
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('admin@example.com'));
+    const editBtns = screen.queryAllByTitle('Edit user role');
+    if (editBtns.length > 0) await user.click(editBtns[0]);
+    await waitFor(() => expect(screen.getByTestId('role-success')).toBeInTheDocument());
+  });
+
+  it('onSuccess of EditUserRoleDialog closes dialog', async () => {
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('admin@example.com'));
+    const editBtns = screen.queryAllByTitle('Edit user role');
+    if (editBtns.length > 0) await user.click(editBtns[0]);
+    await waitFor(() => screen.getByTestId('role-success'));
+    await user.click(screen.getByTestId('role-success'));
+    await waitFor(() => expect(screen.queryByTestId('role-success')).not.toBeInTheDocument());
   });
 });

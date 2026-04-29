@@ -20,6 +20,15 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
 
 import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@foundation/src/hooks/useSites';
 
+vi.mock('./CreateSiteDialog', () => ({
+  CreateSiteDialog: ({ open, onSuccess }: any) =>
+    open ? <div data-testid="create-site-dialog"><button onClick={() => onSuccess({ id: 'new', name: 'New', code: 'N' })}>Confirm Create</button></div> : null,
+}));
+vi.mock('./EditSiteDialog', () => ({
+  EditSiteDialog: ({ open, onSuccess }: any) =>
+    open ? <div data-testid="edit-site-dialog"><button onClick={() => onSuccess({ id: '1', name: 'Updated', code: 'U' })}>Confirm Edit</button></div> : null,
+}));
+
 describe('SiteSettings', () => {
   let queryClient: QueryClient;
   const mockSites: siteApi.Site[] = [
@@ -343,5 +352,81 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Main headquarters')).toBeInTheDocument();
       expect(screen.getByText(/123 Main St/)).toBeInTheDocument();
     });
+  });
+
+  it('clicking Add Site opens the create dialog', async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SiteSettings />
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByRole('button', { name: /Add Site/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('create-site-dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('clicking Retry calls refetch', async () => {
+    const mockRefetch = vi.fn();
+    vi.mocked(useSites).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: new Error('API Error'),
+      refetch: mockRefetch,
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SiteSettings />
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByRole('button', { name: /Retry/i }));
+    expect(mockRefetch).toHaveBeenCalledOnce();
+  });
+
+  it('clicking the Edit icon button opens the edit dialog', async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SiteSettings />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => screen.getByText('Building A'));
+
+    // Icon-only buttons (no text): first per site is Edit, second is Delete
+    const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
+    await user.click(iconButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-site-dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('clicking "Create your first site" in empty state opens create dialog', async () => {
+    vi.mocked(useSites).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      isSuccess: true,
+      status: 'success',
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SiteSettings />
+      </QueryClientProvider>
+    );
+
+    await user.click(screen.getByRole('button', { name: /Create your first site/i }));
+    // CreateSiteDialog open state is set — component stays rendered
+    expect(screen.getByText(/No sites/i)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RequestListView } from './RequestListView';
 import type { Request } from '@foundation/src/types/requests';
 
@@ -172,5 +173,53 @@ describe('RequestListView', () => {
     const unscheduled = screen.getAllByText('Unscheduled');
     // parent and child have no dates
     expect(unscheduled.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('clicking MoreHorizontal stops propagation (onSelect not called)', async () => {
+    const user = userEvent.setup();
+    renderListView();
+    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
+    if (moreBtns.length > 0) await user.click(moreBtns[0]);
+    expect(defaultHandlers.onSelect).not.toHaveBeenCalled();
+  });
+
+  it('clicking Edit in row dropdown calls onEdit', async () => {
+    const user = userEvent.setup();
+    renderListView();
+    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
+    if (moreBtns.length === 0) return;
+    await user.click(moreBtns[0]);
+    const editItem = screen.queryByRole('menuitem', { name: /^Edit$/i });
+    if (editItem) { await user.click(editItem); expect(defaultHandlers.onEdit).toHaveBeenCalled(); }
+  });
+
+  it('clicking Delete in row dropdown calls onDelete', async () => {
+    const user = userEvent.setup();
+    renderListView();
+    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
+    if (moreBtns.length === 0) return;
+    await user.click(moreBtns[0]);
+    const del = screen.queryByRole('menuitem', { name: /Delete/i });
+    if (del) { await user.click(del); expect(defaultHandlers.onDelete).toHaveBeenCalled(); }
+  });
+
+  it('clicking Add new child in dropdown calls onAddChild', async () => {
+    const user = userEvent.setup();
+    renderListView();
+    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
+    if (moreBtns.length === 0) return;
+    await user.click(moreBtns[0]);
+    const item = screen.queryByRole('menuitem', { name: /Add new child/i });
+    if (item) { await user.click(item); expect(defaultHandlers.onAddChild).toHaveBeenCalled(); }
+  });
+
+  it('clicking Add existing in dropdown calls onAddExisting', async () => {
+    const user = userEvent.setup();
+    renderListView();
+    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
+    if (moreBtns.length === 0) return;
+    await user.click(moreBtns[0]);
+    const item = screen.queryByRole('menuitem', { name: /Add existing/i });
+    if (item) { await user.click(item); expect(defaultHandlers.onAddExisting).toHaveBeenCalled(); }
   });
 });

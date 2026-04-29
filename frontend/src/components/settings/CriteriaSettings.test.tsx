@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -33,11 +34,13 @@ vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
 });
 
 vi.mock('./CreateCriterionDialog', () => ({
-  CreateCriterionDialog: () => null,
+  CreateCriterionDialog: ({ open, onSuccess }: any) =>
+    open ? <button data-testid="create-success-btn" onClick={() => onSuccess({})}>Confirm Create</button> : null,
 }));
 
 vi.mock('./EditCriterionDialog', () => ({
-  EditCriterionDialog: () => null,
+  EditCriterionDialog: ({ open, onSuccess }: any) =>
+    open ? <button data-testid="edit-success-btn" onClick={() => onSuccess({})}>Confirm Edit</button> : null,
 }));
 
 const mockCriteria = [
@@ -143,5 +146,54 @@ describe('CriteriaSettings', () => {
     await waitFor(() => {
       expect(global.alert).toHaveBeenCalledWith('Delete failed');
     });
+  });
+
+  it('clicking Add Criterion button opens create dialog', async () => {
+    const user = userEvent.setup();
+    render(<CriteriaSettings />);
+    const addBtn = screen.getAllByRole('button').find(b => b.textContent?.includes('Add') || b.textContent?.includes('Criterion') || b.textContent?.includes('Create'));
+    if (addBtn) await user.click(addBtn);
+    await waitFor(() => expect(screen.getByTestId('create-success-btn')).toBeInTheDocument());
+  });
+
+  it('handleCreateSuccess closes create dialog when onSuccess called', async () => {
+    const user = userEvent.setup();
+    render(<CriteriaSettings />);
+    const addBtn = screen.getAllByRole('button').find(b => b.textContent?.includes('Add') || b.textContent?.includes('Criterion') || b.textContent?.includes('Create'));
+    if (addBtn) await user.click(addBtn);
+    await waitFor(() => screen.getByTestId('create-success-btn'));
+    await user.click(screen.getByTestId('create-success-btn'));
+    await waitFor(() => expect(screen.queryByTestId('create-success-btn')).not.toBeInTheDocument());
+  });
+
+  it('clicking edit icon opens edit dialog (setEditingCriterion)', async () => {
+    const user = userEvent.setup();
+    render(<CriteriaSettings />);
+    // Find edit buttons (pencil/edit icon, not delete)
+    const nonDestructiveIconBtns = screen.getAllByRole('button').filter(
+      b => !b.querySelector('.text-destructive') && !b.textContent?.trim() && b.querySelector('svg'),
+    );
+    if (nonDestructiveIconBtns.length > 0) await user.click(nonDestructiveIconBtns[0]);
+    await waitFor(() => expect(screen.getByTestId('edit-success-btn')).toBeInTheDocument());
+  });
+
+  it('handleUpdateSuccess closes edit dialog when onSuccess called', async () => {
+    const user = userEvent.setup();
+    render(<CriteriaSettings />);
+    const editBtns = screen.getAllByRole('button').filter(
+      b => !b.querySelector('.text-destructive') && !b.textContent?.trim() && b.querySelector('svg'),
+    );
+    if (editBtns.length > 0) await user.click(editBtns[0]);
+    await waitFor(() => screen.getByTestId('edit-success-btn'));
+    await user.click(screen.getByTestId('edit-success-btn'));
+    await waitFor(() => expect(screen.queryByTestId('edit-success-btn')).not.toBeInTheDocument());
+  });
+
+  it('Retry button in error state calls refetch', async () => {
+    mockCriteriaData = { data: [], isLoading: false, error: new Error('Failed'), refetch: mockRefetch };
+    const user = userEvent.setup();
+    render(<CriteriaSettings />);
+    await user.click(screen.getByRole('button', { name: /Retry/i }));
+    expect(mockRefetch).toHaveBeenCalled();
   });
 });
