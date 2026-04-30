@@ -58,14 +58,14 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
   die "Local main is behind origin/main — run: git pull --rebase"
 fi
 
-# ── Tag collision — reassign to current HEAD ──────────────────────────────────
+# ── Check for tag collision (inform only — act after confirmation) ────────────
+LOCAL_TAG_EXISTS=false
+REMOTE_TAG_EXISTS=false
 if git tag --list "$TAG" | grep -q "$TAG"; then
-  warn "Tag '$TAG' already exists locally — reassigning to current HEAD..."
-  git tag -d "$TAG"
+  LOCAL_TAG_EXISTS=true
 fi
 if git ls-remote --exit-code --tags origin "$TAG" > /dev/null 2>&1; then
-  warn "Tag '$TAG' exists on origin — deleting remote tag and reassigning..."
-  git push origin ":refs/tags/$TAG"
+  REMOTE_TAG_EXISTS=true
 fi
 
 # ── Confirmation prompt ───────────────────────────────────────────────────────
@@ -80,6 +80,9 @@ echo ""
 echo -e "  This will:"
 echo "    1. Create and push tag $TAG on current main HEAD"
 echo "    2. Trigger CI: pack + push NuGet packages, publish npm package, create GitHub Release"
+if [[ "$LOCAL_TAG_EXISTS" == "true" || "$REMOTE_TAG_EXISTS" == "true" ]]; then
+  warn "Tag $TAG already exists and will be reassigned to this commit."
+fi
 echo ""
 read -r -p "Publish foundation $VERSION? [y/N] " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
@@ -87,11 +90,21 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
   exit 0
 fi
 
-# ── Push commits (if ahead) then tag ─────────────────────────────────────────
+# ── Push commits (if ahead) ───────────────────────────────────────────────────
 AHEAD=$(git rev-list origin/main..HEAD --count)
 if [[ "$AHEAD" -gt 0 ]]; then
   log "Pushing ${AHEAD} commit(s) to origin/main..."
   git push origin main
+fi
+
+# ── Delete old tag (local + remote) immediately before re-creating ────────────
+if git tag --list "$TAG" | grep -q "$TAG"; then
+  log "Removing local tag $TAG..."
+  git tag -d "$TAG"
+fi
+if git ls-remote --exit-code --tags origin "$TAG" > /dev/null 2>&1; then
+  log "Removing remote tag $TAG..."
+  git push origin ":refs/tags/$TAG"
 fi
 
 log "Tagging ${BOLD}${TAG}${NC} at ${HEAD_SHA}..."
