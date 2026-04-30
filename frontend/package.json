@@ -5,6 +5,16 @@
     "registry": "https://npm.pkg.github.com"
   },
   "type": "module",
+  "exports": {
+    "./src/*": {
+      "types": "./.tsbuild/src/*.d.ts",
+      "default": "./src/*.tsx"
+    },
+    "./contracts/*": {
+      "types": "./.tsbuild/contracts/*.d.ts",
+      "default": "./contracts/*.ts"
+    }
+  },
   "scripts": {
     "typecheck": "tsc -b",
     "test": "vitest run",

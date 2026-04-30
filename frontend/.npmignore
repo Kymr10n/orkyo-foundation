@@ -1,0 +1,11 @@
+# Exclude dev/test artifacts from the published package
+coverage/
+*.cobertura.xml
+node_modules/
+vitest.config.ts
+eslint.config.js
+tsconfig.json
+
+# Include .tsbuild/ (type declarations) despite it being in .gitignore
+# — the exports field in package.json points consumers to .tsbuild/*.d.ts
+# Do NOT add .tsbuild/ here; absence means npm will publish it.
