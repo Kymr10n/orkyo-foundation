@@ -8,4 +8,7 @@ description = "Test fixtures and CI config — no real secrets"
 paths = [
   # Test-only values in CI workflow
   '''\.github/workflows/release-ci\.yml''',
+  # Unit test files — generic placeholder API keys, not real secrets
+  '''.*\.test\.(ts|tsx|cs)$''',
+  '''.*\.spec\.(ts|tsx|cs)$''',
 ]
