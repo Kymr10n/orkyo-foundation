@@ -44,24 +44,28 @@ if [[ "$CURRENT_BRANCH" != "main" ]]; then
 fi
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  die "Working tree is dirty — commit or stash changes before publishing"
+  log "Staging and committing working tree changes..."
+  git add -A
+  git commit -m "chore: release v${VERSION}"
 fi
 
 log "Fetching latest from origin..."
 git fetch --quiet --tags origin main
 
-LOCAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse origin/main)
-if [[ "$LOCAL_SHA" != "$REMOTE_SHA" ]]; then
-  die "Local main is out of date with origin/main — run: git pull"
+# Allow HEAD to be ahead of origin/main (e.g. after an auto-commit); only
+# fail if we are BEHIND (would overwrite remote work).
+if ! git merge-base --is-ancestor origin/main HEAD; then
+  die "Local main is behind origin/main — run: git pull --rebase"
 fi
 
-# ── Tag collision check ───────────────────────────────────────────────────────
+# ── Tag collision — reassign to current HEAD ──────────────────────────────────
 if git tag --list "$TAG" | grep -q "$TAG"; then
-  die "Tag '$TAG' already exists locally — has this version already been published?"
+  warn "Tag '$TAG' already exists locally — reassigning to current HEAD..."
+  git tag -d "$TAG"
 fi
 if git ls-remote --exit-code --tags origin "$TAG" > /dev/null 2>&1; then
-  die "Tag '$TAG' already exists on origin — has this version already been published?"
+  warn "Tag '$TAG' exists on origin — deleting remote tag and reassigning..."
+  git push origin ":refs/tags/$TAG"
 fi
 
 # ── Confirmation prompt ───────────────────────────────────────────────────────
@@ -83,7 +87,13 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
   exit 0
 fi
 
-# ── Tag and push ──────────────────────────────────────────────────────────────
+# ── Push commits (if ahead) then tag ─────────────────────────────────────────
+AHEAD=$(git rev-list origin/main..HEAD --count)
+if [[ "$AHEAD" -gt 0 ]]; then
+  log "Pushing ${AHEAD} commit(s) to origin/main..."
+  git push origin main
+fi
+
 log "Tagging ${BOLD}${TAG}${NC} at ${HEAD_SHA}..."
 git tag "$TAG"
 

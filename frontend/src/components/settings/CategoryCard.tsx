@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@foundation/src/components/ui/card";
-import { Settings2 } from "lucide-react";
+import { Settings2, type LucideIcon } from "lucide-react";
 import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
 import { SettingRow } from "./SettingRow";
 import { CATEGORY_META } from "./tenant-config-helpers";
@@ -30,7 +30,7 @@ export function CategoryCard({
   const meta = CATEGORY_META[category] ?? {
     label: category,
     description: "",
-    icon: Settings2,
+    icon: Settings2 as LucideIcon,
   };
   const Icon = meta.icon;
 

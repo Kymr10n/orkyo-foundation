@@ -5,12 +5,13 @@ import {
   Search,
   Mail,
   Calendar,
+  type LucideIcon,
 } from "lucide-react";
 import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
 
 export const CATEGORY_META: Record<
   string,
-  { label: string; description: string; icon: React.ElementType }
+  { label: string; description: string; icon: LucideIcon }
 > = {
   security: {
     label: "Security",
