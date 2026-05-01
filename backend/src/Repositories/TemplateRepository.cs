@@ -121,6 +121,15 @@ public class TemplateRepository : ITemplateRepository
             throw new ArgumentException($"Invalid entity type: {request.EntityType}");
         }
 
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new ArgumentException("Name is required");
+
+        if (request.Name.Length > 255)
+            throw new ArgumentException("Name must be 255 characters or fewer");
+
+        if (request.Description?.Length > 255)
+            throw new ArgumentException("Description must be 255 characters or fewer");
+
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync();
 
@@ -290,6 +299,12 @@ public class TemplateRepository : ITemplateRepository
         {
             throw new ArgumentException($"Template not found: {item.TemplateId}");
         }
+
+        if (string.IsNullOrEmpty(item.Value))
+            throw new ArgumentException("Value is required");
+
+        try { JsonDocument.Parse(item.Value); }
+        catch (JsonException) { throw new ArgumentException("Value must be valid JSON"); }
 
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync();

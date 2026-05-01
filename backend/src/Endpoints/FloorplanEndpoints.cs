@@ -76,7 +76,7 @@ public static class FloorplanEndpoints
             }
             catch (ArgumentException ex)
             {
-                logger.LogWarning(ex, "Invalid floorplan upload for site {SiteId}", siteId);
+                logger.LogInformation(ex, "Invalid floorplan upload for site {SiteId}", siteId);
                 return Results.BadRequest(new { error = "Invalid file: unsupported format or dimensions" });
             }
             catch (Exception ex)
