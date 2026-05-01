@@ -104,7 +104,7 @@ interface AuthContextValue {
 
 // ── Debug helper ──────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export function debugAuth(context: string) {
   if (import.meta.env.PROD) return;
   const params = new URLSearchParams(window.location.search);
@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {
@@ -180,7 +180,7 @@ export function useAuth(): AuthContextValue {
 
 // ── Sync utilities for non-hook contexts ─────────────────────────────────────
 
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export function getTenantSlugSync(): string | null {
   return localStorage.getItem(STORAGE_KEYS.TENANT_SLUG);
 }

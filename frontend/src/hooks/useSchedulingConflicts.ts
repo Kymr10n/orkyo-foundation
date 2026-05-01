@@ -54,7 +54,7 @@ export function useSchedulingConflicts(
 
     let isCancelled = false;
 
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+     
     const timer = setTimeout(async () => {
       const scheduledRequests = requests.filter((r) => r.spaceId && r.requirements?.length);
       const spaceIds = [...new Set(scheduledRequests.map((r) => r.spaceId!))];

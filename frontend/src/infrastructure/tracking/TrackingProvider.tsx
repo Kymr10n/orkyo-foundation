@@ -57,7 +57,7 @@ export const TrackingProvider: React.FC<TrackingProviderProps> = ({
  * - setConsent() - Update user consent preferences
  * - getConsent() - Get current consent state
  */
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export function useTracking() {
   // TODO: Implement tracking context consumer
   // TODO: Return tracking API methods
