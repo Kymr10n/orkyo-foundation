@@ -98,16 +98,13 @@ if [[ "$AHEAD" -gt 0 ]]; then
 fi
 
 # ── Delete old tag (local + remote) immediately before re-creating ────────────
-if git tag -d "$TAG" 2>/dev/null; then
-  log "Removed existing local tag $TAG."
-fi
 if git ls-remote --exit-code --tags origin "$TAG" > /dev/null 2>&1; then
   log "Removing remote tag $TAG..."
   git push origin ":refs/tags/$TAG"
 fi
 
 log "Tagging ${BOLD}${TAG}${NC} at ${HEAD_SHA}..."
-git tag "$TAG"
+git tag -f "$TAG"
 
 log "Pushing tag to origin..."
 git push origin "$TAG"
