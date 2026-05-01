@@ -11,4 +11,6 @@ paths = [
   # Unit test files — generic placeholder API keys, not real secrets
   '''.*\.test\.(ts|tsx|cs)$''',
   '''.*\.spec\.(ts|tsx|cs)$''',
+  # C# xUnit/NUnit convention: *Tests.cs, *Test.cs
+  '''.*Tests?\.cs$''',
 ]
