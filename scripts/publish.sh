@@ -98,9 +98,8 @@ if [[ "$AHEAD" -gt 0 ]]; then
 fi
 
 # ── Delete old tag (local + remote) immediately before re-creating ────────────
-if git tag --list "$TAG" | grep -q "$TAG"; then
-  log "Removing local tag $TAG..."
-  git tag -d "$TAG"
+if git tag -d "$TAG" 2>/dev/null; then
+  log "Removed existing local tag $TAG."
 fi
 if git ls-remote --exit-code --tags origin "$TAG" > /dev/null 2>&1; then
   log "Removing remote tag $TAG..."
