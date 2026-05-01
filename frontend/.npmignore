@@ -1,11 +1,14 @@
-# Exclude dev/test artifacts from the published package
-coverage/
-*.cobertura.xml
-node_modules/
-vitest.config.ts
-eslint.config.js
-tsconfig.json
-
-# Include .tsbuild/ (type declarations) despite it being in .gitignore
-# — the exports field in package.json points consumers to .tsbuild/*.d.ts
-# Do NOT add .tsbuild/ here; absence means npm will publish it.
+# Foundation publishes only the compiled output in .tsbuild/. The `files`
+# whitelist in package.json restricts the tarball to that directory. This
+# .npmignore further trims dev-only artifacts that tsc emits alongside the
+# real output (test files, vitest config, tsbuildinfo).
+#
+# .gitignore would otherwise be used as a fallback by npm pack — and it
+# excludes .tsbuild/ — so this file must exist (even if empty) to prevent
+# the published tarball from losing its types.
+.tsbuild/**/*.test.js
+.tsbuild/**/*.test.d.ts
+.tsbuild/**/*.test.d.ts.map
+.tsbuild/vitest.config.js
+.tsbuild/vitest.config.d.ts
+.tsbuild/.tsbuildinfo
