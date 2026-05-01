@@ -45,6 +45,7 @@ jobs:
   detect-changes:
     name: detect-changes
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/v')"
     outputs:
       keycloak: ${{ steps.result.outputs.keycloak }}
     steps:
@@ -73,6 +74,7 @@ jobs:
   audit-secrets:
     name: audit / secrets + fs
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/v')"
 
     steps:
       - name: Checkout (full history for secret scan)
@@ -101,6 +103,7 @@ jobs:
   audit-nuget:
     name: audit / NuGet
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/v')"
 
     steps:
       - uses: actions/checkout@v4
@@ -125,6 +128,7 @@ jobs:
   audit-npm:
     name: audit / npm
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/v')"
 
     steps:
       - uses: actions/checkout@v4
@@ -157,6 +161,7 @@ jobs:
   backend-ci:
     name: backend-ci
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/v')"
     needs: [audit-secrets, audit-nuget, audit-npm]
 
     steps:
@@ -219,6 +224,7 @@ jobs:
   frontend-ci:
     name: frontend-ci
     runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/v')"
     needs: [audit-secrets, audit-nuget, audit-npm]
 
     steps:
@@ -495,6 +501,10 @@ jobs:
 
       - name: Set npm package version
         run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+        working-directory: frontend
+
+      - name: Build type declarations
+        run: npm run typecheck
         working-directory: frontend
 
       - name: Publish npm package

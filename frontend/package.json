@@ -5,6 +5,11 @@
     "registry": "https://npm.pkg.github.com"
   },
   "type": "module",
+  "files": [
+    "src",
+    "contracts",
+    ".tsbuild"
+  ],
   "exports": {
     "./src/*": {
       "types": "./.tsbuild/src/*.d.ts",
