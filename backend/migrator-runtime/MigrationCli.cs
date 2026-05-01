@@ -1,3 +1,4 @@
+using DbUp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -106,6 +107,12 @@ public static class MigrationCli
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     logger.LogInformation("-- tenant {Slug} ({Id}) --", tenant.Slug, tenant.Id);
+
+                    // Tenant databases may not yet exist (new tenants provisioned via a seed
+                    // migration, CI environments, first-run deployments). Create the database
+                    // if absent — this is a no-op for already-provisioned tenants.
+                    EnsureDatabase.For.PostgresqlDatabase(tenant.ConnectionString);
+
                     var tResults = await runner.RunAsync(
                         tenant.ConnectionString,
                         MigrationTargetDatabase.Tenant,
