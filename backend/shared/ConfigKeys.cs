@@ -51,6 +51,7 @@ public static class ConfigKeys
 
     // ── Tenant resolution ───────────────────────────────────────────────────
     public const string TenantResolutionBaseDomain = "TenantResolution:BaseDomain";
+    public const string TenantResolutionSubdomainPrefix = "TenantResolution:SubdomainPrefix";
     public const string TenantResolutionAllowTenantHeader = "TenantResolution:AllowTenantHeader";
 
     // ── Terms of Service ────────────────────────────────────────────────────
