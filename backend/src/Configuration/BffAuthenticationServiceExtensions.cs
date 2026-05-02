@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orkyo.Shared;
+using StackExchange.Redis;
 
 namespace Api.Configuration;
 
@@ -77,8 +78,16 @@ public static class BffAuthenticationServiceExtensions
             services.AddSingleton<IBffPkceStateStore, InMemoryBffPkceStateStore>();
         }
 
-        // Data Protection for encrypting session cookie values
-        services.AddDataProtection();
+        // Data Protection for encrypting session cookie values.
+        // Persist keys to Redis when Redis is configured so they survive container
+        // restarts and are shared across blue/green deployment slots. SetApplicationName
+        // ensures keys are scoped to this app regardless of the host process name.
+        var dpBuilder = services.AddDataProtection()
+            .SetApplicationName("orkyo");
+        if (!string.IsNullOrEmpty(redisConnection))
+            dpBuilder.PersistKeysToStackExchangeRedis(
+                ConnectionMultiplexer.Connect(redisConnection),
+                "DataProtection-Keys");
 
         // Named HttpClient for Keycloak token exchange
         services.AddHttpClient("BffKeycloak");

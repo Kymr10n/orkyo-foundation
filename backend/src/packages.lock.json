@@ -40,6 +40,15 @@
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.0.1"
         }
       },
+      "Microsoft.AspNetCore.DataProtection.StackExchangeRedis": {
+        "type": "Direct",
+        "requested": "[10.0.7, )",
+        "resolved": "10.0.7",
+        "contentHash": "FRfw0AgR3zp9LQD6pVO2f3Y8VBkQ6QxCVB0B7xQe4u3P0WAjs72py2Z0wZfjSpyIcBFKS/Z/FwP/4qNyAASxzw==",
+        "dependencies": {
+          "StackExchange.Redis": "2.7.27"
+        }
+      },
       "Npgsql": {
         "type": "Direct",
         "requested": "[8.0.5, )",
