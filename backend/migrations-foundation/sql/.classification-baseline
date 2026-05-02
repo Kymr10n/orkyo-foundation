@@ -1,0 +1,8 @@
+# Classification baseline for orkyo-foundation migrations.
+# SQL files at or before this commit are considered already applied and are NOT
+# required to carry a -- @migration-class: header.
+# Files added after this SHA must include a valid classification header.
+#
+# Updated by: initial baseline — all existing migrations grandfathered in.
+# Date: 2026-05-02
+8881aab29c9eb10f49e451073a231e7160fa2d73
