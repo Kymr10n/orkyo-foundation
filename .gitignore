@@ -35,5 +35,8 @@ Thumbs.db
 frontend/.tsbuild/
 frontend/**/*.d.ts.map
 frontend/contracts/*.js
+
+# Favicon pack copy staged by prepublishOnly before npm publish (generated from assets/)
+frontend/assets/
 frontend/contracts/*.d.ts
 frontend/src/**/*.js

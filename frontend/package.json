@@ -6,7 +6,8 @@
   },
   "type": "module",
   "files": [
-    ".tsbuild"
+    ".tsbuild",
+    "assets"
   ],
   "exports": {
     "./src/*": {
@@ -19,6 +20,7 @@
     }
   },
   "scripts": {
+    "prepublishOnly": "mkdir -p assets && cp -r ../assets/orkyo-favicon-pack/. assets/",
     "build": "tsc -b && tsc-alias -p tsconfig.json",
     "typecheck": "tsc -b && tsc-alias -p tsconfig.json",
     "test": "vitest run",
