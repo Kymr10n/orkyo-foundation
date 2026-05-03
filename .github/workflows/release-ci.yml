@@ -559,6 +559,128 @@ jobs:
             --title "Foundation ${{ github.ref_name }}" \
             $(PREV=$(git tag --sort=-version:refname | sed -n '2p'); [ -n "$PREV" ] && echo "--notes-start-tag $PREV")
 
+      # ── Cross-repo dispatch (stable) ──────────────────────────────────────
+      - name: Dispatch foundation_updated to SaaS (stable)
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          gh api repos/Kymr10n/orkyo-saas/dispatches \
+            --field event_type=foundation_updated \
+            --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
+            --field "client_payload[channel]=stable"
+
+  # ─────────────────────────────────────────────
+  # PUBLISH NIGHTLY — push to main only (no rebuild from source)
+  # Produces X.Y.Z-nightly.<date>.<sha7> packages; dist-tags: nightly + next
+  # ─────────────────────────────────────────────
+  publish-nightly:
+    name: Publish Nightly
+    runs-on: ubuntu-latest
+    needs: [backend-ci, frontend-ci]
+    if: >-
+      !failure() && !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute nightly version
+        id: version
+        run: |
+          LATEST_TAG=$(git tag -l 'v[0-9]*' --sort=-version:refname | head -1)
+          if [ -n "$LATEST_TAG" ]; then
+            BASE="${LATEST_TAG#v}"
+            MAJOR=$(echo "$BASE" | cut -d. -f1)
+            MINOR=$(echo "$BASE" | cut -d. -f2)
+            PATCH=$(echo "$BASE" | cut -d. -f3)
+            BASE="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          else
+            BASE="0.0.1"
+          fi
+          VERSION="${BASE}-nightly.$(date +%Y%m%d).${GITHUB_SHA:0:7}"
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Nightly version: $VERSION"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Restore
+        run: dotnet restore Orkyo.Foundation.slnx
+
+      - name: Build
+        run: dotnet build Orkyo.Foundation.slnx -c Release --no-restore
+
+      - name: Pack all packages
+        run: |
+          for proj in \
+            backend/shared/Orkyo.Shared.csproj \
+            backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
+            backend/migrator-runtime/Orkyo.Migrator.csproj \
+            backend/src/Orkyo.Foundation.csproj \
+            backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj; do
+            dotnet pack "$proj" -c Release --no-build \
+              -p:Version=${{ steps.version.outputs.VERSION }} \
+              -o ./nupkgs
+          done
+
+      - name: Push NuGet packages (skip duplicate)
+        run: |
+          dotnet nuget push ./nupkgs/*.nupkg \
+            --source "https://nuget.pkg.github.com/Kymr10n/index.json" \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
+
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> frontend/.npmrc
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Set npm package version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+        working-directory: frontend
+
+      - name: Publish npm package (dist-tag nightly)
+        run: |
+          npm publish --tag nightly || {
+            CODE=$?
+            npm view @kymr10n/foundation@${{ steps.version.outputs.VERSION }} version 2>/dev/null \
+              && echo "Version already published, skipping." \
+              || exit $CODE
+          }
+        working-directory: frontend
+
+      - name: Update dist-tag next → this nightly
+        run: npm dist-tag add @kymr10n/foundation@${{ steps.version.outputs.VERSION }} next
+        working-directory: frontend
+
+      - name: Dispatch foundation_updated to SaaS (nightly)
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          gh api repos/Kymr10n/orkyo-saas/dispatches \
+            --field event_type=foundation_updated \
+            --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
+            --field "client_payload[channel]=nightly"
+
   # ─────────────────────────────────────────────
   # EVIDENCE BUNDLE — always runs, collects results
   # ─────────────────────────────────────────────
@@ -576,6 +698,7 @@ jobs:
       - build-keycloak-image
       - container-scan
       - publish
+      - publish-nightly
     if: always()
 
     steps:
