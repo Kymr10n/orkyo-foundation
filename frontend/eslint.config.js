@@ -13,6 +13,14 @@ export default defineConfig(
       '**/coverage/**',
       '**/node_modules/**',
       '**/.tsbuild/**',
+      // Compiled artifacts that tsc can emit into src/ or contracts/ when run
+      // without --outDir (e.g. bare `tsc` instead of `tsc -b`). Git ignores these
+      // too (.gitignore), but ESLint ignores are independent.
+      'src/**/*.js',
+      'src/**/*.d.ts.map',
+      'contracts/**/*.js',
+      'contracts/**/*.d.ts',
+      'contracts/**/*.d.ts.map',
     ],
   },
 
