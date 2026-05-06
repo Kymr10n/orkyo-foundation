@@ -3,6 +3,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -173,6 +174,9 @@ export function GroupCapabilitiesEditor({
           <DialogTitle>
             Group Capabilities: "{groupName}"
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Manage capability assignments for this group.
+          </DialogDescription>
           <p className="text-sm text-muted-foreground">
             Capabilities defined here will be inherited by all spaces in this group.
           </p>

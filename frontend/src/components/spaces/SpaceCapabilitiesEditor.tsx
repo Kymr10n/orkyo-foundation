@@ -3,6 +3,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -169,6 +170,9 @@ export function SpaceCapabilitiesEditor({
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>Capabilities for {spaceName}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Manage capability assignments for this space.
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6">

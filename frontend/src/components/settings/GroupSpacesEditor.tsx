@@ -4,6 +4,7 @@ import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -154,6 +155,9 @@ export function GroupSpacesEditor({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Manage Spaces in "{groupName}"</DialogTitle>
+          <DialogDescription className="sr-only">
+            Select the spaces to include in this group.
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 pr-4">

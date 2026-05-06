@@ -96,12 +96,14 @@ describe('GroupSettings', () => {
   });
 
   it('shows error when loading fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockGetSpaceGroups.mockRejectedValue(new Error('Network error'));
     renderGroupSettings();
     // The component logs error and sets error state — keep loading false after catch
     await waitFor(() => {
       expect(screen.queryByText('Loading space groups...')).not.toBeInTheDocument();
     });
+    consoleError.mockRestore();
   });
 
   it('opens create dialog on New Group click', async () => {
@@ -244,6 +246,7 @@ describe('GroupSettings', () => {
   });
 
   it('shows alert on delete error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockDeleteMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const user = userEvent.setup();
     mockGetSpaceGroups.mockResolvedValue(mockGroups);
@@ -257,6 +260,7 @@ describe('GroupSettings', () => {
     await waitFor(() => {
       expect(global.alert).toHaveBeenCalledWith('Delete failed');
     });
+    consoleError.mockRestore();
   });
 
   it('shows save error in dialog', async () => {
