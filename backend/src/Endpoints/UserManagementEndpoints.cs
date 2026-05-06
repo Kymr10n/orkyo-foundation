@@ -55,7 +55,7 @@ public static class UserManagementEndpoints
         app.MapGet("/api/invitations/validate", async (IInvitationService invitationService, [FromQuery] string? token) =>
         {
             if (string.IsNullOrWhiteSpace(token) || !Guid.TryParse(token, out _))
-                return Results.BadRequest(new { error = "A valid invitation token is required" });
+                return Results.BadRequest(new { error = "Invalid invitation token" });
 
             var (email, expiresAt, tenantName, error) = await invitationService.ValidateInvitationAsync(token);
             return error != null
