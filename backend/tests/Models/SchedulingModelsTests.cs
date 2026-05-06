@@ -150,4 +150,60 @@ public class SchedulingModelsTests
 
         request.SchedulingSettingsApply.Should().BeTrue();
     }
+
+    [Fact]
+    public void SchedulingSettingsInfo_Default_ReturnsExpectedValues()
+    {
+        var siteId = Guid.NewGuid();
+
+        var defaults = SchedulingSettingsInfo.Default(siteId);
+
+        defaults.Id.Should().Be(Guid.Empty);
+        defaults.SiteId.Should().Be(siteId);
+        defaults.TimeZone.Should().Be("UTC");
+        defaults.WorkingHoursEnabled.Should().BeFalse();
+        defaults.WeekendsEnabled.Should().BeTrue();
+        defaults.PublicHolidaysEnabled.Should().BeFalse();
+        defaults.WorkingDayStart.Should().Be(new TimeOnly(8, 0));
+        defaults.WorkingDayEnd.Should().Be(new TimeOnly(17, 0));
+    }
+
+    [Fact]
+    public void UpdateOffTimeRequest_AllPropertiesNullByDefault()
+    {
+        var req = new UpdateOffTimeRequest();
+
+        req.Title.Should().BeNull();
+        req.Type.Should().BeNull();
+        req.AppliesToAllSpaces.Should().BeNull();
+        req.SpaceIds.Should().BeNull();
+        req.StartTs.Should().BeNull();
+        req.EndTs.Should().BeNull();
+        req.IsRecurring.Should().BeNull();
+        req.RecurrenceRule.Should().BeNull();
+        req.Enabled.Should().BeNull();
+    }
+
+    [Fact]
+    public void UpdateOffTimeRequest_StoresProvidedValues()
+    {
+        var start = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc);
+
+        var req = new UpdateOffTimeRequest
+        {
+            Title = "Christmas Holiday",
+            Type = OffTimeType.Holiday,
+            AppliesToAllSpaces = true,
+            StartTs = start,
+            EndTs = end,
+            IsRecurring = false,
+            Enabled = true
+        };
+
+        req.Title.Should().Be("Christmas Holiday");
+        req.Type.Should().Be(OffTimeType.Holiday);
+        req.AppliesToAllSpaces.Should().BeTrue();
+        req.StartTs.Should().Be(start);
+    }
 }

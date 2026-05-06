@@ -269,4 +269,58 @@ public class SpaceModelsTests
     }
 
     #endregion
+
+    #region SpaceInfo
+
+    [Fact]
+    public void SpaceInfo_StoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        var info = new SpaceInfo
+        {
+            Id = id,
+            SiteId = siteId,
+            Name = "Hall A",
+            Code = "HA-01",
+            Description = "Production hall A",
+            IsPhysical = true,
+            GroupId = groupId,
+            Capacity = 10,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        info.Id.Should().Be(id);
+        info.SiteId.Should().Be(siteId);
+        info.Name.Should().Be("Hall A");
+        info.Code.Should().Be("HA-01");
+        info.IsPhysical.Should().BeTrue();
+        info.GroupId.Should().Be(groupId);
+        info.Capacity.Should().Be(10);
+    }
+
+    [Fact]
+    public void SpaceInfo_OptionalFields_AreNullByDefault()
+    {
+        var info = new SpaceInfo
+        {
+            Id = Guid.NewGuid(),
+            SiteId = Guid.NewGuid(),
+            Name = "Room 1",
+            IsPhysical = false
+        };
+
+        info.Code.Should().BeNull();
+        info.Description.Should().BeNull();
+        info.Geometry.Should().BeNull();
+        info.Properties.Should().BeNull();
+        info.GroupId.Should().BeNull();
+        info.Capacity.Should().Be(1); // default
+    }
+
+    #endregion
 }

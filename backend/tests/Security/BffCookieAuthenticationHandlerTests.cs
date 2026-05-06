@@ -37,7 +37,9 @@ public class BffCookieAuthenticationHandlerTests
         _protector = _dataProtectionProvider.CreateProtector("BffSession");
     }
 
-    private static string CreateTestJwt(DateTimeOffset? expires = null)
+    private static string CreateTestJwt(
+        DateTimeOffset? expires = null,
+        Dictionary<string, object>? extraClaims = null)
     {
         var handler = new JwtSecurityTokenHandler();
         var claims = new List<Claim>
@@ -45,6 +47,9 @@ public class BffCookieAuthenticationHandlerTests
             new("sub", "user-123"), new("preferred_username", "alex"),
             new("email", "alex@orkyo.com"), new("realm_access.roles", "admin"),
         };
+        if (extraClaims is not null)
+            foreach (var (key, value) in extraClaims)
+                claims.Add(new Claim(key, value.ToString()!));
         var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
@@ -165,5 +170,115 @@ public class BffCookieAuthenticationHandlerTests
         var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
         result.Succeeded.Should().BeFalse();
         result.Failure!.Message.Should().Be("Invalid stored access token");
+    }
+
+    // ── Empty cookie ───────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task EmptyCookieValue_ReturnsNoResult()
+    {
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, ""));
+        result.None.Should().BeTrue();
+        result.Succeeded.Should().BeFalse();
+    }
+
+    // ── Token refresh paths ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task TokenNearExpiry_TriggersRefreshAttempt()
+    {
+        var session = CreateSession(tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(30));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var mockHandler = new MockHttpMessageHandler(
+            new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.FindFirst("sub")!.Value.Should().Be("user-123");
+        _httpClientFactory.Verify(f => f.CreateClient("BffKeycloak"), Times.Once);
+    }
+
+    [Fact]
+    public async Task TokenNearExpiry_FailedRefresh_StillReturnsSuccess()
+    {
+        var session = CreateSession(tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var mockHandler = new MockHttpMessageHandler(new HttpRequestException("Connection refused"));
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.FindFirst("preferred_username")!.Value.Should().Be("alex");
+    }
+
+    [Fact]
+    public async Task SuccessfulRefresh_UsesNewAccessToken()
+    {
+        var originalJwt = CreateTestJwt(extraClaims: new Dictionary<string, object> { ["tag"] = "original" });
+        var refreshedJwt = CreateTestJwt(extraClaims: new Dictionary<string, object> { ["tag"] = "refreshed" });
+
+        var session = CreateSession(
+            accessToken: originalJwt,
+            tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var responseJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            access_token = refreshedJwt,
+            refresh_token = "new-refresh-token",
+            expires_in = 300,
+        });
+        var mockHandler = new MockHttpMessageHandler(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(responseJson, System.Text.Encoding.UTF8, "application/json"),
+        });
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.FindFirst("tag")!.Value.Should().Be("refreshed");
+        _sessionStore.Verify(s => s.RefreshTokensAsync(
+            TestSessionId, refreshedJwt, "new-refresh-token",
+            It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidSession_FiltersOutTypClaim()
+    {
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSession());
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.Claims.Select(c => c.Type).Should().NotContain("typ");
+    }
+
+    // ── Mock HTTP message handler ──────────────────────────────────────────
+
+    private sealed class MockHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly HttpResponseMessage? _response;
+        private readonly Exception? _exception;
+
+        public MockHttpMessageHandler(HttpResponseMessage response) => _response = response;
+        public MockHttpMessageHandler(Exception exception) => _exception = exception;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (_exception is not null) throw _exception;
+            return Task.FromResult(_response!);
+        }
     }
 }

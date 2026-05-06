@@ -221,4 +221,43 @@ public class SpaceGroupModelsTests
     }
 
     #endregion
+
+    #region SpaceGroupInfo
+
+    [Fact]
+    public void SpaceGroupInfo_StoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        var info = new SpaceGroupInfo
+        {
+            Id = id,
+            Name = "Hall A",
+            Description = "Production hall",
+            Color = "#3b82f6",
+            DisplayOrder = 1,
+            CreatedAt = now,
+            UpdatedAt = now,
+            SpaceCount = 5
+        };
+
+        info.Id.Should().Be(id);
+        info.Name.Should().Be("Hall A");
+        info.Color.Should().Be("#3b82f6");
+        info.DisplayOrder.Should().Be(1);
+        info.SpaceCount.Should().Be(5);
+    }
+
+    [Fact]
+    public void SpaceGroupInfo_OptionalFields_AreNullByDefault()
+    {
+        var info = new SpaceGroupInfo { Id = Guid.NewGuid(), Name = "Group", DisplayOrder = 0 };
+
+        info.Description.Should().BeNull();
+        info.Color.Should().BeNull();
+        info.SpaceCount.Should().BeNull();
+    }
+
+    #endregion
 }

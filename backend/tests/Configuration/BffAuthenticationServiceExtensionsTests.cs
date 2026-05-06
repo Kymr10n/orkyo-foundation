@@ -1,8 +1,12 @@
 using Api.Configuration;
+using Api.Security;
 using Api.Services.BffSession;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orkyo.Shared;
@@ -83,13 +87,212 @@ public class BffAuthenticationServiceExtensionsTests
         disc1.Should().Be(disc2).And.Be("orkyo");
     }
 
+    // ── BffOptions binding ────────────────────────────────────────────────────
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_DefaultCookieName_WhenNotConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null);
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieName.Should().Be(BffOptions.DefaultCookieName);
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_OverridesCookieName_WhenConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffCookieName] = "my-session"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieName.Should().Be("my-session");
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_SetsCookieDomain_WhenConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffCookieDomain] = ".orkyo.com"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieDomain.Should().Be(".orkyo.com");
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_CookieDomainIsNull_WhenEmptyString()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffCookieDomain] = ""
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieDomain.Should().BeNull();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_CookieSecureFalse_WhenExplicitlyDisabled()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffCookieSecure] = "false"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieSecure.Should().BeFalse();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_CookieSecureTrue_WhenExplicitlyEnabled()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffCookieSecure] = "true"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieSecure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_CookieSecureDefaultsTrueInProduction()
+    {
+        // When BFF_COOKIE_SECURE is absent and environment is Production, secure defaults to true
+        var provider = BuildProvider(redisConnection: null, environmentName: EnvironmentNames.Production);
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieSecure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_CookieSecureDefaultsFalseInDevelopment()
+    {
+        var provider = BuildProvider(redisConnection: null, environmentName: EnvironmentNames.Development);
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.CookieSecure.Should().BeFalse();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_SetsRedirectUri_WhenConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffRedirectUri] = "https://orkyo.com/api/auth/bff/callback"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.RedirectUri.Should().Be("https://orkyo.com/api/auth/bff/callback");
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_SetsAllowedHosts_WhenConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffAllowedHosts] = "orkyo.com,*.orkyo.com"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.AllowedReturnToHosts.Should().BeEquivalentTo(["orkyo.com", "*.orkyo.com"]);
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_SetsSessionDuration_WhenConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffSessionDuration] = "12:00:00"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.SessionDuration.Should().Be(TimeSpan.FromHours(12));
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_SetsScopes_WhenConfigured()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffScopes] = "openid profile email offline_access"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.Scopes.Should().Be("openid profile email offline_access");
+    }
+
+    // ── BFF authentication scheme ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task AddBffAuthentication_RegistersBffAuthScheme_WhenBffEnabled()
+    {
+        var provider = BuildProvider(redisConnection: null, extra: new()
+        {
+            [ConfigKeys.BffEnabled] = "true"
+        });
+
+        var schemes = provider.GetRequiredService<IAuthenticationSchemeProvider>();
+        var scheme = await schemes.GetSchemeAsync(BffCookieAuthenticationHandler.SchemeName);
+
+        scheme.Should().NotBeNull();
+        scheme!.HandlerType.Should().Be(typeof(BffCookieAuthenticationHandler));
+    }
+
+    [Fact]
+    public async Task AddBffAuthentication_DoesNotRegisterBffAuthScheme_WhenBffDisabled()
+    {
+        var provider = BuildProvider(redisConnection: null);
+
+        // AddAuthentication() is not called when BFF is disabled, so the scheme provider is absent
+        var schemes = provider.GetService<IAuthenticationSchemeProvider>();
+        if (schemes is not null)
+        {
+            var scheme = await schemes.GetSchemeAsync(BffCookieAuthenticationHandler.SchemeName);
+            scheme.Should().BeNull();
+        }
+        // If schemes == null, AddAuthentication() was never called — BFF scheme definitely absent
+    }
+
+    // ── ConnectionStrings:Redis fallback ──────────────────────────────────────
+
+    [Fact]
+    public void AddBffAuthentication_WithConnectionStringRedisKey_RegistersInMemoryStores_WhenMissingActualConnection()
+    {
+        // ConnectionStrings:Redis key absent — should fall back to in-memory
+        var provider = BuildProvider(redisConnection: null);
+
+        provider.GetRequiredService<IBffSessionStore>().Should().BeOfType<InMemoryBffSessionStore>();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static ServiceProvider BuildProvider(string? redisConnection)
+    private static ServiceProvider BuildProvider(
+        string? redisConnection,
+        Dictionary<string, string?>? extra = null,
+        string environmentName = EnvironmentNames.Production)
     {
         var values = new Dictionary<string, string?>();
         if (redisConnection != null)
             values[ConfigKeys.RedisConnection] = redisConnection;
+        if (extra != null)
+            foreach (var (k, v) in extra)
+                values[k] = v;
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(values)
@@ -97,8 +300,18 @@ public class BffAuthenticationServiceExtensionsTests
 
         var services = new ServiceCollection();
         services.AddLogging(b => b.AddConsole());
+        services.AddSingleton<IConfiguration>(config);
+        services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment(environmentName));
         services.AddBffAuthentication(config);
 
         return services.BuildServiceProvider();
+    }
+
+    private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+        public string ApplicationName { get; set; } = "Orkyo.Foundation.Tests";
+        public string ContentRootPath { get; set; } = Directory.GetCurrentDirectory();
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

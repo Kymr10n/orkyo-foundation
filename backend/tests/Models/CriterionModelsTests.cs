@@ -248,4 +248,46 @@ public class CriterionModelsTests
     }
 
     #endregion
+
+    #region CriterionInfo
+
+    [Fact]
+    public void CriterionInfo_StoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        var info = new CriterionInfo
+        {
+            Id = id,
+            Name = "Weight",
+            Description = "Load-bearing capacity in kg",
+            DataType = CriterionDataType.Number,
+            Unit = "kg",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        info.Id.Should().Be(id);
+        info.Name.Should().Be("Weight");
+        info.DataType.Should().Be(CriterionDataType.Number);
+        info.Unit.Should().Be("kg");
+    }
+
+    [Fact]
+    public void CriterionInfo_EnumValues_StoredWhenProvided()
+    {
+        var info = new CriterionInfo
+        {
+            Id = Guid.NewGuid(),
+            Name = "Shift Model",
+            DataType = CriterionDataType.Enum,
+            EnumValues = new List<string> { "2-shift", "3-shift", "4-shift" }
+        };
+
+        info.EnumValues.Should().HaveCount(3);
+        info.Unit.Should().BeNull();
+    }
+
+    #endregion
 }

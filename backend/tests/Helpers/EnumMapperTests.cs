@@ -1,9 +1,8 @@
+using System.Text.Json.Serialization;
 using Api.Helpers;
 using Api.Models;
-using FluentAssertions;
-using Xunit;
 
-namespace Api.Tests.Helpers;
+namespace Orkyo.Foundation.Tests.Helpers;
 
 public class EnumMapperTests
 {
@@ -57,6 +56,30 @@ public class EnumMapperTests
     public void ToPlanningMode_ShouldDelegateToFromDbValue(string dbValue, PlanningMode expected) =>
         EnumMapper.ToPlanningMode(dbValue).Should().Be(expected);
 
+    // --- ToDbValue: JsonPropertyName attribute (legacy fallback) ---
+
+    public enum LegacyAttributeEnum
+    {
+        [JsonPropertyName("my_value")]
+        MyValue,
+        [JsonPropertyName("other_value")]
+        OtherValue
+    }
+
+    [Theory]
+    [InlineData(LegacyAttributeEnum.MyValue, "my_value")]
+    [InlineData(LegacyAttributeEnum.OtherValue, "other_value")]
+    public void ToDbValue_ShouldUseJsonPropertyName_WhenNoJsonStringEnumMemberName(LegacyAttributeEnum value, string expected) =>
+        EnumMapper.ToDbValue(value).Should().Be(expected);
+
+    // --- FromDbValue: JsonPropertyName attribute (legacy fallback) ---
+
+    [Theory]
+    [InlineData("my_value", LegacyAttributeEnum.MyValue)]
+    [InlineData("other_value", LegacyAttributeEnum.OtherValue)]
+    public void FromDbValue_ShouldParseViaJsonPropertyName(string dbValue, LegacyAttributeEnum expected) =>
+        EnumMapper.FromDbValue<LegacyAttributeEnum>(dbValue).Should().Be(expected);
+
     // --- ParseEnum ---
 
     [Theory]
@@ -71,5 +94,25 @@ public class EnumMapperTests
     {
         var act = () => EnumMapper.ParseEnum<PlanningMode>("bogus");
         act.Should().Throw<ArgumentException>();
+    }
+
+    // --- FromDbValue: field name match when no attributes ---
+
+    [Theory]
+    [InlineData("Alpha", NoAttributeEnum.Alpha)]
+    [InlineData("alpha", NoAttributeEnum.Alpha)]
+    [InlineData("BetaValue", NoAttributeEnum.BetaValue)]
+    [InlineData("betavalue", NoAttributeEnum.BetaValue)]
+    public void FromDbValue_ShouldParseByFieldName_WhenNoAttributeExists(string dbValue, NoAttributeEnum expected) =>
+        EnumMapper.FromDbValue<NoAttributeEnum>(dbValue).Should().Be(expected);
+
+    // --- ToDbValue: memberInfo null branch (undefined/cast enum value) ---
+
+    [Fact]
+    public void ToDbValue_ShouldFallbackToLowercaseString_WhenMemberInfoIsNull()
+    {
+        // Casting an integer that has no named member causes GetMember to return empty.
+        var undefined = (NoAttributeEnum)999;
+        EnumMapper.ToDbValue(undefined).Should().Be("999");
     }
 }

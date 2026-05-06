@@ -66,4 +66,36 @@ public class AnnouncementTests
         req.ExpiresAt.Should().BeNull();
         req.IsImportant.Should().BeFalse();
     }
+
+    [Fact]
+    public void UserAnnouncementDto_StoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        var dto = new UserAnnouncementDto
+        {
+            Id = id,
+            Title = "System Maintenance",
+            Body = "Scheduled downtime on Saturday.",
+            IsImportant = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+            IsRead = false
+        };
+
+        dto.Id.Should().Be(id);
+        dto.Title.Should().Be("System Maintenance");
+        dto.IsImportant.Should().BeTrue();
+        dto.IsRead.Should().BeFalse();
+    }
+
+    [Fact]
+    public void UserAnnouncementDto_DefaultValues_AreReadFalseNotImportant()
+    {
+        var dto = new UserAnnouncementDto { Title = "T", Body = "B" };
+
+        dto.IsRead.Should().BeFalse();
+        dto.IsImportant.Should().BeFalse();
+    }
 }

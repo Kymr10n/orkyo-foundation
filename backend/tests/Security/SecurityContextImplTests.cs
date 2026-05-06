@@ -1,3 +1,4 @@
+using Api.Models;
 using Api.Security;
 using Api.Services;
 
@@ -107,5 +108,70 @@ public class SecurityContextImplTests
 
         var act = () => context.RequireRole(TenantRole.Editor);
         act.Should().NotThrow();
+    }
+
+    // ── CurrentPrincipal.DisplayName ───────────────────────────────────────
+
+    [Fact]
+    public void CurrentPrincipal_DisplayName_DefaultsToNull()
+    {
+        var principal = new CurrentPrincipal();
+        principal.DisplayName.Should().BeNull();
+    }
+
+    [Fact]
+    public void CurrentPrincipal_DisplayName_ReturnsValueAfterSetContext()
+    {
+        var principal = new CurrentPrincipal();
+        principal.SetContext(new PrincipalContext
+        {
+            UserId = Guid.NewGuid(),
+            Email = "user@test.example",
+            AuthProvider = AuthProvider.Keycloak,
+            DisplayName = "Alice"
+        });
+
+        principal.DisplayName.Should().Be("Alice");
+    }
+
+    // ── CurrentTenant.TenantDbConnectionString ─────────────────────────────
+
+    [Fact]
+    public void CurrentTenant_TenantDbConnectionString_DefaultsToEmpty()
+    {
+        var tenant = new CurrentTenant();
+        tenant.TenantDbConnectionString.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CurrentTenant_TenantDbConnectionString_ReturnsValueAfterSetContext()
+    {
+        var tenant = new CurrentTenant();
+        tenant.SetContext(new TenantContext
+        {
+            TenantId = Guid.NewGuid(),
+            TenantSlug = "acme",
+            TenantDbConnectionString = "Host=pg;Database=acme",
+            Tier = ServiceTier.Free,
+            Status = "active"
+        });
+
+        tenant.TenantDbConnectionString.Should().Be("Host=pg;Database=acme");
+    }
+
+    [Fact]
+    public void CurrentTenant_TenantSlug_ReturnsValueAfterSetContext()
+    {
+        var tenant = new CurrentTenant();
+        tenant.SetContext(new TenantContext
+        {
+            TenantId = Guid.NewGuid(),
+            TenantSlug = "my-org",
+            TenantDbConnectionString = "Host=pg",
+            Tier = ServiceTier.Free,
+            Status = "active"
+        });
+
+        tenant.TenantSlug.Should().Be("my-org");
     }
 }

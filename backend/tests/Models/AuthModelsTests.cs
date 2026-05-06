@@ -117,4 +117,63 @@ public class AuthModelsTests
         Assert.Equal("google-user-123", identity.ProviderSubject);
         Assert.Equal("user@gmail.com", identity.ProviderEmail);
     }
+
+    [Fact]
+    public void Site_StoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        var site = new Site
+        {
+            Id = id,
+            Name = "Headquarters",
+            Code = "HQ-1",
+            Attributes = "{\"region\":\"CH\"}",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        site.Id.Should().Be(id);
+        site.Name.Should().Be("Headquarters");
+        site.Code.Should().Be("HQ-1");
+        site.Attributes.Should().Contain("region");
+    }
+
+    [Fact]
+    public void Site_OptionalFields_AreNullByDefault()
+    {
+        var site = new Site { Name = "Plant 1", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+
+        site.Code.Should().BeNull();
+        site.Attributes.Should().BeNull();
+    }
+
+    [Fact]
+    public void Invitation_StoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var invitedBy = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        var inv = new Invitation
+        {
+            Id = id,
+            Email = "alice@example.com",
+            Role = UserRole.Viewer,
+            InvitedBy = invitedBy,
+            TokenHash = "abc123hash",
+            ExpiresAt = now.AddDays(7),
+            AcceptedAt = null,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        inv.Id.Should().Be(id);
+        inv.Email.Should().Be("alice@example.com");
+        inv.Role.Should().Be(UserRole.Viewer);
+        inv.InvitedBy.Should().Be(invitedBy);
+        inv.TokenHash.Should().Be("abc123hash");
+        inv.AcceptedAt.Should().BeNull();
+    }
 }

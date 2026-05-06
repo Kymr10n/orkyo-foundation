@@ -196,8 +196,6 @@ public class KeycloakTokenProfileTests
         profile.RealmRoles.Should().BeEmpty();
     }
 
-    // --- ToExternalIdentityToken ---
-
     [Fact]
     public void ToExternalIdentityToken_ShouldReturnNull_WhenSubjectMissing()
     {
@@ -229,5 +227,31 @@ public class KeycloakTokenProfileTests
         token.DisplayName.Should().Be("Alice");
         token.Issuer.Should().Be("https://auth.example.com/realms/orkyo");
         token.Audience.Should().Be("saas-client");
+    }
+
+    // --- HasRealmRole ---
+
+    [Fact]
+    public void HasRealmRole_ShouldReturnTrue_WhenRolePresent()
+    {
+        var profile = KeycloakTokenProfile.FromPrincipal(BuildPrincipal(new()
+        {
+            ["sub"] = "u",
+            ["realm_access"] = RealmAccessJson("site-admin", "editor")
+        }));
+
+        profile.HasRealmRole("editor").Should().BeTrue();
+    }
+
+    [Fact]
+    public void HasRealmRole_ShouldReturnFalse_WhenRoleAbsent()
+    {
+        var profile = KeycloakTokenProfile.FromPrincipal(BuildPrincipal(new()
+        {
+            ["sub"] = "u",
+            ["realm_access"] = RealmAccessJson("site-admin")
+        }));
+
+        profile.HasRealmRole("editor").Should().BeFalse();
     }
 }
