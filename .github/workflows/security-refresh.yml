@@ -48,18 +48,38 @@ jobs:
           cache-to: type=gha,mode=max,scope=keycloak-security-refresh
 
       - name: Trivy — scan refreshed image
-        id: trivy
-        continue-on-error: true
+        id: trivy_scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-security-refresh
           severity: HIGH,CRITICAL
-          exit-code: '1'
+          exit-code: '0'
+          format: json
+          output: trivy-results.json
           ignore-unfixed: true
           trivyignores: .trivyignore
 
+      - name: Evaluate Trivy findings
+        id: trivy_results
+        run: |
+          if [ ! -s trivy-results.json ]; then
+            echo "::error::Missing Trivy results file (trivy-results.json)"
+            exit 1
+          fi
+
+          vuln_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy-results.json)
+          echo "vulnerability_count=$vuln_count" >> "$GITHUB_OUTPUT"
+
+          if [ "$vuln_count" -gt 0 ]; then
+            echo "has_vulnerabilities=true" >> "$GITHUB_OUTPUT"
+            echo "Detected $vuln_count HIGH/CRITICAL vulnerability findings"
+          else
+            echo "has_vulnerabilities=false" >> "$GITHUB_OUTPUT"
+            echo "No HIGH/CRITICAL vulnerabilities detected"
+          fi
+
       - name: Create or reopen issue on vulnerability found
-        if: steps.trivy.outcome == 'failure'
+        if: steps.trivy_results.outputs.has_vulnerabilities == 'true'
         uses: actions/github-script@v9
         with:
           script: |
@@ -115,5 +135,5 @@ jobs:
             }
 
       - name: Fail workflow if vulnerabilities found
-        if: steps.trivy.outcome == 'failure'
+        if: steps.trivy_results.outputs.has_vulnerabilities == 'true'
         run: exit 1
