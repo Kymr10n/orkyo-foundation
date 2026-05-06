@@ -8,10 +8,7 @@ on:
     - cron: '30 2 * * *'  # 02:30 UTC daily (after nightly CI at 02:00)
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
-  issues: write
+permissions: {}
 
 env:
   REGISTRY: ghcr.io
@@ -23,22 +20,27 @@ env:
 jobs:
   refresh-keycloak-image:
     name: Refresh Keycloak Base Image
+    timeout-minutes: 30
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build refreshed image (no-cache on KC base)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: keycloak
           push: true
@@ -49,7 +51,7 @@ jobs:
 
       - name: Trivy — scan refreshed image
         id: trivy_scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-security-refresh
           severity: HIGH,CRITICAL
@@ -80,7 +82,7 @@ jobs:
 
       - name: Create or reopen issue on vulnerability found
         if: steps.trivy_results.outputs.has_vulnerabilities == 'true'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const title = '🔒 Security: HIGH/CRITICAL CVEs in Keycloak base image';
