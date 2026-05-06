@@ -12,10 +12,9 @@ public static class TenantResolverQueryContract
     public const int DbIdentifierOrdinal = 2;
     public const int StatusOrdinal = 3;
     public const int TierOrdinal = 4;
-    public const int SuspensionReasonOrdinal = 5;
 
     public static string BuildSelectBySlugSql()
     {
-        return $"SELECT id, slug, db_identifier, status, tier, suspension_reason FROM tenants WHERE slug = @{SlugParameterName} AND status != '{TenantStatusConstants.Deleting}'";
+        return $"SELECT id, slug, db_identifier, status, tier FROM tenants WHERE slug = @{SlugParameterName} AND status != '{TenantStatusConstants.Deleting}'";
     }
 }

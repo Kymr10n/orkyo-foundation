@@ -17,12 +17,6 @@ public class TenantMutationQueryContractTests
     }
 
     [Fact]
-    public void BuildTouchLastActivitySql_ShouldContainExpectedUpdate()
-    {
-        TenantMutationQueryContract.BuildTouchLastActivitySql().Should().Contain("SET last_activity_at = NOW()");
-    }
-
-    [Fact]
     public void BuildUpdateDisplayNameSql_ShouldContainExpectedUpdate()
     {
         var sql = TenantMutationQueryContract.BuildUpdateDisplayNameSql();
@@ -46,14 +40,4 @@ public class TenantMutationQueryContractTests
         sql.Should().Contain("WHERE tenant_id = @tenantId AND user_id = @userId");
     }
 
-    [Fact]
-    public void BuildReactivateSuspendedTenantSql_ShouldContainExpectedUpdateAndGuard()
-    {
-        var sql = TenantMutationQueryContract.BuildReactivateSuspendedTenantSql();
-        sql.Should().Contain("SET status = 'active'");
-        sql.Should().Contain("suspended_at = NULL");
-        sql.Should().Contain("suspension_reason = NULL");
-        sql.Should().Contain("last_activity_at = NOW()");
-        sql.Should().Contain("WHERE id = @tenantId AND status = 'suspended'");
-    }
 }

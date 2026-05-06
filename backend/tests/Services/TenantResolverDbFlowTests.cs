@@ -34,13 +34,12 @@ public class TenantResolverDbFlowTests
             "acme",
             "Host=localhost;Database=control_plane;Username=postgres;Password=postgres",
             commandFactory: static (_, _) => new NpgsqlCommand(),
-            readerExecutor: _ => Task.FromResult<DbDataReader>(CreateRowReader(tenantId, "acme", "tenant_acme", "active", (int)ServiceTier.Professional, DBNull.Value)));
+            readerExecutor: _ => Task.FromResult<DbDataReader>(CreateRowReader(tenantId, "acme", "tenant_acme", "active", (int)ServiceTier.Professional)));
 
         result.Should().NotBeNull();
         result!.TenantId.Should().Be(tenantId);
         result.TenantSlug.Should().Be("acme");
         result.Tier.Should().Be(ServiceTier.Professional);
-        result.SuspensionReason.Should().BeNull();
     }
 
     private static DbDataReader CreateEmptyReader()
@@ -51,7 +50,6 @@ public class TenantResolverDbFlowTests
         table.Columns.Add("db_identifier", typeof(string));
         table.Columns.Add("status", typeof(string));
         table.Columns.Add("tier", typeof(int));
-        table.Columns.Add("suspension_reason", typeof(string));
         return table.CreateDataReader();
     }
 
@@ -60,8 +58,7 @@ public class TenantResolverDbFlowTests
         string slug,
         string dbIdentifier,
         string status,
-        int tier,
-        object suspensionReason)
+        int tier)
     {
         var table = new DataTable();
         table.Columns.Add("id", typeof(Guid));
@@ -69,7 +66,6 @@ public class TenantResolverDbFlowTests
         table.Columns.Add("db_identifier", typeof(string));
         table.Columns.Add("status", typeof(string));
         table.Columns.Add("tier", typeof(int));
-        table.Columns.Add("suspension_reason", typeof(string));
 
         var row = table.NewRow();
         row[0] = tenantId;
@@ -77,7 +73,6 @@ public class TenantResolverDbFlowTests
         row[2] = dbIdentifier;
         row[3] = status;
         row[4] = tier;
-        row[5] = suspensionReason;
         table.Rows.Add(row);
 
         return table.CreateDataReader();

@@ -53,6 +53,24 @@ public static class TestHelpers
         throw new Exception("Failed to get or create test space");
     }
 
+    public static async Task<Guid> CreateUniqueTestSpace(HttpClient client)
+    {
+        var siteId = await GetOrCreateTestSite(client);
+        var uniqueCode = $"TEST-{Guid.NewGuid():N}"[..15];
+        var createSpaceRequest = new CreateSpaceRequest
+        {
+            Name = $"Test Space {uniqueCode}",
+            Code = uniqueCode,
+            IsPhysical = false,
+            Geometry = null,
+        };
+
+        var createResponse = await client.PostAsJsonAsync($"/api/sites/{siteId}/spaces", createSpaceRequest);
+        createResponse.EnsureSuccessStatusCode();
+        var createdSpace = await createResponse.Content.ReadFromJsonAsync<SpaceInfo>();
+        return createdSpace?.Id ?? throw new Exception("Failed to create unique test space");
+    }
+
     public static async Task<Guid> GetOrCreateAnotherTestSpace(HttpClient client)
     {
         var siteId = await GetOrCreateTestSite(client);

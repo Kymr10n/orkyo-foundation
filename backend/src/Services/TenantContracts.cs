@@ -9,7 +9,6 @@ public class TenantContext
     public required string TenantDbConnectionString { get; init; }
     public required ServiceTier Tier { get; init; }
     public required string Status { get; init; }
-    public string? SuspensionReason { get; init; }
 
     public bool IsSuspended => TenantStatusPolicy.IsSuspended(Status);
     public bool IsActive => TenantStatusPolicy.IsActive(Status);

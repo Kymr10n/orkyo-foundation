@@ -64,16 +64,19 @@ public class KeycloakAdminServiceTests
         Build(new[] { ("", HttpStatusCode.OK, body) });
 
     // Token + user lookup preamble that every method needs.
+    // Test-specific routes are added BEFORE the generic user-lookup fallback so
+    // they take priority when both match the same URL fragment.
     private static IEnumerable<(string, HttpStatusCode, string)> TokenAndUser(
         IEnumerable<(string, HttpStatusCode, string)>? additional = null)
     {
         var routes = new List<(string, HttpStatusCode, string)>
         {
             ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
-            ("/users/kc-user-id", HttpStatusCode.OK, UserJson())
         };
         if (additional != null)
             routes.AddRange(additional);
+        // Generic user-lookup fallback — must come after test-specific routes.
+        routes.Add(("/users/kc-user-id", HttpStatusCode.OK, UserJson()));
         return routes;
     }
 
@@ -579,14 +582,21 @@ public class KeycloakAdminServiceTests
     public async Task GetAdminToken_IsCached_BetweenCalls()
     {
         var callCount = 0;
+        var tokenFetched = false; // tracks lifetime of the single token fetch
         var handler = new CountingHandler(() =>
         {
             callCount++;
+            if (!tokenFetched)
+            {
+                tokenFetched = true;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(TokenJson("cached-token", 600))
+                };
+            }
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(callCount == 1
-                    ? TokenJson("cached-token", 600)   // first call → token
-                    : EmptyArrayJson())                 // all subsequent calls → data
+                Content = new StringContent(EmptyArrayJson())
             };
         });
 
@@ -611,8 +621,10 @@ public class KeycloakAdminServiceTests
     {
         private readonly IReadOnlyList<(string urlFragment, HttpStatusCode status, string body)> _routes;
 
+        // Sort by descending fragment length so the most-specific fragment wins when
+        // one fragment is a prefix of another (e.g. /users/id vs /users/id/credentials).
         public DispatchHandler(IEnumerable<(string, HttpStatusCode, string)> routes)
-            => _routes = routes.ToList();
+            => _routes = routes.OrderByDescending(r => r.Item1.Length).ToList();
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)

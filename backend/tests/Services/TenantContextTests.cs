@@ -6,14 +6,13 @@ namespace Orkyo.Foundation.Tests.Services;
 
 public class TenantContextTests
 {
-    private static TenantContext Make(string status, string? suspensionReason = null) => new()
+    private static TenantContext Make(string status) => new()
     {
         TenantId = Guid.NewGuid(),
         TenantSlug = "test-tenant",
         TenantDbConnectionString = "Host=localhost;Database=test;",
         Tier = ServiceTier.Free,
-        Status = status,
-        SuspensionReason = suspensionReason
+        Status = status
     };
 
     [Theory]
@@ -49,22 +48,5 @@ public class TenantContextTests
         var ctx = Make(status);
 
         ctx.IsSuspended.Should().BeTrue();
-    }
-
-    [Fact]
-    public void SuspensionReason_ShouldBeNull_WhenNotSuspended()
-    {
-        var ctx = Make(TenantStatusConstants.Active);
-
-        ctx.SuspensionReason.Should().BeNull();
-    }
-
-    [Fact]
-    public void SuspensionReason_ShouldBePreserved_WhenSuspended()
-    {
-        var ctx = Make(TenantStatusConstants.Suspended, SuspensionReasonConstants.Inactivity);
-
-        ctx.IsSuspended.Should().BeTrue();
-        ctx.SuspensionReason.Should().Be(SuspensionReasonConstants.Inactivity);
     }
 }

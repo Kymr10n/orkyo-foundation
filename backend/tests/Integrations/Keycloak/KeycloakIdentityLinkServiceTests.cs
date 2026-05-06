@@ -154,7 +154,7 @@ public class KeycloakIdentityLinkServiceTests
 
         // Cleanup
         await using var cleanupLink = new NpgsqlCommand(
-            "DELETE FROM user_identities WHERE external_subject = @sub", conn);
+            "DELETE FROM user_identities WHERE provider_subject = @sub", conn);
         cleanupLink.Parameters.AddWithValue("sub", uniqueSub);
         await cleanupLink.ExecuteNonQueryAsync();
 

@@ -1314,22 +1314,27 @@ public class RequestEndpointsTests
     [Fact]
     public async Task CreateRequest_WithDifferentMinimalDurationUnits_WorksCorrectly()
     {
-        // Test all duration units
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        // Use a dedicated space to avoid slot conflicts with other tests reusing the shared space
+        var spaceId = await TestHelpers.CreateUniqueTestSpace(_client);
         var units = new[] { DurationUnit.Minutes, DurationUnit.Hours, DurationUnit.Days,
                            DurationUnit.Weeks, DurationUnit.Months, DurationUnit.Years };
 
-        foreach (var unit in units)
+        foreach (var (unit, index) in units.Select((u, i) => (u, i)))
         {
+            // Use non-overlapping windows per unit to avoid scheduling conflicts
+            var start = DateTime.UtcNow.AddDays(30 + index * 14);
             var request = new CreateRequestRequest
             {
                 Name = $"Duration {unit} {Guid.NewGuid():N}".Substring(0, 30),
                 Description = $"Test {unit}",
                 SpaceId = spaceId,
-                StartTs = DateTime.UtcNow.AddDays(1),
-                EndTs = DateTime.UtcNow.AddDays(10),
+                StartTs = start,
+                EndTs = start.AddDays(10),
                 MinimalDurationValue = 5,
-                MinimalDurationUnit = unit
+                MinimalDurationUnit = unit,
+                // Disable scheduling calculation — this test verifies unit persistence,
+                // not scheduling behavior.
+                SchedulingSettingsApply = false
             };
 
             var response = await _client.PostAsJsonAsync("/api/requests", request);

@@ -10,7 +10,7 @@ public class TenantResolverQueryContractTests
     {
         var sql = TenantResolverQueryContract.BuildSelectBySlugSql();
 
-        sql.Should().Contain("SELECT id, slug, db_identifier, status, tier, suspension_reason FROM tenants");
+        sql.Should().Contain("SELECT id, slug, db_identifier, status, tier FROM tenants");
         sql.Should().Contain($"slug = @{TenantResolverQueryContract.SlugParameterName}");
         sql.Should().Contain($"status != '{TenantStatusConstants.Deleting}'");
     }
@@ -23,6 +23,5 @@ public class TenantResolverQueryContractTests
         TenantResolverQueryContract.DbIdentifierOrdinal.Should().Be(2);
         TenantResolverQueryContract.StatusOrdinal.Should().Be(3);
         TenantResolverQueryContract.TierOrdinal.Should().Be(4);
-        TenantResolverQueryContract.SuspensionReasonOrdinal.Should().Be(5);
     }
 }

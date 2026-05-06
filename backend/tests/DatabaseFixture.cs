@@ -167,6 +167,18 @@ public class DatabaseFixture : IAsyncLifetime
             ON CONFLICT (name) DO NOTHING", tenantSeedConn);
         await criteriaCmd.ExecuteNonQueryAsync();
         Console.WriteLine("    ✓ Seed criteria (Boolean, Number, String, Enum) inserted into tenant database");
+
+        // Mirror the shared test user into the tenant users table so FK constraints
+        // on user_preferences, preset_applications, etc. are satisfied.
+        await using var tenantUserCmd = new NpgsqlCommand(
+            @"INSERT INTO users (id, email, display_name, created_at, synced_at)
+              VALUES (@id, @email, @name, NOW(), NOW())
+              ON CONFLICT (id) DO NOTHING", tenantSeedConn);
+        tenantUserCmd.Parameters.AddWithValue("id", new Guid("11111111-1111-1111-1111-111111111111"));
+        tenantUserCmd.Parameters.AddWithValue("email", "test@orkyo.example");
+        tenantUserCmd.Parameters.AddWithValue("name", "Test User");
+        await tenantUserCmd.ExecuteNonQueryAsync();
+        Console.WriteLine("    ✓ Test user mirrored into tenant database");
     }
 
     private async Task ApplyMigrationsAsync()

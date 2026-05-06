@@ -24,15 +24,6 @@ public class TenantMutationCommandFactoryTests
     }
 
     [Fact]
-    public void CreateTouchLastActivityCommand_ShouldBindTenantId()
-    {
-        using var connection = new NpgsqlConnection();
-        var tenantId = Guid.NewGuid();
-        using var command = TenantMutationCommandFactory.CreateTouchLastActivityCommand(connection, tenantId);
-        command.Parameters[TenantMutationQueryContract.TenantIdParameterName].Value.Should().Be(tenantId);
-    }
-
-    [Fact]
     public void CreateUpdateDisplayNameCommand_ShouldBindDisplayNameAndTenantId()
     {
         using var connection = new NpgsqlConnection();
@@ -67,13 +58,4 @@ public class TenantMutationCommandFactoryTests
         command.Parameters[TenantMutationQueryContract.UserIdParameterName].Value.Should().Be(userId);
     }
 
-    [Fact]
-    public void CreateReactivateSuspendedTenantCommand_ShouldBindTenantId()
-    {
-        using var connection = new NpgsqlConnection();
-        var tenantId = Guid.NewGuid();
-        using var command = TenantMutationCommandFactory.CreateReactivateSuspendedTenantCommand(connection, tenantId);
-
-        command.Parameters[TenantMutationQueryContract.TenantIdParameterName].Value.Should().Be(tenantId);
-    }
 }

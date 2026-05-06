@@ -300,7 +300,7 @@ public class SessionService : ISessionService
     {
         await using var cmd = new NpgsqlCommand(@"
             SELECT t.id, t.slug, t.display_name, tm.role, t.status,
-                   t.owner_user_id, t.tier, t.suspension_reason, t.suspended_at
+                   t.owner_user_id, t.tier
             FROM tenant_memberships tm
             JOIN tenants t ON t.id = tm.tenant_id
             WHERE tm.user_id = @userId AND tm.status = 'active'
@@ -314,8 +314,6 @@ public class SessionService : ISessionService
         {
             var ownerUserId = reader.IsDBNull(5) ? (Guid?)null : reader.GetGuid(5);
             var status = reader.GetString(4);
-            var suspensionReason = reader.IsDBNull(7) ? null : reader.GetString(7);
-            var suspendedAt = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8);
             var isOwner = ownerUserId == userId;
             var role = reader.GetString(3);
 
@@ -327,10 +325,7 @@ public class SessionService : ISessionService
                 Role = role,
                 State = status,
                 IsOwner = isOwner,
-                Tier = ((ServiceTier)reader.GetInt32(6)).ToString(),
-                SuspensionReason = suspensionReason,
-                SuspendedAt = suspendedAt,
-                CanReactivate = SuspensionPolicy.CanReactivate(status, suspensionReason, role, isOwner)
+                Tier = ((ServiceTier)reader.GetInt32(6)).ToString()
             });
         }
 

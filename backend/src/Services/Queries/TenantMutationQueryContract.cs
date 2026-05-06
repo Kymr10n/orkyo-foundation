@@ -21,13 +21,6 @@ public static class TenantMutationQueryContract
         ";
     }
 
-    public static string BuildTouchLastActivitySql()
-    {
-        return @"
-            UPDATE tenants SET last_activity_at = NOW() WHERE id = @tenantId
-        ";
-    }
-
     public static string BuildUpdateDisplayNameSql()
     {
         return @"
@@ -49,18 +42,6 @@ public static class TenantMutationQueryContract
         return @"
             DELETE FROM tenant_memberships
             WHERE tenant_id = @tenantId AND user_id = @userId
-        ";
-    }
-
-    public static string BuildReactivateSuspendedTenantSql()
-    {
-        return @"
-            UPDATE tenants
-            SET status = 'active',
-                suspended_at = NULL,
-                suspension_reason = NULL,
-                last_activity_at = NOW()
-            WHERE id = @tenantId AND status = 'suspended'
         ";
     }
 }

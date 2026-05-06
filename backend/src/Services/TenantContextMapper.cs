@@ -13,9 +13,6 @@ public static class TenantContextMapper
         var status = reader.GetString(TenantResolverQueryContract.StatusOrdinal);
         var tierValue = reader.GetInt32(TenantResolverQueryContract.TierOrdinal);
         var tier = (ServiceTier)tierValue;
-        var suspensionReason = reader.IsDBNull(TenantResolverQueryContract.SuspensionReasonOrdinal)
-            ? null
-            : reader.GetString(TenantResolverQueryContract.SuspensionReasonOrdinal);
 
         var tenantConnectionString = TenantConnectionStringHelper.BuildTenantDatabaseConnectionString(
             controlPlaneConnectionString,
@@ -27,8 +24,7 @@ public static class TenantContextMapper
             TenantSlug = slug,
             TenantDbConnectionString = tenantConnectionString,
             Tier = tier,
-            Status = status,
-            SuspensionReason = suspensionReason
+            Status = status
         };
     }
 }

@@ -52,8 +52,11 @@ public static class UserManagementEndpoints
             .WithDescription("Revoke a pending invitation (Admin only)");
 
         // Public invitation endpoints (no auth, no tenant)
-        app.MapGet("/api/invitations/validate", async (IInvitationService invitationService, [FromQuery] string token) =>
+        app.MapGet("/api/invitations/validate", async (IInvitationService invitationService, [FromQuery] string? token) =>
         {
+            if (string.IsNullOrWhiteSpace(token) || !Guid.TryParse(token, out _))
+                return Results.BadRequest(new { error = "A valid invitation token is required" });
+
             var (email, expiresAt, tenantName, error) = await invitationService.ValidateInvitationAsync(token);
             return error != null
                 ? Results.BadRequest(new { error })
@@ -154,7 +157,7 @@ public static class UserManagementEndpoints
     private static async Task<IResult> GetPendingInvitations(HttpContext context, IInvitationService invitationService)
     {
         var tc = context.GetTenantContext();
-        var invitations = await invitationService.GetPendingInvitationsAsync(tc);
+        var invitations = await invitationService.GetPendingInvitationsAsync(tc) ?? [];
         return Results.Ok(new
         {
             invitations = invitations.Select(i => new

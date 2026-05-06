@@ -28,8 +28,7 @@ public class TenantResolverReaderFlowTests
             "acme",
             "tenant_acme",
             "active",
-            (int)ServiceTier.Professional,
-            DBNull.Value);
+            (int)ServiceTier.Professional);
 
         var result = await TenantResolverReaderFlow.ReadSingleOrNullAsync(
             reader,
@@ -39,7 +38,6 @@ public class TenantResolverReaderFlowTests
         result!.TenantId.Should().Be(tenantId);
         result.TenantSlug.Should().Be("acme");
         result.Tier.Should().Be(ServiceTier.Professional);
-        result.SuspensionReason.Should().BeNull();
     }
 
     private static DbDataReader CreateEmptyReader()
@@ -50,7 +48,6 @@ public class TenantResolverReaderFlowTests
         table.Columns.Add("db_identifier", typeof(string));
         table.Columns.Add("status", typeof(string));
         table.Columns.Add("tier", typeof(int));
-        table.Columns.Add("suspension_reason", typeof(string));
         return table.CreateDataReader();
     }
 
@@ -59,8 +56,7 @@ public class TenantResolverReaderFlowTests
         string slug,
         string dbIdentifier,
         string status,
-        int tier,
-        object suspensionReason)
+        int tier)
     {
         var table = new DataTable();
         table.Columns.Add("id", typeof(Guid));
@@ -68,7 +64,6 @@ public class TenantResolverReaderFlowTests
         table.Columns.Add("db_identifier", typeof(string));
         table.Columns.Add("status", typeof(string));
         table.Columns.Add("tier", typeof(int));
-        table.Columns.Add("suspension_reason", typeof(string));
 
         var row = table.NewRow();
         row[0] = tenantId;
@@ -76,7 +71,6 @@ public class TenantResolverReaderFlowTests
         row[2] = dbIdentifier;
         row[3] = status;
         row[4] = tier;
-        row[5] = suspensionReason;
         table.Rows.Add(row);
 
         return table.CreateDataReader();

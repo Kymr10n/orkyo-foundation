@@ -367,7 +367,4 @@ public record TenantMembershipInfo
     public required string State { get; init; }
     public bool IsOwner { get; init; }
     public required string Tier { get; init; }
-    public string? SuspensionReason { get; init; }
-    public DateTime? SuspendedAt { get; init; }
-    public bool CanReactivate { get; init; }
 }
