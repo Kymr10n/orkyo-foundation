@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/orkyo-logo-dark.png">
+    <img src=".github/orkyo-logo-light.png" alt="Orkyo" width="120">
+  </picture>
+</p>
+
 # Orkyo Foundation
 
 The shared domain layer for Orkyo — consumed by both **orkyo-community** (single-org) and **orkyo-saas** (multi-tenant).
