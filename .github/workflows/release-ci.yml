@@ -705,6 +705,10 @@ jobs:
         run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
         working-directory: frontend
 
+      - name: Build type declarations
+        run: npm run typecheck
+        working-directory: frontend
+
       - name: Publish npm package (dist-tag nightly)
         run: |
           npm publish --tag nightly || {
