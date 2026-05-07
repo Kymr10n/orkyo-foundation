@@ -90,7 +90,7 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
     }
   }, [open, offTime]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 

@@ -57,7 +57,7 @@ export function PasswordSection({ isFederated, identityProvider }: PasswordSecti
     },
   });
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPasswordError(null);
 

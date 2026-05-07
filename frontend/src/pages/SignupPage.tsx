@@ -72,7 +72,7 @@ export function SignupPage() {
     validateInvitation();
   }, [invitationToken]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 

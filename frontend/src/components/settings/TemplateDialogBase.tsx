@@ -105,7 +105,7 @@ export function TemplateDialogBase({
     updateRequirement(criterionId, value);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
