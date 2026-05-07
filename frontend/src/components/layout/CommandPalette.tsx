@@ -73,7 +73,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Reset selection and focus when dialog opens
   useEffect(() => {
@@ -293,7 +293,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               {results.map((result, index) => (
                 <div
                   key={`${result.type}-${result.id}`}
-                  ref={(el) => (resultRefs.current[index] = el)}
+                  ref={(el) => { resultRefs.current[index] = el; }}
                   className={cn(
                     "flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm",
                     index === selectedIndex

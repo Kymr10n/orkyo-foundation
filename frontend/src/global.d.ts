@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare module "@fontsource-variable/inter";
+
 /**
  * Build-time global injected by Vite `define` in consumer apps (orkyo-saas,
  * orkyo-community). Foundation itself does not configure Vite — it declares
