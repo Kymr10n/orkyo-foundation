@@ -7,8 +7,7 @@
 -- Product-specific extensions (e.g. SaaS dormancy/billing columns,
 -- Community single-tenant seed) are layered on top via ALTER TABLE in
 -- product migration modules (Order > 1000).
---
--- Classification: safe
+-- @migration-class: expand
 -- Description: Create canonical tenants table for cross-product tenant identity
 -- Rollback: DROP TABLE public.tenants;
 

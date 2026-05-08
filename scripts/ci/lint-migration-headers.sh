@@ -5,8 +5,8 @@
 #   <sql-dir>  Root directory containing migration SQL files (searched recursively)
 #
 # Validates:
-#   1. Every NEW migration file has a classification header
-#   2. No DROP COLUMN / DROP TABLE / TRUNCATE without Classification: contract
+#   1. Every NEW migration file has a -- @migration-class: header (within first 10 lines)
+#   2. No DROP COLUMN / DROP TABLE / TRUNCATE without @migration-class: contract
 #   3. No MODIFICATION of existing migration files
 #   4. Sequential file numbering without gaps (per subdirectory)
 #   5. All CREATE INDEX use CONCURRENTLY
@@ -54,21 +54,28 @@ for FILE in $NEW_FILES; do
 
   echo "--- $FILE ---"
 
-  # Rule 1: classification header
-  if ! grep -qi "^-- Classification:" "$FILE"; then
-    echo "::error file=$FILE::Missing classification header. Add:"
-    echo "::error file=$FILE::  -- Classification: safe | expand | contract | unsafe"
-    echo "::error file=$FILE::  -- Description: <one line>"
-    echo "::error file=$FILE::  -- Rollback: <strategy or none-needed>"
+  # Rule 1: @migration-class header must appear within first 10 lines
+  HEADER=$(head -n 10 "$FILE" | grep -E -m1 '^--[[:space:]]*@migration-class:' || true)
+  if [[ -z "$HEADER" ]]; then
+    echo "::error file=$FILE::Missing classification header within first 10 lines. Add:"
+    echo "::error file=$FILE::  -- @migration-class: expand | data | contract | none"
     ERRORS=$((ERRORS + 1))
   else
-    CLASSIFICATION=$(grep -i "^-- Classification:" "$FILE" | head -1 | sed 's/.*Classification: *//i' | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
-    echo "  Classification: $CLASSIFICATION"
+    CLASSIFICATION=$(echo "$HEADER" | sed -E 's/^--[[:space:]]*@migration-class:[[:space:]]*//' | tr -d '[:space:]')
+    echo "  @migration-class: $CLASSIFICATION"
+
+    case "$CLASSIFICATION" in
+      expand|data|contract|none) ;;
+      *)
+        echo "::error file=$FILE::Invalid @migration-class value '$CLASSIFICATION'. Must be: expand | data | contract | none"
+        ERRORS=$((ERRORS + 1))
+        ;;
+    esac
 
     # Rule 2: destructive DDL requires contract classification
     if grep -qiE "^\s*(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE)" "$FILE"; then
       if [ "$CLASSIFICATION" != "contract" ]; then
-        echo "::error file=$FILE::DROP COLUMN / DROP TABLE / TRUNCATE requires Classification: contract"
+        echo "::error file=$FILE::DROP COLUMN / DROP TABLE / TRUNCATE requires @migration-class: contract"
         ERRORS=$((ERRORS + 1))
       fi
     fi

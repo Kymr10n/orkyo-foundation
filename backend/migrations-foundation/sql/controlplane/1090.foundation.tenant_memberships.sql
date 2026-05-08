@@ -7,7 +7,7 @@
 -- Product-specific extensions (e.g. SaaS invited_by tracking) are added via
 -- ALTER TABLE in product migration modules.
 --
--- Classification: safe
+-- @migration-class: expand
 -- Description: Create canonical tenant_memberships table for user-tenant role associations
 -- Rollback: DROP TABLE public.tenant_memberships;
 
