@@ -11,7 +11,7 @@
 -- Description: Create canonical tenants table for cross-product tenant identity
 -- Rollback: DROP TABLE public.tenants;
 
-CREATE TABLE public.tenants (
+CREATE TABLE IF NOT EXISTS public.tenants (
     id                uuid                     DEFAULT gen_random_uuid() NOT NULL,
     slug              character varying(63)    NOT NULL,
     display_name      character varying(255)   NOT NULL,

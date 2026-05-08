@@ -11,7 +11,7 @@
 -- Description: Create canonical tenant_memberships table for user-tenant role associations
 -- Rollback: DROP TABLE public.tenant_memberships;
 
-CREATE TABLE public.tenant_memberships (
+CREATE TABLE IF NOT EXISTS public.tenant_memberships (
     user_id    uuid                     NOT NULL,
     tenant_id  uuid                     NOT NULL,
     role       character varying(30)    DEFAULT 'viewer'::character varying NOT NULL,
