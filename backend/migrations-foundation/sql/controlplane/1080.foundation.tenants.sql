@@ -40,11 +40,19 @@ CREATE TABLE IF NOT EXISTS public.tenants (
         FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_tenants_slug          ON public.tenants USING btree (slug);
-CREATE INDEX idx_tenants_status        ON public.tenants USING btree (status);
-CREATE INDEX idx_tenants_owner_user_id ON public.tenants USING btree (owner_user_id);
-CREATE INDEX idx_tenants_tier          ON public.tenants USING btree (tier);
+CREATE INDEX IF NOT EXISTS idx_tenants_slug          ON public.tenants USING btree (slug);
+CREATE INDEX IF NOT EXISTS idx_tenants_status        ON public.tenants USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_tenants_owner_user_id ON public.tenants USING btree (owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_tier          ON public.tenants USING btree (tier);
 
-CREATE TRIGGER update_tenants_updated_at
-    BEFORE UPDATE ON public.tenants
-    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_tenants_updated_at'
+          AND tgrelid = 'public.tenants'::regclass
+    ) THEN
+        CREATE TRIGGER update_tenants_updated_at
+            BEFORE UPDATE ON public.tenants
+            FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+    END IF;
+END $$;

@@ -38,10 +38,18 @@ CREATE TABLE IF NOT EXISTS public.tenant_memberships (
         FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_tenant_memberships_user_id   ON public.tenant_memberships USING btree (user_id);
-CREATE INDEX idx_tenant_memberships_tenant_id ON public.tenant_memberships USING btree (tenant_id);
-CREATE INDEX idx_tenant_memberships_role      ON public.tenant_memberships USING btree (role);
+CREATE INDEX IF NOT EXISTS idx_tenant_memberships_user_id   ON public.tenant_memberships USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_memberships_tenant_id ON public.tenant_memberships USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_memberships_role      ON public.tenant_memberships USING btree (role);
 
-CREATE TRIGGER update_tenant_memberships_updated_at
-    BEFORE UPDATE ON public.tenant_memberships
-    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'update_tenant_memberships_updated_at'
+          AND tgrelid = 'public.tenant_memberships'::regclass
+    ) THEN
+        CREATE TRIGGER update_tenant_memberships_updated_at
+            BEFORE UPDATE ON public.tenant_memberships
+            FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+    END IF;
+END $$;
