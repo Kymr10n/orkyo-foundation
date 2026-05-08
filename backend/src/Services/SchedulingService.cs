@@ -158,10 +158,10 @@ public class SchedulingService : ISchedulingService
         var existing = await _requestRepository.GetByIdAsync(requestId);
         if (existing == null || !existing.SchedulingSettingsApply) return request;
 
-        // When the request is already on the same space and the caller supplied
-        // an explicit EndTs this is a resize / same-space reschedule — honour the
-        // provided timestamps instead of recalculating from the minimal duration.
-        if (request.EndTs != null && existing.SpaceId == request.SpaceId) return request;
+        // When the caller supplied an explicit EndTs (same-space resize or
+        // cross-space reschedule with explicit times), honour the provided
+        // timestamps instead of recalculating from the minimal duration.
+        if (request.EndTs != null) return request;
 
         var result = await ComputeScheduledTimesAsync(
             request.SpaceId.Value, request.StartTs.Value,
