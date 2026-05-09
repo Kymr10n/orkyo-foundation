@@ -88,11 +88,6 @@ public static class AuthenticationServiceExtensions
             {
                 OnAuthenticationFailed = context =>
                 {
-                    // Opaque bearer tokens (e.g. METRICS_TOKEN on /metrics) are not JWTs.
-                    // The endpoint filter handles those separately — suppress the noise here.
-                    if (context.Exception is SecurityTokenMalformedException)
-                        return Task.CompletedTask;
-
                     var logger = context.HttpContext.RequestServices
                         .GetRequiredService<ILogger<EndpointLoggerCategory>>();
                     logger.LogWarning("JWT authentication failed: {Error}",
