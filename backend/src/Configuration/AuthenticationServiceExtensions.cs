@@ -52,7 +52,6 @@ public static class AuthenticationServiceExtensions
         .AddJwtBearer(options =>
         {
             options.Authority = oidcAuthority;
-            options.RequireHttpsMetadata = !oidcAuthority.StartsWith("http://");
             // Disable claim type remapping so JWT claim names (sub, email, etc.)
             // are preserved as-is. Without this, ASP.NET Core maps "sub" to
             // ClaimTypes.NameIdentifier, breaking FindFirst("sub").
@@ -61,6 +60,14 @@ public static class AuthenticationServiceExtensions
             if (!string.IsNullOrEmpty(metadataAddress))
             {
                 options.MetadataAddress = metadataAddress;
+                // RequireHttpsMetadata must reflect the URL actually fetched for OIDC discovery,
+                // not the public authority. Internal container-to-container traffic uses HTTP
+                // while the public authority is HTTPS — these are independent concerns.
+                options.RequireHttpsMetadata = metadataAddress.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                options.RequireHttpsMetadata = oidcAuthority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
             }
 
             options.TokenValidationParameters = new TokenValidationParameters
