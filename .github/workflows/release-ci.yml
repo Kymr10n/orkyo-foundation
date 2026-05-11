@@ -615,6 +615,15 @@ jobs:
             --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
             --field "client_payload[channel]=stable"
 
+      - name: Dispatch foundation_updated to Community (stable)
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          gh api repos/Kymr10n/orkyo-community/dispatches \
+            --field event_type=foundation_updated \
+            --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
+            --field "client_payload[channel]=stable"
+
   # ─────────────────────────────────────────────
   # PUBLISH NIGHTLY — push to main only (no rebuild from source)
   # Produces X.Y.Z-nightly.<date>.<sha7> packages; dist-tags: nightly + next
@@ -728,6 +737,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           gh api repos/Kymr10n/orkyo-saas/dispatches \
+            --field event_type=foundation_updated \
+            --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
+            --field "client_payload[channel]=nightly"
+
+      - name: Dispatch foundation_updated to Community (nightly)
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          gh api repos/Kymr10n/orkyo-community/dispatches \
             --field event_type=foundation_updated \
             --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
             --field "client_payload[channel]=nightly"
