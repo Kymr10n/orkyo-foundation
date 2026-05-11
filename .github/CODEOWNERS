@@ -1,0 +1,11 @@
+# All changes require review from the repo owner by default.
+* @Kymr10n
+
+# Public package surface — any change ripples to saas + community.
+/backend/src/                       @Kymr10n
+/backend/shared/                    @Kymr10n
+/backend/migration-abstractions/    @Kymr10n
+/backend/migrator-runtime/          @Kymr10n
+/backend/migrations-foundation/     @Kymr10n
+/frontend/                          @Kymr10n
+/.github/workflows/                 @Kymr10n
