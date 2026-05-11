@@ -1,7 +1,7 @@
+using System.Text.Json;
 using Api.Helpers;
 using Api.Services;
 using Npgsql;
-using System.Text.Json;
 
 namespace Api.Repositories;
 
@@ -45,7 +45,7 @@ public class UserPreferencesRepository : IUserPreferencesRepository
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO user_preferences (user_id, preferences, updated_at)
               VALUES (@userId, @preferences::jsonb, NOW())
-              ON CONFLICT (user_id) 
+              ON CONFLICT (user_id)
               DO UPDATE SET preferences = @preferences::jsonb, updated_at = NOW()",
             conn
         );

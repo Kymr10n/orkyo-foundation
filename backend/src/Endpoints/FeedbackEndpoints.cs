@@ -1,6 +1,6 @@
-using Api.Middleware;
 using Api.Constants;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
 using Api.Security;

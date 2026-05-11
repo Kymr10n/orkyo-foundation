@@ -1,6 +1,6 @@
-using Xunit;
-using FluentAssertions;
 using Api.Models;
+using FluentAssertions;
+using Xunit;
 
 namespace Api.Tests.Models;
 

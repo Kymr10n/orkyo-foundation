@@ -1,7 +1,7 @@
+using Api.Configuration;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
-using Api.Configuration;
 using Orkyo.Shared;
 
 namespace Api.Services;

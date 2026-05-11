@@ -1,5 +1,5 @@
-using Api.Middleware;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models;
 using Api.Services;
 using Api.Validators;

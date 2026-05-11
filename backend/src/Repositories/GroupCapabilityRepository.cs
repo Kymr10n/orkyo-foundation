@@ -1,8 +1,8 @@
-using Npgsql;
 using System.Text.Json;
 using Api.Helpers;
 using Api.Models;
 using Api.Services;
+using Npgsql;
 
 namespace Api.Repositories;
 
@@ -35,7 +35,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
         // Get capabilities with criterion details
         await using var cmd = new NpgsqlCommand(@"
-            SELECT 
+            SELECT
                 gc.id,
                 gc.group_id,
                 gc.criterion_id,

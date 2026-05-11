@@ -1,8 +1,8 @@
+using Api.Helpers;
+using Api.Middleware;
 using Api.Models;
 using Api.Security;
 using Api.Services;
-using Api.Middleware;
-using Api.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

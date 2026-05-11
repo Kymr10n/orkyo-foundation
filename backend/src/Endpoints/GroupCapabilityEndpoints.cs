@@ -1,5 +1,5 @@
-using Api.Middleware;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

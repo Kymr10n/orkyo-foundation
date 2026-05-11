@@ -3,12 +3,12 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Services;
-using Orkyo.Shared;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Npgsql;
+using Orkyo.Shared;
 
 namespace Api.Endpoints;
 

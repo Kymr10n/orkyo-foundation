@@ -3,10 +3,10 @@ using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Services;
 using Microsoft.AspNetCore.Authorization;
-using Orkyo.Shared;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Orkyo.Shared;
 
 namespace Api.Endpoints;
 

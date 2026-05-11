@@ -9,7 +9,6 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Security;
-using Orkyo.Shared;
 using Api.Services;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
@@ -19,6 +18,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
+using Orkyo.Shared;
 using Orkyo.Shared.Keycloak;
 
 namespace Api.Endpoints;

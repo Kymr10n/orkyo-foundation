@@ -1,10 +1,10 @@
 using System.Security.Claims;
-using Api.Models;
-using Api.Services;
-using Api.Middleware;
 using Api.Helpers;
-using Api.Security;
 using Api.Integrations.Keycloak;
+using Api.Middleware;
+using Api.Models;
+using Api.Security;
+using Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

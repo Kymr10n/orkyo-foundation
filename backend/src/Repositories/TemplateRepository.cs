@@ -1,8 +1,8 @@
-using Npgsql;
 using System.Text.Json;
 using Api.Helpers;
 using Api.Models;
 using Api.Services;
+using Npgsql;
 
 namespace Api.Repositories;
 
@@ -53,7 +53,7 @@ public class TemplateRepository : ITemplateRepository
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"
-            SELECT 
+            SELECT
                 id,
                 name,
                 description,
@@ -89,7 +89,7 @@ public class TemplateRepository : ITemplateRepository
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"
-            SELECT 
+            SELECT
                 id,
                 name,
                 description,
@@ -152,7 +152,7 @@ public class TemplateRepository : ITemplateRepository
                 @FixedStart,
                 @FixedEnd,
                 @FixedDuration
-            ) RETURNING 
+            ) RETURNING
                 id,
                 name,
                 description,
@@ -191,7 +191,7 @@ public class TemplateRepository : ITemplateRepository
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"
-            UPDATE templates SET 
+            UPDATE templates SET
                 name = @Name,
                 description = @Description,
                 entity_type = @EntityType,
@@ -202,7 +202,7 @@ public class TemplateRepository : ITemplateRepository
                 fixed_duration = @FixedDuration,
                 updated_at = NOW()
             WHERE id = @Id
-            RETURNING 
+            RETURNING
                 id,
                 name,
                 description,
@@ -253,7 +253,7 @@ public class TemplateRepository : ITemplateRepository
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"
-            SELECT 
+            SELECT
                 ti.id,
                 ti.template_id,
                 ti.criterion_id,
@@ -331,7 +331,7 @@ public class TemplateRepository : ITemplateRepository
                     @TemplateId,
                     @CriterionId,
                     @Value::jsonb
-                ) RETURNING 
+                ) RETURNING
                     id,
                     template_id,
                     criterion_id,

@@ -1,8 +1,8 @@
-using Xunit;
-using FluentAssertions;
 using System.Net;
 using System.Text.Json;
+using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

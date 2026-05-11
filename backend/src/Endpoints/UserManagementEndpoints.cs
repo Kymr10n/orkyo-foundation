@@ -1,8 +1,8 @@
+using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
-using Api.Services;
-using Api.Helpers;
 using Api.Security;
+using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
