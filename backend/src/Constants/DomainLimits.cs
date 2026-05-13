@@ -15,6 +15,9 @@ public static class DomainLimits
     /// <summary>Maximum length for request names</summary>
     public const int RequestNameMaxLength = 200;
 
+    /// <summary>Maximum length for request icon IDs (lucide-react icon name).</summary>
+    public const int RequestIconMaxLength = 64;
+
     /// <summary>Maximum length for criterion names (identifier format)</summary>
     public const int CriterionNameMaxLength = 100;
 

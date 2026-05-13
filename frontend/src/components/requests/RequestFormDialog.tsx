@@ -7,6 +7,7 @@ import { Label } from "@foundation/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
+import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
@@ -38,6 +39,7 @@ interface RequestFormDialogProps {
 export interface RequestFormData {
   name: string;
   description?: string;
+  icon?: string | null;
   planningMode: PlanningMode;
   parentRequestId?: string;
   spaceId?: string;
@@ -64,7 +66,7 @@ export function RequestFormDialog({
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const isCreateMode = !request;
   const isChildCreation = !request && !!parentRequest;
-  
+
   // Use the custom hook for form state management
   const {
     state,
@@ -233,6 +235,7 @@ export function RequestFormDialog({
     const formData: RequestFormData = {
       name: state.name.trim(),
       description: state.description.trim() || undefined,
+      icon: state.icon ?? null,
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
       spaceId: isLeaf ? (state.selectedSpaceId || undefined) : undefined,
@@ -319,13 +322,21 @@ export function RequestFormDialog({
                       <Label htmlFor="name">
                         Name <span className="text-destructive">*</span>
                       </Label>
-                      <Input
-                        id="name"
-                        value={state.name}
-                        onChange={(e) => setField('name', e.target.value)}
-                        placeholder="e.g., Product Launch Event"
-                        required
-                      />
+                      <div className="flex gap-2">
+                        <RequestIconSelector
+                          id="request-icon"
+                          value={state.icon}
+                          onChange={(next) => setField('icon', next)}
+                        />
+                        <Input
+                          id="name"
+                          value={state.name}
+                          onChange={(e) => setField('name', e.target.value)}
+                          placeholder="e.g., Product Launch Event"
+                          required
+                          className="flex-1"
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-2">

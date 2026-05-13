@@ -9,6 +9,7 @@ public class CreateRequestRequestValidator : AbstractValidator<CreateRequestRequ
     public CreateRequestRequestValidator()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.RequestNameMaxLength);
+        RuleFor(x => x.Icon).MaximumLength(DomainLimits.RequestIconMaxLength).When(x => x.Icon is not null);
         RuleFor(x => x.MinimalDurationValue).GreaterThan(0).WithMessage("Minimal duration value must be positive");
 
         // Planning mode must be valid

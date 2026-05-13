@@ -222,4 +222,19 @@ describe('RequestListView', () => {
     const item = screen.queryByRole('menuitem', { name: /Add existing/i });
     if (item) { await user.click(item); expect(defaultHandlers.onAddExisting).toHaveBeenCalled(); }
   });
+
+  // Icon plumbing
+  it('renders the curated icon when request.icon is set', () => {
+    const withIcon = makeRequest({ id: 'with-icon', name: 'With Icon', icon: 'calendar' });
+    const { container } = renderListView({ requests: [withIcon] });
+    expect(container.querySelector('.lucide-calendar')).not.toBeNull();
+  });
+
+  it('falls back to the planning-mode icon when request.icon is absent', () => {
+    const leaf = makeRequest({ id: 'no-icon', name: 'No Icon', planningMode: 'leaf' });
+    const { container } = renderListView({ requests: [leaf] });
+    // Concrete proof of fallback: the planning-mode-derived svg renders.
+    expect(container.querySelectorAll('svg').length).toBeGreaterThan(0);
+    expect(container.querySelector('.lucide-calendar')).toBeNull();
+  });
 });

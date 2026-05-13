@@ -1,7 +1,7 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
 import { Separator } from "@foundation/src/components/ui/separator";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
+import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import {
   canHaveChildren,
   computeDerivedValues,
@@ -32,7 +32,7 @@ export const RequestDetailPanel = React.memo(function RequestDetailPanel({
   onNavigate,
   onClose,
 }: RequestDetailPanelProps) {
-  const Icon = getPlanningModeIcon(request.planningMode);
+  const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
   const isParent = canHaveChildren(request.planningMode);
 
   const { derived, children, breadcrumb } = useMemo(() => {
@@ -157,7 +157,7 @@ export const RequestDetailPanel = React.memo(function RequestDetailPanel({
               <h3 className="text-sm font-medium mb-2">Children ({children.length})</h3>
               <div className="space-y-1">
                 {children.map((child) => {
-                  const ChildIcon = getPlanningModeIcon(child.planningMode);
+                  const ChildIcon = getRequestIcon(child.icon) ?? getPlanningModeIcon(child.planningMode);
                   return (
                     <button
                       key={child.id}

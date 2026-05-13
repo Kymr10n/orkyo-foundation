@@ -257,4 +257,13 @@ describe('RequestTreeView', () => {
     fireEvent.keyDown(screen.getByRole('tree'), { key: '+' });
     expect(defaultHandlers.onToggle).toHaveBeenCalledWith('parent-1');
   });
+
+  it('renders the curated icon on a row whose request.icon is set', () => {
+    const withIcon = makeRequest({ id: 'icon-row', name: 'Iconned', icon: 'hammer' });
+    const { container } = renderTreeView({
+      entries: [makeEntry(withIcon, 0, false)],
+      allRequests: [withIcon],
+    });
+    expect(container.querySelector('.lucide-hammer')).not.toBeNull();
+  });
 });

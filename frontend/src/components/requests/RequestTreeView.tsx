@@ -14,7 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
+import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import {
   canHaveChildren,
   computeDerivedValuesFromChildren,
@@ -95,7 +95,7 @@ const TreeRow = React.memo(function TreeRow({
   isDropTarget?: boolean;
 }) {
   const { request, depth, hasChildren } = entry;
-  const Icon = getPlanningModeIcon(request.planningMode);
+  const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
   const isExpanded = useRequestTreeStore((s) => s.expandedIds.has(request.id));
   const isParent = canHaveChildren(request.planningMode);
 

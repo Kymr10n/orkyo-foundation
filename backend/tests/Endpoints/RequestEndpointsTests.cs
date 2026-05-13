@@ -55,6 +55,93 @@ public class RequestEndpointsTests
     }
 
     [Fact]
+    public async Task CreateRequest_WithIcon_RoundTripsThroughGet()
+    {
+        // Arrange
+        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var request = new CreateRequestRequest
+        {
+            Name = $"Icon Request {Guid.NewGuid():N}".Substring(0, 30),
+            SpaceId = spaceId,
+            Icon = "calendar",
+            StartTs = DateTime.UtcNow.AddDays(1),
+            EndTs = DateTime.UtcNow.AddDays(2),
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Days
+        };
+
+        // Act — create
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", request);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.NotNull(created);
+        Assert.Equal("calendar", created.Icon);
+
+        // Act — re-fetch
+        var getResponse = await _client.GetAsync($"/api/requests/{created.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var fetched = await getResponse.Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.NotNull(fetched);
+        Assert.Equal("calendar", fetched.Icon);
+
+        // Act — update icon (null means "no change", consistent with other optional fields)
+        var update = new UpdateRequestRequest { Icon = "hammer" };
+        var updateResponse = await _client.PutAsJsonAsync($"/api/requests/{created.Id}", update);
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.NotNull(updated);
+        Assert.Equal("hammer", updated.Icon);
+
+        // Act — list endpoint preserves the icon too
+        var listResponse = await _client.GetAsync("/api/requests");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var list = await listResponse.Content.ReadFromJsonAsync<List<RequestInfo>>();
+        Assert.NotNull(list);
+        var listed = Assert.Single(list, r => r.Id == created.Id);
+        Assert.Equal("hammer", listed.Icon);
+    }
+
+    [Fact]
+    public async Task CreateRequest_WithoutIcon_ReturnsNullIcon()
+    {
+        // Arrange
+        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var request = new CreateRequestRequest
+        {
+            Name = $"NoIcon {Guid.NewGuid():N}".Substring(0, 30),
+            SpaceId = spaceId,
+            StartTs = DateTime.UtcNow.AddDays(1),
+            EndTs = DateTime.UtcNow.AddDays(2),
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Days
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/requests", request);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<RequestInfo>();
+
+        // Assert
+        Assert.NotNull(created);
+        Assert.Null(created.Icon);
+    }
+
+    [Fact]
+    public async Task CreateRequest_WithIconExceedingLimit_ReturnsBadRequest()
+    {
+        var request = new CreateRequestRequest
+        {
+            Name = $"BadIcon {Guid.NewGuid():N}".Substring(0, 30),
+            Icon = new string('x', 65),
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Days
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/requests", request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateRequest_WithRequirements_CreatesRequestAndRequirements()
     {
         // Arrange

@@ -11,7 +11,7 @@ public class RequestRepository : IRequestRepository
 {
     private const string SelectColumns =
         @"id, name, description, parent_request_id, planning_mode, sort_order,
-          space_id, request_item_id,
+          space_id, request_item_id, icon,
           start_ts, end_ts, earliest_start_ts, latest_end_ts,
           minimal_duration_value, minimal_duration_unit,
           actual_duration_value, actual_duration_unit,
@@ -140,13 +140,13 @@ public class RequestRepository : IRequestRepository
         {
             var cmd = new NpgsqlCommand(
                 $@"INSERT INTO requests (name, description, parent_request_id, planning_mode, sort_order,
-                                        space_id, request_item_id,
+                                        space_id, request_item_id, icon,
                                         start_ts, end_ts, earliest_start_ts, latest_end_ts,
                                         minimal_duration_value, minimal_duration_unit,
                                         actual_duration_value, actual_duration_unit,
                                         status, scheduling_settings_apply)
                    VALUES (@name, @description, @parent_request_id, @planning_mode, @sort_order,
-                           @space_id, @request_item_id,
+                           @space_id, @request_item_id, @icon,
                            @start_ts, @end_ts, @earliest_start_ts, @latest_end_ts,
                            @minimal_duration_value, @minimal_duration_unit,
                            @actual_duration_value, @actual_duration_unit,
@@ -161,6 +161,7 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("sort_order", request.SortOrder);
             cmd.Parameters.AddWithValue("space_id", (object?)request.SpaceId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("request_item_id", (object?)request.RequestItemId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("icon", (object?)request.Icon ?? DBNull.Value);
             cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
             cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
             cmd.Parameters.AddWithValue("earliest_start_ts", (object?)request.EarliestStartTs ?? DBNull.Value);
@@ -207,6 +208,7 @@ public class RequestRepository : IRequestRepository
         ("sort_order",                r => r.SortOrder.HasValue,              r => r.SortOrder!.Value),
         ("space_id",                  r => r.SpaceId.HasValue,                r => r.SpaceId!.Value),
         ("request_item_id",           r => r.RequestItemId != null,           r => r.RequestItemId!),
+        ("icon",                      r => r.Icon != null,                    r => r.Icon!),
         ("start_ts",                  r => r.StartTs.HasValue,                r => r.StartTs!.Value),
         ("end_ts",                    r => r.EndTs.HasValue,                  r => r.EndTs!.Value),
         ("earliest_start_ts",         r => r.EarliestStartTs.HasValue,        r => r.EarliestStartTs!.Value),

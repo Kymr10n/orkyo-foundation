@@ -140,6 +140,7 @@ export function buildUpdatePayload(data: RequestFormData): UpdateRequestRequest 
   return {
     name: data.name,
     description: data.description,
+    icon: data.icon,
     planningMode: data.planningMode,
     spaceId: data.spaceId,
     startTs: data.startTs,
@@ -160,6 +161,7 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
   return {
     name: data.name,
     description: data.description,
+    icon: data.icon,
     planningMode: data.planningMode,
     parentRequestId: data.parentRequestId,
     spaceId: data.spaceId,

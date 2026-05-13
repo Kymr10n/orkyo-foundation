@@ -82,6 +82,9 @@ public record RequestInfo
     public Guid? SpaceId { get; init; }
     public string? RequestItemId { get; init; }
 
+    // Display icon (short string ID resolved to a lucide-react icon on the frontend).
+    public string? Icon { get; init; }
+
     // Time constraints (nullable for unscheduled requests)
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
@@ -158,6 +161,8 @@ public record CreateRequestRequest
     public Guid? SpaceId { get; init; }
     public string? RequestItemId { get; init; }
 
+    public string? Icon { get; init; }
+
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
 
@@ -193,6 +198,8 @@ public record UpdateRequestRequest
 
     public Guid? SpaceId { get; init; }
     public string? RequestItemId { get; init; }
+
+    public string? Icon { get; init; }
 
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }

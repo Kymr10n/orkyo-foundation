@@ -272,4 +272,26 @@ describe('RequestDetailPanel', () => {
     renderPanel();
     expect(screen.queryByText(/Requirements/)).not.toBeInTheDocument();
   });
+
+  // --- Icon ---
+
+  it('renders the curated icon next to the title when request.icon is set', () => {
+    const withIcon = makeRequest({ id: 'di', name: 'Detailed', icon: 'calendar' });
+    const { container } = renderPanel({ request: withIcon, allRequests: [withIcon] });
+    expect(container.querySelector('.lucide-calendar')).not.toBeNull();
+  });
+
+  it('renders a child row with its own icon when set', () => {
+    const childWithIcon = makeRequest({
+      id: 'child-icon',
+      name: 'Child with icon',
+      parentRequestId: parentRequest.id,
+      icon: 'hammer',
+    });
+    const { container } = renderPanel({
+      request: parentRequest,
+      allRequests: [parentRequest, childWithIcon],
+    });
+    expect(container.querySelector('.lucide-hammer')).not.toBeNull();
+  });
 });

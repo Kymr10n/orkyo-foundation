@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { formatDateForInput, formatTimeForInput, combineDateTimeToISO, getDataTypeColor } from './utils';
+import {
+  buildCreatePayload,
+  buildUpdatePayload,
+  combineDateTimeToISO,
+  formatDateForInput,
+  formatTimeForInput,
+  getDataTypeColor,
+} from './utils';
+import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
 
 describe('Date/Time Utilities', () => {
   describe('formatDateForInput', () => {
@@ -106,5 +114,41 @@ describe('getDataTypeColor', () => {
   it('should handle empty string', () => {
     const result = getDataTypeColor('');
     expect(result).toContain('muted');
+  });
+});
+
+describe('Request payload builders — icon plumbing', () => {
+  const base: RequestFormData = {
+    name: 'test',
+    description: 'desc',
+    planningMode: 'leaf',
+    duration: { value: 1, unit: 'hours' },
+    schedulingSettingsApply: true,
+    requirements: [],
+  };
+
+  it('buildCreatePayload forwards a chosen icon', () => {
+    const out = buildCreatePayload({ ...base, icon: 'calendar' });
+    expect(out.icon).toBe('calendar');
+  });
+
+  it('buildCreatePayload forwards null when no icon is chosen', () => {
+    const out = buildCreatePayload({ ...base, icon: null });
+    expect(out.icon).toBeNull();
+  });
+
+  it('buildCreatePayload omits icon when it is not on the form data at all', () => {
+    const out = buildCreatePayload(base);
+    expect(out.icon).toBeUndefined();
+  });
+
+  it('buildUpdatePayload forwards a chosen icon', () => {
+    const out = buildUpdatePayload({ ...base, icon: 'hammer' });
+    expect(out.icon).toBe('hammer');
+  });
+
+  it('buildUpdatePayload forwards null when the form cleared the icon', () => {
+    const out = buildUpdatePayload({ ...base, icon: null });
+    expect(out.icon).toBeNull();
   });
 });

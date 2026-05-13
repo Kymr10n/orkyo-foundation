@@ -77,6 +77,52 @@ public class RequestValidatorTests
     }
 
     [Theory]
+    [InlineData("calendar")]
+    [InlineData("hammer")]
+    [InlineData(null)]
+    public void Create_IconWithinLimit_Passes(string? icon)
+    {
+        var request = new CreateRequestRequest
+        {
+            Name = "Test",
+            Icon = icon,
+            MinimalDurationValue = 60,
+            MinimalDurationUnit = DurationUnit.Minutes
+        };
+        var result = _createValidator.Validate(request);
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Create_IconTooLong_Fails()
+    {
+        var request = new CreateRequestRequest
+        {
+            Name = "Test",
+            Icon = new string('x', DomainLimits.RequestIconMaxLength + 1),
+            MinimalDurationValue = 60,
+            MinimalDurationUnit = DurationUnit.Minutes
+        };
+        var result = _createValidator.Validate(request);
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Icon");
+    }
+
+    [Fact]
+    public void Create_IconAtExactLimit_Passes()
+    {
+        var request = new CreateRequestRequest
+        {
+            Name = "Test",
+            Icon = new string('x', DomainLimits.RequestIconMaxLength),
+            MinimalDurationValue = 60,
+            MinimalDurationUnit = DurationUnit.Minutes
+        };
+        var result = _createValidator.Validate(request);
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(-1)]
     public void Create_NonPositiveDuration_Fails(int duration)
@@ -295,6 +341,41 @@ public class RequestValidatorTests
             Name = new string('x', DomainLimits.RequestNameMaxLength + 1)
         });
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_ValidIcon_Passes()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest { Icon = "calendar" });
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_NullIcon_Passes()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest { Icon = null });
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_IconTooLong_Fails()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest
+        {
+            Icon = new string('x', DomainLimits.RequestIconMaxLength + 1)
+        });
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == "Icon");
+    }
+
+    [Fact]
+    public void Update_IconAtExactLimit_Passes()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest
+        {
+            Icon = new string('x', DomainLimits.RequestIconMaxLength)
+        });
+        Assert.True(result.IsValid);
     }
 
     [Fact]

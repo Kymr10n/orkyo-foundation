@@ -11,6 +11,9 @@ public class UpdateRequestRequestValidator : AbstractValidator<UpdateRequestRequ
         When(x => x.Name != null, () =>
             RuleFor(x => x.Name!).NotEmpty().MaximumLength(DomainLimits.RequestNameMaxLength));
 
+        When(x => x.Icon != null, () =>
+            RuleFor(x => x.Icon!).MaximumLength(DomainLimits.RequestIconMaxLength));
+
         When(x => x.PlanningMode.HasValue, () =>
             RuleFor(x => x.PlanningMode!.Value).IsInEnum().WithMessage("Planning mode must be leaf, summary, or container"));
 

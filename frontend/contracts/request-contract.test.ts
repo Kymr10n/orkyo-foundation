@@ -137,6 +137,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "sortOrder"
     | "spaceId"
     | "requestItemId"
+    | "icon"
     | "startTs"
     | "endTs"
     | "earliestStartTs"
@@ -165,6 +166,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "sortOrder",
     "spaceId",
     "requestItemId",
+    "icon",
     "startTs",
     "endTs",
     "earliestStartTs",
@@ -195,6 +197,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       sortOrder: 0,
       spaceId: null,
       requestItemId: null,
+      icon: null,
       startTs: null,
       endTs: null,
       earliestStartTs: null,
@@ -326,6 +329,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
     | "sortOrder"
     | "spaceId"
     | "requestItemId"
+    | "icon"
     | "startTs"
     | "endTs"
     | "earliestStartTs"
@@ -349,6 +353,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
       "sortOrder",
       "spaceId",
       "requestItemId",
+      "icon",
       "startTs",
       "endTs",
       "earliestStartTs",
@@ -394,6 +399,7 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "sortOrder"
     | "spaceId"
     | "requestItemId"
+    | "icon"
     | "startTs"
     | "endTs"
     | "earliestStartTs"

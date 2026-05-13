@@ -47,22 +47,25 @@ export interface Request {
   parentRequestId?: string | null;
   planningMode: PlanningMode;
   sortOrder: number;
-  
+
   // Space and item references
   spaceId?: string | null;
   requestItemId?: string | null;
 
+  // Display icon (string ID from REQUEST_ICONS, resolved on the FE)
+  icon?: string | null;
+
   // Scheduling fields (nullable until scheduled)
   startTs?: string | null; // ISO timestamp
   endTs?: string | null; // ISO timestamp
-  
+
   // Scheduling constraints (optional)
   earliestStartTs?: string | null; // ISO timestamp - earliest time request can start
   latestEndTs?: string | null; // ISO timestamp - latest time request must end by
-  
+
   minimalDurationValue: number;
   minimalDurationUnit: DurationUnit;
-  
+
   // Actual scheduled duration (when allocated to a space)
   actualDurationValue?: number | null;
   actualDurationUnit?: DurationUnit | null;
@@ -106,6 +109,7 @@ export interface CreateRequestRequest {
   sortOrder?: number;
   spaceId?: string;
   requestItemId?: string;
+  icon?: string | null;
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;
@@ -130,6 +134,7 @@ export interface UpdateRequestRequest {
   sortOrder?: number;
   spaceId?: string;
   requestItemId?: string;
+  icon?: string | null;
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;
@@ -150,4 +155,3 @@ export interface MoveRequestRequest {
   newParentRequestId?: string | null;
   sortOrder: number;
 }
-

@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@foundation/src/components/ui/table";
-import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
+import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import { canHaveChildren } from "@foundation/src/domain/request-tree";
 import {
   formatDateDisplay,
@@ -51,7 +51,7 @@ const ListRow = React.memo(function ListRow({
   onSelect: (id: string) => void;
   isSelected: boolean;
 }) {
-  const Icon = getPlanningModeIcon(request.planningMode);
+  const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
   const isParent = canHaveChildren(request.planningMode);
 
   return (

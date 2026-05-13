@@ -15,33 +15,34 @@ export interface RequestFormState {
   // Basic info
   name: string;
   description: string;
+  icon: string | null;
   planningMode: PlanningMode;
   parentRequestId: string;
   selectedSpaceId: string;
-  
+
   // Schedule
   startDate: string;
   startTime: string;
   endDate: string;
   endTime: string;
-  
+
   // Constraints
   earliestStartDate: string;
   earliestStartTime: string;
   latestEndDate: string;
   latestEndTime: string;
-  
+
   // Duration
   durationValue: number;
   durationUnit: DurationUnit;
-  
+
   // Scheduling
   schedulingSettingsApply: boolean;
-  
+
   // Requirements
   requirements: Map<string, CriterionValue | null>;
   selectedCriterionId: string;
-  
+
   // UI state
   openSections: {
     basic: boolean;
@@ -63,6 +64,7 @@ type RequestFormAction =
 const initialState: RequestFormState = {
   name: '',
   description: '',
+  icon: null,
   planningMode: 'leaf',
   parentRequestId: '',
   selectedSpaceId: '',
@@ -93,7 +95,7 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
   switch (action.type) {
     case 'SET_FIELD':
       return { ...state, [action.field]: action.value };
-      
+
     case 'TOGGLE_SECTION':
       return {
         ...state,
@@ -102,7 +104,7 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
           [action.section]: !state.openSections[action.section],
         },
       };
-      
+
     case 'ADD_REQUIREMENT': {
       const newRequirements = new Map(state.requirements);
       newRequirements.set(action.criterionId, action.value);
@@ -112,19 +114,19 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
         selectedCriterionId: '',
       };
     }
-      
+
     case 'REMOVE_REQUIREMENT': {
       const newRequirements = new Map(state.requirements);
       newRequirements.delete(action.criterionId);
       return { ...state, requirements: newRequirements };
     }
-      
+
     case 'UPDATE_REQUIREMENT': {
       const newRequirements = new Map(state.requirements);
       newRequirements.set(action.criterionId, action.value);
       return { ...state, requirements: newRequirements };
     }
-      
+
     case 'APPLY_TEMPLATE': {
       const reqMap = new Map<string, CriterionValue | null>();
       action.template.items?.forEach((item) => {
@@ -138,7 +140,7 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
         requirements: reqMap,
       };
     }
-      
+
     default:
       return state;
   }
@@ -155,6 +157,7 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
     return {
       name: request.name,
       description: request.description || '',
+      icon: request.icon ?? null,
       planningMode: request.planningMode || 'leaf',
       parentRequestId: request.parentRequestId || '',
       selectedSpaceId: request.spaceId || '',

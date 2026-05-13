@@ -19,6 +19,7 @@ public static class RequestMapper
             SortOrder = reader.GetInt32("sort_order"),
             SpaceId = reader.GetNullableGuid("space_id"),
             RequestItemId = reader.GetNullableString("request_item_id"),
+            Icon = reader.GetNullableString("icon"),
             StartTs = reader.GetNullableDateTime("start_ts"),
             EndTs = reader.GetNullableDateTime("end_ts"),
             EarliestStartTs = reader.GetNullableDateTime("earliest_start_ts"),

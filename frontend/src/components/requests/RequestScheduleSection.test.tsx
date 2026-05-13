@@ -44,6 +44,7 @@ const mockSpaces: Space[] = [
 const baseState = {
   name: '',
   description: '',
+  icon: null,
   planningMode: 'leaf' as const,
   parentRequestId: '',
   selectedSpaceId: '',

@@ -8,6 +8,7 @@ function makeState(overrides: Partial<RequestFormState> = {}): RequestFormState 
   return {
     name: '',
     description: '',
+    icon: null,
     planningMode: 'leaf',
     parentRequestId: '',
     selectedSpaceId: '',
@@ -41,6 +42,18 @@ describe('formReducer', () => {
       const state = makeState({ name: 'Original' });
       formReducer(state, { type: 'SET_FIELD', field: 'name', value: 'Changed' });
       expect(state.name).toBe('Original');
+    });
+
+    it('sets icon to a string id', () => {
+      const state = makeState();
+      const result = formReducer(state, { type: 'SET_FIELD', field: 'icon', value: 'calendar' });
+      expect(result.icon).toBe('calendar');
+    });
+
+    it('clears icon back to null', () => {
+      const state = makeState({ icon: 'calendar' });
+      const result = formReducer(state, { type: 'SET_FIELD', field: 'icon', value: null });
+      expect(result.icon).toBeNull();
     });
   });
 
@@ -181,6 +194,40 @@ describe('buildInitialState', () => {
     expect(state.durationValue).toBe(1);
     expect(state.durationUnit).toBe('days');
     expect(state.requirements.size).toBe(0);
+    expect(state.icon).toBeNull();
+  });
+
+  it('hydrates icon from an existing Request', () => {
+    const request: Request = {
+      id: 'r1',
+      name: 'r',
+      planningMode: 'leaf',
+      sortOrder: 0,
+      icon: 'hammer',
+      minimalDurationValue: 1,
+      minimalDurationUnit: 'hours',
+      schedulingSettingsApply: true,
+      status: 'planned',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+    expect(buildInitialState(request).icon).toBe('hammer');
+  });
+
+  it('treats missing icon on a Request as null', () => {
+    const request: Request = {
+      id: 'r1',
+      name: 'r',
+      planningMode: 'leaf',
+      sortOrder: 0,
+      minimalDurationValue: 1,
+      minimalDurationUnit: 'hours',
+      schedulingSettingsApply: true,
+      status: 'planned',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+    expect(buildInitialState(request).icon).toBeNull();
   });
 
   it('sets parentRequestId when provided', () => {
