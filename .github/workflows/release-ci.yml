@@ -4,8 +4,9 @@ name: CI
 #   pull_request to main    — security audits + build + test (no image push)
 #   push to main            — + KC image build + push (keycloak changes only)
 #   push to v* tags         — publish NuGet/npm + promote KC image + GH Release
-#   nightly 02:00 UTC       — security audits + build + test (always; foundation is
-#                             a library — CI takes ~3 min with no images on schedule)
+#   nightly 02:00 UTC       — audits + build + test + publish nightly package
+#                             (when commits since last nightly) + dispatch
+#                             foundation_updated to saas + community
 #   workflow_dispatch       — manual full pipeline run
 
 on:
@@ -625,18 +626,50 @@ jobs:
             --field "client_payload[channel]=stable"
 
   # ─────────────────────────────────────────────
-  # PUBLISH NIGHTLY — push to main only (no rebuild from source)
-  # Produces X.Y.Z-nightly.<date>.<sha7> packages; dist-tags: nightly + next
+  # PUBLISH NIGHTLY — push to main + nightly cron (skipped when HEAD already
+  # published as a nightly, gated by nightly-publish-gate below).
+  # Produces X.Y.Z-nightly.<date>.<sha7> packages; dist-tags: nightly + next.
+  # After publish, dispatches foundation_updated(channel=nightly) to saas + community.
   # ─────────────────────────────────────────────
+  nightly-publish-gate:
+    name: Nightly Publish Gate
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'schedule') &&
+      github.ref == 'refs/heads/main'
+    outputs:
+      should_publish: ${{ steps.gate.outputs.should_publish }}
+    permissions:
+      packages: read
+    steps:
+      - name: Compare HEAD against last published nightly
+        id: gate
+        run: |
+          mkdir -p /tmp/npm-gate
+          echo "@kymr10n:registry=https://npm.pkg.github.com" > /tmp/npm-gate/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> /tmp/npm-gate/.npmrc
+          LAST=$(npm --userconfig /tmp/npm-gate/.npmrc view @kymr10n/foundation@nightly version 2>/dev/null || echo "")
+          LAST_SHA="${LAST##*.}"
+          CURR_SHA="${GITHUB_SHA:0:7}"
+          if [ -n "$LAST_SHA" ] && [ "$LAST_SHA" = "$CURR_SHA" ]; then
+            echo "HEAD ${CURR_SHA} matches last nightly ${LAST}; skipping publish."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Last nightly: '${LAST:-none}'; HEAD: ${CURR_SHA}; will publish."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish-nightly:
     name: Publish Nightly
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    needs: [backend-ci, frontend-ci]
+    needs: [backend-ci, frontend-ci, nightly-publish-gate]
     if: >-
       !failure() && !cancelled() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main'
+      (github.event_name == 'push' || github.event_name == 'schedule') &&
+      github.ref == 'refs/heads/main' &&
+      needs.nightly-publish-gate.outputs.should_publish == 'true'
     permissions:
       contents: read
       packages: write
