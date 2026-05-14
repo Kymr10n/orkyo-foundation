@@ -1,6 +1,6 @@
 # Resource Model Initiative — Status
 
-Last updated: 2026-05-14 by Mistral Vibe
+Last updated: 2026-05-15 by Mistral Vibe
 
 ## Phase board
 
@@ -9,7 +9,7 @@ Last updated: 2026-05-14 by Mistral Vibe
 | 0     | Inventory                   | Merged       | —   | n/a       | 2026-05-14  |
 | 1     | Parallel build              | Merged       | —   | 1300      | 2026-05-14  |
 | 2     | Cutover                     | In review    | —   | 1310      | 2026-05-14  |
-| 3     | Criterion applicability     | Not started  | —   | 1320      | 2026-05-14  |
+| 3     | Criterion applicability     | In review    | —   | 1320      | 2026-05-15  |
 | 4     | Person + Tool activation    | Not started  | —   | 1330      | 2026-05-14  |
 | 5     | Utilization                 | Not started  | —   | 1340      | 2026-05-14  |
 
@@ -103,7 +103,41 @@ Known issue: 101 tests fail due to test database not having migration 1310 appli
 
 ### Phase 3 — Criterion applicability
 
-_Not started. Spec: `06-phase-3-applicability.md`._
+Implemented 2026-05-14. Migration 1320 applies cleanly.
+
+Migration: `backend/migrations-foundation/sql/tenant/1320.foundation.criteria_applicability.sql`
+
+Changes:
+- Added `applicable_to_requests BOOLEAN NOT NULL DEFAULT true` column to `criteria` table
+- Updated `CriterionInfo`, `CreateCriterionRequest`, `UpdateCriterionRequest` models with `ApplicableToRequests` field
+- Updated `RequestRequirementInfo` model with `Operator?` and `AllowedValues?` fields for typed matching
+- Updated `AddRequirementRequest` with `Operator?` and `AllowedValues?` fields
+- Added `ResourceSatisfiesRequirementAsync` method to `CapabilityMatcher` with typed operators:
+  - Boolean: resource value must be `true`
+  - Number: supports `>=`, `<=`, `=` operators
+  - Enum: resource value must be in allowed set
+  - String: case-insensitive equality
+- Updated `CriterionApplicabilityRepository` to use main `criteria` table instead of Phase 1 staging table
+- Updated `ResourceCapabilityRepository.UpsertAsync` to validate criterion-resource-type matching
+- Updated `RequestRepository.AddRequirementAsync` to validate `criteria.applicable_to_requests`
+- Updated `RequestMapper.MapRequirementFromReader` to handle new `operator` and `allowed_values` columns
+- Added `CapabilityNotApplicableException` for validation errors
+
+New endpoints: Already exist from Phase 1 (`GET/PUT /api/criteria/{id}/applicability`)
+
+Build: **Succeeds (0 errors, 0 warnings)**
+
+Test coverage:
+- `CapabilityMatcherTypedTests.cs` - 8 tests: Number (≥, =), Enum (membership), Boolean (true/false), String (case-insensitive), presence fallback
+- `CriterionApplicabilityEndpointsTests.cs` - 5 tests: GET/PUT `/api/criteria/{id}/applicability` endpoints
+- `CriterionApplicabilityTests.cs` - Exception type validation
+- `CriteriaEndpointsTests.cs` - 21 tests: CRUD operations (existing)
+
+Frontend: Types updated in `src/types/criterion.ts` and `src/types/requests.ts` for new fields
+
+### Phase 4 — Person + Tool activation
+
+_Not started. Spec: `07-phase-4-person-tool.md`._
 
 ### Phase 4 — Person + Tool activation
 

@@ -39,6 +39,9 @@ public record CriterionInfo
 
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+
+    // Phase 3: Criterion applicability
+    public bool ApplicableToRequests { get; init; } = true;
 }
 
 /// <summary>
@@ -62,6 +65,7 @@ public record CreateCriterionRequest
     public required CriterionDataType DataType { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
+    public bool ApplicableToRequests { get; init; } = true;
 }
 
 /// <summary>
@@ -72,4 +76,5 @@ public record UpdateCriterionRequest
     public string? Description { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
+    public bool? ApplicableToRequests { get; init; }
 }

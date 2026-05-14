@@ -129,6 +129,10 @@ public record RequestRequirementInfo
     public required JsonElement Value { get; init; } // JSONB value
     public DateTime CreatedAt { get; init; }
 
+    // Typed operator support (Phase 3)
+    public string? Operator { get; init; } // e.g. ">=", "<=", "=" for Number criteria
+    public JsonElement? AllowedValues { get; init; } // Set of allowed values for Enum criteria
+
     // Populated from join
     public CriterionBasicInfo? Criterion { get; init; }
 }
@@ -245,6 +249,9 @@ public record AddRequirementRequest
 {
     public required Guid CriterionId { get; init; }
     public required JsonElement Value { get; init; }
+    // Phase 3: Typed operator support
+    public string? Operator { get; init; }
+    public JsonElement? AllowedValues { get; init; }
 }
 
 /// <summary>

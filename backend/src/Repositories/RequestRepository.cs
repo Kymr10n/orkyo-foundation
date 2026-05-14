@@ -490,15 +490,31 @@ public class RequestRepository : IRequestRepository
         if (!await DbQueryHelper.ExistsAsync(db, "criteria", requirement.CriterionId))
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");
 
+        // Phase 3: Validate criterion is applicable to requests
+        await using (var checkCmd = new NpgsqlCommand(
+            "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId", db))
+        {
+            checkCmd.Parameters.AddWithValue("criterionId", requirement.CriterionId);
+            var applicableToRequests = (bool?)await checkCmd.ExecuteScalarAsync();
+            if (applicableToRequests == false)
+                throw new InvalidOperationException(
+                    $"Criterion {requirement.CriterionId} is not applicable to requests");
+        }
+
         var cmd = new NpgsqlCommand(@"
-            INSERT INTO request_requirements (request_id, criterion_id, value)
-            VALUES (@request_id, @criterion_id, @value::jsonb)
-            ON CONFLICT (request_id, criterion_id) DO UPDATE SET value = EXCLUDED.value
-            RETURNING id, request_id, criterion_id, value, created_at", db);
+            INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
+            VALUES (@request_id, @criterion_id, @value::jsonb, @operator, @allowed_values::jsonb)
+            ON CONFLICT (request_id, criterion_id) DO UPDATE SET
+                value = EXCLUDED.value,
+                operator = EXCLUDED.operator,
+                allowed_values = EXCLUDED.allowed_values
+            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at", db);
 
         cmd.Parameters.AddWithValue("request_id", requestId);
         cmd.Parameters.AddWithValue("criterion_id", requirement.CriterionId);
         cmd.Parameters.AddWithValue("value", requirement.Value.GetRawText());
+        cmd.Parameters.AddWithValue("operator", requirement.Operator is null ? (object)DBNull.Value : requirement.Operator);
+        cmd.Parameters.AddWithValue("allowed_values", requirement.AllowedValues is null ? (object)DBNull.Value : requirement.AllowedValues.Value.GetRawText());
 
         using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();

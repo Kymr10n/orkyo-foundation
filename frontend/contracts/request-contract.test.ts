@@ -267,6 +267,8 @@ describe("Contract - RequestRequirement (FE) ↔ RequestRequirementInfo (BE)", (
     | "requestId"
     | "criterionId"
     | "value"
+    | "operator"
+    | "allowedValues"
     | "createdAt"
     | "criterion"
   >;

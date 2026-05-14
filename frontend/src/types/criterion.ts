@@ -10,6 +10,7 @@ export interface Criterion {
   dataType: CriterionDataType;
   enumValues?: string[];
   unit?: string;
+  applicableToRequests?: boolean; // Phase 3: defaults to true
   createdAt: string;
   updatedAt: string;
 }
@@ -20,10 +21,12 @@ export interface CreateCriterionRequest {
   dataType: CriterionDataType;
   enumValues?: string[];
   unit?: string;
+  applicableToRequests?: boolean;
 }
 
 export interface UpdateCriterionRequest {
   description?: string;
   enumValues?: string[];
   unit?: string;
+  applicableToRequests?: boolean;
 }

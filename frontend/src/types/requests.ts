@@ -90,6 +90,8 @@ export interface RequestRequirement {
   requestId: string;
   criterionId: string;
   value: CriterionValue;
+  operator?: string; // Phase 3: ">=", "<=", "=" for Number criteria
+  allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum criteria
   createdAt?: string;
   criterion?: {
     id: string;
@@ -123,6 +125,8 @@ export interface CreateRequestRequest {
   requirements?: {
     criterionId: string;
     value: CriterionValue;
+    operator?: string; // Phase 3: ">=", "<=", "=" for Number
+    allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum
   }[];
 }
 
@@ -148,6 +152,8 @@ export interface UpdateRequestRequest {
   requirements?: {
     criterionId: string;
     value: CriterionValue;
+    operator?: string; // Phase 3: ">=", "<=", "=" for Number
+    allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum
   }[];
 }
 

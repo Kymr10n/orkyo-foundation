@@ -21,9 +21,9 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync();
 
-        // applicable_to_requests
+        // applicable_to_requests - now on main criteria table (Phase 3)
         await using var reqCmd = new NpgsqlCommand(
-            "SELECT applicable_to_requests FROM criteria_applicability_phase1 WHERE criterion_id = @id", db);
+            "SELECT applicable_to_requests FROM criteria WHERE id = @id", db);
         reqCmd.Parameters.AddWithValue("id", criterionId);
         var applicableToRequests = (bool?)await reqCmd.ExecuteScalarAsync() ?? true;
 
@@ -82,9 +82,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         await db.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            "INSERT INTO criteria_applicability_phase1 (criterion_id, applicable_to_requests) " +
-            "VALUES (@id, @val) " +
-            "ON CONFLICT (criterion_id) DO UPDATE SET applicable_to_requests = EXCLUDED.applicable_to_requests", db);
+            "UPDATE criteria SET applicable_to_requests = @val WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", criterionId);
         cmd.Parameters.AddWithValue("val", applicable);
         await cmd.ExecuteNonQueryAsync();

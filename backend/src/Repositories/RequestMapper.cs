@@ -45,6 +45,8 @@ public static class RequestMapper
             RequestId = reader.GetGuid("request_id"),
             CriterionId = reader.GetGuid("criterion_id"),
             Value = JsonDocument.Parse(reader.GetString("value")).RootElement.Clone(),
+            Operator = reader.IsDBNull(reader.GetOrdinal("operator")) ? null : reader.GetString(reader.GetOrdinal("operator")),
+            AllowedValues = reader.IsDBNull(reader.GetOrdinal("allowed_values")) ? null : JsonDocument.Parse(reader.GetString(reader.GetOrdinal("allowed_values"))).RootElement.Clone(),
             CreatedAt = reader.GetDateTime("created_at"),
         };
     }
