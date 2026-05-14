@@ -212,6 +212,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
         builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
         builder.Services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
+        builder.Services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
 
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
@@ -267,6 +268,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
         builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
+        builder.Services.AddScoped<IUtilizationService, UtilizationService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
@@ -437,6 +439,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapResourceEndpoints();
         app.MapResourceAssignmentEndpoints();
         app.MapCriterionApplicabilityEndpoints();
+        app.MapResourceGroupMemberEndpoints();
+        app.MapUtilizationEndpoints();
         // Admin endpoints
         app.MapFloorplanEndpoints();
         app.MapUserAdminEndpoints();

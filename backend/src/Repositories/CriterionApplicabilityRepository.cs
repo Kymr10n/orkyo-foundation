@@ -25,7 +25,9 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         await using var reqCmd = new NpgsqlCommand(
             "SELECT applicable_to_requests FROM criteria WHERE id = @id", db);
         reqCmd.Parameters.AddWithValue("id", criterionId);
-        var applicableToRequests = (bool?)await reqCmd.ExecuteScalarAsync() ?? true;
+        var scalar = await reqCmd.ExecuteScalarAsync();
+        if (scalar is null) return null; // criterion does not exist
+        var applicableToRequests = (bool)scalar;
 
         // resource type keys
         await using var typeCmd = new NpgsqlCommand(

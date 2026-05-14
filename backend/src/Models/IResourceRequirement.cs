@@ -13,3 +13,8 @@ public sealed record SpaceResourceRequirement(
 {
     public int Count => 1;
 }
+
+public sealed record MultiTypeResourceRequirement(
+    Guid ResourceTypeId,
+    int Count,
+    IReadOnlyList<Guid> RequiredCriterionIds) : IResourceRequirement;

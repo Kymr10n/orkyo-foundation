@@ -118,3 +118,33 @@ public record UpdateOffTimeRequest
     public string? RecurrenceRule { get; init; }
     public bool? Enabled { get; init; }
 }
+
+/// <summary>
+/// Request to create an absence (off-time) for a specific resource.
+/// Always stored with applies_to_all_resources=false, linked to the route resource.
+/// </summary>
+public record CreateResourceAbsenceRequest
+{
+    public required Guid SiteId { get; init; }
+    public required string Title { get; init; }
+    public OffTimeType Type { get; init; } = OffTimeType.Custom;
+    public required DateTime StartTs { get; init; }
+    public required DateTime EndTs { get; init; }
+    public bool IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public bool Enabled { get; init; } = true;
+}
+
+/// <summary>
+/// Request to update an absence for a specific resource.
+/// </summary>
+public record UpdateResourceAbsenceRequest
+{
+    public string? Title { get; init; }
+    public OffTimeType? Type { get; init; }
+    public DateTime? StartTs { get; init; }
+    public DateTime? EndTs { get; init; }
+    public bool? IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public bool? Enabled { get; init; }
+}

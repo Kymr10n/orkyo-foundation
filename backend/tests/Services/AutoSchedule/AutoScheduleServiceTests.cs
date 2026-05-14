@@ -31,7 +31,8 @@ public class AutoScheduleServiceTests
             Mock.Of<IRequestRepository>(),
             Mock.Of<ISpaceRepository>(),
             Mock.Of<IResourceCapabilityRepository>(),
-            Mock.Of<ISchedulingRepository>());
+            Mock.Of<ISchedulingRepository>(),
+            Mock.Of<IResourceRepository>());
 
         var problem = new SchedulingProblem(
             Guid.NewGuid(),

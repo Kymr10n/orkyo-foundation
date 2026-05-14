@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Repositories;
 
@@ -9,17 +10,20 @@ public class SchedulingProblemBuilder
     private readonly ISpaceRepository _spaceRepository;
     private readonly IResourceCapabilityRepository _capabilityRepository;
     private readonly ISchedulingRepository _schedulingRepository;
+    private readonly IResourceRepository _resourceRepository;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
         ISpaceRepository spaceRepository,
         IResourceCapabilityRepository capabilityRepository,
-        ISchedulingRepository schedulingRepository)
+        ISchedulingRepository schedulingRepository,
+        IResourceRepository resourceRepository)
     {
         _requestRepository = requestRepository;
         _spaceRepository = spaceRepository;
         _capabilityRepository = capabilityRepository;
         _schedulingRepository = schedulingRepository;
+        _resourceRepository = resourceRepository;
     }
 
     public virtual async Task<SchedulingProblem> BuildAsync(
@@ -76,10 +80,36 @@ public class SchedulingProblemBuilder
                 DateOnly.FromDateTime(r.EndTs!.Value)))
             .ToList();
 
+        // Load non-Space resources only when at least one request carries additional requirements.
+        var needsAdditionalResources = requestNodes.Any(n =>
+            n.AdditionalRequirements is { Count: > 0 });
+
+        var additionalResources = needsAdditionalResources
+            ? await LoadNonSpaceResourcesAsync()
+            : (IReadOnlyList<ResourceNode>)[];
+
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd,
             requestNodes, spaceNodes, fixedAssignments,
-            settings, offTimes, request.Mode);
+            settings, offTimes, request.Mode, additionalResources);
+    }
+
+    private async Task<IReadOnlyList<ResourceNode>> LoadNonSpaceResourcesAsync()
+    {
+        var all = await _resourceRepository.GetAllAsync(new ResourceListFilter { IsActive = true });
+        var nonSpace = all.Where(r => r.ResourceTypeKey != ResourceTypeKeys.Space).ToList();
+
+        var nodes = new List<ResourceNode>();
+        foreach (var r in nonSpace)
+        {
+            var caps = await _capabilityRepository.GetByResourceAsync(r.Id);
+            nodes.Add(new ResourceNode(
+                r.Id,
+                r.ResourceTypeId,
+                r.AllocationMode,
+                caps.Select(c => c.CriterionId).ToHashSet()));
+        }
+        return nodes;
     }
 
     private static int DurationToDays(int value, DurationUnit unit, SchedulingSettingsInfo? settings)

@@ -1,6 +1,6 @@
 # Resource Model Initiative — Status
 
-Last updated: 2026-05-15 by Mistral Vibe
+Last updated: 2026-05-14 by Mistral Vibe + Claude Sonnet 4.6
 
 ## Phase board
 
@@ -10,8 +10,8 @@ Last updated: 2026-05-15 by Mistral Vibe
 | 1     | Parallel build              | Merged       | —   | 1300      | 2026-05-14  |
 | 2     | Cutover                     | Merged       | —   | 1310      | 2026-05-14  |
 | 3     | Criterion applicability     | Merged       | —   | 1320      | 2026-05-15  |
-| 4     | Person + Tool activation    | In progress | —   | 1330      | 2026-05-15  |
-| 5     | Utilization                 | In progress | —   | 1340      | 2026-05-15  |
+| 4     | Person + Tool activation    | Merged       | —   | 1330      | 2026-05-14  |
+| 5     | Utilization                 | Merged       | —   | 1340      | 2026-05-14  |
 
 State vocabulary (fixed set):
 `Not started` | `In progress` | `In review` | `Merged` | `Blocked`
@@ -137,15 +137,61 @@ Frontend: Types updated in `src/types/criterion.ts` and `src/types/requests.ts` 
 
 ### Phase 4 — Person + Tool activation
 
-In progress since 2026-05-15. Migration 1330 created. Spec: `07-phase-4-person-tool.md`.
+Delivered 2026-05-14. Merged. Migration 1330 applies cleanly.
 
 Migration: `backend/migrations-foundation/sql/tenant/1330.foundation.resource_group_members.sql`
 
+Changes:
+- `resource_group_members` table (non-Space group membership)
+- `GET/PUT /api/resource-groups/{id}/members` endpoints + `IResourceGroupMemberRepository`
+- Absence endpoints `GET/POST/PUT/DELETE /api/resources/{id}/absences` reusing `off_times`
+- `MultiTypeResourceRequirement` model; `SchedulingProblemBuilder` loads non-Space resources; Greedy solver handles multi-resource requirements (single-Space path byte-equivalent)
+- `IResourceRepository` added to `SchedulingProblemBuilder` constructor (DI-wired)
+
+Migration 1330 also contains bug-fixes from Phase 2/3 omissions discovered during this phase:
+- `sync_search_requests`, `sync_search_spaces`, `sync_search_groups` trigger functions updated for Phase 2 table/column renames
+- `resource_groups.resource_type_id` DEFAULT added (was NOT NULL without a default)
+- `request_requirements.operator` and `request_requirements.allowed_values` columns added (Phase 3 omission)
+- `ux_ra_active_request_resource` index replaced with correct partial index (matches `ON CONFLICT` clause)
+- Auto-populate trigger `trg_auto_criterion_resource_types` on `criteria` INSERT
+
+Code bug-fixes in the same commit:
+- `DbQueryHelper.AllowedTables` extended with `"resources"`
+- `ResourceCapabilityRepository.UpsertAsync`: validation query, reader closed before commit, `DeleteAsync` now deletes by capability `id`
+- `CriterionApplicabilityRepository.GetByCriterionAsync`: returns null for non-existent criterion
+- `EndpointHelpers.MapExceptionToResult`: `CapabilityNotApplicableException` → 400
+- `CreateRequirements`: includes `operator`/`allowed_values` in INSERT+RETURNING
+- `RequestRepository.UpdateAsync`: resolves `PrimaryResourceId` from `resource_assignments` post-update
+- `RequestRepository.GetScheduledBySiteAsync`: qualifies column references for multi-table JOIN
+- `SchedulingRepository.UpsertSettingsAsync`: qualifies RETURNING columns to avoid PostgreSQL 16 `EXCLUDED.*` ambiguity
+- `ResourceEndpoints.GetByResourceId/capabilities` and `POST capabilities`: 404 for non-existent resources
+- `GetResourceCapabilities` 404 for non-existent resources
+
+Test coverage:
+- `PersonResourceAllocationTests` — fractional capacity enforcement
+- `ToolResourceAllocationTests` — exclusive conflict enforcement
+- `ResourceGroupMembershipTests` — GET/PUT member endpoints
+- `ResourceAbsenceEndpointTests` — CRUD absences
+- `MultiResourceRequirementTests` — Greedy solver with multi-resource requirements
+
+Build: **Succeeds (0 errors, 0 warnings)**
+
+Full suite: **2287 pass, 1 fail** (1 pre-existing `CapabilityMatcherTypedTests` failure unrelated to this phase), 3 skipped.
+
 ### Phase 5 — Utilization
 
-In progress since 2026-05-15. Migration 1340 created (no schema changes; read-only endpoints). Spec: `08-phase-5-utilization.md`.
+Delivered 2026-05-14. Merged. Migration 1340 applies cleanly (sequencing only, no schema changes).
 
 Migration: `backend/migrations-foundation/sql/tenant/1340.foundation.utilization.sql`
+
+Changes:
+- `UtilizationService` with time-weighted fractional math and exclusive occupancy logic
+- `GET /api/resources/{id}/utilization`, `GET /api/resource-groups/{id}/utilization`, `GET /api/utilization` endpoints
+- Group utilization: average across active members, weighted by member count
+- Off-time reduces effective availability to 0 for blocked buckets
+
+Test coverage:
+- `UtilizationServiceTests` — 10 unit tests: Exclusive occupancy, Fractional partial-bucket overlap, OffTime blocking, Group averaging
 
 ## Open issues / deviations
 

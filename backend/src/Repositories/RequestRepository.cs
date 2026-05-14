@@ -92,7 +92,13 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         var cmd = new NpgsqlCommand($@"
-            SELECT DISTINCT {SelectColumnsBase}, ra.resource_id AS primary_resource_id
+            SELECT DISTINCT requests.id, requests.name, requests.description, requests.parent_request_id,
+                requests.planning_mode, requests.sort_order, requests.request_item_id, requests.icon,
+                requests.start_ts, requests.end_ts, requests.earliest_start_ts, requests.latest_end_ts,
+                requests.minimal_duration_value, requests.minimal_duration_unit,
+                requests.actual_duration_value, requests.actual_duration_unit,
+                requests.status, requests.scheduling_settings_apply, requests.created_at, requests.updated_at,
+                ra.resource_id AS primary_resource_id
             FROM requests
             JOIN resource_assignments ra ON ra.request_id = requests.id
                 AND ra.assignment_status != @cancelled
@@ -342,6 +348,17 @@ public class RequestRepository : IRequestRepository
         {
             if (transaction != null) await transaction.CommitAsync();
             updatedRequest = updatedRequest with { Requirements = await LoadRequirements(id, db) };
+        }
+
+        // PrimaryResourceId is NULL in the RETURNING clause; resolve it via resource_assignments.
+        if (!updatedRequest.PrimaryResourceId.HasValue)
+        {
+            await using var pidCmd = new NpgsqlCommand(
+                $"SELECT {PrimaryResourceSubquery} FROM requests WHERE id = @id", db);
+            pidCmd.Parameters.AddWithValue("id", id);
+            var pid = await pidCmd.ExecuteScalarAsync();
+            if (pid is Guid g)
+                updatedRequest = updatedRequest with { PrimaryResourceId = g };
         }
 
         return updatedRequest;
@@ -638,16 +655,16 @@ public class RequestRepository : IRequestRepository
 
         for (var i = 0; i < requirements.Count; i++)
         {
-            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb)");
+            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, NULL, NULL)");
             cmd.Parameters.AddWithValue($"criterion_id_{i}", requirements[i].CriterionId);
             cmd.Parameters.AddWithValue($"value_{i}", requirements[i].Value.GetRawText());
         }
 
         cmd.Parameters.AddWithValue("request_id", requestId);
         cmd.CommandText = $@"
-            INSERT INTO request_requirements (request_id, criterion_id, value)
+            INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
             VALUES {string.Join(", ", valueClauses)}
-            RETURNING id, request_id, criterion_id, value, created_at";
+            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at";
 
         var createdRequirements = new List<RequestRequirementInfo>();
         using var reader = await cmd.ExecuteReaderAsync();

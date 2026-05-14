@@ -11,7 +11,7 @@ public interface IResourceCapabilityRepository
     Task<List<ResourceCapabilityInfo>> GetByResourceAsync(Guid resourceId);
     Task<List<ResourceCapabilityInfo>> GetByResourceGroupAsync(Guid resourceGroupId);
     Task<ResourceCapabilityInfo> UpsertAsync(Guid resourceId, Guid criterionId, JsonElement value);
-    Task<bool> DeleteAsync(Guid resourceId, Guid criterionId);
+    Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId);
 }
 
 public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -67,11 +67,23 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
 
         try
         {
-            // Phase 3: Validate criterion is applicable to resource's type
-            await using var checkCmd = new NpgsqlCommand(
-                "SELECT 1 FROM criterion_resource_types " +
-                "WHERE criterion_id = @criterionId AND resource_type_id = " +
-                "(SELECT resource_type_id FROM resources WHERE id = @resourceId)", db, tx);
+            // Validate criterion exists and is applicable to this resource's type.
+            // If no criterion_resource_types entries exist for the resource type, all criteria
+            // are considered applicable (open-world assumption for new resource types).
+            await using var checkCmd = new NpgsqlCommand(@"
+                SELECT 1
+                FROM resources r
+                WHERE r.id = @resourceId
+                  AND (
+                    EXISTS (
+                        SELECT 1 FROM criterion_resource_types
+                        WHERE criterion_id = @criterionId AND resource_type_id = r.resource_type_id
+                    )
+                    OR NOT EXISTS (
+                        SELECT 1 FROM criterion_resource_types
+                        WHERE resource_type_id = r.resource_type_id
+                    )
+                  )", db, tx);
             checkCmd.Parameters.AddWithValue("resourceId", resourceId);
             checkCmd.Parameters.AddWithValue("criterionId", criterionId);
 
@@ -93,19 +105,27 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
             cmd.Parameters.AddWithValue("criterionId", criterionId);
             cmd.Parameters.AddWithValue("value", valueJson);
 
-            await using var reader = await cmd.ExecuteReaderAsync();
-            await reader.ReadAsync();
+            Guid newId;
+            DateTime createdAt, updatedAt;
+
+            await using (var reader = await cmd.ExecuteReaderAsync())
+            {
+                await reader.ReadAsync();
+                newId = reader.GetGuid(reader.GetOrdinal("id"));
+                createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
+                updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
+            }
 
             await tx.CommitAsync();
 
             return new ResourceCapabilityInfo
             {
-                Id = reader.GetGuid(reader.GetOrdinal("id")),
+                Id = newId,
                 ResourceId = resourceId,
                 CriterionId = criterionId,
                 Value = value,
-                CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
-                UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at")),
+                CreatedAt = createdAt,
+                UpdatedAt = updatedAt,
             };
         }
         catch
@@ -115,15 +135,15 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
         }
     }
 
-    public async Task<bool> DeleteAsync(Guid resourceId, Guid criterionId)
+    public async Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            $"DELETE FROM {TableName} WHERE resource_id = @resourceId AND criterion_id = @criterionId", db);
+            $"DELETE FROM {TableName} WHERE resource_id = @resourceId AND id = @capabilityId", db);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("criterionId", criterionId);
+        cmd.Parameters.AddWithValue("capabilityId", capabilityId);
         return await cmd.ExecuteNonQueryAsync() > 0;
     }
 

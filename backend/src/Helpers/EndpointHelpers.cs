@@ -30,6 +30,8 @@ public static class EndpointHelpers
                 => ErrorResponses.Conflict(ioe.Message),
             KeyNotFoundException knf
                 => ErrorResponses.NotFound(knf.Message, Guid.Empty),
+            CapabilityNotApplicableException cna
+                => ErrorResponses.BadRequest(cna.Message),
             ArgumentException arg
                 => ErrorResponses.BadRequest(arg.Message),
             UnauthorizedAccessException

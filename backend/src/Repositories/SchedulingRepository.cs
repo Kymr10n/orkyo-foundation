@@ -10,6 +10,14 @@ public class SchedulingRepository : ISchedulingRepository
         "id, site_id, time_zone, working_hours_enabled, working_day_start, working_day_end, " +
         "weekends_enabled, public_holidays_enabled, public_holiday_region, created_at, updated_at";
 
+    // Qualified version for INSERT...ON CONFLICT...RETURNING to avoid ambiguity
+    // with EXCLUDED.* which PostgreSQL 16+ exposes in the RETURNING clause.
+    private const string SettingsSelectColumnsQualified =
+        "scheduling_settings.id, scheduling_settings.site_id, scheduling_settings.time_zone, " +
+        "scheduling_settings.working_hours_enabled, scheduling_settings.working_day_start, scheduling_settings.working_day_end, " +
+        "scheduling_settings.weekends_enabled, scheduling_settings.public_holidays_enabled, " +
+        "scheduling_settings.public_holiday_region, scheduling_settings.created_at, scheduling_settings.updated_at";
+
     private const string OffTimeSelectColumns =
         "id, site_id, title, type, applies_to_all_resources, start_ts, end_ts, " +
         "is_recurring, recurrence_rule, enabled, created_at, updated_at";
@@ -76,7 +84,11 @@ public class SchedulingRepository : ISchedulingRepository
                 weekends_enabled = @weekendsEnabled,
                 public_holidays_enabled = @publicHolidaysEnabled,
                 public_holiday_region = @publicHolidayRegion
-            RETURNING {SettingsSelectColumns}", conn);
+            RETURNING scheduling_settings.id, scheduling_settings.site_id, scheduling_settings.time_zone,
+                scheduling_settings.working_hours_enabled, scheduling_settings.working_day_start,
+                scheduling_settings.working_day_end, scheduling_settings.weekends_enabled,
+                scheduling_settings.public_holidays_enabled, scheduling_settings.public_holiday_region,
+                scheduling_settings.created_at, scheduling_settings.updated_at", conn);
 
         cmd.Parameters.AddWithValue("siteId", siteId);
         cmd.Parameters.AddWithValue("timeZone", request.TimeZone);
@@ -138,6 +150,31 @@ public class SchedulingRepository : ISchedulingRepository
         return offTimes;
     }
 
+    public async Task<List<OffTimeInfo>> GetOffTimesByResourceAsync(Guid resourceId, Guid siteId)
+    {
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(
+            $"SELECT DISTINCT {OffTimeSelectColumns} FROM off_times o " +
+            "JOIN off_time_resources otr ON otr.off_time_id = o.id " +
+            "WHERE o.site_id = @siteId AND otr.resource_id = @resourceId " +
+            "ORDER BY o.start_ts", conn);
+        cmd.Parameters.AddWithValue("siteId", siteId);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+
+        var offTimes = new List<OffTimeInfo>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            offTimes.Add(SchedulingMapper.MapOffTimeFromReader(reader));
+        reader.Close();
+
+        for (var i = 0; i < offTimes.Count; i++)
+            offTimes[i] = offTimes[i] with { ResourceIds = await LoadOffTimeResourceIds(conn, offTimes[i].Id) };
+
+        return offTimes;
+    }
+
     public async Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid siteId, Guid offTimeId)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
@@ -150,6 +187,26 @@ public class SchedulingRepository : ISchedulingRepository
         {
             offTime = offTime with { ResourceIds = await LoadOffTimeResourceIds(conn, offTime.Id) };
         }
+
+        return offTime;
+    }
+
+    public async Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid offTimeId)
+    {
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(
+            $"SELECT {OffTimeSelectColumns} FROM off_times WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", offTimeId);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return null;
+        var offTime = SchedulingMapper.MapOffTimeFromReader(reader);
+        reader.Close();
+
+        if (!offTime.AppliesToAllResources)
+            offTime = offTime with { ResourceIds = await LoadOffTimeResourceIds(conn, offTime.Id) };
 
         return offTime;
     }
