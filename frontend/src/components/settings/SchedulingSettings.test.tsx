@@ -56,7 +56,7 @@ vi.mock('./OffTimeDialog', () => ({
             enabled: true,
             isRecurring: false,
             appliesToAllSpaces: true,
-            spaceIds: [],
+            resourceIds: [],
           })
         }
       >
@@ -75,7 +75,7 @@ const mockOffTime = {
   enabled: true,
   isRecurring: false,
   appliesToAllSpaces: true,
-  spaceIds: [],
+  resourceIds: [],
 };
 
 function setup() {
@@ -168,7 +168,7 @@ describe('SchedulingSettings', () => {
 
   it('shows Disabled badge on disabled off-times', () => {
     mockUseOffTimes.mockReturnValue({
-      data: [{ ...mockOffTime, id: 'ot-3', title: 'Paused Event', type: 'custom', enabled: false, appliesToAllSpaces: false, spaceIds: ['s1', 's2'] }],
+      data: [{ ...mockOffTime, id: 'ot-3', title: 'Paused Event', type: 'custom', enabled: false, appliesToAllSpaces: false, resourceIds: ['s1', 's2'] }],
       isLoading: false,
     });
     render(<SchedulingSettings />);

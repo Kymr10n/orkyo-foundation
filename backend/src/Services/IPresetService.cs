@@ -16,5 +16,3 @@ public record PresetApplicationResult
     public string? Error { get; init; }
     public PresetApplicationStats Stats { get; init; } = new();
 }
-
-

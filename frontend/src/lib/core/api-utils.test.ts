@@ -61,9 +61,9 @@ describe('api-utils', () => {
 
     it('includes tenant slug when available', () => {
       vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('acme');
-      
+
       const headers = getApiHeaders();
-      
+
       expect(headers['X-Tenant-Slug']).toBe('acme');
     });
 
@@ -103,9 +103,9 @@ describe('api-utils', () => {
       (window as any).location = { hostname: 'acme.orkyo.app' };
       // Set baseDomain via runtimeConfig for testing
       (runtimeConfig as any).baseDomain = 'orkyo.app';
-      
+
       const slug = getTenantSlug();
-      
+
       expect(slug).toBe('acme');
     });
 
@@ -114,9 +114,9 @@ describe('api-utils', () => {
       delete (window as any).location;
       (window as any).location = { hostname: 'localhost' };
       (runtimeConfig as any).baseDomain = '';
-      
+
       const slug = getTenantSlug();
-      
+
       expect(slug).toBe('demo');
     });
 
@@ -125,9 +125,9 @@ describe('api-utils', () => {
       delete (window as any).location;
       (window as any).location = { hostname: 'orkyo.endpoint.servebeer.com' };
       (runtimeConfig as any).baseDomain = '';
-      
+
       const slug = getTenantSlug();
-      
+
       // Without baseDomain, uses auth store
       expect(slug).toBe('demo');
     });

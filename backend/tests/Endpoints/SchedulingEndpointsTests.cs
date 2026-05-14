@@ -207,7 +207,7 @@ public class SchedulingEndpointsTests
         Assert.NotNull(offTime);
         Assert.Equal(siteId, offTime.SiteId);
         Assert.Equal(OffTimeType.Holiday, offTime.Type);
-        Assert.True(offTime.AppliesToAllSpaces);
+        Assert.True(offTime.AppliesToAllResources);
         Assert.True(offTime.Enabled);
     }
 
@@ -346,7 +346,7 @@ public class SchedulingEndpointsTests
     public async Task CreateRequest_WithSchedulingAndOffTime_ExtendsEndTs()
     {
         var siteId = await GetOrCreateSiteId();
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
 
         // 1. Set up scheduling: 08:00-17:00 UTC, no weekends
         await _client.PutAsJsonAsync($"/api/sites/{siteId}/scheduling",
@@ -373,7 +373,7 @@ public class SchedulingEndpointsTests
         var requestPayload = new CreateRequestRequest
         {
             Name = $"Sched Integration {Guid.NewGuid():N}"[..30],
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = new DateTime(2027, 1, 5, 9, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2027, 1, 5, 13, 0, 0, DateTimeKind.Utc), // naive: 4h from 09:00
             MinimalDurationValue = 4,
@@ -396,12 +396,12 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task CreateRequest_WithSchedulingDisabled_UsesPlainEndTs()
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
 
         var requestPayload = new CreateRequestRequest
         {
             Name = $"NoSched {Guid.NewGuid():N}"[..30],
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = new DateTime(2027, 2, 1, 9, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2027, 2, 1, 13, 0, 0, DateTimeKind.Utc),
             MinimalDurationValue = 4,

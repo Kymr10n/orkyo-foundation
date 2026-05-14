@@ -395,7 +395,7 @@ describe("UtilizationPage", () => {
   // --- Request double-click handlers ---
 
   it("opens edit dialog on double-click when user can edit", async () => {
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", spaceId: "s1" }], isLoading: false });
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -407,7 +407,7 @@ describe("UtilizationPage", () => {
 
   it("opens details dialog on double-click for viewer", async () => {
     mockRole = "viewer";
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", spaceId: "s1" }], isLoading: false });
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -443,7 +443,7 @@ describe("UtilizationPage", () => {
 
   it("calls scheduleMutation on resize", () => {
     mockUseRequests.mockReturnValue({
-      data: [{ id: "r1", name: "Task 1", spaceId: "s1" }],
+      data: [{ id: "r1", name: "Task 1", resourceId: "s1" }],
       isLoading: false,
     });
     const Wrapper = createWrapper();
@@ -517,7 +517,7 @@ describe("UtilizationPage", () => {
 
   it("saves request from edit dialog", async () => {
     const { updateRequest } = await import("@foundation/src/lib/api/request-api");
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", spaceId: "s1" }], isLoading: false });
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -535,7 +535,7 @@ describe("UtilizationPage", () => {
   });
 
   it("closes edit dialog via close button", async () => {
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", spaceId: "s1" }], isLoading: false });
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -718,7 +718,7 @@ describe("UtilizationPage", () => {
 
     capturedOnDragEnd!({
       active: { id: "r1", data: { current: { id: "r1", name: "Task 1", durationMin: 60 } } },
-      over: { id: "grid-cell", data: { current: { spaceId: "s1", startTs: new Date("2024-01-20T09:00:00Z") } } },
+      over: { id: "grid-cell", data: { current: { resourceId: "s1", startTs: new Date("2024-01-20T09:00:00Z") } } },
     });
 
     await waitFor(() => {
@@ -738,7 +738,7 @@ describe("UtilizationPage", () => {
     expect(mockScheduleMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         requestId: "r1",
-        data: expect.objectContaining({ spaceId: null }),
+        data: expect.objectContaining({ resourceId: null }),
       }),
     );
   });
@@ -793,7 +793,7 @@ describe("UtilizationPage", () => {
           },
         },
       },
-      over: { id: "grid-cell", data: { current: { spaceId: "s2", startTs: new Date("2024-01-20T10:00:00Z") } } },
+      over: { id: "grid-cell", data: { current: { resourceId: "s2", startTs: new Date("2024-01-20T10:00:00Z") } } },
     });
 
     await waitFor(() => {
@@ -801,7 +801,7 @@ describe("UtilizationPage", () => {
         expect.objectContaining({
           requestId: "r1",
           data: expect.objectContaining({
-            spaceId: "s2",
+            resourceId: "s2",
             startTs: "2024-01-20T10:00:00.000Z",
             endTs: "2024-01-20T12:00:00.000Z",
           }),

@@ -7,7 +7,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should detect when end is before start', () => {
       const startTs = combineDateTimeToISO('2026-01-29', '14:00');
       const endTs = combineDateTimeToISO('2026-01-29', '12:00');
-      
+
       const isValid = new Date(startTs) < new Date(endTs);
       expect(isValid).toBe(false);
     });
@@ -15,7 +15,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should allow end after start', () => {
       const startTs = combineDateTimeToISO('2026-01-29', '12:00');
       const endTs = combineDateTimeToISO('2026-01-29', '14:00');
-      
+
       const isValid = new Date(startTs) < new Date(endTs);
       expect(isValid).toBe(true);
     });
@@ -23,7 +23,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should detect when end equals start', () => {
       const startTs = combineDateTimeToISO('2026-01-29', '12:00');
       const endTs = combineDateTimeToISO('2026-01-29', '12:00');
-      
+
       const isInvalid = new Date(startTs) >= new Date(endTs);
       expect(isInvalid).toBe(true);
     });
@@ -31,7 +31,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should handle multi-day events', () => {
       const startTs = combineDateTimeToISO('2026-01-29', '14:00');
       const endTs = combineDateTimeToISO('2026-01-30', '10:00');
-      
+
       const isValid = new Date(startTs) < new Date(endTs);
       expect(isValid).toBe(true);
     });
@@ -41,7 +41,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should detect when earliest is after latest', () => {
       const earliestStartTs = combineDateTimeToISO('2026-01-30', '09:00');
       const latestEndTs = combineDateTimeToISO('2026-01-29', '17:00');
-      
+
       const isInvalid = new Date(earliestStartTs) >= new Date(latestEndTs);
       expect(isInvalid).toBe(true);
     });
@@ -49,7 +49,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should allow earliest before latest', () => {
       const earliestStartTs = combineDateTimeToISO('2026-01-29', '09:00');
       const latestEndTs = combineDateTimeToISO('2026-01-30', '17:00');
-      
+
       const isValid = new Date(earliestStartTs) < new Date(latestEndTs);
       expect(isValid).toBe(true);
     });
@@ -57,7 +57,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should detect when start is before earliest constraint', () => {
       const earliestStartTs = combineDateTimeToISO('2026-01-29', '09:00');
       const startTs = combineDateTimeToISO('2026-01-29', '08:00');
-      
+
       const isInvalid = new Date(startTs) < new Date(earliestStartTs);
       expect(isInvalid).toBe(true);
     });
@@ -65,7 +65,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should detect when end is after latest constraint', () => {
       const latestEndTs = combineDateTimeToISO('2026-01-29', '17:00');
       const endTs = combineDateTimeToISO('2026-01-29', '18:00');
-      
+
       const isInvalid = new Date(endTs) > new Date(latestEndTs);
       expect(isInvalid).toBe(true);
     });
@@ -75,12 +75,12 @@ describe('RequestFormDialog - Validation Logic', () => {
       const startTs = combineDateTimeToISO('2026-01-29', '09:00');
       const endTs = combineDateTimeToISO('2026-01-29', '17:00');
       const latestEndTs = combineDateTimeToISO('2026-01-29', '18:00');
-      
-      const isValid = 
+
+      const isValid =
         new Date(startTs) >= new Date(earliestStartTs) &&
         new Date(endTs) <= new Date(latestEndTs) &&
         new Date(startTs) < new Date(endTs);
-      
+
       expect(isValid).toBe(true);
     });
   });
@@ -117,13 +117,13 @@ describe('RequestFormDialog - Validation Logic', () => {
       const hasEndOnly = { startDate: '', startTime: '', endDate: '2026-01-29', endTime: '17:00' };
       const hasBoth = { startDate: '2026-01-29', startTime: '09:00', endDate: '2026-01-29', endTime: '17:00' };
       const hasNeither = { startDate: '', startTime: '', endDate: '', endTime: '' };
-      
+
       const validatePair = (data: typeof hasStartOnly) => {
         const hasStart = !!(data.startDate && data.startTime);
         const hasEnd = !!(data.endDate && data.endTime);
         return (hasStart && hasEnd) || (!hasStart && !hasEnd);
       };
-      
+
       expect(validatePair(hasStartOnly)).toBe(false);
       expect(validatePair(hasEndOnly)).toBe(false);
       expect(validatePair(hasBoth)).toBe(true);
@@ -134,7 +134,7 @@ describe('RequestFormDialog - Validation Logic', () => {
       const emptyName = '';
       const whitespaceName = '   ';
       const validName = 'My Request';
-      
+
       expect(emptyName.trim()).toBe('');
       expect(whitespaceName.trim()).toBe('');
       expect(validName.trim()).toBe('My Request');
@@ -157,7 +157,7 @@ describe('RequestFormDialog - Validation Logic', () => {
     it('should handle year boundaries', () => {
       const newYearsEve = combineDateTimeToISO('2025-12-31', '23:59');
       const newYearsDay = combineDateTimeToISO('2026-01-01', '00:01');
-      
+
       expect(new Date(newYearsEve) < new Date(newYearsDay)).toBe(true);
     });
   });

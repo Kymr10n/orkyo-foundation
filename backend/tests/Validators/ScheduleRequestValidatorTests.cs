@@ -15,7 +15,7 @@ public class ScheduleRequestValidatorTests
         var now = DateTime.UtcNow;
         var request = new ScheduleRequestRequest
         {
-            SpaceId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
             StartTs = now,
             EndTs = now.AddHours(2)
         };
@@ -28,7 +28,7 @@ public class ScheduleRequestValidatorTests
     {
         var request = new ScheduleRequestRequest
         {
-            SpaceId = null,
+            ResourceId = null,
             StartTs = null,
             EndTs = null
         };
@@ -42,7 +42,7 @@ public class ScheduleRequestValidatorTests
         var now = DateTime.UtcNow;
         var request = new ScheduleRequestRequest
         {
-            SpaceId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
             StartTs = now,
             EndTs = now.AddHours(-1)
         };
@@ -52,26 +52,26 @@ public class ScheduleRequestValidatorTests
     }
 
     [Fact]
-    public void Schedule_SpaceIdOnly_Fails()
+    public void Schedule_ResourceIdOnly_Fails()
     {
         var request = new ScheduleRequestRequest
         {
-            SpaceId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
             StartTs = null,
             EndTs = null
         };
         var result = _validator.Validate(request);
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("To schedule, provide spaceId, startTs, and endTs"));
+        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("To schedule, provide resourceId, startTs, and endTs"));
     }
 
     [Fact]
-    public void Schedule_MissingSpaceId_Fails()
+    public void Schedule_MissingResourceId_Fails()
     {
         var now = DateTime.UtcNow;
         var request = new ScheduleRequestRequest
         {
-            SpaceId = null,
+            ResourceId = null,
             StartTs = now,
             EndTs = now.AddHours(2)
         };
@@ -84,7 +84,7 @@ public class ScheduleRequestValidatorTests
     {
         var request = new ScheduleRequestRequest
         {
-            SpaceId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
             StartTs = DateTime.UtcNow,
             EndTs = null
         };
@@ -97,7 +97,7 @@ public class ScheduleRequestValidatorTests
     {
         var request = new ScheduleRequestRequest
         {
-            SpaceId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
             StartTs = null,
             EndTs = DateTime.UtcNow.AddHours(2)
         };
@@ -111,7 +111,7 @@ public class ScheduleRequestValidatorTests
         var now = DateTime.UtcNow;
         var request = new ScheduleRequestRequest
         {
-            SpaceId = null,
+            ResourceId = null,
             StartTs = now,
             EndTs = now.AddHours(2)
         };

@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using Api.Endpoints;
 using Api.Models;
 using Xunit;
 
@@ -118,5 +120,181 @@ public class ResourceEndpointTests
         Assert.True(
             response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
             $"Expected 401/403, got {response.StatusCode}");
+    }
+
+    // ── Capabilities ──────────────────────────────────────────────────────────
+
+    private async Task<CriterionInfo> GetSeedCriterionAsync(string name)
+    {
+        var response = await _client.GetAsync("/api/criteria");
+        response.EnsureSuccessStatusCode();
+        var criteria = await response.Content.ReadFromJsonAsync<List<CriterionInfo>>();
+        return criteria!.First(c => c.Name == name);
+    }
+
+    [Fact]
+    public async Task GetResourceCapabilities_ReturnsEmptyList_WhenNoCapabilities()
+    {
+        // Arrange
+        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+
+        // Act
+        var response = await _client.GetAsync($"/api/resources/{resource.Id}/capabilities");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var capabilities = await response.Content.ReadFromJsonAsync<List<ResourceCapabilityInfo>>();
+        Assert.NotNull(capabilities);
+        Assert.Empty(capabilities);
+    }
+
+    [Fact]
+    public async Task GetResourceCapabilities_Returns404_WhenResourceNotFound()
+    {
+        // Arrange
+        var nonExistentResourceId = Guid.NewGuid();
+
+        // Act
+        var response = await _client.GetAsync($"/api/resources/{nonExistentResourceId}/capabilities");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddResourceCapability_CreatesCapability_WithValidData()
+    {
+        // Arrange
+        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var criterion = await GetSeedCriterionAsync("seed_number");
+
+        var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(100.5));
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resources/{resource.Id}/capabilities",
+            request);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var capability = await response.Content.ReadFromJsonAsync<ResourceCapabilityInfo>();
+        Assert.NotNull(capability);
+        Assert.Equal(resource.Id, capability.ResourceId);
+        Assert.Equal(criterion.Id, capability.CriterionId);
+        Assert.Equal(100.5, capability.Value.GetDouble());
+    }
+
+    [Fact]
+    public async Task AddResourceCapability_Returns404_WhenResourceNotFound()
+    {
+        // Arrange
+        var nonExistentResourceId = Guid.NewGuid();
+        var criterion = await GetSeedCriterionAsync("seed_boolean");
+
+        var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true));
+
+        // Act
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resources/{nonExistentResourceId}/capabilities",
+            request);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteResourceCapability_RemovesCapability_WhenExists()
+    {
+        // Arrange
+        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var criterion = await GetSeedCriterionAsync("seed_string");
+
+        // Create capability first
+        var createRequest = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement("test-value"));
+        var createResponse = await _client.PostAsJsonAsync(
+            $"/api/resources/{resource.Id}/capabilities",
+            createRequest);
+        var created = await createResponse.Content.ReadFromJsonAsync<ResourceCapabilityInfo>();
+        Assert.NotNull(created);
+
+        // Act
+        var response = await _client.DeleteAsync(
+            $"/api/resources/{resource.Id}/capabilities/{created.Id}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Verify it's gone
+        var getResponse = await _client.GetAsync($"/api/resources/{resource.Id}/capabilities");
+        var capabilities = await getResponse.Content.ReadFromJsonAsync<List<ResourceCapabilityInfo>>();
+        Assert.NotNull(capabilities);
+        Assert.Empty(capabilities);
+    }
+
+    [Fact]
+    public async Task DeleteResourceCapability_Returns404_WhenCapabilityNotFound()
+    {
+        // Arrange
+        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var nonExistentCapabilityId = Guid.NewGuid();
+
+        // Act
+        var response = await _client.DeleteAsync(
+            $"/api/resources/{resource.Id}/capabilities/{nonExistentCapabilityId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddResourceCapability_ThenGetReturnsIt()
+    {
+        // Arrange
+        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var criterion = await GetSeedCriterionAsync("seed_number");
+
+        var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(42.5));
+        await _client.PostAsJsonAsync(
+            $"/api/resources/{resource.Id}/capabilities",
+            request);
+
+        // Act
+        var response = await _client.GetAsync($"/api/resources/{resource.Id}/capabilities");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var capabilities = await response.Content.ReadFromJsonAsync<List<ResourceCapabilityInfo>>();
+        Assert.NotNull(capabilities);
+        Assert.Single(capabilities);
+        var capability = capabilities[0];
+        Assert.Equal(criterion.Id, capability.CriterionId);
+        Assert.Equal(42.5, capability.Value.GetDouble());
+    }
+
+    [Fact]
+    public async Task GetResourceCapabilities_ReturnsCapabilitiesWithCriterionDetails()
+    {
+        // Arrange
+        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var criterion = await GetSeedCriterionAsync("seed_number");
+
+        var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(100.5));
+        await _client.PostAsJsonAsync(
+            $"/api/resources/{resource.Id}/capabilities",
+            request);
+
+        // Act
+        var response = await _client.GetAsync($"/api/resources/{resource.Id}/capabilities");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var capabilities = await response.Content.ReadFromJsonAsync<List<ResourceCapabilityInfo>>();
+        Assert.NotNull(capabilities);
+        Assert.Single(capabilities);
+
+        var capability = capabilities[0];
+        Assert.NotNull(capability.Criterion);
+        Assert.Equal(criterion.Name, capability.Criterion.Name);
+        Assert.Equal(CriterionDataType.Number, capability.Criterion.DataType);
     }
 }

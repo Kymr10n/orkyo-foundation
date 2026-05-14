@@ -30,14 +30,14 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         await conn.OpenAsync();
 
         // Verify group exists
-        if (!await DbQueryHelper.ExistsAsync(conn, "space_groups", groupId))
+        if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
             throw new InvalidOperationException("Group not found");
 
         // Get capabilities with criterion details
         await using var cmd = new NpgsqlCommand(@"
             SELECT
                 gc.id,
-                gc.group_id,
+                gc.resource_group_id,
                 gc.criterion_id,
                 gc.value,
                 gc.created_at,
@@ -45,9 +45,9 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
                 c.name as criterion_name,
                 c.data_type as criterion_type,
                 c.unit as criterion_unit
-            FROM group_capabilities gc
+            FROM resource_group_capabilities gc
             JOIN criteria c ON gc.criterion_id = c.id
-            WHERE gc.group_id = @groupId
+            WHERE gc.resource_group_id = @groupId
             ORDER BY c.name",
             conn);
         cmd.Parameters.AddWithValue("groupId", groupId);
@@ -69,7 +69,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         await conn.OpenAsync();
 
         // Verify group and criterion exist
-        if (!await DbQueryHelper.ExistsAsync(conn, "space_groups", groupId))
+        if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
             throw new InvalidOperationException("Group not found");
 
         if (!await DbQueryHelper.ExistsAsync(conn, "criteria", criterionId))
@@ -77,9 +77,9 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
         // Insert capability
         await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO group_capabilities (group_id, criterion_id, value)
+            INSERT INTO resource_group_capabilities (resource_group_id, criterion_id, value)
             VALUES (@groupId, @criterionId, @value::jsonb)
-            RETURNING id, group_id, criterion_id, value, created_at, updated_at",
+            RETURNING id, resource_group_id, criterion_id, value, created_at, updated_at",
             conn);
         cmd.Parameters.AddWithValue("groupId", groupId);
         cmd.Parameters.AddWithValue("criterionId", criterionId);
@@ -107,12 +107,12 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         await conn.OpenAsync();
 
         // Verify group exists
-        if (!await DbQueryHelper.ExistsAsync(conn, "space_groups", groupId))
+        if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
             throw new InvalidOperationException("Group not found");
 
         // Delete capability
         await using var cmd = new NpgsqlCommand(
-            "DELETE FROM group_capabilities WHERE id = @id AND group_id = @groupId",
+            "DELETE FROM resource_group_capabilities WHERE id = @id AND resource_group_id = @groupId",
             conn);
         cmd.Parameters.AddWithValue("id", capabilityId);
         cmd.Parameters.AddWithValue("groupId", groupId);
@@ -136,7 +136,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
             {
                 Id = reader.GetGuid(2),
                 Name = reader.GetString(6),
-                DataType = reader.GetString(7),
+                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString(7)),
                 Unit = reader.IsDBNull(8) ? null : reader.GetString(8)
             };
         }

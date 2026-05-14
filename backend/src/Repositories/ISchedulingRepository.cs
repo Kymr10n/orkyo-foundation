@@ -10,7 +10,7 @@ public interface ISchedulingRepository
     Task<bool> DeleteSettingsAsync(Guid siteId);
 
     // ── Helpers ──────────────────────────────────────────────────────
-    Task<Guid?> GetSiteIdForSpaceAsync(Guid spaceId);
+    Task<Guid?> GetSiteIdForResourceAsync(Guid resourceId);
 
     // ── Off-Times ───────────────────────────────────────────────────
     Task<List<OffTimeInfo>> GetOffTimesAsync(Guid siteId);

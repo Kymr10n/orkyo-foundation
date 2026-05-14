@@ -11,7 +11,7 @@ public static class GroupCapabilityEndpoints
 {
     public static void MapGroupCapabilityEndpoints(this WebApplication app)
     {
-        var capabilities = app.MapGroup("/api/groups/{groupId:guid}/capabilities")
+        var capabilities = app.MapGroup("/api/resource-groups/{groupId:guid}/capabilities")
             .WithTags("Group Capabilities")
             .RequireAuthorization()
             .RequireTenantMembership();
@@ -32,11 +32,11 @@ public static class GroupCapabilityEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var capability = await groupCapabilityRepository.CreateAsync(groupId, request.CriterionId, request.Value);
-                return Results.Created($"/api/groups/{groupId}/capabilities/{capability.Id}", capability);
+                return Results.Created($"/api/resource-groups/{groupId}/capabilities/{capability.Id}", capability);
             }, logger, "add group capability", new { groupId, criterionId = request.CriterionId });
         })
         .WithName("AddGroupCapability")
-        .WithSummary("Add a capability to a space group");
+        .WithSummary("Add a capability to a resource group");
 
         capabilities.MapDelete("/{capabilityId:guid}", async (Guid groupId, Guid capabilityId, IGroupCapabilityRepository groupCapabilityRepository, ILogger<EndpointLoggerCategory> logger) =>
         {

@@ -125,7 +125,7 @@ export function CriteriaSettings() {
                       <span className="text-xs text-muted-foreground">({criterion.unit})</span>
                     )}
                   </div>
-                  
+
                   {criterion.description && (
                     <p className="text-sm text-muted-foreground mb-2">
                       {criterion.description}

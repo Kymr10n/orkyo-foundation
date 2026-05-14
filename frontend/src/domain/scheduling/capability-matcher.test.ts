@@ -11,7 +11,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     name: 'Test Request',
     description: '',
     status: 'pending',
-    spaceId: null,
+    resourceId: null,
     startTs: null,
     endTs: null,
     minimalDurationValue: 1,
@@ -26,7 +26,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
 function makeCap(criterionId: string, value: unknown, dataType: string, name = 'Cap'): SpaceCapability {
   return {
     id: `cap-${criterionId}`,
-    spaceId: 'space-1',
+    resourceId: 'space-1',
     criterionId,
     value,
     createdAt: '2024-01-01T00:00:00Z',

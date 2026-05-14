@@ -30,7 +30,7 @@ export interface OffTimeDefinition {
   title: string;
   type: OffTimeType;
   appliesToAllSpaces: boolean;
-  spaceIds: string[];
+  resourceIds: string[];
   /** Epoch ms, inclusive. */
   startMs: number;
   /** Epoch ms, exclusive. */
@@ -50,7 +50,7 @@ export interface OffTimeRange {
   endMs: number;
   title: string;
   /** Null means applies to all spaces. */
-  spaceIds: string[] | null;
+  resourceIds: string[] | null;
 }
 
 /** Compiled calendar for a site — the single immutable object passed to all calculations. */

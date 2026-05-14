@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -101,5 +103,45 @@ public static class ResourceEndpoints
             }, logger, "get resource assignments", new { id }))
             .WithName("GetResourceAssignments")
             .WithSummary("Get assignments for a resource");
+
+        // ── Capabilities ──────────────────────────────────────────────
+
+        group.MapGet("/{id:guid}/capabilities", async (
+            Guid id,
+            IResourceCapabilityRepository repository,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+                Results.Ok(await repository.GetByResourceAsync(id)),
+            logger, "get resource capabilities", new { id }))
+            .WithName("GetResourceCapabilities")
+            .WithSummary("Get all capabilities for a resource");
+
+        group.MapPost("/{id:guid}/capabilities", async (
+            Guid id,
+            AddResourceCapabilityRequest request,
+            IResourceCapabilityRepository repository,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value);
+                return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);
+            }, logger, "add resource capability", new { id, criterionId = request.CriterionId }))
+            .WithName("AddResourceCapability")
+            .WithSummary("Add or update a capability for a resource");
+
+        group.MapDelete("/{id:guid}/capabilities/{capabilityId:guid}", async (
+            Guid id,
+            Guid capabilityId,
+            IResourceCapabilityRepository repository,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                var deleted = await repository.DeleteAsync(id, capabilityId);
+                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Capability", capabilityId);
+            }, logger, "delete resource capability", new { id, capabilityId }))
+            .WithName("DeleteResourceCapability")
+            .WithSummary("Remove a capability from a resource");
     }
 }
+
+public record AddResourceCapabilityRequest(Guid CriterionId, JsonElement Value);

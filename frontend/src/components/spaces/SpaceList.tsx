@@ -6,22 +6,22 @@ import { Square, Pentagon, Edit, Trash2, Settings } from 'lucide-react';
 
 interface SpaceListProps {
   spaces: Space[];
-  selectedSpaceId?: string | null;
-  onSpaceSelect: (spaceId: string) => void;
+  selectedResourceId?: string | null;
+  onSpaceSelect: (resourceId: string) => void;
   onSpaceEdit?: (space: Space) => void;
-  onSpaceDelete?: (spaceId: string) => void;
+  onSpaceDelete?: (resourceId: string) => void;
   onCapabilitiesEdit?: (space: Space) => void;
   isLoading?: boolean;
 }
 
-export function SpaceList({ 
-  spaces, 
-  selectedSpaceId, 
-  onSpaceSelect, 
+export function SpaceList({
+  spaces,
+  selectedResourceId,
+  onSpaceSelect,
   onSpaceEdit,
   onSpaceDelete,
   onCapabilitiesEdit,
-  isLoading 
+  isLoading
 }: SpaceListProps) {
   if (isLoading) {
     return (
@@ -46,7 +46,7 @@ export function SpaceList({
     <ScrollArea className="h-full">
       <div className="space-y-2 p-4">
         {spaces.map((space) => {
-          const isSelected = selectedSpaceId === space.id;
+          const isSelected = selectedResourceId === space.id;
           const geometryIcon = space.geometry?.type === 'rectangle' ? Square : Pentagon;
           const GeometryIcon = geometryIcon;
 

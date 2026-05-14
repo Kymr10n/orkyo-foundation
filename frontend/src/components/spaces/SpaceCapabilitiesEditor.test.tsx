@@ -21,7 +21,7 @@ const mockCriteria: Criterion[] = [
 
 const mockExistingCaps = [
   {
-    id: "cap-1", spaceId: "space-1", criterionId: "c1", value: true,
+    id: "cap-1", resourceId: "space-1", criterionId: "c1", value: true,
     createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z",
     criterion: { id: "c1", name: "HasProjector", dataType: "Boolean" },
   },
@@ -32,7 +32,7 @@ describe("SpaceCapabilitiesEditor", () => {
     open: true,
     onOpenChange: vi.fn(),
     siteId: "site-1",
-    spaceId: "space-1",
+    resourceId: "space-1",
     spaceName: "Room 101",
   };
 
@@ -41,7 +41,7 @@ describe("SpaceCapabilitiesEditor", () => {
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue(mockCriteria);
     vi.mocked(spaceCapApi.getSpaceCapabilities).mockResolvedValue(mockExistingCaps);
     vi.mocked(spaceCapApi.addSpaceCapability).mockResolvedValue({
-      id: "cap-new", spaceId: "space-1", criterionId: "c2", value: 0,
+      id: "cap-new", resourceId: "space-1", criterionId: "c2", value: 0,
       createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z",
       criterion: { id: "c2", name: "Capacity", dataType: "Number" },
     });

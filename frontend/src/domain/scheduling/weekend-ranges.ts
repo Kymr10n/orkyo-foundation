@@ -22,7 +22,7 @@ export function generateWeekendRanges(
         startMs: Math.max(dayStart, windowStartMs),
         endMs: Math.min(dayEnd, windowEndMs),
         title: "Weekend",
-        spaceIds: null, // applies to all spaces
+        resourceIds: null, // applies to all spaces
       });
     }
     cursor = addDays(cursor, 1);

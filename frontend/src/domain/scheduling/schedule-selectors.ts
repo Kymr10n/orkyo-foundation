@@ -20,8 +20,8 @@ import { hasConflicts } from "./schedule-validator";
 // ---------------------------------------------------------------------------
 
 /** How many rows tall should a space row be? (count of max simultaneous overlaps) */
-export function selectSpaceOverlapCount(index: ScheduleIndex, spaceId: string): number {
-  return getMaxOverlapInSpace(index, spaceId);
+export function selectSpaceOverlapCount(index: ScheduleIndex, resourceId: string): number {
+  return getMaxOverlapInSpace(index, resourceId);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,4 +106,3 @@ export function isOutsideView(
 ): boolean {
   return entry.endMs <= viewStartMs || entry.startMs >= viewEndMs;
 }
-

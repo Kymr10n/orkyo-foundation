@@ -35,13 +35,13 @@ public static class SpaceEndpoints
         .WithName("GetSpaces")
         .WithSummary("Get all spaces for a site");
 
-        spaces.MapGet("/{spaceId:guid}", async (Guid siteId, Guid spaceId, ISpaceService spaceService, ILogger<EndpointLoggerCategory> logger) =>
+        spaces.MapGet("/{resourceId:guid}", async (Guid siteId, Guid resourceId, ISpaceService spaceService, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var space = await spaceService.GetByIdAsync(siteId, spaceId);
-                return space == null ? ErrorResponses.NotFound("Space", spaceId) : Results.Ok(space);
-            }, logger, "get space", new { siteId, spaceId });
+                var space = await spaceService.GetByIdAsync(siteId, resourceId);
+                return space == null ? ErrorResponses.NotFound("Space", resourceId) : Results.Ok(space);
+            }, logger, "get space", new { siteId, resourceId });
         })
         .WithName("GetSpaceById")
         .WithSummary("Get a specific space by ID");
@@ -51,35 +51,35 @@ public static class SpaceEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var space = await spaceService.CreateAsync(siteId, request.Name, request.Code, request.Description, request.IsPhysical, request.Geometry, request.Properties, request.Capacity);
-                logger.LogInformation("Created space {SpaceId} for site {SiteId}", space.Id, siteId);
+                logger.LogInformation("Created space {ResourceId} for site {SiteId}", space.Id, siteId);
                 return Results.Created($"/sites/{siteId}/spaces/{space.Id}", space);
             }, logger, "create space", new { siteId });
         })
         .WithName("CreateSpace")
         .WithSummary("Create a new space");
 
-        spaces.MapPut("/{spaceId:guid}", async (Guid siteId, Guid spaceId, [FromBody] UpdateSpaceRequest request, ISpaceService spaceService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSpaceRequest> validator) =>
+        spaces.MapPut("/{resourceId:guid}", async (Guid siteId, Guid resourceId, [FromBody] UpdateSpaceRequest request, ISpaceService spaceService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSpaceRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var space = await spaceService.UpdateAsync(siteId, spaceId, request.Name, request.Code, request.Description, request.Geometry, request.Properties, request.GroupId, request.Capacity);
-                if (space == null) return ErrorResponses.NotFound("Space", spaceId);
-                logger.LogInformation("Updated space {SpaceId} for site {SiteId}", spaceId, siteId);
+                var space = await spaceService.UpdateAsync(siteId, resourceId, request.Name, request.Code, request.Description, request.Geometry, request.Properties, request.GroupId, request.Capacity);
+                if (space == null) return ErrorResponses.NotFound("Space", resourceId);
+                logger.LogInformation("Updated space {ResourceId} for site {SiteId}", resourceId, siteId);
                 return Results.Ok(space);
-            }, logger, "update space", new { siteId, spaceId });
+            }, logger, "update space", new { siteId, resourceId });
         })
         .WithName("UpdateSpace")
         .WithSummary("Update an existing space");
 
-        spaces.MapDelete("/{spaceId:guid}", async (Guid siteId, Guid spaceId, ISpaceService spaceService, ILogger<EndpointLoggerCategory> logger) =>
+        spaces.MapDelete("/{resourceId:guid}", async (Guid siteId, Guid resourceId, ISpaceService spaceService, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await spaceService.DeleteAsync(siteId, spaceId);
-                if (!deleted) return ErrorResponses.NotFound("Space", spaceId);
-                logger.LogInformation("Deleted space {SpaceId} from site {SiteId}", spaceId, siteId);
+                var deleted = await spaceService.DeleteAsync(siteId, resourceId);
+                if (!deleted) return ErrorResponses.NotFound("Space", resourceId);
+                logger.LogInformation("Deleted space {ResourceId} from site {SiteId}", resourceId, siteId);
                 return Results.NoContent();
-            }, logger, "delete space", new { siteId, spaceId });
+            }, logger, "delete space", new { siteId, resourceId });
         })
         .WithName("DeleteSpace")
         .WithSummary("Delete a space");

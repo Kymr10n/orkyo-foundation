@@ -39,14 +39,14 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
                 foreach (var start in candidate.FeasibleStartDays.OrderBy(x => x.DayNumber))
                 {
                     var end = start.AddDays(candidate.DurationDays - 1);
-                    if (Conflicts(occupied, candidate.SpaceId, start, end))
+                    if (Conflicts(occupied, candidate.ResourceId, start, end))
                         continue;
 
-                    Reserve(occupied, candidate.SpaceId, start, end);
+                    Reserve(occupied, candidate.ResourceId, start, end);
 
                     assignments.Add(new ScheduledPlacement(
                         candidate.RequestId,
-                        candidate.SpaceId,
+                        candidate.ResourceId,
                         start, end,
                         candidate.DurationDays,
                         candidate.Priority));
@@ -89,28 +89,28 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
     private static Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> BuildOccupiedMap(
         IReadOnlyList<FixedOccupancy> fixedAssignments)
         => fixedAssignments
-            .GroupBy(x => x.SpaceId)
+            .GroupBy(x => x.ResourceId)
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(x => (x.Start, x.End)).ToList());
 
     private static bool Conflicts(
         Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> occupied,
-        Guid spaceId, DateOnly start, DateOnly end)
+        Guid resourceId, DateOnly start, DateOnly end)
     {
-        if (!occupied.TryGetValue(spaceId, out var ranges))
+        if (!occupied.TryGetValue(resourceId, out var ranges))
             return false;
         return ranges.Any(x => !(end < x.Start || start > x.End));
     }
 
     private static void Reserve(
         Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> occupied,
-        Guid spaceId, DateOnly start, DateOnly end)
+        Guid resourceId, DateOnly start, DateOnly end)
     {
-        if (!occupied.TryGetValue(spaceId, out var ranges))
+        if (!occupied.TryGetValue(resourceId, out var ranges))
         {
             ranges = [];
-            occupied[spaceId] = ranges;
+            occupied[resourceId] = ranges;
         }
         ranges.Add((start, end));
     }

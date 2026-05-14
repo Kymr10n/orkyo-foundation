@@ -79,7 +79,7 @@ describe('OrganizationSettings', () => {
     });
     vi.mocked(tenantApi.transferTenantOwnership).mockResolvedValue({ transferred: true });
     vi.mocked(tenantsApi.deleteTenant).mockResolvedValue(undefined);
-    
+
     // Reset mock auth to default owner state
     mockAuth = {
       membership: {
@@ -96,7 +96,7 @@ describe('OrganizationSettings', () => {
   describe('Owner view', () => {
     it('renders organization details card', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText('Organization Details')).toBeInTheDocument();
       });
@@ -104,7 +104,7 @@ describe('OrganizationSettings', () => {
 
     it('displays current organization name in input', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         const input = screen.getByDisplayValue('My Organization');
         expect(input).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe('OrganizationSettings', () => {
     it('enables save button when name is changed', async () => {
       const user = userEvent.setup();
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByDisplayValue('My Organization')).toBeInTheDocument();
       });
@@ -122,7 +122,7 @@ describe('OrganizationSettings', () => {
       const input = screen.getByDisplayValue('My Organization');
       await user.clear(input);
       await user.type(input, 'New Org Name');
-      
+
       const saveButton = screen.getByRole('button', { name: /save/i });
       expect(saveButton).not.toBeDisabled();
     });
@@ -130,7 +130,7 @@ describe('OrganizationSettings', () => {
     it('saves organization name when save button is clicked', async () => {
       const user = userEvent.setup();
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByDisplayValue('My Organization')).toBeInTheDocument();
       });
@@ -138,10 +138,10 @@ describe('OrganizationSettings', () => {
       const input = screen.getByDisplayValue('My Organization');
       await user.clear(input);
       await user.type(input, 'New Name');
-      
+
       const saveButton = screen.getByRole('button', { name: /save/i });
       await user.click(saveButton);
-      
+
       await waitFor(() => {
         expect(tenantApi.updateTenant).toHaveBeenCalledWith('tenant-123', {
           displayName: 'New Name',
@@ -152,7 +152,7 @@ describe('OrganizationSettings', () => {
     it('shows success message after saving name', async () => {
       const user = userEvent.setup();
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByDisplayValue('My Organization')).toBeInTheDocument();
       });
@@ -160,10 +160,10 @@ describe('OrganizationSettings', () => {
       const input = screen.getByDisplayValue('My Organization');
       await user.clear(input);
       await user.type(input, 'New Name');
-      
+
       const saveButton = screen.getByRole('button', { name: /save/i });
       await user.click(saveButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText(/updated successfully/i)).toBeInTheDocument();
       });
@@ -173,7 +173,7 @@ describe('OrganizationSettings', () => {
       vi.mocked(tenantApi.updateTenant).mockRejectedValue(new Error('Network error'));
       const user = userEvent.setup();
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByDisplayValue('My Organization')).toBeInTheDocument();
       });
@@ -181,10 +181,10 @@ describe('OrganizationSettings', () => {
       const input = screen.getByDisplayValue('My Organization');
       await user.clear(input);
       await user.type(input, 'New Name');
-      
+
       const saveButton = screen.getByRole('button', { name: /save/i });
       await user.click(saveButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText(/Network error/)).toBeInTheDocument();
       });
@@ -194,7 +194,7 @@ describe('OrganizationSettings', () => {
   describe('Transfer ownership', () => {
     it('loads list of admin users', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(userApi.getUsers).toHaveBeenCalled();
       });
@@ -202,11 +202,11 @@ describe('OrganizationSettings', () => {
 
     it('displays transfer ownership section', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText('Organization Details')).toBeInTheDocument();
       });
-      
+
       // Transfer Ownership is a card title
       expect(screen.getByRole('heading', { name: /transfer ownership/i })).toBeInTheDocument();
     });
@@ -239,7 +239,7 @@ describe('OrganizationSettings', () => {
   describe('Delete organization', () => {
     it('displays danger zone section', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText(/Danger Zone/)).toBeInTheDocument();
       });
@@ -247,7 +247,7 @@ describe('OrganizationSettings', () => {
 
     it('shows delete organization button', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /delete organization/i })).toBeInTheDocument();
       });
@@ -270,7 +270,7 @@ describe('OrganizationSettings', () => {
 
     it('shows read-only view for non-owners', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText(/can only be modified by the owner/)).toBeInTheDocument();
       });
@@ -278,18 +278,18 @@ describe('OrganizationSettings', () => {
 
     it('displays organization name as text (not input)', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText('My Organization')).toBeInTheDocument();
       });
-      
+
       // Should not find any input with this value since it's read-only
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     });
 
     it('displays organization slug', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText('my-org')).toBeInTheDocument();
       });
@@ -297,11 +297,11 @@ describe('OrganizationSettings', () => {
 
     it('does not show transfer or delete options', async () => {
       renderOrganizationSettings();
-      
+
       await waitFor(() => {
         expect(screen.getByText(/can only be modified by the owner/)).toBeInTheDocument();
       });
-      
+
       expect(screen.queryByText(/Transfer Ownership/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Danger Zone/)).not.toBeInTheDocument();
     });
@@ -311,9 +311,9 @@ describe('OrganizationSettings', () => {
     it('shows loading spinner initially', () => {
       // Make getUsers hang to keep loading state
       vi.mocked(userApi.getUsers).mockImplementation(() => new Promise(() => {}));
-      
+
       renderOrganizationSettings();
-      
+
       // The component should show loading state
       expect(document.querySelector('.animate-spin')).toBeInTheDocument();
     });

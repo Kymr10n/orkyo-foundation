@@ -34,7 +34,7 @@ interface SpaceCapabilitiesEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   siteId: string;
-  spaceId: string;
+  resourceId: string;
   spaceName: string;
 }
 
@@ -42,7 +42,7 @@ export function SpaceCapabilitiesEditor({
   open,
   onOpenChange,
   siteId,
-  spaceId,
+  resourceId,
   spaceName,
 }: SpaceCapabilitiesEditorProps) {
   const [capabilities, setCapabilities] = useState(new Map());
@@ -61,7 +61,7 @@ export function SpaceCapabilitiesEditor({
       setError(null);
       try {
         const [capsData, criteriaData] = await Promise.all([
-          getSpaceCapabilities(siteId, spaceId),
+          getSpaceCapabilities(siteId, resourceId),
           getCriteria(),
         ]);
 
@@ -83,7 +83,7 @@ export function SpaceCapabilitiesEditor({
     };
 
     loadData();
-  }, [open, siteId, spaceId]);
+  }, [open, siteId, resourceId]);
 
   const handleAddCapability = () => {
     if (!selectedCriterionId) return;
@@ -123,7 +123,7 @@ export function SpaceCapabilitiesEditor({
 
     try {
       // Get existing capabilities
-      const existingCaps = await getSpaceCapabilities(siteId, spaceId);
+      const existingCaps = await getSpaceCapabilities(siteId, resourceId);
       const existingMap = new Map(
         existingCaps.map((cap) => [cap.criterionId, cap.id])
       );
@@ -148,9 +148,9 @@ export function SpaceCapabilitiesEditor({
 
       // Execute changes
       await Promise.all([
-        ...toAdd.map((cap) => addSpaceCapability(siteId, spaceId, cap)),
+        ...toAdd.map((cap) => addSpaceCapability(siteId, resourceId, cap)),
         ...toDelete.map((capId) =>
-          deleteSpaceCapability(siteId, spaceId, capId)
+          deleteSpaceCapability(siteId, resourceId, capId)
         ),
       ]);
 

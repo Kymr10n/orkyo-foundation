@@ -74,6 +74,6 @@ public static class UserHelper
     /// <c>INNER JOIN tenant_memberships tm ON u.id = tm.user_id WHERE tm.tenant_id = @tenantId</c>.
     /// </summary>
     public const string UserSelectColumns = @"
-        u.id, u.email, u.display_name, u.status, tm.role, 
+        u.id, u.email, u.display_name, u.status, tm.role,
         u.created_at, u.updated_at, u.last_login_at";
 }

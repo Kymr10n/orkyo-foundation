@@ -54,7 +54,7 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  
+
   // New dialog states for spaces and capabilities
   const [spacesEditorOpen, setSpacesEditorOpen] = useState(false);
   const [capabilitiesEditorOpen, setCapabilitiesEditorOpen] = useState(false);

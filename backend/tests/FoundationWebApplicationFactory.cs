@@ -193,7 +193,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISiteRepository, SiteRepository>();
         builder.Services.AddScoped<ISpaceRepository, SpaceRepository>();
         builder.Services.AddScoped<ISpaceGroupRepository, SpaceGroupRepository>();
-        builder.Services.AddScoped<ISpaceCapabilityRepository, SpaceCapabilityRepository>();
+        // ISpaceCapabilityRepository is served by IResourceCapabilityRepository (Phase 2)
         builder.Services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         builder.Services.AddScoped<ICriteriaRepository, CriteriaRepository>();
         builder.Services.AddScoped<IRequestRepository, RequestRepository>();
@@ -255,6 +255,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Services.AutoSchedule.ISchedulingSolver, Api.Services.AutoSchedule.GreedySchedulingSolver>();
         builder.Services.AddScoped<ISiteService, SiteService>();
         builder.Services.AddScoped<ISpaceService, SpaceService>();
+        // SpaceService now needs resource repos for Phase 2 coordination (already registered above)
         builder.Services.AddScoped<ICriteriaService, CriteriaService>();
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();
@@ -412,7 +413,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapSiteEndpoints();
         app.MapSpaceEndpoints();
         app.MapSpaceGroupEndpoints();
-        app.MapSpaceCapabilityEndpoints();
         app.MapGroupCapabilityEndpoints();
         app.MapCriteriaEndpoints();
         app.MapRequestEndpoints();

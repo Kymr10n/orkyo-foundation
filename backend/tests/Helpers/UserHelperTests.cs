@@ -170,4 +170,3 @@ public class UserHelperMapUserTests
         user.LastLoginAt.Should().BeNull();
     }
 }
-

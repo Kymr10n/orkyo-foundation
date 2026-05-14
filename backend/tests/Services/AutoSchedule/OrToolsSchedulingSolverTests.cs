@@ -14,8 +14,8 @@ public class OrToolsSchedulingSolverTests
     public async Task ModelBuilds_ForSmallScenario()
     {
         var reqId = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
-        var candidate = MakeCandidate(requestId: reqId, spaceId: spaceId);
+        var resourceId = Guid.NewGuid();
+        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId);
 
         var result = await _solver.SolveAsync(MakeAnalyzed([candidate]), CancellationToken.None);
 
@@ -27,7 +27,7 @@ public class OrToolsSchedulingSolverTests
     [Fact]
     public async Task NoOverlap_IsEnforced()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var r1 = Guid.NewGuid();
         var r2 = Guid.NewGuid();
 
@@ -35,8 +35,8 @@ public class OrToolsSchedulingSolverTests
             .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
             .ToList();
 
-        var c1 = MakeCandidate(requestId: r1, spaceId: spaceId, durationDays: 5, feasibleStarts: starts);
-        var c2 = MakeCandidate(requestId: r2, spaceId: spaceId, durationDays: 5, feasibleStarts: starts);
+        var c1 = MakeCandidate(requestId: r1, resourceId: resourceId, durationDays: 5, feasibleStarts: starts);
+        var c2 = MakeCandidate(requestId: r2, resourceId: resourceId, durationDays: 5, feasibleStarts: starts);
 
         var result = await _solver.SolveAsync(MakeAnalyzed([c1, c2]), CancellationToken.None);
 
@@ -58,8 +58,8 @@ public class OrToolsSchedulingSolverTests
             .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
             .ToList();
 
-        var c1 = MakeCandidate(requestId: reqId, spaceId: space1, durationDays: 3, feasibleStarts: starts);
-        var c2 = MakeCandidate(requestId: reqId, spaceId: space2, durationDays: 3, feasibleStarts: starts);
+        var c1 = MakeCandidate(requestId: reqId, resourceId: space1, durationDays: 3, feasibleStarts: starts);
+        var c2 = MakeCandidate(requestId: reqId, resourceId: space2, durationDays: 3, feasibleStarts: starts);
 
         var result = await _solver.SolveAsync(MakeAnalyzed([c1, c2]), CancellationToken.None);
 
@@ -69,16 +69,16 @@ public class OrToolsSchedulingSolverTests
     [Fact]
     public async Task FixedOccupancy_IsRespected()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var fixedOcc = new FixedOccupancy(
-            Guid.NewGuid(), spaceId,
+            Guid.NewGuid(), resourceId,
             new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 18));
 
         var reqId = Guid.NewGuid();
         var starts = Enumerable.Range(0, 20)
             .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
             .ToList();
-        var candidate = MakeCandidate(requestId: reqId, spaceId: spaceId, durationDays: 3, feasibleStarts: starts);
+        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId, durationDays: 3, feasibleStarts: starts);
 
         var result = await _solver.SolveAsync(
             MakeAnalyzed([candidate], fixedAssignments: [fixedOcc]),
@@ -103,7 +103,7 @@ public class OrToolsSchedulingSolverTests
     [Fact]
     public async Task MaximizesThroughput_OverEarlyCompletion()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var r1 = Guid.NewGuid();
         var r2 = Guid.NewGuid();
 
@@ -111,8 +111,8 @@ public class OrToolsSchedulingSolverTests
             .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
             .ToList();
 
-        var c1 = MakeCandidate(requestId: r1, spaceId: spaceId, durationDays: 5, priority: 1, feasibleStarts: starts);
-        var c2 = MakeCandidate(requestId: r2, spaceId: spaceId, durationDays: 5, priority: 2, feasibleStarts: starts);
+        var c1 = MakeCandidate(requestId: r1, resourceId: resourceId, durationDays: 5, priority: 1, feasibleStarts: starts);
+        var c2 = MakeCandidate(requestId: r2, resourceId: resourceId, durationDays: 5, priority: 2, feasibleStarts: starts);
 
         var result = await _solver.SolveAsync(MakeAnalyzed([c1, c2]), CancellationToken.None);
 

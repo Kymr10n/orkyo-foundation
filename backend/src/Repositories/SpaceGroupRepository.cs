@@ -15,7 +15,7 @@ public class SpaceGroupRepository : ISpaceGroupRepository
     private const string SelectWithCount =
         @"SELECT g.id, g.name, g.description, g.color, g.display_order, g.created_at, g.updated_at,
                  COUNT(s.id) as space_count
-          FROM space_groups g
+          FROM resource_groups g
           LEFT JOIN spaces s ON s.group_id = g.id";
 
     private readonly OrgContext _orgContext;
@@ -52,7 +52,7 @@ public class SpaceGroupRepository : ISpaceGroupRepository
         return await DbQueryHelper.ExecutePagedQueryAsync(
             conn,
             page,
-            countSql: "SELECT COUNT(*) FROM space_groups",
+            countSql: "SELECT COUNT(*) FROM resource_groups",
             querySql: $"{SelectWithCount} GROUP BY {GroupByColumns} ORDER BY g.display_order, g.name LIMIT @limit OFFSET @offset",
             addParams: null,
             mapper: MapFromReader);
@@ -78,7 +78,7 @@ public class SpaceGroupRepository : ISpaceGroupRepository
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            @"INSERT INTO space_groups (name, description, color, display_order)
+            @"INSERT INTO resource_groups (name, description, color, display_order)
               VALUES (@name, @description, @color, @displayOrder)
               RETURNING id, name, description, color, display_order, created_at, updated_at",
             conn);
@@ -148,7 +148,7 @@ public class SpaceGroupRepository : ISpaceGroupRepository
             return await GetByIdAsync(groupId);
         }
 
-        var sql = $@"UPDATE space_groups 
+        var sql = $@"UPDATE resource_groups
                      SET {string.Join(", ", updates)}
                      WHERE id = @groupId
                      RETURNING id, name, description, color, display_order, created_at, updated_at";
@@ -180,7 +180,7 @@ public class SpaceGroupRepository : ISpaceGroupRepository
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            "DELETE FROM space_groups WHERE id = @groupId",
+            "DELETE FROM resource_groups WHERE id = @groupId",
             conn);
         cmd.Parameters.AddWithValue("groupId", groupId);
 

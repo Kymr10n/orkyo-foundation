@@ -50,7 +50,7 @@ describe('startResize', () => {
   it('sets draft with correct fields', () => {
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -60,7 +60,7 @@ describe('startResize', () => {
     expect(draft!.kind).toBe('resize');
     expect(draft!.phase).toBe('active');
     expect(draft!.requestId).toBe('req-1');
-    expect(draft!.spaceId).toBe('s1');
+    expect(draft!.resourceId).toBe('s1');
     expect(draft!.edge).toBe('right');
     expect(draft!.committedStartMs).toBe(START_MS);
     expect(draft!.committedEndMs).toBe(END_MS);
@@ -69,7 +69,7 @@ describe('startResize', () => {
   it('seeds previewStartMs and previewEndMs from committed bounds', () => {
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -82,7 +82,7 @@ describe('startResize', () => {
   it('works for a left-edge resize', () => {
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'left',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -100,7 +100,7 @@ describe('updateResize', () => {
     resetStore();
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -146,7 +146,7 @@ describe('commitResize', () => {
     resetStore();
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -194,7 +194,7 @@ describe('finalizeDraft', () => {
     resetStore();
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -228,7 +228,7 @@ describe('cancelResize', () => {
     resetStore();
     useSchedulerStore.getState().startResize({
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: START_MS,
       committedEndMs: END_MS,
@@ -257,7 +257,7 @@ describe('full resize lifecycle', () => {
   it('start → update → commit → finalize produces correct final bounds', () => {
     const { startResize, updateResize } = useSchedulerStore.getState();
 
-    startResize({ requestId: 'r1', spaceId: 's1', edge: 'right', committedStartMs: START_MS, committedEndMs: END_MS });
+    startResize({ requestId: 'r1', resourceId: 's1', edge: 'right', committedStartMs: START_MS, committedEndMs: END_MS });
 
     const step1 = T('2024-06-01T11:00:00.000Z');
     updateResize(START_MS, step1);
@@ -278,7 +278,7 @@ describe('full resize lifecycle', () => {
 
   it('start → update → cancel leaves draft null without committing', () => {
     useSchedulerStore.getState().startResize({
-      requestId: 'r1', spaceId: 's1', edge: 'left', committedStartMs: START_MS, committedEndMs: END_MS,
+      requestId: 'r1', resourceId: 's1', edge: 'left', committedStartMs: START_MS, committedEndMs: END_MS,
     });
     useSchedulerStore.getState().updateResize(T('2024-06-01T07:00:00.000Z'), END_MS);
     useSchedulerStore.getState().cancelResize();

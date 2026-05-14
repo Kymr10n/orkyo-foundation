@@ -15,7 +15,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'leaf',
     sortOrder: 0,
-    spaceId: null,
+    primaryResourceId: null,
     startTs: null,
     endTs: null,
     earliestStartTs: null,

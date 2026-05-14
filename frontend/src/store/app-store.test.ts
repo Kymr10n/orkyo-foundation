@@ -62,7 +62,7 @@ describe('useAppStore - site and space selection', () => {
     useAppStore.setState({
       selectedSiteId: null,
       selectedHallId: null,
-      selectedSpaceId: null,
+      selectedResourceId: null,
       selectedJobId: null,
       selectedRequestId: null,
       isDetailsDrawerOpen: false,
@@ -87,22 +87,22 @@ describe('useAppStore - site and space selection', () => {
   });
 
   it('should set selected space and open drawer', () => {
-    const { setSelectedSpaceId } = useAppStore.getState();
+    const { setSelectedResourceId } = useAppStore.getState();
 
-    setSelectedSpaceId('space-1');
+    setSelectedResourceId('space-1');
 
-    expect(useAppStore.getState().selectedSpaceId).toBe('space-1');
+    expect(useAppStore.getState().selectedResourceId).toBe('space-1');
     expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
   });
 
   it('should clear selected space and close drawer', () => {
-    const { setSelectedSpaceId } = useAppStore.getState();
+    const { setSelectedResourceId } = useAppStore.getState();
 
-    setSelectedSpaceId('space-1');
+    setSelectedResourceId('space-1');
     expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
 
-    setSelectedSpaceId(null);
-    expect(useAppStore.getState().selectedSpaceId).toBeNull();
+    setSelectedResourceId(null);
+    expect(useAppStore.getState().selectedResourceId).toBeNull();
     expect(useAppStore.getState().isDetailsDrawerOpen).toBe(false);
   });
 
@@ -435,7 +435,7 @@ describe('useAppStore - conflicts', () => {
   describe('setConflicts', () => {
     it('should add conflicts for a request', () => {
       const { setConflicts, conflicts: _conflicts } = useAppStore.getState();
-      
+
       const testConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -454,7 +454,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should update existing conflicts for a request', () => {
       const { setConflicts } = useAppStore.getState();
-      
+
       const initialConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -484,7 +484,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should remove conflicts when empty array is provided', () => {
       const { setConflicts } = useAppStore.getState();
-      
+
       const testConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -504,7 +504,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should handle multiple requests with conflicts', () => {
       const { setConflicts } = useAppStore.getState();
-      
+
       const conflicts1: Conflict[] = [
         {
           id: 'conflict-1',
@@ -534,7 +534,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should handle multiple conflicts for single request', () => {
       const { setConflicts } = useAppStore.getState();
-      
+
       const multipleConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -567,7 +567,7 @@ describe('useAppStore - conflicts', () => {
   describe('clearConflicts', () => {
     it('should remove conflicts for a specific request', () => {
       const { setConflicts, clearConflicts } = useAppStore.getState();
-      
+
       const testConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -587,7 +587,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should only remove conflicts for specified request', () => {
       const { setConflicts, clearConflicts } = useAppStore.getState();
-      
+
       const conflicts1: Conflict[] = [
         {
           id: 'conflict-1',
@@ -619,7 +619,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should handle clearing non-existent conflicts gracefully', () => {
       const { clearConflicts } = useAppStore.getState();
-      
+
       expect(() => clearConflicts('non-existent')).not.toThrow();
       expect(useAppStore.getState().conflicts.size).toBe(0);
     });
@@ -628,14 +628,14 @@ describe('useAppStore - conflicts', () => {
   describe('getAllConflicts', () => {
     it('should return empty array when no conflicts exist', () => {
       const { getAllConflicts } = useAppStore.getState();
-      
+
       const allConflicts = getAllConflicts();
       expect(allConflicts).toEqual([]);
     });
 
     it('should return all conflicts from single request', () => {
       const { setConflicts, getAllConflicts } = useAppStore.getState();
-      
+
       const testConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -660,7 +660,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should return all conflicts from multiple requests', () => {
       const { setConflicts, getAllConflicts } = useAppStore.getState();
-      
+
       const conflicts1: Conflict[] = [
         {
           id: 'conflict-1',
@@ -697,7 +697,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should return updated conflicts after modifications', () => {
       const { setConflicts, clearConflicts, getAllConflicts } = useAppStore.getState();
-      
+
       const conflicts1: Conflict[] = [
         {
           id: 'conflict-1',
@@ -729,9 +729,9 @@ describe('useAppStore - conflicts', () => {
   describe('Map immutability', () => {
     it('should create new Map instance when setting conflicts', () => {
       const { setConflicts } = useAppStore.getState();
-      
+
       const initialMap = useAppStore.getState().conflicts;
-      
+
       const testConflicts: Conflict[] = [
         {
           id: 'conflict-1',
@@ -742,7 +742,7 @@ describe('useAppStore - conflicts', () => {
       ];
 
       setConflicts('req-1', testConflicts);
-      
+
       const updatedMap = useAppStore.getState().conflicts;
       expect(updatedMap).not.toBe(initialMap); // Different reference
       expect(updatedMap.get('req-1')).toEqual(testConflicts);
@@ -750,7 +750,7 @@ describe('useAppStore - conflicts', () => {
 
     it('should create new Map instance when clearing conflicts', () => {
       const { setConflicts, clearConflicts } = useAppStore.getState();
-      
+
       const testConflicts: Conflict[] = [
         {
           id: 'conflict-1',

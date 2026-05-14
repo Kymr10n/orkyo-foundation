@@ -266,7 +266,7 @@ public class TemplateEndpointsErrorTests
                    response.StatusCode == HttpStatusCode.BadRequest ||
                    response.StatusCode == HttpStatusCode.InternalServerError);
 
-        // Cleanup 
+        // Cleanup
         await using var cleanupCmd = new NpgsqlCommand($"DELETE FROM criteria WHERE name = '{uniqueCriterionName}'", conn);
         await cleanupCmd.ExecuteNonQueryAsync();
         await CleanupTestDataAsync();

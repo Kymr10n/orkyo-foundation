@@ -1,6 +1,6 @@
 /**
  * Admin API client for site administration control plane
- * 
+ *
  * These endpoints require the site-admin role in Keycloak.
  * Used by the AdminPage for managing tenants, users, and memberships.
  */

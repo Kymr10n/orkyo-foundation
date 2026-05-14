@@ -120,8 +120,8 @@ public record ExportOffTime
     public required string Title { get; init; }
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public required OffTimeType Type { get; init; }
-    public required bool AppliesToAllSpaces { get; init; }
-    public List<string>? SpaceNames { get; init; }
+    public required bool AppliesToAllResources { get; init; }
+    public List<string>? ResourceNames { get; init; }
     public required DateTime StartTs { get; init; }
     public required DateTime EndTs { get; init; }
     public required bool IsRecurring { get; init; }
@@ -133,7 +133,7 @@ public record ExportRequestData
 {
     public required string Name { get; init; }
     public string? Description { get; init; }
-    public string? SpaceName { get; init; }
+    public string? ResourceName { get; init; }
     public string? SiteCode { get; init; }
     public string? RequestItemId { get; init; }
     public DateTime? StartTs { get; init; }

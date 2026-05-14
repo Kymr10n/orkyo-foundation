@@ -34,7 +34,7 @@ public static class KeycloakUserProvisioningQueryContract
     {
         return @"
             SELECT id, email, display_name, status
-            FROM users 
+            FROM users
             WHERE LOWER(email) = LOWER(@email)";
     }
 

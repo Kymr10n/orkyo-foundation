@@ -86,19 +86,19 @@ describe('ConflictsPage', () => {
   describe('with conflicts', () => {
     it('should render conflicts page with title', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.getByText('Conflicts')).toBeInTheDocument();
     });
 
     it('should display conflict count in description', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.getByText(/3 conflicts found/i)).toBeInTheDocument();
     });
 
     it('should render all conflict items', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.getByText('Conference Room Request')).toBeInTheDocument();
       // Workshop Space Request appears twice (has 2 conflicts)
       expect(screen.getAllByText('Workshop Space Request')).toHaveLength(2);
@@ -106,7 +106,7 @@ describe('ConflictsPage', () => {
 
     it('should display conflict messages', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.getByText('Capacity: Space has 30, but requires 50')).toBeInTheDocument();
       expect(screen.getByText('Projector: Required but not available')).toBeInTheDocument();
       expect(screen.getByText('Seating: Space has "Classroom", but requires "Theater"')).toBeInTheDocument();
@@ -114,17 +114,17 @@ describe('ConflictsPage', () => {
 
     it('should display severity badges', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       const errorBadges = screen.getAllByText('error');
       const warningBadges = screen.getAllByText('warning');
-      
+
       expect(errorBadges).toHaveLength(2);
       expect(warningBadges).toHaveLength(1);
     });
 
     it('should display conflict kind badges', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       // Conflict kinds are displayed with formatted labels, not raw values
       expect(screen.getByText('Load Exceeded')).toBeInTheDocument();
       expect(screen.getByText('Capability Mismatch')).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe('ConflictsPage', () => {
 
     it('should display scheduled time information', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       // Check that scheduled times are displayed (without year in format)
       // Use getAllByText because there are multiple dates (Jan 29 appears twice)
       expect(screen.getAllByText(/Jan 28,/).length).toBeGreaterThan(0);
@@ -153,7 +153,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.getByText('No conflicts to display')).toBeInTheDocument();
     });
 
@@ -168,7 +168,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(
         screen.getByText(/No conflicts detected. All scheduled requests meet their requirements./i)
       ).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.queryByText('Conference Room Request')).not.toBeInTheDocument();
       expect(screen.queryByText('Workshop Space Request')).not.toBeInTheDocument();
     });
@@ -215,7 +215,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       expect(screen.getByText(/1 conflict found/i)).toBeInTheDocument();
     });
   });
@@ -223,7 +223,7 @@ describe('ConflictsPage', () => {
   describe('severity icons', () => {
     it('should display error icon for error severity', () => {
       const { container } = render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       // Check for AlertCircle icon (error) using text-destructive class
       const errorIcons = container.querySelectorAll('.text-destructive');
       expect(errorIcons.length).toBeGreaterThan(0);
@@ -252,7 +252,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       // Just check that there is at least one warning badge displayed
       const warningBadges = screen.getAllByText('warning');
       expect(warningBadges.length).toBeGreaterThan(0);
@@ -283,7 +283,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       const errorBadges = screen.getAllByText('error');
       errorBadges.forEach((badge) => {
         expect(badge.className).toMatch(/bg-red-100|dark:bg-red-900/);
@@ -313,7 +313,7 @@ describe('ConflictsPage', () => {
       });
 
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       const warningBadges = screen.getAllByText('warning');
       warningBadges.forEach((badge) => {
         expect(badge.className).toMatch(/bg-yellow-100|dark:bg-yellow-900/);
@@ -322,7 +322,7 @@ describe('ConflictsPage', () => {
 
     it('should apply hover effect to conflict items', () => {
       const { container } = render(<ConflictsPage />, { wrapper: createWrapper() });
-      
+
       const conflictItems = container.querySelectorAll('[class*="hover:bg-accent"]');
       expect(conflictItems.length).toBeGreaterThan(0);
     });

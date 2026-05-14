@@ -71,7 +71,7 @@ const RequestCard = React.memo(function RequestCard({
     paddingLeft: `${depth * INDENT_PX + 12}px`,
   };
 
-  const isScheduled = !!request.spaceId && !!request.startTs;
+  const isScheduled = !!request.primaryResourceId && !!request.startTs;
   const ModeIcon = getPlanningModeIcon(request.planningMode);
 
   return (
@@ -246,7 +246,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
       }
 
       // Scheduled filter
-      const isScheduled = !!request.spaceId && !!request.startTs;
+      const isScheduled = !!request.primaryResourceId && !!request.startTs;
       if (scheduledFilter === "scheduled" && !isScheduled && request.planningMode !== "container") {
         continue;
       }

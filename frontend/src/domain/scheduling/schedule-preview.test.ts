@@ -25,10 +25,10 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
   };
 }
 
-function makeScheduledRequest(id = 'req-1', spaceId = 's1'): Request {
+function makeScheduledRequest(id = 'req-1', resourceId = 's1'): Request {
   return makeRequest({
     id,
-    spaceId,
+    primaryResourceId: resourceId,
     startTs: '2024-06-01T08:00:00.000Z',
     endTs: '2024-06-01T10:00:00.000Z',
   });
@@ -45,7 +45,7 @@ describe('buildPreviewSchedule', () => {
   });
 
   it('skips unscheduled requests', () => {
-    const req = makeRequest(); // no spaceId / timestamps
+    const req = makeRequest(); // no resourceId / timestamps
     const preview = buildPreviewSchedule([req], null);
     expect(preview.size).toBe(0);
   });
@@ -58,7 +58,7 @@ describe('buildPreviewSchedule', () => {
     expect(entry.isDraft).toBe(false);
     expect(entry.startMs).toBe(T('2024-06-01T08:00:00.000Z'));
     expect(entry.endMs).toBe(T('2024-06-01T10:00:00.000Z'));
-    expect(entry.spaceId).toBe('s1');
+    expect(entry.resourceId).toBe('s1');
   });
 
   it('applies draft bounds for the request being resized', () => {
@@ -67,7 +67,7 @@ describe('buildPreviewSchedule', () => {
       kind: 'resize',
       phase: 'active',
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: T('2024-06-01T08:00:00.000Z'),
       committedEndMs: T('2024-06-01T10:00:00.000Z'),
@@ -88,7 +88,7 @@ describe('buildPreviewSchedule', () => {
       kind: 'resize',
       phase: 'active',
       requestId: 'req-1',
-      spaceId: 's1',
+      resourceId: 's1',
       edge: 'right',
       committedStartMs: T('2024-06-01T08:00:00.000Z'),
       committedEndMs: T('2024-06-01T10:00:00.000Z'),
@@ -117,7 +117,7 @@ describe('buildPreviewSchedule', () => {
   it('preserves minimalDurationMs from the request', () => {
     const req = makeRequest({
       id: 'req-1',
-      spaceId: 's1',
+      primaryResourceId: 's1',
       startTs: '2024-06-01T08:00:00.000Z',
       endTs: '2024-06-01T10:00:00.000Z',
       minimalDurationValue: 2,

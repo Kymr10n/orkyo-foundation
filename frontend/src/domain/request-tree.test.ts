@@ -373,6 +373,3 @@ describe("validateParentChild", () => {
     expect(issues.map((i) => i.code)).toContain("CHILD_AFTER_CONTAINER_END");
   });
 });
-
-
-

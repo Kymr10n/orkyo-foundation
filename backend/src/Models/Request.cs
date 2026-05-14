@@ -78,8 +78,8 @@ public record RequestInfo
     public required PlanningMode PlanningMode { get; init; }
     public int SortOrder { get; init; }
 
-    // Space and item references
-    public Guid? SpaceId { get; init; }
+    // Primary resource assignment (id of the space resource, since space.id = resource.id)
+    public Guid? PrimaryResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
     // Display icon (short string ID resolved to a lucide-react icon on the frontend).
@@ -114,8 +114,8 @@ public record RequestInfo
     // Scheduling
     public required bool SchedulingSettingsApply { get; init; }
 
-    // Computed property: is this request scheduled (allocated to a space)?
-    public bool IsScheduled => SpaceId.HasValue && StartTs.HasValue && EndTs.HasValue;
+    // Computed: scheduled when a resource is assigned and time window is set.
+    public bool IsScheduled => PrimaryResourceId.HasValue && StartTs.HasValue && EndTs.HasValue;
 }
 
 /// <summary>
@@ -158,7 +158,7 @@ public record CreateRequestRequest
     public PlanningMode PlanningMode { get; init; } = PlanningMode.Leaf;
     public int SortOrder { get; init; }
 
-    public Guid? SpaceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
     public string? Icon { get; init; }
@@ -196,7 +196,7 @@ public record UpdateRequestRequest
     public PlanningMode? PlanningMode { get; init; }
     public int? SortOrder { get; init; }
 
-    public Guid? SpaceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
     public string? Icon { get; init; }
@@ -249,12 +249,12 @@ public record AddRequirementRequest
 
 /// <summary>
 /// Request to schedule or unschedule a request.
-/// To schedule: provide spaceId, startTs, and endTs.
+/// To schedule: provide resourceId, startTs, and endTs.
 /// To unschedule: provide all fields as null.
 /// </summary>
 public record ScheduleRequestRequest
 {
-    public Guid? SpaceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
     public int? ActualDurationValue { get; init; }

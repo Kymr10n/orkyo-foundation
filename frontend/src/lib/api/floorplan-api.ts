@@ -72,7 +72,7 @@ export async function uploadFloorplan(
 
     const uploadUrl = `${API_BASE_URL}${API_PATHS.siteFloorplan(siteId)}`;
     xhr.open('POST', uploadUrl);
-    
+
     // Set headers from getApiHeaders() but exclude Content-Type for multipart/form-data
     const headers = getApiHeaders('POST');
     Object.entries(headers).forEach(([key, value]) => {
@@ -81,7 +81,7 @@ export async function uploadFloorplan(
         xhr.setRequestHeader(key, value);
       }
     });
-    
+
     xhr.send(formData);
   });
 }

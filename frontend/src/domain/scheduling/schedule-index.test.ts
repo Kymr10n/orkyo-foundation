@@ -16,13 +16,13 @@ const T = (iso: string) => new Date(iso).getTime();
 
 function makeEntry(
   requestId: string,
-  spaceId: string,
+  primaryResourceId: string,
   startIso: string,
   endIso: string
 ): PreviewEntry {
   return {
     requestId,
-    spaceId,
+    resourceId: primaryResourceId,
     startMs: T(startIso),
     endMs: T(endIso),
     name: requestId,
@@ -42,7 +42,7 @@ function makeSchedule(...entries: PreviewEntry[]): PreviewSchedule {
 // ---------------------------------------------------------------------------
 
 describe('buildIndex', () => {
-  it('groups entries by spaceId', () => {
+  it('groups entries by resourceId', () => {
     const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T09:00Z');
     const b = makeEntry('b', 's2', '2024-01-01T08:00Z', '2024-01-01T09:00Z');
     const idx = buildIndex(makeSchedule(a, b));

@@ -82,8 +82,8 @@ public static class PresetApplier
         NpgsqlConnection conn, NpgsqlTransaction tx, Guid applicationId)
     {
         await using var cmd = new NpgsqlCommand(@"
-            UPDATE preset_applications 
-            SET updated_at = CURRENT_TIMESTAMP 
+            UPDATE preset_applications
+            SET updated_at = CURRENT_TIMESTAMP
             WHERE id = @id", conn, tx);
         cmd.Parameters.AddWithValue("id", applicationId);
         await cmd.ExecuteNonQueryAsync();
@@ -96,8 +96,8 @@ public static class PresetApplier
     {
         var mappings = new Dictionary<string, Guid>();
         await using var cmd = new NpgsqlCommand(@"
-            SELECT entity_type, logical_key, entity_id 
-            FROM preset_mappings 
+            SELECT entity_type, logical_key, entity_id
+            FROM preset_mappings
             WHERE preset_application_id = @appId", conn, tx);
         cmd.Parameters.AddWithValue("appId", applicationId);
 
@@ -120,7 +120,7 @@ public static class PresetApplier
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO preset_mappings (preset_application_id, entity_type, logical_key, entity_id)
             VALUES (@appId, @entityType, @logicalKey, @entityId)
-            ON CONFLICT (preset_application_id, entity_type, logical_key) 
+            ON CONFLICT (preset_application_id, entity_type, logical_key)
             DO UPDATE SET entity_id = @entityId", conn, tx);
         cmd.Parameters.AddWithValue("appId", applicationId);
         cmd.Parameters.AddWithValue("entityType", entityType);
@@ -201,9 +201,9 @@ public static class PresetApplier
         NpgsqlConnection conn, NpgsqlTransaction tx, Guid id, PresetCriterion criterion)
     {
         await using var cmd = new NpgsqlCommand(@"
-            UPDATE criteria 
-            SET description = @description, 
-                enum_values = @enumValues::jsonb, 
+            UPDATE criteria
+            SET description = @description,
+                enum_values = @enumValues::jsonb,
                 unit = @unit,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = @id", conn, tx);
@@ -253,7 +253,7 @@ public static class PresetApplier
         NpgsqlConnection conn, NpgsqlTransaction tx, string name)
     {
         await using var cmd = new NpgsqlCommand(
-            "SELECT id FROM space_groups WHERE LOWER(name) = LOWER(@name)", conn, tx);
+            "SELECT id FROM resource_groups WHERE LOWER(name) = LOWER(@name)", conn, tx);
         cmd.Parameters.AddWithValue("name", name);
         var result = await cmd.ExecuteScalarAsync();
         return result as Guid?;
@@ -263,7 +263,7 @@ public static class PresetApplier
         NpgsqlConnection conn, NpgsqlTransaction tx, PresetSpaceGroup group)
     {
         await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO space_groups (name, description, color, display_order)
+            INSERT INTO resource_groups (name, description, color, display_order)
             VALUES (@name, @description, @color, @displayOrder)
             RETURNING id", conn, tx);
         cmd.Parameters.AddWithValue("name", group.Name);
@@ -277,9 +277,9 @@ public static class PresetApplier
         NpgsqlConnection conn, NpgsqlTransaction tx, Guid id, PresetSpaceGroup group)
     {
         await using var cmd = new NpgsqlCommand(@"
-            UPDATE space_groups 
-            SET description = @description, 
-                color = @color, 
+            UPDATE resource_groups
+            SET description = @description,
+                color = @color,
                 display_order = @displayOrder,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = @id", conn, tx);
@@ -359,7 +359,7 @@ public static class PresetApplier
         PresetTemplate template, string entityType, Dictionary<string, Guid> criterionIdMap)
     {
         await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO templates (name, description, entity_type, duration_value, duration_unit, 
+            INSERT INTO templates (name, description, entity_type, duration_value, duration_unit,
                                    fixed_start, fixed_end, fixed_duration)
             VALUES (@name, @description, @entityType, @durationValue, @durationUnit,
                     @fixedStart, @fixedEnd, @fixedDuration)
@@ -391,7 +391,7 @@ public static class PresetApplier
         Guid templateId, PresetTemplate template, Dictionary<string, Guid> criterionIdMap)
     {
         await using var cmd = new NpgsqlCommand(@"
-            UPDATE templates 
+            UPDATE templates
             SET description = @description,
                 duration_value = @durationValue,
                 duration_unit = @durationUnit,
@@ -476,4 +476,3 @@ public record PresetApplicationStats
     public int TemplatesCreated { get; set; }
     public int TemplatesUpdated { get; set; }
 }
-

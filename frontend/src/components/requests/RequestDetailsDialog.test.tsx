@@ -15,7 +15,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'leaf',
     sortOrder: 0,
-    spaceId: null,
+    primaryResourceId: null,
     startTs: null,
     endTs: null,
     earliestStartTs: null,
@@ -74,7 +74,7 @@ const withRequirements = makeRequest({
 const withSpace = makeRequest({
   id: 'space-1',
   name: 'Space Task',
-  spaceId: 'sp-abc',
+  primaryResourceId: 'sp-abc',
 });
 
 const withActualDuration = makeRequest({

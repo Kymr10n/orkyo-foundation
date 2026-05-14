@@ -15,7 +15,7 @@ public class ExportService : IExportService
     private readonly ICriteriaRepository _criteriaRepo;
     private readonly ISpaceGroupRepository _spaceGroupRepo;
     private readonly ITemplateRepository _templateRepo;
-    private readonly ISpaceCapabilityRepository _capabilityRepo;
+    private readonly IResourceCapabilityRepository _capabilityRepo;
     private readonly IGroupCapabilityRepository _groupCapabilityRepo;
     private readonly ISchedulingRepository _schedulingRepo;
     private readonly IRequestRepository _requestRepo;
@@ -27,7 +27,7 @@ public class ExportService : IExportService
         ICriteriaRepository criteriaRepo,
         ISpaceGroupRepository spaceGroupRepo,
         ITemplateRepository templateRepo,
-        ISpaceCapabilityRepository capabilityRepo,
+        IResourceCapabilityRepository capabilityRepo,
         IGroupCapabilityRepository groupCapabilityRepo,
         ISchedulingRepository schedulingRepo,
         IRequestRepository requestRepo,
@@ -141,7 +141,7 @@ public class ExportService : IExportService
 
             foreach (var space in spaces.OrderBy(s => s.Name, StringComparer.Ordinal))
             {
-                var caps = await _capabilityRepo.GetAllAsync(site.Id, space.Id);
+                var caps = await _capabilityRepo.GetByResourceAsync(space.Id);
                 exportSpaces.Add(new ExportSpace
                 {
                     Name = space.Name,
@@ -151,7 +151,7 @@ public class ExportService : IExportService
                     Geometry = space.Geometry,
                     Properties = space.Properties,
                     GroupKey = space.GroupId.HasValue && groupIdToKey.TryGetValue(space.GroupId.Value, out var gk) ? gk : null,
-                    Capabilities = MapCapabilities(caps.Select(c => (c.CriterionId, c.Value)), criterionIdToKey)
+                    Capabilities = MapCapabilities(caps.Select(c => (c.CriterionId, (object?)c.Value.GetRawText())), criterionIdToKey)
                 });
             }
 
@@ -192,7 +192,7 @@ public class ExportService : IExportService
         var offTimes = await _schedulingRepo.GetOffTimesAsync(siteId);
         if (offTimes.Count == 0) return null;
 
-        var spaceIdToName = spaces.ToDictionary(s => s.Id, s => s.Name);
+        var resourceIdToName = spaces.ToDictionary(s => s.Id, s => s.Name);
 
         return offTimes
             .OrderBy(ot => ot.StartTs)
@@ -200,9 +200,9 @@ public class ExportService : IExportService
             {
                 Title = ot.Title,
                 Type = ot.Type,
-                AppliesToAllSpaces = ot.AppliesToAllSpaces,
-                SpaceNames = ot.SpaceIds is { Count: > 0 }
-                    ? ot.SpaceIds.Where(spaceIdToName.ContainsKey).Select(id => spaceIdToName[id]).OrderBy(n => n, StringComparer.Ordinal).ToList()
+                AppliesToAllResources = ot.AppliesToAllResources,
+                ResourceNames = ot.ResourceIds is { Count: > 0 }
+                    ? ot.ResourceIds.Where(resourceIdToName.ContainsKey).Select(id => resourceIdToName[id]).OrderBy(n => n, StringComparer.Ordinal).ToList()
                     : null,
                 StartTs = ot.StartTs,
                 EndTs = ot.EndTs,
@@ -248,9 +248,9 @@ public class ExportService : IExportService
 
     private async Task<List<ExportRequestData>> BuildRequestDataAsync(List<SiteInfo> sites, Dictionary<Guid, string> criterionIdToKey)
     {
-        var spaceIdToName = new Dictionary<Guid, string>();
-        var spaceIdToSiteCode = new Dictionary<Guid, string>();
-        var allowedSpaceIds = new HashSet<Guid>();
+        var resourceIdToName = new Dictionary<Guid, string>();
+        var resourceIdToSiteCode = new Dictionary<Guid, string>();
+        var allowedResourceIds = new HashSet<Guid>();
 
         foreach (var site in sites)
         {
@@ -258,23 +258,23 @@ public class ExportService : IExportService
             var spaces = await _spaceRepo.GetAllAsync(site.Id);
             foreach (var space in spaces)
             {
-                allowedSpaceIds.Add(space.Id);
-                spaceIdToName[space.Id] = space.Name;
-                spaceIdToSiteCode[space.Id] = siteCode;
+                allowedResourceIds.Add(space.Id);
+                resourceIdToName[space.Id] = space.Name;
+                resourceIdToSiteCode[space.Id] = siteCode;
             }
         }
 
         var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true);
 
         return allRequests
-            .Where(r => r.SpaceId.HasValue && allowedSpaceIds.Contains(r.SpaceId.Value))
+            .Where(r => r.PrimaryResourceId.HasValue && allowedResourceIds.Contains(r.PrimaryResourceId.Value))
             .OrderBy(r => r.Name, StringComparer.Ordinal)
             .Select(r => new ExportRequestData
             {
                 Name = r.Name,
                 Description = r.Description,
-                SpaceName = r.SpaceId.HasValue && spaceIdToName.TryGetValue(r.SpaceId.Value, out var sn) ? sn : null,
-                SiteCode = r.SpaceId.HasValue && spaceIdToSiteCode.TryGetValue(r.SpaceId.Value, out var sc) ? sc : null,
+                ResourceName = r.PrimaryResourceId.HasValue && resourceIdToName.TryGetValue(r.PrimaryResourceId.Value, out var sn) ? sn : null,
+                SiteCode = r.PrimaryResourceId.HasValue && resourceIdToSiteCode.TryGetValue(r.PrimaryResourceId.Value, out var sc) ? sc : null,
                 RequestItemId = r.RequestItemId,
                 StartTs = r.StartTs,
                 EndTs = r.EndTs,

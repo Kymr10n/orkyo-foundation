@@ -49,7 +49,7 @@ internal static class AutoScheduleTestHelpers
 
     internal static SchedulingCandidate MakeCandidate(
         Guid? requestId = null,
-        Guid? spaceId = null,
+        Guid? resourceId = null,
         int durationDays = 3,
         int priority = 1,
         IReadOnlyList<DateOnly>? feasibleStarts = null)
@@ -59,7 +59,7 @@ internal static class AutoScheduleTestHelpers
             .ToList();
         return new(
             RequestId: requestId ?? Guid.NewGuid(),
-            SpaceId: spaceId ?? Guid.NewGuid(),
+            ResourceId: resourceId ?? Guid.NewGuid(),
             EarliestStart: starts.First(),
             LatestEnd: starts.Last().AddDays(durationDays - 1),
             DurationDays: durationDays,
@@ -91,7 +91,7 @@ internal static class AutoScheduleTestHelpers
         string name = "Test Space",
         IReadOnlySet<Guid>? criteria = null)
         => new(
-            SpaceId: id ?? Guid.NewGuid(),
+            ResourceId: id ?? Guid.NewGuid(),
             DisplayName: name,
             CriterionIds: criteria ?? new HashSet<Guid>());
 }

@@ -28,10 +28,10 @@ interface AppState {
   setTimeCursorTs: (ts: Date) => void;
 
   // Selection state for utilization
-  selectedSpaceId: string | null;
+  selectedResourceId: string | null;
   selectedJobId: string | null;
   selectedRequestId: string | null;
-  setSelectedSpaceId: (id: string | null) => void;
+  setSelectedResourceId: (id: string | null) => void;
   setSelectedJobId: (id: string | null) => void;
   setSelectedRequestId: (id: string | null) => void;
 
@@ -99,11 +99,11 @@ export const useAppStore = create<AppState>((set) => ({
   timeCursorTs: new Date(),
   setTimeCursorTs: (ts) => set({ timeCursorTs: ts }),
 
-  selectedSpaceId: null,
+  selectedResourceId: null,
   selectedJobId: null,
   selectedRequestId: null,
-  setSelectedSpaceId: (id) =>
-    set({ selectedSpaceId: id, isDetailsDrawerOpen: !!id }),
+  setSelectedResourceId: (id) =>
+    set({ selectedResourceId: id, isDetailsDrawerOpen: !!id }),
   setSelectedJobId: (id) =>
     set({ selectedJobId: id, isDetailsDrawerOpen: !!id }),
   setSelectedRequestId: (id) =>

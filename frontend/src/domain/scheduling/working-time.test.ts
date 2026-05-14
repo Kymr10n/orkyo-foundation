@@ -53,7 +53,7 @@ describe("isWorkingTime", () => {
           startMs: utc("2026-03-03T09:00:00Z"),
           endMs: utc("2026-03-03T11:00:00Z"),
           title: "Maintenance",
-          spaceIds: null,
+          resourceIds: null,
         },
       ],
     });
@@ -68,7 +68,7 @@ describe("isWorkingTime", () => {
           startMs: utc("2026-03-03T09:00:00Z"),
           endMs: utc("2026-03-03T11:00:00Z"),
           title: "Maintenance",
-          spaceIds: null,
+          resourceIds: null,
         },
       ],
     });
@@ -83,7 +83,7 @@ describe("isWorkingTime", () => {
           startMs: utc("2026-03-03T09:00:00Z"),
           endMs: utc("2026-03-03T11:00:00Z"),
           title: "Maintenance",
-          spaceIds: ["space-A"],
+          resourceIds: ["space-A"],
         },
       ],
     });
@@ -164,7 +164,7 @@ describe("nextWorkingStart", () => {
           startMs: utc("2026-03-03T09:00:00Z"),
           endMs: utc("2026-03-03T11:00:00Z"),
           title: "Maintenance",
-          spaceIds: null,
+          resourceIds: null,
         },
       ],
     });
@@ -206,7 +206,7 @@ describe("workingSegmentEnd", () => {
           startMs: utc("2026-03-03T12:00:00Z"),
           endMs: utc("2026-03-03T14:00:00Z"),
           title: "Lunch",
-          spaceIds: null,
+          resourceIds: null,
         },
       ],
     });
@@ -223,7 +223,7 @@ describe("workingSegmentEnd", () => {
           startMs: utc("2026-03-03T12:00:00Z"),
           endMs: utc("2026-03-03T14:00:00Z"),
           title: "Maintenance",
-          spaceIds: ["space-A"],
+          resourceIds: ["space-A"],
         },
       ],
     });

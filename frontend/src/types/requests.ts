@@ -49,7 +49,7 @@ export interface Request {
   sortOrder: number;
 
   // Space and item references
-  spaceId?: string | null;
+  primaryResourceId?: string | null;
   requestItemId?: string | null;
 
   // Display icon (string ID from REQUEST_ICONS, resolved on the FE)
@@ -107,7 +107,7 @@ export interface CreateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
-  spaceId?: string;
+  primaryResourceId?: string;
   requestItemId?: string;
   icon?: string | null;
   startTs?: string;
@@ -132,7 +132,7 @@ export interface UpdateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
-  spaceId?: string;
+  primaryResourceId?: string;
   requestItemId?: string;
   icon?: string | null;
   startTs?: string;

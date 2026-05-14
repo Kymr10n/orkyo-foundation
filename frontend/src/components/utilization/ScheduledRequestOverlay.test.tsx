@@ -31,7 +31,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     name: "Test Request",
     planningMode: "leaf",
     sortOrder: 0,
-    spaceId: "space-1",
+    primaryResourceId: "space-1",
     startTs: "2024-01-15T09:00:00Z",
     endTs: "2024-01-15T11:00:00Z",
     minimalDurationValue: 120,
@@ -47,7 +47,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
 function makeEntry(request: Request, isDraft = false): PreviewEntry {
   return {
     requestId: request.id,
-    spaceId: request.spaceId!,
+    resourceId: request.primaryResourceId!,
     startMs: T(request.startTs!),
     endMs: T(request.endTs!),
     name: request.name,

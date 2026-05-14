@@ -1,4 +1,4 @@
- 
+
 import { Badge } from "@foundation/src/components/ui/badge";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Button } from "@foundation/src/components/ui/button";

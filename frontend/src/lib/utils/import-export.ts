@@ -6,7 +6,7 @@
 export type ExportFormat = 'csv' | 'json' | 'pdf';
 export type ImportFormat = 'csv' | 'json';
 
-export type ExportContext = 
+export type ExportContext =
   | 'utilization'      // PDF only - Gantt chart
   | 'spaces'           // CSV - List of spaces
   | 'requests'         // CSV - List of requests
@@ -40,15 +40,15 @@ export function arrayToCSV(
   const rows = data.map(obj => {
     return csvHeaders.map(header => {
       const value = obj[header];
-      
+
       // Handle null/undefined
       if (value === null || value === undefined) return '';
-      
+
       // Handle arrays and objects
       if (typeof value === 'object') {
         return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
       }
-      
+
       // Handle strings with commas, quotes, or newlines
       const stringValue = typeof value === 'string' ? value
         : typeof value === 'number' || typeof value === 'boolean' ? String(value)
@@ -56,7 +56,7 @@ export function arrayToCSV(
       if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }
-      
+
       return stringValue;
     }).join(',');
   });
@@ -81,11 +81,11 @@ export function csvToArray<T = Record<string, string>>(
   return dataLines.map(line => {
     const values = parseCSVLine(line);
     const obj: Record<string, string> = {};
-    
+
     csvHeaders.forEach((header, index) => {
       obj[header] = values[index] || '';
     });
-    
+
     return obj as T;
   });
 }
@@ -122,7 +122,7 @@ function parseCSVLine(line: string): string[] {
 
   // Add final field
   result.push(current);
-  
+
   return result;
 }
 

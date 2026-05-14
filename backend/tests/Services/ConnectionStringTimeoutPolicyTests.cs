@@ -47,4 +47,3 @@ public class ConnectionStringTimeoutPolicyTests
         ConnectionStringTimeoutPolicy.DefaultCommandTimeoutSeconds.Should().Be(30);
     }
 }
-

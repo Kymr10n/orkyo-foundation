@@ -17,7 +17,7 @@ public static class RequestMapper
             ParentRequestId = reader.GetNullableGuid("parent_request_id"),
             PlanningMode = EnumMapper.ParseEnum<PlanningMode>(reader.GetString("planning_mode")),
             SortOrder = reader.GetInt32("sort_order"),
-            SpaceId = reader.GetNullableGuid("space_id"),
+            PrimaryResourceId = reader.GetNullableGuid("primary_resource_id"),
             RequestItemId = reader.GetNullableString("request_item_id"),
             Icon = reader.GetNullableString("icon"),
             StartTs = reader.GetNullableDateTime("start_ts"),

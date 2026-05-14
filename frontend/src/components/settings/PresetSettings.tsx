@@ -41,17 +41,17 @@ import { useRef, useState } from "react";
 export function PresetSettings() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // State for dialogs
   const [_importDialogOpen, _setImportDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
-  
+
   // State for import
   const [importedPreset, setImportedPreset] = useState<Preset | null>(null);
   const [validationResult, setValidationResult] = useState<PresetValidationResult | null>(null);
   const [applicationResult, setApplicationResult] = useState<PresetApplicationResult | null>(null);
-  
+
   // State for export
   const [exportPresetId, setExportPresetId] = useState("");
   const [exportName, setExportName] = useState("");
@@ -108,7 +108,7 @@ export function PresetSettings() {
       setValidationResult(null);
       setApplicationResult(null);
       setPreviewDialogOpen(true);
-      
+
       // Auto-validate
       validateMutation.mutate(preset);
     } catch (error) {

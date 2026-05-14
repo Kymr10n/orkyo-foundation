@@ -83,7 +83,7 @@ public class SchedulingService : ISchedulingService
 
                 updates.Add((request.Id, new ScheduleRequestRequest
                 {
-                    SpaceId = request.SpaceId,
+                    ResourceId = request.PrimaryResourceId,
                     StartTs = result.ActualStart,
                     EndTs = result.ActualEnd,
                     ActualDurationValue = result.ActualDurationMinutes,
@@ -107,11 +107,11 @@ public class SchedulingService : ISchedulingService
 
     public async Task<CreateRequestRequest> ApplySchedulingToCreateAsync(CreateRequestRequest request)
     {
-        if (!request.SchedulingSettingsApply || request.SpaceId == null || request.StartTs == null)
+        if (!request.SchedulingSettingsApply || request.ResourceId == null || request.StartTs == null)
             return request;
 
         var result = await ComputeScheduledTimesAsync(
-            request.SpaceId.Value, request.StartTs.Value,
+            request.ResourceId.Value, request.StartTs.Value,
             request.MinimalDurationValue, request.MinimalDurationUnit);
 
         return result == null ? request : request with
@@ -132,12 +132,12 @@ public class SchedulingService : ISchedulingService
         var applyScheduling = request.SchedulingSettingsApply ?? existing.SchedulingSettingsApply;
         if (!applyScheduling) return request;
 
-        var spaceId = request.SpaceId ?? existing.SpaceId;
+        var resourceId = request.ResourceId ?? existing.PrimaryResourceId;
         var startTs = request.StartTs ?? existing.StartTs;
-        if (spaceId == null || startTs == null) return request;
+        if (resourceId == null || startTs == null) return request;
 
         var result = await ComputeScheduledTimesAsync(
-            spaceId.Value, startTs.Value,
+            resourceId.Value, startTs.Value,
             request.MinimalDurationValue ?? existing.MinimalDurationValue,
             request.MinimalDurationUnit ?? existing.MinimalDurationUnit);
 
@@ -153,7 +153,7 @@ public class SchedulingService : ISchedulingService
     public async Task<ScheduleRequestRequest> ApplySchedulingToScheduleAsync(
         Guid requestId, ScheduleRequestRequest request)
     {
-        if (request.SpaceId == null || request.StartTs == null) return request;
+        if (request.ResourceId == null || request.StartTs == null) return request;
 
         var existing = await _requestRepository.GetByIdAsync(requestId);
         if (existing == null || !existing.SchedulingSettingsApply) return request;
@@ -164,7 +164,7 @@ public class SchedulingService : ISchedulingService
         if (request.EndTs != null) return request;
 
         var result = await ComputeScheduledTimesAsync(
-            request.SpaceId.Value, request.StartTs.Value,
+            request.ResourceId.Value, request.StartTs.Value,
             existing.MinimalDurationValue, existing.MinimalDurationUnit);
 
         return result == null ? request : request with
@@ -177,9 +177,9 @@ public class SchedulingService : ISchedulingService
     }
 
     private async Task<(SchedulingSettingsInfo Settings, List<OffTimeInfo> OffTimes)?> LoadSchedulingContextAsync(
-        Guid spaceId)
+        Guid resourceId)
     {
-        var siteId = await _schedulingRepository.GetSiteIdForSpaceAsync(spaceId);
+        var siteId = await _schedulingRepository.GetSiteIdForResourceAsync(resourceId);
         if (siteId == null) return null;
 
         var settings = await _schedulingRepository.GetSettingsAsync(siteId.Value)
@@ -190,9 +190,9 @@ public class SchedulingService : ISchedulingService
     }
 
     private async Task<SchedulingEngine.ScheduleResult?> ComputeScheduledTimesAsync(
-        Guid spaceId, DateTime startTs, int durationValue, DurationUnit durationUnit)
+        Guid resourceId, DateTime startTs, int durationValue, DurationUnit durationUnit)
     {
-        var ctx = await LoadSchedulingContextAsync(spaceId);
+        var ctx = await LoadSchedulingContextAsync(resourceId);
         if (ctx == null) return null;
 
         var durationMinutes = SchedulingEngine.DurationToMinutes(durationValue, durationUnit);

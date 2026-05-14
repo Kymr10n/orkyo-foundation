@@ -54,29 +54,29 @@ export function useSchedulingConflicts(
 
     let isCancelled = false;
 
-     
+
     const timer = setTimeout(async () => {
-      const scheduledRequests = requests.filter((r) => r.spaceId && r.requirements?.length);
-      const spaceIds = [...new Set(scheduledRequests.map((r) => r.spaceId!))];
+      const scheduledRequests = requests.filter((r) => r.primaryResourceId && r.requirements?.length);
+      const resourceIds = [...new Set(scheduledRequests.map((r) => r.primaryResourceId!))];
 
       const capsBySpace = new Map<string, Awaited<ReturnType<typeof getSpaceCapabilities>>>();
       const results = await Promise.allSettled(
-        spaceIds.map(async (spaceId) => {
-          const caps = await getSpaceCapabilities(selectedSiteId, spaceId);
-          return { spaceId, caps };
+        resourceIds.map(async (resourceId) => {
+          const caps = await getSpaceCapabilities(selectedSiteId, resourceId);
+          return { resourceId, caps };
         }),
       );
       if (isCancelled) return;
 
       for (const result of results) {
         if (result.status === "fulfilled") {
-          capsBySpace.set(result.value.spaceId, result.value.caps);
+          capsBySpace.set(result.value.resourceId, result.value.caps);
         }
       }
 
       for (const request of scheduledRequests) {
         if (isCancelled) return;
-        const capabilities = capsBySpace.get(request.spaceId!);
+        const capabilities = capsBySpace.get(request.primaryResourceId!);
         if (!capabilities) continue;
 
         const capConflicts = validateSpaceRequirements(request, capabilities);

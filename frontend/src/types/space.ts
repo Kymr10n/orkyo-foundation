@@ -59,4 +59,3 @@ export type DrawingMode =
   | "polygon"
   | "select"
   | "resize";
-

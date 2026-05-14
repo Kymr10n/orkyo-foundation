@@ -215,7 +215,7 @@ export function RequestDetailsDialog({
           )}
 
           {/* Space assignment */}
-          {request.spaceId && (
+          {request.primaryResourceId && (
             <>
               <Separator />
               <div className="space-y-2">
@@ -223,7 +223,7 @@ export function RequestDetailsDialog({
                   <MapPin className="h-4 w-4" />
                   Assigned Space
                 </h4>
-                <p className="text-sm font-medium">{request.spaceId}</p>
+                <p className="text-sm font-medium">{request.primaryResourceId}</p>
               </div>
             </>
           )}

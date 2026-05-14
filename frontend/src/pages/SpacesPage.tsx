@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 export function SpacesPage() {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const [searchParams] = useSearchParams();
-  const editSpaceId = searchParams.get('edit');
+  const editResourceId = searchParams.get('edit');
 
   if (!selectedSiteId) {
     return (
@@ -18,7 +18,7 @@ export function SpacesPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <SpaceManagementPanel siteId={selectedSiteId} editSpaceId={editSpaceId} className="flex-1" />
+      <SpaceManagementPanel siteId={selectedSiteId} editResourceId={editResourceId} className="flex-1" />
     </div>
   );
 }

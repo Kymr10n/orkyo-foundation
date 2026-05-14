@@ -34,4 +34,3 @@ export const AuthErrorCodes = {
   /** Invalid or missing authentication token */
   InvalidToken: "invalid_token",
 } as const;
-

@@ -7,13 +7,13 @@ public class SchedulingProblemBuilder
 {
     private readonly IRequestRepository _requestRepository;
     private readonly ISpaceRepository _spaceRepository;
-    private readonly ISpaceCapabilityRepository _capabilityRepository;
+    private readonly IResourceCapabilityRepository _capabilityRepository;
     private readonly ISchedulingRepository _schedulingRepository;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
         ISpaceRepository spaceRepository,
-        ISpaceCapabilityRepository capabilityRepository,
+        IResourceCapabilityRepository capabilityRepository,
         ISchedulingRepository schedulingRepository)
     {
         _requestRepository = requestRepository;
@@ -46,7 +46,7 @@ public class SchedulingProblemBuilder
         var spaceNodes = new List<SpaceNode>();
         foreach (var space in spaces)
         {
-            var capabilities = await _capabilityRepository.GetAllAsync(request.SiteId, space.Id);
+            var capabilities = await _capabilityRepository.GetByResourceAsync(space.Id);
             spaceNodes.Add(new SpaceNode(space.Id, space.Name, capabilities.Select(c => c.CriterionId).ToHashSet()));
         }
 
@@ -71,7 +71,7 @@ public class SchedulingProblemBuilder
             .Where(r => r.IsScheduled)
             .Select(r => new FixedOccupancy(
                 r.Id,
-                r.SpaceId!.Value,
+                r.PrimaryResourceId!.Value,
                 DateOnly.FromDateTime(r.StartTs!.Value),
                 DateOnly.FromDateTime(r.EndTs!.Value)))
             .ToList();

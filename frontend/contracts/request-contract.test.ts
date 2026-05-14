@@ -135,7 +135,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
-    | "spaceId"
+    | "primaryResourceId"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -164,7 +164,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "parentRequestId",
     "planningMode",
     "sortOrder",
-    "spaceId",
+    "primaryResourceId",
     "requestItemId",
     "icon",
     "startTs",
@@ -195,7 +195,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       parentRequestId: null,
       planningMode: "leaf",
       sortOrder: 0,
-      spaceId: null,
+      primaryResourceId: null,
       requestItemId: null,
       icon: null,
       startTs: null,
@@ -327,7 +327,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
-    | "spaceId"
+    | "primaryResourceId"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -351,7 +351,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
       "parentRequestId",
       "planningMode",
       "sortOrder",
-      "spaceId",
+      "primaryResourceId",
       "requestItemId",
       "icon",
       "startTs",
@@ -397,7 +397,7 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
-    | "spaceId"
+    | "primaryResourceId"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -465,7 +465,7 @@ describe("Contract - JSON field casing", () => {
       "parentRequestId",
       "planningMode",
       "sortOrder",
-      "spaceId",
+      "primaryResourceId",
       "requestItemId",
       "startTs",
       "endTs",

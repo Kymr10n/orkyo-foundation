@@ -89,7 +89,7 @@ export function ConflictsPage() {
       Array.from(conflicts.entries()).flatMap(([requestId, requestConflicts]) => {
         const request = requestMap.get(requestId);
         if (!request) return [];
-        
+
         return requestConflicts.map((conflict) => ({
           ...conflict,
           request,

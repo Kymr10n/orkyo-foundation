@@ -81,7 +81,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'manual' as Request['planningMode'],
     sortOrder: 0,
-    spaceId: 'space-1',
+    primaryResourceId: 'space-1',
     minimalDurationValue: 60,
     minimalDurationUnit: 'minute' as Request['minimalDurationUnit'],
     schedulingSettingsApply: true,
@@ -95,7 +95,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
 function makePreviewEntry(overrides: Partial<PreviewEntry> = {}): PreviewEntry {
   return {
     requestId: 'req-1',
-    spaceId: 'space-1',
+    resourceId: 'space-1',
     startMs: Date.parse('2026-01-01T08:00:00Z'),
     endMs: Date.parse('2026-01-01T09:00:00Z'),
     name: 'Request 1',
@@ -108,9 +108,9 @@ function makePreviewEntry(overrides: Partial<PreviewEntry> = {}): PreviewEntry {
 function buildIndex(entries: PreviewEntry[]): ScheduleIndex {
   const bySpace = new Map<string, PreviewEntry[]>();
   for (const e of entries) {
-    const list = bySpace.get(e.spaceId) ?? [];
+    const list = bySpace.get(e.resourceId) ?? [];
     list.push(e);
-    bySpace.set(e.spaceId, list);
+    bySpace.set(e.resourceId, list);
   }
   return { bySpace };
 }
@@ -130,7 +130,7 @@ function renderRow({
   previewEntries?: PreviewEntry[];
   overlapCount?: number;
   isDragging?: boolean;
-  offTimeRanges?: { id: string; spaceId: string; startTs: string; endTs: string }[];
+  offTimeRanges?: { id: string; resourceId: string; startTs: string; endTs: string }[];
   onRequestClick?: (id: string) => void;
 } = {}) {
   mockUseSortable.mockReturnValue({
@@ -187,11 +187,11 @@ describe('SpaceRow', () => {
 
   it('renders ScheduledRequestOverlay only for preview entries whose request belongs to this space', () => {
     const requestInSpace = makeRequest({ id: 'req-1', name: 'Mine' });
-    const requestOther = makeRequest({ id: 'req-other', name: 'Other', spaceId: 'space-2' });
+    const requestOther = makeRequest({ id: 'req-other', name: 'Other', primaryResourceId: 'space-2' });
     const previewEntries = [
-      makePreviewEntry({ requestId: 'req-1', spaceId: 'space-1' }),
+      makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' }),
       // entry whose request is missing from the requests array → skipped
-      makePreviewEntry({ requestId: 'req-missing', spaceId: 'space-1' }),
+      makePreviewEntry({ requestId: 'req-missing', resourceId: 'space-1' }),
     ];
     const { queryByTestId } = renderRow({
       requests: [requestInSpace, requestOther],
@@ -206,7 +206,7 @@ describe('SpaceRow', () => {
     const onRequestClick = vi.fn();
     const { getByTestId } = renderRow({
       requests: [makeRequest({ id: 'req-1' })],
-      previewEntries: [makePreviewEntry({ requestId: 'req-1', spaceId: 'space-1' })],
+      previewEntries: [makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' })],
       onRequestClick,
     });
     fireEvent.click(getByTestId('overlay-req-1'));
@@ -235,8 +235,8 @@ describe('SpaceRow', () => {
   it('renders an OffTimeOverlay for each provided off-time range', () => {
     const { getByTestId } = renderRow({
       offTimeRanges: [
-        { id: 'ot-1', spaceId: 'space-1', startTs: '2026-01-01T12:00:00Z', endTs: '2026-01-01T13:00:00Z' },
-        { id: 'ot-2', spaceId: 'space-1', startTs: '2026-01-01T17:00:00Z', endTs: '2026-01-01T18:00:00Z' },
+        { id: 'ot-1', resourceId: 'space-1', startTs: '2026-01-01T12:00:00Z', endTs: '2026-01-01T13:00:00Z' },
+        { id: 'ot-2', resourceId: 'space-1', startTs: '2026-01-01T17:00:00Z', endTs: '2026-01-01T18:00:00Z' },
       ],
     });
     expect(getByTestId('offtime-ot-1')).toBeInTheDocument();

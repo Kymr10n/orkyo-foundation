@@ -11,7 +11,7 @@ const mockRequest = {
   status: 'pending',
   minimalDurationValue: 2,
   minimalDurationUnit: 'hours',
-  spaceId: null,
+  primaryResourceId: null,
   startTs: null,
   endTs: null,
 };
@@ -182,7 +182,7 @@ describe('utilization-api', () => {
   describe('scheduleRequest', () => {
     const scheduledRequest = {
       ...mockRequest,
-      spaceId: 'space-456',
+      primaryResourceId: 'space-456',
       startTs: '2024-01-15T09:00:00Z',
       endTs: '2024-01-15T11:00:00Z',
     };
@@ -191,7 +191,7 @@ describe('utilization-api', () => {
       vi.mocked(apiClient.apiPatch).mockResolvedValue(scheduledRequest);
 
       const data: ScheduleRequestData = {
-        spaceId: 'space-456',
+        primaryResourceId: 'space-456',
         startTs: '2024-01-15T09:00:00Z',
         endTs: '2024-01-15T11:00:00Z',
       };
@@ -204,20 +204,20 @@ describe('utilization-api', () => {
     it('returns request with computed durationMin', async () => {
       vi.mocked(apiClient.apiPatch).mockResolvedValue(scheduledRequest);
 
-      const data: ScheduleRequestData = { spaceId: 'space-456' };
+      const data: ScheduleRequestData = { primaryResourceId: 'space-456' };
       const result = await scheduleRequest('req-123', data);
 
       expect(result.durationMin).toBe(120);
     });
 
-    it('handles partial update with only spaceId', async () => {
+    it('handles partial update with only resourceId', async () => {
       vi.mocked(apiClient.apiPatch).mockResolvedValue(scheduledRequest);
 
-      const data: ScheduleRequestData = { spaceId: 'space-456' };
+      const data: ScheduleRequestData = { primaryResourceId: 'space-456' };
       await scheduleRequest('req-123', data);
 
       expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), {
-        spaceId: 'space-456',
+        primaryResourceId: 'space-456',
       });
     });
 
@@ -237,7 +237,7 @@ describe('utilization-api', () => {
       vi.mocked(apiClient.apiPatch).mockResolvedValue(mockRequest);
 
       const data: ScheduleRequestData = {
-        spaceId: null,
+        primaryResourceId: null,
         startTs: null,
         endTs: null,
       };
@@ -251,7 +251,7 @@ describe('utilization-api', () => {
       vi.mocked(apiClient.apiPatch).mockRejectedValue(error);
 
       await expect(
-        scheduleRequest('invalid-id', { spaceId: 'space-1' })
+        scheduleRequest('invalid-id', { primaryResourceId: 'space-1' })
       ).rejects.toThrow('Request not found');
     });
   });

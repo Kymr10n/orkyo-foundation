@@ -47,15 +47,15 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_TrueWhenSpaceAndTimestampsSet()
     {
-        var info = BuildRequest(spaceId: Guid.NewGuid(), start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
+        var info = BuildRequest(resourceId: Guid.NewGuid(), start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
 
         info.IsScheduled.Should().BeTrue();
     }
 
     [Fact]
-    public void RequestInfo_IsScheduled_FalseWhenSpaceIdNull()
+    public void RequestInfo_IsScheduled_FalseWhenResourceIdNull()
     {
-        var info = BuildRequest(spaceId: null, start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
+        var info = BuildRequest(resourceId: null, start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -63,7 +63,7 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_FalseWhenStartTsNull()
     {
-        var info = BuildRequest(spaceId: Guid.NewGuid(), start: null, end: DateTime.UtcNow.AddDays(1));
+        var info = BuildRequest(resourceId: Guid.NewGuid(), start: null, end: DateTime.UtcNow.AddDays(1));
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -71,7 +71,7 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_FalseWhenEndTsNull()
     {
-        var info = BuildRequest(spaceId: Guid.NewGuid(), start: DateTime.UtcNow, end: null);
+        var info = BuildRequest(resourceId: Guid.NewGuid(), start: DateTime.UtcNow, end: null);
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -79,7 +79,7 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_FalseWhenAllNull()
     {
-        var info = BuildRequest(spaceId: null, start: null, end: null);
+        var info = BuildRequest(resourceId: null, start: null, end: null);
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -164,7 +164,7 @@ public class RequestModelsTests
     {
         var req = new ScheduleRequestRequest();
 
-        req.SpaceId.Should().BeNull();
+        req.ResourceId.Should().BeNull();
         req.StartTs.Should().BeNull();
         req.EndTs.Should().BeNull();
         req.ActualDurationValue.Should().BeNull();
@@ -174,20 +174,20 @@ public class RequestModelsTests
     [Fact]
     public void ScheduleRequestRequest_StoresSchedulingFields()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var start = new DateTime(2026, 1, 5, 8, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2026, 1, 7, 17, 0, 0, DateTimeKind.Utc);
 
         var req = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = start,
             EndTs = end,
             ActualDurationValue = 2,
             ActualDurationUnit = DurationUnit.Days
         };
 
-        req.SpaceId.Should().Be(spaceId);
+        req.ResourceId.Should().Be(resourceId);
         req.StartTs.Should().Be(start);
         req.ActualDurationValue.Should().Be(2);
         req.ActualDurationUnit.Should().Be(DurationUnit.Days);
@@ -226,7 +226,7 @@ public class RequestModelsTests
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static RequestInfo BuildRequest(Guid? spaceId, DateTime? start, DateTime? end) => new()
+    private static RequestInfo BuildRequest(Guid? resourceId, DateTime? start, DateTime? end) => new()
     {
         Id = Guid.NewGuid(),
         Name = "Test Request",
@@ -235,7 +235,7 @@ public class RequestModelsTests
         MinimalDurationUnit = DurationUnit.Days,
         Status = RequestStatus.Planned,
         SchedulingSettingsApply = true,
-        SpaceId = spaceId,
+        PrimaryResourceId = resourceId,
         StartTs = start,
         EndTs = end
     };

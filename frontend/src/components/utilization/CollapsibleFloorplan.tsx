@@ -97,18 +97,18 @@ export function CollapsibleFloorplan({
   );
 
   // Memoize cursor-time filtering
-  const { occupiedSpaceIds, conflictingSpaceIds } = useMemo(() => {
+  const { occupiedResourceIds, conflictingResourceIds } = useMemo(() => {
     const active = requests.filter((req) => {
-      if (!req.startTs || !req.endTs || !req.spaceId) return false;
+      if (!req.startTs || !req.endTs || !req.primaryResourceId) return false;
       const start = new Date(req.startTs);
       const end = new Date(req.endTs);
       return start <= timeCursorTs && timeCursorTs < end;
     });
 
     return {
-      occupiedSpaceIds: new Set(active.map((req) => req.spaceId)),
-      conflictingSpaceIds: new Set(
-        active.filter((req) => conflicts.has(req.id)).map((req) => req.spaceId),
+      occupiedResourceIds: new Set(active.map((req) => req.primaryResourceId)),
+      conflictingResourceIds: new Set(
+        active.filter((req) => conflicts.has(req.id)).map((req) => req.primaryResourceId),
       ),
     };
   }, [requests, timeCursorTs, conflicts]);
@@ -123,14 +123,14 @@ export function CollapsibleFloorplan({
       Object.fromEntries(
         spacesWithGeometry.map((space) => [
           space.id,
-          conflictingSpaceIds.has(space.id)
+          conflictingResourceIds.has(space.id)
             ? { fill: "rgba(249, 115, 22, 0.35)", stroke: "#f97316" }
-            : occupiedSpaceIds.has(space.id)
+            : occupiedResourceIds.has(space.id)
               ? { fill: "rgba(239, 68, 68, 0.25)", stroke: "#ef4444" }
               : { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },
         ]),
       ),
-    [spacesWithGeometry, occupiedSpaceIds, conflictingSpaceIds],
+    [spacesWithGeometry, occupiedResourceIds, conflictingResourceIds],
   );
 
   const fetchError = floorplanError || spacesError;
@@ -221,20 +221,20 @@ export function CollapsibleFloorplan({
                   <div className="flex items-center gap-2">
                     <div className="h-3 w-3 rounded border-2 border-green-500 bg-green-200/70" />
                     <span className="text-muted-foreground">
-                      Available ({spacesWithGeometry.length - occupiedSpaceIds.size})
+                      Available ({spacesWithGeometry.length - occupiedResourceIds.size})
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="h-3 w-3 rounded border-2 border-red-500 bg-red-200/70" />
                     <span className="text-muted-foreground">
-                      Occupied ({occupiedSpaceIds.size - conflictingSpaceIds.size})
+                      Occupied ({occupiedResourceIds.size - conflictingResourceIds.size})
                     </span>
                   </div>
-                  {conflictingSpaceIds.size > 0 && (
+                  {conflictingResourceIds.size > 0 && (
                     <div className="flex items-center gap-2">
                       <div className="h-3 w-3 rounded border-2 border-orange-500 bg-orange-200/70" />
                       <span className="text-muted-foreground">
-                        Conflict ({conflictingSpaceIds.size})
+                        Conflict ({conflictingResourceIds.size})
                       </span>
                     </div>
                   )}

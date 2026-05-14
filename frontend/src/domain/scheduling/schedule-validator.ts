@@ -16,7 +16,7 @@ import type { Conflict } from "@foundation/src/types/requests";
 import { buildIndex, getOverlapping } from "./schedule-index";
 import type { PreviewSchedule, ValidationResult } from "./schedule-model";
 
-/** spaceId → max concurrent allocations allowed (default 1) */
+/** resourceId → max concurrent allocations allowed (default 1) */
 type SpaceCapacityMap = ReadonlyMap<string, number>;
 
 export function evaluateSchedule(
@@ -42,7 +42,7 @@ export function evaluateSchedule(
 
     // --- Rule 2: overlap / capacity ---
     const overlapping = getOverlapping(index, entry);
-    const capacity = spaceCapacities?.get(entry.spaceId) ?? 1;
+    const capacity = spaceCapacities?.get(entry.resourceId) ?? 1;
 
     if (capacity <= 1) {
       // Classic behaviour: any overlap is a conflict

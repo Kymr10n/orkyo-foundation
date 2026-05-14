@@ -16,7 +16,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'leaf',
     sortOrder: 0,
-    spaceId: null,
+    primaryResourceId: null,
     startTs: null,
     endTs: null,
     earliestStartTs: null,
@@ -46,7 +46,7 @@ const scheduledLeaf = makeRequest({
   id: 's-1',
   name: 'Scheduled Task',
   planningMode: 'leaf',
-  spaceId: 'space-1',
+  primaryResourceId: 'space-1',
   startTs: '2026-03-01T09:00:00Z',
   status: 'in_progress',
 });

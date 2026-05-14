@@ -24,13 +24,13 @@ const baseRange: OffTimeRange = {
   title: 'Maintenance',
   startMs: VIEW_START + 2 * DAY_MS, // day 3
   endMs: VIEW_START + 4 * DAY_MS,   // day 5
-  spaceIds: null,
+  resourceIds: null,
 };
 
 describe('OffTimeOverlay', () => {
   it('renders an overlay within view bounds', () => {
     const { container } = render(
-      <OffTimeOverlay offTime={baseRange} columns={baseColumns} spaceId="s-1" />,
+      <OffTimeOverlay offTime={baseRange} columns={baseColumns} resourceId="s-1" />,
     );
     const overlay = container.firstChild as HTMLElement;
     expect(overlay).not.toBeNull();
@@ -46,37 +46,37 @@ describe('OffTimeOverlay', () => {
       endMs: VIEW_END + 2 * DAY_MS,
     };
     const { container } = render(
-      <OffTimeOverlay offTime={offTime} columns={baseColumns} spaceId="s-1" />,
+      <OffTimeOverlay offTime={offTime} columns={baseColumns} resourceId="s-1" />,
     );
     expect(container.firstChild).toBeNull();
   });
 
   it('renders nothing when columns are empty', () => {
     const { container } = render(
-      <OffTimeOverlay offTime={baseRange} columns={[]} spaceId="s-1" />,
+      <OffTimeOverlay offTime={baseRange} columns={[]} resourceId="s-1" />,
     );
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders when spaceIds is null (applies to all spaces)', () => {
+  it('renders when resourceIds is null (applies to all spaces)', () => {
     const { container } = render(
-      <OffTimeOverlay offTime={baseRange} columns={baseColumns} spaceId="any-space" />,
+      <OffTimeOverlay offTime={baseRange} columns={baseColumns} resourceId="any-space" />,
     );
     expect(container.firstChild).not.toBeNull();
   });
 
-  it('renders when space is in the spaceIds list', () => {
-    const offTime: OffTimeRange = { ...baseRange, spaceIds: ['s-1', 's-2'] };
+  it('renders when space is in the resourceIds list', () => {
+    const offTime: OffTimeRange = { ...baseRange, resourceIds: ['s-1', 's-2'] };
     const { container } = render(
-      <OffTimeOverlay offTime={offTime} columns={baseColumns} spaceId="s-1" />,
+      <OffTimeOverlay offTime={offTime} columns={baseColumns} resourceId="s-1" />,
     );
     expect(container.firstChild).not.toBeNull();
   });
 
-  it('renders nothing when space is NOT in the spaceIds list', () => {
-    const offTime: OffTimeRange = { ...baseRange, spaceIds: ['s-1', 's-2'] };
+  it('renders nothing when space is NOT in the resourceIds list', () => {
+    const offTime: OffTimeRange = { ...baseRange, resourceIds: ['s-1', 's-2'] };
     const { container } = render(
-      <OffTimeOverlay offTime={offTime} columns={baseColumns} spaceId="s-99" />,
+      <OffTimeOverlay offTime={offTime} columns={baseColumns} resourceId="s-99" />,
     );
     expect(container.firstChild).toBeNull();
   });
@@ -88,7 +88,7 @@ describe('OffTimeOverlay', () => {
       endMs: VIEW_END + DAY_MS,       // ends after view
     };
     const { container } = render(
-      <OffTimeOverlay offTime={offTime} columns={baseColumns} spaceId="s-1" />,
+      <OffTimeOverlay offTime={offTime} columns={baseColumns} resourceId="s-1" />,
     );
     const overlay = container.firstChild as HTMLElement;
     expect(overlay).not.toBeNull();
@@ -100,7 +100,7 @@ describe('OffTimeOverlay', () => {
   it('calculates correct left/width percentages', () => {
     // Off-time covers days 3-5 of a 7-day view → left=2/7, width=2/7
     const { container } = render(
-      <OffTimeOverlay offTime={baseRange} columns={baseColumns} spaceId="s-1" />,
+      <OffTimeOverlay offTime={baseRange} columns={baseColumns} resourceId="s-1" />,
     );
     const overlay = container.firstChild as HTMLElement;
     const expectedLeft = (2 / 7) * 100;

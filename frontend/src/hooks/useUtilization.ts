@@ -52,7 +52,7 @@ export function useScheduleRequest() {
           r.id === requestId
             ? {
                 ...r,
-                spaceId: data.spaceId !== undefined ? data.spaceId : r.spaceId,
+                primaryResourceId: data.primaryResourceId !== undefined ? data.primaryResourceId : r.primaryResourceId,
                 startTs: data.startTs !== undefined ? data.startTs : r.startTs,
                 endTs: data.endTs !== undefined ? data.endTs : r.endTs,
               }

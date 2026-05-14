@@ -42,7 +42,7 @@ export interface RequestFormData {
   icon?: string | null;
   planningMode: PlanningMode;
   parentRequestId?: string;
-  spaceId?: string;
+  resourceId?: string;
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;
@@ -238,7 +238,7 @@ export function RequestFormDialog({
       icon: state.icon ?? null,
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
-      spaceId: isLeaf ? (state.selectedSpaceId || undefined) : undefined,
+      resourceId: isLeaf ? (state.selectedResourceId || undefined) : undefined,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
       earliestStartTs: hasEditableConstraints ? earliestStartTs : undefined,

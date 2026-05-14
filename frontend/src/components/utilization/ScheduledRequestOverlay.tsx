@@ -57,7 +57,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         if (!request.startTs || !request.endTs) return;
         startResize({
           requestId: request.id,
-          spaceId: request.spaceId!,
+          resourceId: request.primaryResourceId!,
           edge,
           committedStartMs: new Date(request.startTs).getTime(),
           committedEndMs: new Date(request.endTs).getTime(),

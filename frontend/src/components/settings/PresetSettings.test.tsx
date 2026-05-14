@@ -92,17 +92,17 @@ describe('PresetSettings', () => {
   const simulateFileUpload = (content: string, filename = 'test.preset.json') => {
     const input = document.querySelector('input[type="file"]')!;
     const file = new File([content], filename, { type: 'application/json' });
-    
+
     // Mock file.text() since jsdom doesn't support it
     Object.defineProperty(file, 'text', {
       value: () => Promise.resolve(content),
     });
-    
+
     Object.defineProperty(input, 'files', {
       value: [file],
       configurable: true,
     });
-    
+
     fireEvent.change(input);
   };
 
@@ -114,13 +114,13 @@ describe('PresetSettings', () => {
       },
     });
     vi.clearAllMocks();
-    
+
     vi.mocked(presetApi.getPresetApplications).mockResolvedValue(mockApplications);
     vi.mocked(presetApi.parsePresetFile).mockReturnValue(mockPreset);
     vi.mocked(presetApi.validatePreset).mockResolvedValue(mockValidationSuccess);
     vi.mocked(presetApi.applyPreset).mockResolvedValue(mockApplicationSuccess);
     vi.mocked(presetApi.downloadPreset).mockImplementation(() => {});
-    
+
     global.alert = vi.fn();
   });
 

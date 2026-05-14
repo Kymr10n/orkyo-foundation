@@ -9,7 +9,7 @@ public class DbQueryHelperTests
     [Theory]
     [InlineData("sites")]
     [InlineData("spaces")]
-    [InlineData("space_groups")]
+    [InlineData("resource_groups")]
     [InlineData("criteria")]
     [InlineData("requests")]
     [InlineData("users")]

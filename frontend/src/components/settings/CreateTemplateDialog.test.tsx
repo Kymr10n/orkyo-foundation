@@ -44,7 +44,7 @@ describe('CreateTemplateDialog', () => {
         />
       </QueryClientProvider>
     );
-    
+
     expect(screen.getByText('Create Request Template')).toBeInTheDocument();
     expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
     await act(async () => {});

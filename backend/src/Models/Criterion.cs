@@ -42,6 +42,17 @@ public record CriterionInfo
 }
 
 /// <summary>
+/// Minimal criterion metadata used for nested capability responses.
+/// </summary>
+public record CriterionMetadata
+{
+    public required Guid Id { get; init; }
+    public required string Name { get; init; }
+    public required CriterionDataType DataType { get; init; }
+    public string? Unit { get; init; }
+}
+
+/// <summary>
 /// Request to create a new criterion.
 /// </summary>
 public record CreateCriterionRequest

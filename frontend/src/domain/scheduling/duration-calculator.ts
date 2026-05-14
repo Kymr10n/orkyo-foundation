@@ -9,7 +9,7 @@ export function computeWorkingDuration(
   calendar: EffectiveCalendar,
   startMs: number,
   endMs: number,
-  spaceId: string | null
+  resourceId: string | null
 ): number {
   if (endMs <= startMs) return 0;
 
@@ -20,16 +20,15 @@ export function computeWorkingDuration(
     if (cursor >= endMs) break;
 
     // If not in working time, advance to next working start.
-    if (!isWorkingTime(calendar, cursor, spaceId)) {
-      cursor = nextWorkingStart(calendar, cursor, spaceId);
+    if (!isWorkingTime(calendar, cursor, resourceId)) {
+      cursor = nextWorkingStart(calendar, cursor, resourceId);
       if (cursor >= endMs) break;
     }
 
-    const segEnd = Math.min(workingSegmentEnd(calendar, cursor, spaceId), endMs);
+    const segEnd = Math.min(workingSegmentEnd(calendar, cursor, resourceId), endMs);
     total += segEnd - cursor;
     cursor = segEnd;
   }
 
   return total;
 }
-

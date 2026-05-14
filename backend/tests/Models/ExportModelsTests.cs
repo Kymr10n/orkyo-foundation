@@ -215,7 +215,7 @@ public class ExportModelsTests
         {
             Title = "Christmas",
             Type = OffTimeType.Holiday,
-            AppliesToAllSpaces = true,
+            AppliesToAllResources = true,
             StartTs = start,
             EndTs = end,
             IsRecurring = false,
@@ -256,7 +256,7 @@ public class ExportModelsTests
         {
             Name = "Install HVAC",
             Description = "Install new HVAC unit",
-            SpaceName = "Roof",
+            ResourceName = "Roof",
             SiteCode = "HQ",
             MinimalDurationValue = 2,
             MinimalDurationUnit = DurationUnit.Days,

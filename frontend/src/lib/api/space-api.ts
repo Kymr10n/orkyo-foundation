@@ -25,15 +25,15 @@ export async function createSpace(siteId: string, request: CreateSpaceRequest): 
  */
 export async function updateSpace(
   siteId: string,
-  spaceId: string,
+  resourceId: string,
   request: UpdateSpaceRequest
 ): Promise<Space> {
-  return apiPut<Space>(API_PATHS.space(siteId, spaceId), request);
+  return apiPut<Space>(API_PATHS.space(siteId, resourceId), request);
 }
 
 /**
  * Delete a space
  */
-export async function deleteSpace(siteId: string, spaceId: string): Promise<void> {
-  return apiDelete(API_PATHS.space(siteId, spaceId));
+export async function deleteSpace(siteId: string, resourceId: string): Promise<void> {
+  return apiDelete(API_PATHS.space(siteId, resourceId));
 }

@@ -40,5 +40,3 @@ public static class ConnectionStringTimeoutPolicy
         return builder.ConnectionString;
     }
 }
-
-

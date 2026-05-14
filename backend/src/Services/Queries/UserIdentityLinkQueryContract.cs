@@ -33,7 +33,7 @@ public static class UserIdentityLinkQueryContract
             SELECT u.id, u.email, u.display_name
             FROM users u
             INNER JOIN user_identities ui ON u.id = ui.user_id
-            WHERE ui.provider = 'keycloak' 
+            WHERE ui.provider = 'keycloak'
               AND ui.provider_subject = @subject
               AND u.status = 'active'";
     }

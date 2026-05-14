@@ -19,7 +19,7 @@ const mockRequest: Request = {
   id: "req-001",
   name: "Deep-Sea Survey",
   description: "Seismic scan of sector 7",
-  spaceId: "space-A",
+  primaryResourceId: "space-A",
   startTs: "2026-04-01T08:00:00Z",
   endTs: "2026-04-01T10:00:00Z",
   earliestStartTs: null,
@@ -42,7 +42,7 @@ const mockRequest2: Request = {
   id: "req-002",
   name: "Core Sample Analysis",
   description: null,
-  spaceId: null,
+  primaryResourceId: null,
   startTs: null,
   endTs: null,
   earliestStartTs: "2026-04-02T00:00:00Z",
@@ -256,7 +256,7 @@ describe("useScheduleRequest", () => {
   it("calls scheduleRequest with the correct requestId and data", async () => {
     const updatedRequest: Request = {
       ...mockRequest,
-      spaceId: "space-B",
+      primaryResourceId: "space-B",
       startTs: "2026-04-02T09:00:00Z",
       endTs: "2026-04-02T11:00:00Z",
     };
@@ -269,7 +269,7 @@ describe("useScheduleRequest", () => {
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
     const scheduleData: utilizationApi.ScheduleRequestData = {
-      spaceId: "space-B",
+      primaryResourceId: "space-B",
       startTs: "2026-04-02T09:00:00Z",
       endTs: "2026-04-02T11:00:00Z",
     };
@@ -305,7 +305,7 @@ describe("useScheduleRequest", () => {
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
     const scheduleData: utilizationApi.ScheduleRequestData = {
-      spaceId: "space-B",
+      primaryResourceId: "space-B",
       startTs: "2026-04-02T09:00:00Z",
       endTs: "2026-04-02T11:00:00Z",
     };
@@ -320,7 +320,7 @@ describe("useScheduleRequest", () => {
     await waitFor(() => {
       const cached = queryClient.getQueryData<Request[]>(["requests"]);
       const optimistic = cached?.find((r) => r.id === "req-001");
-      expect(optimistic?.spaceId).toBe("space-B");
+      expect(optimistic?.primaryResourceId).toBe("space-B");
       expect(optimistic?.startTs).toBe("2026-04-02T09:00:00Z");
       expect(optimistic?.endTs).toBe("2026-04-02T11:00:00Z");
     });
@@ -334,7 +334,7 @@ describe("useScheduleRequest", () => {
     // Let the mutation complete
     resolve({
       ...mockRequest,
-      spaceId: "space-B",
+      primaryResourceId: "space-B",
       startTs: "2026-04-02T09:00:00Z",
       endTs: "2026-04-02T11:00:00Z",
     });
@@ -358,7 +358,7 @@ describe("useScheduleRequest", () => {
       try {
         await result.current.mutateAsync({
           requestId: "req-001",
-          data: { spaceId: "space-B" },
+          data: { primaryResourceId: "space-B" },
         });
       } catch {
         // expected
@@ -370,7 +370,7 @@ describe("useScheduleRequest", () => {
     // Cache should be rolled back to the original snapshot
     const cached = queryClient.getQueryData<Request[]>(["requests"]);
     const restored = cached?.find((r) => r.id === "req-001");
-    expect(restored?.spaceId).toBe("space-A"); // original value
+    expect(restored?.primaryResourceId).toBe("space-A"); // original value
     expect(restored?.startTs).toBe("2026-04-01T08:00:00Z"); // original value
   });
 
@@ -378,7 +378,7 @@ describe("useScheduleRequest", () => {
     // The server may return extra computed fields (e.g. actualDurationValue)
     const serverResponse: Request = {
       ...mockRequest,
-      spaceId: "space-B",
+      primaryResourceId: "space-B",
       startTs: "2026-04-02T09:00:00Z",
       endTs: "2026-04-02T11:30:00Z",
       actualDurationValue: 150,
@@ -396,7 +396,7 @@ describe("useScheduleRequest", () => {
       await result.current.mutateAsync({
         requestId: "req-001",
         data: {
-          spaceId: "space-B",
+          primaryResourceId: "space-B",
           startTs: "2026-04-02T09:00:00Z",
           endTs: "2026-04-02T11:30:00Z",
         },
@@ -409,20 +409,20 @@ describe("useScheduleRequest", () => {
 
     // Updated entry should have server-confirmed values
     const updated = cached?.find((r) => r.id === "req-001");
-    expect(updated?.spaceId).toBe("space-B");
+    expect(updated?.primaryResourceId).toBe("space-B");
     expect(updated?.endTs).toBe("2026-04-02T11:30:00Z");
     expect(updated?.actualDurationValue).toBe(150);
     expect(updated?.actualDurationUnit).toBe("minutes");
 
     // Unrelated entry should be unchanged
     const untouched = cached?.find((r) => r.id === "req-002");
-    expect(untouched?.spaceId).toBe(null);
+    expect(untouched?.primaryResourceId).toBe(null);
   });
 
-  it("unscheduled request: schedules into a space (spaceId was null)", async () => {
+  it("unscheduled request: schedules into a space (resourceId was null)", async () => {
     const serverResponse: Request = {
       ...mockRequest2,
-      spaceId: "space-A",
+      primaryResourceId: "space-A",
       startTs: "2026-04-03T10:00:00Z",
       endTs: "2026-04-03T12:00:00Z",
     };
@@ -438,7 +438,7 @@ describe("useScheduleRequest", () => {
       await result.current.mutateAsync({
         requestId: "req-002",
         data: {
-          spaceId: "space-A",
+          primaryResourceId: "space-A",
           startTs: "2026-04-03T10:00:00Z",
           endTs: "2026-04-03T12:00:00Z",
         },
@@ -449,7 +449,7 @@ describe("useScheduleRequest", () => {
 
     const cached = queryClient.getQueryData<Request[]>(["requests"]);
     const updated = cached?.find((r) => r.id === "req-002");
-    expect(updated?.spaceId).toBe("space-A");
+    expect(updated?.primaryResourceId).toBe("space-A");
     expect(updated?.startTs).toBe("2026-04-03T10:00:00Z");
   });
 });

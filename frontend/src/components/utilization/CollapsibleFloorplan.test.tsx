@@ -99,7 +99,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-1",
         name: "Request 1",
-        spaceId: "space-1",
+        primaryResourceId: "space-1",
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",
@@ -114,9 +114,9 @@ describe("CollapsibleFloorplan", () => {
         sortOrder: 0,
       },
       {
-        id: "req-2", 
+        id: "req-2",
         name: "Request 2",
-        spaceId: "space-2",
+        primaryResourceId: "space-2",
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",
@@ -133,7 +133,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-3",
         name: "Request 3 - Outside cursor",
-        spaceId: "space-3",
+        primaryResourceId: "space-3",
         startTs: "2026-02-16T10:00:00Z",
         endTs: "2026-02-16T14:00:00Z",
         status: "planned",
@@ -153,10 +153,10 @@ describe("CollapsibleFloorplan", () => {
       // Time cursor at 12:00 on Feb 15 should mark space-1 and space-2 as occupied
       // space-3 is on Feb 16, so should not be occupied
       const timeCursorTs = new Date("2026-02-15T12:00:00Z");
-      
+
       renderWithQuery(
-        <CollapsibleFloorplan 
-          {...defaultProps} 
+        <CollapsibleFloorplan
+          {...defaultProps}
           requests={mockRequests}
           timeCursorTs={timeCursorTs}
         />
@@ -166,12 +166,12 @@ describe("CollapsibleFloorplan", () => {
       // When no site is selected, we can't see the legend, but the logic is tested
     });
 
-    it("handles requests without spaceId", () => {
+    it("handles requests without resourceId", () => {
       const requestsWithoutSpace: Request[] = [
         {
           id: "req-unscheduled",
           name: "Unscheduled",
-          spaceId: null,
+          primaryResourceId: null,
           startTs: null,
           endTs: null,
           status: "planned",
@@ -190,8 +190,8 @@ describe("CollapsibleFloorplan", () => {
       // Should not throw error
       expect(() => {
         renderWithQuery(
-          <CollapsibleFloorplan 
-            {...defaultProps} 
+          <CollapsibleFloorplan
+            {...defaultProps}
             requests={requestsWithoutSpace}
           />
         );
@@ -204,7 +204,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-1",
         name: "Request 1 - Conflicting",
-        spaceId: "space-1",
+        primaryResourceId: "space-1",
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",
@@ -221,7 +221,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-2",
         name: "Request 2 - Conflicting with req-1",
-        spaceId: "space-1",
+        primaryResourceId: "space-1",
         startTs: "2026-02-15T12:00:00Z",
         endTs: "2026-02-15T16:00:00Z",
         status: "planned",
@@ -238,7 +238,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-3",
         name: "Request 3 - No conflict",
-        spaceId: "space-2",
+        primaryResourceId: "space-2",
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",

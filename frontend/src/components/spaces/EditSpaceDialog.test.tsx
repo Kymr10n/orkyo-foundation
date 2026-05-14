@@ -98,7 +98,7 @@ describe('EditSpaceDialog', () => {
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           data: expect.objectContaining({
             name: 'Room B',
             description: 'Updated',

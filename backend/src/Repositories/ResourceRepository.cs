@@ -10,7 +10,7 @@ public interface IResourceRepository
 {
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter);
     Task<ResourceInfo?> GetByIdAsync(Guid id);
-    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent);
+    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null);
     Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request);
     Task<bool> DeactivateAsync(Guid id);
 }
@@ -78,19 +78,21 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
 
     public async Task<ResourceInfo> CreateAsync(
         Guid resourceTypeId, string typeKey, string name, string? description,
-        string? externalReference, string allocationMode, int baseAvailabilityPercent)
+        string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync();
 
+        var insertedId = id ?? Guid.NewGuid();
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO resources
-                (resource_type_id, name, description, external_reference,
+                (id, resource_type_id, name, description, external_reference,
                  allocation_mode, base_availability_percent)
             VALUES
-                (@resourceTypeId, @name, @description, @externalReference,
+                (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent)
             RETURNING id, created_at, updated_at", db);
+        cmd.Parameters.AddWithValue("id", insertedId);
 
         cmd.Parameters.AddWithValue("resourceTypeId", resourceTypeId);
         cmd.Parameters.AddWithValue("name", name);
@@ -101,13 +103,13 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
 
         await using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();
-        var id = reader.GetGuid(reader.GetOrdinal("id"));
+        var newId = reader.GetGuid(reader.GetOrdinal("id"));
         var createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
         var updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
 
         return new ResourceInfo
         {
-            Id = id,
+            Id = newId,
             ResourceTypeId = resourceTypeId,
             ResourceTypeKey = typeKey,
             Name = name,

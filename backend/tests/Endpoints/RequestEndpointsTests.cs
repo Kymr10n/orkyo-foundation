@@ -26,12 +26,12 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithValidData_ReturnsCreatedRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var request = new CreateRequestRequest
         {
             Name = $"Test Request {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test request for validation",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(5),
             MinimalDurationValue = 4,
@@ -48,7 +48,7 @@ public class RequestEndpointsTests
         Assert.NotEqual(Guid.Empty, created.Id);
         Assert.Equal(request.Name, created.Name);
         Assert.Equal(request.Description, created.Description);
-        Assert.Equal(request.SpaceId, created.SpaceId);
+        Assert.Equal(request.ResourceId, created.PrimaryResourceId);
         Assert.Equal(4, created.MinimalDurationValue);
         Assert.Equal(DurationUnit.Days, created.MinimalDurationUnit);
         Assert.Equal(RequestStatus.Planned, created.Status);
@@ -58,11 +58,11 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithIcon_RoundTripsThroughGet()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var request = new CreateRequestRequest
         {
             Name = $"Icon Request {Guid.NewGuid():N}".Substring(0, 30),
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             Icon = "calendar",
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
@@ -105,11 +105,11 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithoutIcon_ReturnsNullIcon()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var request = new CreateRequestRequest
         {
             Name = $"NoIcon {Guid.NewGuid():N}".Substring(0, 30),
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -145,7 +145,7 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithRequirements_CreatesRequestAndRequirements()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -154,7 +154,7 @@ public class RequestEndpointsTests
         {
             Name = $"Request with Reqs {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Request with criterion requirements",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -183,14 +183,14 @@ public class RequestEndpointsTests
     }
 
     [Fact]
-    public async Task CreateRequest_WithInvalidSpaceId_ReturnsBadRequest()
+    public async Task CreateRequest_WithInvalidResourceId_ReturnsBadRequest()
     {
         // Arrange
         var request = new CreateRequestRequest
         {
             Name = "Invalid Request",
             Description = "Space does not exist",
-            SpaceId = Guid.NewGuid(), // Non-existent space
+            ResourceId = Guid.NewGuid(), // Non-existent space
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -208,12 +208,12 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithEndBeforeStart_ReturnsBadRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var request = new CreateRequestRequest
         {
             Name = "Invalid Time Range",
             Description = "End before start",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(5),
             EndTs = DateTime.UtcNow.AddDays(1), // Before start
             MinimalDurationValue = 1,
@@ -231,12 +231,12 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithNegativeDuration_ReturnsBadRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var request = new CreateRequestRequest
         {
             Name = "Invalid Duration",
             Description = "Negative duration",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = -5, // Negative
@@ -258,12 +258,12 @@ public class RequestEndpointsTests
     public async Task GetRequests_WithoutIncludeRequirements_ReturnsRequestsWithoutRequirements()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"List Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "For listing test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -290,7 +290,7 @@ public class RequestEndpointsTests
     public async Task GetRequests_WithIncludeRequirements_ReturnsRequestsWithRequirements()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -299,7 +299,7 @@ public class RequestEndpointsTests
         {
             Name = $"Include Req Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "For include requirements test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -334,12 +334,12 @@ public class RequestEndpointsTests
     public async Task GetRequest_WithValidId_ReturnsRequestWithRequirements()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Get Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "For get single test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -379,12 +379,12 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_WithValidData_ReturnsUpdatedRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Update Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original description",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -413,7 +413,7 @@ public class RequestEndpointsTests
         Assert.Equal(RequestStatus.InProgress, updated.Status);
 
         // Unchanged fields should remain
-        Assert.Equal(created.SpaceId, updated.SpaceId);
+        Assert.Equal(created.PrimaryResourceId, updated.PrimaryResourceId);
         Assert.Equal(created.MinimalDurationValue, updated.MinimalDurationValue);
     }
 
@@ -421,12 +421,12 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_PartialUpdate_OnlyUpdatesProvidedFields()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Partial Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -474,12 +474,12 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_WithEndBeforeStart_ReturnsBadRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Invalid Update {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(5),
             MinimalDurationValue = 1,
@@ -507,12 +507,12 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_AddRequirements_AddsRequirementsSuccessfully()
     {
         // Arrange - Create request without requirements
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Add Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test adding requirements",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -559,7 +559,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_ModifyExistingRequirements_ReplacesRequirements()
     {
         // Arrange - Create request with one requirement
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         var textCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.String);
@@ -570,7 +570,7 @@ public class RequestEndpointsTests
         {
             Name = $"Modify Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test modifying requirements",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -618,7 +618,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_RemoveAllRequirements_ClearsRequirements()
     {
         // Arrange - Create request with requirements
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
@@ -627,7 +627,7 @@ public class RequestEndpointsTests
         {
             Name = $"Remove Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test removing requirements",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -666,7 +666,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_UpdateNameAndRequirements_UpdatesBothSuccessfully()
     {
         // Arrange - Create request with requirements
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
@@ -675,7 +675,7 @@ public class RequestEndpointsTests
         {
             Name = $"Combined Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original description",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -726,7 +726,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_WithoutRequirementsField_PreservesExistingRequirements()
     {
         // Arrange - Create request with requirements
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
@@ -735,7 +735,7 @@ public class RequestEndpointsTests
         {
             Name = $"Preserve Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -782,12 +782,12 @@ public class RequestEndpointsTests
     public async Task DeleteRequest_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Delete Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Will be deleted",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -822,7 +822,7 @@ public class RequestEndpointsTests
     public async Task DeleteRequest_AlsoDeletesRequirements()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -831,7 +831,7 @@ public class RequestEndpointsTests
         {
             Name = $"Delete Cascade {Guid.NewGuid():N}".Substring(0, 30),
             Description = "With requirements to cascade",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -864,7 +864,7 @@ public class RequestEndpointsTests
     public async Task AddRequirement_WithValidData_ReturnsCreatedRequirement()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Boolean);
         Assert.NotNull(criterion);
@@ -873,7 +873,7 @@ public class RequestEndpointsTests
         {
             Name = $"Add Req Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -926,12 +926,12 @@ public class RequestEndpointsTests
     public async Task AddRequirement_WithInvalidCriterionId_ReturnsBadRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Invalid Criterion {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -958,7 +958,7 @@ public class RequestEndpointsTests
     public async Task AddRequirement_UpdatesExistingIfDuplicate()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -967,7 +967,7 @@ public class RequestEndpointsTests
         {
             Name = $"Duplicate Req {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1013,7 +1013,7 @@ public class RequestEndpointsTests
     public async Task DeleteRequirement_WithValidIds_ReturnsNoContent()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -1022,7 +1022,7 @@ public class RequestEndpointsTests
         {
             Name = $"Del Req Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1068,12 +1068,12 @@ public class RequestEndpointsTests
     public async Task DeleteRequirement_WithInvalidRequirementId_ReturnsNotFound()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Invalid Req Del {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1098,7 +1098,7 @@ public class RequestEndpointsTests
     public async Task ScheduleRequest_WithValidData_SchedulesRequest()
     {
         // Arrange - Create unscheduled request
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Unscheduled {Guid.NewGuid():N}".Substring(0, 30),
@@ -1113,12 +1113,12 @@ public class RequestEndpointsTests
         Assert.NotNull(created);
         Assert.Null(created.StartTs);
         Assert.Null(created.EndTs);
-        Assert.Null(created.SpaceId);
+        Assert.Null(created.PrimaryResourceId);
 
         // Act - Schedule the request
         var scheduleData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4)
         };
@@ -1128,7 +1128,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var scheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(scheduled);
-        Assert.Equal(spaceId, scheduled.SpaceId);
+        Assert.Equal(resourceId, scheduled.PrimaryResourceId);
         Assert.NotNull(scheduled.StartTs);
         Assert.NotNull(scheduled.EndTs);
         Assert.True(scheduled.EndTs > scheduled.StartTs);
@@ -1138,12 +1138,12 @@ public class RequestEndpointsTests
     public async Task UnscheduleRequest_WithValidData_UnschemulRequest()
     {
         // Arrange - Create scheduled request
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Scheduled {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Initially scheduled",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4),
             MinimalDurationValue = 4,
@@ -1154,12 +1154,12 @@ public class RequestEndpointsTests
         Assert.NotNull(created);
         Assert.NotNull(created.StartTs);
         Assert.NotNull(created.EndTs);
-        Assert.Equal(spaceId, created.SpaceId);
+        Assert.Equal(resourceId, created.PrimaryResourceId);
 
         // Act - Unschedule the request
         var unscheduleData = new ScheduleRequestRequest
         {
-            SpaceId = null,
+            ResourceId = null,
             StartTs = null,
             EndTs = null
         };
@@ -1169,13 +1169,13 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var unscheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(unscheduled);
-        Assert.Null(unscheduled.SpaceId);
+        Assert.Null(unscheduled.PrimaryResourceId);
         Assert.Null(unscheduled.StartTs);
         Assert.Null(unscheduled.EndTs);
     }
 
     [Fact]
-    public async Task ScheduleRequest_WithInvalidSpaceId_ReturnsBadRequest()
+    public async Task ScheduleRequest_WithInvalidResourceId_ReturnsBadRequest()
     {
         // Arrange
         var createRequest = new CreateRequestRequest
@@ -1193,7 +1193,7 @@ public class RequestEndpointsTests
         // Act - Try to schedule with non-existent space
         var scheduleData = new ScheduleRequestRequest
         {
-            SpaceId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4)
         };
@@ -1207,7 +1207,7 @@ public class RequestEndpointsTests
     public async Task ScheduleRequest_WithInvalidTimeRange_ReturnsBadRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -1223,7 +1223,7 @@ public class RequestEndpointsTests
         // Act - Try to schedule with end before start
         var scheduleData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow // End before start
         };
@@ -1237,7 +1237,7 @@ public class RequestEndpointsTests
     public async Task ScheduleRequest_WithPartialData_ReturnsBadRequest()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var createRequest = new CreateRequestRequest
         {
             Name = $"Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -1250,10 +1250,10 @@ public class RequestEndpointsTests
         var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(created);
 
-        // Act - Try to schedule with only spaceId (missing times)
+        // Act - Try to schedule with only resourceId (missing times)
         var scheduleData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = null,
             EndTs = null
         };
@@ -1267,10 +1267,10 @@ public class RequestEndpointsTests
     public async Task ScheduleRequest_NonExistentRequest_ReturnsNotFound()
     {
         // Arrange
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var scheduleData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4)
         };
@@ -1299,12 +1299,12 @@ public class RequestEndpointsTests
         var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(created);
 
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
 
         // Act - Try to schedule the summary request
         var scheduleData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4)
         };
@@ -1318,13 +1318,13 @@ public class RequestEndpointsTests
     public async Task RescheduleRequest_ChangesSpaceAndTime()
     {
         // Arrange - Create scheduled request
-        var spaceId1 = await TestHelpers.GetOrCreateTestSpace(_client);
-        var spaceId2 = await TestHelpers.GetOrCreateAnotherTestSpace(_client);
+        var resourceId1 = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId2 = await TestHelpers.GetOrCreateAnotherTestSpace(_client);
 
         var createRequest = new CreateRequestRequest
         {
             Name = $"Reschedulable {Guid.NewGuid():N}".Substring(0, 30),
-            SpaceId = spaceId1,
+            ResourceId = resourceId1,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4),
             MinimalDurationValue = 4,
@@ -1337,7 +1337,7 @@ public class RequestEndpointsTests
         // Act - Reschedule to different space and time
         var rescheduleData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId2,
+            ResourceId = resourceId2,
             StartTs = DateTime.UtcNow.AddDays(2),
             EndTs = DateTime.UtcNow.AddDays(2).AddHours(4)
         };
@@ -1347,7 +1347,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var rescheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(rescheduled);
-        Assert.Equal(spaceId2, rescheduled.SpaceId);
+        Assert.Equal(resourceId2, rescheduled.PrimaryResourceId);
         Assert.NotEqual(created.StartTs, rescheduled.StartTs);
     }
 
@@ -1355,14 +1355,14 @@ public class RequestEndpointsTests
     public async Task ResizeRequest_SameSpace_PreservesExplicitEndTs()
     {
         // Arrange — schedule a request on a space
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var start = DateTime.UtcNow.AddDays(1);
         var originalEnd = start.AddHours(4);
 
         var createRequest = new CreateRequestRequest
         {
             Name = $"Resize {Guid.NewGuid():N}"[..30],
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = start,
             EndTs = originalEnd,
             MinimalDurationValue = 4,
@@ -1376,7 +1376,7 @@ public class RequestEndpointsTests
         var resizedEnd = start.AddHours(6);
         var resizeData = new ScheduleRequestRequest
         {
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = start,
             EndTs = resizedEnd,
         };
@@ -1387,7 +1387,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var resized = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(resized);
-        Assert.Equal(spaceId, resized.SpaceId);
+        Assert.Equal(resourceId, resized.PrimaryResourceId);
 
         // Allow 1-second tolerance for DB round-trip precision
         var endTsDiff = Math.Abs((resized.EndTs!.Value - resizedEnd).TotalSeconds);
@@ -1402,7 +1402,7 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithDifferentMinimalDurationUnits_WorksCorrectly()
     {
         // Use a dedicated space to avoid slot conflicts with other tests reusing the shared space
-        var spaceId = await TestHelpers.CreateUniqueTestSpace(_client);
+        var resourceId = await TestHelpers.CreateUniqueTestSpace(_client);
         var units = new[] { DurationUnit.Minutes, DurationUnit.Hours, DurationUnit.Days,
                            DurationUnit.Weeks, DurationUnit.Months, DurationUnit.Years };
 
@@ -1414,7 +1414,7 @@ public class RequestEndpointsTests
             {
                 Name = $"Duration {unit} {Guid.NewGuid():N}".Substring(0, 30),
                 Description = $"Test {unit}",
-                SpaceId = spaceId,
+                ResourceId = resourceId,
                 StartTs = start,
                 EndTs = start.AddDays(10),
                 MinimalDurationValue = 5,
@@ -1437,7 +1437,7 @@ public class RequestEndpointsTests
     [Fact]
     public async Task Requirement_WithBooleanCriterion_WorksCorrectly()
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Boolean);
         Assert.NotNull(criterion);
@@ -1446,7 +1446,7 @@ public class RequestEndpointsTests
         {
             Name = $"Bool Req {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1469,7 +1469,7 @@ public class RequestEndpointsTests
     [Fact]
     public async Task Requirement_WithEnumCriterion_WorksCorrectly()
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Enum);
         Assert.NotNull(criterion);
@@ -1480,7 +1480,7 @@ public class RequestEndpointsTests
         {
             Name = $"Enum Req {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            SpaceId = spaceId,
+            ResourceId = resourceId,
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,

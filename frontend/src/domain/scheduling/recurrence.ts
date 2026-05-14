@@ -63,10 +63,10 @@ export function parseRRule(rule: string): ParsedRule {
         break;
       case RRULE_FIELD.UNTIL: {
         // RRULE UNTIL format: "YYYYMMDD" — fixed-width positional parse
-        const y = parseInt(value.slice(0, 4), 10);              
-        const m = parseInt(value.slice(4, 6), 10) - 1;          
-        const day = parseInt(value.slice(6, 8), 10);             
-        until = new Date(Date.UTC(y, m, day, 23, 59, 59, 999));  
+        const y = parseInt(value.slice(0, 4), 10);
+        const m = parseInt(value.slice(4, 6), 10) - 1;
+        const day = parseInt(value.slice(6, 8), 10);
+        until = new Date(Date.UTC(y, m, day, 23, 59, 59, 999));
         break;
       }
       case RRULE_FIELD.COUNT:
@@ -207,6 +207,6 @@ function toRange(
     startMs,
     endMs,
     title: def.title,
-    spaceIds: def.appliesToAllSpaces ? null : def.spaceIds,
+    resourceIds: def.appliesToAllSpaces ? null : def.resourceIds,
   };
 }

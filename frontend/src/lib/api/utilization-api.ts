@@ -20,7 +20,7 @@ export async function fetchSpaces(siteId: string): Promise<Space[]> {
 
 // Update request scheduling
 export interface ScheduleRequestData {
-  spaceId?: string | null;
+  primaryResourceId?: string | null;
   startTs?: string | null;
   endTs?: string | null;
 }

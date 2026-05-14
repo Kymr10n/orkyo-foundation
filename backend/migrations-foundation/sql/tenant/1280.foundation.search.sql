@@ -13,15 +13,15 @@ CREATE TABLE public.search_documents (
     entity_type    TEXT NOT NULL,
     entity_id      UUID NOT NULL,
     site_id        UUID NULL,
-    
+
     title          TEXT NOT NULL,
     subtitle       TEXT NULL,
     keywords       TEXT NULL,
-    
+
     fts            TSVECTOR NOT NULL,
-    
+
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     PRIMARY KEY (entity_type, entity_id)
 );
 
@@ -78,17 +78,17 @@ BEGIN
         DELETE FROM search_documents WHERE entity_type = 'space' AND entity_id = OLD.id;
         RETURN OLD;
     END IF;
-    
+
     -- Get group name
     SELECT name INTO v_group_name FROM space_groups WHERE id = NEW.group_id;
-    
+
     -- Get capabilities as keywords
     SELECT string_agg(c.name, ' ')
     INTO v_capabilities
     FROM space_capabilities sc
     JOIN criteria c ON c.id = sc.criterion_id
     WHERE sc.space_id = NEW.id;
-    
+
     INSERT INTO search_documents (entity_type, entity_id, site_id, title, subtitle, keywords, fts, updated_at)
     VALUES (
         'space',
@@ -111,7 +111,7 @@ BEGIN
         keywords = EXCLUDED.keywords,
         fts = EXCLUDED.fts,
         updated_at = EXCLUDED.updated_at;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -126,11 +126,11 @@ BEGIN
         DELETE FROM search_documents WHERE entity_type = 'request' AND entity_id = OLD.id;
         RETURN OLD;
     END IF;
-    
+
     -- Get space info
     SELECT s.name, s.site_id INTO v_space_name, v_site_id
     FROM spaces s WHERE s.id = NEW.space_id;
-    
+
     INSERT INTO search_documents (entity_type, entity_id, site_id, title, subtitle, keywords, fts, updated_at)
     VALUES (
         'request',
@@ -153,7 +153,7 @@ BEGIN
         keywords = EXCLUDED.keywords,
         fts = EXCLUDED.fts,
         updated_at = EXCLUDED.updated_at;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -167,14 +167,14 @@ BEGIN
         DELETE FROM search_documents WHERE entity_type = 'group' AND entity_id = OLD.id;
         RETURN OLD;
     END IF;
-    
+
     -- Get capabilities as keywords
     SELECT string_agg(c.name, ' ')
     INTO v_capabilities
     FROM group_capabilities gc
     JOIN criteria c ON c.id = gc.criterion_id
     WHERE gc.group_id = NEW.id;
-    
+
     INSERT INTO search_documents (entity_type, entity_id, site_id, title, subtitle, keywords, fts, updated_at)
     VALUES (
         'group',
@@ -196,7 +196,7 @@ BEGIN
         keywords = EXCLUDED.keywords,
         fts = EXCLUDED.fts,
         updated_at = EXCLUDED.updated_at;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -208,7 +208,7 @@ BEGIN
         DELETE FROM search_documents WHERE entity_type = 'site' AND entity_id = OLD.id;
         RETURN OLD;
     END IF;
-    
+
     INSERT INTO search_documents (entity_type, entity_id, site_id, title, subtitle, keywords, fts, updated_at)
     VALUES (
         'site',
@@ -230,7 +230,7 @@ BEGIN
         keywords = EXCLUDED.keywords,
         fts = EXCLUDED.fts,
         updated_at = EXCLUDED.updated_at;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -242,7 +242,7 @@ BEGIN
         DELETE FROM search_documents WHERE entity_type = 'template' AND entity_id = OLD.id;
         RETURN OLD;
     END IF;
-    
+
     INSERT INTO search_documents (entity_type, entity_id, site_id, title, subtitle, keywords, fts, updated_at)
     VALUES (
         'template',
@@ -264,7 +264,7 @@ BEGIN
         keywords = EXCLUDED.keywords,
         fts = EXCLUDED.fts,
         updated_at = EXCLUDED.updated_at;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -276,7 +276,7 @@ BEGIN
         DELETE FROM search_documents WHERE entity_type = 'criterion' AND entity_id = OLD.id;
         RETURN OLD;
     END IF;
-    
+
     INSERT INTO search_documents (entity_type, entity_id, site_id, title, subtitle, keywords, fts, updated_at)
     VALUES (
         'criterion',
@@ -298,7 +298,7 @@ BEGIN
         keywords = EXCLUDED.keywords,
         fts = EXCLUDED.fts,
         updated_at = EXCLUDED.updated_at;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

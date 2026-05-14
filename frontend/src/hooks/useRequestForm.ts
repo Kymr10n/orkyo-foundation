@@ -18,7 +18,7 @@ export interface RequestFormState {
   icon: string | null;
   planningMode: PlanningMode;
   parentRequestId: string;
-  selectedSpaceId: string;
+  selectedResourceId: string;
 
   // Schedule
   startDate: string;
@@ -67,7 +67,7 @@ const initialState: RequestFormState = {
   icon: null,
   planningMode: 'leaf',
   parentRequestId: '',
-  selectedSpaceId: '',
+  selectedResourceId: '',
   startDate: '',
   startTime: DEFAULT_START_TIME,
   endDate: '',
@@ -160,7 +160,7 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       icon: request.icon ?? null,
       planningMode: request.planningMode || 'leaf',
       parentRequestId: request.parentRequestId || '',
-      selectedSpaceId: request.spaceId || '',
+      selectedResourceId: request.primaryResourceId || '',
       startDate: request.startTs ? formatDateForInput(new Date(request.startTs)) : '',
       startTime: request.startTs ? formatTimeForInput(new Date(request.startTs)) : DEFAULT_START_TIME,
       endDate: request.endTs ? formatDateForInput(new Date(request.endTs)) : '',

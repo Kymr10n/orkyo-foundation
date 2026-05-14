@@ -17,7 +17,7 @@ import { DURATION_UNIT_MS, MS_PER_MINUTE } from "../constants";
 
 interface ScheduledEntry {
   requestId: string;
-  spaceId: string;
+  resourceId: string;
   startMs: number; // epoch ms, inclusive
   endMs: number;   // epoch ms, exclusive
   name: string;
@@ -41,7 +41,7 @@ export interface DraftResize {
   kind: "resize";
   phase: ResizePhase;
   requestId: string;
-  spaceId: string;
+  resourceId: string;
   edge: ResizeEdge;
   /** Original committed bounds (kept for rollback / delta math) */
   committedStartMs: number;
@@ -59,7 +59,7 @@ export type DraftInteraction = DraftResize | null;
 
 export interface PreviewEntry {
   requestId: string;
-  spaceId: string;
+  resourceId: string;
   startMs: number;
   endMs: number;
   name: string;
@@ -91,13 +91,13 @@ export function durationToMs(value: number, unit: DurationUnit): number {
 
 /** Convert a domain Request into a ScheduledEntry, or null if not scheduled. */
 export function toScheduledEntry(request: Request): ScheduledEntry | null {
-  if (!request.spaceId || !request.startTs || !request.endTs) return null;
+  if (!request.primaryResourceId || !request.startTs || !request.endTs) return null;
   const startMs = new Date(request.startTs).getTime();
   const endMs = new Date(request.endTs).getTime();
   if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) return null;
   return {
     requestId: request.id,
-    spaceId: request.spaceId,
+    resourceId: request.primaryResourceId,
     startMs,
     endMs,
     name: request.name,

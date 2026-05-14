@@ -44,7 +44,7 @@ export const SpaceRow = React.memo(function SpaceRow({
 }) {
   // Pre-filter requests for this space (stable reference for TimeCell memoization)
   const spaceRequests = useMemo(
-    () => requests.filter((r) => r.spaceId === space.id),
+    () => requests.filter((r) => r.primaryResourceId === space.id),
     [requests, space.id]
   );
 
@@ -119,7 +119,7 @@ export const SpaceRow = React.memo(function SpaceRow({
             key={ot.id}
             offTime={ot}
             columns={columns}
-            spaceId={space.id}
+            resourceId={space.id}
           />
         ))}
         {/* Render scheduled requests from preview (reflects draft bounds) */}

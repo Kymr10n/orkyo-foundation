@@ -11,7 +11,7 @@ function makeState(overrides: Partial<RequestFormState> = {}): RequestFormState 
     icon: null,
     planningMode: 'leaf',
     parentRequestId: '',
-    selectedSpaceId: '',
+    selectedResourceId: '',
     startDate: '',
     startTime: '09:00',
     endDate: '',
@@ -253,7 +253,7 @@ describe('buildInitialState', () => {
       description: 'A description',
       planningMode: 'leaf',
       sortOrder: 0,
-      spaceId: 'space-1',
+      primaryResourceId: 'space-1',
       startTs: '2026-04-17T09:00:00Z',
       endTs: '2026-04-17T17:00:00Z',
       minimalDurationValue: 8,
@@ -269,7 +269,7 @@ describe('buildInitialState', () => {
     const state = buildInitialState(request);
     expect(state.name).toBe('Test Request');
     expect(state.description).toBe('A description');
-    expect(state.selectedSpaceId).toBe('space-1');
+    expect(state.selectedResourceId).toBe('space-1');
     expect(state.durationValue).toBe(8);
     expect(state.durationUnit).toBe('hours');
     expect(state.schedulingSettingsApply).toBe(false);
@@ -293,7 +293,7 @@ describe('buildInitialState', () => {
     const state = buildInitialState(request);
     expect(state.name).toBe('Minimal');
     expect(state.description).toBe('');
-    expect(state.selectedSpaceId).toBe('');
+    expect(state.selectedResourceId).toBe('');
     expect(state.startDate).toBe('');
     expect(state.requirements.size).toBe(0);
   });

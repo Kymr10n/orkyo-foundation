@@ -19,7 +19,7 @@ export const TimeCell = React.memo(function TimeCell({
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: `${space.id}-${column.start.getTime()}`,
-    data: { spaceId: space.id, startTs: column.start },
+    data: { resourceId: space.id, startTs: column.start },
   });
 
   return (

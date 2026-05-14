@@ -54,7 +54,7 @@ public class SchedulingModelsTests
             SiteId = Guid.NewGuid(),
             Title = "Christmas",
             Type = OffTimeType.Holiday,
-            AppliesToAllSpaces = true,
+            AppliesToAllResources = true,
             StartTs = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc),
             IsRecurring = true,
@@ -64,7 +64,7 @@ public class SchedulingModelsTests
 
         offTime.Title.Should().Be("Christmas");
         offTime.Type.Should().Be(OffTimeType.Holiday);
-        offTime.AppliesToAllSpaces.Should().BeTrue();
+        offTime.AppliesToAllResources.Should().BeTrue();
         offTime.IsRecurring.Should().BeTrue();
         offTime.RecurrenceRule.Should().NotBeNull();
     }
@@ -80,7 +80,7 @@ public class SchedulingModelsTests
         };
 
         request.Type.Should().Be(OffTimeType.Custom);
-        request.AppliesToAllSpaces.Should().BeTrue();
+        request.AppliesToAllResources.Should().BeTrue();
         request.IsRecurring.Should().BeFalse();
         request.Enabled.Should().BeTrue();
     }
@@ -95,7 +95,7 @@ public class SchedulingModelsTests
     }
 
     [Fact]
-    public void OffTimeInfo_SpaceIds_NullByDefault()
+    public void OffTimeInfo_ResourceIds_NullByDefault()
     {
         var offTime = new OffTimeInfo
         {
@@ -103,14 +103,14 @@ public class SchedulingModelsTests
             SiteId = Guid.NewGuid(),
             Title = "Test",
             Type = OffTimeType.Custom,
-            AppliesToAllSpaces = true,
+            AppliesToAllResources = true,
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1),
             IsRecurring = false,
             Enabled = true
         };
 
-        offTime.SpaceIds.Should().BeNull();
+        offTime.ResourceIds.Should().BeNull();
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class SchedulingModelsTests
             SiteId = Guid.NewGuid(),
             Title = "Test",
             Type = OffTimeType.Custom,
-            AppliesToAllSpaces = true,
+            AppliesToAllResources = true,
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1),
             IsRecurring = false,
@@ -175,8 +175,8 @@ public class SchedulingModelsTests
 
         req.Title.Should().BeNull();
         req.Type.Should().BeNull();
-        req.AppliesToAllSpaces.Should().BeNull();
-        req.SpaceIds.Should().BeNull();
+        req.AppliesToAllResources.Should().BeNull();
+        req.ResourceIds.Should().BeNull();
         req.StartTs.Should().BeNull();
         req.EndTs.Should().BeNull();
         req.IsRecurring.Should().BeNull();
@@ -194,7 +194,7 @@ public class SchedulingModelsTests
         {
             Title = "Christmas Holiday",
             Type = OffTimeType.Holiday,
-            AppliesToAllSpaces = true,
+            AppliesToAllResources = true,
             StartTs = start,
             EndTs = end,
             IsRecurring = false,
@@ -203,7 +203,7 @@ public class SchedulingModelsTests
 
         req.Title.Should().Be("Christmas Holiday");
         req.Type.Should().Be(OffTimeType.Holiday);
-        req.AppliesToAllSpaces.Should().BeTrue();
+        req.AppliesToAllResources.Should().BeTrue();
         req.StartTs.Should().Be(start);
     }
 }

@@ -18,7 +18,7 @@ interface GanttExportOptions {
 
 export function exportGanttChartToPDF(options: GanttExportOptions) {
   const { requests, spaces, startDate, endDate, filename } = options;
-  
+
   // Create PDF in landscape mode
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -51,7 +51,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   );
 
   // Filter to only scheduled requests
-  const scheduledRequests = requests.filter(r => r.startTs && r.endTs && r.spaceId);
+  const scheduledRequests = requests.filter(r => r.startTs && r.endTs && r.primaryResourceId);
 
   // Calculate time range
   const timeRange = endDate.getTime() - startDate.getTime();
@@ -63,18 +63,18 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   // Draw timeline
   doc.setFontSize(8);
   doc.setDrawColor(200, 200, 200);
-  
+
   // Draw vertical grid lines for dates
   const days = Math.ceil(timeRange / (1000 * 60 * 60 * 24));
   const gridStep = Math.max(1, Math.floor(days / 10)); // Show ~10 grid lines
-  
+
   for (let i = 0; i <= days; i += gridStep) {
     const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
     const x = chartX + (i / days) * chartWidth;
-    
+
     doc.setDrawColor(220, 220, 220);
     doc.line(x, chartY, x, chartY + chartHeight);
-    
+
     doc.setTextColor(100, 100, 100);
     doc.text(format(date, 'MMM d'), x, chartY - 3, { align: 'center' });
   }
@@ -82,23 +82,23 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   // Group requests by space
   const spaceGroups = new Map<string, Request[]>();
   scheduledRequests.forEach(request => {
-    const spaceId = request.spaceId!;
-    if (!spaceGroups.has(spaceId)) {
-      spaceGroups.set(spaceId, []);
+    const resourceId = request.primaryResourceId!;
+    if (!spaceGroups.has(resourceId)) {
+      spaceGroups.set(resourceId, []);
     }
-    spaceGroups.get(spaceId)!.push(request);
+    spaceGroups.get(resourceId)!.push(request);
   });
 
   // Draw bars for each space
-  const spaceIds = Array.from(spaceGroups.keys());
-  const rowHeight = Math.min(12, chartHeight / Math.max(spaceIds.length, 1));
+  const resourceIds = Array.from(spaceGroups.keys());
+  const rowHeight = Math.min(12, chartHeight / Math.max(resourceIds.length, 1));
   const barHeight = rowHeight * 0.7;
 
   doc.setFontSize(8);
 
-  spaceIds.forEach((spaceId, index) => {
-    const space = spaces.find(s => s.id === spaceId);
-    const spaceRequests = spaceGroups.get(spaceId)!;
+  resourceIds.forEach((resourceId, index) => {
+    const space = spaces.find(s => s.id === resourceId);
+    const spaceRequests = spaceGroups.get(resourceId)!;
     const y = chartY + index * rowHeight;
 
     // Draw space label
@@ -167,11 +167,11 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
 
   statuses.forEach(([label, , color], index) => {
     const y = legendY + 8 + index * 7;
-    
+
     // Color box
     doc.setFillColor(...color);
     doc.roundedRect(legendX, y - 3, 5, 4, 0.5, 0.5, 'F');
-    
+
     // Label
     doc.setTextColor(0, 0, 0);
     doc.text(label, legendX + 7, y);
@@ -184,7 +184,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
 
   doc.setFont('helvetica', 'normal');
   doc.text(`Total Requests: ${scheduledRequests.length}`, legendX, statsY + 7);
-  doc.text(`Spaces Used: ${spaceIds.length}`, legendX, statsY + 14);
+  doc.text(`Spaces Used: ${resourceIds.length}`, legendX, statsY + 14);
   doc.text(`Period: ${days} days`, legendX, statsY + 21);
 
   // Footer

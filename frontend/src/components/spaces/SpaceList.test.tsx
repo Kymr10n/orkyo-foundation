@@ -31,7 +31,7 @@ function makeSpace(overrides: Partial<Space> = {}): Space {
 
 const defaultProps = {
   spaces: [makeSpace()],
-  selectedSpaceId: null,
+  selectedResourceId: null,
   onSpaceSelect: vi.fn(),
 };
 
@@ -73,7 +73,7 @@ describe('SpaceList', () => {
   });
 
   it('highlights selected space', () => {
-    render(<SpaceList {...defaultProps} selectedSpaceId="space-1" />);
+    render(<SpaceList {...defaultProps} selectedResourceId="space-1" />);
     const spaceEl = screen.getByText('Room A').closest('[class*="border-primary"]');
     expect(spaceEl).toBeInTheDocument();
   });

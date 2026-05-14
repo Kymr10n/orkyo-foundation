@@ -9,7 +9,7 @@ export interface UserPreferences {
 
 const fetchPreferences = () => apiGet<UserPreferences>(API_PATHS.PREFERENCES);
 
-const updatePreferences = (preferences: UserPreferences) => 
+const updatePreferences = (preferences: UserPreferences) =>
   apiPut<void>(API_PATHS.PREFERENCES, preferences);
 
 export function usePreferences() {

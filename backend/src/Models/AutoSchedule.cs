@@ -93,8 +93,8 @@ public sealed record AutoScheduleScore(
 public sealed record ProposedAssignmentDto(
     Guid RequestId,
     string RequestName,
-    Guid SpaceId,
-    string SpaceName,
+    Guid ResourceId,
+    string ResourceName,
     DateOnly Start,
     DateOnly End,
     int DurationDays);
@@ -131,13 +131,13 @@ public sealed record RequestNode(
     IReadOnlySet<Guid> RequiredCriterionIds);
 
 public sealed record SpaceNode(
-    Guid SpaceId,
+    Guid ResourceId,
     string DisplayName,
     IReadOnlySet<Guid> CriterionIds);
 
 public sealed record FixedOccupancy(
     Guid RequestId,
-    Guid SpaceId,
+    Guid ResourceId,
     DateOnly Start,
     DateOnly End);
 
@@ -146,7 +146,7 @@ public sealed record FixedOccupancy(
 /// </summary>
 public sealed record SchedulingCandidate(
     Guid RequestId,
-    Guid SpaceId,
+    Guid ResourceId,
     DateOnly EarliestStart,
     DateOnly LatestEnd,
     int DurationDays,
@@ -155,7 +155,7 @@ public sealed record SchedulingCandidate(
 
 public sealed record CandidateRejection(
     Guid RequestId,
-    Guid? SpaceId,
+    Guid? ResourceId,
     SchedulingReasonCode ReasonCode,
     string? Message = null);
 
@@ -192,10 +192,10 @@ public sealed record SchedulingSolution(
     public string ComputeFingerprint()
     {
         var sb = new StringBuilder();
-        foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.SpaceId))
+        foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))
         {
             sb.Append(a.RequestId).Append('|')
-              .Append(a.SpaceId).Append('|')
+              .Append(a.ResourceId).Append('|')
               .Append(a.Start).Append('|')
               .Append(a.End).Append(';');
         }
@@ -206,7 +206,7 @@ public sealed record SchedulingSolution(
 
 public sealed record ScheduledPlacement(
     Guid RequestId,
-    Guid SpaceId,
+    Guid ResourceId,
     DateOnly Start,
     DateOnly End,
     int DurationDays,

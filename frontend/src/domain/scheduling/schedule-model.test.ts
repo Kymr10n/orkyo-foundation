@@ -65,37 +65,37 @@ describe('durationToMs', () => {
 describe('toScheduledEntry', () => {
   it('returns a ScheduledEntry for a fully scheduled request', () => {
     const req = makeRequest({
-      spaceId: 'space-1',
+      primaryResourceId: 'space-1',
       startTs: '2024-06-01T08:00:00.000Z',
       endTs: '2024-06-01T10:00:00.000Z',
     });
     const entry = toScheduledEntry(req);
     expect(entry).not.toBeNull();
     expect(entry!.requestId).toBe('req-1');
-    expect(entry!.spaceId).toBe('space-1');
+    expect(entry!.resourceId).toBe('space-1');
     expect(entry!.startMs).toBe(new Date('2024-06-01T08:00:00.000Z').getTime());
     expect(entry!.endMs).toBe(new Date('2024-06-01T10:00:00.000Z').getTime());
     expect(entry!.minimalDurationMs).toBe(3_600_000); // 1 hour
   });
 
-  it('returns null when spaceId is missing', () => {
+  it('returns null when resourceId is missing', () => {
     const req = makeRequest({ startTs: '2024-06-01T08:00:00Z', endTs: '2024-06-01T10:00:00Z' });
     expect(toScheduledEntry(req)).toBeNull();
   });
 
   it('returns null when startTs is missing', () => {
-    const req = makeRequest({ spaceId: 'space-1', endTs: '2024-06-01T10:00:00Z' });
+    const req = makeRequest({ primaryResourceId: 'space-1', endTs: '2024-06-01T10:00:00Z' });
     expect(toScheduledEntry(req)).toBeNull();
   });
 
   it('returns null when endTs is missing', () => {
-    const req = makeRequest({ spaceId: 'space-1', startTs: '2024-06-01T08:00:00Z' });
+    const req = makeRequest({ primaryResourceId: 'space-1', startTs: '2024-06-01T08:00:00Z' });
     expect(toScheduledEntry(req)).toBeNull();
   });
 
   it('returns null when startTs >= endTs (zero-duration)', () => {
     const req = makeRequest({
-      spaceId: 'space-1',
+      primaryResourceId: 'space-1',
       startTs: '2024-06-01T10:00:00Z',
       endTs: '2024-06-01T10:00:00Z',
     });
@@ -104,7 +104,7 @@ describe('toScheduledEntry', () => {
 
   it('returns null when startTs > endTs (inverted)', () => {
     const req = makeRequest({
-      spaceId: 'space-1',
+      primaryResourceId: 'space-1',
       startTs: '2024-06-01T12:00:00Z',
       endTs: '2024-06-01T08:00:00Z',
     });

@@ -31,7 +31,7 @@ public class SchedulingEngineTests
             SiteId = Guid.NewGuid(),
             Title = "Off",
             Type = OffTimeType.Custom,
-            AppliesToAllSpaces = true,
+            AppliesToAllResources = true,
             StartTs = start,
             EndTs = end,
             IsRecurring = false,

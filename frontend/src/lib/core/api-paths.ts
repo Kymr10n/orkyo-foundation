@@ -1,6 +1,6 @@
 /**
  * Centralized API path constants.
- * 
+ *
  * All API endpoints should be defined here to:
  * 1. Prevent typos and path mismatches
  * 2. Make refactoring easier (change once, update everywhere)
@@ -27,10 +27,10 @@ export const API_PATHS = {
 
   // Spaces
   spaces: (siteId: string) => `/api/sites/${siteId}/spaces`,
-  space: (siteId: string, spaceId: string) => `/api/sites/${siteId}/spaces/${spaceId}`,
-  spaceCapabilities: (siteId: string, spaceId: string) => `/api/sites/${siteId}/spaces/${spaceId}/capabilities`,
-  spaceCapability: (siteId: string, spaceId: string, capabilityId: string) =>
-    `/api/sites/${siteId}/spaces/${spaceId}/capabilities/${capabilityId}`,
+  space: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}`,
+  spaceCapabilities: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}/capabilities`,
+  spaceCapability: (siteId: string, resourceId: string, capabilityId: string) =>
+    `/api/sites/${siteId}/spaces/${resourceId}/capabilities/${capabilityId}`,
 
   // Groups
   GROUPS: '/api/groups',

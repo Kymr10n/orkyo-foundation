@@ -46,7 +46,7 @@ public sealed class SchedulingFeasibilityAnalyzer
                 if (feasibleStartDays.Count == 0)
                 {
                     rejections.Add(new CandidateRejection(
-                        request.RequestId, space.SpaceId,
+                        request.RequestId, space.ResourceId,
                         SchedulingReasonCode.InsufficientCapacity,
                         "No feasible start day within the horizon for this space."));
                     continue;
@@ -54,7 +54,7 @@ public sealed class SchedulingFeasibilityAnalyzer
 
                 candidates.Add(new SchedulingCandidate(
                     request.RequestId,
-                    space.SpaceId,
+                    space.ResourceId,
                     request.EarliestStart ?? problem.HorizonStart,
                     request.LatestEnd ?? problem.HorizonEnd,
                     request.DurationDays,
@@ -88,7 +88,7 @@ public sealed class SchedulingFeasibilityAnalyzer
 
         // Pre-compute fixed occupancy intervals for this space
         var spaceOccupancy = problem.FixedAssignments
-            .Where(a => a.SpaceId == space.SpaceId)
+            .Where(a => a.ResourceId == space.ResourceId)
             .Select(a => (a.Start, a.End))
             .ToList();
 
@@ -99,7 +99,7 @@ public sealed class SchedulingFeasibilityAnalyzer
             foreach (var ot in problem.OffTimes.Where(o => o.Enabled))
             {
                 // Only include off-times that apply to this space
-                if (!ot.AppliesToAllSpaces && ot.SpaceIds != null && !ot.SpaceIds.Contains(space.SpaceId))
+                if (!ot.AppliesToAllResources && ot.ResourceIds != null && !ot.ResourceIds.Contains(space.ResourceId))
                     continue;
 
                 var otStart = DateOnly.FromDateTime(ot.StartTs);
