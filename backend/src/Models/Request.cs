@@ -261,7 +261,7 @@ public record AddRequirementRequest
 /// </summary>
 public record ScheduleRequestRequest
 {
-    public Guid? ResourceId { get; init; }
+    public Guid? PrimaryResourceId { get; init; }
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
     public int? ActualDurationValue { get; init; }

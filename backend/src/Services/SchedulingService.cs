@@ -83,7 +83,7 @@ public class SchedulingService : ISchedulingService
 
                 updates.Add((request.Id, new ScheduleRequestRequest
                 {
-                    ResourceId = request.PrimaryResourceId,
+                    PrimaryResourceId = request.PrimaryResourceId,
                     StartTs = result.ActualStart,
                     EndTs = result.ActualEnd,
                     ActualDurationValue = result.ActualDurationMinutes,
@@ -153,7 +153,7 @@ public class SchedulingService : ISchedulingService
     public async Task<ScheduleRequestRequest> ApplySchedulingToScheduleAsync(
         Guid requestId, ScheduleRequestRequest request)
     {
-        if (request.ResourceId == null || request.StartTs == null) return request;
+        if (request.PrimaryResourceId == null || request.StartTs == null) return request;
 
         var existing = await _requestRepository.GetByIdAsync(requestId);
         if (existing == null || !existing.SchedulingSettingsApply) return request;
@@ -164,7 +164,7 @@ public class SchedulingService : ISchedulingService
         if (request.EndTs != null) return request;
 
         var result = await ComputeScheduledTimesAsync(
-            request.ResourceId.Value, request.StartTs.Value,
+            request.PrimaryResourceId.Value, request.StartTs.Value,
             existing.MinimalDurationValue, existing.MinimalDurationUnit);
 
         return result == null ? request : request with

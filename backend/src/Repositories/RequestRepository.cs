@@ -387,8 +387,8 @@ public class RequestRepository : IRequestRepository
         if (!await DbQueryHelper.ExistsAsync(db, "requests", id))
             return null;
 
-        if (request.ResourceId.HasValue
-            && !await DbQueryHelper.ExistsAsync(db, "resources", request.ResourceId.Value))
+        if (request.PrimaryResourceId.HasValue
+            && !await DbQueryHelper.ExistsAsync(db, "resources", request.PrimaryResourceId.Value))
         {
             throw new ArgumentException("Invalid resource_id: resource does not exist");
         }
@@ -432,11 +432,11 @@ public class RequestRepository : IRequestRepository
 
         // Cancel existing space assignment and write the new one.
         await CancelSpaceAssignmentAsync(db, tx, id);
-        if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
+        if (request.PrimaryResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
         {
             await WriteResourceAssignmentAsync(
-                db, tx, id, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value);
-            updatedRequest = updatedRequest with { PrimaryResourceId = request.ResourceId.Value };
+                db, tx, id, request.PrimaryResourceId.Value, request.StartTs.Value, request.EndTs.Value);
+            updatedRequest = updatedRequest with { PrimaryResourceId = request.PrimaryResourceId.Value };
         }
 
         await tx.CommitAsync();
@@ -484,12 +484,12 @@ public class RequestRepository : IRequestRepository
         // Update resource assignments for each scheduled item.
         foreach (var (id, request) in updates)
         {
-            if (!request.ResourceId.HasValue || !request.StartTs.HasValue || !request.EndTs.HasValue)
+            if (!request.PrimaryResourceId.HasValue || !request.StartTs.HasValue || !request.EndTs.HasValue)
                 continue;
 
             await CancelSpaceAssignmentAsync(db, tx, id);
             await WriteResourceAssignmentAsync(
-                db, tx, id, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value);
+                db, tx, id, request.PrimaryResourceId.Value, request.StartTs.Value, request.EndTs.Value);
         }
 
         await tx.CommitAsync();

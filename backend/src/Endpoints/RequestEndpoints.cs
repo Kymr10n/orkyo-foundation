@@ -106,7 +106,7 @@ public static class RequestEndpoints
             {
                 var mode = await requestService.GetPlanningModeAsync(id);
                 if (mode == null) return ErrorResponses.NotFound("Request", id);
-                var isSchedulingPayload = request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue;
+                var isSchedulingPayload = request.PrimaryResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue;
                 if (mode != PlanningMode.Leaf && isSchedulingPayload)
                     return Results.BadRequest(new { error = "Only leaf requests can be directly scheduled to a space" });
                 var adjusted = await schedulingService.ApplySchedulingToScheduleAsync(id, request);

@@ -9,7 +9,7 @@ public class ScheduleRequestRequestValidator : AbstractValidator<ScheduleRequest
     {
         RuleFor(x => x).Custom((req, ctx) =>
         {
-            var hasSpace = req.ResourceId.HasValue;
+            var hasSpace = req.PrimaryResourceId.HasValue;
             var hasStart = req.StartTs.HasValue;
             var hasEnd = req.EndTs.HasValue;
 
@@ -23,7 +23,7 @@ public class ScheduleRequestRequestValidator : AbstractValidator<ScheduleRequest
             if (!hasSpace && !hasStart && !hasEnd)
                 return;
 
-            ctx.AddFailure("To schedule, provide resourceId, startTs, and endTs. To unschedule, set all to null.");
+            ctx.AddFailure("To schedule, provide primaryResourceId, startTs, and endTs. To unschedule, set all to null.");
         });
     }
 }

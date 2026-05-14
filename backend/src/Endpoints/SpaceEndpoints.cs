@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
@@ -83,5 +84,47 @@ public static class SpaceEndpoints
         })
         .WithName("DeleteSpace")
         .WithSummary("Delete a space");
+
+        spaces.MapGet("/{resourceId:guid}/capabilities", async (
+            Guid siteId, Guid resourceId,
+            ISpaceService spaceService,
+            IResourceCapabilityRepository capabilityRepository,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                if (await spaceService.GetByIdAsync(siteId, resourceId) is null)
+                    return ErrorResponses.NotFound("Space", resourceId);
+                return Results.Ok(await capabilityRepository.GetByResourceAsync(resourceId));
+            }, logger, "get space capabilities", new { siteId, resourceId }))
+            .WithName("GetSpaceCapabilities")
+            .WithSummary("Get all capabilities for a space");
+
+        spaces.MapPost("/{resourceId:guid}/capabilities", async (
+            Guid siteId, Guid resourceId,
+            [FromBody] AddResourceCapabilityRequest request,
+            ISpaceService spaceService,
+            IResourceCapabilityRepository capabilityRepository,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                if (await spaceService.GetByIdAsync(siteId, resourceId) is null)
+                    return ErrorResponses.NotFound("Space", resourceId);
+                var capability = await capabilityRepository.UpsertAsync(resourceId, request.CriterionId, request.Value);
+                return Results.Created($"/api/sites/{siteId}/spaces/{resourceId}/capabilities/{capability.Id}", capability);
+            }, logger, "add space capability", new { siteId, resourceId, criterionId = request.CriterionId }))
+            .WithName("AddSpaceCapability")
+            .WithSummary("Add or update a capability for a space");
+
+        spaces.MapDelete("/{resourceId:guid}/capabilities/{capabilityId:guid}", async (
+            Guid siteId, Guid resourceId, Guid capabilityId,
+            IResourceCapabilityRepository capabilityRepository,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                var deleted = await capabilityRepository.DeleteAsync(resourceId, capabilityId);
+                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Capability", capabilityId);
+            }, logger, "delete space capability", new { siteId, resourceId, capabilityId }))
+            .WithName("DeleteSpaceCapability")
+            .WithSummary("Remove a capability from a space");
     }
 }

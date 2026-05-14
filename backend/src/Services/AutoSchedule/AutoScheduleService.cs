@@ -96,7 +96,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 a.RequestId,
                 new ScheduleRequestRequest
                 {
-                    ResourceId = a.ResourceId,
+                    PrimaryResourceId = a.ResourceId,
                     StartTs = a.Start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                     EndTs = a.End.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 }))
