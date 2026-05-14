@@ -1,3 +1,4 @@
+-- @migration-class: contract
 -- Phase 2: Atomic cutover from Space-first to Resource-first model.
 -- All renames, backfills, and drops execute in one transaction.
 -- Paired revert: backend/migrations-foundation/revert/1310.foundation.cutover_to_resources.revert.sql

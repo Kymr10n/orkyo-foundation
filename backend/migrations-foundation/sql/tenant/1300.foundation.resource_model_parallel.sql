@@ -1,3 +1,4 @@
+-- @migration-class: expand
 -- Resource model — parallel build (Phase 1, additive only).
 -- No existing tables are altered or dropped in this migration.
 -- Phase 2 will rename and wire these tables into production code paths.

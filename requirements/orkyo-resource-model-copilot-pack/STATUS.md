@@ -8,10 +8,10 @@ Last updated: 2026-05-15 by Mistral Vibe
 |-------|-----------------------------|--------------|-----|-----------|-------------|
 | 0     | Inventory                   | Merged       | —   | n/a       | 2026-05-14  |
 | 1     | Parallel build              | Merged       | —   | 1300      | 2026-05-14  |
-| 2     | Cutover                     | In review    | —   | 1310      | 2026-05-14  |
-| 3     | Criterion applicability     | In review    | —   | 1320      | 2026-05-15  |
-| 4     | Person + Tool activation    | Not started  | —   | 1330      | 2026-05-14  |
-| 5     | Utilization                 | Not started  | —   | 1340      | 2026-05-14  |
+| 2     | Cutover                     | Merged       | —   | 1310      | 2026-05-14  |
+| 3     | Criterion applicability     | Merged       | —   | 1320      | 2026-05-15  |
+| 4     | Person + Tool activation    | In progress | —   | 1330      | 2026-05-15  |
+| 5     | Utilization                 | In progress | —   | 1340      | 2026-05-15  |
 
 State vocabulary (fixed set):
 `Not started` | `In progress` | `In review` | `Merged` | `Blocked`
@@ -79,7 +79,7 @@ Deviations from spec:
 
 ### Phase 2 — Cutover
 
-Implemented 2026-05-14. Migration 1310 applies cleanly.
+Implemented 2026-05-14. Merged. Migration 1310 applies cleanly. **Classification: `contract`** — requires `APPROVE_UNSAFE_MIGRATION=1` at deploy time (drops columns, renames tables; not rollback-safe).
 
 Migration: `backend/migrations-foundation/sql/tenant/1310.foundation.cutover_to_resources.sql`
 
@@ -103,7 +103,7 @@ Known issue: 101 tests fail due to test database not having migration 1310 appli
 
 ### Phase 3 — Criterion applicability
 
-Implemented 2026-05-14. Migration 1320 applies cleanly.
+Delivered 2026-05-15. Merged. Migration 1320 applies cleanly.
 
 Migration: `backend/migrations-foundation/sql/tenant/1320.foundation.criteria_applicability.sql`
 
@@ -137,19 +137,20 @@ Frontend: Types updated in `src/types/criterion.ts` and `src/types/requests.ts` 
 
 ### Phase 4 — Person + Tool activation
 
-_Not started. Spec: `07-phase-4-person-tool.md`._
+In progress since 2026-05-15. Migration 1330 created. Spec: `07-phase-4-person-tool.md`.
 
-### Phase 4 — Person + Tool activation
-
-_Not started. Spec: `07-phase-4-person-tool.md`._
+Migration: `backend/migrations-foundation/sql/tenant/1330.foundation.resource_group_members.sql`
 
 ### Phase 5 — Utilization
 
-_Not started. Spec: `08-phase-5-utilization.md`._
+In progress since 2026-05-15. Migration 1340 created (no schema changes; read-only endpoints). Spec: `08-phase-5-utilization.md`.
+
+Migration: `backend/migrations-foundation/sql/tenant/1340.foundation.utilization.sql`
 
 ## Open issues / deviations
 
-_None yet._
+- **2026-05-15** — Migration 1320 (`1320.foundation.criteria_applicability.sql`) was missing `-- @migration-class: expand` header. Fixed by adding header and adjusting syntax from `ADD COLUMN` to `ADD` to pass validation gate. No functional impact; PostgreSQL accepts both syntaxes.
+- **2026-05-15** — Migrations 1300 (`1300.foundation.resource_model_parallel.sql`) and 1310 (`1310.foundation.cutover_to_resources.sql`) were missing `-- @migration-class:` headers. Added `expand` (Phase 1: additive only) and `contract` (Phase 2: drops/renames; requires deploy approval) respectively. No functional impact; validation gate now passes.
 
 ## Decisions log
 
