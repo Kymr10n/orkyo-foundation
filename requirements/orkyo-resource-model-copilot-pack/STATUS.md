@@ -1,13 +1,13 @@
 # Resource Model Initiative — Status
 
-Last updated: 2026-05-14 by Opus 4.7
+Last updated: 2026-05-14 by Sonnet 4.6
 
 ## Phase board
 
 | Phase | Title                       | State        | PR  | Migration | Updated     |
 |-------|-----------------------------|--------------|-----|-----------|-------------|
 | 0     | Inventory                   | Merged       | —   | n/a       | 2026-05-14  |
-| 1     | Parallel build              | Not started  | —   | 1300      | 2026-05-14  |
+| 1     | Parallel build              | In review    | —   | 1300      | 2026-05-14  |
 | 2     | Cutover                     | Not started  | —   | 1310      | 2026-05-14  |
 | 3     | Criterion applicability     | Not started  | —   | 1320      | 2026-05-14  |
 | 4     | Person + Tool activation    | Not started  | —   | 1330      | 2026-05-14  |
@@ -55,7 +55,27 @@ Findings:
 
 ### Phase 1 — Parallel build
 
-_Not started. Spec: `04-phase-1-parallel-build.md`._
+Implemented 2026-05-14. Migration 1300 applies cleanly on fresh and staging DBs.
+
+New files:
+- `backend/migrations-foundation/sql/tenant/1300.foundation.resource_model_parallel.sql`
+- `backend/migrations-foundation/revert/1300.foundation.resource_model_parallel.revert.sql`
+- Constants: `ResourceTypeKeys`, `AllocationModes`, `AssignmentStatuses`
+- Models: `Resource`, `ResourceAssignment`, `ResourceCapability`, `ResourceConflict`, `IResourceRequirement`/`SpaceResourceRequirement`
+- Repositories: `ResourceTypeRepository`, `ResourceRepository`, `ResourceAssignmentRepository`, `ResourceCapabilityRepository`, `CriterionApplicabilityRepository`
+- Services: `ResourceService`, `ResourceAssignmentService`, `CapabilityMatcher`, `OffTimeResourceQuery`
+- Endpoints: `/api/resource-types`, `/api/resources`, `/api/resource-assignments`, `/api/criteria/{id}/applicability`
+- Tests: 19 new endpoint tests (all green)
+
+Full suite: **2252 pass, 0 fail** (3 skipped — email, pre-existing).
+
+Deviations from spec:
+- Revert script placed under `backend/migrations-foundation/revert/` (not inside `sql/`
+  — the `EmbeddedSqlLoader` picks up all `.sql` files under `sql/**` so the revert
+  script must live outside that tree).
+- `IOffTimeResourceQuery` injected but not wired in `ResourceAssignmentService` in Phase 1
+  (off-time checking for newly-created non-Space resources is skipped; wired in Phase 2).
+  Documented as known limitation in service comments.
 
 ### Phase 2 — Cutover
 

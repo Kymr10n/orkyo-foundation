@@ -206,6 +206,13 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
 
+        // ── Resource model (Phase 1) ──────────────────────────────────────────
+        builder.Services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
+        builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
+        builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
+        builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
+        builder.Services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
+
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
 
@@ -255,6 +262,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IExportService, ExportService>();
         builder.Services.AddScoped<IPresetService, PresetService>();
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
+        builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
+        builder.Services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
+        builder.Services.AddScoped<IResourceService, ResourceService>();
+        builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
@@ -422,6 +433,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapContactEndpoints();
         app.MapAccountLifecycleEndpoints();
         app.MapBffAuthEndpoints();
+        app.MapResourceTypeEndpoints();
+        app.MapResourceEndpoints();
+        app.MapResourceAssignmentEndpoints();
+        app.MapCriterionApplicabilityEndpoints();
         // Admin endpoints
         app.MapFloorplanEndpoints();
         app.MapUserAdminEndpoints();
