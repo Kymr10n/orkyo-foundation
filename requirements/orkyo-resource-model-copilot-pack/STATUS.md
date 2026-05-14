@@ -1,12 +1,12 @@
 # Resource Model Initiative — Status
 
-Last updated: 2026-05-14 by planning session
+Last updated: 2026-05-14 by Opus 4.7
 
 ## Phase board
 
 | Phase | Title                       | State        | PR  | Migration | Updated     |
 |-------|-----------------------------|--------------|-----|-----------|-------------|
-| 0     | Inventory                   | Not started  | —   | n/a       | 2026-05-14  |
+| 0     | Inventory                   | Merged       | —   | n/a       | 2026-05-14  |
 | 1     | Parallel build              | Not started  | —   | 1300      | 2026-05-14  |
 | 2     | Cutover                     | Not started  | —   | 1310      | 2026-05-14  |
 | 3     | Criterion applicability     | Not started  | —   | 1320      | 2026-05-14  |
@@ -38,7 +38,20 @@ per-phase `docs/resource-model/phase-N-as-built.md` files.
 
 ### Phase 0 — Inventory
 
-_Not started._
+Delivered 2026-05-14. Inventory doc:
+`docs/resource-model/current-space-dependencies.md`.
+
+Findings:
+- 3 tables have FK to `spaces(id)`: `requests`, `space_capabilities`,
+  `off_time_spaces`.
+- 112 backend occurrences of `SpaceId`/`space_id` across 22 files.
+- 431 frontend occurrences of `spaceId` across 94 files.
+- 17 backend test files contain space/scheduling/capability assertions.
+- 4 `requests.space_id` write call sites in `RequestRepository`
+  (CreateRequest, PatchRequest, ScheduleRequest, UpdateSchedule).
+- Known inconsistency confirmed: `SchedulingEngine` ignores
+  `applies_to_all_spaces`; `SchedulingFeasibilityAnalyzer` honors it.
+  Phase 2 will fix both paths via a shared helper.
 
 ### Phase 1 — Parallel build
 
