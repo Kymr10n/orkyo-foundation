@@ -26,13 +26,14 @@ const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m =>
 const AccountPage = lazy(() => import('@foundation/src/pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
 const SpacesPage = lazy(() => import('@foundation/src/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
+const PeoplePage = lazy(() => import('@foundation/src/pages/PeoplePage').then(m => ({ default: m.PeoplePage })));
 const ConflictsPage = lazy(() => import('@foundation/src/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
 const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/requests", "/conflicts", "/settings"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -88,6 +89,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
           <Route path="spaces" element={<SpacesPage />} />
+          <Route path="people" element={<PeoplePage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="conflicts" element={<ConflictsPage />} />
           <Route path="settings" element={<SettingsPage />} />

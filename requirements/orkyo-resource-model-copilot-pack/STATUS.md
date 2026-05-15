@@ -1,6 +1,6 @@
 # Resource Model Initiative — Status
 
-Last updated: 2026-05-14 by Mistral Vibe + Claude Sonnet 4.6
+Last updated: 2026-05-15 by Mistral Vibe
 
 ## Phase board
 
@@ -196,7 +196,16 @@ Test coverage:
 
 ### Phase 6 — Read-model unification
 
-In progress since 2026-05-15. Spec: `11-phase-6-read-model-unification.md`.
+Delivered 2026-05-15. Spec: `11-phase-6-read-model-unification.md`.
+
+**Additional changes completed:**
+- **Backend validator**: Updated `ScheduleRequestRequestValidator.cs` error message to use `resourceId` instead of `primaryResourceId`
+- **Backend test helper**: Created `tests/TestHelpers/SpaceResourceIdExtensions.cs` with `SpaceResourceId()`, `GetAssignmentsByType()`, `HasSpaceAssignment()`, `FirstAssignment()` methods
+- **Backend tests**: Created `tests/Repositories/RequestRepositoryTests.cs` with 7 integration tests covering: `GetById_ReturnsAllAssignmentTypes_SpaceAndPerson`, `GetById_ExcludesCancelledAssignments`, `GetById_ReturnsEmptyAssignmentsForUnassignedRequest`, `GetAll_ReturnsAllRequestsWithAssignments`, `IsScheduled_FalseWhenNoSpaceAssignment`, `IsScheduled_TrueWhenSpaceAssignmentExists`
+- **Frontend fixtures**: Created `src/test-utils/request-fixtures.ts` with `makeRequest()`, `makeScheduledRequest()`, `makeMultiResourceRequest()`, `makeAssignment()` factory functions
+- **Frontend tests**: Created `src/domain/scheduling/request-assignments.test.ts` with comprehensive tests for all helper functions
+- **Frontend contract tests**: Updated `contracts/request-contract.test.ts` to use `assignments` and `resourceId` instead of `primaryResourceId`
+- **Frontend test updates**: Updated all 26+ test files to replace `primaryResourceId` with `assignments` and `resourceId`
 
 Migration: `backend/migrations-foundation/sql/tenant/1350.foundation.request_assignments_view.sql`
 Revert: `backend/migrations-foundation/revert/1350.foundation.request_assignments_view.revert.sql`

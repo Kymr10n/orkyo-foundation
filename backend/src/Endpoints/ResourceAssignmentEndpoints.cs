@@ -56,5 +56,17 @@ public static class ResourceAssignmentEndpoints
             }, logger, "cancel resource assignment", new { id }))
             .WithName("CancelResourceAssignment")
             .WithSummary("Cancel a resource assignment");
+
+        group.MapPost("/validate", async (
+            [FromBody] ValidateResourceAssignmentRequest request,
+            IResourceAssignmentValidator validator,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                var result = await validator.ValidateAsync(request);
+                return Results.Ok(result);
+            }, logger, "validate resource assignment"))
+            .WithName("ValidateResourceAssignment")
+            .WithSummary("Validate a resource assignment without creating it");
     }
 }

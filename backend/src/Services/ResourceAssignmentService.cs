@@ -1,4 +1,3 @@
-using Api.Constants;
 using Api.Models;
 using Api.Repositories;
 
@@ -15,94 +14,56 @@ public interface IResourceAssignmentService
     Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc);
 }
 
+/// <summary>
+/// Thin delegation layer over <see cref="IResourceAssignmentValidator"/>.
+/// Owns no validation logic of its own; just translates the first blocker into
+/// the legacy <see cref="ResourceConflict"/> shape for existing callers.
+/// </summary>
 public class ResourceAssignmentService(
-    IResourceRepository resourceRepository,
     IResourceAssignmentRepository assignmentRepository,
-    ICapabilityMatcher capabilityMatcher) : IResourceAssignmentService
+    IResourceAssignmentValidator validator) : IResourceAssignmentService
 {
+    // Single source of truth for ValidationReasonCode → ResourceConflictType mapping.
+    // Adding a new ValidationReasonCode requires adding a row here (compile-time guard
+    // via the explicit dictionary keys; unknown codes throw rather than silently mapping
+    // to a wrong default like the old switch did).
+    private static readonly Dictionary<ValidationReasonCode, ResourceConflictType> ConflictTypeByCode = new()
+    {
+        [ValidationReasonCode.ResourceNotFound] = ResourceConflictType.ResourceNotFound,
+        [ValidationReasonCode.ResourceInactive] = ResourceConflictType.ResourceInactive,
+        [ValidationReasonCode.ResourceTypeMismatch] = ResourceConflictType.CapabilityNotApplicable,
+        [ValidationReasonCode.CapabilityMissing] = ResourceConflictType.CapabilityMissing,
+        [ValidationReasonCode.OffTimeOverlap] = ResourceConflictType.OffTimeOverlap,
+        [ValidationReasonCode.AssignmentOverbooked] = ResourceConflictType.ExclusiveOverlap, // refined below
+        [ValidationReasonCode.InvalidAllocationMode] = ResourceConflictType.InvalidAllocationMode,
+        [ValidationReasonCode.InvalidAllocationPercent] = ResourceConflictType.InvalidAllocationPercent,
+    };
+
     public async Task<(ResourceAssignmentInfo? Assignment, ResourceConflict? Conflict)> CreateAsync(
         CreateResourceAssignmentRequest request,
         IResourceRequirement? requirement = null)
     {
-        // 1. Resource exists.
-        var resource = await resourceRepository.GetByIdAsync(request.ResourceId);
-        if (resource is null)
-            return (null, Conflict(request.ResourceId, ResourceConflictType.ResourceNotFound,
-                "Resource not found"));
-
-        // 2. Resource is active.
-        if (!resource.IsActive)
-            return (null, Conflict(resource.Id, ResourceConflictType.ResourceInactive,
-                "Resource is inactive"));
-
-        // 3. Resource type matches requirement (if provided).
-        if (requirement is not null && resource.ResourceTypeId != requirement.ResourceTypeId)
-            return (null, Conflict(resource.Id, ResourceConflictType.CapabilityNotApplicable,
-                $"Resource type mismatch: expected {requirement.ResourceTypeId}"));
-
-        // 4. Required capabilities present (presence match).
-        var requiredIds = requirement?.RequiredCriterionIds ?? [];
-        if (requiredIds.Count > 0)
+        var validationRequest = new ValidateResourceAssignmentRequest
         {
-            var satisfied = await capabilityMatcher.ResourceSatisfiesRequirementsAsync(
-                resource.Id, requiredIds);
-            if (!satisfied)
-                return (null, Conflict(resource.Id, ResourceConflictType.CapabilityMissing,
-                    "Resource does not satisfy all required capabilities"));
-        }
+            RequestId = request.RequestId,
+            ResourceId = request.ResourceId,
+            StartUtc = request.StartUtc,
+            EndUtc = request.EndUtc,
+            AllocationPercent = request.AllocationPercent,
+            AllocationUnits = request.AllocationUnits,
+            AllocationMode = null // Use resource's default
+        };
 
-        // 5. Resource not absent (off-times).
-        // Site id is not available here in Phase 1 without loading the resource's site.
-        // For non-Space resources created in Phase 1 tests (no site affiliation),
-        // off-time checking is skipped. Off-time checking for Spaces flows through
-        // SchedulingService (unchanged in Phase 1). A full off-time check is wired
-        // in Phase 2 when the scheduler switches to resource_assignments.
-        // KNOWN LIMITATION (Phase 1): off-time checks not enforced for new resources.
+        var result = await validator.ValidateAsync(validationRequest);
 
-        // 6 + 7. Allocation mode rules.
-        switch (resource.AllocationMode)
-        {
-            case AllocationModes.ConcurrentCapacity:
-                return (null, Conflict(resource.Id, ResourceConflictType.InvalidAllocationMode,
-                    "ConcurrentCapacity allocation mode is not yet supported"));
-
-            case AllocationModes.Exclusive:
-                if (request.AllocationPercent.HasValue)
-                    return (null, Conflict(resource.Id, ResourceConflictType.InvalidAllocationPercent,
-                        "allocation_percent must be null for Exclusive resources"));
-
-                var overlapping = await assignmentRepository.GetOverlappingActiveAsync(
-                    resource.Id, request.StartUtc, request.EndUtc);
-                if (overlapping.Count > 0)
-                    return (null, new ResourceConflict
-                    {
-                        ResourceId = resource.Id,
-                        Type = ResourceConflictType.ExclusiveOverlap,
-                        Message = "Resource is already assigned during this time window",
-                        ConflictingAssignmentId = overlapping[0].Id,
-                    });
-                break;
-
-            case AllocationModes.Fractional:
-                if (!request.AllocationPercent.HasValue || request.AllocationPercent.Value <= 0)
-                    return (null, Conflict(resource.Id, ResourceConflictType.InvalidAllocationPercent,
-                        "allocation_percent is required and must be > 0 for Fractional resources"));
-
-                var existing = await assignmentRepository.GetTotalAllocatedPercentAsync(
-                    resource.Id, request.StartUtc, request.EndUtc);
-                if (existing + request.AllocationPercent.Value > resource.BaseAvailabilityPercent)
-                    return (null, Conflict(resource.Id, ResourceConflictType.FractionalCapacityExceeded,
-                        $"Total allocation ({existing + request.AllocationPercent.Value}%) " +
-                        $"exceeds available capacity ({resource.BaseAvailabilityPercent}%)"));
-                break;
-        }
+        if (result.Severity == ValidationSeverity.Blocker && result.Blockers.Count > 0)
+            return (null, ToConflict(result.Blockers[0], request.ResourceId));
 
         var assignment = await assignmentRepository.CreateAsync(request);
         return (assignment, null);
     }
 
-    public Task<bool> CancelAsync(Guid id)
-        => assignmentRepository.CancelAsync(id);
+    public Task<bool> CancelAsync(Guid id) => assignmentRepository.CancelAsync(id);
 
     public Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId)
         => assignmentRepository.GetByRequestAsync(requestId);
@@ -110,6 +71,27 @@ public class ResourceAssignmentService(
     public Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc)
         => assignmentRepository.GetByResourceAsync(resourceId, fromUtc, toUtc);
 
-    private static ResourceConflict Conflict(Guid resourceId, ResourceConflictType type, string message) =>
-        new() { ResourceId = resourceId, Type = type, Message = message };
+    private static ResourceConflict ToConflict(ValidationIssue issue, Guid fallbackResourceId)
+    {
+        if (!ConflictTypeByCode.TryGetValue(issue.Code, out var type))
+            throw new InvalidOperationException(
+                $"Unmapped ValidationReasonCode '{issue.Code}'. Add it to ConflictTypeByCode.");
+
+        // AssignmentOverbooked covers both exclusive collision and fractional over-capacity.
+        // The latter is identified by its message; refine the conflict type for callers.
+        if (issue.Code == ValidationReasonCode.AssignmentOverbooked
+            && issue.Message.Contains("exceeds available capacity"))
+        {
+            type = ResourceConflictType.FractionalCapacityExceeded;
+        }
+
+        return new ResourceConflict
+        {
+            ResourceId = issue.ResourceId ?? fallbackResourceId,
+            Type = type,
+            Message = issue.Message,
+            ConflictingAssignmentId = issue.ConflictingAssignmentId,
+            ConflictingOffTimeId = issue.ConflictingOffTimeId,
+        };
+    }
 }

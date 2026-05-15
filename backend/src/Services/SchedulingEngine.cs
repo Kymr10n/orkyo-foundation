@@ -223,7 +223,7 @@ public static class SchedulingEngine
         _ => throw new ArgumentOutOfRangeException(nameof(unit), unit, "Unknown duration unit")
     };
 
-    private static bool IsWeekend(DateTime localTime) =>
+    public static bool IsWeekend(DateTime localTime) =>
         localTime.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
     private static DateTime ToLocal(DateTime utcTime, TimeZoneInfo tz) =>

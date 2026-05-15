@@ -51,6 +51,15 @@ export const API_PATHS = {
   requestSubtree: (requestId: string) => `/api/requests/${requestId}/subtree`,
   requestDescendantsCount: (requestId: string) => `/api/requests/${requestId}/descendants/count`,
 
+  // Resources
+  RESOURCES: '/api/resources',
+  resource: (resourceId: string) => `/api/resources/${resourceId}`,
+
+  // Person Profiles
+  PERSON_PROFILES: '/api/person-profiles',
+  personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
+  personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
+
   // Templates
   TEMPLATES: '/api/templates',
   templatesWithType: (entityType: string) => `/api/templates?entityType=${entityType}`,

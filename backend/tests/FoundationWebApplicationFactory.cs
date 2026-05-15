@@ -267,6 +267,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
         builder.Services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
+        builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
+        builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
         builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         builder.Services.AddScoped<IUtilizationService, UtilizationService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
@@ -441,6 +443,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapCriterionApplicabilityEndpoints();
         app.MapResourceGroupMemberEndpoints();
         app.MapUtilizationEndpoints();
+        app.MapPersonProfileEndpoints();
         // Admin endpoints
         app.MapFloorplanEndpoints();
         app.MapUserAdminEndpoints();

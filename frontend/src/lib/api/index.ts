@@ -23,3 +23,5 @@ export * from "./tenant-settings-api";
 export { getTenantMemberships, canCreateTenant, createTenant, getStarterTemplates, leaveTenant, deleteTenant, type TenantMembership } from "./tenant-account-api";
 export * from "./user-api";
 export * from "./utilization-api";
+export * from "./resources-api";
+export * from "./person-profiles-api";

@@ -19,5 +19,6 @@ public enum ResourceConflictType
     ExclusiveOverlap,
     FractionalCapacityExceeded,
     InvalidAllocationMode,
-    InvalidAllocationPercent
+    InvalidAllocationPercent,
+    OffTimeOverlap
 }

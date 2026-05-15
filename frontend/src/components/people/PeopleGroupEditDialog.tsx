@@ -1,0 +1,120 @@
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@foundation/src/components/ui/dialog';
+import { Button } from '@foundation/src/components/ui/button';
+import { Input } from '@foundation/src/components/ui/input';
+import { Label } from '@foundation/src/components/ui/label';
+import { Textarea } from '@foundation/src/components/ui/textarea';
+import { Loader2 } from 'lucide-react';
+
+interface ResourceGroup {
+  id: string;
+  name: string;
+  description?: string;
+  defaultAvailabilityPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PeopleGroupEditDialogProps {
+  group: ResourceGroup | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+export function PeopleGroupEditDialog({ group, isOpen, onClose, onSaved }: PeopleGroupEditDialogProps) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [defaultAvailabilityPercent, setDefaultAvailabilityPercent] = useState(100);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (group) {
+      setName(group.name);
+      setDescription(group.description || '');
+      setDefaultAvailabilityPercent(group.defaultAvailabilityPercent);
+    } else {
+      setName('');
+      setDescription('');
+      setDefaultAvailabilityPercent(100);
+    }
+  }, [group]);
+
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    // Placeholder for actual API call
+    // In a real implementation, this would call the groups API
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    setIsSubmitting(false);
+    onSaved();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>{group ? 'Edit Group' : 'Add Group'}</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Name *</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="defaultAvailability">Default Availability (%)</Label>
+            <Input
+              id="defaultAvailability"
+              type="number"
+              value={defaultAvailabilityPercent}
+              onChange={(e) => setDefaultAvailabilityPercent(Number(e.target.value))}
+              min={0}
+              max={100}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting || !name.trim()}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

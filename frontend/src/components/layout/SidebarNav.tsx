@@ -9,12 +9,14 @@ import {
   LayoutDashboard,
   Package,
   Settings,
+  Users,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 const navItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
   { to: "/spaces", label: "Spaces", icon: Box },
+  { to: "/people", label: "People", icon: Users },
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/conflicts", label: "Conflicts", icon: AlertTriangle },
   { to: "/settings", label: "Settings", icon: Settings },
