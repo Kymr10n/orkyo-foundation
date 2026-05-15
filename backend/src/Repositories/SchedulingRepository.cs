@@ -169,8 +169,16 @@ public class SchedulingRepository : ISchedulingRepository
             offTimes.Add(SchedulingMapper.MapOffTimeFromReader(reader));
         reader.Close();
 
-        for (var i = 0; i < offTimes.Count; i++)
-            offTimes[i] = offTimes[i] with { ResourceIds = await LoadOffTimeResourceIds(conn, offTimes[i].Id) };
+        var nonGlobalIds = offTimes.Where(o => !o.AppliesToAllResources).Select(o => o.Id).ToList();
+        if (nonGlobalIds.Count > 0)
+        {
+            var resourceMap = await LoadOffTimeResourceIdsBatch(conn, nonGlobalIds);
+            for (var i = 0; i < offTimes.Count; i++)
+            {
+                if (!offTimes[i].AppliesToAllResources)
+                    offTimes[i] = offTimes[i] with { ResourceIds = resourceMap.GetValueOrDefault(offTimes[i].Id, []) };
+            }
+        }
 
         return offTimes;
     }
