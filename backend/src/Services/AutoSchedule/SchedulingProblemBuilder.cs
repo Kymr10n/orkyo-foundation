@@ -75,7 +75,7 @@ public class SchedulingProblemBuilder
             .Where(r => r.IsScheduled)
             .Select(r => new FixedOccupancy(
                 r.Id,
-                r.PrimaryResourceId!.Value,
+                r.GetSpaceResourceId()!.Value,
                 DateOnly.FromDateTime(r.StartTs!.Value),
                 DateOnly.FromDateTime(r.EndTs!.Value)))
             .ToList();

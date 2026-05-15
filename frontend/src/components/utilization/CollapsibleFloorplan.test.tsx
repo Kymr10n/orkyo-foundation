@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { CollapsibleFloorplan } from "./CollapsibleFloorplan";
 import type { Request } from "@foundation/src/types/requests";
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 function renderWithQuery(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -99,7 +100,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-1",
         name: "Request 1",
-        primaryResourceId: "space-1",
+        assignments: [spaceAssignment('space-1')],
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",
@@ -116,7 +117,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-2",
         name: "Request 2",
-        primaryResourceId: "space-2",
+        assignments: [spaceAssignment('space-2')],
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",
@@ -133,7 +134,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-3",
         name: "Request 3 - Outside cursor",
-        primaryResourceId: "space-3",
+        assignments: [spaceAssignment('space-3')],
         startTs: "2026-02-16T10:00:00Z",
         endTs: "2026-02-16T14:00:00Z",
         status: "planned",
@@ -171,7 +172,7 @@ describe("CollapsibleFloorplan", () => {
         {
           id: "req-unscheduled",
           name: "Unscheduled",
-          primaryResourceId: null,
+          assignments: [],
           startTs: null,
           endTs: null,
           status: "planned",
@@ -204,7 +205,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-1",
         name: "Request 1 - Conflicting",
-        primaryResourceId: "space-1",
+        assignments: [spaceAssignment('space-1')],
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",
@@ -221,7 +222,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-2",
         name: "Request 2 - Conflicting with req-1",
-        primaryResourceId: "space-1",
+        assignments: [spaceAssignment('space-1')],
         startTs: "2026-02-15T12:00:00Z",
         endTs: "2026-02-15T16:00:00Z",
         status: "planned",
@@ -238,7 +239,7 @@ describe("CollapsibleFloorplan", () => {
       {
         id: "req-3",
         name: "Request 3 - No conflict",
-        primaryResourceId: "space-2",
+        assignments: [spaceAssignment('space-2')],
         startTs: "2026-02-15T10:00:00Z",
         endTs: "2026-02-15T14:00:00Z",
         status: "planned",

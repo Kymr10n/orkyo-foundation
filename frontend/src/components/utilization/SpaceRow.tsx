@@ -3,6 +3,7 @@ import { GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { selectSpaceOverlapCount } from "@foundation/src/domain/scheduling/schedule-selectors";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { PreviewSchedule, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
@@ -44,7 +45,7 @@ export const SpaceRow = React.memo(function SpaceRow({
 }) {
   // Pre-filter requests for this space (stable reference for TimeCell memoization)
   const spaceRequests = useMemo(
-    () => requests.filter((r) => r.primaryResourceId === space.id),
+    () => requests.filter((r) => getSpaceResourceId(r) === space.id),
     [requests, space.id]
   );
 

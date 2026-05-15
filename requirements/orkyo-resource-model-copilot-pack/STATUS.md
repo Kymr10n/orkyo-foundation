@@ -12,6 +12,7 @@ Last updated: 2026-05-14 by Mistral Vibe + Claude Sonnet 4.6
 | 3     | Criterion applicability     | Merged       | —   | 1320      | 2026-05-15  |
 | 4     | Person + Tool activation    | Merged       | —   | 1330      | 2026-05-14  |
 | 5     | Utilization                 | Merged       | —   | 1340      | 2026-05-14  |
+| 6     | Read-model unification      | In progress | —   | 1350      | 2026-05-15  |
 
 State vocabulary (fixed set):
 `Not started` | `In progress` | `In review` | `Merged` | `Blocked`
@@ -192,6 +193,34 @@ Changes:
 
 Test coverage:
 - `UtilizationServiceTests` — 10 unit tests: Exclusive occupancy, Fractional partial-bucket overlap, OffTime blocking, Group averaging
+
+### Phase 6 — Read-model unification
+
+In progress since 2026-05-15. Spec: `11-phase-6-read-model-unification.md`.
+
+Migration: `backend/migrations-foundation/sql/tenant/1350.foundation.request_assignments_view.sql`
+Revert: `backend/migrations-foundation/revert/1350.foundation.request_assignments_view.revert.sql`
+
+Changes:
+- **Backend models**: Removed `PrimaryResourceId` from `RequestInfo` model; added `ResourceAssignmentInfo.ResourceTypeKey` field; added `RequestInfo.Assignments` (IReadOnlyList<ResourceAssignmentInfo>); redefined `RequestInfo.IsScheduled` to check for Space assignment; added `RequestInfoExtensions.GetSpaceResourceId()` helper
+- **Backend mapping**: Updated `RequestMapper.MapFromReader` to parse `assignments` JSON column from view
+- **Backend repository**: Rewrote `RequestRepository` SELECT queries (GetAllAsync, GetAllAsync(paged), GetByIdAsync, GetChildrenAsync, GetScheduledBySiteAsync) to use `v_requests_with_assignments` view; updated write methods (CreateAsync, UpdateAsync, UpdateScheduleAsync, MoveAsync, BatchUpdateSchedulesAsync) to re-read from view after commit
+- **Backend DTOs**: Renamed `ScheduleRequestRequest.PrimaryResourceId` → `ResourceId`
+- **Backend services**: Updated `SchedulingProblemBuilder`, `ExportService`, `SchedulingService`, `AutoScheduleService` to use `GetSpaceResourceId()`
+- **Backend endpoints/validators**: Updated `RequestEndpoints` and `ScheduleRequestRequestValidator` to use `ResourceId`
+- **Backend tests**: Updated `RequestModelsTests` (renamed test, added assignments to fixtures) and `RequestEndpointsTests` (replaced PrimaryResourceId assertions with GetSpaceResourceId); rewrote `RequestRepositoryTests` (was non-functional) using HTTP stack — 5 new integration tests covering empty-assignments, space assignment, space+person, cancelled exclusion, and list endpoint; added `Api.Constants` to `GlobalUsings`; fixed `EnumSerializationTests` and `UtilizationServiceTests` for new required fields
+- **Frontend types**: Added `ResourceTypeKey`, `AssignmentStatus`, `ResourceAssignment` types; removed `primaryResourceId` from `Request`, `CreateRequestRequest`, `UpdateRequestRequest`; added `assignments` to `Request`; renamed `primaryResourceId` → `resourceId` in DTOs
+- **Frontend constants**: Added `RESOURCE_TYPE_KEYS` in `lib/constants/resource-types.ts`
+- **Frontend helpers**: Created `domain/scheduling/request-assignments.ts` with `getSpaceAssignment`, `getSpaceResourceId`, `getAssignmentsByType`, `applySpaceAssignmentOptimistic`
+- **Frontend API client**: Renamed `ScheduleRequestData.primaryResourceId` → `resourceId` in `lib/api/utilization-api.ts`
+- **Frontend utils**: Updated `lib/utils/utils.ts` (buildCreatePayload, buildUpdatePayload), `lib/utils/export-handlers.ts`, `lib/utils/gantt-pdf-export.ts`
+- **Frontend hooks**: Updated `useRequestForm.ts`, `useUtilization.ts` (optimistic updates via applySpaceAssignmentOptimistic), `useSchedulingConflicts.ts`
+- **Frontend components**: Updated `CollapsibleFloorplan.tsx`, `SpaceRow.tsx`, `ScheduledRequestOverlay.tsx`, `RequestsPanel.tsx`, `RequestDetailsDialog.tsx` (now shows all assignments)
+- **Frontend pages**: Updated `pages/UtilizationPage.tsx` (mutation payloads now use resourceId)
+- **Frontend scheduling**: Updated `domain/scheduling/schedule-model.ts` (toScheduledEntry now uses getSpaceResourceId); added mixed-assignment regression test to `schedule-model.test.ts`
+- **Frontend fixtures**: Added `spaceAssignment()`, `clearSpaceAssignmentOptimistic()` helpers; `makeScheduledRequest` and `makeMultiResourceRequest` now use `makeAssignment`; bulk-replaced 34 partial-literal assignment sites across 11 test files
+- **Frontend contract**: Added `ScheduleRequestData` contract check to `contracts/request-contract.test.ts` — guards the field-naming drift that caused the 2026-05-15 400 bug
+- **Review fixes (2026-05-15)**: Fixed `ParseAssignments` to use `JsonNamingPolicy.SnakeCaseLower` (was `PropertyNameCaseInsensitive`, which does not handle snake_case→PascalCase); hoisted `GetSpaceResourceId()` in `ExportService` (was called 4× per request); parameterized `'space'`/`'Cancelled'` literals in `CancelSpaceAssignmentAsync`; simplified `UpdateAsync` (always one transaction, single re-read, unified requirements branches); switched view from `r.*` to explicit columns; `RequestsPanel` now trusts `request.isScheduled` from BE instead of recomputing
 
 ## Open issues / deviations
 

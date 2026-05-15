@@ -5,6 +5,7 @@ import type { Site } from '@foundation/src/types/site';
 import type { Conflict } from '@foundation/src/types/requests';
 import type { Template } from '@foundation/src/types/templates';
 import type { User } from '@foundation/src/types/auth';
+import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import {
   arrayToCSV,
   csvToArray,
@@ -119,7 +120,7 @@ export async function exportRequests(requests: Request[], format: ExportFormat) 
       status: request.status,
       start_ts: request.startTs || '',
       end_ts: request.endTs || '',
-      resource_id: request.primaryResourceId || '',
+      resource_id: getSpaceResourceId(request) || '',
       resource_name: '', // Resource name needs to be fetched separately
       earliest_start_ts: request.earliestStartTs || '',
       latest_end_ts: request.latestEndTs || '',

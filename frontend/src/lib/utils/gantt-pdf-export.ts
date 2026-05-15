@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import type { Request } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
 import { format } from 'date-fns';
+import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 
 interface GanttExportOptions {
   requests: Request[];
@@ -51,7 +52,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   );
 
   // Filter to only scheduled requests
-  const scheduledRequests = requests.filter(r => r.startTs && r.endTs && r.primaryResourceId);
+  const scheduledRequests = requests.filter(r => r.startTs && r.endTs && getSpaceResourceId(r));
 
   // Calculate time range
   const timeRange = endDate.getTime() - startDate.getTime();
@@ -82,7 +83,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   // Group requests by space
   const spaceGroups = new Map<string, Request[]>();
   scheduledRequests.forEach(request => {
-    const resourceId = request.primaryResourceId!;
+    const resourceId = getSpaceResourceId(request)!;
     if (!spaceGroups.has(resourceId)) {
       spaceGroups.set(resourceId, []);
     }

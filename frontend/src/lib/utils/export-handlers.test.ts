@@ -19,6 +19,7 @@ import type { Space } from '@foundation/src/types/space';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // Mock downloadFile
 let mockDownloadFile = vi.fn();
@@ -145,7 +146,7 @@ describe('Export Handlers', () => {
       {
         id: '1',
         name: 'Request 1',
-        primaryResourceId: 'space1',
+        assignments: [spaceAssignment('space1')],
         minimalDurationValue: 60,
         minimalDurationUnit: 'minutes',
         status: 'planned',
@@ -158,7 +159,7 @@ describe('Export Handlers', () => {
       {
         id: '2',
         name: 'Request 2',
-        primaryResourceId: 'space2',
+        assignments: [spaceAssignment('space2')],
         minimalDurationValue: 120,
         minimalDurationUnit: 'minutes',
         status: 'done',
@@ -206,7 +207,7 @@ describe('Export Handlers', () => {
       // JSON import not implemented - returns empty array
       const jsonContent = JSON.stringify({
         data: [
-          { id: '1', title: 'Request 1', name: 'Request 1', primaryResourceId: 'space1', startDate: '2026-01-01', endDate: '2026-01-31' },
+          { id: '1', title: 'Request 1', name: 'Request 1', resourceId: 'space1', startDate: '2026-01-01', endDate: '2026-01-31' },
         ]
       });
       const file = createMockFile(jsonContent, 'requests.json', 'application/json');

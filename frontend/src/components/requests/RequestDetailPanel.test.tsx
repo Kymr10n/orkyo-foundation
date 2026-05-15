@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestDetailPanel } from './RequestDetailPanel';
 import type { Request } from '@foundation/src/types/requests';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -15,7 +16,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'leaf',
     sortOrder: 0,
-    primaryResourceId: null,
+    assignments: [],
     startTs: null,
     endTs: null,
     earliestStartTs: null,
@@ -48,7 +49,7 @@ const scheduledLeaf = makeRequest({
   id: 'scheduled-1',
   name: 'Scheduled Task',
   planningMode: 'leaf',
-  primaryResourceId: 'space-1',
+  assignments: [spaceAssignment('space-1')],
   startTs: '2026-03-01T09:00:00Z',
   endTs: '2026-03-01T17:00:00Z',
 });

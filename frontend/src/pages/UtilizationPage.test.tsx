@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 
@@ -443,7 +444,7 @@ describe("UtilizationPage", () => {
 
   it("calls scheduleMutation on resize", () => {
     mockUseRequests.mockReturnValue({
-      data: [{ id: "r1", name: "Task 1", resourceId: "s1" }],
+      data: [makeRequest({ id: "r1", name: "Task 1", assignments: [spaceAssignment("s1")], isScheduled: true })],
       isLoading: false,
     });
     const Wrapper = createWrapper();

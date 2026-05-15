@@ -3,6 +3,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { useFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
 import { useSpaces } from "@foundation/src/hooks/useSpaces";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Request } from "@foundation/src/types/requests";
 import { ChevronDown, ChevronUp, GripHorizontal, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -99,16 +100,16 @@ export function CollapsibleFloorplan({
   // Memoize cursor-time filtering
   const { occupiedResourceIds, conflictingResourceIds } = useMemo(() => {
     const active = requests.filter((req) => {
-      if (!req.startTs || !req.endTs || !req.primaryResourceId) return false;
+      if (!req.startTs || !req.endTs || !getSpaceResourceId(req)) return false;
       const start = new Date(req.startTs);
       const end = new Date(req.endTs);
       return start <= timeCursorTs && timeCursorTs < end;
     });
 
     return {
-      occupiedResourceIds: new Set(active.map((req) => req.primaryResourceId)),
+      occupiedResourceIds: new Set(active.map((req) => getSpaceResourceId(req)!)),
       conflictingResourceIds: new Set(
-        active.filter((req) => conflicts.has(req.id)).map((req) => req.primaryResourceId),
+        active.filter((req) => conflicts.has(req.id)).map((req) => getSpaceResourceId(req)!),
       ),
     };
   }, [requests, timeCursorTs, conflicts]);

@@ -10,6 +10,7 @@ import type { Request } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
 import type { SpaceGroup } from '@foundation/src/types/spaceGroup';
 import { DndContext } from '@dnd-kit/core';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // Mock the store
 vi.mock('@foundation/src/store/app-store', () => ({
@@ -77,7 +78,7 @@ const mockRequests: Request[] = [
   {
     id: 'req-1',
     name: 'Test Request 1',
-    primaryResourceId: 'space-1',
+    assignments: [spaceAssignment('space-1')],
     startTs: '2024-01-10T09:00:00Z',
     endTs: '2024-01-10T11:00:00Z',
     status: 'planned',

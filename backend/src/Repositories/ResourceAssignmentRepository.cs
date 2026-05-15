@@ -20,8 +20,15 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
     : IResourceAssignmentRepository
 {
     private const string SelectColumns =
-        "id, request_id, resource_id, start_utc, end_utc, " +
-        "allocation_percent, allocation_units, assignment_status, created_at, updated_at";
+        "ra.id, ra.request_id, ra.resource_id, rt.key AS resource_type_key, " +
+        "ra.start_utc, ra.end_utc, " +
+        "ra.allocation_percent, ra.allocation_units, ra.assignment_status, " +
+        "ra.created_at, ra.updated_at";
+
+    private const string FromJoin =
+        "FROM resource_assignments ra " +
+        "JOIN resources res     ON res.id = ra.resource_id " +
+        "JOIN resource_types rt ON rt.id  = res.resource_type_id";
 
     public async Task<ResourceAssignmentInfo> CreateAsync(CreateResourceAssignmentRequest request)
     {
@@ -35,7 +42,10 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
             VALUES
                 (@requestId, @resourceId, @startUtc, @endUtc,
                  @allocationPercent, @allocationUnits)
-            RETURNING id, assignment_status, created_at, updated_at", db);
+            RETURNING id, assignment_status, created_at, updated_at,
+                      (SELECT rt.key FROM resources res
+                       JOIN resource_types rt ON rt.id = res.resource_type_id
+                       WHERE res.id = resource_id) AS resource_type_key", db);
 
         cmd.Parameters.AddWithValue("requestId", request.RequestId);
         cmd.Parameters.AddWithValue("resourceId", request.ResourceId);
@@ -52,6 +62,7 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
             Id = reader.GetGuid(reader.GetOrdinal("id")),
             RequestId = request.RequestId,
             ResourceId = request.ResourceId,
+            ResourceTypeKey = reader.GetString(reader.GetOrdinal("resource_type_key")),
             StartUtc = request.StartUtc,
             EndUtc = request.EndUtc,
             AllocationPercent = request.AllocationPercent,
@@ -68,7 +79,7 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         await db.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_assignments WHERE id = @id", db);
+            $"SELECT {SelectColumns} {FromJoin} WHERE ra.id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -81,8 +92,8 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         await db.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_assignments " +
-            "WHERE request_id = @requestId ORDER BY start_utc", db);
+            $"SELECT {SelectColumns} {FromJoin} " +
+            "WHERE ra.request_id = @requestId ORDER BY ra.start_utc", db);
         cmd.Parameters.AddWithValue("requestId", requestId);
 
         return await ReadAllAsync(cmd);
@@ -95,11 +106,11 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         await db.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_assignments " +
-            "WHERE resource_id = @resourceId " +
-            "  AND assignment_status != @cancelled " +
-            "  AND start_utc < @toUtc AND end_utc > @fromUtc " +
-            "ORDER BY start_utc", db);
+            $"SELECT {SelectColumns} {FromJoin} " +
+            "WHERE ra.resource_id = @resourceId " +
+            "  AND ra.assignment_status != @cancelled " +
+            "  AND ra.start_utc < @toUtc AND ra.end_utc > @fromUtc " +
+            "ORDER BY ra.start_utc", db);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
         cmd.Parameters.AddWithValue("fromUtc", fromUtc);
@@ -114,12 +125,12 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync();
 
-        var excludeClause = excludeAssignmentId.HasValue ? "AND id != @excludeId" : "";
+        var excludeClause = excludeAssignmentId.HasValue ? "AND ra.id != @excludeId" : "";
         await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_assignments " +
-            "WHERE resource_id = @resourceId " +
-            $"  AND assignment_status != @cancelled " +
-            $"  AND start_utc < @endUtc AND end_utc > @startUtc " +
+            $"SELECT {SelectColumns} {FromJoin} " +
+            "WHERE ra.resource_id = @resourceId " +
+            $"  AND ra.assignment_status != @cancelled " +
+            $"  AND ra.start_utc < @endUtc AND ra.end_utc > @startUtc " +
             $"  {excludeClause}", db);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
@@ -182,6 +193,7 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         Id = r.GetGuid(r.GetOrdinal("id")),
         RequestId = r.GetGuid(r.GetOrdinal("request_id")),
         ResourceId = r.GetGuid(r.GetOrdinal("resource_id")),
+        ResourceTypeKey = r.GetString(r.GetOrdinal("resource_type_key")),
         StartUtc = r.GetDateTime(r.GetOrdinal("start_utc")),
         EndUtc = r.GetDateTime(r.GetOrdinal("end_utc")),
         AllocationPercent = r.IsDBNull(r.GetOrdinal("allocation_percent")) ? null : r.GetDecimal(r.GetOrdinal("allocation_percent")),

@@ -16,6 +16,7 @@ function createTestRequest(overrides: Partial<Request> & { requirements?: Reques
     schedulingSettingsApply: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    assignments: [],
     ...overrides,
   };
 }

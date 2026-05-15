@@ -53,6 +53,7 @@ vi.mock('./OffTimeOverlay', () => ({
 }));
 
 import { SpaceRow } from './SpaceRow';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---- Fixtures ----
 const baseSpace: Space = {
@@ -81,7 +82,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'manual' as Request['planningMode'],
     sortOrder: 0,
-    primaryResourceId: 'space-1',
+    assignments: [spaceAssignment('space-1')],
     minimalDurationValue: 60,
     minimalDurationUnit: 'minute' as Request['minimalDurationUnit'],
     schedulingSettingsApply: true,
@@ -187,7 +188,7 @@ describe('SpaceRow', () => {
 
   it('renders ScheduledRequestOverlay only for preview entries whose request belongs to this space', () => {
     const requestInSpace = makeRequest({ id: 'req-1', name: 'Mine' });
-    const requestOther = makeRequest({ id: 'req-other', name: 'Other', primaryResourceId: 'space-2' });
+    const requestOther = makeRequest({ id: 'req-other', name: 'Other', assignments: [spaceAssignment('space-2')] });
     const previewEntries = [
       makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' }),
       // entry whose request is missing from the requests array → skipped

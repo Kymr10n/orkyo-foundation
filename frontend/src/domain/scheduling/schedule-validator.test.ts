@@ -10,14 +10,14 @@ const T = (iso: string) => new Date(iso).getTime();
 
 function makeEntry(
   requestId: string,
-  primaryResourceId: string,
+  resourceId: string,
   startIso: string,
   endIso: string,
   minimalDurationMs = 3_600_000
 ): PreviewEntry {
   return {
     requestId,
-    resourceId: primaryResourceId,
+    resourceId,
     startMs: T(startIso),
     endMs: T(endIso),
     name: requestId,

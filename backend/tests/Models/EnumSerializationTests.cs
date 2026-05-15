@@ -86,6 +86,7 @@ public class EnumSerializationTests
             Status = RequestStatus.InProgress,
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Days,
+            Assignments = [],
             Requirements = [],
             SchedulingSettingsApply = true,
         };

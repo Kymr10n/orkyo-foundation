@@ -4,6 +4,7 @@ import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { validateSpaceRequirements } from "@foundation/src/domain/scheduling/capability-matcher";
 import { getSpaceCapabilities } from "@foundation/src/lib/api/space-capability-api";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 
@@ -56,8 +57,8 @@ export function useSchedulingConflicts(
 
 
     const timer = setTimeout(async () => {
-      const scheduledRequests = requests.filter((r) => r.primaryResourceId && r.requirements?.length);
-      const resourceIds = [...new Set(scheduledRequests.map((r) => r.primaryResourceId!))];
+      const scheduledRequests = requests.filter((r) => getSpaceResourceId(r) && r.requirements?.length);
+      const resourceIds = [...new Set(scheduledRequests.map((r) => getSpaceResourceId(r)!))];
 
       const capsBySpace = new Map<string, Awaited<ReturnType<typeof getSpaceCapabilities>>>();
       const results = await Promise.allSettled(
@@ -76,7 +77,7 @@ export function useSchedulingConflicts(
 
       for (const request of scheduledRequests) {
         if (isCancelled) return;
-        const capabilities = capsBySpace.get(request.primaryResourceId!);
+        const capabilities = capsBySpace.get(getSpaceResourceId(request)!);
         if (!capabilities) continue;
 
         const capConflicts = validateSpaceRequirements(request, capabilities);

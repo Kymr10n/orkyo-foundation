@@ -1,5 +1,21 @@
 import type { CriterionValue } from './criterion';
 
+export type ResourceTypeKey = 'space' | 'person' | 'tool';
+export type AssignmentStatus = 'Planned' | 'Confirmed' | 'Tentative' | 'Cancelled';
+
+export interface ResourceAssignment {
+  id: string;
+  resourceId: string;
+  resourceTypeKey: ResourceTypeKey;
+  startUtc: string;
+  endUtc: string;
+  allocationPercent?: number | null;
+  allocationUnits?: number | null;
+  assignmentStatus: AssignmentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type DurationUnit =
   | "years"
   | "months"
@@ -48,9 +64,11 @@ export interface Request {
   planningMode: PlanningMode;
   sortOrder: number;
 
-  // Space and item references
-  primaryResourceId?: string | null;
+  // Item reference
   requestItemId?: string | null;
+
+  // All resource assignments for this request
+  assignments: ResourceAssignment[];
 
   // Display icon (string ID from REQUEST_ICONS, resolved on the FE)
   icon?: string | null;
@@ -66,7 +84,7 @@ export interface Request {
   minimalDurationValue: number;
   minimalDurationUnit: DurationUnit;
 
-  // Actual scheduled duration (when allocated to a space)
+  // Actual scheduled duration (set when a leaf request is scheduled)
   actualDurationValue?: number | null;
   actualDurationUnit?: DurationUnit | null;
 
@@ -109,7 +127,7 @@ export interface CreateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
-  primaryResourceId?: string;
+  resourceId?: string;
   requestItemId?: string;
   icon?: string | null;
   startTs?: string;
@@ -136,7 +154,7 @@ export interface UpdateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
-  primaryResourceId?: string;
+  resourceId?: string;
   requestItemId?: string;
   icon?: string | null;
   startTs?: string;

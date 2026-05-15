@@ -59,7 +59,7 @@ describe('TimeCell', () => {
     expect(mockUseDroppable).toHaveBeenCalledTimes(1);
     expect(mockUseDroppable).toHaveBeenCalledWith({
       id: `space-1-${column.start.getTime()}`,
-      data: { primaryResourceId: 'space-1', startTs: column.start },
+      data: { resourceId: 'space-1', startTs: column.start },
     });
   });
 

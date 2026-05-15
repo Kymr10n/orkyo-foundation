@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestsPanel } from './RequestsPanel';
 import type { Request } from '@foundation/src/types/requests';
 import { DndContext } from '@dnd-kit/core';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -16,7 +17,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'leaf',
     sortOrder: 0,
-    primaryResourceId: null,
+    assignments: [],
     startTs: null,
     endTs: null,
     earliestStartTs: null,
@@ -46,9 +47,10 @@ const scheduledLeaf = makeRequest({
   id: 's-1',
   name: 'Scheduled Task',
   planningMode: 'leaf',
-  primaryResourceId: 'space-1',
+  assignments: [spaceAssignment('space-1')],
   startTs: '2026-03-01T09:00:00Z',
   status: 'in_progress',
+  isScheduled: true,
 });
 
 const parentReq = makeRequest({

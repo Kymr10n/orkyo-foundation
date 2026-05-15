@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, Layers } from "lucide-react";
 import { useSchedulerStore, MIN_DURATION_FLOOR_MS, RESIZE_MOVE_THRESHOLD_PX } from "@foundation/src/store/scheduler-store";
 import { useResizeGesture } from "@foundation/src/hooks/useResizeGesture";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { ResizeGeometry } from "@foundation/src/hooks/useResizeGesture";
 import {
   selectRequestDisplayData,
@@ -55,9 +56,11 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     {
       onStart(edge) {
         if (!request.startTs || !request.endTs) return;
+        const spaceResourceId = getSpaceResourceId(request);
+        if (!spaceResourceId) return;
         startResize({
           requestId: request.id,
-          resourceId: request.primaryResourceId!,
+          resourceId: spaceResourceId,
           edge,
           committedStartMs: new Date(request.startTs).getTime(),
           committedEndMs: new Date(request.endTs).getTime(),

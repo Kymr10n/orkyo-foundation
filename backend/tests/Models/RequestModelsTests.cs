@@ -47,15 +47,27 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_TrueWhenSpaceAndTimestampsSet()
     {
-        var info = BuildRequest(resourceId: Guid.NewGuid(), start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
+        var spaceAssignment = new ResourceAssignmentInfo
+        {
+            Id = Guid.NewGuid(),
+            RequestId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddDays(1),
+            AssignmentStatus = AssignmentStatuses.Planned,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var info = BuildRequest(start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1), assignments: new[] { spaceAssignment });
 
         info.IsScheduled.Should().BeTrue();
     }
 
     [Fact]
-    public void RequestInfo_IsScheduled_FalseWhenResourceIdNull()
+    public void RequestInfo_IsScheduled_FalseWhenNoSpaceAssignment()
     {
-        var info = BuildRequest(resourceId: null, start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
+        var info = BuildRequest(start: DateTime.UtcNow, end: DateTime.UtcNow.AddDays(1));
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -63,7 +75,19 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_FalseWhenStartTsNull()
     {
-        var info = BuildRequest(resourceId: Guid.NewGuid(), start: null, end: DateTime.UtcNow.AddDays(1));
+        var spaceAssignment = new ResourceAssignmentInfo
+        {
+            Id = Guid.NewGuid(),
+            RequestId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddDays(1),
+            AssignmentStatus = AssignmentStatuses.Planned,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var info = BuildRequest(start: null, end: DateTime.UtcNow.AddDays(1), assignments: new[] { spaceAssignment });
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -71,7 +95,19 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_FalseWhenEndTsNull()
     {
-        var info = BuildRequest(resourceId: Guid.NewGuid(), start: DateTime.UtcNow, end: null);
+        var spaceAssignment = new ResourceAssignmentInfo
+        {
+            Id = Guid.NewGuid(),
+            RequestId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            StartUtc = DateTime.UtcNow,
+            EndUtc = DateTime.UtcNow.AddDays(1),
+            AssignmentStatus = AssignmentStatuses.Planned,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var info = BuildRequest(start: DateTime.UtcNow, end: null, assignments: new[] { spaceAssignment });
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -79,7 +115,7 @@ public class RequestModelsTests
     [Fact]
     public void RequestInfo_IsScheduled_FalseWhenAllNull()
     {
-        var info = BuildRequest(resourceId: null, start: null, end: null);
+        var info = BuildRequest(start: null, end: null);
 
         info.IsScheduled.Should().BeFalse();
     }
@@ -226,7 +262,7 @@ public class RequestModelsTests
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static RequestInfo BuildRequest(Guid? resourceId, DateTime? start, DateTime? end) => new()
+    private static RequestInfo BuildRequest(DateTime? start, DateTime? end, ResourceAssignmentInfo[]? assignments = null) => new()
     {
         Id = Guid.NewGuid(),
         Name = "Test Request",
@@ -235,7 +271,7 @@ public class RequestModelsTests
         MinimalDurationUnit = DurationUnit.Days,
         Status = RequestStatus.Planned,
         SchedulingSettingsApply = true,
-        PrimaryResourceId = resourceId,
+        Assignments = assignments ?? Array.Empty<ResourceAssignmentInfo>(),
         StartTs = start,
         EndTs = end
     };

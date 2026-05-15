@@ -10,6 +10,7 @@
 
 import type { Conflict, DurationUnit, Request } from "@foundation/src/types/requests";
 import { DURATION_UNIT_MS, MS_PER_MINUTE } from "../constants";
+import { getSpaceResourceId } from "./request-assignments";
 
 // ---------------------------------------------------------------------------
 // Committed entry — one scheduled request from the server / query cache
@@ -91,13 +92,14 @@ export function durationToMs(value: number, unit: DurationUnit): number {
 
 /** Convert a domain Request into a ScheduledEntry, or null if not scheduled. */
 export function toScheduledEntry(request: Request): ScheduledEntry | null {
-  if (!request.primaryResourceId || !request.startTs || !request.endTs) return null;
+  const spaceResourceId = getSpaceResourceId(request);
+  if (!spaceResourceId || !request.startTs || !request.endTs) return null;
   const startMs = new Date(request.startTs).getTime();
   const endMs = new Date(request.endTs).getTime();
   if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) return null;
   return {
     requestId: request.id,
-    resourceId: request.primaryResourceId,
+    resourceId: spaceResourceId,
     startMs,
     endMs,
     name: request.name,

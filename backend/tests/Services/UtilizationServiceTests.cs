@@ -31,6 +31,7 @@ public class UtilizationServiceTests
             Id = Guid.NewGuid(),
             RequestId = Guid.NewGuid(),
             ResourceId = resourceId,
+            ResourceTypeKey = ResourceTypeKeys.Space,
             StartUtc = start,
             EndUtc = end,
             AllocationPercent = pct,

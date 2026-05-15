@@ -44,20 +44,21 @@ public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepositor
         if (capability is null)
             return false; // Capability not present on resource
 
-        // If the requirement has no operator/allowed values, fall back to presence match
-        if (requirement.Operator is null && requirement.AllowedValues is null)
-            return true;
-
         var capValue = capability.Value;
         var reqValue = requirement.Value;
         var criterionType = capability.Criterion?.DataType;
 
-        // Type-specific matching based on criterion data type (from capability.Criterion)
+        // Boolean always compares values — it uses neither Operator nor AllowedValues,
+        // so it must be evaluated before the presence-match fallback below.
         if (criterionType == CriterionDataType.Boolean)
         {
-            // Boolean: resource value must be true
-            return capValue.ValueKind == JsonValueKind.True;
+            return capValue.ValueKind == reqValue.ValueKind
+                   && capValue.ValueKind is JsonValueKind.True or JsonValueKind.False;
         }
+
+        // For all other types: if the requirement has no operator/allowed values, fall back to presence match
+        if (requirement.Operator is null && requirement.AllowedValues is null)
+            return true;
         else if (criterionType == CriterionDataType.Number)
         {
             // Number: apply operator (≥, ≤, =)

@@ -4,6 +4,7 @@ import {
     scheduleRequest,
     type ScheduleRequestData,
 } from "@foundation/src/lib/api/utilization-api";
+import { applySpaceAssignmentOptimistic, clearSpaceAssignmentOptimistic } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -50,12 +51,11 @@ export function useScheduleRequest() {
       queryClient.setQueryData<Request[]>(["requests"], (old) =>
         old?.map((r) =>
           r.id === requestId
-            ? {
-                ...r,
-                primaryResourceId: data.primaryResourceId !== undefined ? data.primaryResourceId : r.primaryResourceId,
-                startTs: data.startTs !== undefined ? data.startTs : r.startTs,
-                endTs: data.endTs !== undefined ? data.endTs : r.endTs,
-              }
+            ? (data.resourceId && data.startTs && data.endTs
+                ? applySpaceAssignmentOptimistic(r, data.resourceId, data.startTs, data.endTs)
+                : (data.resourceId === null
+                    ? clearSpaceAssignmentOptimistic(r)
+                    : { ...r, startTs: data.startTs ?? r.startTs, endTs: data.endTs ?? r.endTs }))
             : r
         ) ?? []
       );

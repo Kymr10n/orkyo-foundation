@@ -5,6 +5,7 @@ import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerG
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
 import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useSchedulingConflicts } from "@foundation/src/hooks/useSchedulingConflicts";
@@ -271,7 +272,7 @@ export function UtilizationPage() {
     if (!request.isScheduled) return;
     scheduleMutation.mutate({
       requestId: request.id,
-      data: { primaryResourceId: null, startTs: null, endTs: null },
+      data: { resourceId: null, startTs: null, endTs: null },
     });
     setSelectedRequestId(null);
     setConflicts(request.id, []);
@@ -316,7 +317,7 @@ export function UtilizationPage() {
 
     await scheduleMutation.mutateAsync({
       requestId: draggedData.id,
-      data: { primaryResourceId: resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
+      data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
     });
 
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space:`, {
@@ -356,12 +357,14 @@ export function UtilizationPage() {
 
   const handleResizeRequest = useCallback((requestId: string, startTs: string, endTs: string) => {
     const request = requests.find((r) => r.id === requestId);
-    if (!request?.primaryResourceId) return;
+    if (!request) return;
+    const spaceResourceId = getSpaceResourceId(request);
+    if (!spaceResourceId) return;
     scheduleMutation.mutate(
       {
         requestId,
         data: {
-          primaryResourceId: request.primaryResourceId,
+          resourceId: spaceResourceId,
           startTs,
           endTs,
         },

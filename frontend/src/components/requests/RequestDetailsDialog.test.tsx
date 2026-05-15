@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestDetailsDialog } from './RequestDetailsDialog';
 import type { Request } from '@foundation/src/types/requests';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -15,7 +16,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     parentRequestId: null,
     planningMode: 'leaf',
     sortOrder: 0,
-    primaryResourceId: null,
+    assignments: [],
     startTs: null,
     endTs: null,
     earliestStartTs: null,
@@ -74,7 +75,7 @@ const withRequirements = makeRequest({
 const withSpace = makeRequest({
   id: 'space-1',
   name: 'Space Task',
-  primaryResourceId: 'sp-abc',
+  assignments: [spaceAssignment('sp-abc')],
 });
 
 const withActualDuration = makeRequest({
@@ -185,13 +186,13 @@ describe('RequestDetailsDialog', () => {
 
   it('renders assigned space when present', () => {
     renderDialog({ request: withSpace });
-    expect(screen.getByText('Assigned Space')).toBeInTheDocument();
-    expect(screen.getByText('sp-abc')).toBeInTheDocument();
+    expect(screen.getByText('Resource Assignments')).toBeInTheDocument();
+    expect(screen.getByText(/sp-abc/)).toBeInTheDocument();
   });
 
   it('does not render space section when not assigned', () => {
     renderDialog();
-    expect(screen.queryByText('Assigned Space')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resource Assignments')).not.toBeInTheDocument();
   });
 
   it('calls onOpenChange(false) when Close button is clicked', () => {

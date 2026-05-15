@@ -78,9 +78,13 @@ public record RequestInfo
     public required PlanningMode PlanningMode { get; init; }
     public int SortOrder { get; init; }
 
-    // Primary resource assignment (id of the space resource, since space.id = resource.id)
-    public Guid? PrimaryResourceId { get; init; }
     public string? RequestItemId { get; init; }
+
+    /// <summary>
+    /// All non-cancelled resource assignments for this request.
+    /// Ordered by (ResourceTypeKey, StartUtc) — stable for snapshot tests.
+    /// </summary>
+    public required IReadOnlyList<ResourceAssignmentInfo> Assignments { get; init; }
 
     // Display icon (short string ID resolved to a lucide-react icon on the frontend).
     public string? Icon { get; init; }
@@ -114,8 +118,9 @@ public record RequestInfo
     // Scheduling
     public required bool SchedulingSettingsApply { get; init; }
 
-    // Computed: scheduled when a resource is assigned and time window is set.
-    public bool IsScheduled => PrimaryResourceId.HasValue && StartTs.HasValue && EndTs.HasValue;
+    // Computed: scheduled when a Space resource is assigned and time window is set.
+    public bool IsScheduled => StartTs.HasValue && EndTs.HasValue
+        && Assignments.Any(a => a.ResourceTypeKey == ResourceTypeKeys.Space);
 }
 
 /// <summary>
@@ -261,7 +266,7 @@ public record AddRequirementRequest
 /// </summary>
 public record ScheduleRequestRequest
 {
-    public Guid? PrimaryResourceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
     public int? ActualDurationValue { get; init; }
@@ -283,4 +288,16 @@ public record MoveRequestRequest
 public record DeleteSubtreeResponse
 {
     public required int DeletedCount { get; init; }
+}
+
+/// <summary>
+/// Extension methods for RequestInfo.
+/// </summary>
+public static class RequestInfoExtensions
+{
+    /// <summary>
+    /// Gets the space resource ID from request assignments, if any.
+    /// </summary>
+    public static Guid? GetSpaceResourceId(this RequestInfo r) =>
+        r.Assignments.FirstOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId;
 }

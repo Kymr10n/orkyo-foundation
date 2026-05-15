@@ -3,6 +3,7 @@ import { formReducer, buildInitialState } from './useRequestForm';
 import type { RequestFormState } from './useRequestForm';
 import type { Request } from '@foundation/src/types/requests';
 import type { Template } from '@foundation/src/types/templates';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 function makeState(overrides: Partial<RequestFormState> = {}): RequestFormState {
   return {
@@ -210,6 +211,7 @@ describe('buildInitialState', () => {
       status: 'planned',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
+      assignments: [],
     };
     expect(buildInitialState(request).icon).toBe('hammer');
   });
@@ -226,6 +228,7 @@ describe('buildInitialState', () => {
       status: 'planned',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
+      assignments: [],
     };
     expect(buildInitialState(request).icon).toBeNull();
   });
@@ -253,7 +256,7 @@ describe('buildInitialState', () => {
       description: 'A description',
       planningMode: 'leaf',
       sortOrder: 0,
-      primaryResourceId: 'space-1',
+      assignments: [spaceAssignment('space-1')],
       startTs: '2026-04-17T09:00:00Z',
       endTs: '2026-04-17T17:00:00Z',
       minimalDurationValue: 8,
@@ -289,6 +292,7 @@ describe('buildInitialState', () => {
       status: 'planned',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
+      assignments: [],
     };
     const state = buildInitialState(request);
     expect(state.name).toBe('Minimal');

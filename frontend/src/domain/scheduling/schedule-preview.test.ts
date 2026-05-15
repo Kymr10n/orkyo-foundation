@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildPreviewSchedule } from './schedule-preview';
 import type { DraftResize } from './schedule-model';
 import type { Request } from '@foundation/src/types/requests';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,6 +22,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     schedulingSettingsApply: true,
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
+    assignments: [],
     ...overrides,
   };
 }
@@ -28,7 +30,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
 function makeScheduledRequest(id = 'req-1', resourceId = 's1'): Request {
   return makeRequest({
     id,
-    primaryResourceId: resourceId,
+    assignments: [spaceAssignment(resourceId)],
     startTs: '2024-06-01T08:00:00.000Z',
     endTs: '2024-06-01T10:00:00.000Z',
   });
@@ -117,7 +119,7 @@ describe('buildPreviewSchedule', () => {
   it('preserves minimalDurationMs from the request', () => {
     const req = makeRequest({
       id: 'req-1',
-      primaryResourceId: 's1',
+      assignments: [spaceAssignment('s1')],
       startTs: '2024-06-01T08:00:00.000Z',
       endTs: '2024-06-01T10:00:00.000Z',
       minimalDurationValue: 2,

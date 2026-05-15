@@ -267,26 +267,32 @@ public class ExportService : IExportService
         var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true);
 
         return allRequests
-            .Where(r => r.PrimaryResourceId.HasValue && allowedResourceIds.Contains(r.PrimaryResourceId.Value))
-            .OrderBy(r => r.Name, StringComparer.Ordinal)
-            .Select(r => new ExportRequestData
+            .Select(r => (Request: r, SpaceResourceId: r.GetSpaceResourceId()))
+            .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
+            .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
+            .Select(x =>
             {
-                Name = r.Name,
-                Description = r.Description,
-                ResourceName = r.PrimaryResourceId.HasValue && resourceIdToName.TryGetValue(r.PrimaryResourceId.Value, out var sn) ? sn : null,
-                SiteCode = r.PrimaryResourceId.HasValue && resourceIdToSiteCode.TryGetValue(r.PrimaryResourceId.Value, out var sc) ? sc : null,
-                RequestItemId = r.RequestItemId,
-                StartTs = r.StartTs,
-                EndTs = r.EndTs,
-                EarliestStartTs = r.EarliestStartTs,
-                LatestEndTs = r.LatestEndTs,
-                MinimalDurationValue = r.MinimalDurationValue,
-                MinimalDurationUnit = r.MinimalDurationUnit,
-                ActualDurationValue = r.ActualDurationValue,
-                ActualDurationUnit = r.ActualDurationUnit,
-                Status = r.Status,
-                SchedulingSettingsApply = r.SchedulingSettingsApply,
-                Requirements = MapCapabilities(r.Requirements?.Select(rq => (rq.CriterionId, (object?)rq.Value)) ?? [], criterionIdToKey)
+                var r = x.Request;
+                var spaceId = x.SpaceResourceId!.Value;
+                return new ExportRequestData
+                {
+                    Name = r.Name,
+                    Description = r.Description,
+                    ResourceName = resourceIdToName.TryGetValue(spaceId, out var sn) ? sn : null,
+                    SiteCode = resourceIdToSiteCode.TryGetValue(spaceId, out var sc) ? sc : null,
+                    RequestItemId = r.RequestItemId,
+                    StartTs = r.StartTs,
+                    EndTs = r.EndTs,
+                    EarliestStartTs = r.EarliestStartTs,
+                    LatestEndTs = r.LatestEndTs,
+                    MinimalDurationValue = r.MinimalDurationValue,
+                    MinimalDurationUnit = r.MinimalDurationUnit,
+                    ActualDurationValue = r.ActualDurationValue,
+                    ActualDurationUnit = r.ActualDurationUnit,
+                    Status = r.Status,
+                    SchedulingSettingsApply = r.SchedulingSettingsApply,
+                    Requirements = MapCapabilities(r.Requirements?.Select(rq => (rq.CriterionId, (object?)rq.Value)) ?? [], criterionIdToKey),
+                };
             }).ToList();
     }
 
