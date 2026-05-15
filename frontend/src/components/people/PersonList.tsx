@@ -23,7 +23,7 @@ export function PersonList() {
     },
   });
 
-  const handleEdit = (person: ResourceInfo) => {
+  const handleEdit = (person: ResourceInfo | null) => {
     setEditingPerson(person);
     setIsDialogOpen(true);
   };
@@ -50,7 +50,7 @@ export function PersonList() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => handleEdit({} as ResourceInfo)}>
+        <Button onClick={() => handleEdit(null)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Person
         </Button>

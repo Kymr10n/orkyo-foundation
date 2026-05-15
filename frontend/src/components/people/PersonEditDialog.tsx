@@ -57,11 +57,15 @@ const emptyForm: FormState = {
 };
 
 function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo | null): FormState {
+  // Defensive coalescing: the FormState contract requires these fields be strings/numbers
+  // (never null/undefined). The API returns ResourceInfo with these populated in normal
+  // cases, but a stale list-view shape or partial response would otherwise leak undefined
+  // into form state and crash form.name.trim() on the Save button.
   return {
-    name: person.name,
+    name: person.name ?? '',
     description: person.description ?? '',
-    allocationMode: person.allocationMode,
-    baseAvailabilityPercent: person.baseAvailabilityPercent,
+    allocationMode: person.allocationMode ?? emptyForm.allocationMode,
+    baseAvailabilityPercent: person.baseAvailabilityPercent ?? emptyForm.baseAvailabilityPercent,
     email: profile?.email ?? '',
     jobTitle: profile?.jobTitle ?? '',
     department: profile?.department ?? '',

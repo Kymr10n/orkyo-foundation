@@ -19,6 +19,16 @@ Multi-tenancy or a `tenantId` parameter alone is NOT a reason to keep code in Sa
 - **Tests live where the code lives.** Service tests for foundation code stay here; integration tests against product wiring stay in the product repo.
 - **`dotnet format`** must pass before push (enforced by `.githooks/pre-push`, to be replaced by `pre-commit`).
 
+## Before merging changes that touch the public API
+
+When you alter the signature of a service registered in `FoundationWebApplicationFactory`, or rename/remove a `Map*Endpoints()` function, run:
+
+```
+./scripts/test-downstream.sh
+```
+
+This runs the Foundation, Community, and SaaS test suites in sequence. Foundation tests alone won't see downstream DI graph or route-registration regressions — Community/SaaS `Program.cs` is where those bugs land, and their test suites use `WebApplicationFactory<Program>` which boots the real wiring.
+
 ## Where things live
 
 - Backend domain: `backend/src/`
