@@ -1,4 +1,4 @@
-import type { Request, ResourceAssignment, ResourceTypeKey } from '@foundation/src/types/requests';
+import type { Request, ResourceAssignment } from '@foundation/src/types/requests';
 
 /**
  * Gets the space assignment from a request, if any.
@@ -14,15 +14,6 @@ export function getSpaceAssignment(r: Request): ResourceAssignment | null {
  */
 export function getSpaceResourceId(r: Request): string | null {
   return getSpaceAssignment(r)?.resourceId ?? null;
-}
-
-/**
- * Gets non-cancelled assignments filtered by resource type.
- */
-export function getAssignmentsByType(r: Request, key: ResourceTypeKey): ResourceAssignment[] {
-  return (r.assignments ?? []).filter(
-    a => a.resourceTypeKey === key && a.assignmentStatus !== 'Cancelled'
-  );
 }
 
 /**

@@ -2,12 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   getSpaceAssignment,
   getSpaceResourceId,
-  getAssignmentsByType,
   applySpaceAssignmentOptimistic,
   clearSpaceAssignmentOptimistic,
 } from './request-assignments';
 import { makeRequest, makeAssignment } from '@foundation/src/test-utils/request-fixtures';
-import type { ResourceTypeKey } from '@foundation/src/types/requests';
 
 describe('request-assignments helpers', () => {
   describe('getSpaceAssignment', () => {
@@ -91,47 +89,6 @@ describe('request-assignments helpers', () => {
       });
       const result = getSpaceResourceId(request);
       expect(result).toBe('space-456');
-    });
-  });
-
-  describe('getAssignmentsByType', () => {
-    const request = makeRequest({
-      assignments: [
-        makeAssignment('space-1', 'space'),
-        makeAssignment('person-1', 'person'),
-        makeAssignment('person-2', 'person'),
-        makeAssignment('tool-1', 'tool'),
-      ],
-    });
-
-    it('filters by resource type key', () => {
-      const spaceAssignments = getAssignmentsByType(request, 'space');
-      expect(spaceAssignments).toHaveLength(1);
-      expect(spaceAssignments[0].resourceId).toBe('space-1');
-
-      const personAssignments = getAssignmentsByType(request, 'person');
-      expect(personAssignments).toHaveLength(2);
-      expect(personAssignments.map((a) => a.resourceId)).toEqual(['person-1', 'person-2']);
-
-      const toolAssignments = getAssignmentsByType(request, 'tool');
-      expect(toolAssignments).toHaveLength(1);
-      expect(toolAssignments[0].resourceId).toBe('tool-1');
-    });
-
-    it('returns empty array when no assignments of that type exist', () => {
-      const noTools = getAssignmentsByType(request, 'equipment' as ResourceTypeKey);
-      expect(noTools).toEqual([]);
-    });
-
-    it('excludes cancelled assignments', () => {
-      const requestWithCancelled = makeRequest({
-        assignments: [
-          makeAssignment('space-1', 'space'),
-          makeAssignment('person-1', 'person', { assignmentStatus: 'Cancelled' }),
-        ],
-      });
-      const personAssignments = getAssignmentsByType(requestWithCancelled, 'person');
-      expect(personAssignments).toHaveLength(0);
     });
   });
 
