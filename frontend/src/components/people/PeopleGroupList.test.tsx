@@ -10,6 +10,14 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   deleteResourceGroup: vi.fn(),
   createResourceGroup: vi.fn(),
   updateResourceGroup: vi.fn(),
+  // PeopleGroupMembersEditor (opened from the Users icon) uses these; we mock
+  // them at the module level so the editor renders cleanly without making
+  // real network calls.
+  getResourceGroupMembers: vi.fn().mockResolvedValue({ groupId: 'g-1', members: [] }),
+  setResourceGroupMembers: vi.fn(),
+}));
+vi.mock('@foundation/src/lib/api/resources-api', () => ({
+  getResources: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 100 }),
 }));
 
 import { getResourceGroups, deleteResourceGroup } from '@foundation/src/lib/api/resource-groups-api';
@@ -107,5 +115,20 @@ describe('PeopleGroupList', () => {
     await waitFor(() => screen.getByText('Engineering'));
     await user.click(screen.getByRole('button', { name: /Delete Engineering/i }));
     await waitFor(() => expect(deleteResourceGroup).toHaveBeenCalledWith('g-1', expect.anything()));
+  });
+
+  it('opens the Manage Members editor when the Users icon is clicked', async () => {
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => screen.getByText('Engineering'));
+
+    await user.click(
+      screen.getByRole('button', { name: /Manage members of Engineering/i }),
+    );
+
+    // Editor dialog header carries the group name in quotes
+    await waitFor(() =>
+      expect(screen.getByText(/Manage Members in.*Engineering/i)).toBeInTheDocument(),
+    );
   });
 });

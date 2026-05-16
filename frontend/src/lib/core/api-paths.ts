@@ -173,6 +173,7 @@ export const API_PATHS = {
   // Resource Groups (typed, e.g. people groups)
   RESOURCE_GROUPS: '/api/resource-groups',
   resourceGroup: (id: string) => `/api/resource-groups/${id}`,
+  resourceGroupMembers: (id: string) => `/api/resource-groups/${id}/members`,
 
   // Resource Absences
   resourceAbsences: (resourceId: string) => `/api/resources/${resourceId}/absences`,

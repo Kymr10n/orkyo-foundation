@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Loader2 } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { PeopleGroupEditDialog } from './PeopleGroupEditDialog';
+import { PeopleGroupMembersEditor } from './PeopleGroupMembersEditor';
 
 export function PeopleGroupList() {
   const queryClient = useQueryClient();
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [managingMembersFor, setManagingMembersFor] = useState<ResourceGroupInfo | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ['resource-groups', 'person'],
@@ -81,6 +83,15 @@ export function PeopleGroupList() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => setManagingMembersFor(group)}
+                        aria-label={`Manage members of ${group.name}`}
+                        title="Manage members"
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleEdit(group)}
                         aria-label={`Edit ${group.name}`}
                       >
@@ -110,6 +121,15 @@ export function PeopleGroupList() {
         onClose={handleClose}
         onSaved={handleSaved}
       />
+
+      {managingMembersFor && (
+        <PeopleGroupMembersEditor
+          open={!!managingMembersFor}
+          onOpenChange={(open) => !open && setManagingMembersFor(null)}
+          groupId={managingMembersFor.id}
+          groupName={managingMembersFor.name}
+        />
+      )}
     </div>
   );
 }
