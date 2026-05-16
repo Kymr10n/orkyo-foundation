@@ -16,8 +16,27 @@ vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
 // PersonEditDialog is a heavyweight dialog; stub it out so the list tests
 // focus on the list itself rather than the dialog's dependencies.
 vi.mock('./PersonEditDialog', () => ({
-  PersonEditDialog: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="person-edit-dialog" /> : null,
+  PersonEditDialog: ({
+    isOpen,
+    person,
+    onClose,
+    onSaved,
+  }: {
+    isOpen: boolean;
+    person: ResourceInfo | null;
+    onClose: () => void;
+    onSaved: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="person-edit-dialog" data-person-id={person?.id ?? ''}>
+        <button data-testid="dialog-close" onClick={onClose}>
+          Close
+        </button>
+        <button data-testid="dialog-saved" onClick={onSaved}>
+          Saved
+        </button>
+      </div>
+    ) : null,
 }));
 
 import { getResources, deleteResource } from '@foundation/src/lib/api/resources-api';
@@ -122,5 +141,57 @@ describe('PersonList', () => {
     // Two rows × two buttons each = 4 ghost buttons
     const editButtons = screen.getAllByRole('button', { name: '' });
     expect(editButtons.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('opens the dialog with the correct person when edit is clicked', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    const editButtons = screen.getAllByRole('button', { name: '' });
+    // First ghost button in the first row is the Pencil button
+    fireEvent.click(editButtons[0]);
+    const dialog = screen.getByTestId('person-edit-dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAttribute('data-person-id', 'person-1');
+  });
+
+  it('closes the dialog when onClose is called', async () => {
+    renderList();
+    await waitFor(() => screen.getByRole('button', { name: /Add Person/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Add Person/i }));
+    expect(screen.getByTestId('person-edit-dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('dialog-close'));
+    expect(screen.queryByTestId('person-edit-dialog')).not.toBeInTheDocument();
+  });
+
+  it('closes the dialog and refreshes when onSaved is called', async () => {
+    renderList();
+    await waitFor(() => screen.getByRole('button', { name: /Add Person/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Add Person/i }));
+    expect(screen.getByTestId('person-edit-dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('dialog-saved'));
+    expect(screen.queryByTestId('person-edit-dialog')).not.toBeInTheDocument();
+  });
+
+  it('calls deleteResource when delete is confirmed', async () => {
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    const allButtons = screen.getAllByRole('button', { name: '' });
+    // Second ghost button in the first row is the Trash button (index 1)
+    fireEvent.click(allButtons[1]);
+    await waitFor(() =>
+      expect(deleteResource).toHaveBeenCalledWith('person-1'),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('does not call deleteResource when delete is cancelled', async () => {
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(false));
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    const allButtons = screen.getAllByRole('button', { name: '' });
+    fireEvent.click(allButtons[1]);
+    expect(deleteResource).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

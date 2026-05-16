@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -11,18 +12,10 @@ import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
-
-interface ResourceGroup {
-  id: string;
-  name: string;
-  description?: string;
-  defaultAvailabilityPercent: number;
-  createdAt: string;
-  updatedAt: string;
-}
+import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
 interface PeopleGroupEditDialogProps {
-  group: ResourceGroup | null;
+  group: ResourceGroupInfo | null;
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -32,30 +25,39 @@ export function PeopleGroupEditDialog({ group, isOpen, onClose, onSaved }: Peopl
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [defaultAvailabilityPercent, setDefaultAvailabilityPercent] = useState(100);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (group) {
       setName(group.name);
-      setDescription(group.description || '');
+      setDescription(group.description ?? '');
       setDefaultAvailabilityPercent(group.defaultAvailabilityPercent);
     } else {
       setName('');
       setDescription('');
       setDefaultAvailabilityPercent(100);
     }
-  }, [group]);
+  }, [group, isOpen]);
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      group
+        ? updateResourceGroup(group.id, {
+            name,
+            description: description || undefined,
+            defaultAvailabilityPercent,
+          })
+        : createResourceGroup({
+            resourceTypeKey: 'person',
+            name,
+            description: description || undefined,
+            defaultAvailabilityPercent,
+          }),
+    onSuccess: onSaved,
+  });
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsSubmitting(true);
-
-    // Placeholder for actual API call
-    // In a real implementation, this would call the groups API
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    setIsSubmitting(false);
-    onSaved();
+    saveMutation.mutate();
   };
 
   return (
@@ -99,11 +101,11 @@ export function PeopleGroupEditDialog({ group, isOpen, onClose, onSaved }: Peopl
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saveMutation.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !name.trim()}>
-              {isSubmitting ? (
+            <Button type="submit" disabled={saveMutation.isPending || !name.trim()}>
+              {saveMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...

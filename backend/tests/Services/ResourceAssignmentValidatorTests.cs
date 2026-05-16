@@ -137,7 +137,7 @@ public class ResourceAssignmentValidatorTests
         var request = CreateValidationRequest(resourceId: resource.Id);
         var requestInfo = new RequestInfo
         {
-            Id = request.RequestId,
+            Id = request.RequestId!.Value,
             Name = "test",
             PlanningMode = PlanningMode.Leaf,
             Status = RequestStatus.Planned,
@@ -151,7 +151,7 @@ public class ResourceAssignmentValidatorTests
         };
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync(requestInfo);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
@@ -173,7 +173,7 @@ public class ResourceAssignmentValidatorTests
         var request = CreateValidationRequest(resourceId: resource.Id);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)Guid.NewGuid());
@@ -212,7 +212,7 @@ public class ResourceAssignmentValidatorTests
         var request = CreateValidationRequest(resourceId: resource.Id);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
@@ -253,7 +253,7 @@ public class ResourceAssignmentValidatorTests
             allocationPercent: 60m);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
@@ -280,7 +280,7 @@ public class ResourceAssignmentValidatorTests
             endUtc: new DateTime(2026, 1, 3, 16, 0, 0, DateTimeKind.Utc));
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true)).ReturnsAsync((RequestInfo?)null);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true)).ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id)).ReturnsAsync(siteId);
         _schedulingRepoMock.Setup(s => s.GetSettingsAsync(siteId))
             .ReturnsAsync(SchedulingSettingsInfo.Default(siteId) with { WeekendsEnabled = false });
@@ -303,7 +303,7 @@ public class ResourceAssignmentValidatorTests
             endUtc: new DateTime(2026, 1, 3, 16, 0, 0, DateTimeKind.Utc));
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true)).ReturnsAsync((RequestInfo?)null);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true)).ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id)).ReturnsAsync(siteId);
         _schedulingRepoMock.Setup(s => s.GetSettingsAsync(siteId))
             .ReturnsAsync(SchedulingSettingsInfo.Default(siteId) with { WeekendsEnabled = true });
@@ -323,7 +323,7 @@ public class ResourceAssignmentValidatorTests
         var request = CreateValidationRequest(resourceId: resource.Id);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true)).ReturnsAsync((RequestInfo?)null);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true)).ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id)).ReturnsAsync(siteId);
         _offTimeQueryMock
             .Setup(q => q.GetBlockingOffTimesAsync(resource.Id, siteId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
@@ -358,7 +358,7 @@ public class ResourceAssignmentValidatorTests
             allocationMode: AllocationModes.ConcurrentCapacity);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
@@ -379,7 +379,7 @@ public class ResourceAssignmentValidatorTests
             allocationPercent: 50m);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
@@ -400,7 +400,7 @@ public class ResourceAssignmentValidatorTests
             allocationPercent: null);
 
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(request.RequestId, true))
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);

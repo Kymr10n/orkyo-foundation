@@ -1,43 +1,114 @@
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { PeopleGroupEditDialog } from './PeopleGroupEditDialog';
 
-// Phase 5 placeholder: full Groups implementation lands in the People-pack
-// "Groups tab" cleanup phase. See requirements/people_resources_spec/STATUS.md.
-
 export function PeopleGroupList() {
-  // Group type is owned by PeopleGroupEditDialog; PeopleGroupList only holds null
-  // until the Groups tab is fully implemented (see plan Group 4).
-  const [editingGroup, setEditingGroup] = useState<null>(null);
+  const queryClient = useQueryClient();
+  const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const { data: groups = [], isLoading } = useQuery({
+    queryKey: ['resource-groups', 'person'],
+    queryFn: () => getResourceGroups('person'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteResourceGroup,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource-groups', 'person'] }),
+  });
+
+  const handleAdd = () => {
+    setEditingGroup(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (group: ResourceGroupInfo) => {
+    setEditingGroup(group);
+    setIsDialogOpen(true);
+  };
 
   const handleClose = () => {
     setIsDialogOpen(false);
     setEditingGroup(null);
   };
 
+  const handleSaved = () => {
+    queryClient.invalidateQueries({ queryKey: ['resource-groups', 'person'] });
+    handleClose();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => { setEditingGroup(null); setIsDialogOpen(true); }}>
+        <Button onClick={handleAdd}>
           <Plus className="h-4 w-4 mr-2" />
           Add Group
         </Button>
       </div>
 
       <div className="border rounded-lg overflow-hidden">
-        <div className="flex items-center gap-2 p-8 text-center text-muted-foreground">
-          <Users className="h-5 w-5" />
-          <span>Groups management coming soon.</span>
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No groups yet. Click &quot;Add Group&quot; to create one.
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-muted">
+              <tr>
+                <th className="text-left p-4 font-medium">Name</th>
+                <th className="text-left p-4 font-medium">Description</th>
+                <th className="text-left p-4 font-medium">Members</th>
+                <th className="text-left p-4 font-medium">Default Availability</th>
+                <th className="text-right p-4 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <tr key={group.id} className="border-t hover:bg-muted/50">
+                  <td className="p-4 font-medium">{group.name}</td>
+                  <td className="p-4 text-muted-foreground">{group.description ?? '—'}</td>
+                  <td className="p-4">{group.memberCount}</td>
+                  <td className="p-4">{group.defaultAvailabilityPercent}%</td>
+                  <td className="p-4">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(group)}
+                        aria-label={`Edit ${group.name}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteMutation.mutate(group.id)}
+                        disabled={deleteMutation.isPending}
+                        aria-label={`Delete ${group.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <PeopleGroupEditDialog
         group={editingGroup}
         isOpen={isDialogOpen}
         onClose={handleClose}
-        onSaved={handleClose}
+        onSaved={handleSaved}
       />
     </div>
   );

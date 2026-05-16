@@ -66,7 +66,12 @@ public class ResourceAssignmentValidator(
     private async Task CheckCapabilitiesAsync(
         ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> blockers)
     {
-        var requestInfo = await requestRepository.GetByIdAsync(request.RequestId, includeRequirements: true);
+        // Dry-run path: a not-yet-created request has no requirements to check.
+        // We still run the rest of the validator so the caller gets off-time /
+        // overbook / weekend feedback before saving.
+        if (request.RequestId is null) return;
+
+        var requestInfo = await requestRepository.GetByIdAsync(request.RequestId.Value, includeRequirements: true);
         var requirements = requestInfo?.Requirements ?? [];
 
         foreach (var req in requirements)

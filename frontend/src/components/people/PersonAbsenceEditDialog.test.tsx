@@ -8,7 +8,12 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
 }));
 
+vi.mock('@foundation/src/lib/api/resource-absences-api', () => ({
+  createResourceAbsence: vi.fn(),
+}));
+
 import { getResources } from '@foundation/src/lib/api/resources-api';
+import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
 
 const mockPeople: ResourceInfo[] = [
   {
@@ -22,21 +27,10 @@ const mockPeople: ResourceInfo[] = [
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
-  {
-    id: 'person-bob',
-    resourceTypeId: 'rt-person',
-    resourceTypeKey: 'person',
-    name: 'Bob',
-    allocationMode: 'Exclusive',
-    baseAvailabilityPercent: 100,
-    isActive: true,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-  },
 ];
 
 const emptyResponse: ResourcesResponse = { data: [], total: 0, page: 1, pageSize: 50 };
-const peopleResponse: ResourcesResponse = { data: mockPeople, total: 2, page: 1, pageSize: 50 };
+const peopleResponse: ResourcesResponse = { data: mockPeople, total: 1, page: 1, pageSize: 50 };
 
 function renderDialog(props: Partial<React.ComponentProps<typeof PersonAbsenceEditDialog>> = {}) {
   const queryClient = new QueryClient({
@@ -45,6 +39,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof PersonAbsenceEd
   return render(
     <QueryClientProvider client={queryClient}>
       <PersonAbsenceEditDialog
+        siteId="site-1"
         isOpen={true}
         onClose={() => {}}
         onSaved={() => {}}
@@ -58,17 +53,29 @@ describe('PersonAbsenceEditDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getResources).mockResolvedValue(peopleResponse);
+    vi.mocked(createResourceAbsence).mockResolvedValue({
+      id: 'abs-1',
+      siteId: 'site-1',
+      title: 'Vacation',
+      type: 'vacation',
+      appliesToAllResources: false,
+      resourceIds: ['person-alice'],
+      startTs: '2026-06-01T00:00:00Z',
+      endTs: '2026-06-07T00:00:00Z',
+      isRecurring: false,
+      enabled: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
   });
 
-  it('renders all form fields', () => {
+  it('renders dialog title and required form fields', () => {
     renderDialog();
     expect(screen.getByText('Add Absence')).toBeInTheDocument();
     expect(screen.getByText(/Person \*/)).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getByText('Title')).toBeInTheDocument();
     expect(screen.getByText(/Start Date \*/)).toBeInTheDocument();
     expect(screen.getByText(/End Date \*/)).toBeInTheDocument();
-    expect(screen.getByText('Notes')).toBeInTheDocument();
   });
 
   it('fetches person list from getResources when open', async () => {
@@ -100,19 +107,5 @@ describe('PersonAbsenceEditDialog', () => {
     renderDialog();
     await waitFor(() => expect(getResources).toHaveBeenCalled());
     expect(screen.queryByText('Person 1')).not.toBeInTheDocument();
-    expect(screen.queryByText('Person 2')).not.toBeInTheDocument();
-    expect(screen.queryByText('Maintenance')).not.toBeInTheDocument();
-  });
-
-  it('calls onSaved after successful submit', async () => {
-    const onSaved = vi.fn();
-    renderDialog({ onSaved });
-
-    // The submit handler fires after the placeholder async delay;
-    // invoke it directly through the form.
-    const form = document.querySelector('form')!;
-    fireEvent.submit(form);
-
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
   });
 });

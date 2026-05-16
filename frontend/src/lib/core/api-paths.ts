@@ -54,6 +54,7 @@ export const API_PATHS = {
   // Resources
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
+  resourceUtilization: (resourceId: string) => `/api/resources/${resourceId}/utilization`,
 
   // Person Profiles
   PERSON_PROFILES: '/api/person-profiles',
@@ -168,4 +169,17 @@ export const API_PATHS = {
   // Tenant Settings (admin-configurable)
   SETTINGS: '/api/settings',
   setting: (key: string) => `/api/settings/${key}`,
+
+  // Resource Groups (typed, e.g. people groups)
+  RESOURCE_GROUPS: '/api/resource-groups',
+  resourceGroup: (id: string) => `/api/resource-groups/${id}`,
+
+  // Resource Absences
+  resourceAbsences: (resourceId: string) => `/api/resources/${resourceId}/absences`,
+  resourceAbsence: (resourceId: string, absenceId: string) => `/api/resources/${resourceId}/absences/${absenceId}`,
+
+  // Resource Assignments
+  RESOURCE_ASSIGNMENTS: '/api/resource-assignments',
+  RESOURCE_ASSIGNMENTS_VALIDATE: '/api/resource-assignments/validate',
+  resourceAssignment: (id: string) => `/api/resource-assignments/${id}`,
 } as const;

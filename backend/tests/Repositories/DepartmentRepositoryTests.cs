@@ -108,7 +108,9 @@ public class DepartmentRepositoryTests
     [Fact]
     public async Task GetAll_IncludesInactive_WhenRequested()
     {
-        await _repo.CreateAsync(new CreateDepartmentRequest
+        // The test DB is shared across the suite, so other tests may have left
+        // departments behind. Assert presence-by-id rather than exact total count.
+        var active = await _repo.CreateAsync(new CreateDepartmentRequest
         {
             Name = UniqueName("Active")
         });
@@ -119,6 +121,7 @@ public class DepartmentRepositoryTests
         await _repo.UpdateAsync(inactive.Id, new UpdateDepartmentRequest { IsActive = false });
 
         var all = await _repo.GetAllAsync(includeInactive: true);
-        Assert.Equal(2, all.Count);
+        Assert.Contains(all, d => d.Id == active.Id && d.IsActive);
+        Assert.Contains(all, d => d.Id == inactive.Id && !d.IsActive);
     }
 }

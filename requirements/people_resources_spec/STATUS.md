@@ -27,9 +27,9 @@ meaningful checkpoint (blocker found, scope change, partial PR merged).
 | 2 | Off-time + typed capability checks | ✅ | 2026-05-15 | Behaviour delivered via the validator created in Phase 3; CreateAsync delegates. See revised Phase 2 log. |
 | 3 | Validation dry-run endpoint | ✅ | 2026-05-15 | Validator split into per-check methods; weekend + holiday checks added; ValidationIssue→ResourceConflict converter rewritten as dictionary (was brittle string-switch). See revised Phase 3 log. |
 | 4 | Person profile API | ✅ | 2026-05-15 | Endpoints wired in foundation test factory, SaaS, and Community Program.cs. SQL syntax in `UnlinkUserAsync`/`LinkUserAsync`/`UpsertAsync` fixed (3× malformed `@$` literals); CITEXT email cast to text for Npgsql read; link auto-upserts profile; FluentValidator + input length limits added. 7 integration tests passing. |
-| 5 | Frontend: People page | 🟡 | 2026-05-15 | People tab complete: `PersonEditDialog` saves both resource + person-profile APIs; 4 vitest tests; API client bugs fixed; `RequestAssignmentsSection.tsx` deleted (premature Phase 6 stub). Groups + Absences tabs remain placeholders — see Open issues. |
-| 6 | Request dialog: People assignment | ⬜ | | |
-| 7 | Utilization page: People grid | ⬜ | | |
+| 5 | Frontend: People page | ✅ | 2026-05-15 | All three tabs complete: People tab (PersonEditDialog saves resource + person-profile); Groups tab (ResourceGroupEndpoints, PeopleGroupList/PeopleGroupEditDialog); Absences tab (PersonAbsenceList with site picker + useQueries, PersonAbsenceEditDialog). 30 vitest tests across 5 test files. |
+| 6 | Request dialog: People assignment | ✅ | 2026-05-16 | `RequestPeopleSection` component with debounced validation, blocker/warning feedback, add/delete assignments; wired into `RequestFormDialog`; save button gated on blockers. 12 vitest tests. |
+| 7 | Utilization page: People grid | ✅ | 2026-05-16 | See Phase 7 log. |
 | 8 | Polish, docs, release notes | ⬜ | | |
 
 Legend: ⬜ not started · 🟡 in progress / blocked · ✅ done
@@ -83,29 +83,47 @@ Legend: ⬜ not started · 🟡 in progress / blocked · ✅ done
 - Tests in `PersonProfileEndpointsTests.cs` (7 passing, no longer `[Skip]`): coverage for not-found / not-a-person / upsert round-trip / link / 409 duplicate-link / unlink / unlink-not-linked. Tests use the existing `CreateTestUserAsync` helper so FK constraints are honoured.
 
 ### Phase 5 — Frontend: People page
-- Status: 🟡 (revised 2026-05-15 — People tab ✅; Groups + Absences tabs remain placeholders)
+- Status: ✅ (completed 2026-05-15; Groups + Absences tabs completed in follow-up)
 - Route + nav wiring: Added `/people` route in TenantApp.tsx between `/spaces` and `/requests`; added `{ to: "/people", label: "People", icon: Users }` to navItems in SidebarNav.tsx
 - Components added: `PeoplePage.tsx`, `components/people/` (PersonList, PersonEditDialog, PeopleGroupList, PeopleGroupEditDialog, PersonAbsenceList, PersonAbsenceEditDialog)
-- Tests added: `frontend/src/components/people/PersonEditDialog.test.tsx` — 4 vitest tests: field rendering, create calls both APIs, edit calls both APIs, Save disabled until name filled
+- Tests added: 30 vitest tests across 4 files:
+  - `PersonEditDialog.test.tsx` — 4 tests: field rendering, create/edit API calls, Save button guard
+  - `PeopleGroupList.test.tsx` — 8 tests: loading state, empty state, group rows, CRUD actions
+  - `PeopleGroupEditDialog.test.tsx` — 9 tests: create/edit titles, field population, validation, API calls
+  - `PersonAbsenceList.test.tsx` — 7 tests: site selector, empty state, absence rows, delete
+  - `PersonAbsenceEditDialog.test.tsx` — 6 tests: field rendering, person fetch, Save guard, Cancel
+- Backend additions (Groups + Absences follow-up):
+  - `backend/src/Models/ResourceGroup.cs` — `ResourceGroupInfo`, `CreateResourceGroupRequest`, `UpdateResourceGroupRequest`
+  - `backend/src/Repositories/ResourceGroupRepository.cs` — CRUD repository with `IResourceGroupRepository` interface; joins `resource_types` by `key`
+  - `backend/src/Endpoints/ResourceGroupEndpoints.cs` — `GET /api/resource-groups?resourceTypeKey=`, `POST`, `PUT /{id}`, `DELETE /{id}`
+  - `backend/src/Validators/ResourceGroupRequestValidator.cs` — FluentValidation for create + update
+  - Community `Program.cs`: registered `IResourceGroupRepository` + `MapResourceGroupEndpoints()`
+- Frontend API clients added:
+  - `frontend/src/lib/api/resource-groups-api.ts` — `getResourceGroups`, `createResourceGroup`, `updateResourceGroup`, `deleteResourceGroup`
+  - `frontend/src/lib/api/resource-absences-api.ts` — `getResourceAbsences`, `createResourceAbsence`, `deleteResourceAbsence`
+  - `frontend/src/lib/core/api-paths.ts` — added `RESOURCE_GROUPS`, `resourceGroup`, `resourceAbsences`, `resourceAbsence` paths
 - API client bugs fixed (2026-05-15 cleanup):
   - `resources-api.ts`: `API_PATHS.resources` → `API_PATHS.RESOURCES` (2 occurrences; was causing 404 at runtime)
   - `person-profiles-api.ts`: `apiDelete<void>(...)` → `apiDelete(...)` (invalid generic removed)
-  - `PersonAbsenceEditDialog.tsx`: deprecated `React.FormEvent` → `React.SyntheticEvent<HTMLFormElement>`; `initialFocus` → `autoFocus`
-  - `PeopleGroupList.tsx`: removed broken import of `useGroupsApi` from wrong module; rendered as placeholder
   - `RequestAssignmentsSection.tsx`: **deleted** — premature Phase 6 work that imported a non-existent `resource-assignment-api` module
-- Notes: `PersonEditDialog` now saves BOTH resource (name, allocationMode, baseAvailabilityPercent) AND person-profile (email, jobTitle, department, notes) in a single sequential mutation. Profile is loaded via `getPersonProfile` on open for edit mode. Groups and Absences tabs remain placeholder content — full implementation needs backend extension (see Open issues). API paths for resources and person-profiles are in `api-paths.ts`. Components use shadcn/ui for consistent styling.
+- Notes: Groups tab uses real `/api/resource-groups` CRUD with `resourceTypeKey=person` filter. Absences tab has a site picker; loads all people, then uses `useQueries` for per-person absences, merged into a flat sorted table. `PersonAbsenceEditDialog` requires `siteId` prop.
 
 ### Phase 6 — Request dialog: People assignment
-- Status: ⬜
+- Status: ✅ 2026-05-16
 - Files changed:
-- Tests added:
-- Notes:
+  - `backend/src/Endpoints/ResourceAssignmentEndpoints.cs` — added `GET /api/resource-assignments?requestId=` endpoint
+  - `frontend/src/lib/core/api-paths.ts` — added `RESOURCE_ASSIGNMENTS`, `RESOURCE_ASSIGNMENT_VALIDATE`, `resourceAssignment(id)` paths
+  - `frontend/src/lib/api/resource-assignments-api.ts` (new) — `getAssignmentsByRequest`, `validateAssignment`, `createAssignment`, `cancelAssignment`
+  - `frontend/src/components/requests/RequestPeopleSection.tsx` (new) — collapsible people assignment section
+  - `frontend/src/components/requests/RequestFormDialog.tsx` — wired `RequestPeopleSection`; save button gated on `hasPeopleBlockers`
+- Tests added: 12 in `RequestPeopleSection.test.tsx`
+- Notes: Section shows existing assignments loaded on open (when `requestId` present), add-row with person picker + allocation %, debounced validation (500 ms), inline blocker (red) / warning (amber) badges, delete with confirm. `onBlockersChange` propagates blocker state to parent so the dialog Save button is disabled while hard conflicts exist.
 
 ### Phase 7 — Utilization page: People grid
-- Status: ⬜
-- Files changed:
-- Tests added:
-- Notes:
+- Status: ✅ 2026-05-16
+- Files changed: `frontend/src/lib/core/api-paths.ts`, `frontend/src/lib/api/resources-api.ts`, `frontend/src/components/utilization/PeopleUtilizationGrid.tsx` (new), `frontend/src/pages/UtilizationPage.tsx`
+- Tests added: 11 in `PeopleUtilizationGrid.test.tsx`
+- Notes: Collapsible people utilization grid inserted between Floorplan and Space grid (spec §10). Uses `useQueries` for parallel per-person `GET /api/resources/{id}/utilization` calls. `getViewWindow(anchorTs, scale)` aligns query window to the current view. Bucket status → colour: available=emerald, partial=amber, assigned=blue, overbooked=red, non-working=muted. Returns `null` when people list is loading or empty, so existing UtilizationPage tests need no new mocks.
 
 ### Phase 8 — Polish, docs, release notes
 - Status: ⬜
@@ -134,25 +152,6 @@ Append entries here whenever a decision in 01 §18 has to be revised. Format:
 
 Append entries here when a phase is paused. Remove the entry (and add a closing
 note in the phase log) once it's resolved.
-
-### 2026-05-15 — Phase 5 follow-up: Groups + Absences tabs
-
-The Groups tab and Absences tab on `PeoplePage.tsx` are placeholders. Full
-implementation needs backend extension that wasn't in the original Phase 5
-scope:
-
-- **Groups CRUD**: `/api/groups` (legacy `SpaceGroupEndpoints`) does not expose
-  `default_availability_percent` (added by migration 1400) or filter by
-  `resource_type_id`. Either extend `SpaceGroupRepository` + `CreateSpaceGroupRequest`
-  to surface the new column, or add a `/api/resource-groups` CRUD that handles
-  all resource types.
-- **Absences tab**: per-person absences already work via `/api/resources/{id}/absences`.
-  The tab needs to list off-times across multiple people in one view, which is
-  a new query shape (no existing endpoint aggregates by resource type).
-
-The People tab itself (the §18.5 acceptance criterion for "create/edit person
-with email, job_title, department, notes, linked user") IS shipped in this
-cleanup; see Phase 5 log.
 
 ### 2026-05-15 — SaaS Program.cs missing resource-model endpoints
 

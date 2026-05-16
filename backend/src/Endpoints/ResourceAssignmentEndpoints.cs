@@ -19,6 +19,20 @@ public static class ResourceAssignmentEndpoints
             .RequireAuthorization()
             .RequireTenantMembership();
 
+        group.MapGet("/", async (
+            [FromQuery] Guid? requestId,
+            IResourceAssignmentRepository repo,
+            ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                if (requestId is null)
+                    return ErrorResponses.BadRequest("requestId query parameter is required");
+                var assignments = await repo.GetByRequestAsync(requestId.Value);
+                return Results.Ok(assignments);
+            }, logger, "list resource assignments by request", new { requestId }))
+            .WithName("ListResourceAssignmentsByRequest")
+            .WithSummary("List resource assignments for a request");
+
         group.MapGet("/{id:guid}", async (
             Guid id,
             IResourceAssignmentRepository repo,

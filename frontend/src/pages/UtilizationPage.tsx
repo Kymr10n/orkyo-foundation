@@ -15,6 +15,7 @@ import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
+import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { updateRequest, createRequest, moveRequest } from "@foundation/src/lib/api/request-api";
@@ -419,6 +420,9 @@ export function UtilizationPage() {
           height={floorplanHeight}
           onHeightChange={setFloorplanHeight}
         />
+
+        {/* People Resources Grid — collapsible, between Floorplan and Space grid (spec §10) */}
+        <PeopleUtilizationGrid anchorTs={anchorTs} scale={scale} />
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden bg-background">

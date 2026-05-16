@@ -71,10 +71,16 @@ public record ValidationIssue
 
 /// <summary>
 /// Request to validate an assignment before creating it.
+///
+/// <para><see cref="RequestId"/> is optional: when the caller is about to create
+/// a new request and wants pre-save validation (Add Person dialog before Save),
+/// it can be omitted. The validator then skips capability checks (because
+/// requirements live on the request that doesn't exist yet) but still runs
+/// off-time, weekend/holiday, and overbook checks against the resource.</para>
 /// </summary>
 public record ValidateResourceAssignmentRequest
 {
-    public required Guid RequestId { get; init; }
+    public Guid? RequestId { get; init; }
     public required Guid ResourceId { get; init; }
     public required DateTime StartUtc { get; init; }
     public required DateTime EndUtc { get; init; }

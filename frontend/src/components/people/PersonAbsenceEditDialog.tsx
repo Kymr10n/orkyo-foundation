@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { getResources } from '@foundation/src/lib/api/resources-api';
+import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,6 @@ import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@foundation/src/components/ui/select';
-import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@foundation/src/components/ui/popover';
@@ -20,17 +20,13 @@ import { Calendar } from '@foundation/src/components/ui/calendar';
 import { format } from 'date-fns';
 
 interface PersonAbsenceEditDialogProps {
+  siteId: string;
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-interface AbsenceType {
-  value: string;
-  label: string;
-}
-
-const absenceTypes: AbsenceType[] = [
+const absenceTypes = [
   { value: 'vacation', label: 'Vacation' },
   { value: 'sick_leave', label: 'Sick Leave' },
   { value: 'unavailable', label: 'Unavailable' },
@@ -39,31 +35,43 @@ const absenceTypes: AbsenceType[] = [
   { value: 'other', label: 'Other' },
 ];
 
-export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
+export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
   const [personId, setPersonId] = useState('');
+  const [type, setType] = useState('vacation');
+  const [title, setTitle] = useState('');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   const { data: people } = useQuery({
     queryKey: ['resources', 'person'],
     queryFn: () => getResources({ resourceTypeKey: 'person' }),
     enabled: isOpen,
+    select: (d) => d.data,
   });
-  const personList = people?.data ?? [];
-  const [type, setType] = useState('vacation');
-  const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [notes, setNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const personList = people ?? [];
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      createResourceAbsence(personId, {
+        siteId,
+        title: title || type,
+        type,
+        startTs: startDate!.toISOString(),
+        endTs: endDate!.toISOString(),
+      }),
+    onSuccess: () => {
+      setPersonId('');
+      setType('vacation');
+      setTitle('');
+      setStartDate(undefined);
+      setEndDate(undefined);
+      onSaved();
+    },
+  });
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsSubmitting(true);
-
-    // Placeholder for actual API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    setIsSubmitting(false);
-    onSaved();
+    saveMutation.mutate();
   };
 
   return (
@@ -107,17 +115,18 @@ export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbse
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title">Reason / Title</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              placeholder="Optional description"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date *</Label>
+              <Label>Start Date *</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -125,7 +134,7 @@ export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbse
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="h-4 w-4 mr-2" />
-                    {startDate ? format(startDate, 'PPP') : 'Pick a date'}
+                    {startDate ? format(startDate, 'PP') : 'Pick a date'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -140,7 +149,7 @@ export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbse
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="endDate">End Date *</Label>
+              <Label>End Date *</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -148,7 +157,7 @@ export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbse
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="h-4 w-4 mr-2" />
-                    {endDate ? format(endDate, 'PPP') : 'Pick a date'}
+                    {endDate ? format(endDate, 'PP') : 'Pick a date'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -163,22 +172,15 @@ export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbse
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
-          </div>
-
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saveMutation.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !personId || !startDate || !endDate}>
-              {isSubmitting ? (
+            <Button
+              type="submit"
+              disabled={saveMutation.isPending || !personId || !startDate || !endDate}
+            >
+              {saveMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
