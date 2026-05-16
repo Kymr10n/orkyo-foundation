@@ -60,6 +60,15 @@ export const API_PATHS = {
   personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
   personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
 
+  // Job Titles
+  JOB_TITLES: '/api/job-titles',
+  jobTitle: (id: string) => `/api/job-titles/${id}`,
+
+  // Departments
+  DEPARTMENTS: '/api/departments',
+  DEPARTMENTS_TREE: '/api/departments/tree',
+  department: (id: string) => `/api/departments/${id}`,
+
   // Templates
   TEMPLATES: '/api/templates',
   templatesWithType: (entityType: string) => `/api/templates?entityType=${entityType}`,

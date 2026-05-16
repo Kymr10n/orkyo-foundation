@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 
 export function PersonList() {
   const [editingPerson, setEditingPerson] = useState<ResourceInfo | null>(null);
@@ -12,6 +13,25 @@ export function PersonList() {
   const { data: people, isLoading, error } = useQuery({
     queryKey: ['resources', 'person'],
     queryFn: () => getResources({ resourceTypeKey: 'person' }),
+  });
+
+  // Fetch each person's profile in parallel. The backend has no batch endpoint
+  // for profiles yet; this keeps the grid honest (instead of showing "-" for
+  // every row) without scope-creeping into a new endpoint. If this grid grows
+  // beyond ~100 people, add GET /api/person-profiles?ids=... as a follow-up.
+  const personRows = people?.data ?? [];
+  const profileQueries = useQueries({
+    queries: personRows.map((p: ResourceInfo) => ({
+      queryKey: ['person-profile', p.id] as const,
+      queryFn: () => getPersonProfile(p.id).catch(() => null),
+      staleTime: 60_000,
+    })),
+  });
+  const profileByPersonId: Record<string, Awaited<ReturnType<typeof getPersonProfile>> | null> = {};
+  personRows.forEach((p, idx) => {
+    profileByPersonId[p.id] = (profileQueries[idx]?.data ?? null) as
+      | Awaited<ReturnType<typeof getPersonProfile>>
+      | null;
   });
 
   const queryClient = useQueryClient();
@@ -73,12 +93,14 @@ export function PersonList() {
               </tr>
             </thead>
             <tbody>
-              {people?.data?.map((person: ResourceInfo) => (
+              {people?.data?.map((person: ResourceInfo) => {
+                const profile = profileByPersonId[person.id];
+                return (
                 <tr key={person.id} className="border-t hover:bg-accent/50">
                   <td className="p-4">{person.name}</td>
-                  <td className="p-4 text-muted-foreground">-</td>
-                  <td className="p-4">-</td>
-                  <td className="p-4">-</td>
+                  <td className="p-4 text-muted-foreground">{profile?.email ?? '-'}</td>
+                  <td className="p-4">{profile?.jobTitleName ?? '-'}</td>
+                  <td className="p-4">{profile?.departmentPath ?? '-'}</td>
                   <td className="p-4 text-right space-x-2">
                     <Button
                       variant="ghost"
@@ -96,7 +118,8 @@ export function PersonList() {
                     </Button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -17,6 +17,11 @@ CREATE TABLE person_profiles (
 
 CREATE INDEX ix_person_profiles_linked_user ON person_profiles(linked_user_id) WHERE linked_user_id IS NOT NULL;
 
+-- updated_at auto-maintenance (same pattern as all other tables in this schema)
+CREATE TRIGGER trg_person_profiles_updated_at
+    BEFORE UPDATE ON public.person_profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- group default availability
 ALTER TABLE resource_groups
     ADD COLUMN default_availability_percent INT NOT NULL DEFAULT 100

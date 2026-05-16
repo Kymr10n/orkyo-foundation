@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,15 @@ import {
 import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@foundation/src/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@foundation/src/components/ui/select';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import {
   createResource,
   updateResource,
@@ -24,6 +30,16 @@ import {
   upsertPersonProfile,
   type PersonProfileInfo,
 } from '@foundation/src/lib/api/person-profiles-api';
+import {
+  getJobTitles,
+  type JobTitleInfo,
+} from '@foundation/src/lib/api/job-titles-api';
+import {
+  getDepartmentTree,
+  type DepartmentTreeNode,
+} from '@foundation/src/lib/api/departments-api';
+import { JobTitleEditDialog } from '@foundation/src/components/settings/JobTitleEditDialog';
+import { DepartmentEditDialog } from '@foundation/src/components/settings/DepartmentEditDialog';
 
 interface PersonEditDialogProps {
   person: ResourceInfo | null;
@@ -40,8 +56,8 @@ interface FormState {
   baseAvailabilityPercent: number;
   // Profile side
   email: string;
-  jobTitle: string;
-  department: string;
+  jobTitleId: string;      // empty = unassigned
+  departmentId: string;    // empty = unassigned
   notes: string;
 }
 
@@ -51,24 +67,26 @@ const emptyForm: FormState = {
   allocationMode: 'Exclusive',
   baseAvailabilityPercent: 100,
   email: '',
-  jobTitle: '',
-  department: '',
+  jobTitleId: '',
+  departmentId: '',
   notes: '',
 };
 
+const UNASSIGNED = '__unassigned__';
+const CREATE_NEW = '__create_new__';
+
 function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo | null): FormState {
-  // Defensive coalescing: the FormState contract requires these fields be strings/numbers
-  // (never null/undefined). The API returns ResourceInfo with these populated in normal
-  // cases, but a stale list-view shape or partial response would otherwise leak undefined
-  // into form state and crash form.name.trim() on the Save button.
+  // Defensive coalescing: form contract requires strings/numbers (never null/undefined),
+  // otherwise form.name.trim() etc. would crash. The API normally returns populated
+  // ResourceInfo, but a partial/stale shape would otherwise leak through.
   return {
     name: person.name ?? '',
     description: person.description ?? '',
     allocationMode: person.allocationMode ?? emptyForm.allocationMode,
     baseAvailabilityPercent: person.baseAvailabilityPercent ?? emptyForm.baseAvailabilityPercent,
     email: profile?.email ?? '',
-    jobTitle: profile?.jobTitle ?? '',
-    department: profile?.department ?? '',
+    jobTitleId: profile?.jobTitleId ?? '',
+    departmentId: profile?.departmentId ?? '',
     notes: profile?.notes ?? '',
   };
 }
@@ -82,9 +100,41 @@ async function loadProfileOrNull(resourceId: string): Promise<PersonProfileInfo 
   }
 }
 
+/**
+ * Flatten the department tree to depth-indented options. Used by the Department
+ * select. Inactive departments are excluded by the API (we pass includeInactive=false),
+ * but a department the person is *already* assigned to is preserved via the always-
+ * rendered fallback option in the Select so admins can clearly see the current value.
+ */
+function flattenForSelect(tree: DepartmentTreeNode[], depth = 0): { id: string; label: string }[] {
+  const out: { id: string; label: string }[] = [];
+  for (const node of tree) {
+    out.push({ id: node.id, label: `${'  '.repeat(depth)}${node.name}` });
+    out.push(...flattenForSelect(node.children, depth + 1));
+  }
+  return out;
+}
+
 export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEditDialogProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Inline-create dialog state for each reference list. `undefined` = closed,
+  // string = pre-populated name (from a Create-new sentinel selection).
+  const [createJobTitleName, setCreateJobTitleName] = useState<string | undefined>(undefined);
+  const [createDeptName, setCreateDeptName] = useState<string | undefined>(undefined);
+
+  // Reference data
+  const { data: jobTitles = [] } = useQuery({
+    queryKey: ['job-titles', { includeInactive: false }],
+    queryFn: () => getJobTitles(false),
+    enabled: isOpen,
+  });
+  const { data: deptTree = [] } = useQuery({
+    queryKey: ['departments', 'tree', { includeInactive: false }],
+    queryFn: () => getDepartmentTree(false),
+    enabled: isOpen,
+  });
+  const deptOptions = flattenForSelect(deptTree);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,15 +142,14 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
       setForm(emptyForm);
       return;
     }
-    // Load existing profile fields when editing.
-    loadProfileOrNull(person.id).then(profile => setForm(fromResourceAndProfile(person, profile)));
+    loadProfileOrNull(person.id).then((profile) =>
+      setForm(fromResourceAndProfile(person, profile))
+    );
   }, [person, isOpen]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
 
-  // Two-step save: create/update the resource, then upsert the profile fields.
-  // Wrapped in a single mutation so the dialog only shows one spinner.
   const saveMutation = useMutation({
     mutationFn: async (): Promise<ResourceInfo> => {
       const resourceFields = {
@@ -117,8 +166,8 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
       await upsertPersonProfile(saved.id, {
         email: form.email || undefined,
-        jobTitle: form.jobTitle || undefined,
-        department: form.department || undefined,
+        jobTitleId: form.jobTitleId === '' ? null : form.jobTitleId,
+        departmentId: form.departmentId === '' ? null : form.departmentId,
         notes: form.notes || undefined,
       });
 
@@ -133,6 +182,32 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
     setIsSubmitting(true);
     saveMutation.mutate();
   };
+
+  // Sentinel handlers for the two reference selects: a "Create new…" value
+  // opens the corresponding edit dialog with an empty name. The user types the
+  // name there; on save, the new id is auto-applied to the form.
+  const onJobTitleChange = (value: string) => {
+    if (value === CREATE_NEW) {
+      setCreateJobTitleName('');
+      return;
+    }
+    set('jobTitleId', value === UNASSIGNED ? '' : value);
+  };
+  const onDepartmentChange = (value: string) => {
+    if (value === CREATE_NEW) {
+      setCreateDeptName('');
+      return;
+    }
+    set('departmentId', value === UNASSIGNED ? '' : value);
+  };
+
+  // If the currently-saved value isn't in the active list (e.g. it was
+  // deactivated), inject a placeholder option so the Select still shows
+  // something rather than going blank.
+  const jobTitleMissing =
+    form.jobTitleId && !jobTitles.some((j) => j.id === form.jobTitleId);
+  const departmentMissing =
+    form.departmentId && !deptOptions.some((o) => o.id === form.departmentId);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -165,19 +240,63 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="jobTitle">Job Title</Label>
-              <Input
-                id="jobTitle"
-                value={form.jobTitle}
-                onChange={(e) => set('jobTitle', e.target.value)}
-              />
+              <Select
+                value={form.jobTitleId === '' ? UNASSIGNED : form.jobTitleId}
+                onValueChange={onJobTitleChange}
+              >
+                <SelectTrigger id="jobTitle">
+                  <SelectValue placeholder="(unassigned)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>(unassigned)</SelectItem>
+                  {jobTitleMissing && (
+                    <SelectItem value={form.jobTitleId} disabled>
+                      (current assignment — no longer active)
+                    </SelectItem>
+                  )}
+                  {jobTitles.map((jt: JobTitleInfo) => (
+                    <SelectItem key={jt.id} value={jt.id}>
+                      {jt.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CREATE_NEW}>
+                    <span className="flex items-center gap-1">
+                      <Plus className="h-3 w-3" />
+                      Create new…
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
-              <Input
-                id="department"
-                value={form.department}
-                onChange={(e) => set('department', e.target.value)}
-              />
+              <Select
+                value={form.departmentId === '' ? UNASSIGNED : form.departmentId}
+                onValueChange={onDepartmentChange}
+              >
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="(unassigned)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>(unassigned)</SelectItem>
+                  {departmentMissing && (
+                    <SelectItem value={form.departmentId} disabled>
+                      (current assignment — no longer active)
+                    </SelectItem>
+                  )}
+                  {deptOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CREATE_NEW}>
+                    <span className="flex items-center gap-1">
+                      <Plus className="h-3 w-3" />
+                      Create new…
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -204,7 +323,10 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="allocationMode">Allocation Mode</Label>
-              <Select value={form.allocationMode} onValueChange={(v) => set('allocationMode', v)}>
+              <Select
+                value={form.allocationMode}
+                onValueChange={(v) => set('allocationMode', v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select allocation mode" />
                 </SelectTrigger>
@@ -247,6 +369,28 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Inline-create sub-dialogs. When the user saves a new job title or
+          department, we auto-select it in the form so they don't have to find
+          it in the dropdown again. */}
+      {createJobTitleName !== undefined && (
+        <JobTitleEditDialog
+          jobTitle={null}
+          initialName={createJobTitleName}
+          open={createJobTitleName !== undefined}
+          onOpenChange={(open) => !open && setCreateJobTitleName(undefined)}
+          onSaved={(jt) => set('jobTitleId', jt.id)}
+        />
+      )}
+      {createDeptName !== undefined && (
+        <DepartmentEditDialog
+          department={null}
+          initialName={createDeptName}
+          open={createDeptName !== undefined}
+          onOpenChange={(open) => !open && setCreateDeptName(undefined)}
+          onSaved={(d) => set('departmentId', d.id)}
+        />
+      )}
     </Dialog>
   );
 }

@@ -5,22 +5,27 @@
 import { apiGet, apiPut, apiPost, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
-// Re-export PersonProfileInfo from the models
+// Re-export PersonProfileInfo from the models. Reference data (job title,
+// department) is referenced by ID; the read response also carries resolved
+// display fields populated via JOIN/recursive CTE on the backend.
 export interface PersonProfileInfo {
   resourceId: string;
   email?: string;
-  jobTitle?: string;
-  department?: string;
+  jobTitleId?: string;
+  departmentId?: string;
   linkedUserId?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  // Resolved on read; never sent on writes.
+  jobTitleName?: string;
+  departmentPath?: string;
 }
 
 export interface UpsertPersonProfileRequest {
   email?: string;
-  jobTitle?: string;
-  department?: string;
+  jobTitleId?: string | null;
+  departmentId?: string | null;
   notes?: string;
 }
 

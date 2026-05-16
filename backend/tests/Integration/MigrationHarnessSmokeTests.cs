@@ -88,6 +88,43 @@ public sealed class MigrationHarnessSmokeTests
             "People Resources migration (1400) should add notes column to resource_assignments");
     }
 
+    // Departments + Job Titles schema validation (migration 1420)
+    [Fact]
+    public async Task TestTenant_ShouldContain_JobTitlesTable()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "job_titles")).Should().BeTrue(
+            "Departments + Job Titles migration (1420) should create the job_titles table");
+    }
+
+    [Fact]
+    public async Task TestTenant_ShouldContain_DepartmentsTable()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "departments")).Should().BeTrue(
+            "Departments + Job Titles migration (1420) should create the departments table");
+    }
+
+    [Fact]
+    public async Task TestTenant_PersonProfiles_ShouldHave_JobTitleId_And_DepartmentId()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "person_profiles", "job_title_id")).Should().BeTrue(
+            "migration 1420 should add job_title_id FK column to person_profiles");
+        (await ColumnExistsAsync(conn, "person_profiles", "department_id")).Should().BeTrue(
+            "migration 1420 should add department_id FK column to person_profiles");
+    }
+
+    [Fact]
+    public async Task TestTenant_PersonProfiles_ShouldNotHave_LegacyFreeTextColumns()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "person_profiles", "job_title")).Should().BeFalse(
+            "migration 1420 (clean break) should drop the legacy job_title VARCHAR column");
+        (await ColumnExistsAsync(conn, "person_profiles", "department")).Should().BeFalse(
+            "migration 1420 (clean break) should drop the legacy department VARCHAR column");
+    }
+
     private static async Task<bool> TableExistsAsync(NpgsqlConnection conn, string tableName)
     {
         await using var cmd = new NpgsqlCommand(
