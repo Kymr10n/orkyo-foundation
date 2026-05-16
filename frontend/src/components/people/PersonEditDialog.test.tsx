@@ -84,7 +84,7 @@ describe('PersonEditDialog', () => {
     ]);
     vi.mocked(getDepartmentTree).mockResolvedValue([
       {
-        id: 'dept-platform', name: 'Platform', sortOrder: 0, isActive: true,
+        id: 'dept-platform', name: 'Platform', isActive: true,
         children: [],
       },
     ]);

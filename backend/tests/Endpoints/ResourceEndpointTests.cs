@@ -86,7 +86,9 @@ public class ResourceEndpointTests
 
         var response = await _client.GetAsync("/api/resources?resourceTypeKey=person");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var list = await response.Content.ReadFromJsonAsync<List<ResourceInfo>>();
+        var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var list = envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert.NotNull(list);
         Assert.All(list, r => Assert.Equal("person", r.ResourceTypeKey));
     }

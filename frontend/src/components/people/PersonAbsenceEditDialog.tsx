@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getResources } from '@foundation/src/lib/api/resources-api';
 import {
   Dialog,
   DialogContent,
@@ -29,14 +31,24 @@ interface AbsenceType {
 }
 
 const absenceTypes: AbsenceType[] = [
-  { value: 'holiday', label: 'Holiday' },
-  { value: 'maintenance', label: 'Maintenance' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'vacation', label: 'Vacation' },
+  { value: 'sick_leave', label: 'Sick Leave' },
+  { value: 'unavailable', label: 'Unavailable' },
+  { value: 'training', label: 'Training' },
+  { value: 'public_holiday', label: 'Public Holiday' },
+  { value: 'other', label: 'Other' },
 ];
 
 export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
   const [personId, setPersonId] = useState('');
-  const [type, setType] = useState('custom');
+
+  const { data: people } = useQuery({
+    queryKey: ['resources', 'person'],
+    queryFn: () => getResources({ resourceTypeKey: 'person' }),
+    enabled: isOpen,
+  });
+  const personList = people?.data ?? [];
+  const [type, setType] = useState('vacation');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -69,8 +81,11 @@ export function PersonAbsenceEditDialog({ isOpen, onClose, onSaved }: PersonAbse
                 <SelectValue placeholder="Select a person" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="person-1">Person 1</SelectItem>
-                <SelectItem value="person-2">Person 2</SelectItem>
+                {personList.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

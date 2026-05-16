@@ -31,7 +31,6 @@ public class DepartmentRepositoryTests
         var request = new CreateDepartmentRequest
         {
             Name = UniqueName("TestDept"),
-            SortOrder = 0
         };
         var created = await _repo.CreateAsync(request);
         Assert.NotEqual(Guid.Empty, created.Id);

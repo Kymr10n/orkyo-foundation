@@ -14,7 +14,6 @@ export interface DepartmentInfo {
   name: string;
   code?: string;
   description?: string;
-  sortOrder: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -26,7 +25,6 @@ export interface DepartmentTreeNode {
   name: string;
   code?: string;
   description?: string;
-  sortOrder: number;
   isActive: boolean;
   children: DepartmentTreeNode[];
 }
@@ -36,7 +34,6 @@ export interface CreateDepartmentRequest {
   parentDepartmentId?: string | null;
   code?: string;
   description?: string;
-  sortOrder?: number;
 }
 
 export interface UpdateDepartmentRequest {
@@ -49,7 +46,6 @@ export interface UpdateDepartmentRequest {
   changeParent?: boolean;
   code?: string;
   description?: string;
-  sortOrder?: number;
   isActive?: boolean;
 }
 

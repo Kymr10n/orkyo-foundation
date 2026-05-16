@@ -8,7 +8,7 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
     : IDepartmentRepository
 {
     private const string SelectColumns =
-        "id, parent_department_id, name, code, description, sort_order, is_active, created_at, updated_at";
+        "id, parent_department_id, name, code, description, is_active, created_at, updated_at";
 
     public async Task<List<DepartmentInfo>> GetAllAsync(bool includeInactive = false)
     {
@@ -16,8 +16,8 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         await db.OpenAsync();
 
         var sql = includeInactive
-            ? $"SELECT {SelectColumns} FROM departments ORDER BY sort_order, name"
-            : $"SELECT {SelectColumns} FROM departments WHERE is_active ORDER BY sort_order, name";
+            ? $"SELECT {SelectColumns} FROM departments ORDER BY name"
+            : $"SELECT {SelectColumns} FROM departments WHERE is_active ORDER BY name";
 
         await using var cmd = new NpgsqlCommand(sql, db);
         var rows = new List<DepartmentInfo>();
@@ -63,14 +63,13 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         await db.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(
-            $@"INSERT INTO departments (parent_department_id, name, code, description, sort_order)
-               VALUES (@parent, @name, @code, @description, @sortOrder)
+            $@"INSERT INTO departments (parent_department_id, name, code, description)
+               VALUES (@parent, @name, @code, @description)
                RETURNING {SelectColumns}", db);
         cmd.Parameters.AddWithValue("parent", NullableParam(request.ParentDepartmentId));
         cmd.Parameters.AddWithValue("name", request.Name);
         cmd.Parameters.AddWithValue("code", NullableParam(request.Code));
         cmd.Parameters.AddWithValue("description", NullableParam(request.Description));
-        cmd.Parameters.AddWithValue("sortOrder", request.SortOrder);
 
         try
         {
@@ -131,11 +130,6 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         {
             sets.Add("description = @description");
             cmd.Parameters.AddWithValue("description", request.Description);
-        }
-        if (request.SortOrder is not null)
-        {
-            sets.Add("sort_order = @sortOrder");
-            cmd.Parameters.AddWithValue("sortOrder", request.SortOrder.Value);
         }
         if (request.IsActive is not null)
         {
@@ -213,10 +207,9 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         Name = reader.GetString(2),
         Code = reader.IsDBNull(3) ? null : reader.GetString(3),
         Description = reader.IsDBNull(4) ? null : reader.GetString(4),
-        SortOrder = reader.GetInt32(5),
-        IsActive = reader.GetBoolean(6),
-        CreatedAt = reader.GetDateTime(7),
-        UpdatedAt = reader.GetDateTime(8),
+        IsActive = reader.GetBoolean(5),
+        CreatedAt = reader.GetDateTime(6),
+        UpdatedAt = reader.GetDateTime(7),
     };
 
     private static DepartmentTreeNode ToTreeNode(DepartmentInfo d) => new()
@@ -226,7 +219,6 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         Name = d.Name,
         Code = d.Code,
         Description = d.Description,
-        SortOrder = d.SortOrder,
         IsActive = d.IsActive,
         Children = [],
     };

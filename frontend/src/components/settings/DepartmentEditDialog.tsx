@@ -31,7 +31,7 @@ import {
 /** Structural subset shared by DepartmentInfo and DepartmentTreeNode. */
 type EditableDepartment = Pick<
   DepartmentInfo,
-  'id' | 'parentDepartmentId' | 'name' | 'code' | 'description' | 'sortOrder' | 'isActive'
+  'id' | 'parentDepartmentId' | 'name' | 'code' | 'description' | 'isActive'
 >;
 
 interface DepartmentEditDialogProps {
@@ -51,7 +51,6 @@ interface FormState {
   code: string;
   description: string;
   parentDepartmentId: string;  // empty = root
-  sortOrder: number;
 }
 
 const empty: FormState = {
@@ -59,7 +58,6 @@ const empty: FormState = {
   code: '',
   description: '',
   parentDepartmentId: '',
-  sortOrder: 0,
 };
 
 function fromInfo(d: EditableDepartment): FormState {
@@ -68,7 +66,6 @@ function fromInfo(d: EditableDepartment): FormState {
     code: d.code ?? '',
     description: d.description ?? '',
     parentDepartmentId: d.parentDepartmentId ?? '',
-    sortOrder: d.sortOrder,
   };
 }
 
@@ -137,7 +134,6 @@ export function DepartmentEditDialog({
           name: form.name,
           code: form.code || undefined,
           description: form.description || undefined,
-          sortOrder: form.sortOrder,
           parentDepartmentId: parentId,
           // Reparent only when the form value differs from the saved value;
           // sending changeParent=false preserves the existing parent.
@@ -148,7 +144,6 @@ export function DepartmentEditDialog({
         name: form.name,
         code: form.code || undefined,
         description: form.description || undefined,
-        sortOrder: form.sortOrder,
         parentDepartmentId: parentId,
       });
     },
@@ -229,15 +224,6 @@ export function DepartmentEditDialog({
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               maxLength={2000}
               rows={3}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="dept-sort">Sort Order</Label>
-            <Input
-              id="dept-sort"
-              type="number"
-              value={form.sortOrder}
-              onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })}
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}

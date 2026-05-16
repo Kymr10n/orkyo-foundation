@@ -13,7 +13,6 @@ public record DepartmentInfo
     public required string Name { get; init; }
     public string? Code { get; init; }
     public string? Description { get; init; }
-    public int SortOrder { get; init; }
     public bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -30,7 +29,6 @@ public record DepartmentTreeNode
     public required string Name { get; init; }
     public string? Code { get; init; }
     public string? Description { get; init; }
-    public int SortOrder { get; init; }
     public bool IsActive { get; init; }
     public required List<DepartmentTreeNode> Children { get; init; }
 }
@@ -41,7 +39,6 @@ public record CreateDepartmentRequest
     public Guid? ParentDepartmentId { get; init; }
     public string? Code { get; init; }
     public string? Description { get; init; }
-    public int SortOrder { get; init; }
 }
 
 public record UpdateDepartmentRequest
@@ -50,7 +47,6 @@ public record UpdateDepartmentRequest
     public Guid? ParentDepartmentId { get; init; }
     public string? Code { get; init; }
     public string? Description { get; init; }
-    public int? SortOrder { get; init; }
     public bool? IsActive { get; init; }
     /// <summary>
     /// Distinguishes "do not change parent" from "set parent to NULL (root)".

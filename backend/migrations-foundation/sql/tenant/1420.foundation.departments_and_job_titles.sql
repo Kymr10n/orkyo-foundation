@@ -31,7 +31,6 @@ CREATE TABLE public.departments (
     name                    VARCHAR(200) NOT NULL,
     code                    VARCHAR(50) NULL,
     description             TEXT NULL,
-    sort_order              INT NOT NULL DEFAULT 0,
     is_active               BOOLEAN NOT NULL DEFAULT TRUE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),

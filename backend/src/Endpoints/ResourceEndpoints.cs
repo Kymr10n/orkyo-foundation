@@ -27,12 +27,15 @@ public static class ResourceEndpoints
             bool? isActive,
             string? search) =>
             await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await service.GetAllAsync(new ResourceListFilter
+            {
+                var items = await service.GetAllAsync(new ResourceListFilter
                 {
                     ResourceTypeKey = resourceTypeKey,
                     IsActive = isActive,
                     Search = search,
-                })),
+                });
+                return Results.Ok(new { data = items, total = items.Count, page = 1, pageSize = items.Count });
+            },
             logger, "list resources"))
             .WithName("GetResources")
             .WithSummary("Get all resources");

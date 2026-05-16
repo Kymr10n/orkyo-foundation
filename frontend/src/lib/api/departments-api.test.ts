@@ -51,7 +51,6 @@ const mockDepartment: DepartmentInfo = {
   name: "Engineering",
   code: "ENG",
   description: "Engineering department",
-  sortOrder: 0,
   isActive: true,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
@@ -64,7 +63,6 @@ const mockDepartmentTree: DepartmentTreeNode[] = [
     name: "Engineering",
     code: "ENG",
     description: "Engineering department",
-    sortOrder: 0,
     isActive: true,
     children: [
       {
@@ -73,7 +71,6 @@ const mockDepartmentTree: DepartmentTreeNode[] = [
         name: "Frontend",
         code: "FE",
         description: "Frontend team",
-        sortOrder: 0,
         isActive: true,
         children: [],
       },
@@ -169,7 +166,6 @@ describe("departments-api", () => {
         parentDepartmentId: undefined,
         code: "NEW",
         description: "New department",
-        sortOrder: 1,
       };
 
       mockFetch.mockResolvedValueOnce({
