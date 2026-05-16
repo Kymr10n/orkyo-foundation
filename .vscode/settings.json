@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "**/migrations-foundation/sql/**/*.sql": "postgresql"
+  },
+  "[postgresql]": {
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": true
+    }
+  }
+}
