@@ -170,6 +170,6 @@ ALTER TABLE requests DROP COLUMN space_id;
 
 -- ── Step 12: New scheduling index (via resource_assignments) ──────────────────
 
-CREATE INDEX idx_ra_scheduling_join
+CREATE INDEX CONCURRENTLY idx_ra_scheduling_join
     ON resource_assignments (resource_id, start_utc)
     WHERE assignment_status != 'Cancelled';

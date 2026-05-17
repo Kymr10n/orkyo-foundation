@@ -19,7 +19,7 @@ CREATE TABLE public.resource_types (
     CONSTRAINT resource_types_key_unique  UNIQUE (key)
 );
 
-CREATE INDEX idx_resource_types_active ON public.resource_types (is_active) WHERE is_active;
+CREATE INDEX CONCURRENTLY idx_resource_types_active ON public.resource_types (is_active) WHERE is_active;
 
 CREATE TRIGGER resource_types_updated_at
     BEFORE UPDATE ON public.resource_types
@@ -55,8 +55,8 @@ CREATE TABLE public.resources (
         FOREIGN KEY (resource_type_id) REFERENCES public.resource_types(id)
 );
 
-CREATE INDEX idx_resources_type   ON public.resources (resource_type_id);
-CREATE INDEX idx_resources_active ON public.resources (is_active) WHERE is_active;
+CREATE INDEX CONCURRENTLY idx_resources_type   ON public.resources (resource_type_id);
+CREATE INDEX CONCURRENTLY idx_resources_active ON public.resources (is_active) WHERE is_active;
 
 CREATE TRIGGER resources_updated_at
     BEFORE UPDATE ON public.resources
@@ -89,10 +89,10 @@ CREATE TABLE public.resource_assignments (
         CHECK (allocation_percent IS NULL OR (allocation_percent > 0 AND allocation_percent <= 100))
 );
 
-CREATE INDEX idx_ra_conflict ON public.resource_assignments (resource_id, start_utc, end_utc)
+CREATE INDEX CONCURRENTLY idx_ra_conflict ON public.resource_assignments (resource_id, start_utc, end_utc)
     WHERE assignment_status != 'Cancelled';
 
-CREATE INDEX idx_ra_request ON public.resource_assignments (request_id)
+CREATE INDEX CONCURRENTLY idx_ra_request ON public.resource_assignments (request_id)
     WHERE assignment_status != 'Cancelled';
 
 CREATE UNIQUE INDEX ux_ra_active_request_resource ON public.resource_assignments (request_id, resource_id)
@@ -147,8 +147,8 @@ CREATE TABLE public.resource_capabilities_phase1 (
         FOREIGN KEY (criterion_id) REFERENCES public.criteria(id)   ON DELETE CASCADE
 );
 
-CREATE INDEX idx_rc_phase1_resource  ON public.resource_capabilities_phase1 (resource_id);
-CREATE INDEX idx_rc_phase1_criterion ON public.resource_capabilities_phase1 (criterion_id);
+CREATE INDEX CONCURRENTLY idx_rc_phase1_resource  ON public.resource_capabilities_phase1 (resource_id);
+CREATE INDEX CONCURRENTLY idx_rc_phase1_criterion ON public.resource_capabilities_phase1 (criterion_id);
 
 CREATE TRIGGER resource_capabilities_phase1_updated_at
     BEFORE UPDATE ON public.resource_capabilities_phase1

@@ -1,4 +1,4 @@
--- @migration-class: schema-additive
+-- @migration-class: expand
 
 -- Required for case-insensitive email comparison on person_profiles.email
 CREATE EXTENSION IF NOT EXISTS citext;
@@ -15,7 +15,7 @@ CREATE TABLE person_profiles (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX ix_person_profiles_linked_user ON person_profiles(linked_user_id) WHERE linked_user_id IS NOT NULL;
+CREATE INDEX CONCURRENTLY ix_person_profiles_linked_user ON person_profiles(linked_user_id) WHERE linked_user_id IS NOT NULL;
 
 -- updated_at auto-maintenance (same pattern as all other tables in this schema)
 CREATE TRIGGER trg_person_profiles_updated_at

@@ -19,7 +19,7 @@ CREATE TABLE public.job_titles (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX ix_job_titles_active ON public.job_titles (is_active) WHERE is_active;
+CREATE INDEX CONCURRENTLY ix_job_titles_active ON public.job_titles (is_active) WHERE is_active;
 
 -- ── departments ─────────────────────────────────────────────────────────────
 -- Tenant-wide tree: a single hierarchy per tenant database. parent_department_id
@@ -47,8 +47,8 @@ CREATE UNIQUE INDEX ux_departments_sibling_name
     ON public.departments (parent_department_id, name)
     WHERE parent_department_id IS NOT NULL;
 
-CREATE INDEX ix_departments_parent ON public.departments (parent_department_id);
-CREATE INDEX ix_departments_active ON public.departments (is_active) WHERE is_active;
+CREATE INDEX CONCURRENTLY ix_departments_parent ON public.departments (parent_department_id);
+CREATE INDEX CONCURRENTLY ix_departments_active ON public.departments (is_active) WHERE is_active;
 -- Optional department codes (e.g. cost-centre codes) must be unique when present.
 CREATE UNIQUE INDEX ux_departments_code ON public.departments (code) WHERE code IS NOT NULL;
 
@@ -70,9 +70,9 @@ ALTER TABLE public.person_profiles
     ADD COLUMN job_title_id  UUID NULL REFERENCES public.job_titles(id)  ON DELETE SET NULL,
     ADD COLUMN department_id UUID NULL REFERENCES public.departments(id) ON DELETE SET NULL;
 
-CREATE INDEX ix_person_profiles_job_title_id
+CREATE INDEX CONCURRENTLY ix_person_profiles_job_title_id
     ON public.person_profiles (job_title_id)
     WHERE job_title_id IS NOT NULL;
-CREATE INDEX ix_person_profiles_department_id
+CREATE INDEX CONCURRENTLY ix_person_profiles_department_id
     ON public.person_profiles (department_id)
     WHERE department_id IS NOT NULL;
