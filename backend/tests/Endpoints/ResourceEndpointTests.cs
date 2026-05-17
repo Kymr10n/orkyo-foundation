@@ -195,6 +195,7 @@ public class ResourceEndpointTests
         {
             Name = $"space_only_cross_{Guid.NewGuid():N}",
             DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" },
         };
         var createResp = await _client.PostAsJsonAsync("/api/criteria", create);
         createResp.EnsureSuccessStatusCode();

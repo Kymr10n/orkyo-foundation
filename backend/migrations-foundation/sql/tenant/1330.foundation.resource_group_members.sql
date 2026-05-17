@@ -138,29 +138,19 @@ ALTER TABLE request_requirements
     ADD COLUMN IF NOT EXISTS operator      TEXT,
     ADD COLUMN IF NOT EXISTS allowed_values JSONB;
 
--- ── criterion_resource_types: backfill and auto-populate for new criteria ─────
+-- ── criterion_resource_types: backfill existing criteria ─────────────────────
 -- Migration 1300 only seeded 'space'. Backfill person and tool for all criteria
--- that already exist at migration time.
+-- that already exist at migration time so no criterion is left untagged.
 INSERT INTO criterion_resource_types (criterion_id, resource_type_id)
 SELECT c.id, rt.id
 FROM criteria c
 CROSS JOIN resource_types rt
 ON CONFLICT DO NOTHING;
 
--- Any criterion inserted after this migration (e.g. test seed data) should also
--- be applicable to all resource types automatically.
-CREATE OR REPLACE FUNCTION auto_criterion_resource_types() RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO criterion_resource_types (criterion_id, resource_type_id)
-    SELECT NEW.id, id FROM resource_types
-    ON CONFLICT DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_auto_criterion_resource_types
-    AFTER INSERT ON criteria
-    FOR EACH ROW EXECUTE FUNCTION auto_criterion_resource_types();
+-- NOTE: No trigger is created here. Post-1300 criteria are required to carry
+-- explicit ResourceTypeKeys at creation time (enforced by the API validator and
+-- CriteriaRepository.CreateAsync). A trigger that auto-assigns all resource
+-- types would override per-criterion applicability and break the filter endpoint.
 
 -- ── Fix resource_groups.resource_type_id missing DEFAULT ─────────────────────
 -- Migration 1310 added resource_type_id NOT NULL but without a DEFAULT.
