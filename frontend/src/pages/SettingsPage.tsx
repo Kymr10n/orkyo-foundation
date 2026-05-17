@@ -4,8 +4,6 @@ import { useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { CriteriaSettings } from '@foundation/src/components/settings/CriteriaSettings';
-import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
-import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
 import { GroupSettings } from '@foundation/src/components/settings/GroupSettings';
 import { PresetSettings } from '@foundation/src/components/settings/PresetSettings';
 import { TemplateSettings } from '@foundation/src/components/settings/TemplateSettings';
@@ -25,7 +23,10 @@ export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const editParam = searchParams.get('edit');
-  const defaultTab = (!isAdmin && tabParam === 'users') ? 'criteria' : (tabParam || 'criteria');
+  const invalidTabs = ['jobTitles', 'departments'];
+  const defaultTab = (!isAdmin && tabParam === 'users') || (tabParam && invalidTabs.includes(tabParam))
+    ? 'criteria'
+    : (tabParam || 'criteria');
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   // Sync tab from URL param
@@ -62,8 +63,6 @@ export function SettingsPage() {
 
           <TabsList>
             <TabsTrigger value="criteria">Criteria</TabsTrigger>
-            <TabsTrigger value="jobTitles">Job Titles</TabsTrigger>
-            <TabsTrigger value="departments">Departments</TabsTrigger>
             {showSites && <TabsTrigger value="sites">Sites</TabsTrigger>}
             <TabsTrigger value="groups">Groups</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
@@ -77,14 +76,6 @@ export function SettingsPage() {
 
           <TabsContent value="criteria" className="mt-6">
             <CriteriaSettings />
-          </TabsContent>
-
-          <TabsContent value="jobTitles" className="mt-6">
-            <JobTitleSettings />
-          </TabsContent>
-
-          <TabsContent value="departments" className="mt-6">
-            <DepartmentSettings />
           </TabsContent>
 
           {showSites && (

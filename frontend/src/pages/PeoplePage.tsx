@@ -3,6 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@foundation/src/compon
 import { PersonList } from '@foundation/src/components/people/PersonList';
 import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsenceList';
+import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
+import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
 
 export function PeoplePage() {
   const [activeTab, setActiveTab] = useState('people');
@@ -23,6 +25,8 @@ export function PeoplePage() {
           <TabsTrigger value="people">People</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
           <TabsTrigger value="absences">Absences</TabsTrigger>
+          <TabsTrigger value="jobTitles">Job Titles</TabsTrigger>
+          <TabsTrigger value="departments">Departments</TabsTrigger>
         </TabsList>
 
         <TabsContent value="people" className="flex-1">
@@ -35,6 +39,14 @@ export function PeoplePage() {
 
         <TabsContent value="absences" className="flex-1">
           <PersonAbsenceList />
+        </TabsContent>
+
+        <TabsContent value="jobTitles" className="flex-1">
+          <JobTitleSettings />
+        </TabsContent>
+
+        <TabsContent value="departments" className="flex-1">
+          <DepartmentSettings />
         </TabsContent>
       </Tabs>
     </div>
