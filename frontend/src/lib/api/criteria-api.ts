@@ -1,4 +1,4 @@
-import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest } from '@foundation/src/types/criterion';
+import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest, CriterionApplicabilityInfo, UpdateCriterionApplicabilityRequest } from '@foundation/src/types/criterion';
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
@@ -22,4 +22,11 @@ export async function updateCriterion(id: string, request: UpdateCriterionReques
 
 export async function deleteCriterion(id: string): Promise<void> {
   return apiDelete(API_PATHS.criterion(id));
+}
+
+export async function updateCriterionApplicability(
+  id: string,
+  request: UpdateCriterionApplicabilityRequest,
+): Promise<CriterionApplicabilityInfo> {
+  return apiPut<CriterionApplicabilityInfo>(API_PATHS.criterionApplicability(id), request);
 }

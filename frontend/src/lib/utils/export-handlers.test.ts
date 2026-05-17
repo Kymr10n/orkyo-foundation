@@ -246,7 +246,8 @@ describe('Export Handlers', () => {
         name: 'Duration',
         dataType: 'Number',
         description: 'Request duration',
-        createdAt: '2024-01-01T00:00:00Z',
+        resourceTypeKeys: ['space'],
+      createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
       },
     ];

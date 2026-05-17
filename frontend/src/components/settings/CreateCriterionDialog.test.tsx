@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 
@@ -87,6 +88,7 @@ describe('CreateCriterionDialog', () => {
         dataType: 'Boolean',
         enumValues: undefined,
         unit: undefined,
+        resourceTypeKeys: ['space'],
       });
     });
   });
@@ -125,5 +127,31 @@ describe('CreateCriterionDialog', () => {
     render(<CreateCriterionDialog {...defaultProps} />);
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('renders Applies to checkboxes for Spaces, People, and Tools', () => {
+    render(<CreateCriterionDialog {...defaultProps} />);
+    expect(screen.getByLabelText('Spaces')).toBeInTheDocument();
+    expect(screen.getByLabelText('People')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tools')).toBeInTheDocument();
+  });
+
+  it('defaults Spaces checkbox to checked', () => {
+    render(<CreateCriterionDialog {...defaultProps} />);
+    const spacesCheckbox = screen.getByLabelText('Spaces');
+    expect(spacesCheckbox).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('shows validation error when no applicability is selected', async () => {
+    const user = userEvent.setup();
+    render(<CreateCriterionDialog {...defaultProps} />);
+    // Uncheck Spaces (the default)
+    await user.click(screen.getByLabelText('Spaces'));
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'valid-criterion' } });
+    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/at least one/i);
+    });
   });
 });

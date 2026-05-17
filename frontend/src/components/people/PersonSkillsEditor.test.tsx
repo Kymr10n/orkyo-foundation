@@ -27,6 +27,7 @@ const PERSON_SKILL: Criterion = {
   id: 'c-firstaid',
   name: 'First-aid trained',
   dataType: 'Boolean',
+  resourceTypeKeys: ['person'],
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };

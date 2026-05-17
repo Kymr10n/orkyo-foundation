@@ -20,7 +20,8 @@ public class CriterionValidatorTests
         {
             Name = "Temperature",
             DataType = CriterionDataType.Number,
-            Unit = "°C"
+            Unit = "°C",
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.True(result.IsValid);
@@ -33,7 +34,8 @@ public class CriterionValidatorTests
         {
             Name = "FloorType",
             DataType = CriterionDataType.Enum,
-            EnumValues = new List<string> { "Carpet", "Wood", "Tile" }
+            EnumValues = new List<string> { "Carpet", "Wood", "Tile" },
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.True(result.IsValid);
@@ -45,7 +47,8 @@ public class CriterionValidatorTests
         var request = new CreateCriterionRequest
         {
             Name = "HasWifi",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.True(result.IsValid);
@@ -59,7 +62,8 @@ public class CriterionValidatorTests
         var request = new CreateCriterionRequest
         {
             Name = name!,
-            DataType = CriterionDataType.Number
+            DataType = CriterionDataType.Number,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -72,7 +76,8 @@ public class CriterionValidatorTests
         var request = new CreateCriterionRequest
         {
             Name = new string('a', DomainLimits.CriterionNameMaxLength + 1),
-            DataType = CriterionDataType.Number
+            DataType = CriterionDataType.Number,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -89,7 +94,8 @@ public class CriterionValidatorTests
         var request = new CreateCriterionRequest
         {
             Name = name,
-            DataType = CriterionDataType.Number
+            DataType = CriterionDataType.Number,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.True(result.IsValid);
@@ -106,7 +112,8 @@ public class CriterionValidatorTests
         var request = new CreateCriterionRequest
         {
             Name = name,
-            DataType = CriterionDataType.Number
+            DataType = CriterionDataType.Number,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -120,7 +127,8 @@ public class CriterionValidatorTests
         {
             Name = "FloorType",
             DataType = CriterionDataType.Enum,
-            EnumValues = null
+            EnumValues = null,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -134,7 +142,8 @@ public class CriterionValidatorTests
         {
             Name = "FloorType",
             DataType = CriterionDataType.Enum,
-            EnumValues = new List<string>()
+            EnumValues = new List<string>(),
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -147,7 +156,8 @@ public class CriterionValidatorTests
         {
             Name = "FloorType",
             DataType = CriterionDataType.Enum,
-            EnumValues = new List<string> { "Wood", "" }
+            EnumValues = new List<string> { "Wood", "" },
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -161,7 +171,8 @@ public class CriterionValidatorTests
         {
             Name = "Temperature",
             DataType = CriterionDataType.Number,
-            EnumValues = null // OK for non-enum
+            EnumValues = null, // OK for non-enum
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.True(result.IsValid);
@@ -174,7 +185,8 @@ public class CriterionValidatorTests
         {
             Name = "Temperature",
             DataType = CriterionDataType.Number,
-            Unit = new string('x', DomainLimits.CriterionUnitMaxLength + 1)
+            Unit = new string('x', DomainLimits.CriterionUnitMaxLength + 1),
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.False(result.IsValid);
@@ -188,7 +200,8 @@ public class CriterionValidatorTests
         {
             Name = "Temperature",
             DataType = CriterionDataType.Number,
-            Unit = new string('x', DomainLimits.CriterionUnitMaxLength)
+            Unit = new string('x', DomainLimits.CriterionUnitMaxLength),
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var result = _createValidator.Validate(request);
         Assert.True(result.IsValid);

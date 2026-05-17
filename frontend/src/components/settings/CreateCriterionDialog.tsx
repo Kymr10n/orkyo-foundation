@@ -11,6 +11,7 @@ import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
+import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -18,21 +19,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@foundation/src/components/ui/select';
-import type { Criterion, CriterionDataType } from '@foundation/src/types/criterion';
+import type { Criterion, CriterionDataType, ResourceTypeKey } from '@foundation/src/types/criterion';
 import { useCreateCriterion } from '@foundation/src/hooks/useCriteria';
 import { isValidSlug } from '@foundation/src/lib/utils';
 import { EnumValueEditor } from './EnumValueEditor';
+
+const RESOURCE_TYPE_OPTIONS: { key: ResourceTypeKey; label: string }[] = [
+  { key: 'space', label: 'Spaces' },
+  { key: 'person', label: 'People' },
+  { key: 'tool', label: 'Tools' },
+];
 
 interface CreateCriterionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (criterion: Criterion) => void;
+  /** Pre-select a resource type when opened from a resource-domain page. */
+  defaultResourceType?: ResourceTypeKey;
 }
 
 export function CreateCriterionDialog({
   open,
   onOpenChange,
   onSuccess,
+  defaultResourceType,
 }: CreateCriterionDialogProps) {
   const createMutation = useCreateCriterion();
   const [name, setName] = useState('');
@@ -40,6 +50,7 @@ export function CreateCriterionDialog({
   const [dataType, setDataType] = useState<CriterionDataType>('Boolean');
   const [unit, setUnit] = useState('');
   const [enumValues, setEnumValues] = useState<string[]>([]);
+  const [resourceTypeKeys, setResourceTypeKeys] = useState<ResourceTypeKey[]>([defaultResourceType ?? 'space']);
   const [error, setError] = useState<string | null>(null);
   const isSubmitting = createMutation.isPending;
 
@@ -49,7 +60,14 @@ export function CreateCriterionDialog({
     setDataType('Boolean');
     setUnit('');
     setEnumValues([]);
+    setResourceTypeKeys([defaultResourceType ?? 'space']);
     setError(null);
+  };
+
+  const toggleResourceType = (key: ResourceTypeKey, checked: boolean) => {
+    setResourceTypeKeys((prev) =>
+      checked ? [...prev, key] : prev.filter((k) => k !== key)
+    );
   };
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -72,6 +90,11 @@ export function CreateCriterionDialog({
       return;
     }
 
+    if (resourceTypeKeys.length === 0) {
+      setError('At least one applicability scope must be selected');
+      return;
+    }
+
     try {
       const newCriterion = await createMutation.mutateAsync({
         name: name.trim(),
@@ -79,6 +102,7 @@ export function CreateCriterionDialog({
         dataType,
         enumValues: dataType === 'Enum' ? enumValues : undefined,
         unit: dataType === 'Number' && unit.trim() ? unit.trim() : undefined,
+        resourceTypeKeys,
       });
       onSuccess(newCriterion);
       resetForm();
@@ -179,6 +203,29 @@ export function CreateCriterionDialog({
                 disabled={isSubmitting}
               />
             )}
+
+            {/* Applies To */}
+            <div className="space-y-2">
+              <Label>Applies to *</Label>
+              <div className="flex gap-4">
+                {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`applies-to-${key}`}
+                      checked={resourceTypeKeys.includes(key)}
+                      onCheckedChange={(checked) => toggleResourceType(key, !!checked)}
+                      disabled={isSubmitting}
+                    />
+                    <Label htmlFor={`applies-to-${key}`} className="font-normal cursor-pointer">
+                      {label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select at least one resource domain this criterion applies to
+              </p>
+            </div>
 
             {/* Error Display */}
             <ErrorAlert message={error} />

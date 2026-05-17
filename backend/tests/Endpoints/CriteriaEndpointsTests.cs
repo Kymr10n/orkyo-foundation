@@ -39,7 +39,8 @@ public class CriteriaEndpointsTests
         {
             Name = $"test_boolean_{Guid.NewGuid():N}",
             Description = "Test boolean criterion",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -66,7 +67,8 @@ public class CriteriaEndpointsTests
             Name = $"test_number_{Guid.NewGuid():N}",
             Description = "Test number criterion",
             DataType = CriterionDataType.Number,
-            Unit = "kg"
+            Unit = "kg",
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -89,7 +91,8 @@ public class CriteriaEndpointsTests
         {
             Name = $"test_string_{Guid.NewGuid():N}",
             Description = "Test string criterion",
-            DataType = CriterionDataType.String
+            DataType = CriterionDataType.String,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -111,7 +114,8 @@ public class CriteriaEndpointsTests
             Name = $"test_enum_{Guid.NewGuid():N}",
             Description = "Test enum criterion",
             DataType = CriterionDataType.Enum,
-            EnumValues = new List<string> { "Small", "Medium", "Large" }
+            EnumValues = new List<string> { "Small", "Medium", "Large" },
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -136,7 +140,8 @@ public class CriteriaEndpointsTests
         var request = new CreateCriterionRequest
         {
             Name = "invalid name with spaces",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -153,7 +158,8 @@ public class CriteriaEndpointsTests
         var request = new CreateCriterionRequest
         {
             Name = "",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -171,7 +177,8 @@ public class CriteriaEndpointsTests
         {
             Name = $"test_enum_{Guid.NewGuid():N}",
             DataType = CriterionDataType.Enum,
-            EnumValues = null
+            EnumValues = null,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         // Act
@@ -189,7 +196,8 @@ public class CriteriaEndpointsTests
         var request1 = new CreateCriterionRequest
         {
             Name = uniqueName,
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         await _client.PostAsJsonAsync("/api/criteria", request1);
 
@@ -197,7 +205,8 @@ public class CriteriaEndpointsTests
         var request2 = new CreateCriterionRequest
         {
             Name = uniqueName,
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var response = await _client.PostAsJsonAsync("/api/criteria", request2);
 
@@ -213,7 +222,8 @@ public class CriteriaEndpointsTests
         var request1 = new CreateCriterionRequest
         {
             Name = uniqueName.ToLower(),
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         await _client.PostAsJsonAsync("/api/criteria", request1);
 
@@ -221,7 +231,8 @@ public class CriteriaEndpointsTests
         var request2 = new CreateCriterionRequest
         {
             Name = uniqueName.ToUpper(),
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var response = await _client.PostAsJsonAsync("/api/criteria", request2);
 
@@ -240,7 +251,8 @@ public class CriteriaEndpointsTests
         var request = new CreateCriterionRequest
         {
             Name = $"test_list_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         await _client.PostAsJsonAsync("/api/criteria", request);
 
@@ -264,13 +276,15 @@ public class CriteriaEndpointsTests
         await _client.PostAsJsonAsync("/api/criteria", new CreateCriterionRequest
         {
             Name = name2,
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         });
 
         await _client.PostAsJsonAsync("/api/criteria", new CreateCriterionRequest
         {
             Name = name1,
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         });
 
         // Act
@@ -302,7 +316,8 @@ public class CriteriaEndpointsTests
             Name = $"test_get_{Guid.NewGuid():N}",
             Description = "Test description",
             DataType = CriterionDataType.Number,
-            Unit = "m²"
+            Unit = "m²",
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -345,7 +360,8 @@ public class CriteriaEndpointsTests
         {
             Name = $"test_update_{Guid.NewGuid():N}",
             Description = "Original description",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -373,7 +389,8 @@ public class CriteriaEndpointsTests
         {
             Name = $"test_update_unit_{Guid.NewGuid():N}",
             DataType = CriterionDataType.Number,
-            Unit = "kg"
+            Unit = "kg",
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -400,7 +417,8 @@ public class CriteriaEndpointsTests
         {
             Name = $"test_update_enum_{Guid.NewGuid():N}",
             DataType = CriterionDataType.Enum,
-            EnumValues = new List<string> { "A", "B" }
+            EnumValues = new List<string> { "A", "B" },
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -430,7 +448,8 @@ public class CriteriaEndpointsTests
         var createRequest = new CreateCriterionRequest
         {
             Name = $"test_invalid_enum_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -453,7 +472,8 @@ public class CriteriaEndpointsTests
         var createRequest = new CreateCriterionRequest
         {
             Name = $"test_no_fields_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -499,7 +519,8 @@ public class CriteriaEndpointsTests
         var createRequest = new CreateCriterionRequest
         {
             Name = $"test_delete_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
@@ -533,11 +554,13 @@ public class CriteriaEndpointsTests
     #region GET /criteria?resourceType — filter
 
     [Fact]
-    public async Task GetCriteria_WithResourceTypeFilter_ReturnsScopedAndUniversal()
+    public async Task GetCriteria_WithResourceTypeFilter_ReturnsOnlyTagged()
     {
-        var spaceOnly = await CreateAndTagAsync($"rt_space_{Guid.NewGuid():N}", new[] { "space" });
-        var personOnly = await CreateAndTagAsync($"rt_person_{Guid.NewGuid():N}", new[] { "person" });
-        var universal = await CreateAndTagAsync($"rt_universal_{Guid.NewGuid():N}", Array.Empty<string>());
+        // Strict semantics (post-backfill): no open-world fallback. Only criteria
+        // explicitly tagged for the requested resource type appear.
+        var spaceOnly = await CreateWithApplicabilityAsync($"rt_space_{Guid.NewGuid():N}", new[] { "space" });
+        var personOnly = await CreateWithApplicabilityAsync($"rt_person_{Guid.NewGuid():N}", new[] { "person" });
+        var multi = await CreateWithApplicabilityAsync($"rt_multi_{Guid.NewGuid():N}", new[] { "space", "person" });
 
         var response = await _client.GetAsync("/api/criteria?resourceType=person");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -546,24 +569,102 @@ public class CriteriaEndpointsTests
 
         var ids = list!.Select(c => c.Id).ToHashSet();
         Assert.Contains(personOnly.Id, ids);
-        Assert.Contains(universal.Id, ids);
+        Assert.Contains(multi.Id, ids);
         Assert.DoesNotContain(spaceOnly.Id, ids);
     }
 
-    private async Task<CriterionInfo> CreateAndTagAsync(string name, IReadOnlyCollection<string> resourceTypeKeys)
+    [Fact]
+    public async Task GetCriteria_WithUnknownResourceType_Returns400()
     {
-        var create = new CreateCriterionRequest { Name = name, DataType = CriterionDataType.Boolean };
-        var createResp = await _client.PostAsJsonAsync("/api/criteria", create);
-        createResp.EnsureSuccessStatusCode();
-        var criterion = (await createResp.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions))!;
+        var response = await _client.GetAsync("/api/criteria?resourceType=banana");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 
-        if (resourceTypeKeys.Count > 0)
+    [Fact]
+    public async Task CreateCriterion_WithApplicability_PersistsAndReturnsKeys()
+    {
+        var request = new CreateCriterionRequest
         {
-            var update = new UpdateCriterionApplicabilityRequest { ResourceTypeKeys = resourceTypeKeys.ToList() };
-            var resp = await _client.PutAsJsonAsync($"/api/criteria/{criterion.Id}/applicability", update);
-            resp.EnsureSuccessStatusCode();
-        }
-        return criterion;
+            Name = $"appl_persist_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space", "tool" },
+        };
+        var createResp = await _client.PostAsJsonAsync("/api/criteria", request);
+        Assert.Equal(HttpStatusCode.Created, createResp.StatusCode);
+        var created = (await createResp.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions))!;
+
+        // Keys come back sorted alphabetically per SelectColumns ORDER BY rt.key.
+        Assert.Equal(new[] { "space", "tool" }, created.ResourceTypeKeys);
+
+        // Round-trip via GET /api/criteria/{id} returns the same set.
+        var getResp = await _client.GetAsync($"/api/criteria/{created.Id}");
+        var fetched = (await getResp.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions))!;
+        Assert.Equal(new[] { "space", "tool" }, fetched.ResourceTypeKeys);
+    }
+
+    [Fact]
+    public async Task CreateCriterion_WithoutApplicability_Returns400()
+    {
+        var request = new CreateCriterionRequest
+        {
+            Name = $"appl_missing_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            // ResourceTypeKeys deliberately omitted
+        };
+        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateCriterion_WithEmptyApplicability_Returns400()
+    {
+        var request = new CreateCriterionRequest
+        {
+            Name = $"appl_empty_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string>(),
+        };
+        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateCriterion_WithUnknownApplicability_Returns400()
+    {
+        var request = new CreateCriterionRequest
+        {
+            Name = $"appl_unknown_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "flavor" },
+        };
+        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateCriterion_WithDuplicateApplicability_Returns400()
+    {
+        var request = new CreateCriterionRequest
+        {
+            Name = $"appl_dup_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space", "space" },
+        };
+        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    private async Task<CriterionInfo> CreateWithApplicabilityAsync(string name, IReadOnlyCollection<string> resourceTypeKeys)
+    {
+        var create = new CreateCriterionRequest
+        {
+            Name = name,
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = resourceTypeKeys.ToList(),
+        };
+        var resp = await _client.PostAsJsonAsync("/api/criteria", create);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions))!;
     }
 
     #endregion

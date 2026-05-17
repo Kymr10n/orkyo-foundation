@@ -42,6 +42,13 @@ public record CriterionInfo
 
     // Phase 3: Criterion applicability
     public bool ApplicableToRequests { get; init; } = true;
+
+    /// <summary>
+    /// Resource-type keys this criterion applies to (e.g. ["space", "person"]).
+    /// At least one entry is required at create time; empty lists are rejected
+    /// at the API boundary.
+    /// </summary>
+    public IReadOnlyList<string> ResourceTypeKeys { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -66,6 +73,12 @@ public record CreateCriterionRequest
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
     public bool ApplicableToRequests { get; init; } = true;
+
+    /// <summary>
+    /// Required: at least one resource-type key (e.g. "space", "person", "tool").
+    /// Validated at the API boundary.
+    /// </summary>
+    public List<string>? ResourceTypeKeys { get; init; }
 }
 
 /// <summary>

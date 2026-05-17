@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -20,7 +21,12 @@ public static class CriteriaEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (!string.IsNullOrWhiteSpace(resourceType))
+                {
+                    if (!ResourceTypeKeys.IsKnown(resourceType))
+                        return ErrorResponses.BadRequest(
+                            $"Unknown resource type '{resourceType}'. Allowed: {string.Join(", ", ResourceTypeKeys.All)}.");
                     return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType));
+                }
                 if (page.HasValue || pageSize.HasValue)
                 {
                     var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize });
@@ -47,7 +53,13 @@ public static class CriteriaEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var criterion = await criteriaService.CreateAsync(request.Name, request.Description, request.DataType, request.EnumValues, request.Unit);
+                var criterion = await criteriaService.CreateAsync(
+                    request.Name,
+                    request.Description,
+                    request.DataType,
+                    request.EnumValues,
+                    request.Unit,
+                    request.ResourceTypeKeys!);
                 return Results.Created($"/criteria/{criterion.Id}", criterion);
             }, logger, "create criterion");
         })

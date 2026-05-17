@@ -11,6 +11,7 @@ describe('CriterionRequirementInput', () => {
       name: 'Is Accessible',
       description: 'Boolean test criterion',
       dataType: 'Boolean',
+      resourceTypeKeys: ['space'],
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
     };
@@ -67,6 +68,7 @@ describe('CriterionRequirementInput', () => {
       description: 'Area criterion',
       dataType: 'Number',
       unit: 'm²',
+      resourceTypeKeys: ['space'],
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
     };
@@ -147,6 +149,7 @@ describe('CriterionRequirementInput', () => {
       name: 'Description',
       description: 'Description criterion',
       dataType: 'String',
+      resourceTypeKeys: ['space'],
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
     };
@@ -208,6 +211,7 @@ describe('CriterionRequirementInput', () => {
       description: 'Priority level',
       dataType: 'Enum',
       enumValues: ['Low', 'Medium', 'High'],
+      resourceTypeKeys: ['space'],
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
     };
@@ -256,6 +260,7 @@ describe('CriterionRequirementInput', () => {
       description: 'Unknown criterion',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       dataType: 'Unknown' as any,
+      resourceTypeKeys: ['space'],
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
     };
@@ -281,6 +286,7 @@ describe('CriterionRequirementInput', () => {
       name: 'Test',
       description: 'Test criterion',
       dataType: 'String',
+      resourceTypeKeys: ['space'],
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
     };

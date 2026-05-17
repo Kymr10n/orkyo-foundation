@@ -14,9 +14,9 @@ vi.mock("@foundation/src/lib/core/logger", () => ({
 }));
 
 const mockCriteria: Criterion[] = [
-  { id: "c1", name: "HasProjector", dataType: "Boolean", createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
-  { id: "c2", name: "Capacity", dataType: "Number", unit: "seats", createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
-  { id: "c3", name: "RoomType", dataType: "Enum", enumValues: ["Conference", "Lab"], createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
+  { id: "c1", name: "HasProjector", dataType: "Boolean", resourceTypeKeys: ['space'], createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
+  { id: "c2", name: "Capacity", dataType: "Number", unit: "seats", resourceTypeKeys: ['space'], createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
+  { id: "c3", name: "RoomType", dataType: "Enum", enumValues: ["Conference", "Lab"], resourceTypeKeys: ['space'], createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },
 ];
 
 const mockExistingCaps = [

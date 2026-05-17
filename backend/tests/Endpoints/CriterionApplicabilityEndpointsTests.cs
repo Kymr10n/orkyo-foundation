@@ -24,7 +24,8 @@ public class CriterionApplicabilityEndpointsTests
         var createRequest = new CreateCriterionRequest
         {
             Name = $"test_applicability_get_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>();
@@ -64,7 +65,8 @@ public class CriterionApplicabilityEndpointsTests
         var createRequest = new CreateCriterionRequest
         {
             Name = $"test_applicability_put_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>();
@@ -92,7 +94,8 @@ public class CriterionApplicabilityEndpointsTests
         var createRequest = new CreateCriterionRequest
         {
             Name = $"test_applicability_types_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Number
+            DataType = CriterionDataType.Number,
+            ResourceTypeKeys = new List<string> { "space" }
         };
         var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
         var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>();

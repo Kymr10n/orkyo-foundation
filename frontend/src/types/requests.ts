@@ -1,6 +1,6 @@
-import type { CriterionValue } from './criterion';
+import type { CriterionValue, ResourceTypeKey } from './criterion';
 
-export type ResourceTypeKey = 'space' | 'person' | 'tool';
+export type { ResourceTypeKey };
 export type AssignmentStatus = 'Planned' | 'Confirmed' | 'Tentative' | 'Cancelled';
 
 export interface ResourceAssignment {

@@ -81,6 +81,7 @@ export const API_PATHS = {
   // Criteria
   CRITERIA: '/api/criteria',
   criterion: (criterionId: string) => `/api/criteria/${criterionId}`,
+  criterionApplicability: (criterionId: string) => `/api/criteria/${criterionId}/applicability`,
 
   // Users
   USERS: '/api/users',

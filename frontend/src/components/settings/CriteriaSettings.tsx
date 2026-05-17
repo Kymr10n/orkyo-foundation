@@ -4,19 +4,36 @@ import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 import { EditCriterionDialog } from './EditCriterionDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
-import type { CreateCriterionRequest } from '@foundation/src/types/criterion';
+import type { CreateCriterionRequest, ResourceTypeKey } from '@foundation/src/types/criterion';
 import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
 import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
 import { logger } from '@foundation/src/lib/core/logger';
 
+type FilterTab = 'all' | ResourceTypeKey;
+
+const FILTER_TABS: { value: FilterTab; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'space', label: 'Spaces' },
+  { value: 'person', label: 'People' },
+  { value: 'tool', label: 'Tools' },
+];
+
+const RESOURCE_TYPE_LABELS: Record<ResourceTypeKey, string> = {
+  space: 'Spaces',
+  person: 'People',
+  tool: 'Tools',
+};
+
 export function CriteriaSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
 
   // Use React Query for criteria data
   const { data: criteria = [], isLoading, error, refetch } = useCriteria();
@@ -69,6 +86,10 @@ export function CriteriaSettings() {
     }
   };
 
+  const filteredCriteria = activeFilter === 'all'
+    ? criteria
+    : criteria.filter((c) => c.resourceTypeKeys?.includes(activeFilter));
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -101,18 +122,38 @@ export function CriteriaSettings() {
         </div>
       )}
 
+      {/* Filter Tabs */}
+      <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterTab)}>
+        <TabsList>
+          {FILTER_TABS.map(({ value, label }) => (
+            <TabsTrigger key={value} value={value}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       {/* Criteria List */}
-      {criteria.length === 0 ? (
+      {filteredCriteria.length === 0 ? (
         <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">No criteria defined yet</p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first criterion
-          </Button>
+          {activeFilter === 'all' ? (
+            <>
+              <p className="text-muted-foreground mb-4">No criteria defined yet</p>
+              <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Create your first criterion
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              No criteria defined for {RESOURCE_TYPE_LABELS[activeFilter as ResourceTypeKey]} yet.
+              Create a criterion and mark it as applicable to {RESOURCE_TYPE_LABELS[activeFilter as ResourceTypeKey]}.
+            </p>
+          )}
         </Card>
       ) : (
         <div className="grid gap-4">
-          {criteria.map((criterion) => (
+          {filteredCriteria.map((criterion) => (
             <Card key={criterion.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
@@ -124,6 +165,11 @@ export function CriteriaSettings() {
                     {criterion.unit && (
                       <span className="text-xs text-muted-foreground">({criterion.unit})</span>
                     )}
+                    {criterion.resourceTypeKeys?.map((key) => (
+                      <Badge key={key} variant="outline" className="text-xs">
+                        {RESOURCE_TYPE_LABELS[key]}
+                      </Badge>
+                    ))}
                   </div>
 
                   {criterion.description && (

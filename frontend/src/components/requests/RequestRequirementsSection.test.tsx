@@ -35,8 +35,10 @@ vi.mock('./CriterionRequirementInput', () => ({
 }));
 
 const mockCriteria: Criterion[] = [
-  { id: 'c1', name: 'Power', dataType: 'Boolean', description: '', unit: undefined, enumValues: [], createdAt: '', updatedAt: '' },
-  { id: 'c2', name: 'Load', dataType: 'Number', description: '', unit: 'kg', enumValues: [], createdAt: '', updatedAt: '' },
+  { id: 'c1', name: 'Power', dataType: 'Boolean', description: '', unit: undefined, enumValues: [], resourceTypeKeys: ['space'],
+      createdAt: '', updatedAt: '' },
+  { id: 'c2', name: 'Load', dataType: 'Number', description: '', unit: 'kg', enumValues: [], resourceTypeKeys: ['space'],
+      createdAt: '', updatedAt: '' },
 ];
 
 const baseState = {

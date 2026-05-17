@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import type { ResourceTypeKey } from '@foundation/src/types/criterion';
 import { EditCriterionDialog } from './EditCriterionDialog';
 
 vi.mock('@foundation/src/components/ui/dialog', () => ({
@@ -29,6 +30,10 @@ vi.mock('@foundation/src/hooks/useCriteria', () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
+  useUpdateCriterionApplicability: () => ({
+    mutateAsync: vi.fn(() => Promise.resolve({ criterionId: 'c1', applicableToRequests: true, resourceTypeKeys: ['space'] })),
+    isPending: false,
+  }),
 }));
 
 vi.mock('./EnumValueEditor', () => ({
@@ -43,6 +48,7 @@ describe('EditCriterionDialog', () => {
     description: 'Room capacity',
     unit: 'seats',
     enumValues: [],
+    resourceTypeKeys: ['space'] as ResourceTypeKey[],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
   };
@@ -94,5 +100,19 @@ describe('EditCriterionDialog', () => {
     render(<EditCriterionDialog {...defaultProps} />);
     expect(screen.getByLabelText(/unit/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/unit/i)).toHaveValue('seats');
+  });
+
+  it('renders Applies to checkboxes for all resource types', () => {
+    render(<EditCriterionDialog {...defaultProps} />);
+    expect(screen.getByLabelText('Spaces')).toBeInTheDocument();
+    expect(screen.getByLabelText('People')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tools')).toBeInTheDocument();
+  });
+
+  it('pre-checks the checkboxes matching criterion resourceTypeKeys', () => {
+    render(<EditCriterionDialog {...defaultProps} />);
+    expect(screen.getByLabelText('Spaces')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByLabelText('People')).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByLabelText('Tools')).toHaveAttribute('aria-checked', 'false');
   });
 });
