@@ -27,16 +27,17 @@ public class GroupCapabilityEndpointsTests
 
     private async Task<Guid> CreateTestGroupAsync()
     {
-        var request = new CreateSpaceGroupRequest
+        var request = new CreateResourceGroupRequest
         {
+            ResourceTypeKey = "space",
             Name = $"CapTest {Guid.NewGuid():N}"[..20],
             Description = "Group for capability tests"
         };
 
-        var response = await _client.PostAsJsonAsync("/api/groups", request);
+        var response = await _client.PostAsJsonAsync("/api/resource-groups", request);
         response.EnsureSuccessStatusCode();
 
-        var group = await response.Content.ReadFromJsonAsync<SpaceGroupInfo>();
+        var group = await response.Content.ReadFromJsonAsync<ResourceGroupInfo>();
         return group!.Id;
     }
 

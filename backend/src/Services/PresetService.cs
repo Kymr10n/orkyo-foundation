@@ -13,7 +13,7 @@ public class PresetService : IPresetService
     private readonly OrgContext _orgContext;
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly ICriteriaRepository _criteriaRepo;
-    private readonly ISpaceGroupRepository _spaceGroupRepo;
+    private readonly IResourceGroupRepository _resourceGroupRepo;
     private readonly ITemplateRepository _templateRepo;
     private readonly ILogger<PresetService> _logger;
 
@@ -21,14 +21,14 @@ public class PresetService : IPresetService
         OrgContext orgContext,
         IDbConnectionFactory connectionFactory,
         ICriteriaRepository criteriaRepo,
-        ISpaceGroupRepository spaceGroupRepo,
+        IResourceGroupRepository resourceGroupRepo,
         ITemplateRepository templateRepo,
         ILogger<PresetService> logger)
     {
         _orgContext = orgContext;
         _connectionFactory = connectionFactory;
         _criteriaRepo = criteriaRepo;
-        _spaceGroupRepo = spaceGroupRepo;
+        _resourceGroupRepo = resourceGroupRepo;
         _templateRepo = templateRepo;
         _logger = logger;
     }
@@ -85,14 +85,14 @@ public class PresetService : IPresetService
         var criterionKeyMap = presetCriteria.ToDictionary(c => c.Name, c => c.Key);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => criterionKeyMap[c.Name]);
 
-        var groups = await _spaceGroupRepo.GetAllAsync();
+        var groups = await _resourceGroupRepo.GetByTypeKeyAsync("space");
         var presetGroups = groups.Select(g => new PresetSpaceGroup
         {
             Key = GenerateKey(g.Name),
             Name = g.Name,
             Description = g.Description,
             Color = g.Color,
-            DisplayOrder = g.DisplayOrder
+            DisplayOrder = g.DisplayOrder ?? 0
         }).ToList();
 
         var presetTemplates = new PresetTemplates

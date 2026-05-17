@@ -1,7 +1,7 @@
 namespace Api.Models;
 
 /// <summary>
-/// Information about a resource group (e.g. a people group).
+/// Information about a resource group (e.g. a people group or a space group).
 /// </summary>
 public record ResourceGroupInfo
 {
@@ -12,6 +12,10 @@ public record ResourceGroupInfo
     public required int MemberCount { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+    /// <summary>The resource type key this group belongs to (e.g. "space", "person").</summary>
+    public required string ResourceTypeKey { get; init; }
+    public string? Color { get; init; }
+    public int? DisplayOrder { get; init; }
 }
 
 /// <summary>
@@ -23,6 +27,8 @@ public record CreateResourceGroupRequest
     public required string Name { get; init; }
     public string? Description { get; init; }
     public int DefaultAvailabilityPercent { get; init; } = 100;
+    public string? Color { get; init; }
+    public int? DisplayOrder { get; init; }
 }
 
 /// <summary>
@@ -33,4 +39,6 @@ public record UpdateResourceGroupRequest
     public string? Name { get; init; }
     public string? Description { get; init; }
     public int? DefaultAvailabilityPercent { get; init; }
+    public string? Color { get; init; }
+    public int? DisplayOrder { get; init; }
 }

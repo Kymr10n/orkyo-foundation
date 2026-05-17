@@ -44,6 +44,42 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync();
+
+        // Validate that all provided resources share the group's resource type.
+        await using var typeCheckCmd = new NpgsqlCommand(
+            "SELECT g.resource_type_id AS group_type_id, " +
+            "  array_agg(r.id) FILTER (WHERE r.resource_type_id != g.resource_type_id) AS mismatched_ids " +
+            "FROM resource_groups g " +
+            "CROSS JOIN (SELECT unnest(@ids::uuid[]) AS id) ids_list " +
+            "LEFT JOIN resources r ON r.id = ids_list.id " +
+            "WHERE g.id = @groupId " +
+            "GROUP BY g.resource_type_id",
+            db);
+        typeCheckCmd.Parameters.AddWithValue("groupId", groupId);
+        typeCheckCmd.Parameters.AddWithValue("ids", resourceIds.ToArray());
+
+        await using (var checkReader = await typeCheckCmd.ExecuteReaderAsync())
+        {
+            if (await checkReader.ReadAsync())
+            {
+                var mismatchedIds = checkReader.IsDBNull(1)
+                    ? []
+                    : (Guid[])checkReader.GetValue(1);
+
+                if (mismatchedIds.Length > 0)
+                {
+                    throw new ArgumentException(
+                        $"resource_type_mismatch: {mismatchedIds.Length} resource(s) do not match the group's resource type: " +
+                        string.Join(", ", mismatchedIds));
+                }
+            }
+            else
+            {
+                // Group not found — let the FK on resource_group_members handle it.
+                // If group doesn't exist, proceed to delete+insert which will be a no-op / FK violation.
+            }
+        }
+
         await using var tx = await db.BeginTransactionAsync();
 
         await using var del = new NpgsqlCommand(
@@ -53,14 +89,14 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
 
         if (resourceIds.Count > 0)
         {
-            var values = string.Join(", ",
-                Enumerable.Range(0, resourceIds.Count).Select(i => $"(@groupId, @r{i})"));
             await using var ins = new NpgsqlCommand(
-                $"INSERT INTO resource_group_members (resource_group_id, resource_id) VALUES {values}",
+                "INSERT INTO resource_group_members (resource_group_id, resource_id, resource_type_id) " +
+                "SELECT @groupId, r.id, r.resource_type_id " +
+                "FROM resources r " +
+                "WHERE r.id = ANY(@ids)",
                 db, tx);
             ins.Parameters.AddWithValue("groupId", groupId);
-            for (var i = 0; i < resourceIds.Count; i++)
-                ins.Parameters.AddWithValue($"r{i}", resourceIds[i]);
+            ins.Parameters.AddWithValue("ids", resourceIds.ToArray());
             await ins.ExecuteNonQueryAsync();
         }
 

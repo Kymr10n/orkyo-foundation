@@ -13,7 +13,7 @@ public class ExportService : IExportService
     private readonly ISiteRepository _siteRepo;
     private readonly ISpaceRepository _spaceRepo;
     private readonly ICriteriaRepository _criteriaRepo;
-    private readonly ISpaceGroupRepository _spaceGroupRepo;
+    private readonly IResourceGroupRepository _resourceGroupRepo;
     private readonly ITemplateRepository _templateRepo;
     private readonly IResourceCapabilityRepository _capabilityRepo;
     private readonly IGroupCapabilityRepository _groupCapabilityRepo;
@@ -25,7 +25,7 @@ public class ExportService : IExportService
         ISiteRepository siteRepo,
         ISpaceRepository spaceRepo,
         ICriteriaRepository criteriaRepo,
-        ISpaceGroupRepository spaceGroupRepo,
+        IResourceGroupRepository resourceGroupRepo,
         ITemplateRepository templateRepo,
         IResourceCapabilityRepository capabilityRepo,
         IGroupCapabilityRepository groupCapabilityRepo,
@@ -36,7 +36,7 @@ public class ExportService : IExportService
         _siteRepo = siteRepo;
         _spaceRepo = spaceRepo;
         _criteriaRepo = criteriaRepo;
-        _spaceGroupRepo = spaceGroupRepo;
+        _resourceGroupRepo = resourceGroupRepo;
         _templateRepo = templateRepo;
         _capabilityRepo = capabilityRepo;
         _groupCapabilityRepo = groupCapabilityRepo;
@@ -52,7 +52,7 @@ public class ExportService : IExportService
         var criteria = await _criteriaRepo.GetAllAsync();
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => GenerateKey(c.Name));
 
-        var groups = await _spaceGroupRepo.GetAllAsync();
+        var groups = await _resourceGroupRepo.GetByTypeKeyAsync("space");
         var groupIdToKey = groups.ToDictionary(g => g.Id, g => GenerateKey(g.Name));
 
         var allSites = await _siteRepo.GetAllAsync();
@@ -85,7 +85,7 @@ public class ExportService : IExportService
     private async Task<ExportData> BuildMasterDataAsync(
         List<SiteInfo> sites,
         List<CriterionInfo> criteria,
-        List<SpaceGroupInfo> groups,
+        List<ResourceGroupInfo> groups,
         Dictionary<Guid, string> criterionIdToKey,
         Dictionary<Guid, string> groupIdToKey)
     {
@@ -102,7 +102,7 @@ public class ExportService : IExportService
             }).ToList();
 
         var exportGroups = new List<ExportSpaceGroup>();
-        foreach (var g in groups.OrderBy(g => g.DisplayOrder).ThenBy(g => g.Name, StringComparer.Ordinal))
+        foreach (var g in groups.OrderBy(g => g.DisplayOrder ?? 0).ThenBy(g => g.Name, StringComparer.Ordinal))
         {
             var groupCaps = await _groupCapabilityRepo.GetAllAsync(g.Id);
             exportGroups.Add(new ExportSpaceGroup
@@ -111,7 +111,7 @@ public class ExportService : IExportService
                 Name = g.Name,
                 Description = g.Description,
                 Color = g.Color,
-                DisplayOrder = g.DisplayOrder,
+                DisplayOrder = g.DisplayOrder ?? 0,
                 Capabilities = MapCapabilities(groupCaps.Select(gc => (gc.CriterionId, gc.Value)), criterionIdToKey)
             });
         }

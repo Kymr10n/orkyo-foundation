@@ -16,7 +16,6 @@ export * from "./session-api";
 export * from "./site-api";
 export * from "./space-api";
 export * from "./space-capability-api";
-export * from "./space-groups-api";
 export * from "./template-api";
 export * from "./tenant-management-api";
 export * from "./tenant-settings-api";

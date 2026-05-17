@@ -19,34 +19,30 @@ import {
 } from "@foundation/src/lib/api/resource-groups-api";
 import { logger } from "@foundation/src/lib/core/logger";
 
-interface PeopleGroupMembersEditorProps {
+interface ResourceGroupMembersEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   groupId: string;
   groupName: string;
+  resourceTypeKey: string;
   onSuccess?: () => void;
 }
 
-/**
- * Mirrors GroupSpacesEditor (the established pattern for managing group
- * memberships): checkbox list, Select All + count badge, replace-all save.
- * Restricted to person resources via resourceTypeKey='person'.
- */
-export function PeopleGroupMembersEditor({
+export function ResourceGroupMembersEditor({
   open,
   onOpenChange,
   groupId,
   groupName,
+  resourceTypeKey,
   onSuccess,
-}: PeopleGroupMembersEditorProps) {
-  const [allPeople, setAllPeople] = useState<ResourceInfo[]>([]);
+}: ResourceGroupMembersEditorProps) {
+  const [allResources, setAllResources] = useState<ResourceInfo[]>([]);
   const [selectedResourceIds, setSelectedResourceIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  // Load all active people + the group's current members on open.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -54,16 +50,16 @@ export function PeopleGroupMembersEditor({
       setIsLoading(true);
       setError(null);
       try {
-        const [peopleRes, membersRes] = await Promise.all([
-          getResources({ resourceTypeKey: "person", isActive: true }),
+        const [resourcesRes, membersRes] = await Promise.all([
+          getResources({ resourceTypeKey, isActive: true }),
           getResourceGroupMembers(groupId),
         ]);
         if (cancelled) return;
-        setAllPeople(peopleRes.data);
+        setAllResources(resourcesRes.data);
         setSelectedResourceIds(new Set(membersRes.members.map((m) => m.id)));
       } catch (err) {
         if (cancelled) return;
-        logger.error("Failed to load people / group members:", err);
+        logger.error("Failed to load resources / group members:", err);
         setError(err instanceof Error ? err.message : "Failed to load");
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -71,7 +67,7 @@ export function PeopleGroupMembersEditor({
     };
     load();
     return () => { cancelled = true; };
-  }, [open, groupId]);
+  }, [open, groupId, resourceTypeKey]);
 
   const handleToggle = (resourceId: string) => {
     const next = new Set(selectedResourceIds);
@@ -81,10 +77,10 @@ export function PeopleGroupMembersEditor({
   };
 
   const handleSelectAll = () => {
-    if (selectedResourceIds.size === allPeople.length) {
+    if (selectedResourceIds.size === allResources.length) {
       setSelectedResourceIds(new Set());
     } else {
-      setSelectedResourceIds(new Set(allPeople.map((p) => p.id)));
+      setSelectedResourceIds(new Set(allResources.map((r) => r.id)));
     }
   };
 
@@ -93,8 +89,7 @@ export function PeopleGroupMembersEditor({
     setError(null);
     try {
       await setResourceGroupMembers(groupId, Array.from(selectedResourceIds));
-      // Member count is on the group row; refresh the group list so it updates.
-      queryClient.invalidateQueries({ queryKey: ["resource-groups", "person"] });
+      queryClient.invalidateQueries({ queryKey: ["resource-groups", resourceTypeKey] });
       onSuccess?.();
       onOpenChange(false);
     } catch (err) {
@@ -111,7 +106,7 @@ export function PeopleGroupMembersEditor({
         <DialogHeader>
           <DialogTitle>Manage Members in &quot;{groupName}&quot;</DialogTitle>
           <DialogDescription className="sr-only">
-            Select the people to include in this group.
+            Select the resources to include in this group.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,13 +114,13 @@ export function PeopleGroupMembersEditor({
           <div className="space-y-4">
             {isLoading ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                Loading people...
+                Loading resources...
               </div>
-            ) : allPeople.length === 0 ? (
+            ) : allResources.length === 0 ? (
               <div className="text-center py-8 border rounded-lg border-dashed">
-                <p className="text-sm text-muted-foreground">No people available.</p>
+                <p className="text-sm text-muted-foreground">No resources available.</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Create people first before assigning them to groups.
+                  Create resources first before assigning them to groups.
                 </p>
               </div>
             ) : (
@@ -134,7 +129,7 @@ export function PeopleGroupMembersEditor({
                   <div className="flex items-center gap-2">
                     <Checkbox
                       checked={
-                        selectedResourceIds.size === allPeople.length && allPeople.length > 0
+                        selectedResourceIds.size === allResources.length && allResources.length > 0
                       }
                       onCheckedChange={handleSelectAll}
                       disabled={isSubmitting}
@@ -142,26 +137,26 @@ export function PeopleGroupMembersEditor({
                     <span className="text-sm font-medium">Select All</span>
                   </div>
                   <Badge variant="outline">
-                    {selectedResourceIds.size} of {allPeople.length} selected
+                    {selectedResourceIds.size} of {allResources.length} selected
                   </Badge>
                 </div>
 
                 <div className="space-y-1">
-                  {allPeople.map((person) => (
+                  {allResources.map((resource) => (
                     <div
-                      key={person.id}
+                      key={resource.id}
                       className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50"
                     >
                       <Checkbox
-                        checked={selectedResourceIds.has(person.id)}
-                        onCheckedChange={() => handleToggle(person.id)}
+                        checked={selectedResourceIds.has(resource.id)}
+                        onCheckedChange={() => handleToggle(resource.id)}
                         disabled={isSubmitting}
                       />
                       <div className="flex-1">
-                        <p className="text-sm font-medium">{person.name}</p>
-                        {person.description && (
+                        <p className="text-sm font-medium">{resource.name}</p>
+                        {resource.description && (
                           <p className="text-xs text-muted-foreground">
-                            {person.description}
+                            {resource.description}
                           </p>
                         )}
                       </div>

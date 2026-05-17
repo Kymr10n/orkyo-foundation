@@ -5,19 +5,23 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GroupSettings } from './GroupSettings';
 
-const mockCreateMutateAsync = vi.fn(() => Promise.resolve({ id: 'new-group' }));
-const mockUpdateMutateAsync = vi.fn(() => Promise.resolve({ id: 'g1' }));
-const mockDeleteMutateAsync = vi.fn(() => Promise.resolve());
-
-vi.mock('@foundation/src/hooks/useGroups', () => ({
-  useCreateSpaceGroup: () => ({ mutateAsync: mockCreateMutateAsync }),
-  useUpdateSpaceGroup: () => ({ mutateAsync: mockUpdateMutateAsync }),
-  useDeleteSpaceGroup: () => ({ mutateAsync: mockDeleteMutateAsync }),
+const {
+  mockCreateResourceGroup,
+  mockUpdateResourceGroup,
+  mockDeleteResourceGroup,
+  mockGetResourceGroups,
+} = vi.hoisted(() => ({
+  mockCreateResourceGroup: vi.fn(),
+  mockUpdateResourceGroup: vi.fn(),
+  mockDeleteResourceGroup: vi.fn(),
+  mockGetResourceGroups: vi.fn(),
 }));
 
-const mockGetSpaceGroups = vi.fn((): Promise<Record<string, unknown>[]> => Promise.resolve([]));
-vi.mock('@foundation/src/lib/api/space-groups-api', () => ({
-  getSpaceGroups: () => mockGetSpaceGroups(),
+vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
+  getResourceGroups: mockGetResourceGroups,
+  createResourceGroup: mockCreateResourceGroup,
+  updateResourceGroup: mockUpdateResourceGroup,
+  deleteResourceGroup: mockDeleteResourceGroup,
 }));
 
 let capturedSpacesEditorProps: any = null;
@@ -38,8 +42,8 @@ vi.mock('./GroupSpacesEditor', () => ({
 }));
 
 const mockGroups = [
-  { id: 'g1', name: 'Meeting Rooms', description: 'All meeting rooms', color: '#3b82f6', displayOrder: 0, spaceCount: 3 },
-  { id: 'g2', name: 'Classrooms', description: '', color: '#ef4444', displayOrder: 1, spaceCount: 0 },
+  { id: 'g1', name: 'Meeting Rooms', description: 'All meeting rooms', color: '#3b82f6', displayOrder: 0, memberCount: 3, defaultAvailabilityPercent: 100, createdAt: '', updatedAt: '', resourceTypeKey: 'space' },
+  { id: 'g2', name: 'Classrooms', description: '', color: '#ef4444', displayOrder: 1, memberCount: 0, defaultAvailabilityPercent: 100, createdAt: '', updatedAt: '', resourceTypeKey: 'space' },
 ];
 
 function renderGroupSettings(editGroupId?: string | null) {
@@ -53,7 +57,10 @@ function renderGroupSettings(editGroupId?: string | null) {
 describe('GroupSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetSpaceGroups.mockResolvedValue([]);
+    mockGetResourceGroups.mockResolvedValue([]);
+    mockCreateResourceGroup.mockResolvedValue({ id: 'new-group' });
+    mockUpdateResourceGroup.mockResolvedValue({ id: 'g1' });
+    mockDeleteResourceGroup.mockResolvedValue(undefined);
     capturedSpacesEditorProps = null;
     capturedCapabilitiesEditorProps = null;
     global.confirm = vi.fn(() => true);
@@ -85,19 +92,19 @@ describe('GroupSettings', () => {
   });
 
   it('renders group table when groups exist', async () => {
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
     });
     expect(screen.getByText('Classrooms')).toBeInTheDocument();
     expect(screen.getByText('All meeting rooms')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument(); // spaceCount
+    expect(screen.getByText('3')).toBeInTheDocument(); // memberCount
   });
 
   it('shows error when loading fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockGetSpaceGroups.mockRejectedValue(new Error('Network error'));
+    mockGetResourceGroups.mockRejectedValue(new Error('Network error'));
     renderGroupSettings();
     // The component logs error and sets error state — keep loading false after catch
     await waitFor(() => {
@@ -145,13 +152,13 @@ describe('GroupSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Name is required')).toBeInTheDocument();
     });
-    expect(mockCreateMutateAsync).not.toHaveBeenCalled();
+    expect(mockCreateResourceGroup).not.toHaveBeenCalled();
   });
 
   it('creates a group successfully', async () => {
     const user = userEvent.setup();
     // After creation, groups will be reloaded
-    mockGetSpaceGroups.mockResolvedValueOnce([]).mockResolvedValueOnce(mockGroups);
+    mockGetResourceGroups.mockResolvedValueOnce([]).mockResolvedValueOnce(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('New Group')).toBeInTheDocument();
@@ -166,7 +173,7 @@ describe('GroupSettings', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => {
-      expect(mockCreateMutateAsync).toHaveBeenCalledWith(
+      expect(mockCreateResourceGroup).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Meeting Rooms' }),
       );
     });
@@ -174,7 +181,7 @@ describe('GroupSettings', () => {
 
   it('opens edit dialog when edit button is clicked', async () => {
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -191,7 +198,7 @@ describe('GroupSettings', () => {
 
   it('updates a group on save in edit mode', async () => {
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -208,15 +215,16 @@ describe('GroupSettings', () => {
     await user.click(screen.getByRole('button', { name: 'Update' }));
 
     await waitFor(() => {
-      expect(mockUpdateMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'g1', data: expect.objectContaining({ name: 'Updated Rooms' }) }),
+      expect(mockUpdateResourceGroup).toHaveBeenCalledWith(
+        'g1',
+        expect.objectContaining({ name: 'Updated Rooms' }),
       );
     });
   });
 
   it('deletes a group with confirmation', async () => {
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -226,14 +234,14 @@ describe('GroupSettings', () => {
 
     await waitFor(() => {
       expect(global.confirm).toHaveBeenCalledWith(expect.stringContaining('Meeting Rooms'));
-      expect(mockDeleteMutateAsync).toHaveBeenCalledWith('g1');
+      expect(mockDeleteResourceGroup).toHaveBeenCalledWith('g1');
     });
   });
 
   it('does not delete when confirmation is declined', async () => {
     global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -242,14 +250,14 @@ describe('GroupSettings', () => {
     await user.click(screen.getAllByTitle('Delete Group')[0]);
 
     expect(global.confirm).toHaveBeenCalled();
-    expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
+    expect(mockDeleteResourceGroup).not.toHaveBeenCalled();
   });
 
   it('shows alert on delete error', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockDeleteMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
+    mockDeleteResourceGroup.mockRejectedValueOnce(new Error('Delete failed'));
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -264,7 +272,7 @@ describe('GroupSettings', () => {
   });
 
   it('shows save error in dialog', async () => {
-    mockCreateMutateAsync.mockRejectedValueOnce(new Error('Save error'));
+    mockCreateResourceGroup.mockRejectedValueOnce(new Error('Save error'));
     const user = userEvent.setup();
     renderGroupSettings();
     await waitFor(() => {
@@ -284,7 +292,7 @@ describe('GroupSettings', () => {
 
   it('opens spaces editor for a group', async () => {
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -300,7 +308,7 @@ describe('GroupSettings', () => {
 
   it('opens capabilities editor for a group', async () => {
     const user = userEvent.setup();
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -315,7 +323,7 @@ describe('GroupSettings', () => {
   });
 
   it('displays color swatch for groups', async () => {
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     const { container } = renderGroupSettings();
     await waitFor(() => {
       expect(screen.getByText('Meeting Rooms')).toBeInTheDocument();
@@ -325,7 +333,7 @@ describe('GroupSettings', () => {
   });
 
   it('opens edit dialog via editGroupId prop', async () => {
-    mockGetSpaceGroups.mockResolvedValue(mockGroups);
+    mockGetResourceGroups.mockResolvedValue(mockGroups);
     renderGroupSettings('g1');
     await waitFor(() => {
       expect(screen.getByText('Edit Group')).toBeInTheDocument();

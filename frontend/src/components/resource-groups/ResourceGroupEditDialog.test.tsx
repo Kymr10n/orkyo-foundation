@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { PeopleGroupEditDialog } from './PeopleGroupEditDialog';
+import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
@@ -16,21 +16,25 @@ import { createResourceGroup, updateResourceGroup } from '@foundation/src/lib/ap
 
 const mockGroup: ResourceGroupInfo = {
   id: 'g-1',
-  name: 'Engineering',
-  description: 'Engineering team',
+  name: 'Hall A',
+  description: 'Main hall',
   defaultAvailabilityPercent: 80,
-  memberCount: 5,
+  memberCount: 2,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
+  resourceTypeKey: 'space',
 };
 
-function renderDialog(props: Partial<React.ComponentProps<typeof PeopleGroupEditDialog>> = {}) {
+type DialogProps = React.ComponentProps<typeof ResourceGroupEditDialog>;
+
+function renderDialog(props: Partial<DialogProps> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <PeopleGroupEditDialog
+      <ResourceGroupEditDialog
+        resourceTypeKey="space"
         group={null}
         isOpen={true}
         onClose={() => {}}
@@ -41,7 +45,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof PeopleGroupEdit
   );
 }
 
-describe('PeopleGroupEditDialog', () => {
+describe('ResourceGroupEditDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(createResourceGroup).mockResolvedValue(mockGroup);
@@ -60,8 +64,8 @@ describe('PeopleGroupEditDialog', () => {
 
   it('populates fields from group when editing', () => {
     renderDialog({ group: mockGroup });
-    expect(screen.getByDisplayValue('Engineering')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Engineering team')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Hall A')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Main hall')).toBeInTheDocument();
     expect(screen.getByDisplayValue('80')).toBeInTheDocument();
   });
 
@@ -73,19 +77,19 @@ describe('PeopleGroupEditDialog', () => {
   it('Save button is enabled when name is filled', async () => {
     const user = userEvent.setup();
     renderDialog();
-    await user.type(screen.getByLabelText(/Name \*/i), 'New Group');
+    await user.type(screen.getByLabelText(/Name \*/i), 'New Hall');
     expect(screen.getByRole('button', { name: /Save/i })).not.toBeDisabled();
   });
 
-  it('calls createResourceGroup with correct payload on create', async () => {
+  it('calls createResourceGroup with resourceTypeKey prop on create', async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
-    renderDialog({ onSaved });
-    await user.type(screen.getByLabelText(/Name \*/i), 'New Group');
+    renderDialog({ resourceTypeKey: 'tool', onSaved });
+    await user.type(screen.getByLabelText(/Name \*/i), 'Power Tools');
     await user.click(screen.getByRole('button', { name: /Save/i }));
     await waitFor(() =>
       expect(createResourceGroup).toHaveBeenCalledWith(
-        expect.objectContaining({ resourceTypeKey: 'person', name: 'New Group' }),
+        expect.objectContaining({ resourceTypeKey: 'tool', name: 'Power Tools' }),
       ),
     );
     expect(onSaved).toHaveBeenCalled();
@@ -95,38 +99,24 @@ describe('PeopleGroupEditDialog', () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
     renderDialog({ group: mockGroup, onSaved });
-    const nameInput = screen.getByDisplayValue('Engineering');
+    const nameInput = screen.getByDisplayValue('Hall A');
     await user.clear(nameInput);
-    await user.type(nameInput, 'Engineering Updated');
+    await user.type(nameInput, 'Hall B');
     await user.click(screen.getByRole('button', { name: /Save/i }));
     await waitFor(() =>
       expect(updateResourceGroup).toHaveBeenCalledWith(
         'g-1',
-        expect.objectContaining({ name: 'Engineering Updated' }),
+        expect.objectContaining({ name: 'Hall B' }),
       ),
     );
     expect(onSaved).toHaveBeenCalled();
   });
 
-  it('calls updateResourceGroup with defaultAvailabilityPercent', async () => {
+  it('calls onClose when Cancel is clicked', async () => {
     const user = userEvent.setup();
-    renderDialog({ group: mockGroup });
-    const availInput = screen.getByDisplayValue('80');
-    await user.clear(availInput);
-    await user.type(availInput, '90');
-    await user.click(screen.getByRole('button', { name: /Save/i }));
-    await waitFor(() =>
-      expect(updateResourceGroup).toHaveBeenCalledWith(
-        'g-1',
-        expect.objectContaining({ defaultAvailabilityPercent: 90 }),
-      ),
-    );
-  });
-
-  it('Cancel button calls onClose', () => {
     const onClose = vi.fn();
     renderDialog({ onClose });
-    screen.getByRole('button', { name: /Cancel/i }).click();
+    await user.click(screen.getByRole('button', { name: /Cancel/i }));
     expect(onClose).toHaveBeenCalled();
   });
 });

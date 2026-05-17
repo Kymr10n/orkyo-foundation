@@ -21,12 +21,12 @@ import {
 } from "@foundation/src/components/ui/table";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import {
-    useCreateSpaceGroup,
-    useDeleteSpaceGroup,
-    useUpdateSpaceGroup
-} from "@foundation/src/hooks/useGroups";
-import { getSpaceGroups } from "@foundation/src/lib/api/space-groups-api";
-import type { CreateSpaceGroupRequest, SpaceGroup } from "@foundation/src/types/spaceGroup";
+    createResourceGroup,
+    updateResourceGroup,
+    deleteResourceGroup,
+    getResourceGroups,
+    type ResourceGroupInfo,
+} from "@foundation/src/lib/api/resource-groups-api";
 import { Pencil, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -42,15 +42,16 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
   // Note: useSpaceGroups requires siteId, but GroupSettings is site-independent
   // We'll keep manual loading for now since groups are tenant-wide
   const [, setSearchParams] = useSearchParams();
-  const [groups, setGroups] = useState<SpaceGroup[]>([]);
+  const [groups, setGroups] = useState<ResourceGroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<SpaceGroup | null>(null);
-  const [formData, setFormData] = useState<CreateSpaceGroupRequest>({
+  const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
+  const [formData, setFormData] = useState({
     name: "",
     description: "",
     color: "#3b82f6",
     displayOrder: 0,
+    defaultAvailabilityPercent: 100,
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -58,13 +59,7 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
   // New dialog states for spaces and capabilities
   const [spacesEditorOpen, setSpacesEditorOpen] = useState(false);
   const [capabilitiesEditorOpen, setCapabilitiesEditorOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<SpaceGroup | null>(null);
-
-  // Note: These hooks need siteId - for now using a dummy value until we refactor
-  // the backend to support tenant-wide groups without siteId
-  const createGroupMutation = useCreateSpaceGroup("dummy");
-  const updateGroupMutation = useUpdateSpaceGroup("dummy");
-  const deleteGroupMutation = useDeleteSpaceGroup("dummy");
+  const [selectedGroup, setSelectedGroup] = useState<ResourceGroupInfo | null>(null);
 
   useEffect(() => {
     loadGroups();
@@ -88,7 +83,7 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
   async function loadGroups() {
     try {
       setLoading(true);
-      const data = await getSpaceGroups();
+      const data = await getResourceGroups('space');
       setGroups(data);
     } catch (err) {
       logger.error("Failed to load groups:", err);
@@ -105,18 +100,20 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
       description: "",
       color: "#3b82f6",
       displayOrder: groups.length,
+      defaultAvailabilityPercent: 100,
     });
     setError(null);
     setIsDialogOpen(true);
   }
 
-  function openEditDialog(group: SpaceGroup) {
+  function openEditDialog(group: ResourceGroupInfo) {
     setEditingGroup(group);
     setFormData({
       name: group.name,
       description: group.description || "",
       color: group.color || "#3b82f6",
-      displayOrder: group.displayOrder,
+      displayOrder: group.displayOrder ?? 0,
+      defaultAvailabilityPercent: group.defaultAvailabilityPercent,
     });
     setError(null);
     setIsDialogOpen(true);
@@ -133,12 +130,9 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
       setError(null);
 
       if (editingGroup) {
-        await updateGroupMutation.mutateAsync({
-          id: editingGroup.id,
-          data: formData,
-        });
+        await updateResourceGroup(editingGroup.id, formData);
       } else {
-        await createGroupMutation.mutateAsync(formData);
+        await createResourceGroup({ ...formData, resourceTypeKey: 'space' });
       }
 
       setIsDialogOpen(false);
@@ -150,13 +144,13 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
     }
   }
 
-  async function handleDelete(group: SpaceGroup) {
+  async function handleDelete(group: ResourceGroupInfo) {
     if (!confirm(`Delete "${group.name}"? Spaces in this group will become ungrouped.`)) {
       return;
     }
 
     try {
-      await deleteGroupMutation.mutateAsync(group.id);
+      await deleteResourceGroup(group.id);
       await loadGroups();
     } catch (err) {
       logger.error("Failed to delete group:", err);
@@ -200,7 +194,7 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Color</TableHead>
-                <TableHead className="text-center">Spaces</TableHead>
+                <TableHead className="text-center">Members</TableHead>
                 <TableHead className="text-center">Order</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -223,7 +217,7 @@ export function GroupSettings({ editGroupId }: GroupSettingsProps) {
                       <span className="text-muted-foreground">{group.color || "-"}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">{group.spaceCount || 0}</TableCell>
+                  <TableCell className="text-center">{group.memberCount}</TableCell>
                   <TableCell className="text-center text-muted-foreground">{group.displayOrder}</TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-2">

@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getSpaceGroups } from "@foundation/src/lib/api/space-groups-api";
+import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
 // Domain pipeline
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
 import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
@@ -10,7 +10,7 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import { useShallow } from "zustand/react/shallow";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
-import type { SpaceGroup } from "@foundation/src/types/spaceGroup";
+import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { addDays, addHours, addMinutes, addMonths, addWeeks, format, isWeekend, startOfDay, startOfHour, startOfMonth, startOfWeek } from "date-fns";
 import type { TimeScale } from "./ScaleSelect";
@@ -158,7 +158,7 @@ export function SchedulerGrid({
       toggleGroupCollapse: state.toggleGroupCollapse,
     }))
   );
-  const [groups, setGroups] = useState<SpaceGroup[]>([]);
+  const [groups, setGroups] = useState<ResourceGroupInfo[]>([]);
 
   // ---------------------------------------------------------------------------
   // Scheduling validation pipeline (steps 3–4 of interaction flow)
@@ -184,7 +184,7 @@ export function SchedulerGrid({
 
   // Fetch groups
   useEffect(() => {
-    getSpaceGroups().then(setGroups);
+    getResourceGroups('space').then(setGroups);
   }, []);
 
   // Memoize sorting + grouping — expensive with 50+ spaces (#5)
@@ -202,7 +202,7 @@ export function SchedulerGrid({
       return codeA.localeCompare(codeB);
     });
 
-    const groupMap = new Map<string, SpaceGroup>();
+    const groupMap = new Map<string, ResourceGroupInfo>();
     groups.forEach((g) => groupMap.set(g.id, g));
 
     const spacesByGroupId = new Map<string | null, Space[]>();
@@ -220,7 +220,7 @@ export function SchedulerGrid({
       const groupA = groupMap.get(a);
       const groupB = groupMap.get(b);
       if (!groupA || !groupB) return 0;
-      return groupA.displayOrder - groupB.displayOrder;
+      return (groupA.displayOrder ?? 0) - (groupB.displayOrder ?? 0);
     });
 
     const result: SpacesByGroup[] = [];

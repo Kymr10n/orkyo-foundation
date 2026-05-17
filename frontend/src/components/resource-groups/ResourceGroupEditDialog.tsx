@@ -14,14 +14,15 @@ import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
-interface PeopleGroupEditDialogProps {
+interface ResourceGroupEditDialogProps {
+  resourceTypeKey: string;
   group: ResourceGroupInfo | null;
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function PeopleGroupEditDialog({ group, isOpen, onClose, onSaved }: PeopleGroupEditDialogProps) {
+export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClose, onSaved }: ResourceGroupEditDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [defaultAvailabilityPercent, setDefaultAvailabilityPercent] = useState(100);
@@ -47,7 +48,7 @@ export function PeopleGroupEditDialog({ group, isOpen, onClose, onSaved }: Peopl
             defaultAvailabilityPercent,
           })
         : createResourceGroup({
-            resourceTypeKey: 'person',
+            resourceTypeKey,
             name,
             description: description || undefined,
             defaultAvailabilityPercent,

@@ -42,7 +42,7 @@ public static class ResourceGroupEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await repo.CreateAsync(request.ResourceTypeKey, request.Name, request.Description, request.DefaultAvailabilityPercent);
+                var result = await repo.CreateAsync(request.ResourceTypeKey, request.Name, request.Description, request.DefaultAvailabilityPercent, request.Color, request.DisplayOrder);
                 return Results.Created($"/api/resource-groups/{result.Id}", result);
             }, logger, "create resource group", new { name = request.Name });
         })
@@ -54,7 +54,7 @@ public static class ResourceGroupEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await repo.UpdateAsync(id, request.Name, request.Description, request.DefaultAvailabilityPercent);
+                var result = await repo.UpdateAsync(id, request.Name, request.Description, request.DefaultAvailabilityPercent, request.Color, request.DisplayOrder);
                 return result == null ? ErrorResponses.NotFound("Resource group", id) : Results.Ok(result);
             }, logger, "update resource group", new { id });
         })

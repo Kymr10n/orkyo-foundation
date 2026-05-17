@@ -192,7 +192,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // ── Repositories ──────────────────────────────────────────────────────
         builder.Services.AddScoped<ISiteRepository, SiteRepository>();
         builder.Services.AddScoped<ISpaceRepository, SpaceRepository>();
-        builder.Services.AddScoped<ISpaceGroupRepository, SpaceGroupRepository>();
         // ISpaceCapabilityRepository is served by IResourceCapabilityRepository (Phase 2)
         builder.Services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         builder.Services.AddScoped<ICriteriaRepository, CriteriaRepository>();
@@ -213,6 +212,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
         builder.Services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
         builder.Services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
+        builder.Services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
 
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
@@ -418,7 +418,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // ── Map all foundation endpoints ──────────────────────────────────────
         app.MapSiteEndpoints();
         app.MapSpaceEndpoints();
-        app.MapSpaceGroupEndpoints();
+        app.MapResourceGroupEndpoints();
         app.MapGroupCapabilityEndpoints();
         app.MapCriteriaEndpoints();
         app.MapRequestEndpoints();

@@ -8,7 +8,7 @@ import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/
 import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
 import type { Request } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
-import type { SpaceGroup } from '@foundation/src/types/spaceGroup';
+import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { DndContext } from '@dnd-kit/core';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
@@ -29,9 +29,9 @@ vi.mock('@foundation/src/store/app-store', () => ({
   }),
 }));
 
-// Mock the space groups API
-vi.mock('@foundation/src/lib/api/space-groups-api', () => ({
-  getSpaceGroups: vi.fn(() => Promise.resolve([])),
+// Mock the resource groups API
+vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
+  getResourceGroups: vi.fn(() => Promise.resolve([])),
 }));
 
 const createWrapper = () => {
@@ -217,12 +217,15 @@ describe('SchedulerGrid', () => {
 
   it('renders space groups when provided', async () => {
     const Wrapper = createWrapper();
-    const _mockSpaceGroups: SpaceGroup[] = [
+    const _mockSpaceGroups: ResourceGroupInfo[] = [
       {
         id: 'group-1',
         name: 'Building A',
         color: '#FF0000',
         displayOrder: 1,
+        resourceTypeKey: 'space',
+        memberCount: 0,
+        defaultAvailabilityPercent: 100,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
       },

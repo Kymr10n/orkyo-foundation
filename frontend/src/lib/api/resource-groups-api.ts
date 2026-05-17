@@ -15,6 +15,9 @@ export interface ResourceGroupInfo {
   memberCount: number;
   createdAt: string;
   updatedAt: string;
+  resourceTypeKey: string;
+  color?: string;
+  displayOrder?: number;
 }
 
 export async function getResourceGroups(resourceTypeKey: string): Promise<ResourceGroupInfo[]> {
@@ -26,13 +29,15 @@ export async function createResourceGroup(request: {
   name: string;
   description?: string;
   defaultAvailabilityPercent: number;
+  color?: string;
+  displayOrder?: number;
 }): Promise<ResourceGroupInfo> {
   return apiPost<ResourceGroupInfo>(API_PATHS.RESOURCE_GROUPS, request);
 }
 
 export async function updateResourceGroup(
   id: string,
-  request: { name?: string; description?: string; defaultAvailabilityPercent?: number },
+  request: { name?: string; description?: string; defaultAvailabilityPercent?: number; color?: string; displayOrder?: number },
 ): Promise<ResourceGroupInfo> {
   return apiPut<ResourceGroupInfo>(API_PATHS.resourceGroup(id), request);
 }

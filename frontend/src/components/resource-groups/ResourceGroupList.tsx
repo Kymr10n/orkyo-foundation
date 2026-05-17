@@ -3,23 +3,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
 import { Plus, Pencil, Trash2, Users, Loader2 } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
-import { PeopleGroupEditDialog } from './PeopleGroupEditDialog';
-import { PeopleGroupMembersEditor } from './PeopleGroupMembersEditor';
+import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
+import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
 
-export function PeopleGroupList() {
+interface ResourceGroupListProps {
+  resourceTypeKey: string;
+}
+
+export function ResourceGroupList({ resourceTypeKey }: ResourceGroupListProps) {
   const queryClient = useQueryClient();
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [managingMembersFor, setManagingMembersFor] = useState<ResourceGroupInfo | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
-    queryKey: ['resource-groups', 'person'],
-    queryFn: () => getResourceGroups('person'),
+    queryKey: ['resource-groups', resourceTypeKey],
+    queryFn: () => getResourceGroups(resourceTypeKey),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteResourceGroup,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource-groups', 'person'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource-groups', resourceTypeKey] }),
   });
 
   const handleAdd = () => {
@@ -38,7 +42,7 @@ export function PeopleGroupList() {
   };
 
   const handleSaved = () => {
-    queryClient.invalidateQueries({ queryKey: ['resource-groups', 'person'] });
+    queryClient.invalidateQueries({ queryKey: ['resource-groups', resourceTypeKey] });
     handleClose();
   };
 
@@ -115,7 +119,8 @@ export function PeopleGroupList() {
         )}
       </div>
 
-      <PeopleGroupEditDialog
+      <ResourceGroupEditDialog
+        resourceTypeKey={resourceTypeKey}
         group={editingGroup}
         isOpen={isDialogOpen}
         onClose={handleClose}
@@ -123,11 +128,12 @@ export function PeopleGroupList() {
       />
 
       {managingMembersFor && (
-        <PeopleGroupMembersEditor
+        <ResourceGroupMembersEditor
           open={!!managingMembersFor}
           onOpenChange={(open) => !open && setManagingMembersFor(null)}
           groupId={managingMembersFor.id}
           groupName={managingMembersFor.name}
+          resourceTypeKey={resourceTypeKey}
         />
       )}
     </div>

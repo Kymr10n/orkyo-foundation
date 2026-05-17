@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { PersonList } from '@foundation/src/components/people/PersonList';
-import { PeopleGroupList } from '@foundation/src/components/people/PeopleGroupList';
+import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsenceList';
 
 export function PeoplePage() {
@@ -30,7 +30,7 @@ export function PeoplePage() {
         </TabsContent>
 
         <TabsContent value="groups" className="flex-1">
-          <PeopleGroupList />
+          <ResourceGroupList resourceTypeKey="person" />
         </TabsContent>
 
         <TabsContent value="absences" className="flex-1">

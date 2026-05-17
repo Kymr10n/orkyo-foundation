@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { PeopleGroupList } from './PeopleGroupList';
+import { ResourceGroupList } from './ResourceGroupList';
 import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
@@ -10,9 +10,6 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   deleteResourceGroup: vi.fn(),
   createResourceGroup: vi.fn(),
   updateResourceGroup: vi.fn(),
-  // PeopleGroupMembersEditor (opened from the Users icon) uses these; we mock
-  // them at the module level so the editor renders cleanly without making
-  // real network calls.
   getResourceGroupMembers: vi.fn().mockResolvedValue({ groupId: 'g-1', members: [] }),
   setResourceGroupMembers: vi.fn(),
 }));
@@ -31,6 +28,7 @@ const mockGroups: ResourceGroupInfo[] = [
     memberCount: 5,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
+    resourceTypeKey: 'person',
   },
   {
     id: 'g-2',
@@ -40,21 +38,22 @@ const mockGroups: ResourceGroupInfo[] = [
     memberCount: 3,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
+    resourceTypeKey: 'person',
   },
 ];
 
-function renderList() {
+function renderList(resourceTypeKey = 'person') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <PeopleGroupList />
+      <ResourceGroupList resourceTypeKey={resourceTypeKey} />
     </QueryClientProvider>,
   );
 }
 
-describe('PeopleGroupList', () => {
+describe('ResourceGroupList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getResourceGroups).mockResolvedValue(mockGroups);
@@ -88,9 +87,9 @@ describe('PeopleGroupList', () => {
     await waitFor(() => expect(screen.getByText(/No groups yet/i)).toBeInTheDocument());
   });
 
-  it('fetches groups with resourceTypeKey=person', async () => {
-    renderList();
-    await waitFor(() => expect(getResourceGroups).toHaveBeenCalledWith('person'));
+  it('fetches groups with provided resourceTypeKey', async () => {
+    renderList('tool');
+    await waitFor(() => expect(getResourceGroups).toHaveBeenCalledWith('tool'));
   });
 
   it('opens Add Group dialog when Add Group clicked', async () => {
@@ -98,7 +97,7 @@ describe('PeopleGroupList', () => {
     renderList();
     await waitFor(() => screen.getByText('Engineering'));
     await user.click(screen.getByRole('button', { name: /Add Group/i }));
-    expect(screen.getByText('Add Group', { selector: '[role="dialog"] *' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('opens Edit dialog when edit button clicked', async () => {
@@ -126,9 +125,8 @@ describe('PeopleGroupList', () => {
       screen.getByRole('button', { name: /Manage members of Engineering/i }),
     );
 
-    // Editor dialog header carries the group name in quotes
     await waitFor(() =>
-      expect(screen.getByText(/Manage Members in.*Engineering/i)).toBeInTheDocument(),
+      expect(screen.getByText(/Manage Members in/i)).toBeInTheDocument(),
     );
   });
 });

@@ -263,8 +263,8 @@ public static class PresetApplier
         NpgsqlConnection conn, NpgsqlTransaction tx, PresetSpaceGroup group)
     {
         await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO resource_groups (name, description, color, display_order)
-            VALUES (@name, @description, @color, @displayOrder)
+            INSERT INTO resource_groups (name, description, color, display_order, resource_type_id)
+            SELECT @name, @description, @color, @displayOrder, id FROM resource_types WHERE key = 'space'
             RETURNING id", conn, tx);
         cmd.Parameters.AddWithValue("name", group.Name);
         cmd.Parameters.AddWithValue("description", (object?)group.Description ?? DBNull.Value);
