@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
@@ -16,9 +16,6 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
 // Mock all settings sub-components
 vi.mock('@foundation/src/components/settings/CriteriaSettings', () => ({
   CriteriaSettings: () => <div data-testid="criteria-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/GroupSettings', () => ({
-  GroupSettings: () => <div data-testid="group-settings" />,
 }));
 vi.mock('@foundation/src/components/settings/PresetSettings', () => ({
   PresetSettings: () => <div data-testid="preset-settings" />,
@@ -66,13 +63,19 @@ describe('SettingsPage', () => {
     renderSettingsPage();
     expect(screen.getByText('Criteria')).toBeInTheDocument();
     expect(screen.getByText('Sites')).toBeInTheDocument();
-    expect(screen.getByText('Groups')).toBeInTheDocument();
     expect(screen.getByText('Templates')).toBeInTheDocument();
     expect(screen.getByText('Presets')).toBeInTheDocument();
     expect(screen.getByText('Users')).toBeInTheDocument();
     expect(screen.getByText('Organization')).toBeInTheDocument();
     expect(screen.getByText('Scheduling')).toBeInTheDocument();
     expect(screen.getByText('Configuration')).toBeInTheDocument();
+  });
+
+  it('does not expose resource-domain master data tabs (moved to owning pages)', () => {
+    renderSettingsPage();
+    expect(screen.queryByRole('tab', { name: 'Groups' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Departments' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Job Titles' })).not.toBeInTheDocument();
   });
 
   it('defaults to Criteria tab', () => {
@@ -83,5 +86,24 @@ describe('SettingsPage', () => {
   it('opens specific tab from URL param', () => {
     renderSettingsPage('/settings?tab=organization');
     expect(screen.getByTestId('org-settings')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['jobTitles', '/people/job-titles'],
+    ['departments', '/people/departments'],
+  ])('redirects legacy ?tab=%s to %s', (legacy, target) => {
+    function LocationProbe() {
+      const loc = useLocation();
+      return <div data-testid="path">{loc.pathname}</div>;
+    }
+    render(
+      <MemoryRouter initialEntries={[`/settings?tab=${legacy}`]}>
+        <Routes>
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/people/*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('path').textContent).toBe(target);
   });
 });

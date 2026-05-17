@@ -15,17 +15,19 @@ public static class CriteriaEndpoints
     {
         var group = app.MapGroup("/api/criteria").WithTags("Criteria").RequireAuthorization().RequireTenantMembership();
 
-        group.MapGet("/", async (ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize) =>
+        group.MapGet("/", async (ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize, string? resourceType) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
+                if (!string.IsNullOrWhiteSpace(resourceType))
+                    return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType));
                 if (page.HasValue || pageSize.HasValue)
                 {
                     var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize });
                     return Results.Ok(paged);
                 }
                 return Results.Ok(await criteriaService.GetAllAsync());
-            }, logger, "list criteria");
+            }, logger, "list criteria", new { resourceType });
         })
         .WithName("GetCriteria")
         .WithSummary("Get all criteria");

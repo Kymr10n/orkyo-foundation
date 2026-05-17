@@ -55,6 +55,9 @@ export const API_PATHS = {
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
   resourceUtilization: (resourceId: string) => `/api/resources/${resourceId}/utilization`,
+  resourceCapabilities: (resourceId: string) => `/api/resources/${resourceId}/capabilities`,
+  resourceCapability: (resourceId: string, capabilityId: string) =>
+    `/api/resources/${resourceId}/capabilities/${capabilityId}`,
 
   // Person Profiles
   PERSON_PROFILES: '/api/person-profiles',

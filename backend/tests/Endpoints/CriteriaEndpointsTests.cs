@@ -529,4 +529,42 @@ public class CriteriaEndpointsTests
     }
 
     #endregion
+
+    #region GET /criteria?resourceType — filter
+
+    [Fact]
+    public async Task GetCriteria_WithResourceTypeFilter_ReturnsScopedAndUniversal()
+    {
+        var spaceOnly = await CreateAndTagAsync($"rt_space_{Guid.NewGuid():N}", new[] { "space" });
+        var personOnly = await CreateAndTagAsync($"rt_person_{Guid.NewGuid():N}", new[] { "person" });
+        var universal = await CreateAndTagAsync($"rt_universal_{Guid.NewGuid():N}", Array.Empty<string>());
+
+        var response = await _client.GetAsync("/api/criteria?resourceType=person");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var list = await response.Content.ReadFromJsonAsync<List<CriterionInfo>>(_jsonOptions);
+        Assert.NotNull(list);
+
+        var ids = list!.Select(c => c.Id).ToHashSet();
+        Assert.Contains(personOnly.Id, ids);
+        Assert.Contains(universal.Id, ids);
+        Assert.DoesNotContain(spaceOnly.Id, ids);
+    }
+
+    private async Task<CriterionInfo> CreateAndTagAsync(string name, IReadOnlyCollection<string> resourceTypeKeys)
+    {
+        var create = new CreateCriterionRequest { Name = name, DataType = CriterionDataType.Boolean };
+        var createResp = await _client.PostAsJsonAsync("/api/criteria", create);
+        createResp.EnsureSuccessStatusCode();
+        var criterion = (await createResp.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions))!;
+
+        if (resourceTypeKeys.Count > 0)
+        {
+            var update = new UpdateCriterionApplicabilityRequest { ResourceTypeKeys = resourceTypeKeys.ToList() };
+            var resp = await _client.PutAsJsonAsync($"/api/criteria/{criterion.Id}/applicability", update);
+            resp.EnsureSuccessStatusCode();
+        }
+        return criterion;
+    }
+
+    #endregion
 }

@@ -1,24 +1,40 @@
-import { SpaceManagementPanel } from '@foundation/src/components/spaces/SpaceManagementPanel';
-import { useAppStore } from '@foundation/src/store/app-store';
-import { useSearchParams } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
+
+const TABS: { value: string; label: string }[] = [
+  { value: 'list', label: 'Spaces' },
+  { value: 'floorplan', label: 'Floorplan' },
+  { value: 'groups', label: 'Groups' },
+  { value: 'capabilities', label: 'Capabilities' },
+];
 
 export function SpacesPage() {
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
-  const [searchParams] = useSearchParams();
-  const editResourceId = searchParams.get('edit');
-
-  if (!selectedSiteId) {
-    return (
-      <div className="rounded-2xl border bg-card p-6">
-        <h1 className="text-xl font-semibold mb-4">Spaces</h1>
-        <p className="text-muted-foreground">Please select a site to manage spaces.</p>
-      </div>
-    );
-  }
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const active = pathname.split('/')[2] ?? 'list';
 
   return (
-    <div className="h-full flex flex-col">
-      <SpaceManagementPanel siteId={selectedSiteId} editResourceId={editResourceId} className="flex-1" />
+    <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Spaces</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage spaces, floorplan, groups, and capabilities
+          </p>
+        </div>
+      </div>
+
+      <Tabs value={active} onValueChange={(v) => navigate(`/spaces/${v}`)} className="flex-1 flex flex-col">
+        <TabsList className="mb-4">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
+          ))}
+        </TabsList>
+
+        <div className="flex-1 min-h-0">
+          <Outlet />
+        </div>
+      </Tabs>
     </div>
   );
 }

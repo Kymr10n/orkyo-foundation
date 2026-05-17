@@ -1,10 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { CriteriaSettings } from '@foundation/src/components/settings/CriteriaSettings';
-import { GroupSettings } from '@foundation/src/components/settings/GroupSettings';
 import { PresetSettings } from '@foundation/src/components/settings/PresetSettings';
 import { TemplateSettings } from '@foundation/src/components/settings/TemplateSettings';
 import { SiteSettings } from '@foundation/src/components/settings/SiteSettings';
@@ -14,6 +13,13 @@ import { TenantConfigSettings } from '@foundation/src/components/settings/Tenant
 import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
 import { useSites } from '@foundation/src/hooks/useSites';
 
+// Legacy ?tab= values that have moved to other domain pages.
+// TODO 2026-08-17: remove after one release cycle.
+const LEGACY_TAB_TO_PATH: Record<string, string> = {
+  jobTitles: '/people/job-titles',
+  departments: '/people/departments',
+};
+
 export function SettingsPage() {
   const { membership } = useAuth();
   const isAdmin = membership?.isTenantAdmin === true;
@@ -21,17 +27,23 @@ export function SettingsPage() {
   const { data: sites = [] } = useSites();
   const showSites = tier !== 'Free' || sites.length > 1;
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const tabParam = searchParams.get('tab');
-  const editParam = searchParams.get('edit');
-  const invalidTabs = ['jobTitles', 'departments'];
-  const defaultTab = (!isAdmin && tabParam === 'users') || (tabParam && invalidTabs.includes(tabParam))
+  const defaultTab = !isAdmin && tabParam === 'users'
     ? 'criteria'
-    : (tabParam || 'criteria');
+    : (tabParam && !LEGACY_TAB_TO_PATH[tabParam] ? tabParam : 'criteria');
   const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // Backward-compat: redirect legacy ?tab= for tabs that moved out of Settings.
+  useEffect(() => {
+    if (tabParam && LEGACY_TAB_TO_PATH[tabParam]) {
+      navigate(LEGACY_TAB_TO_PATH[tabParam], { replace: true });
+    }
+  }, [tabParam, navigate]);
 
   // Sync tab from URL param
   useEffect(() => {
-    if (tabParam && tabParam !== activeTab) {
+    if (tabParam && tabParam !== activeTab && !LEGACY_TAB_TO_PATH[tabParam]) {
       setActiveTab(tabParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +76,6 @@ export function SettingsPage() {
           <TabsList>
             <TabsTrigger value="criteria">Criteria</TabsTrigger>
             {showSites && <TabsTrigger value="sites">Sites</TabsTrigger>}
-            <TabsTrigger value="groups">Groups</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="presets">Presets</TabsTrigger>
             {isAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
@@ -83,10 +94,6 @@ export function SettingsPage() {
               <SiteSettings />
             </TabsContent>
           )}
-
-          <TabsContent value="groups" className="mt-6">
-            <GroupSettings editGroupId={activeTab === 'groups' ? editParam : null} />
-          </TabsContent>
 
           <TabsContent value="templates" className="mt-6">
             <TemplateSettings entityType="request" />

@@ -36,6 +36,14 @@ describe('criteria-api', () => {
 
       expect(result).toEqual([]);
     });
+
+    it('appends ?resourceType= when filter is provided', async () => {
+      vi.mocked(apiClient.apiGet).mockResolvedValue([mockCriterion]);
+
+      await getCriteria({ resourceType: 'person' });
+
+      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.CRITERIA}?resourceType=person`);
+    });
   });
 
   describe('createCriterion', () => {

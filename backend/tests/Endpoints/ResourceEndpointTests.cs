@@ -187,6 +187,37 @@ public class ResourceEndpointTests
     }
 
     [Fact]
+    public async Task AddResourceCapability_Returns400_WhenCriterionNotApplicableToResourceType()
+    {
+        // Spec acceptance §06: cross-type assignment must be rejected server-side.
+        // Create a criterion tagged for space only, then try to assign it to a person resource.
+        var create = new CreateCriterionRequest
+        {
+            Name = $"space_only_cross_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+        };
+        var createResp = await _client.PostAsJsonAsync("/api/criteria", create);
+        createResp.EnsureSuccessStatusCode();
+        var criterion = (await createResp.Content.ReadFromJsonAsync<CriterionInfo>())!;
+
+        var applicability = new UpdateCriterionApplicabilityRequest
+        {
+            ResourceTypeKeys = new List<string> { "space" },
+        };
+        var applyResp = await _client.PutAsJsonAsync(
+            $"/api/criteria/{criterion.Id}/applicability", applicability);
+        applyResp.EnsureSuccessStatusCode();
+
+        var person = await CreatePersonAsync("CrossType-" + Guid.NewGuid().ToString("N")[..16]);
+        var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true));
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resources/{person.Id}/capabilities", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AddResourceCapability_Returns404_WhenResourceNotFound()
     {
         // Arrange

@@ -38,6 +38,35 @@ public class CriteriaRepository : ICriteriaRepository
         return criteria;
     }
 
+    public async Task<List<CriterionInfo>> GetByResourceTypeAsync(string resourceTypeKey)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync();
+
+        // Open-world rule: a criterion is included when either
+        //   (a) it is explicitly applicable to this resource type, OR
+        //   (b) it has no applicability declarations at all (= universally applicable).
+        // Mirrors the permissive read semantic the UI expects so a freshly-created
+        // criterion without applicability tagging still shows up in domain pages.
+        var cmd = new NpgsqlCommand(
+            $@"SELECT {SelectColumns} FROM criteria c
+               WHERE EXISTS (
+                   SELECT 1 FROM criterion_resource_types crt
+                   JOIN resource_types rt ON rt.id = crt.resource_type_id
+                   WHERE crt.criterion_id = c.id AND rt.key = @key
+               ) OR NOT EXISTS (
+                   SELECT 1 FROM criterion_resource_types WHERE criterion_id = c.id
+               )
+               ORDER BY name LIMIT 500", db);
+        cmd.Parameters.AddWithValue("key", resourceTypeKey);
+
+        var criteria = new List<CriterionInfo>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            criteria.Add(CriteriaMapper.MapFromReader(reader));
+        return criteria;
+    }
+
     public async Task<PagedResult<CriterionInfo>> GetAllAsync(PageRequest page)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
