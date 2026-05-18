@@ -18,11 +18,11 @@ public static class SchedulingEndpoints
             .RequireAuthorization()
             .RequireTenantMembership();
 
-        settings.MapGet("/", async (Guid siteId, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger) =>
+        settings.MapGet("/", async (Guid siteId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var result = await schedulingService.GetSettingsAsync(siteId) ?? SchedulingSettingsInfo.Default(siteId);
+                var result = await schedulingService.GetSettingsAsync(siteId, ct) ?? SchedulingSettingsInfo.Default(siteId);
                 return Results.Ok(result);
             }, logger, "get scheduling settings", new { siteId });
         })
@@ -30,12 +30,12 @@ public static class SchedulingEndpoints
         .WithDescription("Get scheduling settings for a site")
         .Produces<SchedulingSettingsInfo>(StatusCodes.Status200OK);
 
-        settings.MapPut("/", async (Guid siteId, UpsertSchedulingSettingsRequest request, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<UpsertSchedulingSettingsRequest> validator) =>
+        settings.MapPut("/", async (Guid siteId, UpsertSchedulingSettingsRequest request, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpsertSchedulingSettingsRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await schedulingService.UpsertSettingsAsync(siteId, request);
-                await schedulingService.RecalculateScheduledRequestsAsync(siteId);
+                var result = await schedulingService.UpsertSettingsAsync(siteId, request, ct);
+                await schedulingService.RecalculateScheduledRequestsAsync(siteId, ct);
                 return Results.Ok(result);
             }, logger, "upsert scheduling settings", new { siteId });
         })
@@ -44,11 +44,11 @@ public static class SchedulingEndpoints
         .Accepts<UpsertSchedulingSettingsRequest>("application/json")
         .Produces<SchedulingSettingsInfo>(StatusCodes.Status200OK);
 
-        settings.MapDelete("/", async (Guid siteId, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger) =>
+        settings.MapDelete("/", async (Guid siteId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await schedulingService.DeleteSettingsAsync(siteId);
+                var deleted = await schedulingService.DeleteSettingsAsync(siteId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("SchedulingSettings");
             }, logger, "delete scheduling settings", new { siteId });
         })
@@ -60,53 +60,53 @@ public static class SchedulingEndpoints
             .RequireAuthorization()
             .RequireTenantMembership();
 
-        offTimes.MapGet("/", async (Guid siteId, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger) =>
+        offTimes.MapGet("/", async (Guid siteId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await schedulingService.GetOffTimesAsync(siteId)),
+                Results.Ok(await schedulingService.GetOffTimesAsync(siteId, ct)),
             logger, "list off-times", new { siteId });
         })
         .WithName("GetOffTimes")
         .WithDescription("List all off-times for a site");
 
-        offTimes.MapGet("/{offTimeId:guid}", async (Guid siteId, Guid offTimeId, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger) =>
+        offTimes.MapGet("/{offTimeId:guid}", async (Guid siteId, Guid offTimeId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var result = await schedulingService.GetOffTimeByIdAsync(siteId, offTimeId);
+                var result = await schedulingService.GetOffTimeByIdAsync(siteId, offTimeId, ct);
                 return result == null ? ErrorResponses.NotFound("OffTime", offTimeId) : Results.Ok(result);
             }, logger, "get off-time", new { siteId, offTimeId });
         })
         .WithName("GetOffTimeById")
         .WithDescription("Get a specific off-time by ID");
 
-        offTimes.MapPost("/", async (Guid siteId, CreateOffTimeRequest request, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<CreateOffTimeRequest> validator) =>
+        offTimes.MapPost("/", async (Guid siteId, CreateOffTimeRequest request, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<CreateOffTimeRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await schedulingService.CreateOffTimeAsync(siteId, request);
+                var result = await schedulingService.CreateOffTimeAsync(siteId, request, ct);
                 return Results.Created($"/api/sites/{siteId}/off-times/{result.Id}", result);
             }, logger, "create off-time", new { siteId });
         })
         .WithName("CreateOffTime")
         .WithDescription("Create a new off-time entry for a site");
 
-        offTimes.MapPut("/{offTimeId:guid}", async (Guid siteId, Guid offTimeId, UpdateOffTimeRequest request, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateOffTimeRequest> validator) =>
+        offTimes.MapPut("/{offTimeId:guid}", async (Guid siteId, Guid offTimeId, UpdateOffTimeRequest request, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateOffTimeRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await schedulingService.UpdateOffTimeAsync(siteId, offTimeId, request);
+                var result = await schedulingService.UpdateOffTimeAsync(siteId, offTimeId, request, ct);
                 return result == null ? ErrorResponses.NotFound("OffTime", offTimeId) : Results.Ok(result);
             }, logger, "update off-time", new { siteId, offTimeId });
         })
         .WithName("UpdateOffTime")
         .WithDescription("Update an existing off-time entry");
 
-        offTimes.MapDelete("/{offTimeId:guid}", async (Guid siteId, Guid offTimeId, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger) =>
+        offTimes.MapDelete("/{offTimeId:guid}", async (Guid siteId, Guid offTimeId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await schedulingService.DeleteOffTimeAsync(siteId, offTimeId);
+                var deleted = await schedulingService.DeleteOffTimeAsync(siteId, offTimeId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("OffTime", offTimeId);
             }, logger, "delete off-time", new { siteId, offTimeId });
         })

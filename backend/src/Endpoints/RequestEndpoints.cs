@@ -15,141 +15,141 @@ public static class RequestEndpoints
     {
         var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireTenantMembership();
 
-        group.MapGet("/", async (IRequestService requestService, ILogger<EndpointLoggerCategory> logger, bool includeRequirements = false, int? page = null, int? pageSize = null) =>
+        group.MapGet("/", async (IRequestService requestService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, int? page = null, int? pageSize = null) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (page.HasValue || pageSize.HasValue)
                 {
-                    var paged = await requestService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, includeRequirements);
+                    var paged = await requestService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, includeRequirements, ct);
                     return Results.Ok(paged);
                 }
-                return Results.Ok(await requestService.GetAllAsync(includeRequirements));
+                return Results.Ok(await requestService.GetAllAsync(includeRequirements, ct));
             }, logger, "list requests");
         })
         .WithName("GetRequests")
         .WithSummary("Get all requests");
 
-        group.MapGet("/{id:guid}", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, bool includeRequirements = true) =>
+        group.MapGet("/{id:guid}", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = true) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var request = await requestService.GetByIdAsync(id, includeRequirements);
+                var request = await requestService.GetByIdAsync(id, includeRequirements, ct);
                 return request == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(request);
             }, logger, "get request", new { id });
         })
         .WithName("GetRequestById")
         .WithSummary("Get a specific request by ID");
 
-        group.MapPost("/", async (CreateRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<CreateRequestRequest> validator) =>
+        group.MapPost("/", async (CreateRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<CreateRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var adjusted = await schedulingService.ApplySchedulingToCreateAsync(request);
-                var created = await requestService.CreateAsync(adjusted);
+                var adjusted = await schedulingService.ApplySchedulingToCreateAsync(request, ct);
+                var created = await requestService.CreateAsync(adjusted, ct);
                 return Results.Created($"/requests/{created.Id}", created);
             }, logger, "create request", new { name = request.Name });
         })
         .WithName("CreateRequest")
         .WithSummary("Create a new request");
 
-        group.MapPut("/{id:guid}", async (Guid id, UpdateRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateRequestRequest> validator) =>
+        group.MapPut("/{id:guid}", async (Guid id, UpdateRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var adjusted = await schedulingService.ApplySchedulingToUpdateAsync(id, request);
-                var updated = await requestService.UpdateAsync(id, adjusted);
+                var adjusted = await schedulingService.ApplySchedulingToUpdateAsync(id, request, ct);
+                var updated = await requestService.UpdateAsync(id, adjusted, ct);
                 return updated == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(updated);
             }, logger, "update request", new { id });
         })
         .WithName("UpdateRequest")
         .WithSummary("Update an existing request");
 
-        group.MapDelete("/{id:guid}", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await requestService.DeleteAsync(id);
+                var deleted = await requestService.DeleteAsync(id, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Request", id);
             }, logger, "delete request", new { id });
         })
         .WithName("DeleteRequest")
         .WithSummary("Delete a request");
 
-        group.MapPatch("/{id:guid}/schedule", async (Guid id, ScheduleRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<ScheduleRequestRequest> validator) =>
+        group.MapPatch("/{id:guid}/schedule", async (Guid id, ScheduleRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<ScheduleRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var adjusted = await schedulingService.ApplySchedulingToScheduleAsync(id, request);
-                var updated = await requestService.UpdateScheduleAsync(id, adjusted);
+                var adjusted = await schedulingService.ApplySchedulingToScheduleAsync(id, request, ct);
+                var updated = await requestService.UpdateScheduleAsync(id, adjusted, ct);
                 return updated == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(updated);
             }, logger, "schedule request", new { id });
         })
         .WithName("ScheduleRequest")
         .WithSummary("Schedule or unschedule a request");
 
-        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement, IRequestService requestService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var created = await requestService.AddRequirementAsync(id, requirement);
+                var created = await requestService.AddRequirementAsync(id, requirement, ct);
                 return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
             }, logger, "add request requirement", new { id, criterionId = requirement.CriterionId });
         })
         .WithName("AddRequestRequirement")
         .WithSummary("Add a requirement to a request");
 
-        group.MapDelete("/{id:guid}/requirements/{requirementId:guid}", async (Guid id, Guid requirementId, IRequestService requestService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}/requirements/{requirementId:guid}", async (Guid id, Guid requirementId, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await requestService.DeleteRequirementAsync(id, requirementId);
+                var deleted = await requestService.DeleteRequirementAsync(id, requirementId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Requirement", requirementId);
             }, logger, "delete request requirement", new { id, requirementId });
         })
         .WithName("DeleteRequestRequirement")
         .WithSummary("Remove a requirement from a request");
 
-        group.MapGet("/{id:guid}/children", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}/children", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                if (!await requestService.ExistsAsync(id)) return ErrorResponses.NotFound("Request", id);
-                return Results.Ok(await requestService.GetChildrenAsync(id));
+                if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+                return Results.Ok(await requestService.GetChildrenAsync(id, ct));
             }, logger, "get request children", new { id });
         })
         .WithName("GetRequestChildren")
         .WithSummary("Get child requests");
 
-        group.MapPatch("/{id:guid}/move", async (Guid id, MoveRequestRequest request, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, IValidator<MoveRequestRequest> validator) =>
+        group.MapPatch("/{id:guid}/move", async (Guid id, MoveRequestRequest request, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, IValidator<MoveRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var moved = await requestService.MoveAsync(id, request.NewParentRequestId, request.SortOrder);
+                var moved = await requestService.MoveAsync(id, request.NewParentRequestId, request.SortOrder, ct);
                 return moved == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(moved);
             }, logger, "move request", new { id });
         })
         .WithName("MoveRequest")
         .WithSummary("Move or reparent a request in the tree");
 
-        group.MapDelete("/{id:guid}/subtree", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}/subtree", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                if (!await requestService.ExistsAsync(id)) return ErrorResponses.NotFound("Request", id);
-                var deletedCount = await requestService.DeleteSubtreeAsync(id);
+                if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+                var deletedCount = await requestService.DeleteSubtreeAsync(id, ct);
                 return Results.Ok(new DeleteSubtreeResponse { DeletedCount = deletedCount });
             }, logger, "delete request subtree", new { id });
         })
         .WithName("DeleteRequestSubtree")
         .WithSummary("Delete a request and all its descendants");
 
-        group.MapGet("/{id:guid}/descendants/count", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}/descendants/count", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                if (!await requestService.ExistsAsync(id)) return ErrorResponses.NotFound("Request", id);
-                return Results.Ok(new { count = await requestService.GetDescendantCountAsync(id) });
+                if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+                return Results.Ok(new { count = await requestService.GetDescendantCountAsync(id, ct) });
             }, logger, "get descendant count", new { id });
         })
         .WithName("GetDescendantCount")

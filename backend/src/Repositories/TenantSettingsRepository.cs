@@ -6,13 +6,13 @@ namespace Api.Repositories;
 public interface ITenantSettingsRepository
 {
     /// <summary>Load all setting overrides for the current tenant.</summary>
-    Task<Dictionary<string, string>> GetAllAsync();
+    Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default);
 
     /// <summary>Upsert a single setting.</summary>
-    Task UpsertAsync(string key, string value, string category);
+    Task UpsertAsync(string key, string value, string category, CancellationToken ct = default);
 
     /// <summary>Delete a setting override, reverting to the compiled default.</summary>
-    Task<bool> DeleteAsync(string key);
+    Task<bool> DeleteAsync(string key, CancellationToken ct = default);
 }
 
 public class TenantSettingsRepository : ITenantSettingsRepository
@@ -28,18 +28,18 @@ public class TenantSettingsRepository : ITenantSettingsRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<Dictionary<string, string>> GetAllAsync()
+    public async Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT key, value FROM tenant_settings", conn);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
         var settings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(ct))
         {
             settings[reader.GetString(0)] = reader.GetString(1);
         }
@@ -47,10 +47,10 @@ public class TenantSettingsRepository : ITenantSettingsRepository
         return settings;
     }
 
-    public async Task UpsertAsync(string key, string value, string category)
+    public async Task UpsertAsync(string key, string value, string category, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO tenant_settings (key, value, category, updated_at)
@@ -63,18 +63,18 @@ public class TenantSettingsRepository : ITenantSettingsRepository
         cmd.Parameters.AddWithValue("value", value);
         cmd.Parameters.AddWithValue("category", category);
 
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<bool> DeleteAsync(string key)
+    public async Task<bool> DeleteAsync(string key, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM tenant_settings WHERE key = @key", conn);
         cmd.Parameters.AddWithValue("key", key);
 
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 }

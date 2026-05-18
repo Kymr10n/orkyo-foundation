@@ -26,13 +26,13 @@ public static class PersonProfileEndpoints
             Guid resourceId,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
                 if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
-                var profile = await profileRepository.GetByResourceIdAsync(resourceId);
+                var profile = await profileRepository.GetByResourceIdAsync(resourceId, ct);
                 return profile is null ? Results.NotFound() : Results.Ok(profile);
             }, logger, "get person profile", new { resourceId }))
             .WithName("GetPersonProfile")
@@ -44,13 +44,13 @@ public static class PersonProfileEndpoints
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
             IValidator<UpsertPersonProfileRequest> validator,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
                 if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
-                var profile = await profileRepository.UpsertAsync(resourceId, request);
+                var profile = await profileRepository.UpsertAsync(resourceId, request, ct);
                 return Results.Ok(profile);
             }, logger, "upsert person profile", new { resourceId }))
             .RequireAdminAccess()
@@ -62,18 +62,18 @@ public static class PersonProfileEndpoints
             [FromBody] LinkUserToPersonProfileRequest request,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
                 if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
                 // Reject if the user is already linked to a different person resource (tenant-wide constraint).
-                var existingProfile = await profileRepository.GetByLinkedUserIdAsync(request.UserId);
+                var existingProfile = await profileRepository.GetByLinkedUserIdAsync(request.UserId, ct);
                 if (existingProfile is not null && existingProfile.ResourceId != resourceId)
                     return Results.Conflict(new { error = "User is already linked to another person profile" });
 
-                var success = await profileRepository.LinkUserAsync(resourceId, request.UserId);
+                var success = await profileRepository.LinkUserAsync(resourceId, request.UserId, ct);
                 return success ? Results.NoContent() : ErrorResponses.NotFound("PersonProfile", resourceId);
             }, logger, "link user to person profile", new { resourceId }))
             .RequireAdminAccess()
@@ -84,13 +84,13 @@ public static class PersonProfileEndpoints
             Guid resourceId,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
                 if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
-                var success = await profileRepository.UnlinkUserAsync(resourceId);
+                var success = await profileRepository.UnlinkUserAsync(resourceId, ct);
                 return success ? Results.NoContent() : Results.NotFound();
             }, logger, "unlink user from person profile", new { resourceId }))
             .RequireAdminAccess()
@@ -104,9 +104,10 @@ public static class PersonProfileEndpoints
     /// </summary>
     private static async Task<(ResourceInfo? Resource, IResult? ErrorResult)> ResolvePersonResourceAsync(
         Guid resourceId,
-        IResourceRepository resourceRepository)
+        IResourceRepository resourceRepository,
+        CancellationToken ct = default)
     {
-        var resource = await resourceRepository.GetByIdAsync(resourceId);
+        var resource = await resourceRepository.GetByIdAsync(resourceId, ct);
         if (resource is null)
             return (null, ErrorResponses.NotFound("Resource", resourceId));
 

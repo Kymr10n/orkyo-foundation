@@ -11,11 +11,11 @@ public interface IFileStorageService
     /// Validates, detects format via magic bytes, and saves a floorplan image.
     /// Returns (relativePath, detectedMimeType, widthPx, heightPx).
     /// </summary>
-    Task<(string relativePath, string detectedMimeType, int widthPx, int heightPx)> SaveFloorplanAsync(IFormFile file, Guid siteId, Guid tenantId);
-    Task<string> SaveFloorplanFromStreamAsync(Stream stream, string mimeType, Guid siteId, Guid tenantId);
-    Task<(Stream stream, string mimeType)?> GetFloorplanAsync(string filePath);
-    Task DeleteFloorplanAsync(string filePath);
-    Task<(int width, int height)> GetImageDimensionsAsync(Stream stream);
+    Task<(string relativePath, string detectedMimeType, int widthPx, int heightPx)> SaveFloorplanAsync(IFormFile file, Guid siteId, Guid tenantId, CancellationToken ct = default);
+    Task<string> SaveFloorplanFromStreamAsync(Stream stream, string mimeType, Guid siteId, Guid tenantId, CancellationToken ct = default);
+    Task<(Stream stream, string mimeType)?> GetFloorplanAsync(string filePath, CancellationToken ct = default);
+    Task DeleteFloorplanAsync(string filePath, CancellationToken ct = default);
+    Task<(int width, int height)> GetImageDimensionsAsync(Stream stream, CancellationToken ct = default);
 }
 
 public class LocalFileStorageService : IFileStorageService
@@ -55,7 +55,7 @@ public class LocalFileStorageService : IFileStorageService
         }
     }
 
-    public async Task<(string relativePath, string detectedMimeType, int widthPx, int heightPx)> SaveFloorplanAsync(IFormFile file, Guid siteId, Guid tenantId)
+    public async Task<(string relativePath, string detectedMimeType, int widthPx, int heightPx)> SaveFloorplanAsync(IFormFile file, Guid siteId, Guid tenantId, CancellationToken ct = default)
     {
         FloorplanUploadValidationPolicy.AssertNonEmpty(file.Length);
 
@@ -127,7 +127,7 @@ public class LocalFileStorageService : IFileStorageService
     }
 
 
-    public async Task<string> SaveFloorplanFromStreamAsync(Stream source, string mimeType, Guid siteId, Guid tenantId)
+    public async Task<string> SaveFloorplanFromStreamAsync(Stream source, string mimeType, Guid siteId, Guid tenantId, CancellationToken ct = default)
     {
         if (source.Length == 0)
             throw new ArgumentException("Stream is empty");
@@ -150,7 +150,7 @@ public class LocalFileStorageService : IFileStorageService
         return relativePath;
     }
 
-    public async Task<(Stream stream, string mimeType)?> GetFloorplanAsync(string filePath)
+    public async Task<(Stream stream, string mimeType)?> GetFloorplanAsync(string filePath, CancellationToken ct = default)
     {
         var fullPath = Path.Combine(_basePath, filePath);
         AssertWithinBasePath(fullPath);
@@ -168,7 +168,7 @@ public class LocalFileStorageService : IFileStorageService
         return (stream, mimeType);
     }
 
-    public async Task DeleteFloorplanAsync(string filePath)
+    public async Task DeleteFloorplanAsync(string filePath, CancellationToken ct = default)
     {
         var fullPath = Path.Combine(_basePath, filePath);
         AssertWithinBasePath(fullPath);
@@ -186,7 +186,7 @@ public class LocalFileStorageService : IFileStorageService
         await Task.CompletedTask;
     }
 
-    public async Task<(int width, int height)> GetImageDimensionsAsync(Stream stream)
+    public async Task<(int width, int height)> GetImageDimensionsAsync(Stream stream, CancellationToken ct = default)
     {
         try
         {

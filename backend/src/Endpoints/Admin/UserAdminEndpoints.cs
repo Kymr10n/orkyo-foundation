@@ -64,7 +64,8 @@ public static class UserAdminEndpoints
         IKeycloakAdminService keycloak,
         ILogger<EndpointLoggerCategory> logger,
         string? search = null,
-        string? status = null)
+        string? status = null,
+        CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync();
@@ -154,7 +155,8 @@ public static class UserAdminEndpoints
         Guid userId,
         IDbConnectionFactory connectionFactory,
         IKeycloakAdminService keycloak,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync();
@@ -206,19 +208,22 @@ public static class UserAdminEndpoints
             }
         }
 
-        await using var identityCmd = UserIdentityLinkCommandFactory.CreateSelectIdentitiesByUserIdCommand(
-            conn, userId);
+        await using var identityCmd = new Npgsql.NpgsqlCommand(
+            "SELECT id, provider, provider_subject, provider_email, created_at FROM user_identities WHERE user_id = @userId", conn);
+        identityCmd.Parameters.AddWithValue("userId", userId);
         await using var identityReader = await identityCmd.ExecuteReaderAsync();
-        var identityRows = await UserIdentityLinkReaderFlow.ReadIdentitiesAsync(identityReader);
-        foreach (var row in identityRows)
+        var identityRows = new List<(Guid Id, string Provider, string ProviderSubject, string? ProviderEmail, DateTime CreatedAt)>();
+        while (await identityReader.ReadAsync())
+            identityRows.Add((identityReader.GetGuid(0), identityReader.GetString(1), identityReader.GetString(2), identityReader.IsDBNull(3) ? null : identityReader.GetString(3), identityReader.GetDateTime(4)));
+        foreach (var (Id, Provider, ProviderSubject, ProviderEmail, CreatedAt) in identityRows)
         {
             user.Identities.Add(new AdminUserIdentity
             {
-                Id = row.Id,
-                Provider = row.Provider,
-                ProviderSubject = row.ProviderSubject,
-                ProviderEmail = row.ProviderEmail,
-                CreatedAt = row.CreatedAt
+                Id = Id,
+                Provider = Provider,
+                ProviderSubject = ProviderSubject,
+                ProviderEmail = ProviderEmail,
+                CreatedAt = CreatedAt
             });
         }
 
@@ -253,7 +258,8 @@ public static class UserAdminEndpoints
     private static async Task<IResult> GetUserMemberships(
         Guid userId,
         IDbConnectionFactory connectionFactory,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync();
@@ -298,7 +304,8 @@ public static class UserAdminEndpoints
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
         if (keycloakId != null)
@@ -313,7 +320,7 @@ public static class UserAdminEndpoints
             }
         }
 
-        await userService.SetGlobalStatusAsync(userId, "disabled");
+        await userService.SetGlobalStatusAsync(userId, "disabled", ct);
         logger.LogInformation("Admin {AdminId} deactivated user {UserId}", principal.UserId, userId);
         return Results.NoContent();
     }
@@ -324,7 +331,8 @@ public static class UserAdminEndpoints
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
         if (keycloakId != null)
@@ -350,7 +358,8 @@ public static class UserAdminEndpoints
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
         if (keycloakId != null)
@@ -365,7 +374,7 @@ public static class UserAdminEndpoints
             }
         }
 
-        await userService.PermanentlyDeleteAsync(userId);
+        await userService.PermanentlyDeleteAsync(userId, ct);
         logger.LogInformation("Admin {AdminId} permanently deleted user {UserId}", principal.UserId, userId);
         return Results.NoContent();
     }
@@ -374,22 +383,25 @@ public static class UserAdminEndpoints
     /// Looks up the Keycloak provider_subject for a user via user_identities.
     /// Returns null if the user has no Keycloak identity; Keycloak operations are best-effort.
     /// </summary>
-    private static async Task<string?> GetKeycloakIdAsync(Guid userId, IDbConnectionFactory connectionFactory)
+    private static async Task<string?> GetKeycloakIdAsync(Guid userId, IDbConnectionFactory connectionFactory, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync();
 
-        await using var cmd = UserIdentityLinkCommandFactory.CreateSelectKeycloakSubjectByUserIdCommand(conn, userId);
-        return UserIdentityLinkScalarFlow.ReadKeycloakSubject(await cmd.ExecuteScalarAsync());
+        await using var cmd = new Npgsql.NpgsqlCommand(
+            "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1", conn);
+        cmd.Parameters.AddWithValue("userId", userId);
+        return (await cmd.ExecuteScalarAsync()) as string;
     }
 
-    private static async Task<bool> UserExistsAsync(Guid userId, IDbConnectionFactory connectionFactory)
+    private static async Task<bool> UserExistsAsync(Guid userId, IDbConnectionFactory connectionFactory, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync();
 
-        await using var cmd = UserLookupByIdCommandFactory.CreateExistsByIdCommand(conn, userId);
-        return UserLookupByIdScalarFlow.ReadExists(await cmd.ExecuteScalarAsync());
+        await using var cmd = new Npgsql.NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM users WHERE id = @userId)", conn);
+        cmd.Parameters.AddWithValue("userId", userId);
+        return (await cmd.ExecuteScalarAsync()) is true;
     }
 
     private static async Task<IResult> PromoteSiteAdmin(
@@ -397,7 +409,8 @@ public static class UserAdminEndpoints
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         if (!await UserExistsAsync(userId, connectionFactory))
             return Results.NotFound(new { error = "User not found" });
@@ -428,7 +441,8 @@ public static class UserAdminEndpoints
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         // Prevent revoking your own site-admin role
         if (userId == principal.UserId)

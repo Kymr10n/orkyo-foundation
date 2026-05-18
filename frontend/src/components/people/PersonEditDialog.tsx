@@ -136,16 +136,22 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   });
   const deptOptions = flattenForSelect(deptTree);
 
+  // Person profile — fetched via React Query for proper cancellation and caching
+  const { data: profile } = useQuery({
+    queryKey: ['person-profile', person?.id],
+    queryFn: () => loadProfileOrNull(person!.id),
+    enabled: isOpen && !!person?.id,
+  });
+
+  // Sync server data into form state when it arrives or when the dialog opens
   useEffect(() => {
     if (!isOpen) return;
     if (!person) {
       setForm(emptyForm);
       return;
     }
-    loadProfileOrNull(person.id).then((profile) =>
-      setForm(fromResourceAndProfile(person, profile))
-    );
-  }, [person, isOpen]);
+    setForm(fromResourceAndProfile(person, profile ?? null));
+  }, [person, isOpen, profile]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));

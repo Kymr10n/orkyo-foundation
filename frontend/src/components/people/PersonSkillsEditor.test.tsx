@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { ResourceCapability } from '@foundation/src/lib/api/resource-capabilities-api';
@@ -48,6 +49,13 @@ const defaultProps = {
   personName: 'Alice',
 };
 
+function makeWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+}
+
 describe('PersonSkillsEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,28 +66,28 @@ describe('PersonSkillsEditor', () => {
   });
 
   it('fetches only person-applicable criteria (cross-type protection)', async () => {
-    render(<PersonSkillsEditor {...defaultProps} />);
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
     await waitFor(() => {
       expect(getCriteria).toHaveBeenCalledWith({ resourceType: 'person' });
     });
   });
 
   it('loads existing capabilities for the resource', async () => {
-    render(<PersonSkillsEditor {...defaultProps} />);
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
     await waitFor(() => {
       expect(getResourceCapabilities).toHaveBeenCalledWith('p-1');
     });
   });
 
   it('renders dialog title with person name', async () => {
-    render(<PersonSkillsEditor {...defaultProps} />);
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
     await waitFor(() => expect(screen.getByText('Skills for Alice')).toBeInTheDocument());
   });
 
   it('upserts preloaded assignments when Save is clicked unchanged', async () => {
     vi.mocked(getResourceCapabilities).mockResolvedValue([EXISTING_ASSIGNMENT]);
     const user = userEvent.setup({ pointerEventsCheck: 0 });
-    render(<PersonSkillsEditor {...defaultProps} />);
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
 
     await waitFor(() => expect(screen.getByText('1 active')).toBeInTheDocument());
 
@@ -96,7 +104,7 @@ describe('PersonSkillsEditor', () => {
   it('deletes an assignment that was removed in the editor', async () => {
     vi.mocked(getResourceCapabilities).mockResolvedValue([EXISTING_ASSIGNMENT]);
     const user = userEvent.setup({ pointerEventsCheck: 0 });
-    render(<PersonSkillsEditor {...defaultProps} />);
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
 
     await waitFor(() => expect(screen.getByText('1 active')).toBeInTheDocument());
 

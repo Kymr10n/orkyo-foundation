@@ -14,17 +14,17 @@ public interface ITenantSettingsService
     /// Get the resolved settings for the current context.
     /// Returns compiled defaults with scope-appropriate DB overrides applied.
     /// </summary>
-    Task<TenantSettings> GetSettingsAsync();
+    Task<TenantSettings> GetSettingsAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Update one or more settings. Returns the full resolved settings after the update.
     /// </summary>
-    Task<TenantSettings> UpdateSettingsAsync(Dictionary<string, string> updates);
+    Task<TenantSettings> UpdateSettingsAsync(Dictionary<string, string> updates, CancellationToken ct = default);
 
     /// <summary>
     /// Delete a setting override, reverting it to the compiled default.
     /// </summary>
-    Task<bool> ResetSettingAsync(string key);
+    Task<bool> ResetSettingAsync(string key, CancellationToken ct = default);
 
     /// <summary>
     /// Get metadata descriptors for all known settings (for the settings UI).

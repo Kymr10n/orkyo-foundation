@@ -16,7 +16,7 @@ public static class FeedbackEndpoints
     {
         var group = app.MapGroup("/api/feedback").WithTags("Feedback").RequireAuthorization().RequireTenantMembership();
 
-        group.MapPost("/", async (CreateFeedbackRequest request, HttpContext ctx, ICurrentPrincipal currentPrincipal, IFeedbackRepository repository, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/", async (CreateFeedbackRequest request, HttpContext ctx, ICurrentPrincipal currentPrincipal, IFeedbackRepository repository, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var validationErrors = ValidateRequest(request);
             if (validationErrors.Count > 0)

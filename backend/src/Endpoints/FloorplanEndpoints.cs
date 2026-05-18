@@ -21,7 +21,7 @@ public static class FloorplanEndpoints
             HttpContext ctx,
             ICurrentPrincipal principal,
             IFileStorageService fileStorage,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             logger.LogInformation("Upload endpoint called for site {SiteId}", siteId);
             var tenant = ctx.GetTenantContext();
@@ -90,7 +90,7 @@ public static class FloorplanEndpoints
         .WithName("UploadFloorplan")
         .WithDescription("Upload a floorplan image for a site");
 
-        floorplan.MapGet("/", async (Guid siteId, HttpContext ctx, IFileStorageService fileStorage, ILogger<EndpointLoggerCategory> logger) =>
+        floorplan.MapGet("/", async (Guid siteId, HttpContext ctx, IFileStorageService fileStorage, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             await using var conn = await ctx.OpenTenantConnectionAsync();
             await using var cmd = new NpgsqlCommand(
@@ -146,7 +146,7 @@ public static class FloorplanEndpoints
         .WithName("GetFloorplanMetadata")
         .WithDescription("Get metadata information for a site's floorplan");
 
-        floorplan.MapDelete("/", async (Guid siteId, HttpContext ctx, IFileStorageService fileStorage, ILogger<EndpointLoggerCategory> logger) =>
+        floorplan.MapDelete("/", async (Guid siteId, HttpContext ctx, IFileStorageService fileStorage, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             await using var conn = await ctx.OpenTenantConnectionAsync();
             await using var selectCmd = new NpgsqlCommand("SELECT floorplan_image_path FROM sites WHERE id = @siteId", conn);

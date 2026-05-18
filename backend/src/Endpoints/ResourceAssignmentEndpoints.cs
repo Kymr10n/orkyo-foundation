@@ -22,7 +22,7 @@ public static class ResourceAssignmentEndpoints
         group.MapGet("/", async (
             [FromQuery] Guid? requestId,
             IResourceAssignmentRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (requestId is null)
@@ -36,7 +36,7 @@ public static class ResourceAssignmentEndpoints
         group.MapGet("/{id:guid}", async (
             Guid id,
             IResourceAssignmentRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var a = await repo.GetByIdAsync(id);
@@ -48,7 +48,7 @@ public static class ResourceAssignmentEndpoints
         group.MapPost("/", async (
             [FromBody] CreateResourceAssignmentRequest request,
             IResourceAssignmentService service,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var (assignment, conflict) = await service.CreateAsync(request);
@@ -62,7 +62,7 @@ public static class ResourceAssignmentEndpoints
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IResourceAssignmentService service,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var cancelled = await service.CancelAsync(id);
@@ -74,7 +74,7 @@ public static class ResourceAssignmentEndpoints
         group.MapPost("/validate", async (
             [FromBody] ValidateResourceAssignmentRequest request,
             IResourceAssignmentValidator validator,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var result = await validator.ValidateAsync(request);

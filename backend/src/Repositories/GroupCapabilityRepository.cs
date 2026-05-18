@@ -8,9 +8,9 @@ namespace Api.Repositories;
 
 public interface IGroupCapabilityRepository
 {
-    Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId);
-    Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value);
-    Task<bool> DeleteAsync(Guid groupId, Guid capabilityId);
+    Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId, CancellationToken ct = default);
+    Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default);
+    Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default);
 }
 
 public class GroupCapabilityRepository : IGroupCapabilityRepository
@@ -24,10 +24,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId)
+    public async Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Verify group exists
         if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
@@ -52,10 +52,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
             conn);
         cmd.Parameters.AddWithValue("groupId", groupId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
         var capabilities = new List<GroupCapabilityInfo>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(ct))
         {
             capabilities.Add(MapFromReader(reader));
         }
@@ -63,10 +63,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         return capabilities;
     }
 
-    public async Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value)
+    public async Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Verify group and criterion exist
         if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
@@ -87,8 +87,8 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
         try
         {
-            await using var reader = await cmd.ExecuteReaderAsync();
-            if (!await reader.ReadAsync())
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
             {
                 throw new InvalidOperationException("Failed to create capability");
             }
@@ -101,10 +101,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         }
     }
 
-    public async Task<bool> DeleteAsync(Guid groupId, Guid capabilityId)
+    public async Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Verify group exists
         if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
@@ -117,7 +117,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         cmd.Parameters.AddWithValue("id", capabilityId);
         cmd.Parameters.AddWithValue("groupId", groupId);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 

@@ -29,21 +29,21 @@ public static class UserAnnouncementEndpoints
             .WithSummary("Mark an announcement as read");
     }
 
-    private static async Task<IResult> GetActive(IAnnouncementService service, CurrentPrincipal principal)
+    private static async Task<IResult> GetActive(IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
     {
         var userId = principal.RequireUserId();
         var announcements = await service.GetActiveForUserAsync(userId);
         return Results.Ok(new { announcements });
     }
 
-    private static async Task<IResult> GetUnreadCount(IAnnouncementService service, CurrentPrincipal principal)
+    private static async Task<IResult> GetUnreadCount(IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
     {
         var userId = principal.RequireUserId();
         var count = await service.GetUnreadCountAsync(userId);
         return Results.Ok(new { unreadCount = count });
     }
 
-    private static async Task<IResult> MarkRead(Guid id, IAnnouncementService service, CurrentPrincipal principal)
+    private static async Task<IResult> MarkRead(Guid id, IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
     {
         var userId = principal.RequireUserId();
         await service.MarkReadAsync(id, userId);

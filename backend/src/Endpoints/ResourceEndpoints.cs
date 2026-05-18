@@ -43,7 +43,7 @@ public static class ResourceEndpoints
         group.MapGet("/{id:guid}", async (
             Guid id,
             IResourceService service,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var r = await service.GetByIdAsync(id);
@@ -55,7 +55,7 @@ public static class ResourceEndpoints
         group.MapPost("/", async (
             [FromBody] CreateResourceRequest request,
             IResourceService service,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var r = await service.CreateAsync(request);
@@ -69,7 +69,7 @@ public static class ResourceEndpoints
             Guid id,
             [FromBody] UpdateResourceRequest request,
             IResourceService service,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var r = await service.UpdateAsync(id, request);
@@ -82,7 +82,7 @@ public static class ResourceEndpoints
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IResourceService service,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var deactivated = await service.DeactivateAsync(id);
@@ -113,7 +113,7 @@ public static class ResourceEndpoints
             Guid id,
             IResourceService service,
             IResourceCapabilityRepository repository,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (await service.GetByIdAsync(id) is null)
@@ -129,14 +129,14 @@ public static class ResourceEndpoints
             IResourceService service,
             IResourceCapabilityRepository repository,
             ICriteriaService criteriaService,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var resource = await service.GetByIdAsync(id);
                 if (resource is null)
                     return ErrorResponses.NotFound("Resource", id);
 
-                var criterion = await criteriaService.GetByIdAsync(request.CriterionId);
+                var criterion = await criteriaService.GetByIdAsync(request.CriterionId, ct);
                 if (criterion is null)
                     return ErrorResponses.NotFound("Criterion", request.CriterionId);
 
@@ -154,7 +154,7 @@ public static class ResourceEndpoints
             Guid id,
             Guid capabilityId,
             IResourceCapabilityRepository repository,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var deleted = await repository.DeleteAsync(id, capabilityId);
@@ -169,7 +169,7 @@ public static class ResourceEndpoints
             Guid id,
             Guid siteId,
             ISchedulingRepository scheduling,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await scheduling.GetOffTimesByResourceAsync(id, siteId)),
             logger, "get resource absences", new { id, siteId }))
@@ -180,7 +180,7 @@ public static class ResourceEndpoints
             Guid id,
             [FromBody] CreateResourceAbsenceRequest request,
             ISchedulingRepository scheduling,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var offtime = await scheduling.CreateOffTimeAsync(request.SiteId, new CreateOffTimeRequest
@@ -206,7 +206,7 @@ public static class ResourceEndpoints
             Guid absenceId,
             [FromBody] UpdateResourceAbsenceRequest request,
             ISchedulingRepository scheduling,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var existing = await scheduling.GetOffTimeByIdAsync(absenceId);
@@ -234,7 +234,7 @@ public static class ResourceEndpoints
             Guid id,
             Guid absenceId,
             ISchedulingRepository scheduling,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var existing = await scheduling.GetOffTimeByIdAsync(absenceId);

@@ -6,8 +6,8 @@ namespace Api.Repositories;
 
 public interface IResourceGroupMemberRepository
 {
-    Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId);
-    Task SetMembersAsync(Guid groupId, IReadOnlyList<Guid> resourceIds);
+    Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId, CancellationToken ct = default);
+    Task SetMembersAsync(Guid groupId, IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 }
 
 public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -18,10 +18,10 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
         "r.is_active, r.created_at, r.updated_at";
 
-    public async Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId)
+    public async Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {ResourceSelectColumns} " +
@@ -33,17 +33,17 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         cmd.Parameters.AddWithValue("groupId", groupId);
 
         var members = new List<ResourceInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             members.Add(MapResource(reader));
 
         return new ResourceGroupMembersResponse { GroupId = groupId, Members = members };
     }
 
-    public async Task SetMembersAsync(Guid groupId, IReadOnlyList<Guid> resourceIds)
+    public async Task SetMembersAsync(Guid groupId, IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // Validate that all provided resources share the group's resource type.
         await using var typeCheckCmd = new NpgsqlCommand(
@@ -58,9 +58,9 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         typeCheckCmd.Parameters.AddWithValue("groupId", groupId);
         typeCheckCmd.Parameters.AddWithValue("ids", resourceIds.ToArray());
 
-        await using (var checkReader = await typeCheckCmd.ExecuteReaderAsync())
+        await using (var checkReader = await typeCheckCmd.ExecuteReaderAsync(ct))
         {
-            if (await checkReader.ReadAsync())
+            if (await checkReader.ReadAsync(ct))
             {
                 var mismatchedIds = checkReader.IsDBNull(1)
                     ? []
@@ -85,7 +85,7 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         await using var del = new NpgsqlCommand(
             "DELETE FROM resource_group_members WHERE resource_group_id = @groupId", db, tx);
         del.Parameters.AddWithValue("groupId", groupId);
-        await del.ExecuteNonQueryAsync();
+        await del.ExecuteNonQueryAsync(ct);
 
         if (resourceIds.Count > 0)
         {
@@ -97,7 +97,7 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
                 db, tx);
             ins.Parameters.AddWithValue("groupId", groupId);
             ins.Parameters.AddWithValue("ids", resourceIds.ToArray());
-            await ins.ExecuteNonQueryAsync();
+            await ins.ExecuteNonQueryAsync(ct);
         }
 
         await tx.CommitAsync();

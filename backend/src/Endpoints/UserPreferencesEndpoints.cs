@@ -17,7 +17,7 @@ public static class UserPreferencesEndpoints
             .RequireAuthorization()
             .WithTags("User Preferences");
 
-        prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
@@ -29,7 +29,7 @@ public static class UserPreferencesEndpoints
         .WithName("GetUserPreferences")
         .WithSummary("Get current user preferences");
 
-        prefs.MapPut("/", async (ICurrentPrincipal currentPrincipal, JsonDocument body, IUserPreferencesRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        prefs.MapPut("/", async (ICurrentPrincipal currentPrincipal, JsonDocument body, IUserPreferencesRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {

@@ -10,10 +10,10 @@ public class JobTitleRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     private const string SelectColumns =
         "id, name, description, is_active, created_at, updated_at";
 
-    public async Task<List<JobTitleInfo>> GetAllAsync(bool includeInactive = false)
+    public async Task<List<JobTitleInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var sql = includeInactive
             ? $"SELECT {SelectColumns} FROM job_titles ORDER BY name"
@@ -21,28 +21,28 @@ public class JobTitleRepository(OrgContext orgContext, IOrgDbConnectionFactory c
 
         await using var cmd = new NpgsqlCommand(sql, db);
         var rows = new List<JobTitleInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync()) rows.Add(Map(reader));
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) rows.Add(Map(reader));
         return rows;
     }
 
-    public async Task<JobTitleInfo?> GetByIdAsync(Guid id)
+    public async Task<JobTitleInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM job_titles WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
-    public async Task<JobTitleInfo> CreateAsync(CreateJobTitleRequest request)
+    public async Task<JobTitleInfo> CreateAsync(CreateJobTitleRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // INSERT … ON CONFLICT DO NOTHING — single round-trip; catches the
         // unique(name) violation as a "no row returned" outcome rather than an
@@ -55,16 +55,16 @@ public class JobTitleRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         cmd.Parameters.AddWithValue("name", request.Name);
         cmd.Parameters.AddWithValue("description", NullableParam(request.Description));
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
             throw new InvalidOperationException("A job title with this name already exists");
         return Map(reader);
     }
 
-    public async Task<JobTitleInfo?> UpdateAsync(Guid id, UpdateJobTitleRequest request)
+    public async Task<JobTitleInfo?> UpdateAsync(Guid id, UpdateJobTitleRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var sets = new List<string>();
         await using var cmd = new NpgsqlCommand { Connection = db };
@@ -91,18 +91,18 @@ public class JobTitleRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         cmd.CommandText =
             $"UPDATE job_titles SET {string.Join(", ", sets)} WHERE id = @id RETURNING {SelectColumns}";
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand("DELETE FROM job_titles WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     private static object NullableParam(object? value) => value ?? DBNull.Value;

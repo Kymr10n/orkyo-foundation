@@ -1,4 +1,4 @@
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import { useRequests } from "@foundation/src/hooks/useUtilization";
 import { AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
@@ -65,8 +65,10 @@ const ConflictItem = React.memo(function ConflictItem({
 });
 
 export function ConflictsPage() {
-  const conflicts = useAppStore((state) => state.conflicts);
+  const { conflicts } = useConflicts();
+  // useRequests is deduped by React Query (same key as inside useConflicts)
   const { data: requests = [] } = useRequests();
+
   const searchParams = useMemo(
     () =>
       new URLSearchParams(

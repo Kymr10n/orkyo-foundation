@@ -2,31 +2,80 @@ using Api.Models;
 
 namespace Api.Repositories;
 
+/// <summary>
+/// Persistence layer for requests — the scheduling units of the system.
+/// Requests form a tree (via parent/child relationships) and carry requirements
+/// that are matched against resource capabilities during auto-scheduling.
+/// </summary>
 public interface IRequestRepository
 {
-    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false);
-    Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false);
-    Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true);
-    Task<RequestInfo> CreateAsync(CreateRequestRequest request);
-    Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request);
-    Task<bool> DeleteAsync(Guid id);
-    Task<bool> ExistsAsync(Guid id);
+    /// <summary>Returns all requests. Pass <c>includeRequirements: true</c> to populate the requirements list.</summary>
+    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default);
 
-    // Scheduling operations
-    Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId);
-    Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request);
-    Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates);
+    /// <summary>Returns a page of requests.</summary>
+    Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
 
-    // Requirements operations
-    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement);
-    Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId);
+    /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
+    Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
 
-    // Tree operations
-    Task<List<RequestInfo>> GetChildrenAsync(Guid parentId);
-    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder);
-    Task<int> GetDescendantCountAsync(Guid id);
-    Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId);
-    Task<PlanningMode?> GetPlanningModeAsync(Guid id);
-    Task<bool> HasChildrenAsync(Guid id);
-    Task<int> DeleteSubtreeAsync(Guid id);
+    /// <summary>Creates a new request.</summary>
+    Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
+
+    /// <summary>Updates an existing request. Returns <c>null</c> if not found.</summary>
+    Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default);
+
+    /// <summary>Deletes a request. Returns <c>false</c> if not found.</summary>
+    Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Returns <c>true</c> if a request with the given ID exists.</summary>
+    Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
+
+    // ── Scheduling ───────────────────────────────────────────────────────────
+
+    /// <summary>Returns all scheduled (assigned to a space) requests for the given site.</summary>
+    Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default);
+
+    /// <summary>Updates the schedule (space, start, end) of a request. Returns <c>null</c> if not found.</summary>
+    Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);
+
+    /// <summary>Applies schedule updates to a batch of requests in a single transaction.</summary>
+    Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates, CancellationToken ct = default);
+
+    // ── Requirements ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Adds a requirement to a request. Throws <see cref="Helpers.NotFoundException"/> if the request
+    /// or criterion does not exist, <see cref="ArgumentException"/> if the criterion is not applicable
+    /// to requests.
+    /// </summary>
+    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default);
+
+    /// <summary>Removes a requirement. Returns <c>false</c> if not found.</summary>
+    Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default);
+
+    // ── Tree ────────────────────────────────────────────────────────────────
+
+    /// <summary>Returns direct children of the given parent request.</summary>
+    Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Moves a request to a new parent (or to root when <paramref name="newParentId"/> is <c>null</c>).
+    /// Returns <c>null</c> if the request was not found.
+    /// </summary>
+    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default);
+
+    /// <summary>Returns the total count of all descendants (children, grandchildren, etc.).</summary>
+    Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Returns <c>true</c> if reparenting <paramref name="requestId"/> to <paramref name="newParentId"/> would create a cycle.</summary>
+    Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId, CancellationToken ct = default);
+
+    /// <summary>Returns the planning mode of the request, or <c>null</c> if not found.</summary>
+    Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Returns <c>true</c> if the request has at least one direct child.</summary>
+    Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Deletes the request and all its descendants in a single transaction. Returns the number of deleted rows.</summary>
+    Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default);
 }

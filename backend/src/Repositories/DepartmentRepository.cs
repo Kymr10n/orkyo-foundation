@@ -11,10 +11,10 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
     private const string SelectColumns =
         "id, parent_department_id, name, code, description, is_active, created_at, updated_at";
 
-    public async Task<List<DepartmentInfo>> GetAllAsync(bool includeInactive = false)
+    public async Task<List<DepartmentInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var sql = includeInactive
             ? $"SELECT {SelectColumns} FROM departments ORDER BY name"
@@ -22,12 +22,12 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
 
         await using var cmd = new NpgsqlCommand(sql, db);
         var rows = new List<DepartmentInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync()) rows.Add(Map(reader));
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) rows.Add(Map(reader));
         return rows;
     }
 
-    public async Task<List<DepartmentTreeNode>> GetTreeAsync(bool includeInactive = false)
+    public async Task<List<DepartmentTreeNode>> GetTreeAsync(bool includeInactive = false, CancellationToken ct = default)
     {
         // Single-query fetch + in-memory tree assembly. Cheaper than recursive
         // CTE round-trips when the whole tree fits in memory (always, for org
@@ -45,23 +45,23 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         return roots;
     }
 
-    public async Task<DepartmentInfo?> GetByIdAsync(Guid id)
+    public async Task<DepartmentInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM departments WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
-    public async Task<DepartmentInfo> CreateAsync(CreateDepartmentRequest request)
+    public async Task<DepartmentInfo> CreateAsync(CreateDepartmentRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $@"INSERT INTO departments (parent_department_id, name, code, description)
@@ -74,8 +74,8 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
 
         try
         {
-            await using var reader = await cmd.ExecuteReaderAsync();
-            await reader.ReadAsync();
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
             return Map(reader);
         }
         catch (PostgresException ex) when (ex.SqlState == "23505")
@@ -90,10 +90,10 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         }
     }
 
-    public async Task<DepartmentInfo?> UpdateAsync(Guid id, UpdateDepartmentRequest request)
+    public async Task<DepartmentInfo?> UpdateAsync(Guid id, UpdateDepartmentRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // If the caller wants to reparent, validate first. Self-parent is rejected
         // by the CHECK constraint at the DB layer; circular hierarchies require an
@@ -143,8 +143,8 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
 
         try
         {
-            await using var reader = await cmd.ExecuteReaderAsync();
-            return await reader.ReadAsync() ? Map(reader) : null;
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            return await reader.ReadAsync(ct) ? Map(reader) : null;
         }
         catch (PostgresException ex) when (ex.SqlState == "23505")
         {
@@ -156,16 +156,16 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         }
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         try
         {
             await using var cmd = new NpgsqlCommand("DELETE FROM departments WHERE id = @id", db);
             cmd.Parameters.AddWithValue("id", id);
-            return await cmd.ExecuteNonQueryAsync() > 0;
+            return await cmd.ExecuteNonQueryAsync(ct) > 0;
         }
         catch (PostgresException ex) when (ex.SqlState == "23503")
         {
@@ -179,7 +179,7 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
     /// node anywhere in that chain, reparenting would create a cycle. Mirrors the
     /// pattern in <see cref="RequestRepository.WouldCreateCycleAsync"/>.
     /// </summary>
-    private static async Task<bool> WouldCreateCycleAsync(Guid id, Guid proposedParentId, NpgsqlConnection db)
+    private static async Task<bool> WouldCreateCycleAsync(Guid id, Guid proposedParentId, NpgsqlConnection db, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(
             @"WITH RECURSIVE ancestors AS (
@@ -192,7 +192,7 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
               SELECT EXISTS(SELECT 1 FROM ancestors WHERE parent_department_id = @id)", db);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("new_parent_id", proposedParentId);
-        return (bool)(await cmd.ExecuteScalarAsync())!;
+        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
     private static object NullableParam(object? value) => value ?? DBNull.Value;

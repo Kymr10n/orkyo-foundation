@@ -25,10 +25,10 @@ public class SpaceRepository : ISpaceRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<List<SpaceInfo>> GetAllAsync(Guid siteId)
+    public async Task<List<SpaceInfo>> GetAllAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId ORDER BY s.code, r.name LIMIT 1000",
@@ -37,8 +37,8 @@ public class SpaceRepository : ISpaceRepository
 
         var spacesList = new List<SpaceInfo>();
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             spacesList.Add(SpaceMapper.MapFromReader(reader));
         }
@@ -46,10 +46,10 @@ public class SpaceRepository : ISpaceRepository
         return spacesList;
     }
 
-    public async Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page)
+    public async Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         return await DbQueryHelper.ExecutePagedQueryAsync(
             conn,
@@ -60,10 +60,10 @@ public class SpaceRepository : ISpaceRepository
             mapper: SpaceMapper.MapFromReader);
     }
 
-    public async Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId)
+    public async Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId AND s.id = @resourceId",
@@ -71,8 +71,8 @@ public class SpaceRepository : ISpaceRepository
         cmd.Parameters.AddWithValue("siteId", siteId);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
         {
             return null;
         }
@@ -80,20 +80,20 @@ public class SpaceRepository : ISpaceRepository
         return SpaceMapper.MapFromReader(reader);
     }
 
-    public async Task<int> GetEstimatedCountAsync()
+    public async Task<int> GetEstimatedCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'spaces'", conn);
-        return (int)(long)(await cmd.ExecuteScalarAsync() ?? 0L);
+        return (int)(long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
     }
 
-    public async Task<SpaceInfo> CreateAsync(Guid resourceId, Guid siteId, string? code, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1)
+    public async Task<SpaceInfo> CreateAsync(Guid resourceId, Guid siteId, string? code, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Check if code already exists for this site
         if (!string.IsNullOrWhiteSpace(code))
@@ -104,7 +104,7 @@ public class SpaceRepository : ISpaceRepository
             checkCmd.Parameters.AddWithValue("siteId", siteId);
             checkCmd.Parameters.AddWithValue("code", code);
 
-            var count = (long)(await checkCmd.ExecuteScalarAsync() ?? 0L);
+            var count = (long)(await checkCmd.ExecuteScalarAsync(ct) ?? 0L);
             if (count > 0)
             {
                 throw new ConflictException($"Space code '{code}' already exists for this site");
@@ -132,7 +132,7 @@ public class SpaceRepository : ISpaceRepository
         cmd.Parameters.AddWithValue("properties", propertiesJson);
         cmd.Parameters.AddWithValue("capacity", capacity);
 
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
 
         // Fetch the created space via JOIN to get name/description from resources.
         await using var sel = new NpgsqlCommand(
@@ -140,16 +140,16 @@ public class SpaceRepository : ISpaceRepository
             conn);
         sel.Parameters.AddWithValue("resourceId", resourceId);
         sel.Parameters.AddWithValue("siteId", siteId);
-        await using var reader = await sel.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await sel.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
             throw new InvalidOperationException("Failed to create space");
         return SpaceMapper.MapFromReader(reader);
     }
 
-    public async Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? code, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null)
+    public async Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? code, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Check if space exists
         await using var checkCmd = new NpgsqlCommand(
@@ -158,7 +158,7 @@ public class SpaceRepository : ISpaceRepository
         checkCmd.Parameters.AddWithValue("siteId", siteId);
         checkCmd.Parameters.AddWithValue("resourceId", resourceId);
 
-        var exists = ((long)(await checkCmd.ExecuteScalarAsync() ?? 0L)) > 0;
+        var exists = ((long)(await checkCmd.ExecuteScalarAsync(ct) ?? 0L)) > 0;
         if (!exists)
         {
             return null;
@@ -218,14 +218,14 @@ public class SpaceRepository : ISpaceRepository
             cmd.Parameters.AddWithValue(paramName, value ?? DBNull.Value);
         }
 
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
         return await GetByIdAsync(siteId, resourceId);
     }
 
-    public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId)
+    public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM spaces WHERE site_id = @siteId AND id = @resourceId",
@@ -233,7 +233,7 @@ public class SpaceRepository : ISpaceRepository
         cmd.Parameters.AddWithValue("siteId", siteId);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 }

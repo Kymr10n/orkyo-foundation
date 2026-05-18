@@ -18,7 +18,7 @@ public interface IStarterTemplateService
     /// <param name="dbIdentifier">Tenant database name (e.g. "tenant_acme").</param>
     /// <param name="userId">Owning user ID (used for audit trail).</param>
     /// <param name="templateKey">One of: "demo", "camping-site", "construction-site", "manufacturing".</param>
-    Task ApplyStarterTemplateAsync(Guid tenantId, string dbIdentifier, Guid userId, string templateKey);
+    Task ApplyStarterTemplateAsync(Guid tenantId, string dbIdentifier, Guid userId, string templateKey, CancellationToken ct = default);
 
     /// <summary>
     /// Returns metadata for all available starter templates.
@@ -47,7 +47,7 @@ public class StarterTemplateService : IStarterTemplateService
     public IReadOnlyList<StarterTemplateInfo> GetAvailableTemplates() => StarterTemplateCatalog.All;
 
     public async Task ApplyStarterTemplateAsync(
-        Guid tenantId, string dbIdentifier, Guid userId, string templateKey)
+        Guid tenantId, string dbIdentifier, Guid userId, string templateKey, CancellationToken ct = default)
     {
         _logger.LogInformation(
             "Applying starter template {Template} to tenant {TenantId} (db={Db})",
@@ -71,7 +71,7 @@ public class StarterTemplateService : IStarterTemplateService
 
     // -- Preset application (reuses PresetApplier) --------------------
 
-    private async Task ApplyPresetTemplateAsync(string dbIdentifier, string templateKey)
+    private async Task ApplyPresetTemplateAsync(string dbIdentifier, string templateKey, CancellationToken ct = default)
     {
         var preset = PresetTemplateLoader.LoadPreset(
             templateKey,
@@ -79,7 +79,7 @@ public class StarterTemplateService : IStarterTemplateService
             Assembly.GetExecutingAssembly());
 
         await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync();
 
         try
@@ -97,13 +97,13 @@ public class StarterTemplateService : IStarterTemplateService
 
     // -- Demo template ------------------------------------------------
 
-    private async Task ApplyDemoTemplateAsync(Guid tenantId, string dbIdentifier)
+    private async Task ApplyDemoTemplateAsync(Guid tenantId, string dbIdentifier, CancellationToken ct = default)
     {
         var site1Id = Guid.NewGuid();
         var site2Id = Guid.NewGuid();
 
         await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync();
 
         try
@@ -112,7 +112,7 @@ public class StarterTemplateService : IStarterTemplateService
             await using var cmd = new NpgsqlCommand(sql, conn, tx);
             cmd.Parameters.AddWithValue("site1Id", site1Id);
             cmd.Parameters.AddWithValue("site2Id", site2Id);
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(ct);
 
             await tx.CommitAsync();
             _logger.LogInformation("Applied demo seed data to tenant {TenantId}", tenantId);
@@ -129,7 +129,7 @@ public class StarterTemplateService : IStarterTemplateService
 
     // -- Floorplan ----------------------------------------------------
 
-    private async Task CopyDemoFloorplanAsync(string dbIdentifier, Guid tenantId, Guid siteId)
+    private async Task CopyDemoFloorplanAsync(string dbIdentifier, Guid tenantId, Guid siteId, CancellationToken ct = default)
     {
         try
         {
@@ -160,16 +160,23 @@ public class StarterTemplateService : IStarterTemplateService
 
             // Update site record with floorplan metadata
             await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
-            await conn.OpenAsync();
-            await using var cmd = SiteFloorplanCommandFactory.CreateUpdateFloorplanCommand(
-                conn,
-                siteId: siteId,
-                imagePath: relativePath,
-                mimeType: "image/png",
-                fileSizeBytes: ms.Length,
-                widthPx: width,
-                heightPx: height);
-            await cmd.ExecuteNonQueryAsync();
+            await conn.OpenAsync(ct);
+            await using var cmd = new Npgsql.NpgsqlCommand(@"
+                UPDATE sites SET
+                    floorplan_image_path = @path,
+                    floorplan_mime_type = @mime,
+                    floorplan_file_size_bytes = @size,
+                    floorplan_width_px = @w,
+                    floorplan_height_px = @h,
+                    floorplan_uploaded_at = NOW()
+                WHERE id = @siteId", conn);
+            cmd.Parameters.AddWithValue("path", relativePath);
+            cmd.Parameters.AddWithValue("mime", "image/png");
+            cmd.Parameters.AddWithValue("size", ms.Length);
+            cmd.Parameters.AddWithValue("w", width);
+            cmd.Parameters.AddWithValue("h", height);
+            cmd.Parameters.AddWithValue("siteId", siteId);
+            await cmd.ExecuteNonQueryAsync(ct);
 
             _logger.LogInformation("Installed demo floorplan for site {SiteId}", siteId);
         }

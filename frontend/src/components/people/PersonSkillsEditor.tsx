@@ -24,9 +24,10 @@ import {
   upsertResourceCapability,
 } from '@foundation/src/lib/api/resource-capabilities-api';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
-import type { Criterion, CriterionValue } from '@foundation/src/types/criterion';
+import type { CriterionValue } from '@foundation/src/types/criterion';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CriterionRequirementInput } from '../requests/CriterionRequirementInput';
 import { logger } from '@foundation/src/lib/core/logger';
 
@@ -49,40 +50,32 @@ export function PersonSkillsEditor({
   personName,
 }: PersonSkillsEditorProps) {
   const [assignments, setAssignments] = useState(new Map<string, CriterionValue | null>());
-  const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
+  const { data: caps, isLoading: capsLoading, error: capsError } = useQuery({
+    queryKey: ['resource-capabilities', resourceId],
+    queryFn: () => getResourceCapabilities(resourceId),
+    enabled: open,
+  });
+
+  const { data: availableCriteria = [], isLoading: criteriaLoading } = useQuery({
+    queryKey: ['criteria', { resourceType: 'person' }],
+    queryFn: () => getCriteria({ resourceType: 'person' }),
+    enabled: open,
+  });
+
+  const isLoading = capsLoading || criteriaLoading;
+  const error = capsError ? (capsError instanceof Error ? capsError.message : 'Failed to load skills') : null;
+
+  // Sync server capabilities into local editing state when they arrive
   useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-
-    (async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [caps, criteria] = await Promise.all([
-          getResourceCapabilities(resourceId),
-          getCriteria({ resourceType: 'person' }),
-        ]);
-        if (cancelled) return;
-        const map = new Map<string, CriterionValue | null>();
-        for (const cap of caps) map.set(cap.criterionId, cap.value);
-        setAssignments(map);
-        setAvailableCriteria(criteria);
-      } catch (err) {
-        if (cancelled) return;
-        logger.error('Failed to load person skills:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load skills');
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [open, resourceId]);
+    if (!caps) return;
+    const map = new Map<string, CriterionValue | null>();
+    for (const cap of caps) map.set(cap.criterionId, cap.value);
+    setAssignments(map);
+  }, [caps]);
 
   const handleAdd = () => {
     if (!selectedCriterionId) return;
@@ -108,7 +101,7 @@ export function PersonSkillsEditor({
 
   const handleSave = async () => {
     setIsSubmitting(true);
-    setError(null);
+    setSaveError(null);
     try {
       const existing = await getResourceCapabilities(resourceId);
       const existingByCriterion = new Map(existing.map((c) => [c.criterionId, c.id]));
@@ -131,7 +124,7 @@ export function PersonSkillsEditor({
       onOpenChange(false);
     } catch (err) {
       logger.error('Failed to save person skills:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save skills');
+      setSaveError(err instanceof Error ? err.message : 'Failed to save skills');
     } finally {
       setIsSubmitting(false);
     }
@@ -235,9 +228,9 @@ export function PersonSkillsEditor({
               )}
             </div>
 
-            {error && (
+            {(error || saveError) && (
               <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                {error}
+                {error ?? saveError}
               </div>
             )}
           </div>

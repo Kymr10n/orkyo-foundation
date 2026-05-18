@@ -8,11 +8,11 @@ namespace Api.Repositories;
 
 public interface IResourceRepository
 {
-    Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter);
-    Task<ResourceInfo?> GetByIdAsync(Guid id);
-    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null);
-    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request);
-    Task<bool> DeactivateAsync(Guid id);
+    Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
+    Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null, CancellationToken ct = default);
+    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
+    Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
 }
 
 public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -23,10 +23,10 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
         "r.is_active, r.created_at, r.updated_at";
 
-    public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter)
+    public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var where = new List<string>();
         var cmd = new NpgsqlCommand();
@@ -55,16 +55,16 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             $"{whereClause} ORDER BY r.name LIMIT 1000";
 
         var result = new List<ResourceInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             result.Add(Map(reader));
         return result;
     }
 
-    public async Task<ResourceInfo?> GetByIdAsync(Guid id)
+    public async Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM resources r " +
@@ -72,16 +72,16 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             "WHERE r.id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
     public async Task<ResourceInfo> CreateAsync(
         Guid resourceTypeId, string typeKey, string name, string? description,
-        string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null)
+        string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var insertedId = id ?? Guid.NewGuid();
         await using var cmd = new NpgsqlCommand(@"
@@ -101,8 +101,8 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         cmd.Parameters.AddWithValue("allocationMode", allocationMode);
         cmd.Parameters.AddWithValue("baseAvailabilityPercent", baseAvailabilityPercent);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
         var newId = reader.GetGuid(reader.GetOrdinal("id"));
         var createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
         var updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
@@ -123,10 +123,10 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         };
     }
 
-    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request)
+    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var sets = new List<string> { "updated_at = NOW()" };
         var cmd = new NpgsqlCommand();
@@ -166,20 +166,20 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
 
         cmd.CommandText =
             $"UPDATE resources SET {string.Join(", ", sets)} WHERE id = @id";
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
 
         return await GetByIdAsync(id);
     }
 
-    public async Task<bool> DeactivateAsync(Guid id)
+    public async Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "UPDATE resources SET is_active = false, updated_at = NOW() WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     private static ResourceInfo Map(NpgsqlDataReader r) => new()

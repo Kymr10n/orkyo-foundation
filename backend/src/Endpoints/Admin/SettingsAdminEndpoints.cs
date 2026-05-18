@@ -33,9 +33,10 @@ public static class SettingsAdminEndpoints
         ISiteSettingsService siteSettingsService,
         DeploymentConfig deploymentConfig,
         IDbConnectionFactory connectionFactory,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
-        var runtime = await siteSettingsService.GetRuntimeConfigAsync();
+        var runtime = await siteSettingsService.GetRuntimeConfigAsync(ct);
 
         // Build redacted deployment info
         var deployment = deploymentConfig.Redacted();
@@ -92,7 +93,8 @@ public static class SettingsAdminEndpoints
         ISiteSettingsService siteSettingsService,
         IAdminAuditService auditService,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         if (request.Settings == null || request.Settings.Count == 0)
             return Results.BadRequest(new { error = "No settings provided" });
@@ -118,7 +120,7 @@ public static class SettingsAdminEndpoints
 
         try
         {
-            var updated = await siteSettingsService.UpdateRuntimeConfigAsync(dbUpdates, principal.UserId);
+            var updated = await siteSettingsService.UpdateRuntimeConfigAsync(dbUpdates, principal.UserId, ct);
 
             // Audit each changed setting
             foreach (var (key, value) in dbUpdates)
@@ -128,7 +130,7 @@ public static class SettingsAdminEndpoints
                     "settings.updated",
                     "site_setting",
                     key,
-                    new { key, newValue = value });
+                    new { key, newValue = value }, ct);
             }
 
             return Results.Ok(new

@@ -16,16 +16,16 @@ public static class SiteEndpoints
     {
         var sites = app.MapGroup("/api/sites").RequireAuthorization().RequireTenantMembership();
 
-        sites.MapGet("/", async (ISiteService siteService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize) =>
+        sites.MapGet("/", async (ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (page.HasValue || pageSize.HasValue)
                 {
-                    var paged = await siteService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize });
+                    var paged = await siteService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
                     return Results.Ok(paged);
                 }
-                var sitesList = await siteService.GetAllAsync();
+                var sitesList = await siteService.GetAllAsync(ct);
                 return Results.Ok(sitesList);
             }, logger, "list sites");
         })
@@ -33,11 +33,11 @@ public static class SiteEndpoints
         .WithDescription("Retrieves all sites for the current tenant. Supports ?page=1&pageSize=50 for pagination.")
         .Produces<PagedResult<SiteInfo>>(StatusCodes.Status200OK);
 
-        sites.MapGet("/{siteId:guid}", async (Guid siteId, ISiteService siteService, ILogger<EndpointLoggerCategory> logger) =>
+        sites.MapGet("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var site = await siteService.GetByIdAsync(siteId);
+                var site = await siteService.GetByIdAsync(siteId, ct);
                 return site == null ? ErrorResponses.NotFound("Site", siteId) : Results.Ok(site);
             }, logger, "get site", new { siteId });
         })
@@ -46,11 +46,11 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
-        sites.MapPost("/", async (CreateSiteRequest request, ISiteService siteService, ILogger<EndpointLoggerCategory> logger, IValidator<CreateSiteRequest> validator) =>
+        sites.MapPost("/", async (CreateSiteRequest request, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<CreateSiteRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var site = await siteService.CreateAsync(request.Code, request.Name, request.Description, request.Address);
+                var site = await siteService.CreateAsync(request.Code, request.Name, request.Description, request.Address, ct);
                 return Results.Created($"/sites/{site.Id}", site);
             }, logger, "create site", new { code = request.Code });
         })
@@ -60,11 +60,11 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status201Created)
         .Produces(StatusCodes.Status400BadRequest);
 
-        sites.MapPut("/{siteId:guid}", async (Guid siteId, UpdateSiteRequest request, ISiteService siteService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSiteRequest> validator) =>
+        sites.MapPut("/{siteId:guid}", async (Guid siteId, UpdateSiteRequest request, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSiteRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var site = await siteService.UpdateAsync(siteId, request.Code, request.Name, request.Description, request.Address);
+                var site = await siteService.UpdateAsync(siteId, request.Code, request.Name, request.Description, request.Address, ct);
                 return site == null ? ErrorResponses.NotFound("Site", siteId) : Results.Ok(site);
             }, logger, "update site", new { siteId });
         })
@@ -74,11 +74,11 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
-        sites.MapDelete("/{siteId:guid}", async (Guid siteId, ISiteService siteService, ILogger<EndpointLoggerCategory> logger) =>
+        sites.MapDelete("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await siteService.DeleteAsync(siteId);
+                var deleted = await siteService.DeleteAsync(siteId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Site", siteId);
             }, logger, "delete site", new { siteId });
         })

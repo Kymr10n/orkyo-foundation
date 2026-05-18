@@ -33,17 +33,17 @@ public class PresetService : IPresetService
         _logger = logger;
     }
 
-    public async Task<PresetValidationResult> ValidateAsync(Preset preset)
+    public async Task<PresetValidationResult> ValidateAsync(Preset preset, CancellationToken ct = default)
         => await Task.FromResult(PresetValidator.Validate(preset));
 
-    public async Task<PresetApplicationResult> ApplyAsync(Preset preset, Guid userId)
+    public async Task<PresetApplicationResult> ApplyAsync(Preset preset, Guid userId, CancellationToken ct = default)
     {
         var validation = await ValidateAsync(preset);
         if (!validation.IsValid)
             return new PresetApplicationResult { Success = false, Error = string.Join("; ", validation.Errors) };
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
         await using var transaction = await conn.BeginTransactionAsync();
 
         try
@@ -69,7 +69,7 @@ public class PresetService : IPresetService
         }
     }
 
-    public async Task<Preset> ExportAsync(string presetId, string name, string? description = null)
+    public async Task<Preset> ExportAsync(string presetId, string name, string? description = null, CancellationToken ct = default)
     {
         var criteria = await _criteriaRepo.GetAllAsync();
         var presetCriteria = criteria.Select(c => new PresetCriterion
@@ -118,10 +118,10 @@ public class PresetService : IPresetService
         };
     }
 
-    public async Task<List<PresetApplication>> GetApplicationsAsync()
+    public async Task<List<PresetApplication>> GetApplicationsAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         var applications = new List<PresetApplication>();
         await using var cmd = new NpgsqlCommand(@"
@@ -129,8 +129,8 @@ public class PresetService : IPresetService
             FROM preset_applications
             ORDER BY applied_at DESC", conn);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             applications.Add(new PresetApplication
             {

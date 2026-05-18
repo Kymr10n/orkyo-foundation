@@ -10,6 +10,14 @@ using Orkyo.Shared;
 
 namespace Api.Endpoints;
 
+
+/// <summary>Minimal user projection for the account lifecycle confirm-activity flow.</summary>
+public sealed record AccountLifecycleConfirmRecord(
+    Guid UserId,
+    string? KeycloakId,
+    string DisplayName,
+    bool WasDormant);
+
 public static class AccountLifecycleEndpoints
 {
     public static void MapAccountLifecycleEndpoints(this WebApplication app)
@@ -22,7 +30,7 @@ public static class AccountLifecycleEndpoints
             IDbConnectionFactory dbFactory,
             IKeycloakAdminService keycloakAdmin,
             IConfiguration configuration,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var appBaseUrl = configuration.GetRequired(ConfigKeys.AppBaseUrl);
 
@@ -39,10 +47,23 @@ public static class AccountLifecycleEndpoints
 
                 // Find the user by confirm token
                 AccountLifecycleConfirmRecord? record;
-                await using (var findCmd = AccountLifecycleCommandFactory.CreateSelectUserByConfirmTokenCommand(db, token))
-                await using (var reader = await findCmd.ExecuteReaderAsync())
+                await using (var findCmd = new Npgsql.NpgsqlCommand(@"
+                    SELECT id, keycloak_id, display_name, lifecycle_status
+                    FROM users
+                    WHERE lifecycle_confirm_token = @token
+                      AND lifecycle_status IS NOT NULL", db))
                 {
-                    record = await AccountLifecycleReaderFlow.ReadConfirmRecordAsync(reader);
+                    findCmd.Parameters.AddWithValue("token", token);
+                    await using var reader = await findCmd.ExecuteReaderAsync();
+                    if (!await reader.ReadAsync()) { record = null; }
+                    else
+                    {
+                        var userId = reader.GetGuid(0);
+                        var keycloakId = reader.IsDBNull(1) ? null : reader.GetString(1);
+                        var displayName = reader.GetString(2);
+                        var wasDormant = !reader.IsDBNull(3) && string.Equals(reader.GetString(3), "dormant", StringComparison.Ordinal);
+                        record = new AccountLifecycleConfirmRecord(userId, keycloakId, displayName, wasDormant);
+                    }
                 }
 
                 if (record is null)
@@ -66,10 +87,17 @@ public static class AccountLifecycleEndpoints
                 }
 
                 // Clear lifecycle state
-                await using (var clearCmd = AccountLifecycleCommandFactory.CreateClearLifecycleStateCommand(db, record.UserId))
-                {
-                    await clearCmd.ExecuteNonQueryAsync();
-                }
+                await using var clearCmd = new Npgsql.NpgsqlCommand(@"
+                    UPDATE users
+                    SET lifecycle_status = NULL,
+                        lifecycle_warning_count = 0,
+                        lifecycle_last_warned_at = NULL,
+                        lifecycle_dormant_since = NULL,
+                        lifecycle_confirm_token = NULL,
+                        updated_at = NOW()
+                    WHERE id = @id", db);
+                clearCmd.Parameters.AddWithValue("id", record.UserId);
+                await clearCmd.ExecuteNonQueryAsync();
 
                 logger.LogInformation(
                     "User {UserId} ({DisplayName}) confirmed activity — lifecycle state cleared (wasDormant={WasDormant})",

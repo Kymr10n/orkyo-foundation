@@ -22,7 +22,7 @@ public static class JobTitleEndpoints
         group.MapGet("/", async (
             bool? includeInactive,
             IJobTitleRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await repo.GetAllAsync(includeInactive ?? false)),
                 logger, "list job titles"))
@@ -32,7 +32,7 @@ public static class JobTitleEndpoints
         group.MapGet("/{id:guid}", async (
             Guid id,
             IJobTitleRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var jt = await repo.GetByIdAsync(id);
@@ -44,7 +44,7 @@ public static class JobTitleEndpoints
             [FromBody] CreateJobTitleRequest request,
             IJobTitleRepository repo,
             IValidator<CreateJobTitleRequest> validator,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var jt = await repo.CreateAsync(request);
@@ -58,7 +58,7 @@ public static class JobTitleEndpoints
             [FromBody] UpdateJobTitleRequest request,
             IJobTitleRepository repo,
             IValidator<UpdateJobTitleRequest> validator,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var jt = await repo.UpdateAsync(id, request);
@@ -70,7 +70,7 @@ public static class JobTitleEndpoints
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IJobTitleRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var deleted = await repo.DeleteAsync(id);

@@ -8,15 +8,15 @@ namespace Api.Services;
 
 public interface IEmailService
 {
-    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody);
-    Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken);
-    Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken);
-    Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName);
-    Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt);
-    Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber);
-    Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName);
-    Task SendNewUserAlertAsync(string userEmail, string displayName);
-    Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail);
+    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default);
+    Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken, CancellationToken ct = default);
+    Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken, CancellationToken ct = default);
+    Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
+    Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default);
+    Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default);
+    Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
+    Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default);
+    Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail, CancellationToken ct = default);
 }
 
 public class EmailService : IEmailService
@@ -49,7 +49,7 @@ public class EmailService : IEmailService
         }
     }
 
-    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody)
+    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default)
     {
         try
         {
@@ -112,28 +112,28 @@ public class EmailService : IEmailService
         EmailTokenLinkBuilder.Build(
             _configuration.GetRequired(ConfigKeys.AppBaseUrl), path, queryParam, token);
 
-    public async Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken)
+    public async Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken, CancellationToken ct = default)
     {
         var verificationLink = BuildTokenLink("verify-email", "token", verificationToken);
         var (subject, htmlBody, textBody) = EmailTemplates.GetVerificationEmail(displayName, verificationLink, await GetBrandingAsync());
         return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
     }
 
-    public async Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken)
+    public async Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken, CancellationToken ct = default)
     {
         var resetLink = BuildTokenLink("reset-password", "token", resetToken);
         var (subject, htmlBody, textBody) = EmailTemplates.GetPasswordResetEmail(displayName, resetLink, await GetBrandingAsync());
         return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
     }
 
-    public async Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName)
+    public async Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
     {
         var (subject, htmlBody, textBody) = EmailTemplates.GetWelcomeEmail(displayName, await GetBrandingAsync());
 
         return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
     }
 
-    public async Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt)
+    public async Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default)
     {
         var signupLink = BuildTokenLink("signup", "invitation", token);
         var (subject, htmlBody, textBody) = EmailTemplates.GetInvitationEmail(signupLink, expiresAt, await GetBrandingAsync());
@@ -141,7 +141,7 @@ public class EmailService : IEmailService
     }
 
     public async Task<bool> SendLifecycleWarningEmailAsync(
-        string toEmail, string displayName, string confirmToken, int warningNumber)
+        string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default)
     {
         var confirmLink = BuildTokenLink("api/account/confirm-activity", "token", confirmToken);
         var (subject, htmlBody, textBody) = EmailTemplates.GetLifecycleWarningEmail(
@@ -149,18 +149,18 @@ public class EmailService : IEmailService
         return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
     }
 
-    public async Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName)
+    public async Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
     {
         var (subject, htmlBody, textBody) = EmailTemplates.GetDormancyNoticeEmail(displayName, await GetBrandingAsync());
         return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
     }
 
-    public Task SendNewUserAlertAsync(string userEmail, string displayName) =>
+    public Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default) =>
         SendAdminAlertAsync(
             EmailTemplates.GetNewUserAlertEmail(userEmail, displayName, EmailBranding.Default),
             logContext: userEmail);
 
-    public Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail) =>
+    public Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail, CancellationToken ct = default) =>
         SendAdminAlertAsync(
             EmailTemplates.GetNewTenantAlertEmail(tenantSlug, tenantDisplayName, ownerEmail, EmailBranding.Default),
             logContext: tenantSlug);

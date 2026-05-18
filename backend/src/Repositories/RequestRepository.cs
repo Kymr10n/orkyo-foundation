@@ -28,19 +28,19 @@ public class RequestRepository : IRequestRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false)
+    public async Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var requests = new List<RequestInfo>();
         var cmd = new NpgsqlCommand(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
             db);
 
-        await using (var reader = await cmd.ExecuteReaderAsync())
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            while (await reader.ReadAsync())
+            while (await reader.ReadAsync(ct))
                 requests.Add(RequestMapper.MapFromReader(reader));
         }
 
@@ -50,10 +50,10 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
-    public async Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false)
+    public async Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var result = await DbQueryHelper.ExecutePagedQueryAsync(
             db,
@@ -73,10 +73,10 @@ public class RequestRepository : IRequestRepository
         return result;
     }
 
-    public async Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId)
+    public async Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand($@"
             SELECT {SelectFromView}
@@ -98,24 +98,24 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
 
         var requests = new List<RequestInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             requests.Add(RequestMapper.MapFromReader(reader));
         return requests;
     }
 
-    public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true)
+    public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = @id",
             db);
         cmd.Parameters.AddWithValue("id", id);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
             return null;
 
         var request = RequestMapper.MapFromReader(reader);
@@ -127,22 +127,22 @@ public class RequestRepository : IRequestRepository
         return request;
     }
 
-    private async Task<RequestInfo> ReadByIdAsync(NpgsqlConnection db, Guid id)
+    private async Task<RequestInfo> ReadByIdAsync(NpgsqlConnection db, Guid id, CancellationToken ct = default)
     {
         var cmd = new NpgsqlCommand(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = @id",
             db);
         cmd.Parameters.AddWithValue("id", id);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
         return RequestMapper.MapFromReader(reader);
     }
 
-    public async Task<RequestInfo> CreateAsync(CreateRequestRequest request)
+    public async Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // Validate resource_id if provided (resource must exist)
         if (request.ResourceId.HasValue
@@ -191,8 +191,8 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("status", EnumMapper.ToDbValue(request.Status));
             cmd.Parameters.AddWithValue("scheduling_settings_apply", request.SchedulingSettingsApply);
 
-            using var reader = await cmd.ExecuteReaderAsync();
-            await reader.ReadAsync();
+            using var reader = await cmd.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
             var requestId = reader.GetGuid(0);
             reader.Close();
 
@@ -260,19 +260,19 @@ public class RequestRepository : IRequestRepository
         ("scheduling_settings_apply", r => r.SchedulingSettingsApply.HasValue, r => r.SchedulingSettingsApply!.Value),
     };
 
-    public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request)
+    public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var fetchCmd = new NpgsqlCommand("SELECT start_ts, end_ts FROM requests WHERE id = @id", db);
         fetchCmd.Parameters.AddWithValue("id", id);
 
         DateTime? currentStartTs;
         DateTime? currentEndTs;
-        await using (var fetchReader = await fetchCmd.ExecuteReaderAsync())
+        await using (var fetchReader = await fetchCmd.ExecuteReaderAsync(ct))
         {
-            if (!await fetchReader.ReadAsync())
+            if (!await fetchReader.ReadAsync(ct))
                 return null;
             currentStartTs = fetchReader.IsDBNull(0) ? null : fetchReader.GetDateTime(0);
             currentEndTs = fetchReader.IsDBNull(1) ? null : fetchReader.GetDateTime(1);
@@ -308,7 +308,7 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("id", id);
             foreach (var (name, value) in parameters)
                 cmd.Parameters.AddWithValue(name, value);
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(ct);
         }
 
         // Update resource assignment if caller is changing the resource.
@@ -325,7 +325,7 @@ public class RequestRepository : IRequestRepository
             await using var deleteCmd = new NpgsqlCommand(
                 "DELETE FROM request_requirements WHERE request_id = @request_id", db, transaction);
             deleteCmd.Parameters.AddWithValue("request_id", id);
-            await deleteCmd.ExecuteNonQueryAsync();
+            await deleteCmd.ExecuteNonQueryAsync(ct);
             if (request.Requirements.Count > 0)
                 await CreateRequirements(id, request.Requirements, db, transaction);
         }
@@ -337,25 +337,25 @@ public class RequestRepository : IRequestRepository
         return updatedRequest with { Requirements = await LoadRequirements(id, db) };
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
         var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(db, "DELETE FROM requests WHERE id = @id", id);
         return rowsAffected > 0;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
         return await DbQueryHelper.ExistsAsync(db, "requests", id);
     }
 
-    public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request)
+    public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         if (!await DbQueryHelper.ExistsAsync(db, "requests", id))
             return null;
@@ -394,7 +394,7 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);
         cmd.Parameters.AddWithValue("actual_duration_unit", (object?)actualDurationUnit ?? DBNull.Value);
 
-        var updatedId = (Guid?)await cmd.ExecuteScalarAsync();
+        var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
         if (!updatedId.HasValue)
         {
             await tx.RollbackAsync();
@@ -415,12 +415,12 @@ public class RequestRepository : IRequestRepository
         return await ReadByIdAsync(db, updatedId.Value);
     }
 
-    public async Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates)
+    public async Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates, CancellationToken ct = default)
     {
         if (updates.Count == 0) return 0;
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync();
 
         await using var batch = new NpgsqlBatch(db, tx);
@@ -451,7 +451,7 @@ public class RequestRepository : IRequestRepository
             batch.BatchCommands.Add(cmd);
         }
 
-        var rowsAffected = await batch.ExecuteNonQueryAsync();
+        var rowsAffected = await batch.ExecuteNonQueryAsync(ct);
 
         // Update resource assignments for each scheduled item.
         foreach (var (id, request) in updates)
@@ -468,10 +468,10 @@ public class RequestRepository : IRequestRepository
         return rowsAffected;
     }
 
-    public async Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement)
+    public async Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         if (!await DbQueryHelper.ExistsAsync(db, "requests", requestId))
             throw new NotFoundException("Request", requestId);
@@ -484,7 +484,7 @@ public class RequestRepository : IRequestRepository
             "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId", db))
         {
             checkCmd.Parameters.AddWithValue("criterionId", requirement.CriterionId);
-            var applicableToRequests = (bool?)await checkCmd.ExecuteScalarAsync();
+            var applicableToRequests = (bool?)await checkCmd.ExecuteScalarAsync(ct);
             if (applicableToRequests == false)
                 throw new InvalidOperationException(
                     $"Criterion {requirement.CriterionId} is not applicable to requests");
@@ -505,28 +505,28 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("operator", requirement.Operator is null ? (object)DBNull.Value : requirement.Operator);
         cmd.Parameters.AddWithValue("allowed_values", requirement.AllowedValues is null ? (object)DBNull.Value : requirement.AllowedValues.Value.GetRawText());
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
         return RequestMapper.MapRequirementFromReader(reader);
     }
 
-    public async Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId)
+    public async Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             "DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id", db);
         cmd.Parameters.AddWithValue("id", requirementId);
         cmd.Parameters.AddWithValue("request_id", requestId);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     // ── Resource assignment helpers ───────────────────────────────────────────
 
     private static async Task WriteResourceAssignmentAsync(
         NpgsqlConnection conn, NpgsqlTransaction? tx,
-        Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc)
+        Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO resource_assignments
@@ -541,11 +541,11 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("startUtc", startUtc);
         cmd.Parameters.AddWithValue("endUtc", endUtc);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task CancelSpaceAssignmentAsync(
-        NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId)
+        NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(@"
             UPDATE resource_assignments ra
@@ -558,12 +558,12 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("requestId", requestId);
         cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     // ── Requirements helpers ──────────────────────────────────────────────────
 
-    private async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection db)
+    private async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection db, CancellationToken ct = default)
     {
         var requirements = new List<RequestRequirementInfo>();
         var cmd = new NpgsqlCommand(@"
@@ -575,13 +575,13 @@ public class RequestRepository : IRequestRepository
             ORDER BY c.name", db);
         cmd.Parameters.AddWithValue("request_id", requestId);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             requirements.Add(RequestMapper.MapRequirementWithCriterionFromReader(reader));
         return requirements;
     }
 
-    private async Task LoadRequirementsForRequests(List<RequestInfo> requests, NpgsqlConnection db)
+    private async Task LoadRequirementsForRequests(List<RequestInfo> requests, NpgsqlConnection db, CancellationToken ct = default)
     {
         var requestIds = requests.Select(r => r.Id).ToArray();
         var requirementsMap = new Dictionary<Guid, List<RequestRequirementInfo>>();
@@ -595,8 +595,8 @@ public class RequestRepository : IRequestRepository
             ORDER BY rr.request_id, c.name", db);
         cmd.Parameters.AddWithValue("request_ids", requestIds);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             var requestId = reader.GetGuid(1);
             if (!requirementsMap.TryGetValue(requestId, out var list))
@@ -622,7 +622,8 @@ public class RequestRepository : IRequestRepository
         Guid requestId,
         List<CreateRequestRequirementRequest> requirements,
         NpgsqlConnection db,
-        NpgsqlTransaction transaction)
+        NpgsqlTransaction transaction,
+        CancellationToken ct = default)
     {
         var valueClauses = new List<string>();
         var cmd = new NpgsqlCommand { Connection = db, Transaction = transaction };
@@ -641,18 +642,18 @@ public class RequestRepository : IRequestRepository
             RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at";
 
         var createdRequirements = new List<RequestRequirementInfo>();
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             createdRequirements.Add(RequestMapper.MapRequirementFromReader(reader));
         return createdRequirements;
     }
 
     // ── Tree hierarchy methods ────────────────────────────────────────────────
 
-    public async Task<List<RequestInfo>> GetChildrenAsync(Guid parentId)
+    public async Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE parent_request_id = @parent_id ORDER BY sort_order, created_at",
@@ -660,16 +661,16 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("parent_id", parentId);
 
         var results = new List<RequestInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             results.Add(RequestMapper.MapFromReader(reader));
         return results;
     }
 
-    public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder)
+    public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             $@"UPDATE requests
@@ -681,7 +682,7 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("parent_id", (object?)newParentId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("sort_order", sortOrder);
 
-        var updatedId = (Guid?)await cmd.ExecuteScalarAsync();
+        var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
         if (!updatedId.HasValue)
             return null;
 
@@ -689,10 +690,10 @@ public class RequestRepository : IRequestRepository
         return await ReadByIdAsync(db, updatedId.Value);
     }
 
-    public async Task<int> GetDescendantCountAsync(Guid id)
+    public async Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             @"WITH RECURSIVE subtree AS (
@@ -703,15 +704,15 @@ public class RequestRepository : IRequestRepository
               SELECT COUNT(*)::int FROM subtree",
             db);
         cmd.Parameters.AddWithValue("id", id);
-        return (int)(await cmd.ExecuteScalarAsync())!;
+        return (int)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
-    public async Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId)
+    public async Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId, CancellationToken ct = default)
     {
         if (requestId == newParentId) return true;
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             @"WITH RECURSIVE ancestors AS (
@@ -724,42 +725,42 @@ public class RequestRepository : IRequestRepository
             db);
         cmd.Parameters.AddWithValue("request_id", requestId);
         cmd.Parameters.AddWithValue("new_parent_id", newParentId);
-        return (bool)(await cmd.ExecuteScalarAsync())!;
+        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
-    public async Task<PlanningMode?> GetPlanningModeAsync(Guid id)
+    public async Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand("SELECT planning_mode FROM requests WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
-        var result = await cmd.ExecuteScalarAsync();
+        var result = await cmd.ExecuteScalarAsync(ct);
         if (result is null or DBNull) return null;
         return EnumMapper.ToPlanningMode((string)result);
     }
 
-    public async Task<bool> HasChildrenAsync(Guid id)
+    public async Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             "SELECT EXISTS(SELECT 1 FROM requests WHERE parent_request_id = @id)", db);
         cmd.Parameters.AddWithValue("id", id);
-        return (bool)(await cmd.ExecuteScalarAsync())!;
+        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
-    public async Task<int> DeleteSubtreeAsync(Guid id)
+    public async Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var count = await GetDescendantCountAsync(id);
         var cmd = new NpgsqlCommand("DELETE FROM requests WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
-        var deleted = await cmd.ExecuteNonQueryAsync();
+        var deleted = await cmd.ExecuteNonQueryAsync(ct);
         return deleted > 0 ? count + 1 : 0;
     }
 }

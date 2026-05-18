@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Api.Services;
 
@@ -12,7 +14,7 @@ public interface ITenantUserService
     /// Creates a minimal user stub in the org database for FK relationships.
     /// The full user record exists in control_plane, but org databases need a stub for references.
     /// </summary>
-    Task CreateUserStubInTenantDatabaseAsync(OrgContext org, Guid userId, string email);
+    Task CreateUserStubInTenantDatabaseAsync(OrgContext org, Guid userId, string email, CancellationToken ct = default);
 
     /// <summary>
     /// Records an audit event in the org's audit log.
@@ -23,7 +25,7 @@ public interface ITenantUserService
         Guid? actorUserId = null,
         string? targetType = null,
         string? targetId = null,
-        object? metadata = null);
+        object? metadata = null, CancellationToken ct = default);
 }
 
 public class TenantUserService : ITenantUserService
@@ -39,22 +41,25 @@ public class TenantUserService : ITenantUserService
         _logger = logger;
     }
 
-    public async Task CreateUserStubInTenantDatabaseAsync(OrgContext org, Guid userId, string email)
+    public async Task CreateUserStubInTenantDatabaseAsync(OrgContext org, Guid userId, string email, CancellationToken ct = default)
     {
         try
         {
             await using var conn = _connectionFactory.CreateOrgConnection(org);
-            await conn.OpenAsync();
+            await conn.OpenAsync(ct);
 
-            await using var cmd = TenantUserStubCommandFactory.CreateInsertUserStubCommand(
-                conn, userId, email.ToLowerInvariant());
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO users (id, email, created_at)
+                VALUES (@id, @email, NOW())
+                ON CONFLICT DO NOTHING", conn);
+            cmd.Parameters.AddWithValue("id", userId);
+            cmd.Parameters.AddWithValue("email", email.ToLowerInvariant());
 
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(ct);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to create user stub in tenant database for user {UserId}", userId);
-            // Don't fail operations if tenant stub creation fails
         }
     }
 
@@ -64,23 +69,34 @@ public class TenantUserService : ITenantUserService
         Guid? actorUserId = null,
         string? targetType = null,
         string? targetId = null,
-        object? metadata = null)
+        object? metadata = null, CancellationToken ct = default)
     {
         try
         {
             await using var conn = _connectionFactory.CreateOrgConnection(org);
-            await conn.OpenAsync();
+            await conn.OpenAsync(ct);
             await using var transaction = await conn.BeginTransactionAsync();
 
-            var cmd = TenantAuditEventCommandFactory.CreateInsertAuditEventCommand(
-                conn, transaction, action, actorUserId, targetType, targetId, metadata);
+            var cmd = new NpgsqlCommand(@"
+                INSERT INTO audit_events (actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
+                VALUES (@actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())",
+                conn, transaction);
 
-            await cmd.ExecuteNonQueryAsync();
+            cmd.Parameters.AddWithValue("actorUserId", actorUserId.HasValue ? actorUserId.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("actorType", actorUserId.HasValue ? "user" : "system");
+            cmd.Parameters.AddWithValue("action", action);
+            cmd.Parameters.AddWithValue("targetType", (object?)targetType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("targetId", (object?)targetId ?? DBNull.Value);
+            cmd.Parameters.Add(new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb)
+            {
+                Value = metadata != null ? JsonSerializer.Serialize(metadata) : DBNull.Value,
+            });
+
+            await cmd.ExecuteNonQueryAsync(ct);
             await transaction.CommitAsync();
         }
-        catch (PostgresException ex) when (ex.SqlState == "42P01") // Table does not exist
+        catch (PostgresException ex) when (ex.SqlState == "42P01")
         {
-            // Audit events table not yet created - silently skip
             _logger.LogWarning("Audit events table does not exist - skipping audit logging");
         }
     }

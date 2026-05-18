@@ -6,14 +6,14 @@ namespace Api.Repositories;
 
 public interface IAnnouncementRepository
 {
-    Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false);
-    Task<AnnouncementDto?> GetByIdAsync(Guid id);
-    Task<AnnouncementDto> CreateAsync(Announcement announcement);
-    Task<AnnouncementDto?> UpdateAsync(Guid id, string title, string body, bool isImportant, DateTime? expiresAt, Guid updatedByUserId);
-    Task<bool> DeleteAsync(Guid id);
-    Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId);
-    Task<int> GetUnreadCountAsync(Guid userId);
-    Task MarkReadAsync(Guid announcementId, Guid userId);
+    Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false, CancellationToken ct = default);
+    Task<AnnouncementDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<AnnouncementDto> CreateAsync(Announcement announcement, CancellationToken ct = default);
+    Task<AnnouncementDto?> UpdateAsync(Guid id, string title, string body, bool isImportant, DateTime? expiresAt, Guid updatedByUserId, CancellationToken ct = default);
+    Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default);
+    Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default);
+    Task MarkReadAsync(Guid announcementId, Guid userId, CancellationToken ct = default);
 }
 
 public class AnnouncementRepository : IAnnouncementRepository
@@ -36,39 +36,39 @@ public class AnnouncementRepository : IAnnouncementRepository
         LEFT JOIN users cu ON cu.id = a.created_by_user_id
         LEFT JOIN users uu ON uu.id = a.updated_by_user_id";
 
-    public async Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false)
+    public async Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         var sql = $"SELECT {SelectColumns} {FromJoins} "
             + (includeExpired ? "" : "WHERE a.expires_at > now() ")
             + "ORDER BY a.created_at DESC LIMIT 500";
 
         await using var cmd = new NpgsqlCommand(sql, conn);
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
 
         var results = new List<AnnouncementDto>();
-        while (await reader.ReadAsync()) results.Add(MapDto(reader));
+        while (await reader.ReadAsync(ct)) results.Add(MapDto(reader));
         return results;
     }
 
-    public async Task<AnnouncementDto?> GetByIdAsync(Guid id)
+    public async Task<AnnouncementDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} {FromJoins} WHERE a.id = @id", conn);
         cmd.Parameters.AddWithValue("id", id);
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? MapDto(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? MapDto(reader) : null;
     }
 
-    public async Task<AnnouncementDto> CreateAsync(Announcement announcement)
+    public async Task<AnnouncementDto> CreateAsync(Announcement announcement, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             WITH inserted AS (
@@ -91,15 +91,15 @@ public class AnnouncementRepository : IAnnouncementRepository
         cmd.Parameters.AddWithValue("userId", announcement.CreatedByUserId);
         cmd.Parameters.AddWithValue("expiresAt", announcement.ExpiresAt);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
         return MapDto(reader);
     }
 
-    public async Task<AnnouncementDto?> UpdateAsync(Guid id, string title, string body, bool isImportant, DateTime? expiresAt, Guid updatedByUserId)
+    public async Task<AnnouncementDto?> UpdateAsync(Guid id, string title, string body, bool isImportant, DateTime? expiresAt, Guid updatedByUserId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         var sql = @"
             WITH updated AS (
@@ -125,23 +125,23 @@ public class AnnouncementRepository : IAnnouncementRepository
         cmd.Parameters.AddWithValue("userId", updatedByUserId);
         if (expiresAt.HasValue) cmd.Parameters.AddWithValue("expiresAt", expiresAt.Value);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? MapDto(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? MapDto(reader) : null;
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand("DELETE FROM announcements WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    public async Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId)
+    public async Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT a.id, a.title, a.body, a.is_important, a.revision,
@@ -153,10 +153,10 @@ public class AnnouncementRepository : IAnnouncementRepository
             ORDER BY a.created_at DESC", conn);
 
         cmd.Parameters.AddWithValue("userId", userId);
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
 
         var results = new List<UserAnnouncementDto>();
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(ct))
         {
             results.Add(new UserAnnouncementDto
             {
@@ -172,10 +172,10 @@ public class AnnouncementRepository : IAnnouncementRepository
         return results;
     }
 
-    public async Task<int> GetUnreadCountAsync(Guid userId)
+    public async Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT COUNT(*)::int
@@ -184,14 +184,14 @@ public class AnnouncementRepository : IAnnouncementRepository
             WHERE a.expires_at > now() AND COALESCE(ar.read_revision < a.revision, TRUE)", conn);
 
         cmd.Parameters.AddWithValue("userId", userId);
-        var result = await cmd.ExecuteScalarAsync();
+        var result = await cmd.ExecuteScalarAsync(ct);
         return result is int count ? count : 0;
     }
 
-    public async Task MarkReadAsync(Guid announcementId, Guid userId)
+    public async Task MarkReadAsync(Guid announcementId, Guid userId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO announcement_reads (announcement_id, user_id, read_revision, read_at)
@@ -202,7 +202,7 @@ public class AnnouncementRepository : IAnnouncementRepository
 
         cmd.Parameters.AddWithValue("announcementId", announcementId);
         cmd.Parameters.AddWithValue("userId", userId);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private static AnnouncementDto MapDto(NpgsqlDataReader reader) => new()

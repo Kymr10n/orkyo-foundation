@@ -16,13 +16,13 @@ public class AnnouncementService : IAnnouncementService
         _repository = repository;
     }
 
-    public Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false)
-        => _repository.GetAllAsync(includeExpired);
+    public Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false, CancellationToken ct = default)
+        => _repository.GetAllAsync(includeExpired, ct);
 
-    public Task<AnnouncementDto?> GetByIdAsync(Guid id)
-        => _repository.GetByIdAsync(id);
+    public Task<AnnouncementDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => _repository.GetByIdAsync(id, ct);
 
-    public async Task<AnnouncementDto> CreateAsync(CreateAnnouncementRequest request, Guid userId)
+    public async Task<AnnouncementDto> CreateAsync(CreateAnnouncementRequest request, Guid userId, CancellationToken ct = default)
     {
         var error = Validate(request.Title, request.Body);
         if (error != null)
@@ -47,7 +47,7 @@ public class AnnouncementService : IAnnouncementService
         return await _repository.CreateAsync(announcement);
     }
 
-    public async Task<AnnouncementDto?> UpdateAsync(Guid id, UpdateAnnouncementRequest request, Guid userId)
+    public async Task<AnnouncementDto?> UpdateAsync(Guid id, UpdateAnnouncementRequest request, Guid userId, CancellationToken ct = default)
     {
         var error = Validate(request.Title, request.Body);
         if (error != null)
@@ -60,10 +60,10 @@ public class AnnouncementService : IAnnouncementService
             request.IsImportant, request.ExpiresAt, userId);
     }
 
-    public Task<bool> DeleteAsync(Guid id) => _repository.DeleteAsync(id);
-    public Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId) => _repository.GetActiveForUserAsync(userId);
-    public Task<int> GetUnreadCountAsync(Guid userId) => _repository.GetUnreadCountAsync(userId);
-    public Task MarkReadAsync(Guid announcementId, Guid userId) => _repository.MarkReadAsync(announcementId, userId);
+    public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => _repository.DeleteAsync(id, ct);
+    public Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default) => _repository.GetActiveForUserAsync(userId, ct);
+    public Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default) => _repository.GetUnreadCountAsync(userId, ct);
+    public Task MarkReadAsync(Guid announcementId, Guid userId, CancellationToken ct = default) => _repository.MarkReadAsync(announcementId, userId, ct);
 
     private static string? Validate(string title, string body)
     {

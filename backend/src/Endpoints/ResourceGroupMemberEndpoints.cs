@@ -21,7 +21,7 @@ public static class ResourceGroupMemberEndpoints
         group.MapGet("/{id:guid}/members", async (
             Guid id,
             IResourceGroupMemberRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await repo.GetMembersAsync(id)),
             logger, "get resource group members", new { id }))
@@ -32,7 +32,7 @@ public static class ResourceGroupMemberEndpoints
             Guid id,
             [FromBody] SetResourceGroupMembersRequest request,
             IResourceGroupMemberRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 await repo.SetMembersAsync(id, request.ResourceIds);

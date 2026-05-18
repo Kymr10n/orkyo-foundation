@@ -16,7 +16,7 @@ public static class CriteriaEndpoints
     {
         var group = app.MapGroup("/api/criteria").WithTags("Criteria").RequireAuthorization().RequireTenantMembership();
 
-        group.MapGet("/", async (ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize, string? resourceType) =>
+        group.MapGet("/", async (ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize, string? resourceType, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
@@ -25,31 +25,31 @@ public static class CriteriaEndpoints
                     if (!ResourceTypeKeys.IsKnown(resourceType))
                         return ErrorResponses.BadRequest(
                             $"Unknown resource type '{resourceType}'. Allowed: {string.Join(", ", ResourceTypeKeys.All)}.");
-                    return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType));
+                    return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType, ct));
                 }
                 if (page.HasValue || pageSize.HasValue)
                 {
-                    var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize });
+                    var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
                     return Results.Ok(paged);
                 }
-                return Results.Ok(await criteriaService.GetAllAsync());
+                return Results.Ok(await criteriaService.GetAllAsync(ct));
             }, logger, "list criteria", new { resourceType });
         })
         .WithName("GetCriteria")
         .WithSummary("Get all criteria");
 
-        group.MapGet("/{id:guid}", async (Guid id, ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var criterion = await criteriaService.GetByIdAsync(id);
+                var criterion = await criteriaService.GetByIdAsync(id, ct);
                 return criterion == null ? ErrorResponses.NotFound("Criterion", id) : Results.Ok(criterion);
             }, logger, "get criterion", new { id });
         })
         .WithName("GetCriterionById")
         .WithSummary("Get a specific criterion by ID");
 
-        group.MapPost("/", async (CreateCriterionRequest request, ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, IValidator<CreateCriterionRequest> validator) =>
+        group.MapPost("/", async (CreateCriterionRequest request, ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, IValidator<CreateCriterionRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
@@ -59,29 +59,29 @@ public static class CriteriaEndpoints
                     request.DataType,
                     request.EnumValues,
                     request.Unit,
-                    request.ResourceTypeKeys!);
+                    request.ResourceTypeKeys!, ct);
                 return Results.Created($"/criteria/{criterion.Id}", criterion);
             }, logger, "create criterion");
         })
         .WithName("CreateCriterion")
         .WithSummary("Create a new criterion");
 
-        group.MapPut("/{id:guid}", async (Guid id, UpdateCriterionRequest request, ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateCriterionRequest> validator) =>
+        group.MapPut("/{id:guid}", async (Guid id, UpdateCriterionRequest request, ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateCriterionRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var criterion = await criteriaService.UpdateAsync(id, request.Description, request.EnumValues, request.Unit);
+                var criterion = await criteriaService.UpdateAsync(id, request.Description, request.EnumValues, request.Unit, ct);
                 return criterion == null ? ErrorResponses.NotFound("Criterion", id) : Results.Ok(criterion);
             }, logger, "update criterion", new { id });
         })
         .WithName("UpdateCriterion")
         .WithSummary("Update an existing criterion");
 
-        group.MapDelete("/{id:guid}", async (Guid id, ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var deleted = await criteriaService.DeleteAsync(id);
+                var deleted = await criteriaService.DeleteAsync(id, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Criterion", id);
             }, logger, "delete criterion", new { id });
         })

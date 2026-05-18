@@ -6,7 +6,7 @@ namespace Api.Repositories;
 
 public interface IFeedbackRepository
 {
-    Task<FeedbackResponse> CreateAsync(CreateFeedbackRequest request, Guid? userId, string? userAgent);
+    Task<FeedbackResponse> CreateAsync(CreateFeedbackRequest request, Guid? userId, string? userAgent, CancellationToken ct = default);
 }
 
 public class FeedbackRepository : IFeedbackRepository
@@ -20,10 +20,10 @@ public class FeedbackRepository : IFeedbackRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<FeedbackResponse> CreateAsync(CreateFeedbackRequest request, Guid? userId, string? userAgent)
+    public async Task<FeedbackResponse> CreateAsync(CreateFeedbackRequest request, Guid? userId, string? userAgent, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(@"
             INSERT INTO feedback (user_id, feedback_type, title, description, page_url, user_agent)
@@ -38,8 +38,8 @@ public class FeedbackRepository : IFeedbackRepository
         cmd.Parameters.AddWithValue("page_url", request.PageUrl ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("user_agent", userAgent ?? (object)DBNull.Value);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
 
         return new FeedbackResponse
         {

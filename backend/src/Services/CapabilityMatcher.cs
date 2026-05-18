@@ -8,19 +8,19 @@ public interface ICapabilityMatcher
 {
     Task<bool> ResourceSatisfiesRequirementsAsync(
         Guid resourceId,
-        IReadOnlyList<Guid> requiredCriterionIds);
+        IReadOnlyList<Guid> requiredCriterionIds, CancellationToken ct = default);
 
     // Phase 3: Typed operator matching
     Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,
-        RequestRequirementInfo requirement);
+        RequestRequirementInfo requirement, CancellationToken ct = default);
 }
 
 public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepository) : ICapabilityMatcher
 {
     public async Task<bool> ResourceSatisfiesRequirementsAsync(
         Guid resourceId,
-        IReadOnlyList<Guid> requiredCriterionIds)
+        IReadOnlyList<Guid> requiredCriterionIds, CancellationToken ct = default)
     {
         if (requiredCriterionIds.Count == 0)
             return true;
@@ -35,7 +35,7 @@ public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepositor
     // Phase 3: Typed operator matching (≥/≤/= for Number, Enum membership, String equality, Boolean)
     public async Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,
-        RequestRequirementInfo requirement)
+        RequestRequirementInfo requirement, CancellationToken ct = default)
     {
         var capabilities = await capabilityRepository.GetByResourceAsync(resourceId);
         var capability = capabilities.FirstOrDefault(c => c.CriterionId == requirement.CriterionId);

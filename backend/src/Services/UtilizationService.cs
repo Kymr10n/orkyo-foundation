@@ -7,13 +7,13 @@ namespace Api.Services;
 public interface IUtilizationService
 {
     Task<UtilizationResponse?> GetResourceUtilizationAsync(
-        Guid resourceId, DateTime from, DateTime to, string granularity);
+        Guid resourceId, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
 
     Task<UtilizationResponse?> GetGroupUtilizationAsync(
-        Guid groupId, DateTime from, DateTime to, string granularity);
+        Guid groupId, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
 
     Task<UtilizationResponse> GetTenantUtilizationAsync(
-        string? resourceTypeKey, DateTime from, DateTime to, string granularity);
+        string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
 }
 
 public class UtilizationService(
@@ -23,7 +23,7 @@ public class UtilizationService(
     ISchedulingRepository schedulingRepository) : IUtilizationService
 {
     public async Task<UtilizationResponse?> GetResourceUtilizationAsync(
-        Guid resourceId, DateTime from, DateTime to, string granularity)
+        Guid resourceId, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
         var resource = await resourceRepository.GetByIdAsync(resourceId);
         if (resource is null) return null;
@@ -45,7 +45,7 @@ public class UtilizationService(
     }
 
     public async Task<UtilizationResponse?> GetGroupUtilizationAsync(
-        Guid groupId, DateTime from, DateTime to, string granularity)
+        Guid groupId, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
         var membersResponse = await groupMemberRepository.GetMembersAsync(groupId);
         var activeMembers = membersResponse.Members.Where(m => m.IsActive).ToList();
@@ -107,7 +107,7 @@ public class UtilizationService(
     }
 
     public async Task<UtilizationResponse> GetTenantUtilizationAsync(
-        string? resourceTypeKey, DateTime from, DateTime to, string granularity)
+        string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
         var filter = new ResourceListFilter { IsActive = true, ResourceTypeKey = resourceTypeKey };
         var resources = await resourceRepository.GetAllAsync(filter);

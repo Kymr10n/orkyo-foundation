@@ -9,7 +9,7 @@ namespace Api.Services;
 /// </summary>
 public interface IResourceAssignmentValidator
 {
-    Task<ValidationResult> ValidateAsync(ValidateResourceAssignmentRequest request);
+    Task<ValidationResult> ValidateAsync(ValidateResourceAssignmentRequest request, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -25,7 +25,7 @@ public class ResourceAssignmentValidator(
     IRequestRepository requestRepository,
     ISchedulingRepository schedulingRepository) : IResourceAssignmentValidator
 {
-    public async Task<ValidationResult> ValidateAsync(ValidateResourceAssignmentRequest request)
+    public async Task<ValidationResult> ValidateAsync(ValidateResourceAssignmentRequest request, CancellationToken ct = default)
     {
         var blockers = new List<ValidationIssue>();
         var warnings = new List<ValidationIssue>();
@@ -54,7 +54,7 @@ public class ResourceAssignmentValidator(
     /// into a single section that early-exits if the resource has no site.
     /// </summary>
     private async Task CheckSiteScopedWindowAsync(
-        ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> warnings)
+        ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> warnings, CancellationToken ct = default)
     {
         var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id);
         if (siteId is null) return;
@@ -64,7 +64,7 @@ public class ResourceAssignmentValidator(
     }
 
     private async Task CheckCapabilitiesAsync(
-        ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> blockers)
+        ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> blockers, CancellationToken ct = default)
     {
         // Dry-run path: a not-yet-created request has no requirements to check.
         // We still run the rest of the validator so the caller gets off-time /
@@ -95,7 +95,7 @@ public class ResourceAssignmentValidator(
         ValidateResourceAssignmentRequest request,
         ResourceInfo resource,
         Guid siteId,
-        List<ValidationIssue> warnings)
+        List<ValidationIssue> warnings, CancellationToken ct = default)
     {
         var blockingOffTimes = await offTimeResourceQuery.GetBlockingOffTimesAsync(
             resource.Id, siteId, request.StartUtc, request.EndUtc);
@@ -120,7 +120,7 @@ public class ResourceAssignmentValidator(
         ValidateResourceAssignmentRequest request,
         ResourceInfo resource,
         Guid siteId,
-        List<ValidationIssue> warnings)
+        List<ValidationIssue> warnings, CancellationToken ct = default)
     {
         var settings = await schedulingRepository.GetSettingsAsync(siteId);
         // If weekend work is enabled at the site, a Sat/Sun assignment is unremarkable.
@@ -147,7 +147,7 @@ public class ResourceAssignmentValidator(
     }
 
     private async Task CheckAllocationAsync(
-        ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> blockers)
+        ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> blockers, CancellationToken ct = default)
     {
         var mode = request.AllocationMode ?? resource.AllocationMode;
 

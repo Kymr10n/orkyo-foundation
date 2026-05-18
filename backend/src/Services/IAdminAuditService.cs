@@ -14,5 +14,5 @@ public interface IAdminAuditService
         string action,
         string? targetType = null,
         string? targetId = null,
-        object? metadata = null);
+        object? metadata = null, CancellationToken ct = default);
 }

@@ -135,7 +135,8 @@ public static class BffAuthEndpoints
         ISessionService sessionService,
         IHttpClientFactory httpClientFactory,
         IOptions<TenantMiddlewareOptions> tenantMiddlewareOpts,
-        ILogger<Log> logger)
+        ILogger<Log> logger,
+        CancellationToken ct = default)
     {
         var bffOptions = bffOpts.Value;
 
@@ -176,7 +177,7 @@ public static class BffAuthEndpoints
                 return Results.BadRequest(new { error = "Invalid access token" });
             }
 
-            var linkResult = await identityLinkService.LinkIdentityAsync(externalToken);
+            var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
             if (!linkResult.Success || !linkResult.UserId.HasValue)
             {
                 logger.LogWarning("BFF identity link failed: {Error}", linkResult.Error);
@@ -306,7 +307,8 @@ public static class BffAuthEndpoints
         HttpContext ctx,
         IIdentityLinkService identityLinkService,
         ISessionService sessionService,
-        ILogger<Log> logger)
+        ILogger<Log> logger,
+        CancellationToken ct = default)
     {
         return EndpointHelpers.ExecuteAsync(async () =>
         {
@@ -327,11 +329,11 @@ public static class BffAuthEndpoints
             // It is idempotent for existing users and ensures the internal user record
             // exists for JWT-bearer callers (e.g. mobile / API clients) that have not
             // gone through the BFF callback flow.
-            var linkResult = await identityLinkService.LinkIdentityAsync(externalToken);
+            var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
             if (!linkResult.Success || !linkResult.UserId.HasValue)
                 return Results.Ok(new { authenticated = false });
 
-            var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value);
+            var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value, ct);
             if (result is null)
                 return Results.Ok(new { authenticated = false });
 
@@ -348,7 +350,8 @@ public static class BffAuthEndpoints
         BffOptions bffOptions,
         string code,
         string codeVerifier,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken ct = default)
     {
         var tokenEndpoint = $"{keycloakOptions.InternalAuthority}/protocol/openid-connect/token";
         var client = httpClientFactory.CreateClient("BffKeycloak");
@@ -407,7 +410,8 @@ public static class BffAuthEndpoints
         BffOptions bffOptions,
         ISessionService sessionService,
         TenantMiddlewareOptions tenantOptions,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken ct = default)
     {
         var defaultBase = bffOptions.GetDefaultReturnToBase();
 
@@ -419,7 +423,7 @@ public static class BffAuthEndpoints
 
         try
         {
-            var bootstrap = await sessionService.BuildSessionResponseAsync(userId);
+            var bootstrap = await sessionService.BuildSessionResponseAsync(userId, ct);
             if (bootstrap?.Tenants.Count != 1)
                 return returnTo;
 

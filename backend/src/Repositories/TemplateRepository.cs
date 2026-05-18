@@ -8,14 +8,14 @@ namespace Api.Repositories;
 
 public interface ITemplateRepository
 {
-    Task<List<Template>> GetAllAsync(string entityType);
-    Task<Template?> GetByIdAsync(Guid id);
-    Task<Template> CreateAsync(CreateTemplateRequest request);
-    Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request);
-    Task<bool> DeleteAsync(Guid id);
-    Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId);
-    Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item);
-    Task<bool> DeleteTemplateItemAsync(Guid id);
+    Task<List<Template>> GetAllAsync(string entityType, CancellationToken ct = default);
+    Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default);
+    Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default);
+    Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
+    Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId, CancellationToken ct = default);
+    Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default);
+    Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default);
 }
 
 public class TemplateRepository : ITemplateRepository
@@ -47,10 +47,10 @@ public class TemplateRepository : ITemplateRepository
         UpdatedAt = reader.GetDateTime(10)
     };
 
-    public async Task<List<Template>> GetAllAsync(string entityType)
+    public async Task<List<Template>> GetAllAsync(string entityType, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT
@@ -73,9 +73,9 @@ public class TemplateRepository : ITemplateRepository
         cmd.Parameters.AddWithValue("EntityType", entityType);
 
         var templates = new List<Template>();
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(ct))
         {
             templates.Add(MapTemplate(reader));
         }
@@ -83,10 +83,10 @@ public class TemplateRepository : ITemplateRepository
         return templates;
     }
 
-    public async Task<Template?> GetByIdAsync(Guid id)
+    public async Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT
@@ -106,15 +106,15 @@ public class TemplateRepository : ITemplateRepository
 
         cmd.Parameters.AddWithValue("Id", id);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-        if (!await reader.ReadAsync())
+        if (!await reader.ReadAsync(ct))
             return null;
 
         return MapTemplate(reader);
     }
 
-    public async Task<Template> CreateAsync(CreateTemplateRequest request)
+    public async Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default)
     {
         if (!ValidEntityTypes.Contains(request.EntityType))
         {
@@ -131,7 +131,7 @@ public class TemplateRepository : ITemplateRepository
             throw new ArgumentException("Description must be 255 characters or fewer");
 
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO templates (
@@ -174,13 +174,13 @@ public class TemplateRepository : ITemplateRepository
         cmd.Parameters.AddWithValue("FixedEnd", request.FixedEnd);
         cmd.Parameters.AddWithValue("FixedDuration", request.FixedDuration);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
 
         return MapTemplate(reader);
     }
 
-    public async Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request)
+    public async Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default)
     {
         if (!ValidEntityTypes.Contains(request.EntityType))
         {
@@ -188,7 +188,7 @@ public class TemplateRepository : ITemplateRepository
         }
 
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             UPDATE templates SET
@@ -225,8 +225,8 @@ public class TemplateRepository : ITemplateRepository
         cmd.Parameters.AddWithValue("FixedEnd", request.FixedEnd);
         cmd.Parameters.AddWithValue("FixedDuration", request.FixedDuration);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
         {
             return null; // Template not found
         }
@@ -234,23 +234,23 @@ public class TemplateRepository : ITemplateRepository
         return MapTemplate(reader);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand("DELETE FROM templates WHERE id = @Id", conn);
         cmd.Parameters.AddWithValue("Id", id);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 
     // Template items methods
-    public async Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId)
+    public async Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId, CancellationToken ct = default)
     {
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT
@@ -270,9 +270,9 @@ public class TemplateRepository : ITemplateRepository
         cmd.Parameters.AddWithValue("TemplateId", templateId);
 
         var items = new List<TemplateItem>();
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(ct))
         {
             items.Add(new TemplateItem
             {
@@ -291,7 +291,7 @@ public class TemplateRepository : ITemplateRepository
         return items;
     }
 
-    public async Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item)
+    public async Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default)
     {
         // Validate template exists
         var template = await GetByIdAsync(item.TemplateId);
@@ -307,14 +307,14 @@ public class TemplateRepository : ITemplateRepository
         catch (JsonException) { throw new ArgumentException("Value must be valid JSON"); }
 
         using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Validate criterion exists
         await using var checkCmd = new NpgsqlCommand(
             "SELECT EXISTS(SELECT 1 FROM criteria WHERE id = @CriterionId)", conn);
         checkCmd.Parameters.AddWithValue("CriterionId", item.CriterionId);
 
-        var criterionExists = (bool?)await checkCmd.ExecuteScalarAsync();
+        var criterionExists = (bool?)await checkCmd.ExecuteScalarAsync(ct);
         if (criterionExists != true)
         {
             throw new ArgumentException($"Criterion not found: {item.CriterionId}");
@@ -343,8 +343,8 @@ public class TemplateRepository : ITemplateRepository
             cmd.Parameters.AddWithValue("CriterionId", item.CriterionId);
             cmd.Parameters.AddWithValue("Value", item.Value);
 
-            await using var reader = await cmd.ExecuteReaderAsync();
-            await reader.ReadAsync();
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
 
             return new TemplateItem
             {
@@ -362,13 +362,13 @@ public class TemplateRepository : ITemplateRepository
         }
     }
 
-    public async Task<bool> DeleteTemplateItemAsync(Guid id)
+    public async Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default)
     {
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext); await conn.OpenAsync();
+        using var conn = _connectionFactory.CreateOrgConnection(_orgContext); await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand("DELETE FROM template_items WHERE id = @Id", conn);
         cmd.Parameters.AddWithValue("Id", id);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 }

@@ -12,12 +12,21 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useImportHandler: vi.fn(() => vi.fn()),
 }));
 
+// Mock useConflicts — replaces Zustand conflicts state
+vi.mock('@foundation/src/hooks/useConflicts', () => ({
+  useConflicts: vi.fn(() => ({
+    conflicts: new Map(),
+    conflictingRequestIds: new Set(),
+    schedulingValidation: new Map(),
+    spaceCapacities: new Map(),
+  })),
+}));
+
 // Mock the store
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
     const mockState = {
       selectedSiteId: 'site-1',
-      conflicts: new Map(),
     };
     return selector ? selector(mockState) : mockState;
   }),
@@ -58,6 +67,10 @@ vi.mock('@foundation/src/hooks/useUtilization', () => ({
     data: [],
     isLoading: false,
     error: null,
+  })),
+  useSpaces: vi.fn(() => ({
+    data: [],
+    isLoading: false,
   })),
   useCreateRequest: vi.fn(() => ({
     mutate: vi.fn(),

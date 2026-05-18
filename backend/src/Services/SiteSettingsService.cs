@@ -15,18 +15,18 @@ public interface ISiteSettingsService
     /// Get the current <see cref="RuntimeConfig"/>, with DB overrides applied
     /// on top of compiled defaults.  TTL-cached.
     /// </summary>
-    Task<RuntimeConfig> GetRuntimeConfigAsync();
+    Task<RuntimeConfig> GetRuntimeConfigAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Update one or more runtime settings.  Returns the new resolved config.
     /// Only keys present in <see cref="RuntimeConfig.KeyMap"/> are accepted.
     /// </summary>
-    Task<RuntimeConfig> UpdateRuntimeConfigAsync(Dictionary<string, string> updates, Guid? actorUserId);
+    Task<RuntimeConfig> UpdateRuntimeConfigAsync(Dictionary<string, string> updates, Guid? actorUserId, CancellationToken ct = default);
 
     /// <summary>
     /// Reset a runtime setting to its compiled default.
     /// </summary>
-    Task<bool> ResetSettingAsync(string key);
+    Task<bool> ResetSettingAsync(string key, CancellationToken ct = default);
 }
 
 public sealed class SiteSettingsService : ISiteSettingsService
@@ -53,7 +53,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
         _logger = logger;
     }
 
-    public async Task<RuntimeConfig> GetRuntimeConfigAsync()
+    public async Task<RuntimeConfig> GetRuntimeConfigAsync(CancellationToken ct = default)
     {
         lock (_cacheLock)
         {
@@ -90,7 +90,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
         }
     }
 
-    public async Task<RuntimeConfig> UpdateRuntimeConfigAsync(Dictionary<string, string> updates, Guid? actorUserId)
+    public async Task<RuntimeConfig> UpdateRuntimeConfigAsync(Dictionary<string, string> updates, Guid? actorUserId, CancellationToken ct = default)
     {
         foreach (var (key, value) in updates)
         {
@@ -109,7 +109,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
         return await GetRuntimeConfigAsync();
     }
 
-    public async Task<bool> ResetSettingAsync(string key)
+    public async Task<bool> ResetSettingAsync(string key, CancellationToken ct = default)
     {
         if (!RuntimeConfig.KeyMap.ContainsKey(key))
             throw new ArgumentException($"Unknown runtime config key: '{key}'");

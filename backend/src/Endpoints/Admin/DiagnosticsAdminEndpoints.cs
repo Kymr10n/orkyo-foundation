@@ -53,7 +53,8 @@ public static class DiagnosticsAdminEndpoints
     private static async Task<IResult> GetDiagnostics(
         DeploymentConfig deploymentConfig,
         IDbConnectionFactory connectionFactory,
-        ILogger<EndpointLoggerCategory> logger)
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default)
     {
         // ── Database status ─────────────────────────────────────────────
         string dbStatus;
@@ -69,8 +70,9 @@ public static class DiagnosticsAdminEndpoints
             dbStatus = "healthy";
 
             // Count applied migrations
-            await using var migCmd = DiagnosticsCommandFactory.CreateMigrationCountCommand(conn);
-            migrationsApplied = DiagnosticsScalarFlow.ReadMigrationCount(await migCmd.ExecuteScalarAsync());
+            await using var migCmd = new Npgsql.NpgsqlCommand("SELECT COUNT(*) FROM orkyo_schema_migrations", conn);
+            var migResult = await migCmd.ExecuteScalarAsync();
+            migrationsApplied = migResult is null or DBNull ? 0 : Convert.ToInt32(migResult);
 
             // Count active tenants
             await using var tenantCmd = new Npgsql.NpgsqlCommand(
@@ -123,12 +125,13 @@ public static class DiagnosticsAdminEndpoints
             await conn.OpenAsync();
 
             // Check for recent audit events or tenant lifecycle activity
-            await using var cmd = DiagnosticsCommandFactory.CreateRecentAuditActivityCommand(conn);
-            var recent = DiagnosticsScalarFlow.ReadRecentAuditActivity(await cmd.ExecuteScalarAsync());
-            if (recent is DateTime dt)
+            await using var cmd = new Npgsql.NpgsqlCommand(
+                $"SELECT MAX(created_at) FROM audit_events WHERE created_at > NOW() - INTERVAL '2 hours'", conn);
+            var recent = (await cmd.ExecuteScalarAsync()) as DateTime?;
+            if (recent.HasValue)
             {
                 workerStatus = "running";
-                lastWorkerActivity = dt;
+                lastWorkerActivity = recent.Value;
             }
             else
             {

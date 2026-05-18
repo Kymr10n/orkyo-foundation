@@ -52,12 +52,12 @@ public static class UserManagementEndpoints
             .WithDescription("Revoke a pending invitation (Admin only)");
 
         // Public invitation endpoints (no auth, no tenant)
-        app.MapGet("/api/invitations/validate", async (IInvitationService invitationService, [FromQuery] string? token) =>
+        app.MapGet("/api/invitations/validate", async (IInvitationService invitationService, [FromQuery] string? token, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(token) || !Guid.TryParse(token, out _))
                 return Results.BadRequest(new { error = "Invalid invitation token" });
 
-            var (email, expiresAt, tenantName, error) = await invitationService.ValidateInvitationAsync(token);
+            var (email, expiresAt, tenantName, error) = await invitationService.ValidateInvitationAsync(token, ct);
             return error != null
                 ? Results.BadRequest(new { error })
                 : Results.Ok(new { email, expiresAt, tenantName });
@@ -68,10 +68,10 @@ public static class UserManagementEndpoints
         .WithName("ValidateInvitation")
         .WithDescription("Validate an invitation token and get invitation details");
 
-        app.MapPost("/api/invitations/accept", async (IInvitationService invitationService, AcceptInvitationRequest request, IValidator<AcceptInvitationRequest> validator) =>
+        app.MapPost("/api/invitations/accept", async (IInvitationService invitationService, AcceptInvitationRequest request, IValidator<AcceptInvitationRequest> validator, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var (user, error) = await invitationService.AcceptInvitationAsync(request.Token, request.DisplayName, request.Password);
+                var (user, error) = await invitationService.AcceptInvitationAsync(request.Token, request.DisplayName, request.Password, ct);
                 if (error != null) throw new ArgumentException(error);
                 return new
                 {
@@ -87,11 +87,11 @@ public static class UserManagementEndpoints
         .Accepts<AcceptInvitationRequest>("application/json");
     }
 
-    private static async Task<IResult> GetAllUsers(HttpContext context, IUserManagementService userManagementService)
+    private static async Task<IResult> GetAllUsers(HttpContext context, IUserManagementService userManagementService, CancellationToken ct = default)
     {
         var tc = context.GetTenantContext();
         var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
-        var users = await userManagementService.GetAllUsersAsync(org);
+        var users = await userManagementService.GetAllUsersAsync(org, ct);
         return Results.Ok(new
         {
             users = users.Select(u => new
@@ -110,12 +110,13 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> InviteUser(
         HttpContext context, IInvitationService invitationService,
-        ICurrentPrincipal currentPrincipal, InviteUserRequest request, IValidator<InviteUserRequest> validator) =>
+        ICurrentPrincipal currentPrincipal, InviteUserRequest request, IValidator<InviteUserRequest> validator,
+        CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var tc = context.GetTenantContext();
                 var userId = currentPrincipal.RequireUserId();
-                var result = await invitationService.InviteUserAsync(tc, userId, request.Email, request.Role);
+                var result = await invitationService.InviteUserAsync(tc, userId, request.Email, request.Role, ct);
                 if (result == null) throw new ArgumentException("User with this email already exists");
                 return new
                 {
@@ -126,14 +127,15 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> UpdateUserRole(
         HttpContext context, IUserManagementService userManagementService,
-        ICurrentPrincipal currentPrincipal, Guid userId, UpdateUserRoleRequest request, IValidator<UpdateUserRoleRequest> validator) =>
+        ICurrentPrincipal currentPrincipal, Guid userId, UpdateUserRoleRequest request, IValidator<UpdateUserRoleRequest> validator,
+        CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var tc = context.GetTenantContext();
                 var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
-                var (success, error) = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId);
+                var (success, error) = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
                 if (error != null) throw new InvalidOperationException(error);
                 if (!success) throw new KeyNotFoundException("User not found");
                 return new { message = "User role updated successfully" };
@@ -141,23 +143,24 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> DeleteUser(
         HttpContext context, IUserManagementService userManagementService,
-        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid userId) =>
+        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid userId,
+        CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var tc = context.GetTenantContext();
                 var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
-                var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId);
+                var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
                 if (error != null) throw new InvalidOperationException(error);
                 if (!success) throw new KeyNotFoundException("User not found");
                 return Results.Ok(new { message = "User deleted successfully" });
             }, logger, "DeleteUser");
 
-    private static async Task<IResult> GetPendingInvitations(HttpContext context, IInvitationService invitationService)
+    private static async Task<IResult> GetPendingInvitations(HttpContext context, IInvitationService invitationService, CancellationToken ct = default)
     {
         var tc = context.GetTenantContext();
-        var invitations = await invitationService.GetPendingInvitationsAsync(tc) ?? [];
+        var invitations = await invitationService.GetPendingInvitationsAsync(tc, ct) ?? [];
         return Results.Ok(new
         {
             invitations = invitations.Select(i => new
@@ -173,12 +176,13 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> RevokeInvitation(
         HttpContext context, IInvitationService invitationService,
-        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid invitationId) =>
+        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid invitationId,
+        CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var tc = context.GetTenantContext();
                 var userId = currentPrincipal.RequireUserId();
-                var success = await invitationService.RevokeInvitationAsync(tc, invitationId, userId);
+                var success = await invitationService.RevokeInvitationAsync(tc, invitationId, userId, ct);
                 if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
                 return Results.Ok(new { message = "Invitation revoked successfully" });
             }, logger, "RevokeInvitation");

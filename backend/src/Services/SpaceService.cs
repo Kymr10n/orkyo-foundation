@@ -5,14 +5,24 @@ using Api.Security.Quotas;
 
 namespace Api.Services;
 
+/// <summary>
+/// Service layer for spaces. Creates the underlying resource record (type=space)
+/// alongside the space record in a single transaction; enforces space quotas.
+/// </summary>
 public interface ISpaceService
 {
-    Task<List<SpaceInfo>> GetAllAsync(Guid siteId);
-    Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page);
-    Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId);
-    Task<SpaceInfo> CreateAsync(Guid siteId, string name, string? code, string? description, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1);
-    Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? name, string? code, string? description, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null);
-    Task<bool> DeleteAsync(Guid siteId, Guid resourceId);
+    /// <summary>Returns all spaces for the given site.</summary>
+    Task<List<SpaceInfo>> GetAllAsync(Guid siteId, CancellationToken ct = default);
+    /// <summary>Returns a page of spaces for the given site.</summary>
+    Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default);
+    /// <summary>Returns a space by its resource ID within the site, or <c>null</c> if not found.</summary>
+    Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);
+    /// <summary>Creates a space. Enforces space quota; throws <see cref="Helpers.ConflictException"/> on duplicate code.</summary>
+    Task<SpaceInfo> CreateAsync(Guid siteId, string name, string? code, string? description, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default);
+    /// <summary>Updates a space. Returns <c>null</c> if not found.</summary>
+    Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? name, string? code, string? description, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default);
+    /// <summary>Deletes a space and its underlying resource record. Returns <c>false</c> if not found.</summary>
+    Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);
 }
 
 public class SpaceService : ISpaceService
@@ -34,15 +44,15 @@ public class SpaceService : ISpaceService
         _quotaEnforcer = quotaEnforcer;
     }
 
-    public Task<List<SpaceInfo>> GetAllAsync(Guid siteId) => _repository.GetAllAsync(siteId);
+    public Task<List<SpaceInfo>> GetAllAsync(Guid siteId, CancellationToken ct = default) => _repository.GetAllAsync(siteId, ct);
 
-    public Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page) => _repository.GetAllAsync(siteId, page);
+    public Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default) => _repository.GetAllAsync(siteId, page, ct);
 
-    public Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId) => _repository.GetByIdAsync(siteId, resourceId);
+    public Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId, CancellationToken ct = default) => _repository.GetByIdAsync(siteId, resourceId, ct);
 
     public async Task<SpaceInfo> CreateAsync(
         Guid siteId, string name, string? code, string? description,
-        bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1)
+        bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)
     {
         var currentCount = await _repository.GetEstimatedCountAsync();
         _quotaEnforcer.EnforceLimit(QuotaResourceTypes.Spaces, currentCount);
@@ -61,7 +71,7 @@ public class SpaceService : ISpaceService
 
     public async Task<SpaceInfo?> UpdateAsync(
         Guid siteId, Guid resourceId, string? name, string? code, string? description,
-        SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null)
+        SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default)
     {
         // Mirror name and description to resources.
         if (name != null || description != null)
@@ -76,7 +86,7 @@ public class SpaceService : ISpaceService
         return await _repository.UpdateAsync(siteId, resourceId, code, geometry, properties, groupId, capacity);
     }
 
-    public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId)
+    public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
     {
         var deleted = await _repository.DeleteAsync(siteId, resourceId);
         if (deleted)

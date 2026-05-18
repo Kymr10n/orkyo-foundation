@@ -16,10 +16,10 @@ public class UserPreferencesRepository : IUserPreferencesRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<JsonDocument?> GetPreferencesAsync(Guid userId)
+    public async Task<JsonDocument?> GetPreferencesAsync(Guid userId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT preferences FROM user_preferences WHERE user_id = @userId",
@@ -27,8 +27,8 @@ public class UserPreferencesRepository : IUserPreferencesRepository
         );
         cmd.Parameters.AddWithValue("userId", userId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (await reader.ReadAsync(ct))
         {
             var json = reader.GetString(0);
             return JsonDocument.Parse(json);
@@ -37,10 +37,10 @@ public class UserPreferencesRepository : IUserPreferencesRepository
         return null;
     }
 
-    public async Task<bool> UpdatePreferencesAsync(Guid userId, JsonDocument preferences)
+    public async Task<bool> UpdatePreferencesAsync(Guid userId, JsonDocument preferences, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO user_preferences (user_id, preferences, updated_at)
@@ -52,7 +52,7 @@ public class UserPreferencesRepository : IUserPreferencesRepository
         cmd.Parameters.AddWithValue("userId", userId);
         cmd.Parameters.AddWithValue("preferences", preferences.RootElement.GetRawText());
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 }

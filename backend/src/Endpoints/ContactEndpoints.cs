@@ -23,7 +23,7 @@ public static class ContactEndpoints
             .WithMetadata(new SkipTenantResolutionAttribute())
             .WithTags("Contact");
 
-        group.MapPost("/", async ([FromBody] ContactRequest request, IDbConnectionFactory connectionFactory, IEmailService emailService, IConfiguration configuration, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/", async ([FromBody] ContactRequest request, IDbConnectionFactory connectionFactory, IEmailService emailService, IConfiguration configuration, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {

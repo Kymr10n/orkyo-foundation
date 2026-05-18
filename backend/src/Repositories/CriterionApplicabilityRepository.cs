@@ -6,26 +6,26 @@ namespace Api.Repositories;
 
 public interface ICriterionApplicabilityRepository
 {
-    Task<CriterionApplicabilityInfo?> GetByCriterionAsync(Guid criterionId);
-    Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId);
-    Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId);
-    Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable);
-    Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds);
+    Task<CriterionApplicabilityInfo?> GetByCriterionAsync(Guid criterionId, CancellationToken ct = default);
+    Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId, CancellationToken ct = default);
+    Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId, CancellationToken ct = default);
+    Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable, CancellationToken ct = default);
+    Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds, CancellationToken ct = default);
 }
 
 public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : ICriterionApplicabilityRepository
 {
-    public async Task<CriterionApplicabilityInfo?> GetByCriterionAsync(Guid criterionId)
+    public async Task<CriterionApplicabilityInfo?> GetByCriterionAsync(Guid criterionId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // applicable_to_requests - now on main criteria table (Phase 3)
         await using var reqCmd = new NpgsqlCommand(
             "SELECT applicable_to_requests FROM criteria WHERE id = @id", db);
         reqCmd.Parameters.AddWithValue("id", criterionId);
-        var scalar = await reqCmd.ExecuteScalarAsync();
+        var scalar = await reqCmd.ExecuteScalarAsync(ct);
         if (scalar is null) return null; // criterion does not exist
         var applicableToRequests = (bool)scalar;
 
@@ -37,8 +37,8 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         typeCmd.Parameters.AddWithValue("id", criterionId);
 
         var keys = new List<string>();
-        await using var reader = await typeCmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await typeCmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             keys.Add(reader.GetString(0));
 
         return new CriterionApplicabilityInfo
@@ -49,58 +49,58 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         };
     }
 
-    public async Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId)
+    public async Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT resource_type_id FROM criterion_resource_types WHERE criterion_id = @id", db);
         cmd.Parameters.AddWithValue("id", criterionId);
 
         var result = new List<Guid>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             result.Add(reader.GetGuid(0));
         return result;
     }
 
-    public async Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId)
+    public async Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT 1 FROM criterion_resource_types " +
             "WHERE criterion_id = @criterionId AND resource_type_id = @typeId", db);
         cmd.Parameters.AddWithValue("criterionId", criterionId);
         cmd.Parameters.AddWithValue("typeId", resourceTypeId);
-        return await cmd.ExecuteScalarAsync() != null;
+        return await cmd.ExecuteScalarAsync(ct) != null;
     }
 
-    public async Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable)
+    public async Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "UPDATE criteria SET applicable_to_requests = @val WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", criterionId);
         cmd.Parameters.AddWithValue("val", applicable);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds)
+    public async Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync();
 
         // Replace all entries for this criterion.
         await using var del = new NpgsqlCommand(
             "DELETE FROM criterion_resource_types WHERE criterion_id = @id", db, tx);
         del.Parameters.AddWithValue("id", criterionId);
-        await del.ExecuteNonQueryAsync();
+        await del.ExecuteNonQueryAsync(ct);
 
         foreach (var typeId in resourceTypeIds)
         {
@@ -109,7 +109,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
                 "VALUES (@criterionId, @typeId) ON CONFLICT DO NOTHING", db, tx);
             ins.Parameters.AddWithValue("criterionId", criterionId);
             ins.Parameters.AddWithValue("typeId", typeId);
-            await ins.ExecuteNonQueryAsync();
+            await ins.ExecuteNonQueryAsync(ct);
         }
 
         await tx.CommitAsync();

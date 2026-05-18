@@ -4,26 +4,39 @@ using Api.Repositories;
 
 namespace Api.Services;
 
+/// <summary>
+/// Service layer for generic resources (people, tools). Validates allocation mode and
+/// availability constraints before persistence. Space-specific operations go through
+/// <see cref="ISpaceService"/>.
+/// </summary>
 public interface IResourceService
 {
-    Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter);
-    Task<ResourceInfo?> GetByIdAsync(Guid id);
-    Task<ResourceInfo> CreateAsync(CreateResourceRequest request);
-    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request);
-    Task<bool> DeactivateAsync(Guid id);
+    /// <summary>Returns all resources matching the given filter.</summary>
+    Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
+    /// <summary>Returns the resource with the given ID, or <c>null</c> if not found.</summary>
+    Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Creates a new resource. Validates allocation mode and availability percent.</summary>
+    Task<ResourceInfo> CreateAsync(CreateResourceRequest request, CancellationToken ct = default);
+    /// <summary>
+    /// Updates a resource. Returns <c>null</c> if not found.
+    /// Throws <see cref="System.Collections.Generic.KeyNotFoundException"/> if the resource was deleted between the existence check and the update.
+    /// </summary>
+    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
+    /// <summary>Deactivates a resource. Returns <c>false</c> if not found.</summary>
+    Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
 }
 
 public class ResourceService(
     IResourceRepository resourceRepository,
     IResourceTypeRepository resourceTypeRepository) : IResourceService
 {
-    public Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter)
-        => resourceRepository.GetAllAsync(filter);
+    public Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
+        => resourceRepository.GetAllAsync(filter, ct);
 
-    public Task<ResourceInfo?> GetByIdAsync(Guid id)
-        => resourceRepository.GetByIdAsync(id);
+    public Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => resourceRepository.GetByIdAsync(id, ct);
 
-    public async Task<ResourceInfo> CreateAsync(CreateResourceRequest request)
+    public async Task<ResourceInfo> CreateAsync(CreateResourceRequest request, CancellationToken ct = default)
     {
         Validate(request.AllocationMode, request.BaseAvailabilityPercent, request.Name);
 
@@ -40,7 +53,7 @@ public class ResourceService(
             request.BaseAvailabilityPercent);
     }
 
-    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request)
+    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
     {
         if (request.AllocationMode is not null)
             ValidateAllocationMode(request.AllocationMode);
@@ -56,7 +69,7 @@ public class ResourceService(
         return await resourceRepository.UpdateAsync(id, request);
     }
 
-    public Task<bool> DeactivateAsync(Guid id)
+    public Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
         => resourceRepository.DeactivateAsync(id);
 
     private static void Validate(string allocationMode, int baseAvailabilityPercent, string name)

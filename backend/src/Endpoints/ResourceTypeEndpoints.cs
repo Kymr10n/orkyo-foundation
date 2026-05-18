@@ -16,14 +16,14 @@ public static class ResourceTypeEndpoints
             .RequireAuthorization()
             .RequireTenantMembership();
 
-        group.MapGet("/", async (IResourceTypeRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/", async (IResourceTypeRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await repo.GetAllAsync()),
             logger, "list resource types"))
             .WithName("GetResourceTypes")
             .WithSummary("Get all resource types");
 
-        group.MapGet("/{id:guid}", async (Guid id, IResourceTypeRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}", async (Guid id, IResourceTypeRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var rt = await repo.GetByIdAsync(id);

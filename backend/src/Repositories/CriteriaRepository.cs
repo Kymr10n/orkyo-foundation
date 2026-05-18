@@ -31,17 +31,17 @@ public class CriteriaRepository : ICriteriaRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<List<CriterionInfo>> GetAllAsync()
+    public async Task<List<CriterionInfo>> GetAllAsync(CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var criteria = new List<CriterionInfo>();
         var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM criteria c ORDER BY c.name LIMIT 500", db);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             criteria.Add(CriteriaMapper.MapFromReader(reader));
         }
@@ -49,10 +49,10 @@ public class CriteriaRepository : ICriteriaRepository
         return criteria;
     }
 
-    public async Task<List<CriterionInfo>> GetByResourceTypeAsync(string resourceTypeKey)
+    public async Task<List<CriterionInfo>> GetByResourceTypeAsync(string resourceTypeKey, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // Strict rule (post-applicability-backfill): a criterion is included
         // only when explicitly tagged for this resource type. The previous
@@ -70,16 +70,16 @@ public class CriteriaRepository : ICriteriaRepository
         cmd.Parameters.AddWithValue("key", resourceTypeKey);
 
         var criteria = new List<CriterionInfo>();
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             criteria.Add(CriteriaMapper.MapFromReader(reader));
         return criteria;
     }
 
-    public async Task<PagedResult<CriterionInfo>> GetAllAsync(PageRequest page)
+    public async Task<PagedResult<CriterionInfo>> GetAllAsync(PageRequest page, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         return await DbQueryHelper.ExecutePagedQueryAsync(
             db,
@@ -90,17 +90,17 @@ public class CriteriaRepository : ICriteriaRepository
             mapper: CriteriaMapper.MapFromReader);
     }
 
-    public async Task<CriterionInfo?> GetByIdAsync(Guid id)
+    public async Task<CriterionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM criteria c WHERE c.id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
         {
             return null;
         }
@@ -114,13 +114,13 @@ public class CriteriaRepository : ICriteriaRepository
         CriterionDataType dataType,
         List<string>? enumValues,
         string? unit,
-        IReadOnlyList<string> resourceTypeKeys)
+        IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default)
     {
         if (resourceTypeKeys is null || resourceTypeKeys.Count == 0)
             throw new ArgumentException("At least one applicability value is required.", nameof(resourceTypeKeys));
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync();
 
         try
@@ -139,7 +139,7 @@ public class CriteriaRepository : ICriteriaRepository
                 enumValues != null ? JsonSerializer.Serialize(enumValues) : DBNull.Value);
             insertCriterion.Parameters.AddWithValue("unit", (object?)unit ?? DBNull.Value);
 
-            var idObj = await insertCriterion.ExecuteScalarAsync();
+            var idObj = await insertCriterion.ExecuteScalarAsync(ct);
             if (idObj is null)
                 throw new InvalidOperationException("A criterion with this name already exists");
             var criterionId = (Guid)idObj;
@@ -158,7 +158,7 @@ public class CriteriaRepository : ICriteriaRepository
                 var lookup = new NpgsqlCommand(
                     "SELECT id FROM resource_types WHERE key = @key", db, tx);
                 lookup.Parameters.AddWithValue("key", key);
-                var idObj2 = await lookup.ExecuteScalarAsync();
+                var idObj2 = await lookup.ExecuteScalarAsync(ct);
                 if (idObj2 is null)
                     throw new ArgumentException(
                         $"Applicability key did not match a known resource type: '{key}'");
@@ -171,7 +171,7 @@ public class CriteriaRepository : ICriteriaRepository
                     db, tx);
                 ins.Parameters.AddWithValue("criterionId", criterionId);
                 ins.Parameters.AddWithValue("resourceTypeId", resourceTypeId);
-                await ins.ExecuteNonQueryAsync();
+                await ins.ExecuteNonQueryAsync(ct);
             }
 
             // Re-select with the aggregate column populated so the response
@@ -180,8 +180,8 @@ public class CriteriaRepository : ICriteriaRepository
                 $"SELECT {SelectColumns} FROM criteria c WHERE c.id = @id", db, tx);
             fetch.Parameters.AddWithValue("id", criterionId);
 
-            await using var reader = await fetch.ExecuteReaderAsync();
-            await reader.ReadAsync();
+            await using var reader = await fetch.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
             var created = CriteriaMapper.MapFromReader(reader);
             await reader.CloseAsync();
 
@@ -195,15 +195,15 @@ public class CriteriaRepository : ICriteriaRepository
         }
     }
 
-    public async Task<CriterionInfo?> UpdateAsync(Guid id, string? description, List<string>? enumValues, string? unit)
+    public async Task<CriterionInfo?> UpdateAsync(Guid id, string? description, List<string>? enumValues, string? unit, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // Check if criterion exists and get its data type
         var checkCmd = new NpgsqlCommand("SELECT data_type FROM criteria WHERE id = @id", db);
         checkCmd.Parameters.AddWithValue("id", id);
-        var existingDataType = await checkCmd.ExecuteScalarAsync() as string;
+        var existingDataType = await checkCmd.ExecuteScalarAsync(ct) as string;
         if (existingDataType == null)
         {
             return null;
@@ -247,16 +247,16 @@ public class CriteriaRepository : ICriteriaRepository
 
         cmd.CommandText =
             $"UPDATE criteria SET {string.Join(", ", updateFields)} WHERE id = @id";
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
 
         // Re-select via GetByIdAsync to return the full DTO with aggregate columns.
         return await GetByIdAsync(id);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
         var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(db, "DELETE FROM criteria WHERE id = @id", id);
         return rowsAffected > 0;
     }

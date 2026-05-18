@@ -7,11 +7,11 @@ public interface IResourceAssignmentService
 {
     Task<(ResourceAssignmentInfo? Assignment, ResourceConflict? Conflict)> CreateAsync(
         CreateResourceAssignmentRequest request,
-        IResourceRequirement? requirement = null);
+        IResourceRequirement? requirement = null, CancellationToken ct = default);
 
-    Task<bool> CancelAsync(Guid id);
-    Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId);
-    Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc);
+    Task<bool> CancelAsync(Guid id, CancellationToken ct = default);
+    Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default);
+    Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -41,7 +41,7 @@ public class ResourceAssignmentService(
 
     public async Task<(ResourceAssignmentInfo? Assignment, ResourceConflict? Conflict)> CreateAsync(
         CreateResourceAssignmentRequest request,
-        IResourceRequirement? requirement = null)
+        IResourceRequirement? requirement = null, CancellationToken ct = default)
     {
         var validationRequest = new ValidateResourceAssignmentRequest
         {
@@ -63,13 +63,13 @@ public class ResourceAssignmentService(
         return (assignment, null);
     }
 
-    public Task<bool> CancelAsync(Guid id) => assignmentRepository.CancelAsync(id);
+    public Task<bool> CancelAsync(Guid id, CancellationToken ct = default) => assignmentRepository.CancelAsync(id, ct);
 
-    public Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId)
-        => assignmentRepository.GetByRequestAsync(requestId);
+    public Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default)
+        => assignmentRepository.GetByRequestAsync(requestId, ct);
 
-    public Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc)
-        => assignmentRepository.GetByResourceAsync(resourceId, fromUtc, toUtc);
+    public Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+        => assignmentRepository.GetByResourceAsync(resourceId, fromUtc, toUtc, ct);
 
     private static ResourceConflict ToConflict(ValidationIssue issue, Guid fallbackResourceId)
     {

@@ -22,7 +22,7 @@ public static class DepartmentEndpoints
         group.MapGet("/", async (
             bool? includeInactive,
             IDepartmentRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await repo.GetAllAsync(includeInactive ?? false)),
                 logger, "list departments"))
@@ -32,7 +32,7 @@ public static class DepartmentEndpoints
         group.MapGet("/tree", async (
             bool? includeInactive,
             IDepartmentRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await repo.GetTreeAsync(includeInactive ?? false)),
                 logger, "list departments as tree"))
@@ -42,7 +42,7 @@ public static class DepartmentEndpoints
         group.MapGet("/{id:guid}", async (
             Guid id,
             IDepartmentRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var d = await repo.GetByIdAsync(id);
@@ -54,7 +54,7 @@ public static class DepartmentEndpoints
             [FromBody] CreateDepartmentRequest request,
             IDepartmentRepository repo,
             IValidator<CreateDepartmentRequest> validator,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var d = await repo.CreateAsync(request);
@@ -68,7 +68,7 @@ public static class DepartmentEndpoints
             [FromBody] UpdateDepartmentRequest request,
             IDepartmentRepository repo,
             IValidator<UpdateDepartmentRequest> validator,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var d = await repo.UpdateAsync(id, request);
@@ -80,7 +80,7 @@ public static class DepartmentEndpoints
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IDepartmentRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var deleted = await repo.DeleteAsync(id);

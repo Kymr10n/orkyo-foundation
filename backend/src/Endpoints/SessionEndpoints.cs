@@ -27,7 +27,7 @@ public static class SessionEndpoints
             HttpContext ctx,
             IIdentityLinkService identityLinkService,
             ISessionService sessionService,
-            ILogger<Log> logger) =>
+            CancellationToken ct, ILogger<Log> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(
                 async () =>
@@ -59,7 +59,7 @@ public static class SessionEndpoints
                             "Could not extract identity from token");
                     }
 
-                    var linkResult = await identityLinkService.LinkIdentityAsync(externalToken);
+                    var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
 
                     if (!linkResult.Success || !linkResult.UserId.HasValue)
                     {
@@ -75,11 +75,11 @@ public static class SessionEndpoints
                         && externalToken.DisplayName != linkResult.DisplayName)
                     {
                         await sessionService.UpdateDisplayNameAsync(
-                            linkResult.UserId.Value, externalToken.DisplayName);
+                            linkResult.UserId.Value, externalToken.DisplayName, ct);
                     }
 
                     // Build session response
-                    var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value);
+                    var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value, ct);
 
                     // Add site-admin flag from token (realm role, not from DB)
                     var responseWithAdmin = result != null
@@ -111,7 +111,7 @@ public static class SessionEndpoints
         session.MapGet("/me", async (
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
-            ILogger<Log> logger) =>
+            CancellationToken ct, ILogger<Log> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(
                 async () =>
@@ -121,7 +121,7 @@ public static class SessionEndpoints
                         return Results.Unauthorized();
                     }
 
-                    var sessionInfo = await sessionService.GetSessionByUserIdAsync(currentPrincipal.UserId);
+                    var sessionInfo = await sessionService.GetSessionByUserIdAsync(currentPrincipal.UserId, ct);
                     if (sessionInfo == null)
                     {
                         return ErrorResponses.NotFound("User");
@@ -152,7 +152,7 @@ public static class SessionEndpoints
         session.MapPost("/tour/seen", async (
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
-            ILogger<Log> logger) =>
+            CancellationToken ct, ILogger<Log> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(
                 async () =>
@@ -160,7 +160,7 @@ public static class SessionEndpoints
                     if (!currentPrincipal.IsAuthenticated)
                         return Results.Unauthorized();
 
-                    await sessionService.MarkTourSeenAsync(currentPrincipal.UserId);
+                    await sessionService.MarkTourSeenAsync(currentPrincipal.UserId, ct);
                     return Results.Ok(new { marked = true });
                 },
                 logger,
@@ -178,7 +178,7 @@ public static class SessionEndpoints
             TosAcceptRequest request,
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
-            ILogger<Log> logger) =>
+            CancellationToken ct, ILogger<Log> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(
                 async () =>
@@ -208,7 +208,7 @@ public static class SessionEndpoints
                         currentPrincipal.UserId,
                         request.TosVersion,
                         ipAddress,
-                        userAgent);
+                        userAgent, ct);
 
                     return Results.Ok(new { accepted = true, tosVersion = request.TosVersion });
                 },
@@ -230,7 +230,7 @@ public static class SessionEndpoints
         publicAuth.MapPost("/create-account", async (
             CreateAccountRequest request,
             IKeycloakAdminService keycloakAdminService,
-            ILogger<Log> logger) =>
+            CancellationToken ct, ILogger<Log> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(
                 async () =>
@@ -273,8 +273,9 @@ public static class SessionEndpoints
                         request.Email,
                         request.Password,
                         firstName,
-                        lastName
-                    );
+                        lastName,
+                        emailVerified: false,
+                        ct: ct);
 
                     logger.LogInformation("Account created for {Email}", request.Email);
                     return Results.Ok(new

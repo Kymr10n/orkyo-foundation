@@ -21,17 +21,17 @@ public class SiteRepository : ISiteRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<List<SiteInfo>> GetAllAsync()
+    public async Task<List<SiteInfo>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM sites ORDER BY name LIMIT 200", conn);
 
         var sitesList = new List<SiteInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             sitesList.Add(SiteMapper.MapFromReader(reader));
         }
@@ -39,10 +39,10 @@ public class SiteRepository : ISiteRepository
         return sitesList;
     }
 
-    public async Task<PagedResult<SiteInfo>> GetAllAsync(PageRequest page)
+    public async Task<PagedResult<SiteInfo>> GetAllAsync(PageRequest page, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         return await DbQueryHelper.ExecutePagedQueryAsync(
             conn,
@@ -53,17 +53,17 @@ public class SiteRepository : ISiteRepository
             mapper: SiteMapper.MapFromReader);
     }
 
-    public async Task<SiteInfo?> GetByIdAsync(Guid siteId)
+    public async Task<SiteInfo?> GetByIdAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} FROM sites WHERE id = @siteId", conn);
         cmd.Parameters.AddWithValue("siteId", siteId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
         {
             return null;
         }
@@ -71,26 +71,26 @@ public class SiteRepository : ISiteRepository
         return SiteMapper.MapFromReader(reader);
     }
 
-    public async Task<int> GetEstimatedCountAsync()
+    public async Task<int> GetEstimatedCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'sites'", conn);
-        return (int)(long)(await cmd.ExecuteScalarAsync() ?? 0L);
+        return (int)(long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
     }
 
-    public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address)
+    public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Check if code already exists
         await using var checkCmd = new NpgsqlCommand(
             "SELECT COUNT(*) FROM sites WHERE code = @code", conn);
         checkCmd.Parameters.AddWithValue("code", code);
-        var count = (long)(await checkCmd.ExecuteScalarAsync() ?? 0L);
+        var count = (long)(await checkCmd.ExecuteScalarAsync(ct) ?? 0L);
 
         if (count > 0)
         {
@@ -109,23 +109,23 @@ public class SiteRepository : ISiteRepository
         cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
         cmd.Parameters.AddWithValue("address", (object?)address ?? DBNull.Value);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
 
         return SiteMapper.MapFromReader(reader);
     }
 
-    public async Task<SiteInfo?> UpdateAsync(Guid siteId, string code, string name, string? description, string? address)
+    public async Task<SiteInfo?> UpdateAsync(Guid siteId, string code, string name, string? description, string? address, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Check if another site has this code
         await using var checkCmd = new NpgsqlCommand(
             "SELECT COUNT(*) FROM sites WHERE code = @code AND id != @siteId", conn);
         checkCmd.Parameters.AddWithValue("code", code);
         checkCmd.Parameters.AddWithValue("siteId", siteId);
-        var count = (long)(await checkCmd.ExecuteScalarAsync() ?? 0L);
+        var count = (long)(await checkCmd.ExecuteScalarAsync(ct) ?? 0L);
 
         if (count > 0)
         {
@@ -142,8 +142,8 @@ public class SiteRepository : ISiteRepository
         cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
         cmd.Parameters.AddWithValue("address", (object?)address ?? DBNull.Value);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
         {
             return null;
         }
@@ -151,10 +151,10 @@ public class SiteRepository : ISiteRepository
         return SiteMapper.MapFromReader(reader);
     }
 
-    public async Task<bool> DeleteAsync(Guid siteId)
+    public async Task<bool> DeleteAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
         var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(conn, "DELETE FROM sites WHERE id = @id", siteId);
         return rowsAffected > 0;
     }

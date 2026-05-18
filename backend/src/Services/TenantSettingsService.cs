@@ -42,7 +42,7 @@ public class TenantSettingsService : ITenantSettingsService
     /// <summary>True when operating in site-admin context (no tenant selected).</summary>
     private bool IsSiteContext => _orgContext.OrgId == Guid.Empty;
 
-    public async Task<TenantSettings> GetSettingsAsync()
+    public async Task<TenantSettings> GetSettingsAsync(CancellationToken ct = default)
     {
         try
         {
@@ -82,7 +82,7 @@ public class TenantSettingsService : ITenantSettingsService
         }
     }
 
-    public async Task<TenantSettings> UpdateSettingsAsync(Dictionary<string, string> updates)
+    public async Task<TenantSettings> UpdateSettingsAsync(Dictionary<string, string> updates, CancellationToken ct = default)
     {
         foreach (var (key, value) in updates)
         {
@@ -122,7 +122,7 @@ public class TenantSettingsService : ITenantSettingsService
         return await GetSettingsAsync();
     }
 
-    public async Task<bool> ResetSettingAsync(string key)
+    public async Task<bool> ResetSettingAsync(string key, CancellationToken ct = default)
     {
         TenantSettingsScopePolicy.EnsureWritableInScope(key, IsSiteContext, "reset");
 

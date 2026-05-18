@@ -6,20 +6,20 @@ namespace Api.Repositories;
 
 public interface IResourceGroupRepository
 {
-    Task<List<ResourceGroupInfo>> GetByTypeKeyAsync(string resourceTypeKey);
-    Task<ResourceGroupInfo?> GetByIdAsync(Guid id);
-    Task<ResourceGroupInfo> CreateAsync(string resourceTypeKey, string name, string? description, int defaultAvailabilityPercent, string? color, int? displayOrder);
-    Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder);
-    Task<bool> DeleteAsync(Guid id);
+    Task<List<ResourceGroupInfo>> GetByTypeKeyAsync(string resourceTypeKey, CancellationToken ct = default);
+    Task<ResourceGroupInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<ResourceGroupInfo> CreateAsync(string resourceTypeKey, string name, string? description, int defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default);
+    Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default);
+    Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
 public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : IResourceGroupRepository
 {
-    public async Task<List<ResourceGroupInfo>> GetByTypeKeyAsync(string resourceTypeKey)
+    public async Task<List<ResourceGroupInfo>> GetByTypeKeyAsync(string resourceTypeKey, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT g.id, g.name, g.description, g.default_availability_percent, " +
@@ -34,16 +34,16 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
         cmd.Parameters.AddWithValue("resourceTypeKey", resourceTypeKey);
 
         var groups = new List<ResourceGroupInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             groups.Add(MapGroup(reader));
         return groups;
     }
 
-    public async Task<ResourceGroupInfo?> GetByIdAsync(Guid id)
+    public async Task<ResourceGroupInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT g.id, g.name, g.description, g.default_availability_percent, " +
@@ -57,14 +57,14 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
             conn);
         cmd.Parameters.AddWithValue("id", id);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? MapGroup(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? MapGroup(reader) : null;
     }
 
-    public async Task<ResourceGroupInfo> CreateAsync(string resourceTypeKey, string name, string? description, int defaultAvailabilityPercent, string? color, int? displayOrder)
+    public async Task<ResourceGroupInfo> CreateAsync(string resourceTypeKey, string name, string? description, int defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "WITH inserted AS ( " +
@@ -86,17 +86,17 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
         cmd.Parameters.AddWithValue("color", (object?)color ?? DBNull.Value);
         cmd.Parameters.AddWithValue("displayOrder", displayOrder ?? 0);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
             throw new InvalidOperationException("Failed to create resource group: resource type not found");
 
         return MapGroup(reader);
     }
 
-    public async Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder)
+    public async Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         var updates = new List<string>();
         var parameters = new List<NpgsqlParameter> { new("id", id) };
@@ -144,19 +144,19 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
         foreach (var p in parameters)
             cmd.Parameters.Add(p);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? MapGroup(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? MapGroup(reader) : null;
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM resource_groups WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     private static ResourceGroupInfo MapGroup(NpgsqlDataReader reader) => new()

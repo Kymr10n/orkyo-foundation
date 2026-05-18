@@ -5,7 +5,7 @@ namespace Api.Services;
 
 public interface IOffTimeResourceQuery
 {
-    Task<List<OffTimeInfo>> GetBlockingOffTimesAsync(Guid resourceId, Guid siteId, DateTime startUtc, DateTime endUtc);
+    Task<List<OffTimeInfo>> GetBlockingOffTimesAsync(Guid resourceId, Guid siteId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -15,7 +15,7 @@ public interface IOffTimeResourceQuery
 public class OffTimeResourceQuery(ISchedulingRepository schedulingRepository) : IOffTimeResourceQuery
 {
     public async Task<List<OffTimeInfo>> GetBlockingOffTimesAsync(
-        Guid resourceId, Guid siteId, DateTime startUtc, DateTime endUtc)
+        Guid resourceId, Guid siteId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
         var all = await schedulingRepository.GetOffTimesAsync(siteId);
 

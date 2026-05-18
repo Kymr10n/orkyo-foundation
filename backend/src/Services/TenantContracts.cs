@@ -16,7 +16,7 @@ public class TenantContext
 
 public interface ITenantResolver
 {
-    Task<TenantContext?> ResolveTenantAsync(string? subdomain, string? tenantHeader);
+    Task<TenantContext?> ResolveTenantAsync(string? subdomain, string? tenantHeader, CancellationToken ct = default);
 
     /// <summary>Evict a cached tenant entry (e.g. after status change).</summary>
     void InvalidateCache(string slug);

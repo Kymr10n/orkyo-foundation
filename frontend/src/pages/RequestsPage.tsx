@@ -32,7 +32,7 @@ import {
     moveRequest,
     updateRequest,
 } from "@foundation/src/lib/api/request-api";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import type {
     CreateRequestRequest,
     PlanningMode,
@@ -412,7 +412,7 @@ export function RequestsPage() {
   );
 
   // Build conflict count map for tree view (own + descendant conflicts)
-  const storeConflicts = useAppStore((s) => s.conflicts);
+  const { conflicts: storeConflicts } = useConflicts();
 
   const handleOpenConflicts = useCallback(
     (requestId: string) => {

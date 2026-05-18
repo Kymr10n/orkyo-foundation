@@ -26,12 +26,12 @@ public sealed class AdminAuditService : IAdminAuditService
         string action,
         string? targetType = null,
         string? targetId = null,
-        object? metadata = null)
+        object? metadata = null, CancellationToken ct = default)
     {
         try
         {
             await using var conn = _connectionFactory.CreateControlPlaneConnection();
-            await conn.OpenAsync();
+            await conn.OpenAsync(ct);
 
             await using var cmd = new NpgsqlCommand(
                 @"INSERT INTO audit_events (id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
@@ -49,7 +49,7 @@ public sealed class AdminAuditService : IAdminAuditService
             metadataParam.Value = metadata != null ? JsonSerializer.Serialize(metadata) : DBNull.Value;
             cmd.Parameters.Add(metadataParam);
 
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == "42P01")
         {

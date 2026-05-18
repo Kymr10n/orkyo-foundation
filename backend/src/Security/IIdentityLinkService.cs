@@ -85,7 +85,7 @@ public interface IIdentityLinkService
     /// <param name="provider">The authentication provider</param>
     /// <param name="externalSubject">The external subject identifier</param>
     /// <returns>The principal context if found, null otherwise</returns>
-    Task<PrincipalContext?> FindByExternalIdentityAsync(AuthProvider provider, string externalSubject);
+    Task<PrincipalContext?> FindByExternalIdentityAsync(AuthProvider provider, string externalSubject, CancellationToken ct = default);
 
     /// <summary>
     /// Link an external identity to an internal user, creating the user if necessary.
@@ -93,14 +93,14 @@ public interface IIdentityLinkService
     /// </summary>
     /// <param name="token">The external identity token</param>
     /// <returns>The result of the link operation</returns>
-    Task<IdentityLinkResult> LinkIdentityAsync(ExternalIdentityToken token);
+    Task<IdentityLinkResult> LinkIdentityAsync(ExternalIdentityToken token, CancellationToken ct = default);
 
     /// <summary>
     /// Get the user's memberships across all tenants.
     /// </summary>
     /// <param name="userId">The internal user ID</param>
     /// <returns>List of tenant memberships</returns>
-    Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(Guid userId);
+    Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
     /// Get the user's role in a specific tenant.
@@ -108,7 +108,7 @@ public interface IIdentityLinkService
     /// <param name="userId">The internal user ID</param>
     /// <param name="tenantId">The tenant ID</param>
     /// <returns>The user's role, or None if not a member</returns>
-    Task<TenantRole> GetUserTenantRoleAsync(Guid userId, Guid tenantId);
+    Task<TenantRole> GetUserTenantRoleAsync(Guid userId, Guid tenantId, CancellationToken ct = default);
 }
 
 /// <summary>

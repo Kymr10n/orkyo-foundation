@@ -45,7 +45,7 @@ public class ExportService : IExportService
         _currentTenant = currentTenant;
     }
 
-    public async Task<ExportPayload> ExportAsync(ExportRequest request)
+    public async Task<ExportPayload> ExportAsync(ExportRequest request, CancellationToken ct = default)
     {
         const string schemaVersion = "1.0.0";
 

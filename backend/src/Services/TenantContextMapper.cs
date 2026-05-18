@@ -5,14 +5,14 @@ namespace Api.Services;
 
 public static class TenantContextMapper
 {
+    // Column ordinals matching the SELECT: id, slug, db_identifier, status, tier
     public static TenantContext MapFromResolverRow(DbDataReader reader, string controlPlaneConnectionString)
     {
-        var tenantId = reader.GetGuid(TenantResolverQueryContract.TenantIdOrdinal);
-        var slug = reader.GetString(TenantResolverQueryContract.TenantSlugOrdinal);
-        var dbIdentifier = reader.GetString(TenantResolverQueryContract.DbIdentifierOrdinal);
-        var status = reader.GetString(TenantResolverQueryContract.StatusOrdinal);
-        var tierValue = reader.GetInt32(TenantResolverQueryContract.TierOrdinal);
-        var tier = (ServiceTier)tierValue;
+        var tenantId = reader.GetGuid(0);
+        var slug = reader.GetString(1);
+        var dbIdentifier = reader.GetString(2);
+        var status = reader.GetString(3);
+        var tier = (ServiceTier)reader.GetInt32(4);
 
         var tenantConnectionString = TenantConnectionStringHelper.BuildTenantDatabaseConnectionString(
             controlPlaneConnectionString,
@@ -24,7 +24,7 @@ public static class TenantContextMapper
             TenantSlug = slug,
             TenantDbConnectionString = tenantConnectionString,
             Tier = tier,
-            Status = status
+            Status = status,
         };
     }
 }

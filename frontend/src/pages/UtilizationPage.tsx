@@ -8,7 +8,7 @@ import { RequestFormDialog, type RequestFormData } from "@foundation/src/compone
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
-import { useSchedulingConflicts } from "@foundation/src/hooks/useSchedulingConflicts";
+import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
 import { useSchedulingSettings, useOffTimes } from "@foundation/src/hooks/useScheduling";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
@@ -44,7 +44,7 @@ export function UtilizationPage() {
     timeCursorTs, setTimeCursorTs,
     isFloorplanCollapsed, setIsFloorplanCollapsed,
     setSelectedRequestId,
-    selectedSiteId, setConflicts,
+    selectedSiteId,
   } = useAppStore(useShallow((state) => ({
     scale: state.scale,
     setScale: state.setScale,
@@ -56,7 +56,6 @@ export function UtilizationPage() {
     setIsFloorplanCollapsed: state.setIsFloorplanCollapsed,
     setSelectedRequestId: state.setSelectedRequestId,
     selectedSiteId: state.selectedSiteId,
-    setConflicts: state.setConflicts,
   })));
 
   // Require 8px of movement before activating a drag so that plain clicks
@@ -126,7 +125,7 @@ export function UtilizationPage() {
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
   // Conflict detection (scheduling + capability) — extracted to hook
-  const { conflictingRequestIds } = useSchedulingConflicts(requests, spaces, selectedSiteId);
+  const { conflictingRequestIds } = useConflicts();
 
   // Handle export from TopBar
   useExportHandler('utilization', async (exportFormat) => {
@@ -276,8 +275,8 @@ export function UtilizationPage() {
       data: { resourceId: null, startTs: null, endTs: null },
     });
     setSelectedRequestId(null);
-    setConflicts(request.id, []);
-  }, [scheduleMutation, setSelectedRequestId, setConflicts]);
+    // Conflicts recompute naturally via useConflicts() when the request loses its space assignment
+  }, [scheduleMutation, setSelectedRequestId]);
 
   const handleTreeReparent = useCallback(async (requestId: string, parentId: string) => {
     if (wouldCreateCycle(requestId, parentId, requests)) return;

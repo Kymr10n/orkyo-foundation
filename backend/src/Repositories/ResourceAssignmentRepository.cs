@@ -7,13 +7,13 @@ namespace Api.Repositories;
 
 public interface IResourceAssignmentRepository
 {
-    Task<ResourceAssignmentInfo> CreateAsync(CreateResourceAssignmentRequest request);
-    Task<ResourceAssignmentInfo?> GetByIdAsync(Guid id);
-    Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId);
-    Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc);
-    Task<List<ResourceAssignmentInfo>> GetOverlappingActiveAsync(Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null);
-    Task<decimal> GetTotalAllocatedPercentAsync(Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null);
-    Task<bool> CancelAsync(Guid id);
+    Task<ResourceAssignmentInfo> CreateAsync(CreateResourceAssignmentRequest request, CancellationToken ct = default);
+    Task<ResourceAssignmentInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default);
+    Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    Task<List<ResourceAssignmentInfo>> GetOverlappingActiveAsync(Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default);
+    Task<decimal> GetTotalAllocatedPercentAsync(Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default);
+    Task<bool> CancelAsync(Guid id, CancellationToken ct = default);
 }
 
 public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -30,10 +30,10 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         "JOIN resources res     ON res.id = ra.resource_id " +
         "JOIN resource_types rt ON rt.id  = res.resource_type_id";
 
-    public async Task<ResourceAssignmentInfo> CreateAsync(CreateResourceAssignmentRequest request)
+    public async Task<ResourceAssignmentInfo> CreateAsync(CreateResourceAssignmentRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO resource_assignments
@@ -54,8 +54,8 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         cmd.Parameters.AddWithValue("allocationPercent", (object?)request.AllocationPercent ?? DBNull.Value);
         cmd.Parameters.AddWithValue("allocationUnits", (object?)request.AllocationUnits ?? DBNull.Value);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
 
         return new ResourceAssignmentInfo
         {
@@ -73,23 +73,23 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         };
     }
 
-    public async Task<ResourceAssignmentInfo?> GetByIdAsync(Guid id)
+    public async Task<ResourceAssignmentInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} {FromJoin} WHERE ra.id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
-    public async Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId)
+    public async Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} {FromJoin} " +
@@ -100,10 +100,10 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
     }
 
     public async Task<List<ResourceAssignmentInfo>> GetByResourceAsync(
-        Guid resourceId, DateTime fromUtc, DateTime toUtc)
+        Guid resourceId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SelectColumns} {FromJoin} " +
@@ -120,10 +120,10 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
     }
 
     public async Task<List<ResourceAssignmentInfo>> GetOverlappingActiveAsync(
-        Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null)
+        Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var excludeClause = excludeAssignmentId.HasValue ? "AND ra.id != @excludeId" : "";
         await using var cmd = new NpgsqlCommand(
@@ -143,10 +143,10 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
     }
 
     public async Task<decimal> GetTotalAllocatedPercentAsync(
-        Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null)
+        Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         var excludeClause = excludeAssignmentId.HasValue ? "AND id != @excludeId" : "";
         await using var cmd = new NpgsqlCommand(
@@ -162,13 +162,13 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         if (excludeAssignmentId.HasValue)
             cmd.Parameters.AddWithValue("excludeId", excludeAssignmentId.Value);
 
-        return (decimal)(await cmd.ExecuteScalarAsync() ?? 0m);
+        return (decimal)(await cmd.ExecuteScalarAsync(ct) ?? 0m);
     }
 
-    public async Task<bool> CancelAsync(Guid id)
+    public async Task<bool> CancelAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "UPDATE resource_assignments " +
@@ -176,14 +176,14 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
             "WHERE id = @id AND assignment_status != @cancelled", db);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    private static async Task<List<ResourceAssignmentInfo>> ReadAllAsync(NpgsqlCommand cmd)
+    private static async Task<List<ResourceAssignmentInfo>> ReadAllAsync(NpgsqlCommand cmd, CancellationToken ct = default)
     {
         var result = new List<ResourceAssignmentInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             result.Add(Map(reader));
         return result;
     }

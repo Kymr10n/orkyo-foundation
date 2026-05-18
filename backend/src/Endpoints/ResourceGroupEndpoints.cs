@@ -18,7 +18,7 @@ public static class ResourceGroupEndpoints
             .RequireAuthorization()
             .RequireTenantMembership();
 
-        group.MapGet("/", async (string resourceTypeKey, IResourceGroupRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/", async (string resourceTypeKey, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
                 Results.Ok(await repo.GetByTypeKeyAsync(resourceTypeKey)),
@@ -27,7 +27,7 @@ public static class ResourceGroupEndpoints
         .WithName("GetResourceGroups")
         .WithSummary("List resource groups for a given resource type");
 
-        group.MapGet("/{id:guid}", async (Guid id, IResourceGroupRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
@@ -62,7 +62,7 @@ public static class ResourceGroupEndpoints
         .WithName("UpdateResourceGroup")
         .WithSummary("Update a resource group");
 
-        group.MapDelete("/{id:guid}", async (Guid id, IResourceGroupRepository repo, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {

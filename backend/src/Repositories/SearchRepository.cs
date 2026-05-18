@@ -18,13 +18,13 @@ public class SearchRepository : ISearchRepository
         _settingsService = settingsService;
     }
 
-    public async Task<List<SearchResult>> SearchAsync(string query, Guid? siteId, string[]? types, int limit = 20)
+    public async Task<List<SearchResult>> SearchAsync(string query, Guid? siteId, string[]? types, int limit = 20, CancellationToken ct = default)
     {
         var results = new List<SearchResult>();
         if (string.IsNullOrWhiteSpace(query)) return results;
 
         await using var conn = _connectionFactory.CreateOrgConnection(_context);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var isShortQuery = normalizedQuery.Length < SearchConstants.MinQueryLengthForFullSearch;
@@ -41,8 +41,8 @@ public class SearchRepository : ISearchRepository
         if (siteId.HasValue) cmd.Parameters.AddWithValue("@site_id", siteId.Value);
         if (types != null && types.Length > 0) cmd.Parameters.AddWithValue("@types", types);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             var entityType = reader.GetString(0);
             var entityId = reader.GetGuid(1);

@@ -1,5 +1,4 @@
 import { type User } from "@foundation/src/types/auth";
-import { type Conflict } from "@foundation/src/types/requests";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 import { COOKIE_NAMES } from "@foundation/src/constants/http";
 import { create } from "zustand";
@@ -38,12 +37,6 @@ interface AppState {
   // Space row ordering
   spaceOrder: string[];
   setSpaceOrder: (order: string[]) => void;
-
-  // Conflicts tracking
-  conflicts: Map<string, Conflict[]>; // requestId -> conflicts
-  setConflicts: (requestId: string, conflicts: Conflict[]) => void;
-  clearConflicts: (requestId: string) => void;
-  getAllConflicts: () => Conflict[];
 
   // Drawer state
   isDetailsDrawerOpen: boolean;
@@ -111,32 +104,6 @@ export const useAppStore = create<AppState>((set) => ({
 
   spaceOrder: [],
   setSpaceOrder: (order) => set({ spaceOrder: order }),
-
-  conflicts: new Map(),
-  setConflicts: (requestId, conflicts) =>
-    set((state) => {
-      const newConflicts = new Map(state.conflicts);
-      if (conflicts.length > 0) {
-        newConflicts.set(requestId, conflicts);
-      } else {
-        newConflicts.delete(requestId);
-      }
-      return { conflicts: newConflicts };
-    }),
-  clearConflicts: (requestId) =>
-    set((state) => {
-      const newConflicts = new Map(state.conflicts);
-      newConflicts.delete(requestId);
-      return { conflicts: newConflicts };
-    }),
-  getAllConflicts: () => {
-    const state = useAppStore.getState();
-    const allConflicts: Conflict[] = [];
-    state.conflicts.forEach((conflicts) => {
-      allConflicts.push(...conflicts);
-    });
-    return allConflicts;
-  },
 
   isDetailsDrawerOpen: false,
   setIsDetailsDrawerOpen: (open) => set({ isDetailsDrawerOpen: open }),

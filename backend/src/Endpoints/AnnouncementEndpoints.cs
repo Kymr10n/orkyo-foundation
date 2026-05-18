@@ -45,13 +45,13 @@ public static class AnnouncementEndpoints
             .WithSummary("Delete an announcement");
     }
 
-    private static async Task<IResult> GetAll(IAnnouncementService service, bool includeExpired = true)
+    private static async Task<IResult> GetAll(IAnnouncementService service, bool includeExpired = true, CancellationToken ct = default)
     {
         var announcements = await service.GetAllAsync(includeExpired);
         return Results.Ok(new { announcements });
     }
 
-    private static async Task<IResult> GetById(Guid id, IAnnouncementService service)
+    private static async Task<IResult> GetById(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {
         var dto = await service.GetByIdAsync(id);
         return dto is null ? ErrorResponses.NotFound("Announcement", id) : Results.Ok(dto);
@@ -61,7 +61,8 @@ public static class AnnouncementEndpoints
         CreateAnnouncementRequest request,
         IAnnouncementService service,
         CurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger) =>
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var announcement = await service.CreateAsync(request, principal.UserId);
@@ -73,12 +74,13 @@ public static class AnnouncementEndpoints
         UpdateAnnouncementRequest request,
         IAnnouncementService service,
         CurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger) =>
+        ILogger<EndpointLoggerCategory> logger,
+        CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync<AnnouncementDto>(async () =>
                 await service.UpdateAsync(id, request, principal.UserId),
             logger, "UpdateAnnouncement");
 
-    private static async Task<IResult> Delete(Guid id, IAnnouncementService service)
+    private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {
         var deleted = await service.DeleteAsync(id);
         return deleted ? Results.NoContent() : ErrorResponses.NotFound("Announcement", id);

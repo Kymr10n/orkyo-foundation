@@ -22,7 +22,7 @@ public static class CriterionApplicabilityEndpoints
         group.MapGet("/{id:guid}/applicability", async (
             Guid id,
             ICriterionApplicabilityRepository repo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var info = await repo.GetByCriterionAsync(id);
@@ -37,7 +37,7 @@ public static class CriterionApplicabilityEndpoints
             ICriterionApplicabilityRepository applicabilityRepo,
             IResourceTypeRepository resourceTypeRepo,
             ICriteriaRepository criteriaRepo,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var criterion = await criteriaRepo.GetByIdAsync(id);

@@ -16,7 +16,7 @@ public static class SearchEndpoints
     {
         var search = app.MapGroup("/api/search").RequireAuthorization().RequireTenantMembership();
 
-        search.MapGet("/", async (string q, Guid? siteId, string? types, int? limit, ISearchRepository repository, IAuthorizationContext authContext, ITenantSettingsService settingsService, ILogger<EndpointLoggerCategory> logger) =>
+        search.MapGet("/", async (string q, Guid? siteId, string? types, int? limit, ISearchRepository repository, IAuthorizationContext authContext, ITenantSettingsService settingsService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
@@ -27,7 +27,7 @@ public static class SearchEndpoints
                     ? null
                     : types.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-                var settings = await settingsService.GetSettingsAsync();
+                var settings = await settingsService.GetSettingsAsync(ct);
                 var results = await repository.SearchAsync(q, siteId, typeFilter, Math.Min(limit ?? settings.Search_DefaultPageSize, 50));
                 var canEdit = authContext.CanEdit;
                 var resultsWithPermissions = results.Select(r => r with { Permissions = r.Permissions with { CanEdit = canEdit } }).ToList();

@@ -33,41 +33,41 @@ public class SchedulingRepository : ISchedulingRepository
 
     // ── Helpers ──────────────────────────────────────────────────────
 
-    public async Task<Guid?> GetSiteIdForResourceAsync(Guid resourceId)
+    public async Task<Guid?> GetSiteIdForResourceAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "SELECT site_id FROM spaces WHERE id = @resourceId", conn);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
 
-        var result = await cmd.ExecuteScalarAsync();
+        var result = await cmd.ExecuteScalarAsync(ct);
         return result is Guid siteId ? siteId : null;
     }
 
     // ── Scheduling Settings ─────────────────────────────────────────
 
-    public async Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId)
+    public async Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {SettingsSelectColumns} FROM scheduling_settings WHERE site_id = @siteId", conn);
         cmd.Parameters.AddWithValue("siteId", siteId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
             return null;
 
         return SchedulingMapper.MapSettingsFromReader(reader);
     }
 
-    public async Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request)
+    public async Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand($@"
             INSERT INTO scheduling_settings (site_id, time_zone, working_hours_enabled,
@@ -99,37 +99,37 @@ public class SchedulingRepository : ISchedulingRepository
         cmd.Parameters.AddWithValue("publicHolidaysEnabled", request.PublicHolidaysEnabled);
         cmd.Parameters.AddWithValue("publicHolidayRegion", (object?)request.PublicHolidayRegion ?? DBNull.Value);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
         return SchedulingMapper.MapSettingsFromReader(reader);
     }
 
-    public async Task<bool> DeleteSettingsAsync(Guid siteId)
+    public async Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM scheduling_settings WHERE site_id = @siteId", conn);
         cmd.Parameters.AddWithValue("siteId", siteId);
 
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     // ── Off-Times ───────────────────────────────────────────────────
 
-    public async Task<List<OffTimeInfo>> GetOffTimesAsync(Guid siteId)
+    public async Task<List<OffTimeInfo>> GetOffTimesAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {OffTimeSelectColumns} FROM off_times WHERE site_id = @siteId ORDER BY start_ts", conn);
         cmd.Parameters.AddWithValue("siteId", siteId);
 
         var offTimes = new List<OffTimeInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             offTimes.Add(SchedulingMapper.MapOffTimeFromReader(reader));
         }
@@ -150,10 +150,10 @@ public class SchedulingRepository : ISchedulingRepository
         return offTimes;
     }
 
-    public async Task<List<OffTimeInfo>> GetOffTimesByResourceAsync(Guid resourceId, Guid siteId)
+    public async Task<List<OffTimeInfo>> GetOffTimesByResourceAsync(Guid resourceId, Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT DISTINCT {OffTimeSelectColumns} FROM off_times o " +
@@ -164,8 +164,8 @@ public class SchedulingRepository : ISchedulingRepository
         cmd.Parameters.AddWithValue("resourceId", resourceId);
 
         var offTimes = new List<OffTimeInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
             offTimes.Add(SchedulingMapper.MapOffTimeFromReader(reader));
         reader.Close();
 
@@ -183,10 +183,10 @@ public class SchedulingRepository : ISchedulingRepository
         return offTimes;
     }
 
-    public async Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid siteId, Guid offTimeId)
+    public async Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid siteId, Guid offTimeId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         var offTime = await GetOffTimeCore(conn, siteId, offTimeId);
         if (offTime == null) return null;
@@ -199,17 +199,17 @@ public class SchedulingRepository : ISchedulingRepository
         return offTime;
     }
 
-    public async Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid offTimeId)
+    public async Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid offTimeId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"SELECT {OffTimeSelectColumns} FROM off_times WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", offTimeId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync()) return null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
         var offTime = SchedulingMapper.MapOffTimeFromReader(reader);
         reader.Close();
 
@@ -219,10 +219,10 @@ public class SchedulingRepository : ISchedulingRepository
         return offTime;
     }
 
-    public async Task<OffTimeInfo> CreateOffTimeAsync(Guid siteId, CreateOffTimeRequest request)
+    public async Task<OffTimeInfo> CreateOffTimeAsync(Guid siteId, CreateOffTimeRequest request, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var tx = await conn.BeginTransactionAsync();
 
@@ -245,8 +245,8 @@ public class SchedulingRepository : ISchedulingRepository
         cmd.Parameters.AddWithValue("recurrenceRule", (object?)request.RecurrenceRule ?? DBNull.Value);
         cmd.Parameters.AddWithValue("enabled", request.Enabled);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
         var offTime = SchedulingMapper.MapOffTimeFromReader(reader);
         reader.Close();
 
@@ -261,10 +261,10 @@ public class SchedulingRepository : ISchedulingRepository
         return offTime;
     }
 
-    public async Task<OffTimeInfo?> UpdateOffTimeAsync(Guid siteId, Guid offTimeId, UpdateOffTimeRequest request)
+    public async Task<OffTimeInfo?> UpdateOffTimeAsync(Guid siteId, Guid offTimeId, UpdateOffTimeRequest request, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         // Get existing
         var existing = await GetOffTimeCore(conn, siteId, offTimeId);
@@ -302,8 +302,8 @@ public class SchedulingRepository : ISchedulingRepository
         cmd.Parameters.AddWithValue("recurrenceRule", (object?)recurrenceRule ?? DBNull.Value);
         cmd.Parameters.AddWithValue("enabled", enabled);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
         {
             await tx.RollbackAsync();
             return null;
@@ -317,7 +317,7 @@ public class SchedulingRepository : ISchedulingRepository
             await using var delCmd = new NpgsqlCommand(
                 "DELETE FROM off_time_resources WHERE off_time_id = @id", conn, tx);
             delCmd.Parameters.AddWithValue("id", offTimeId);
-            await delCmd.ExecuteNonQueryAsync();
+            await delCmd.ExecuteNonQueryAsync(ct);
 
             if (!appliesToAllResources && request.ResourceIds is { Count: > 0 })
             {
@@ -334,30 +334,30 @@ public class SchedulingRepository : ISchedulingRepository
         return offTime;
     }
 
-    public async Task<bool> DeleteOffTimeAsync(Guid siteId, Guid offTimeId)
+    public async Task<bool> DeleteOffTimeAsync(Guid siteId, Guid offTimeId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM off_times WHERE id = @id AND site_id = @siteId", conn);
         cmd.Parameters.AddWithValue("id", offTimeId);
         cmd.Parameters.AddWithValue("siteId", siteId);
 
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────
 
-    private static async Task<List<Guid>> LoadOffTimeResourceIds(NpgsqlConnection conn, Guid offTimeId)
+    private static async Task<List<Guid>> LoadOffTimeResourceIds(NpgsqlConnection conn, Guid offTimeId, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(
             "SELECT resource_id FROM off_time_resources WHERE off_time_id = @id", conn);
         cmd.Parameters.AddWithValue("id", offTimeId);
 
         var resourceIds = new List<Guid>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             resourceIds.Add(reader.GetGuid(0));
         }
@@ -365,15 +365,15 @@ public class SchedulingRepository : ISchedulingRepository
     }
 
     private static async Task<Dictionary<Guid, List<Guid>>> LoadOffTimeResourceIdsBatch(
-        NpgsqlConnection conn, List<Guid> offTimeIds)
+        NpgsqlConnection conn, List<Guid> offTimeIds, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(
             "SELECT off_time_id, resource_id FROM off_time_resources WHERE off_time_id = ANY(@ids)", conn);
         cmd.Parameters.AddWithValue("ids", offTimeIds.ToArray());
 
         var map = new Dictionary<Guid, List<Guid>>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             var otId = reader.GetGuid(0);
             var resourceId = reader.GetGuid(1);
@@ -388,7 +388,7 @@ public class SchedulingRepository : ISchedulingRepository
     }
 
     private static async Task InsertOffTimeResources(
-        NpgsqlConnection conn, NpgsqlTransaction tx, Guid offTimeId, List<Guid> resourceIds)
+        NpgsqlConnection conn, NpgsqlTransaction tx, Guid offTimeId, List<Guid> resourceIds, CancellationToken ct = default)
     {
         if (resourceIds.Count == 0) return;
 
@@ -399,18 +399,18 @@ public class SchedulingRepository : ISchedulingRepository
         cmd.Parameters.AddWithValue("offTimeId", offTimeId);
         for (var i = 0; i < resourceIds.Count; i++)
             cmd.Parameters.AddWithValue($"s{i}", resourceIds[i]);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task<OffTimeInfo?> GetOffTimeCore(NpgsqlConnection conn, Guid siteId, Guid offTimeId)
+    private static async Task<OffTimeInfo?> GetOffTimeCore(NpgsqlConnection conn, Guid siteId, Guid offTimeId, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(
             $"SELECT {OffTimeSelectColumns} FROM off_times WHERE id = @id AND site_id = @siteId", conn);
         cmd.Parameters.AddWithValue("id", offTimeId);
         cmd.Parameters.AddWithValue("siteId", siteId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
             return null;
         return SchedulingMapper.MapOffTimeFromReader(reader);
     }

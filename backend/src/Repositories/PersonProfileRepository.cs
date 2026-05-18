@@ -6,11 +6,11 @@ namespace Api.Repositories;
 
 public interface IPersonProfileRepository
 {
-    Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId);
-    Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId);
-    Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request);
-    Task<bool> LinkUserAsync(Guid resourceId, Guid userId);
-    Task<bool> UnlinkUserAsync(Guid resourceId);
+    Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId, CancellationToken ct = default);
+    Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId, CancellationToken ct = default);
+    Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request, CancellationToken ct = default);
+    Task<bool> LinkUserAsync(Guid resourceId, Guid userId, CancellationToken ct = default);
+    Task<bool> UnlinkUserAsync(Guid resourceId, CancellationToken ct = default);
 }
 
 public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -51,36 +51,36 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
           LEFT JOIN job_titles jt ON jt.id = p.job_title_id
           LEFT JOIN dept_path dp  ON dp.id = p.department_id";
 
-    public async Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId)
+    public async Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"{SelectSqlBody} WHERE p.resource_id = @resourceId", db);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
-    public async Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId)
+    public async Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
             $"{SelectSqlBody} WHERE p.linked_user_id = @userId", db);
         cmd.Parameters.AddWithValue("userId", userId);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        return await reader.ReadAsync() ? Map(reader) : null;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
-    public async Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request)
+    public async Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // Single round-trip: INSERT, or UPDATE on conflict. Preserves linked_user_id
         // on update (link/unlink are managed through their own endpoints). FK
@@ -107,7 +107,7 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
 
         try
         {
-            await cmd.ExecuteScalarAsync();
+            await cmd.ExecuteScalarAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == "23503")
         {
@@ -120,10 +120,10 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
         return saved ?? throw new InvalidOperationException("Upsert failed");
     }
 
-    public async Task<bool> LinkUserAsync(Guid resourceId, Guid userId)
+    public async Task<bool> LinkUserAsync(Guid resourceId, Guid userId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         // First check if the user is already linked to any profile in this tenant
         var existingLink = await GetByLinkedUserIdAsync(userId);
@@ -146,14 +146,14 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("userId", userId);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 
-    public async Task<bool> UnlinkUserAsync(Guid resourceId)
+    public async Task<bool> UnlinkUserAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync();
+        await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(@"
             UPDATE person_profiles SET linked_user_id = NULL, updated_at = NOW()
@@ -161,7 +161,7 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
 
         cmd.Parameters.AddWithValue("resourceId", resourceId);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         return rowsAffected > 0;
     }
 

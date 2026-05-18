@@ -34,7 +34,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _kc = keycloakOptions;
     }
 
-    public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword)
+    public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
     {
         // Verify current password first — "incorrect password" is a user error (400), not an upstream failure.
         await VerifyCurrentPasswordAsync(keycloakSub, currentPassword);
@@ -51,7 +51,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Password changed for user {Sub}", keycloakSub);
     }
 
-    public async Task<List<KeycloakSession>> GetUserSessionsAsync(string keycloakSub)
+    public async Task<List<KeycloakSession>> GetUserSessionsAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -65,7 +65,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         return JsonSerializer.Deserialize<List<KeycloakSession>>(json) ?? new List<KeycloakSession>();
     }
 
-    public async Task RevokeSessionAsync(string sessionId)
+    public async Task RevokeSessionAsync(string sessionId, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync();
 
@@ -78,7 +78,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Session {SessionId} revoked", sessionId);
     }
 
-    public async Task LogoutAllSessionsAsync(string keycloakSub)
+    public async Task LogoutAllSessionsAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -91,7 +91,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("All sessions logged out for user {Sub}", keycloakSub);
     }
 
-    public async Task<FederationStatus> GetUserFederationStatusAsync(string keycloakSub)
+    public async Task<FederationStatus> GetUserFederationStatusAsync(string keycloakSub, CancellationToken ct = default)
     {
         // Best-effort check — any failure yields "not federated" rather than throwing,
         // because this call drives UI state (show/hide "change password") and a Keycloak
@@ -124,7 +124,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     }
 
     public async Task CreateUserAsync(
-        string email, string password, string? firstName = null, string? lastName = null, bool emailVerified = false)
+        string email, string password, string? firstName = null, string? lastName = null, bool emailVerified = false, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync();
 
@@ -173,7 +173,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("User created: {Email}", email);
     }
 
-    public async Task<bool> UserExistsAsync(string email)
+    public async Task<bool> UserExistsAsync(string email, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync();
 
@@ -188,11 +188,11 @@ public class KeycloakAdminService : IKeycloakAdminService
         return users is { Count: > 0 };
     }
 
-    public Task DisableUserAsync(string keycloakId) => SetUserEnabledAsync(keycloakId, enabled: false);
+    public Task DisableUserAsync(string keycloakId, CancellationToken ct = default) => SetUserEnabledAsync(keycloakId, enabled: false);
 
-    public Task EnableUserAsync(string keycloakId) => SetUserEnabledAsync(keycloakId, enabled: true);
+    public Task EnableUserAsync(string keycloakId, CancellationToken ct = default) => SetUserEnabledAsync(keycloakId, enabled: true);
 
-    public async Task DeleteUserAsync(string keycloakId)
+    public async Task DeleteUserAsync(string keycloakId, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync();
 
@@ -205,7 +205,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Deleted user {KeycloakId} from Keycloak", keycloakId);
     }
 
-    public async Task<MfaStatus> GetMfaStatusAsync(string keycloakSub)
+    public async Task<MfaStatus> GetMfaStatusAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -234,7 +234,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         };
     }
 
-    public async Task DeleteUserCredentialAsync(string keycloakSub, string credentialId)
+    public async Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -262,7 +262,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Deleted credential {CredentialId} for user {Sub}", credentialId, keycloakSub);
     }
 
-    public async Task<UserProfile> GetUserProfileAsync(string keycloakSub)
+    public async Task<UserProfile> GetUserProfileAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -285,7 +285,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         };
     }
 
-    public async Task UpdateUserProfileAsync(string keycloakSub, string firstName, string lastName)
+    public async Task UpdateUserProfileAsync(string keycloakSub, string firstName, string lastName, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -298,7 +298,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Profile updated for user {Sub}", keycloakSub);
     }
 
-    public async Task EnableMfaAsync(string keycloakSub)
+    public async Task EnableMfaAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
@@ -314,7 +314,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("CONFIGURE_TOTP required action added for user {Sub}", keycloakSub);
     }
 
-    public async Task<bool> HasRealmRoleAsync(string keycloakId, string roleName)
+    public async Task<bool> HasRealmRoleAsync(string keycloakId, string roleName, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync();
 
@@ -329,13 +329,13 @@ public class KeycloakAdminService : IKeycloakAdminService
         return roles.Any(r => r.Name == roleName);
     }
 
-    public Task AssignRealmRoleAsync(string keycloakId, string roleName)
+    public Task AssignRealmRoleAsync(string keycloakId, string roleName, CancellationToken ct = default)
         => ModifyRealmRoleAsync(keycloakId, roleName, assign: true);
 
-    public Task RevokeRealmRoleAsync(string keycloakId, string roleName)
+    public Task RevokeRealmRoleAsync(string keycloakId, string roleName, CancellationToken ct = default)
         => ModifyRealmRoleAsync(keycloakId, roleName, assign: false);
 
-    public async Task<int> CountRealmRoleMembersAsync(string roleName)
+    public async Task<int> CountRealmRoleMembersAsync(string roleName, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync();
 
