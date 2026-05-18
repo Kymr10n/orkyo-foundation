@@ -5,6 +5,7 @@ import type { Site } from '@foundation/src/types/site';
 import type { Conflict } from '@foundation/src/types/requests';
 import type { Template } from '@foundation/src/types/templates';
 import type { User } from '@foundation/src/types/auth';
+import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import {
   arrayToCSV,
   csvToArray,
@@ -119,8 +120,8 @@ export async function exportRequests(requests: Request[], format: ExportFormat) 
       status: request.status,
       start_ts: request.startTs || '',
       end_ts: request.endTs || '',
-      space_id: request.spaceId || '',
-      space_name: '', // Space name needs to be fetched separately
+      resource_id: getSpaceResourceId(request) || '',
+      resource_name: '', // Resource name needs to be fetched separately
       earliest_start_ts: request.earliestStartTs || '',
       latest_end_ts: request.latestEndTs || '',
       min_duration_value: request.minimalDurationValue || '',
@@ -147,7 +148,7 @@ export async function importRequests(file: File, format: ImportFormat): Promise<
       status: row.status as RequestStatus,
       start_ts: row.start_ts || null,
       end_ts: row.end_ts || null,
-      space_id: row.space_id || null,
+      resource_id: row.resource_id || null,
       earliest_start_ts: row.earliest_start_ts || null,
       latest_end_ts: row.latest_end_ts || null,
       min_duration_value: row.min_duration_value ? parseInt(row.min_duration_value) : null,

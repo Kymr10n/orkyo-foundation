@@ -1,6 +1,6 @@
 /**
  * Generic API client utility for DRY HTTP requests
- * 
+ *
  * All requests go through a single `apiFetch` function that applies
  * credentials, headers (including CSRF for mutations), and error handling.
  */
@@ -149,13 +149,13 @@ function buildUrl(endpoint: string, params?: Record<string, string | number | bo
   // When API_BASE_URL is empty (subdomain mode), use same-origin
   const base = API_BASE_URL || window.location.origin;
   const url = new URL(endpoint, base);
-  
+
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, String(value));
     });
   }
-  
+
   return url.toString();
 }
 

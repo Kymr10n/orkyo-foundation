@@ -46,13 +46,13 @@ import { logger } from "@foundation/src/lib/core/logger";
 
 interface SpaceManagementPanelProps {
   siteId: string;
-  editSpaceId?: string | null;
+  editResourceId?: string | null;
   className?: string;
 }
 
 export function SpaceManagementPanel({
   siteId,
-  editSpaceId,
+  editResourceId,
   className,
 }: SpaceManagementPanelProps) {
   // React Query hooks
@@ -76,13 +76,13 @@ export function SpaceManagementPanel({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState<SpaceType | null>(null);
   const [capabilitiesSpace, setCapabilitiesSpace] = useState<SpaceType | null>(null);
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [, setSearchParams] = useSearchParams();
 
   // Handle ?edit=<id> query param from global search
   useEffect(() => {
-    if (editSpaceId && spaces.length > 0 && !isLoadingSpaces) {
-      const spaceToEdit = spaces.find(s => s.id === editSpaceId);
+    if (editResourceId && spaces.length > 0 && !isLoadingSpaces) {
+      const spaceToEdit = spaces.find(s => s.id === editResourceId);
       if (spaceToEdit) {
         setEditingSpace(spaceToEdit);
         // Clear the query param
@@ -92,7 +92,7 @@ export function SpaceManagementPanel({
         }, { replace: true });
       }
     }
-  }, [editSpaceId, spaces, isLoadingSpaces, setSearchParams]);
+  }, [editResourceId, spaces, isLoadingSpaces, setSearchParams]);
 
   // Handle export/import
   useExportHandler('spaces', async (format) => {
@@ -207,12 +207,12 @@ export function SpaceManagementPanel({
     setDrawingMode(mode);
   };
 
-  const handleDeleteSpace = async (spaceId: string) => {
+  const handleDeleteSpace = async (resourceId: string) => {
     if (deleteSpaceMutation.isPending) return;
     try {
-      await deleteSpaceMutation.mutateAsync(spaceId);
-      if (selectedSpaceId === spaceId) {
-        setSelectedSpaceId(null);
+      await deleteSpaceMutation.mutateAsync(resourceId);
+      if (selectedResourceId === resourceId) {
+        setSelectedResourceId(null);
       }
     } catch (error) {
       logger.error("Failed to delete space:", error);
@@ -221,14 +221,14 @@ export function SpaceManagementPanel({
   };
 
   const handleMoveSpace = async (
-    spaceId: string,
+    resourceId: string,
     newGeometry: SpaceGeometry,
   ) => {
     try {
-      const space = spaces.find((s) => s.id === spaceId);
+      const space = spaces.find((s) => s.id === resourceId);
       if (!space) return;
 
-      await moveSpaceMutation.mutateAsync({ spaceId, space, newGeometry });
+      await moveSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
     } catch (error) {
       logger.error("Failed to move space:", error);
       alert("Failed to move space");
@@ -236,14 +236,14 @@ export function SpaceManagementPanel({
   };
 
   const handleResizeSpace = async (
-    spaceId: string,
+    resourceId: string,
     newGeometry: SpaceGeometry,
   ) => {
     try {
-      const space = spaces.find((s) => s.id === spaceId);
+      const space = spaces.find((s) => s.id === resourceId);
       if (!space) return;
 
-      await resizeSpaceMutation.mutateAsync({ spaceId, space, newGeometry });
+      await resizeSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
     } catch (error) {
       logger.error("Failed to resize space:", error);
       alert("Failed to resize space");
@@ -252,7 +252,7 @@ export function SpaceManagementPanel({
 
   const floorplanUrl = floorplanMetadata ? floorplanBlobUrl : null;
 
-  const _selectedSpace = spaces.find((s) => s.id === selectedSpaceId);
+  const _selectedSpace = spaces.find((s) => s.id === selectedResourceId);
 
   return (
     <div className={cn("flex h-full gap-4", className)}>
@@ -263,8 +263,8 @@ export function SpaceManagementPanel({
         </div>
         <SpaceList
           spaces={spaces}
-          selectedSpaceId={selectedSpaceId}
-          onSpaceSelect={setSelectedSpaceId}
+          selectedResourceId={selectedResourceId}
+          onSpaceSelect={setSelectedResourceId}
           onSpaceEdit={setEditingSpace}
           onSpaceDelete={handleDeleteSpace}
           onCapabilitiesEdit={setCapabilitiesSpace}
@@ -399,8 +399,8 @@ export function SpaceManagementPanel({
                 onDrawingComplete={handleDrawingComplete}
                 onDrawingCancel={handleCancelDrawing}
                 existingSpaces={spaces}
-                selectedSpaceId={selectedSpaceId || undefined}
-                onSpaceClick={setSelectedSpaceId}
+                selectedResourceId={selectedResourceId || undefined}
+                onSpaceClick={setSelectedResourceId}
                 onSpaceMove={handleMoveSpace}
                 onSpaceResize={handleResizeSpace}
               />
@@ -449,7 +449,7 @@ export function SpaceManagementPanel({
               open={!!capabilitiesSpace}
               onOpenChange={(open) => !open && setCapabilitiesSpace(null)}
               siteId={siteId}
-              spaceId={capabilitiesSpace.id}
+              resourceId={capabilitiesSpace.id}
               spaceName={capabilitiesSpace.name}
             />
           )}

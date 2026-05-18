@@ -15,7 +15,7 @@ const mockRequest = {
   name: 'Team Meeting',
   description: 'Weekly team sync',
   status: 'pending',
-  spaceId: null,
+  resourceId: null,
   startTs: null,
   endTs: null,
   minimalDurationValue: 1,

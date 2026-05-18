@@ -93,8 +93,8 @@ public sealed record AutoScheduleScore(
 public sealed record ProposedAssignmentDto(
     Guid RequestId,
     string RequestName,
-    Guid SpaceId,
-    string SpaceName,
+    Guid ResourceId,
+    string ResourceName,
     DateOnly Start,
     DateOnly End,
     int DurationDays);
@@ -118,7 +118,10 @@ public sealed record SchedulingProblem(
     IReadOnlyList<FixedOccupancy> FixedAssignments,
     SchedulingSettingsInfo? Settings,
     List<OffTimeInfo>? OffTimes,
-    AutoScheduleMode Mode);
+    AutoScheduleMode Mode,
+    // Non-Space resources available for multi-type requirements (Phase 4+).
+    // Empty for all existing single-Space problems — no behavioral change.
+    IReadOnlyList<ResourceNode> AdditionalResources = default!);
 
 public sealed record RequestNode(
     Guid RequestId,
@@ -128,16 +131,28 @@ public sealed record RequestNode(
     int DurationDays,
     int Priority,
     bool RespectSchedulingSettings,
-    IReadOnlySet<Guid> RequiredCriterionIds);
+    IReadOnlySet<Guid> RequiredCriterionIds,
+    // Additional resource requirements beyond the primary Space (Phase 4+).
+    // Empty for all existing requests — no behavioral change.
+    IReadOnlyList<IResourceRequirement> AdditionalRequirements = default!);
 
 public sealed record SpaceNode(
-    Guid SpaceId,
+    Guid ResourceId,
     string DisplayName,
+    IReadOnlySet<Guid> CriterionIds);
+
+/// <summary>
+/// A non-Space resource (Person, Tool) available for multi-type scheduling.
+/// </summary>
+public sealed record ResourceNode(
+    Guid ResourceId,
+    Guid ResourceTypeId,
+    string AllocationMode,
     IReadOnlySet<Guid> CriterionIds);
 
 public sealed record FixedOccupancy(
     Guid RequestId,
-    Guid SpaceId,
+    Guid ResourceId,
     DateOnly Start,
     DateOnly End);
 
@@ -146,7 +161,7 @@ public sealed record FixedOccupancy(
 /// </summary>
 public sealed record SchedulingCandidate(
     Guid RequestId,
-    Guid SpaceId,
+    Guid ResourceId,
     DateOnly EarliestStart,
     DateOnly LatestEnd,
     int DurationDays,
@@ -155,7 +170,7 @@ public sealed record SchedulingCandidate(
 
 public sealed record CandidateRejection(
     Guid RequestId,
-    Guid? SpaceId,
+    Guid? ResourceId,
     SchedulingReasonCode ReasonCode,
     string? Message = null);
 
@@ -192,10 +207,10 @@ public sealed record SchedulingSolution(
     public string ComputeFingerprint()
     {
         var sb = new StringBuilder();
-        foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.SpaceId))
+        foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))
         {
             sb.Append(a.RequestId).Append('|')
-              .Append(a.SpaceId).Append('|')
+              .Append(a.ResourceId).Append('|')
               .Append(a.Start).Append('|')
               .Append(a.End).Append(';');
         }
@@ -206,11 +221,13 @@ public sealed record SchedulingSolution(
 
 public sealed record ScheduledPlacement(
     Guid RequestId,
-    Guid SpaceId,
+    Guid ResourceId,
     DateOnly Start,
     DateOnly End,
     int DurationDays,
-    int Priority);
+    int Priority,
+    // Additional (non-Space) resources reserved for this placement (Phase 4+).
+    IReadOnlyList<Guid> AdditionalResourceIds = default!);
 
 public sealed record UnscheduledPlacement(
     Guid RequestId,

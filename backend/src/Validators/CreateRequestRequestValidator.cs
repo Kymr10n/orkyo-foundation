@@ -20,7 +20,7 @@ public class CreateRequestRequestValidator : AbstractValidator<CreateRequestRequ
         {
             RuleFor(x => x.StartTs).Null().WithMessage("Container requests cannot have start_ts");
             RuleFor(x => x.EndTs).Null().WithMessage("Container requests cannot have end_ts");
-            RuleFor(x => x.SpaceId).Null().WithMessage("Container requests cannot have a space_id");
+            RuleFor(x => x.ResourceId).Null().WithMessage("Container requests cannot have a resourceId");
         });
 
         // Summary requests: schedule is derived from children, not set directly
@@ -28,7 +28,7 @@ public class CreateRequestRequestValidator : AbstractValidator<CreateRequestRequ
         {
             RuleFor(x => x.StartTs).Null().WithMessage("Summary request dates are derived from children");
             RuleFor(x => x.EndTs).Null().WithMessage("Summary request dates are derived from children");
-            RuleFor(x => x.SpaceId).Null().WithMessage("Summary requests cannot have a space_id");
+            RuleFor(x => x.ResourceId).Null().WithMessage("Summary requests cannot have a resourceId");
         });
 
         // Both start/end must be provided together

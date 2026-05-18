@@ -8,8 +8,9 @@ import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/
 import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
 import type { Request } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
-import type { SpaceGroup } from '@foundation/src/types/spaceGroup';
+import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { DndContext } from '@dnd-kit/core';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // Mock the store
 vi.mock('@foundation/src/store/app-store', () => ({
@@ -28,9 +29,9 @@ vi.mock('@foundation/src/store/app-store', () => ({
   }),
 }));
 
-// Mock the space groups API
-vi.mock('@foundation/src/lib/api/space-groups-api', () => ({
-  getSpaceGroups: vi.fn(() => Promise.resolve([])),
+// Mock the resource groups API
+vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
+  getResourceGroups: vi.fn(() => Promise.resolve([])),
 }));
 
 const createWrapper = () => {
@@ -77,7 +78,7 @@ const mockRequests: Request[] = [
   {
     id: 'req-1',
     name: 'Test Request 1',
-    spaceId: 'space-1',
+    assignments: [spaceAssignment('space-1')],
     startTs: '2024-01-10T09:00:00Z',
     endTs: '2024-01-10T11:00:00Z',
     status: 'planned',
@@ -111,7 +112,7 @@ describe('SchedulerGrid', () => {
 
   it('renders without crashing', async () => {
     const Wrapper = createWrapper();
-    
+
     render(
       <Wrapper>
         <SchedulerGrid
@@ -132,7 +133,7 @@ describe('SchedulerGrid', () => {
 
   it('renders memoized SpaceRow components', async () => {
     const Wrapper = createWrapper();
-    
+
     const { rerender } = render(
       <Wrapper>
         <SchedulerGrid
@@ -173,7 +174,7 @@ describe('SchedulerGrid', () => {
 
   it('renders scheduled requests', async () => {
     const Wrapper = createWrapper();
-    
+
     render(
       <Wrapper>
         <SchedulerGrid
@@ -194,7 +195,7 @@ describe('SchedulerGrid', () => {
 
   it('handles empty spaces array', async () => {
     const Wrapper = createWrapper();
-    
+
     render(
       <Wrapper>
         <SchedulerGrid
@@ -216,17 +217,20 @@ describe('SchedulerGrid', () => {
 
   it('renders space groups when provided', async () => {
     const Wrapper = createWrapper();
-    const _mockSpaceGroups: SpaceGroup[] = [
+    const _mockSpaceGroups: ResourceGroupInfo[] = [
       {
         id: 'group-1',
         name: 'Building A',
         color: '#FF0000',
         displayOrder: 1,
+        resourceTypeKey: 'space',
+        memberCount: 0,
+        defaultAvailabilityPercent: 100,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
       },
     ];
-    
+
     render(
       <Wrapper>
         <SchedulerGrid
@@ -318,7 +322,7 @@ describe('SchedulerGrid', () => {
     it('accepts onAnchorChange prop for edge scrolling', async () => {
       const Wrapper = createWrapper();
       const onAnchorChange = vi.fn();
-      
+
       render(
         <Wrapper>
           <SchedulerGrid
@@ -341,7 +345,7 @@ describe('SchedulerGrid', () => {
     it('renders time cursor that can be dragged', async () => {
       const Wrapper = createWrapper();
       const onTimeCursorClick = vi.fn();
-      
+
       render(
         <Wrapper>
           <SchedulerGrid
@@ -365,7 +369,7 @@ describe('SchedulerGrid', () => {
     it('works without onAnchorChange (edge scroll disabled)', async () => {
       const Wrapper = createWrapper();
       const onTimeCursorClick = vi.fn();
-      
+
       // This verifies backward compatibility - onAnchorChange is optional
       render(
         <Wrapper>
@@ -388,7 +392,7 @@ describe('SchedulerGrid', () => {
     it('supports all time scales for edge scrolling', () => {
       const Wrapper = createWrapper();
       const scales: ('hour' | 'day' | 'week' | 'month' | 'year')[] = ['hour', 'day', 'week', 'month', 'year'];
-      
+
       scales.forEach((scale) => {
         const { unmount } = render(
           <Wrapper>
@@ -404,7 +408,7 @@ describe('SchedulerGrid', () => {
             />
           </Wrapper>
         );
-        
+
         // Verify it renders for each scale
         expect(screen.getByText('Space')).toBeInTheDocument();
         unmount();

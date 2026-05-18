@@ -5,10 +5,12 @@ import {
   useCriteria,
   useCreateCriterion,
   useUpdateCriterion,
-  useDeleteCriterion
+  useDeleteCriterion,
+  useFilteredCriteria,
+  useUpdateCriterionApplicability,
 } from './useCriteria';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
-import type { Criterion } from '@foundation/src/types/criterion';
+import type { Criterion, ResourceTypeKey } from '@foundation/src/types/criterion';
 import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
@@ -19,6 +21,7 @@ const mockCriterion: Criterion = {
   description: 'Room capacity',
   dataType: 'Number',
   unit: 'people',
+  resourceTypeKeys: ['space'],
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
 };
@@ -56,6 +59,7 @@ describe('useCriteria', () => {
         description: 'Room capacity',
         dataType: 'Number',
         unit: 'people',
+        resourceTypeKeys: ['space'],
       });
 
       await waitFor(() => {
@@ -96,6 +100,48 @@ describe('useCriteria', () => {
       await result.current.mutateAsync('criterion-1');
 
       expect(criteriaApi.deleteCriterion).toHaveBeenCalledWith('criterion-1');
+    });
+  });
+
+  describe('useFilteredCriteria', () => {
+    it('fetches criteria with the given resourceType filter', async () => {
+      const spaceCriteria = [mockCriterion];
+      vi.mocked(criteriaApi.getCriteria).mockResolvedValue(spaceCriteria);
+
+      const { result } = renderHook(() => useFilteredCriteria('space'), {
+        wrapper: createTestQueryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual(spaceCriteria);
+      expect(criteriaApi.getCriteria).toHaveBeenCalledWith({ resourceType: 'space' });
+    });
+  });
+
+  describe('useUpdateCriterionApplicability', () => {
+    it('calls updateCriterionApplicability and invalidates criteria cache', async () => {
+      const applicabilityResult = {
+        criterionId: 'criterion-1',
+        applicableToRequests: true,
+        resourceTypeKeys: ['space', 'person'] as ResourceTypeKey[],
+      };
+      vi.mocked(criteriaApi.updateCriterionApplicability).mockResolvedValue(applicabilityResult);
+
+      const { spy, wrapper } = createTestQueryClientWithSpy();
+      const { result } = renderHook(() => useUpdateCriterionApplicability(), { wrapper });
+
+      await result.current.mutateAsync({
+        id: 'criterion-1',
+        data: { resourceTypeKeys: ['space', 'person'] },
+      });
+
+      await waitFor(() => {
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'] });
+      });
+      expect(criteriaApi.updateCriterionApplicability).toHaveBeenCalledWith(
+        'criterion-1',
+        { resourceTypeKeys: ['space', 'person'] },
+      );
     });
   });
 });

@@ -78,9 +78,13 @@ public record RequestInfo
     public required PlanningMode PlanningMode { get; init; }
     public int SortOrder { get; init; }
 
-    // Space and item references
-    public Guid? SpaceId { get; init; }
     public string? RequestItemId { get; init; }
+
+    /// <summary>
+    /// All non-cancelled resource assignments for this request.
+    /// Ordered by (ResourceTypeKey, StartUtc) — stable for snapshot tests.
+    /// </summary>
+    public required IReadOnlyList<ResourceAssignmentInfo> Assignments { get; init; }
 
     // Display icon (short string ID resolved to a lucide-react icon on the frontend).
     public string? Icon { get; init; }
@@ -114,8 +118,9 @@ public record RequestInfo
     // Scheduling
     public required bool SchedulingSettingsApply { get; init; }
 
-    // Computed property: is this request scheduled (allocated to a space)?
-    public bool IsScheduled => SpaceId.HasValue && StartTs.HasValue && EndTs.HasValue;
+    // Computed: scheduled when a Space resource is assigned and time window is set.
+    public bool IsScheduled => StartTs.HasValue && EndTs.HasValue
+        && Assignments.Any(a => a.ResourceTypeKey == ResourceTypeKeys.Space);
 }
 
 /// <summary>
@@ -128,6 +133,10 @@ public record RequestRequirementInfo
     public required Guid CriterionId { get; init; }
     public required JsonElement Value { get; init; } // JSONB value
     public DateTime CreatedAt { get; init; }
+
+    // Typed operator support (Phase 3)
+    public string? Operator { get; init; } // e.g. ">=", "<=", "=" for Number criteria
+    public JsonElement? AllowedValues { get; init; } // Set of allowed values for Enum criteria
 
     // Populated from join
     public CriterionBasicInfo? Criterion { get; init; }
@@ -158,7 +167,7 @@ public record CreateRequestRequest
     public PlanningMode PlanningMode { get; init; } = PlanningMode.Leaf;
     public int SortOrder { get; init; }
 
-    public Guid? SpaceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
     public string? Icon { get; init; }
@@ -196,7 +205,7 @@ public record UpdateRequestRequest
     public PlanningMode? PlanningMode { get; init; }
     public int? SortOrder { get; init; }
 
-    public Guid? SpaceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
     public string? Icon { get; init; }
@@ -245,16 +254,19 @@ public record AddRequirementRequest
 {
     public required Guid CriterionId { get; init; }
     public required JsonElement Value { get; init; }
+    // Phase 3: Typed operator support
+    public string? Operator { get; init; }
+    public JsonElement? AllowedValues { get; init; }
 }
 
 /// <summary>
 /// Request to schedule or unschedule a request.
-/// To schedule: provide spaceId, startTs, and endTs.
+/// To schedule: provide resourceId, startTs, and endTs.
 /// To unschedule: provide all fields as null.
 /// </summary>
 public record ScheduleRequestRequest
 {
-    public Guid? SpaceId { get; init; }
+    public Guid? ResourceId { get; init; }
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
     public int? ActualDurationValue { get; init; }
@@ -276,4 +288,16 @@ public record MoveRequestRequest
 public record DeleteSubtreeResponse
 {
     public required int DeletedCount { get; init; }
+}
+
+/// <summary>
+/// Extension methods for RequestInfo.
+/// </summary>
+public static class RequestInfoExtensions
+{
+    /// <summary>
+    /// Gets the space resource ID from request assignments, if any.
+    /// </summary>
+    public static Guid? GetSpaceResourceId(this RequestInfo r) =>
+        r.Assignments.FirstOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId;
 }

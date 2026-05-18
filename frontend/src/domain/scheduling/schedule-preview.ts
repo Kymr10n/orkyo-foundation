@@ -30,7 +30,7 @@ export function buildPreviewSchedule(
     if (draft?.requestId === entry.requestId) {
       preview.set(entry.requestId, {
         requestId: entry.requestId,
-        spaceId: draft.spaceId,
+        resourceId: draft.resourceId,
         startMs: draft.previewStartMs,
         endMs: draft.previewEndMs,
         name: entry.name,
@@ -40,7 +40,7 @@ export function buildPreviewSchedule(
     } else {
       preview.set(entry.requestId, {
         requestId: entry.requestId,
-        spaceId: entry.spaceId,
+        resourceId: entry.resourceId,
         startMs: entry.startMs,
         endMs: entry.endMs,
         name: entry.name,

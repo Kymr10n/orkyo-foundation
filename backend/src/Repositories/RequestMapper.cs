@@ -17,8 +17,8 @@ public static class RequestMapper
             ParentRequestId = reader.GetNullableGuid("parent_request_id"),
             PlanningMode = EnumMapper.ParseEnum<PlanningMode>(reader.GetString("planning_mode")),
             SortOrder = reader.GetInt32("sort_order"),
-            SpaceId = reader.GetNullableGuid("space_id"),
             RequestItemId = reader.GetNullableString("request_item_id"),
+            Assignments = ParseAssignments(reader.GetString("assignments")),
             Icon = reader.GetNullableString("icon"),
             StartTs = reader.GetNullableDateTime("start_ts"),
             EndTs = reader.GetNullableDateTime("end_ts"),
@@ -45,6 +45,8 @@ public static class RequestMapper
             RequestId = reader.GetGuid("request_id"),
             CriterionId = reader.GetGuid("criterion_id"),
             Value = JsonDocument.Parse(reader.GetString("value")).RootElement.Clone(),
+            Operator = reader.IsDBNull(reader.GetOrdinal("operator")) ? null : reader.GetString(reader.GetOrdinal("operator")),
+            AllowedValues = reader.IsDBNull(reader.GetOrdinal("allowed_values")) ? null : JsonDocument.Parse(reader.GetString(reader.GetOrdinal("allowed_values"))).RootElement.Clone(),
             CreatedAt = reader.GetDateTime("created_at"),
         };
     }
@@ -83,5 +85,18 @@ public static class RequestMapper
                 ? JsonSerializer.Deserialize<List<string>>(enumJson)
                 : null,
         };
+    }
+
+    private static readonly JsonSerializerOptions AssignmentOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+    };
+
+    private static IReadOnlyList<ResourceAssignmentInfo> ParseAssignments(string json)
+    {
+        if (string.IsNullOrEmpty(json) || json == "[]")
+            return Array.Empty<ResourceAssignmentInfo>();
+        return JsonSerializer.Deserialize<List<ResourceAssignmentInfo>>(json, AssignmentOptions)!
+            .AsReadOnly();
     }
 }

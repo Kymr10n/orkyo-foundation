@@ -123,7 +123,7 @@ describe('search-api', () => {
         'template',
         'criterion',
       ];
-      
+
       types.forEach((type) => {
         const result: SearchResult = { ...mockSearchResult, type };
         expect(result.type).toBe(type);

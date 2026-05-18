@@ -16,6 +16,7 @@ function createTestRequest(overrides: Partial<Request> & { requirements?: Reques
     schedulingSettingsApply: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    assignments: [],
     ...overrides,
   };
 }
@@ -89,7 +90,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 100,
           createdAt: new Date().toISOString(),
@@ -124,7 +125,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 50,
           createdAt: new Date().toISOString(),
@@ -160,7 +161,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 50,
           createdAt: new Date().toISOString(),
@@ -202,7 +203,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 5,
           createdAt: new Date().toISOString(),
@@ -240,7 +241,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: true,
           createdAt: new Date().toISOString(),
@@ -275,7 +276,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: false,
           createdAt: new Date().toISOString(),
@@ -310,7 +311,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: false,
           createdAt: new Date().toISOString(),
@@ -353,7 +354,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 'HDMI',
           createdAt: new Date().toISOString(),
@@ -388,7 +389,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 'VGA',
           createdAt: new Date().toISOString(),
@@ -431,7 +432,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 'Theater',
           createdAt: new Date().toISOString(),
@@ -466,7 +467,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 'Classroom',
           createdAt: new Date().toISOString(),
@@ -531,7 +532,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-capacity',
           value: 50, // Too small
           createdAt: new Date().toISOString(),
@@ -544,7 +545,7 @@ describe('validateSpaceRequirements', () => {
         },
         {
           id: 'cap-2',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-projector',
           value: false, // Not available
           createdAt: new Date().toISOString(),
@@ -557,7 +558,7 @@ describe('validateSpaceRequirements', () => {
         },
         {
           id: 'cap-3',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-seating',
           value: 'Classroom', // Wrong style
           createdAt: new Date().toISOString(),
@@ -606,7 +607,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-capacity',
           value: 100,
           createdAt: new Date().toISOString(),
@@ -619,7 +620,7 @@ describe('validateSpaceRequirements', () => {
         },
         {
           id: 'cap-2',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-projector',
           value: true,
           createdAt: new Date().toISOString(),
@@ -656,7 +657,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 'different',
           createdAt: new Date().toISOString(),
@@ -696,7 +697,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: 'custom',
           createdAt: new Date().toISOString(),
@@ -743,7 +744,7 @@ describe('validateSpaceRequirements', () => {
       const capabilities: SpaceCapability[] = [
         {
           id: 'cap-1',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-1',
           value: false,
           createdAt: new Date().toISOString(),
@@ -756,7 +757,7 @@ describe('validateSpaceRequirements', () => {
         },
         {
           id: 'cap-2',
-          spaceId: 'space-1',
+          resourceId: 'space-1',
           criterionId: 'crit-2',
           value: 'Classroom',
           createdAt: new Date().toISOString(),

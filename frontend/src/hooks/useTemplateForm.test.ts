@@ -20,6 +20,7 @@ function makeCriterion(overrides: Partial<Criterion> = {}): Criterion {
     id: 'c1',
     name: 'Test Criterion',
     dataType: 'String',
+    resourceTypeKeys: ['space'],
     createdAt: '2026-01-01',
     updatedAt: '2026-01-01',
     ...overrides,

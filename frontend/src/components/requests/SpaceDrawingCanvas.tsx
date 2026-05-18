@@ -39,13 +39,13 @@ interface SpaceDrawingCanvasProps {
     geometry?: SpaceGeometry;
   }[];
   /** Selected space ID */
-  selectedSpaceId?: string;
+  selectedResourceId?: string;
   /** Callback when a space is clicked */
-  onSpaceClick?: (spaceId: string) => void;
+  onSpaceClick?: (resourceId: string) => void;
   /** Callback when a space is moved */
-  onSpaceMove?: (spaceId: string, newGeometry: SpaceGeometry) => void;
+  onSpaceMove?: (resourceId: string, newGeometry: SpaceGeometry) => void;
   /** Callback when a space is resized */
-  onSpaceResize?: (spaceId: string, newGeometry: SpaceGeometry) => void;
+  onSpaceResize?: (resourceId: string, newGeometry: SpaceGeometry) => void;
   /** Current zoom level */
   zoom?: number;
   /** Custom colors per space ID - { fill, stroke } */
@@ -63,7 +63,7 @@ export function SpaceDrawingCanvas({
   onDrawingComplete,
   onDrawingCancel,
   existingSpaces = [],
-  selectedSpaceId,
+  selectedResourceId,
   onSpaceClick,
   onSpaceMove,
   onSpaceResize,
@@ -96,14 +96,14 @@ export function SpaceDrawingCanvas({
   // Calculate base scale to fit container
   const updateBaseScale = useCallback(() => {
     if (!containerRef.current || !floorplanDimensions) return;
-    
+
     const containerWidth = containerRef.current.clientWidth - 32; // Account for padding
     const containerHeight = containerRef.current.clientHeight - 32;
     const imageWidth = floorplanDimensions.width;
     const imageHeight = floorplanDimensions.height;
-    
+
     if (imageWidth <= 0 || containerWidth <= 50) return;
-    
+
     let newScale: number;
     if (fitMode === 'contain' && imageHeight > 0 && containerHeight > 50) {
       // Scale to fit both width and height (for fixed-height containers)
@@ -114,7 +114,7 @@ export function SpaceDrawingCanvas({
       // Scale to fit width only (scrollable containers)
       newScale = Math.min(containerWidth / imageWidth, 1);
     }
-    
+
     // Only update if significantly different to avoid layout thrashing
     if (baseScaleRef.current === null || Math.abs(newScale - baseScaleRef.current) > 0.01) {
       baseScaleRef.current = newScale;
@@ -125,12 +125,12 @@ export function SpaceDrawingCanvas({
   // Update base scale on mount and resize
   useEffect(() => {
     updateBaseScale();
-    
+
     const resizeObserver = new ResizeObserver(updateBaseScale);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
-    
+
     return () => resizeObserver.disconnect();
   }, [updateBaseScale]);
 
@@ -173,11 +173,11 @@ export function SpaceDrawingCanvas({
 
       if (handleElement) {
         e.preventDefault();
-        const spaceId = handleElement.getAttribute("data-space-id");
+        const resourceId = handleElement.getAttribute("data-space-id");
         const handleIndex = parseInt(
           handleElement.getAttribute("data-handle-index") || "0",
         );
-        const space = existingSpaces.find((s) => s.id === spaceId);
+        const space = existingSpaces.find((s) => s.id === resourceId);
 
         if (space?.geometry && onSpaceResize) {
           const pos = screenToCanvas(e.clientX, e.clientY);
@@ -200,8 +200,8 @@ export function SpaceDrawingCanvas({
 
     if (spaceElement) {
       e.preventDefault();
-      const spaceId = spaceElement.getAttribute("data-space-id");
-      const space = existingSpaces.find((s) => s.id === spaceId);
+      const resourceId = spaceElement.getAttribute("data-space-id");
+      const space = existingSpaces.find((s) => s.id === resourceId);
 
       if (space?.geometry && onSpaceMove) {
         const pos = screenToCanvas(e.clientX, e.clientY);
@@ -293,9 +293,9 @@ export function SpaceDrawingCanvas({
       const target = e.target as HTMLElement;
       const spaceElement = target.closest("[data-space-id]");
       if (spaceElement && onSpaceClick) {
-        const spaceId = spaceElement.getAttribute("data-space-id");
-        if (spaceId) {
-          onSpaceClick(spaceId);
+        const resourceId = spaceElement.getAttribute("data-space-id");
+        if (resourceId) {
+          onSpaceClick(resourceId);
           return;
         }
       }
@@ -370,8 +370,8 @@ export function SpaceDrawingCanvas({
   return (
     <div ref={containerRef} className={cn("relative overflow-auto bg-muted/30", className)}>
       {/* Wrapper for proper scroll area sizing - hidden until scale is calculated */}
-      <div 
-        style={{ 
+      <div
+        style={{
           width: isScaleReady ? `${canvasWidth * effectiveScale}px` : '100%',
           height: isScaleReady ? `${canvasHeight * effectiveScale}px` : '100%',
           position: 'relative',
@@ -451,7 +451,7 @@ export function SpaceDrawingCanvas({
                   space={previewSpace}
                   isDragging={true}
                   drawingMode={drawingMode}
-                  selectedSpaceId={selectedSpaceId}
+                  selectedResourceId={selectedResourceId}
                   resizingSpace={resizingSpace}
                   mousePosition={mousePosition}
                   spaceColors={spaceColors}
@@ -464,7 +464,7 @@ export function SpaceDrawingCanvas({
                 key={space.id}
                 space={space}
                 drawingMode={drawingMode}
-                selectedSpaceId={selectedSpaceId}
+                selectedResourceId={selectedResourceId}
                 resizingSpace={resizingSpace}
                 mousePosition={mousePosition}
                 spaceColors={spaceColors}
@@ -486,7 +486,7 @@ export function SpaceDrawingCanvas({
         isPassiveMode={isPassiveMode}
         drawingMode={drawingMode}
         drawingPoints={drawingPoints}
-        selectedSpaceId={selectedSpaceId}
+        selectedResourceId={selectedResourceId}
       />
     </div>
   );

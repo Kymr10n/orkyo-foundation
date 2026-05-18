@@ -106,8 +106,8 @@ export function AutoSchedulePreviewDialog({
                           <td className="py-0.5 truncate max-w-[150px]" title={a.requestName}>
                             {a.requestName}
                           </td>
-                          <td className="py-0.5 truncate max-w-[120px]" title={a.spaceName}>
-                            {a.spaceName}
+                          <td className="py-0.5 truncate max-w-[120px]" title={a.resourceName}>
+                            {a.resourceName}
                           </td>
                           <td className="py-0.5">{a.start}</td>
                           <td className="py-0.5">{a.end}</td>

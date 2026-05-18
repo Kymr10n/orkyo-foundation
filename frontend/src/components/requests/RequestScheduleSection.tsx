@@ -56,12 +56,12 @@ export function RequestScheduleSection({
 
           {/* Space Assignment */}
           <div className="space-y-2">
-            <Label htmlFor="spaceId" className="flex items-center gap-2">
+            <Label htmlFor="resourceId" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               Space
             </Label>
-            <Select value={state.selectedSpaceId || SPACE_NONE_PLACEHOLDER} onValueChange={(value) => setField('selectedSpaceId', value === SPACE_NONE_PLACEHOLDER ? "" : value)}>
-              <SelectTrigger id="spaceId">
+            <Select value={state.selectedResourceId || SPACE_NONE_PLACEHOLDER} onValueChange={(value) => setField('selectedResourceId', value === SPACE_NONE_PLACEHOLDER ? "" : value)}>
+              <SelectTrigger id="resourceId">
                 <SelectValue placeholder="No space assigned (unscheduled)" />
               </SelectTrigger>
               <SelectContent>

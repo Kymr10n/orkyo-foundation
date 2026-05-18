@@ -61,8 +61,8 @@ function localDayOfWeek(epochMs: number, timeZone: string): number {
 /**
  * Does this off-time range apply to the given space?
  */
-function offTimeAppliesToSpace(r: OffTimeRange, spaceId: string | null): boolean {
-  return r.spaceIds === null || spaceId === null || r.spaceIds.includes(spaceId);
+function offTimeAppliesToSpace(r: OffTimeRange, resourceId: string | null): boolean {
+  return r.resourceIds === null || resourceId === null || r.resourceIds.includes(resourceId);
 }
 
 /**
@@ -72,13 +72,13 @@ function offTimeAppliesToSpace(r: OffTimeRange, spaceId: string | null): boolean
 function findContainingOffTime(
   offTimeRanges: readonly OffTimeRange[],
   epochMs: number,
-  spaceId: string | null
+  resourceId: string | null
 ): OffTimeRange | undefined {
   return offTimeRanges.find(
     (r) =>
       epochMs >= r.startMs &&
       epochMs < r.endMs &&
-      offTimeAppliesToSpace(r, spaceId)
+      offTimeAppliesToSpace(r, resourceId)
   );
 }
 
@@ -90,12 +90,12 @@ function findNextOffTimeInDay(
   offTimeRanges: readonly OffTimeRange[],
   epochMs: number,
   dayEndMs: number,
-  spaceId: string | null
+  resourceId: string | null
 ): OffTimeRange | undefined {
   let earliest: OffTimeRange | undefined;
   for (const r of offTimeRanges) {
     if (r.startMs < dayEndMs && r.startMs >= epochMs && r.endMs > epochMs) {
-      if (offTimeAppliesToSpace(r, spaceId)) {
+      if (offTimeAppliesToSpace(r, resourceId)) {
         if (!earliest || r.startMs < earliest.startMs) {
           earliest = r;
         }
@@ -113,12 +113,12 @@ function findNextOffTimeInDay(
 export function isWorkingTime(
   calendar: EffectiveCalendar,
   epochMs: number,
-  spaceId: string | null
+  resourceId: string | null
 ): boolean {
   const { settings } = calendar;
 
   // 1. Off-time check
-  if (findContainingOffTime(calendar.offTimeRanges, epochMs, spaceId)) {
+  if (findContainingOffTime(calendar.offTimeRanges, epochMs, resourceId)) {
     return false;
   }
 
@@ -159,7 +159,7 @@ export function isWorkingTime(
 export function nextWorkingStart(
   calendar: EffectiveCalendar,
   epochMs: number,
-  spaceId: string | null
+  resourceId: string | null
 ): number {
   const { settings } = calendar;
   const tz = settings.timeZone;
@@ -168,7 +168,7 @@ export function nextWorkingStart(
 
   for (let i = 0; i < MAX_DAY_ITERATIONS; i++) {
     // Skip past any containing off-time.
-    const offTime = findContainingOffTime(calendar.offTimeRanges, cursor, spaceId);
+    const offTime = findContainingOffTime(calendar.offTimeRanges, cursor, resourceId);
     if (offTime) {
       cursor = offTime.endMs;
       continue;
@@ -225,7 +225,7 @@ export function nextWorkingStart(
 export function workingSegmentEnd(
   calendar: EffectiveCalendar,
   epochMs: number,
-  spaceId: string | null
+  resourceId: string | null
 ): number {
   const { settings } = calendar;
   const tz = settings.timeZone;
@@ -246,7 +246,7 @@ export function workingSegmentEnd(
     calendar.offTimeRanges,
     epochMs,
     segEnd,
-    spaceId
+    resourceId
   );
   if (nextOff && nextOff.startMs > epochMs) {
     segEnd = Math.min(segEnd, nextOff.startMs);

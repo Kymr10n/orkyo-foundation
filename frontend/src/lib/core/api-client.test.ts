@@ -7,7 +7,7 @@ vi.mock('./api-utils');
 describe('api-client', () => {
   const mockHeaders = {
     'Content-Type': 'application/json',
-    
+
   };
 
   beforeEach(() => {
@@ -295,7 +295,7 @@ describe('api-client', () => {
 describe('api-client (same-origin mode)', () => {
   const mockHeaders = {
     'Content-Type': 'application/json',
-    
+
   };
 
   beforeEach(() => {

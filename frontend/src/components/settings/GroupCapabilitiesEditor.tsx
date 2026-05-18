@@ -62,7 +62,7 @@ export function GroupCapabilitiesEditor({
         // Load available criteria
         const criteriaData = await getCriteria();
         setAvailableCriteria(criteriaData);
-        
+
         // Load existing group capabilities
         const existingCapabilities = await getGroupCapabilities(groupId);
         const capabilityMap = new Map(

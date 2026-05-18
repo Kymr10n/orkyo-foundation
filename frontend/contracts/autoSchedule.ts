@@ -47,8 +47,8 @@ export interface AutoScheduleScore {
 export interface ProposedAssignmentDto {
   requestId: string;
   requestName: string;
-  spaceId: string;
-  spaceName: string;
+  resourceId: string;
+  resourceName: string;
   start: string;
   end: string;
   durationDays: number;

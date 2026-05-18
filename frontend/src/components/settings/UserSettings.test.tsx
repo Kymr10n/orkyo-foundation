@@ -142,7 +142,7 @@ describe('UserSettings', () => {
       const adminBadge = screen.getByText('admin');
       const viewerBadge = screen.getByText('viewer');
       const editorBadge = screen.getByText('editor');
-      
+
       expect(adminBadge).toBeInTheDocument();
       expect(viewerBadge).toBeInTheDocument();
       expect(editorBadge).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe('UserSettings', () => {
   it('does not delete user if confirmation declined', async () => {
     global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
-    
+
     render(
       <QueryClientProvider client={queryClient}>
         <UserSettings />
@@ -260,7 +260,7 @@ describe('UserSettings', () => {
     await waitFor(() => {
       expect(global.confirm).toHaveBeenCalled();
     });
-    
+
     expect(userApi.deleteUser).not.toHaveBeenCalled();
   });
 

@@ -11,7 +11,16 @@
  */
 
 import { useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { PersonList } from '@foundation/src/components/people/PersonList';
+import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsenceList';
+import { PersonSkillsTab } from '@foundation/src/components/people/PersonSkillsTab';
+import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
+import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
+import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
+import { SpaceListView } from '@foundation/src/components/spaces/SpaceListView';
+import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
+import { SpaceCapabilitiesTab } from '@foundation/src/components/spaces/SpaceCapabilitiesTab';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
@@ -26,13 +35,14 @@ const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m =>
 const AccountPage = lazy(() => import('@foundation/src/pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
 const SpacesPage = lazy(() => import('@foundation/src/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
+const PeoplePage = lazy(() => import('@foundation/src/pages/PeoplePage').then(m => ({ default: m.PeoplePage })));
 const ConflictsPage = lazy(() => import('@foundation/src/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
 const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/requests", "/conflicts", "/settings"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -87,10 +97,35 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
         <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
-          <Route path="spaces" element={<SpacesPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="conflicts" element={<ConflictsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+
+          {/* People — nested sub-routes (PR 2). Skills tab added in PR 4. */}
+          <Route path="people" element={<PeoplePage />}>
+            <Route index element={<Navigate to="list" replace />} />
+            <Route path="list" element={<PersonList />} />
+            <Route path="groups" element={<ResourceGroupList resourceTypeKey="person" />} />
+            <Route path="absences" element={<PersonAbsenceList />} />
+            <Route path="departments" element={<DepartmentSettings />} />
+            <Route path="job-titles" element={<JobTitleSettings />} />
+            <Route path="skills" element={<PersonSkillsTab />} />
+          </Route>
+
+          {/* Spaces — nested sub-routes (PR 3). Default = list (spec choice). */}
+          <Route path="spaces" element={<SpacesPage />}>
+            <Route index element={<Navigate to="list" replace />} />
+            <Route path="list" element={<SpaceListView />} />
+            <Route path="floorplan" element={<FloorplanView />} />
+            <Route path="groups" element={<ResourceGroupList resourceTypeKey="space" />} />
+            <Route path="capabilities" element={<SpaceCapabilitiesTab />} />
+          </Route>
+
+          {/* Backward-compatible redirects: resource-domain master data moved
+              out of Settings into the owning resource page. */}
+          <Route path="settings/departments" element={<Navigate to="/people/departments" replace />} />
+          <Route path="settings/job-titles"  element={<Navigate to="/people/job-titles" replace />} />
+          <Route path="settings/groups"      element={<Navigate to="/spaces/groups" replace />} />
         </Route>
       </Routes>
       </Suspense>

@@ -108,7 +108,7 @@ public class SearchRepository : ISearchRepository
     private static SearchResultOpen GetOpenRoute(string entityType, Guid entityId, Guid? siteId) =>
         entityType switch
         {
-            "space" => new SearchResultOpen { Route = "/spaces", Params = new Dictionary<string, string> { ["spaceId"] = entityId.ToString(), ["mode"] = "edit" } },
+            "space" => new SearchResultOpen { Route = "/spaces", Params = new Dictionary<string, string> { ["resourceId"] = entityId.ToString(), ["mode"] = "edit" } },
             "request" => new SearchResultOpen { Route = "/requests", Params = new Dictionary<string, string> { ["requestId"] = entityId.ToString(), ["mode"] = "edit" } },
             "group" => new SearchResultOpen { Route = "/settings/groups", Params = new Dictionary<string, string> { ["groupId"] = entityId.ToString(), ["mode"] = "edit" } },
             "site" => new SearchResultOpen { Route = "/settings/sites", Params = new Dictionary<string, string> { ["siteId"] = entityId.ToString(), ["mode"] = "edit" } },

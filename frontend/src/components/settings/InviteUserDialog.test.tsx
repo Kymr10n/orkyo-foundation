@@ -421,7 +421,7 @@ describe('InviteUserDialog', () => {
     await user.click(roleSelect);
     const editorOption = await screen.findByRole('option', { name: /Editor/i });
     await user.click(editorOption);
-    
+
     await waitFor(() => {
       expect(screen.getByText(/Editors can create and modify/)).toBeInTheDocument();
     });

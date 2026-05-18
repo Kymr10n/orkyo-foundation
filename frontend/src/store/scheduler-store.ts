@@ -35,7 +35,7 @@ interface SchedulerState {
 
   startResize: (params: {
     requestId: string;
-    spaceId: string;
+    resourceId: string;
     edge: ResizeEdge;
     committedStartMs: number;
     committedEndMs: number;
@@ -55,13 +55,13 @@ interface SchedulerState {
 export const useSchedulerStore = create<SchedulerState>((set, get) => ({
   draft: null,
 
-  startResize({ requestId, spaceId, edge, committedStartMs, committedEndMs }) {
+  startResize({ requestId, resourceId, edge, committedStartMs, committedEndMs }) {
     set({
       draft: {
         kind: "resize",
         phase: "active",
         requestId,
-        spaceId,
+        resourceId,
         edge,
         committedStartMs,
         committedEndMs,

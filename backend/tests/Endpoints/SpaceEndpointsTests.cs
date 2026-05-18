@@ -314,7 +314,7 @@ public class SpaceEndpointsTests
 
     #endregion
 
-    #region GET /sites/{siteId}/spaces/{spaceId} - Get Single Space
+    #region GET /sites/{siteId}/spaces/{resourceId} - Get Single Space
 
     [Fact]
     public async Task GetSpace_ExistingSpace_ReturnsSpace()
@@ -339,10 +339,10 @@ public class SpaceEndpointsTests
     {
         // Arrange
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var nonExistentSpaceId = Guid.NewGuid();
+        var nonExistentResourceId = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/sites/{siteId}/spaces/{nonExistentSpaceId}");
+        var response = await _client.GetAsync($"/api/sites/{siteId}/spaces/{nonExistentResourceId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -350,7 +350,7 @@ public class SpaceEndpointsTests
 
     #endregion
 
-    #region PUT /sites/{siteId}/spaces/{spaceId} - Update Space
+    #region PUT /sites/{siteId}/spaces/{resourceId} - Update Space
 
     [Fact]
     public async Task UpdateSpace_ValidUpdate_ReturnsUpdatedSpace()
@@ -393,14 +393,14 @@ public class SpaceEndpointsTests
     {
         // Arrange
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var nonExistentSpaceId = Guid.NewGuid();
+        var nonExistentResourceId = Guid.NewGuid();
         var updateRequest = new UpdateSpaceRequest
         {
             Name = "Updated Name"
         };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/sites/{siteId}/spaces/{nonExistentSpaceId}", updateRequest);
+        var response = await _client.PutAsJsonAsync($"/api/sites/{siteId}/spaces/{nonExistentResourceId}", updateRequest);
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -408,7 +408,7 @@ public class SpaceEndpointsTests
 
     #endregion
 
-    #region DELETE /sites/{siteId}/spaces/{spaceId} - Delete Space
+    #region DELETE /sites/{siteId}/spaces/{resourceId} - Delete Space
 
     [Fact]
     public async Task DeleteSpace_ExistingSpace_ReturnsNoContent()
@@ -433,10 +433,10 @@ public class SpaceEndpointsTests
     {
         // Arrange
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var nonExistentSpaceId = Guid.NewGuid();
+        var nonExistentResourceId = Guid.NewGuid();
 
         // Act
-        var response = await _client.DeleteAsync($"/api/sites/{siteId}/spaces/{nonExistentSpaceId}");
+        var response = await _client.DeleteAsync($"/api/sites/{siteId}/spaces/{nonExistentResourceId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);

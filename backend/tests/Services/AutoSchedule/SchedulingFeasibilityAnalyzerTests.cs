@@ -48,7 +48,7 @@ public class SchedulingFeasibilityAnalyzerTests
 
         var result = _analyzer.Analyze(MakeProblem([request], [partial, full]));
 
-        result.Candidates.Should().OnlyContain(c => c.SpaceId == full.SpaceId);
+        result.Candidates.Should().OnlyContain(c => c.ResourceId == full.ResourceId);
     }
 
     [Fact]
@@ -137,15 +137,15 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void OverlappingFixedAssignment_BlocksFeasibleStarts()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var request = MakeRequest(
             durationDays: 3,
             earliest: new DateOnly(2026, 4, 14),
             latest: new DateOnly(2026, 4, 20));
-        var space = MakeSpace(id: spaceId);
+        var space = MakeSpace(id: resourceId);
 
         var fixed1 = new FixedOccupancy(
-            Guid.NewGuid(), spaceId,
+            Guid.NewGuid(), resourceId,
             new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 18));
 
         var result = _analyzer.Analyze(MakeProblem(
@@ -163,15 +163,15 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void AdjacentAssignments_AreAllowed()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var fixed1 = new FixedOccupancy(
-            Guid.NewGuid(), spaceId,
+            Guid.NewGuid(), resourceId,
             new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 16));
         var request = MakeRequest(
             durationDays: 2,
             earliest: new DateOnly(2026, 4, 17),
             latest: new DateOnly(2026, 4, 20));
-        var space = MakeSpace(id: spaceId);
+        var space = MakeSpace(id: resourceId);
 
         var result = _analyzer.Analyze(MakeProblem(
             [request], [space], fixedAssignments: [fixed1]));
@@ -184,12 +184,12 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void CandidateRemovedWhenDurationCannotFitAnySlot()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var fixed1 = new FixedOccupancy(
-            Guid.NewGuid(), spaceId,
+            Guid.NewGuid(), resourceId,
             new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14));
         var request = MakeRequest(durationDays: 5);
-        var space = MakeSpace(id: spaceId);
+        var space = MakeSpace(id: resourceId);
 
         var result = _analyzer.Analyze(MakeProblem(
             [request], [space], fixedAssignments: [fixed1]));

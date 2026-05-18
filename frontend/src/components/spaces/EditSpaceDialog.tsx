@@ -43,7 +43,7 @@ export function EditSpaceDialog({
   const [description, setDescription] = useState(space.description || "");
   const [capacity, setCapacity] = useState(space.capacity ?? 1);
   const [error, setError] = useState<string | null>(null);
-  
+
   const updateMutation = useUpdateSpace(siteId);
   const isSubmitting = updateMutation.isPending;
 
@@ -67,7 +67,7 @@ export function EditSpaceDialog({
 
     try {
       await updateMutation.mutateAsync({
-        spaceId: space.id,
+        resourceId: space.id,
         data: {
           name: name.trim(),
           code: space.code, // Keep existing code

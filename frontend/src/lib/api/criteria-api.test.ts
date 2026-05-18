@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ResourceTypeKey } from '@foundation/src/types/criterion';
 import { getCriteria, createCriterion, updateCriterion, deleteCriterion } from './criteria-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -36,11 +37,19 @@ describe('criteria-api', () => {
 
       expect(result).toEqual([]);
     });
+
+    it('appends ?resourceType= when filter is provided', async () => {
+      vi.mocked(apiClient.apiGet).mockResolvedValue([mockCriterion]);
+
+      await getCriteria({ resourceType: 'person' });
+
+      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.CRITERIA}?resourceType=person`);
+    });
   });
 
   describe('createCriterion', () => {
     it('calls apiPost with correct endpoint and data', async () => {
-      const createRequest = { name: 'Capacity', dataType: 'Number' as const, unit: 'people' };
+      const createRequest = { name: 'Capacity', dataType: 'Number' as const, unit: 'people', resourceTypeKeys: ['space'] as ResourceTypeKey[] };
       vi.mocked(apiClient.apiPost).mockResolvedValue(mockCriterion);
 
       const result = await createCriterion(createRequest);

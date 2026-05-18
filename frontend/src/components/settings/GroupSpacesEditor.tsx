@@ -35,7 +35,7 @@ export function GroupSpacesEditor({
 }: GroupSpacesEditorProps) {
   const [allSpaces, setAllSpaces] = useState<Space[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
-  const [selectedSpaceIds, setSelectedSpaceIds] = useState(new Set());
+  const [selectedResourceIds, setSelectedResourceIds] = useState(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function GroupSpacesEditor({
         const inGroupIds = allSpacesData
           .filter((space) => space.groupId === groupId)
           .map((space) => space.id);
-        setSelectedSpaceIds(new Set(inGroupIds));
+        setSelectedResourceIds(new Set(inGroupIds));
       } catch (err) {
         logger.error("Failed to load spaces:", err);
         setError(err instanceof Error ? err.message : "Failed to load spaces");
@@ -76,21 +76,21 @@ export function GroupSpacesEditor({
     loadSpaces();
   }, [open, groupId]);
 
-  const handleToggleSpace = (spaceId: string) => {
-    const newSelected = new Set(selectedSpaceIds);
-    if (newSelected.has(spaceId)) {
-      newSelected.delete(spaceId);
+  const handleToggleSpace = (resourceId: string) => {
+    const newSelected = new Set(selectedResourceIds);
+    if (newSelected.has(resourceId)) {
+      newSelected.delete(resourceId);
     } else {
-      newSelected.add(spaceId);
+      newSelected.add(resourceId);
     }
-    setSelectedSpaceIds(newSelected);
+    setSelectedResourceIds(newSelected);
   };
 
   const handleSelectAll = () => {
-    if (selectedSpaceIds.size === allSpaces.length) {
-      setSelectedSpaceIds(new Set());
+    if (selectedResourceIds.size === allSpaces.length) {
+      setSelectedResourceIds(new Set());
     } else {
-      setSelectedSpaceIds(new Set(allSpaces.map((s) => s.id)));
+      setSelectedResourceIds(new Set(allSpaces.map((s) => s.id)));
     }
   };
 
@@ -101,7 +101,7 @@ export function GroupSpacesEditor({
     try {
       // Update each space with the new group assignment
       const updates = allSpaces.map(async (space) => {
-        const shouldBeInGroup = selectedSpaceIds.has(space.id);
+        const shouldBeInGroup = selectedResourceIds.has(space.id);
         const isInGroup = space.groupId === groupId;
 
         if (shouldBeInGroup && !isInGroup) {
@@ -180,14 +180,14 @@ export function GroupSpacesEditor({
                 <div className="flex items-center justify-between pb-2 border-b">
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={selectedSpaceIds.size === allSpaces.length}
+                      checked={selectedResourceIds.size === allSpaces.length}
                       onCheckedChange={handleSelectAll}
                       disabled={isSubmitting}
                     />
                     <span className="text-sm font-medium">Select All</span>
                   </div>
                   <Badge variant="outline">
-                    {selectedSpaceIds.size} of {allSpaces.length} selected
+                    {selectedResourceIds.size} of {allSpaces.length} selected
                   </Badge>
                 </div>
 
@@ -203,7 +203,7 @@ export function GroupSpacesEditor({
                           className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50"
                         >
                           <Checkbox
-                            checked={selectedSpaceIds.has(space.id)}
+                            checked={selectedResourceIds.has(space.id)}
                             onCheckedChange={() => handleToggleSpace(space.id)}
                             disabled={isSubmitting}
                           />

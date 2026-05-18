@@ -5,6 +5,7 @@ import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerG
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
 import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useSchedulingConflicts } from "@foundation/src/hooks/useSchedulingConflicts";
@@ -14,6 +15,7 @@ import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
+import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { updateRequest, createRequest, moveRequest } from "@foundation/src/lib/api/request-api";
@@ -132,7 +134,7 @@ export function UtilizationPage() {
       // Calculate visible date range based on current view
       const startDate = new Date(anchorTs);
       const endDate = new Date(anchorTs);
-      
+
       switch (scale) {
         case "year":
           endDate.setFullYear(endDate.getFullYear() + 1);
@@ -212,7 +214,7 @@ export function UtilizationPage() {
   const handleRequestDoubleClick = useCallback((requestId: string) => {
     const request = requests.find(r => r.id === requestId);
     if (!request) return;
-    
+
     setDialogRequest(request);
     if (userCanEdit) {
       setIsEditDialogOpen(true);
@@ -271,7 +273,7 @@ export function UtilizationPage() {
     if (!request.isScheduled) return;
     scheduleMutation.mutate({
       requestId: request.id,
-      data: { spaceId: null, startTs: null, endTs: null },
+      data: { resourceId: null, startTs: null, endTs: null },
     });
     setSelectedRequestId(null);
     setConflicts(request.id, []);
@@ -292,7 +294,7 @@ export function UtilizationPage() {
 
   const handleScheduleToGrid = useCallback(async (
     draggedData: Request & { isScheduled?: boolean },
-    spaceId: string,
+    resourceId: string,
     startTs: Date,
   ) => {
     // Preserve actual duration for already-scheduled requests;
@@ -308,7 +310,7 @@ export function UtilizationPage() {
     // Validate space capabilities
     const allConflicts: Conflict[] = [];
     try {
-      const capabilities = await getSpaceCapabilities(selectedSiteId!, spaceId);
+      const capabilities = await getSpaceCapabilities(selectedSiteId!, resourceId);
       allConflicts.push(...validateSpaceRequirements(draggedData, capabilities));
     } catch (error) {
       logger.error("Failed to validate space requirements:", error);
@@ -316,7 +318,7 @@ export function UtilizationPage() {
 
     await scheduleMutation.mutateAsync({
       requestId: draggedData.id,
-      data: { spaceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
+      data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
     });
 
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space:`, {
@@ -333,7 +335,7 @@ export function UtilizationPage() {
     if (!over) return;
 
     const draggedData = active.data.current as Request & { isScheduled?: boolean; type?: string };
-    const dropData = over.data.current as { spaceId?: string; startTs?: Date; type?: string; parentRequestId?: string };
+    const dropData = over.data.current as { resourceId?: string; startTs?: Date; type?: string; parentRequestId?: string };
 
     if (draggedData?.type === "space-row") {
       if (active.id !== over.id) handleSpaceReorder(active.id, over.id);
@@ -349,19 +351,21 @@ export function UtilizationPage() {
       await handleTreeReparent(draggedData.id, dropData.parentRequestId);
       return;
     }
-    if (dropData?.spaceId && dropData?.startTs && selectedSiteId) {
-      await handleScheduleToGrid(draggedData, dropData.spaceId, dropData.startTs);
+    if (dropData?.resourceId && dropData?.startTs && selectedSiteId) {
+      await handleScheduleToGrid(draggedData, dropData.resourceId, dropData.startTs);
     }
   }, [selectedSiteId, handleSpaceReorder, handleUnschedule, handleTreeReparent, handleScheduleToGrid]);
 
   const handleResizeRequest = useCallback((requestId: string, startTs: string, endTs: string) => {
     const request = requests.find((r) => r.id === requestId);
-    if (!request?.spaceId) return;
+    if (!request) return;
+    const spaceResourceId = getSpaceResourceId(request);
+    if (!spaceResourceId) return;
     scheduleMutation.mutate(
       {
         requestId,
         data: {
-          spaceId: request.spaceId,
+          resourceId: spaceResourceId,
           startTs,
           endTs,
         },
@@ -416,6 +420,9 @@ export function UtilizationPage() {
           height={floorplanHeight}
           onHeightChange={setFloorplanHeight}
         />
+
+        {/* People Resources Grid — collapsible, between Floorplan and Space grid (spec §10) */}
+        <PeopleUtilizationGrid anchorTs={anchorTs} scale={scale} />
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden bg-background">

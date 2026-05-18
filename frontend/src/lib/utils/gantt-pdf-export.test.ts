@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { exportGanttChartToPDF } from './gantt-pdf-export';
 import type { Request } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // Create mock PDF instance
 const mockPDFInstance = {
@@ -66,7 +67,7 @@ describe('gantt-pdf-export', () => {
       id: 'req-1',
       name: 'Meeting 1',
       description: 'Test meeting',
-      spaceId: 'space-1',
+      assignments: [spaceAssignment('space-1')],
       startTs: '2024-03-01T10:00:00Z',
       endTs: '2024-03-01T11:00:00Z',
       status: 'planned',
@@ -82,7 +83,7 @@ describe('gantt-pdf-export', () => {
       id: 'req-2',
       name: 'Meeting 2',
       description: 'Another meeting',
-      spaceId: 'space-2',
+      assignments: [spaceAssignment('space-2')],
       startTs: '2024-03-02T14:00:00Z',
       endTs: '2024-03-02T15:00:00Z',
       status: 'in_progress',
@@ -98,7 +99,7 @@ describe('gantt-pdf-export', () => {
       id: 'req-3',
       name: 'Unscheduled',
       description: 'Not scheduled yet',
-      spaceId: null,
+      assignments: [],
       startTs: null,
       endTs: null,
       status: 'planned',

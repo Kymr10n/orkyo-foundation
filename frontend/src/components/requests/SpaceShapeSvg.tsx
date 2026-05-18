@@ -4,7 +4,7 @@ interface SpaceShapeSvgProps {
   space: { id: string; name: string; code?: string; geometry?: SpaceGeometry };
   isDragging?: boolean;
   drawingMode: DrawingMode;
-  selectedSpaceId?: string;
+  selectedResourceId?: string;
   resizingSpace: { id: string; handleIndex: number; geometry: SpaceGeometry } | null;
   mousePosition: Coordinate | null;
   spaceColors?: Record<string, { fill: string; stroke: string }>;
@@ -14,14 +14,14 @@ export function SpaceShapeSvg({
   space,
   isDragging = false,
   drawingMode,
-  selectedSpaceId,
+  selectedResourceId,
   resizingSpace,
   mousePosition,
   spaceColors,
 }: SpaceShapeSvgProps) {
   if (!space.geometry) return null;
 
-  const isSelected = selectedSpaceId === space.id;
+  const isSelected = selectedResourceId === space.id;
   const showResizeHandles = drawingMode === "resize" && isSelected;
 
   const customColors = spaceColors?.[space.id];

@@ -67,7 +67,7 @@ public class AutoScheduleModelsTests
             Status: SolverStatus.Feasible,
             Assignments: new List<ScheduledPlacement>
             {
-                new(RequestId: req1, SpaceId: space, Start: start, End: end, DurationDays: 2, Priority: 10)
+                new(RequestId: req1, ResourceId: space, Start: start, End: end, DurationDays: 2, Priority: 10)
             },
             Unscheduled: new List<UnscheduledPlacement>
             {
@@ -125,12 +125,12 @@ public class AutoScheduleModelsTests
     public void ComputeFingerprint_IdenticalSolutions_ProduceSameHash()
     {
         var reqId = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var start = new DateOnly(2026, 3, 1);
         var end = new DateOnly(2026, 3, 5);
 
-        var a = MakeSolution(new ScheduledPlacement(reqId, spaceId, start, end, 4, 5));
-        var b = MakeSolution(new ScheduledPlacement(reqId, spaceId, start, end, 4, 5));
+        var a = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
+        var b = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
 
         a.ComputeFingerprint().Should().Be(b.ComputeFingerprint());
     }
@@ -140,12 +140,12 @@ public class AutoScheduleModelsTests
     {
         var req1 = Guid.NewGuid();
         var req2 = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var start = new DateOnly(2026, 3, 1);
         var end = new DateOnly(2026, 3, 5);
 
-        var a = MakeSolution(new ScheduledPlacement(req1, spaceId, start, end, 4, 5));
-        var b = MakeSolution(new ScheduledPlacement(req2, spaceId, start, end, 4, 5));
+        var a = MakeSolution(new ScheduledPlacement(req1, resourceId, start, end, 4, 5));
+        var b = MakeSolution(new ScheduledPlacement(req2, resourceId, start, end, 4, 5));
 
         a.ComputeFingerprint().Should().NotBe(b.ComputeFingerprint());
     }
@@ -155,12 +155,12 @@ public class AutoScheduleModelsTests
     {
         var req1 = new Guid("00000000-0000-0000-0000-000000000001");
         var req2 = new Guid("00000000-0000-0000-0000-000000000002");
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var start = new DateOnly(2026, 3, 1);
         var end = new DateOnly(2026, 3, 5);
 
-        var p1 = new ScheduledPlacement(req1, spaceId, start, end, 4, 5);
-        var p2 = new ScheduledPlacement(req2, spaceId, start, end, 4, 5);
+        var p1 = new ScheduledPlacement(req1, resourceId, start, end, 4, 5);
+        var p2 = new ScheduledPlacement(req2, resourceId, start, end, 4, 5);
 
         var ordered = new SchedulingSolution(SolverKind.Greedy, SolverStatus.Optimal,
             new List<ScheduledPlacement> { p1, p2 }, new List<UnscheduledPlacement>(), new List<string>());
@@ -200,15 +200,15 @@ public class AutoScheduleModelsTests
     [Fact]
     public void SpaceNode_StoresAllFields()
     {
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var criterionId = Guid.NewGuid();
 
         var node = new SpaceNode(
-            SpaceId: spaceId,
+            ResourceId: resourceId,
             DisplayName: "Hall A",
             CriterionIds: new HashSet<Guid> { criterionId });
 
-        node.SpaceId.Should().Be(spaceId);
+        node.ResourceId.Should().Be(resourceId);
         node.DisplayName.Should().Be("Hall A");
         node.CriterionIds.Should().Contain(criterionId);
     }
@@ -219,14 +219,14 @@ public class AutoScheduleModelsTests
     public void FixedOccupancy_StoresAllFields()
     {
         var reqId = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
         var start = new DateOnly(2026, 5, 1);
         var end = new DateOnly(2026, 5, 10);
 
-        var occ = new FixedOccupancy(reqId, spaceId, start, end);
+        var occ = new FixedOccupancy(reqId, resourceId, start, end);
 
         occ.RequestId.Should().Be(reqId);
-        occ.SpaceId.Should().Be(spaceId);
+        occ.ResourceId.Should().Be(resourceId);
         occ.Start.Should().Be(start);
         occ.End.Should().Be(end);
     }
@@ -262,11 +262,11 @@ public class AutoScheduleModelsTests
     public void SchedulingCandidate_StoresAllFields()
     {
         var reqId = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
 
         var candidate = new SchedulingCandidate(
             RequestId: reqId,
-            SpaceId: spaceId,
+            ResourceId: resourceId,
             EarliestStart: new DateOnly(2026, 1, 1),
             LatestEnd: new DateOnly(2026, 6, 30),
             DurationDays: 5,
@@ -283,11 +283,11 @@ public class AutoScheduleModelsTests
     public void CandidateRejection_StoresAllFields()
     {
         var reqId = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
 
         var rejection = new CandidateRejection(
             RequestId: reqId,
-            SpaceId: spaceId,
+            ResourceId: resourceId,
             ReasonCode: SchedulingReasonCode.NoCompatibleSpace,
             Message: "No space matches criteria");
 
@@ -303,10 +303,10 @@ public class AutoScheduleModelsTests
 
         var rejection = new CandidateRejection(
             RequestId: reqId,
-            SpaceId: null,
+            ResourceId: null,
             ReasonCode: SchedulingReasonCode.MissingRequiredData);
 
-        rejection.SpaceId.Should().BeNull();
+        rejection.ResourceId.Should().BeNull();
         rejection.Message.Should().BeNull();
     }
 
@@ -346,11 +346,11 @@ public class AutoScheduleModelsTests
     public void ScheduledPlacement_StoresAllFields()
     {
         var reqId = Guid.NewGuid();
-        var spaceId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
 
         var placement = new ScheduledPlacement(
             RequestId: reqId,
-            SpaceId: spaceId,
+            ResourceId: resourceId,
             Start: new DateOnly(2026, 2, 1),
             End: new DateOnly(2026, 2, 5),
             DurationDays: 4,

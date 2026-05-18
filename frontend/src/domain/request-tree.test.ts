@@ -29,6 +29,7 @@ function makeRequest(
     sortOrder: 0,
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T00:00:00Z",
+    assignments: [],
     ...overrides,
   };
 }
@@ -373,6 +374,3 @@ describe("validateParentChild", () => {
     expect(issues.map((i) => i.code)).toContain("CHILD_AFTER_CONTAINER_END");
   });
 });
-
-
-

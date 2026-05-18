@@ -7,6 +7,7 @@ import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { PreviewEntry, PreviewSchedule, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,7 +32,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     name: "Test Request",
     planningMode: "leaf",
     sortOrder: 0,
-    spaceId: "space-1",
+    assignments: [spaceAssignment('space-1')],
     startTs: "2024-01-15T09:00:00Z",
     endTs: "2024-01-15T11:00:00Z",
     minimalDurationValue: 120,
@@ -47,7 +48,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
 function makeEntry(request: Request, isDraft = false): PreviewEntry {
   return {
     requestId: request.id,
-    spaceId: request.spaceId!,
+    resourceId: request.assignments[0]?.resourceId ?? 'space-1',
     startMs: T(request.startTs!),
     endMs: T(request.endTs!),
     name: request.name,

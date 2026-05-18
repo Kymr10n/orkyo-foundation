@@ -183,33 +183,33 @@ public class SchedulingValidatorTests
     }
 
     [Fact]
-    public void CreateOffTime_NotAllSpaces_RequiresSpaceIds()
+    public void CreateOffTime_NotAllSpaces_RequiresResourceIds()
     {
         var request = new CreateOffTimeRequest
         {
             Title = "Test",
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1),
-            AppliesToAllSpaces = false,
-            SpaceIds = null
+            AppliesToAllResources = false,
+            ResourceIds = null
         };
         var result = _createValidator.TestValidate(request);
-        result.ShouldHaveValidationErrorFor(x => x.SpaceIds);
+        result.ShouldHaveValidationErrorFor(x => x.ResourceIds);
     }
 
     [Fact]
-    public void CreateOffTime_NotAllSpaces_EmptySpaceIds_Fails()
+    public void CreateOffTime_NotAllSpaces_EmptyResourceIds_Fails()
     {
         var request = new CreateOffTimeRequest
         {
             Title = "Test",
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1),
-            AppliesToAllSpaces = false,
-            SpaceIds = new List<Guid>()
+            AppliesToAllResources = false,
+            ResourceIds = new List<Guid>()
         };
         var result = _createValidator.TestValidate(request);
-        result.ShouldHaveValidationErrorFor(x => x.SpaceIds);
+        result.ShouldHaveValidationErrorFor(x => x.ResourceIds);
     }
 
     // ── UpdateOffTimeRequest ────────────────────────────────────────

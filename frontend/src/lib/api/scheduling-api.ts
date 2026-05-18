@@ -36,7 +36,7 @@ interface OffTimeWire {
   title: string;
   type: OffTimeType;
   appliesToAllSpaces: boolean;
-  spaceIds: string[] | null;
+  resourceIds: string[] | null;
   startTs: string; // ISO 8601
   endTs: string;   // ISO 8601
   isRecurring: boolean;
@@ -48,7 +48,7 @@ interface CreateOffTimeWire {
   title: string;
   type: OffTimeType;
   appliesToAllSpaces: boolean;
-  spaceIds?: string[];
+  resourceIds?: string[];
   startTs: string;
   endTs: string;
   isRecurring: boolean;
@@ -60,7 +60,7 @@ interface UpdateOffTimeWire {
   title?: string;
   type?: OffTimeType;
   appliesToAllSpaces?: boolean;
-  spaceIds?: string[];
+  resourceIds?: string[];
   startTs?: string;
   endTs?: string;
   isRecurring?: boolean;
@@ -108,7 +108,7 @@ function mapOffTimeFromWire(w: OffTimeWire): OffTimeDefinition {
     title: w.title,
     type: w.type,
     appliesToAllSpaces: w.appliesToAllSpaces,
-    spaceIds: w.spaceIds ?? [],
+    resourceIds: w.resourceIds ?? [],
     startMs: new Date(w.startTs).getTime(),
     endMs: new Date(w.endTs).getTime(),
     isRecurring: w.isRecurring,
@@ -128,7 +128,7 @@ function mapOffTimeToCreateWire(o: Omit<OffTimeDefinition, "id" | "siteId">): Cr
     recurrenceRule: o.recurrenceRule,
     enabled: o.enabled,
   };
-  if (!o.appliesToAllSpaces) wire.spaceIds = o.spaceIds;
+  if (!o.appliesToAllSpaces) wire.resourceIds = o.resourceIds;
   return wire;
 }
 
@@ -137,7 +137,7 @@ function mapOffTimeToUpdateWire(o: Partial<Omit<OffTimeDefinition, "id" | "siteI
   if (o.title !== undefined) wire.title = o.title;
   if (o.type !== undefined) wire.type = o.type;
   if (o.appliesToAllSpaces !== undefined) wire.appliesToAllSpaces = o.appliesToAllSpaces;
-  if (o.spaceIds !== undefined) wire.spaceIds = o.spaceIds;
+  if (o.resourceIds !== undefined) wire.resourceIds = o.resourceIds;
   if (o.startMs !== undefined) wire.startTs = new Date(o.startMs).toISOString();
   if (o.endMs !== undefined) wire.endTs = new Date(o.endMs).toISOString();
   if (o.isRecurring !== undefined) wire.isRecurring = o.isRecurring;

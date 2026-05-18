@@ -503,7 +503,7 @@ export function SchedulingSettings() {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {new Date(ot.startMs).toLocaleDateString()} – {new Date(ot.endMs).toLocaleDateString()}
-                      {ot.appliesToAllSpaces ? " · All spaces" : ` · ${ot.spaceIds.length} space(s)`}
+                      {ot.appliesToAllSpaces ? " · All spaces" : ` · ${ot.resourceIds.length} space(s)`}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">

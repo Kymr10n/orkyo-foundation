@@ -184,7 +184,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"
-            SELECT 
+            SELECT
                 t.id,
                 t.slug,
                 t.display_name,
@@ -226,10 +226,10 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"
-            SELECT role 
-            FROM tenant_memberships 
-            WHERE user_id = @userId 
-              AND tenant_id = @tenantId 
+            SELECT role
+            FROM tenant_memberships
+            WHERE user_id = @userId
+              AND tenant_id = @tenantId
               AND status = 'active'",
             conn);
         cmd.Parameters.AddWithValue("userId", userId);

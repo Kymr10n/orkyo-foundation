@@ -168,6 +168,18 @@ public class DatabaseFixture : IAsyncLifetime
         await criteriaCmd.ExecuteNonQueryAsync();
         Console.WriteLine("    ✓ Seed criteria (Boolean, Number, String, Enum) inserted into tenant database");
 
+        // Assign seed criteria to all resource types so tests can use them with any
+        // resource type (space, person, tool) without triggering the cross-type check.
+        await using var applicabilityCmd = new NpgsqlCommand(@"
+            INSERT INTO criterion_resource_types (criterion_id, resource_type_id)
+            SELECT c.id, rt.id
+            FROM criteria c
+            CROSS JOIN resource_types rt
+            WHERE c.name IN ('seed_boolean', 'seed_number', 'seed_string', 'seed_enum')
+            ON CONFLICT DO NOTHING", tenantSeedConn);
+        await applicabilityCmd.ExecuteNonQueryAsync();
+        Console.WriteLine("    ✓ Seed criteria applicability assigned for all resource types");
+
         // Mirror the shared test user into the tenant users table so FK constraints
         // on user_preferences, preset_applications, etc. are satisfied.
         await using var tenantUserCmd = new NpgsqlCommand(

@@ -76,8 +76,8 @@ public record OffTimeInfo
     public required Guid SiteId { get; init; }
     public required string Title { get; init; }
     public required OffTimeType Type { get; init; }
-    public required bool AppliesToAllSpaces { get; init; }
-    public List<Guid>? SpaceIds { get; init; }
+    public required bool AppliesToAllResources { get; init; }
+    public List<Guid>? ResourceIds { get; init; }
     public required DateTime StartTs { get; init; }
     public required DateTime EndTs { get; init; }
     public required bool IsRecurring { get; init; }
@@ -94,8 +94,8 @@ public record CreateOffTimeRequest
 {
     public required string Title { get; init; }
     public OffTimeType Type { get; init; } = OffTimeType.Custom;
-    public bool AppliesToAllSpaces { get; init; } = true;
-    public List<Guid>? SpaceIds { get; init; }
+    public bool AppliesToAllResources { get; init; } = true;
+    public List<Guid>? ResourceIds { get; init; }
     public required DateTime StartTs { get; init; }
     public required DateTime EndTs { get; init; }
     public bool IsRecurring { get; init; }
@@ -110,8 +110,38 @@ public record UpdateOffTimeRequest
 {
     public string? Title { get; init; }
     public OffTimeType? Type { get; init; }
-    public bool? AppliesToAllSpaces { get; init; }
-    public List<Guid>? SpaceIds { get; init; }
+    public bool? AppliesToAllResources { get; init; }
+    public List<Guid>? ResourceIds { get; init; }
+    public DateTime? StartTs { get; init; }
+    public DateTime? EndTs { get; init; }
+    public bool? IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public bool? Enabled { get; init; }
+}
+
+/// <summary>
+/// Request to create an absence (off-time) for a specific resource.
+/// Always stored with applies_to_all_resources=false, linked to the route resource.
+/// </summary>
+public record CreateResourceAbsenceRequest
+{
+    public required Guid SiteId { get; init; }
+    public required string Title { get; init; }
+    public OffTimeType Type { get; init; } = OffTimeType.Custom;
+    public required DateTime StartTs { get; init; }
+    public required DateTime EndTs { get; init; }
+    public bool IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public bool Enabled { get; init; } = true;
+}
+
+/// <summary>
+/// Request to update an absence for a specific resource.
+/// </summary>
+public record UpdateResourceAbsenceRequest
+{
+    public string? Title { get; init; }
+    public OffTimeType? Type { get; init; }
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
     public bool? IsRecurring { get; init; }

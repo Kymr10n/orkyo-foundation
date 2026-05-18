@@ -7,6 +7,7 @@
 import { useReducer } from 'react';
 import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@foundation/src/constants';
 import { formatDateForInput, formatTimeForInput } from '@foundation/src/lib/utils';
+import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import type { Request, DurationUnit, PlanningMode } from '@foundation/src/types/requests';
 import type { CriterionValue } from '@foundation/src/types/criterion';
 import type { Template } from '@foundation/src/types/templates';
@@ -18,7 +19,7 @@ export interface RequestFormState {
   icon: string | null;
   planningMode: PlanningMode;
   parentRequestId: string;
-  selectedSpaceId: string;
+  selectedResourceId: string;
 
   // Schedule
   startDate: string;
@@ -67,7 +68,7 @@ const initialState: RequestFormState = {
   icon: null,
   planningMode: 'leaf',
   parentRequestId: '',
-  selectedSpaceId: '',
+  selectedResourceId: '',
   startDate: '',
   startTime: DEFAULT_START_TIME,
   endDate: '',
@@ -160,7 +161,7 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       icon: request.icon ?? null,
       planningMode: request.planningMode || 'leaf',
       parentRequestId: request.parentRequestId || '',
-      selectedSpaceId: request.spaceId || '',
+      selectedResourceId: getSpaceResourceId(request) || '',
       startDate: request.startTs ? formatDateForInput(new Date(request.startTs)) : '',
       startTime: request.startTs ? formatTimeForInput(new Date(request.startTs)) : DEFAULT_START_TIME,
       endDate: request.endTs ? formatDateForInput(new Date(request.endTs)) : '',

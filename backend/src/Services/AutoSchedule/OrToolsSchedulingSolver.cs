@@ -41,23 +41,23 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
 
         // Group candidates by request and by space
         var candidatesByRequest = problem.Candidates.GroupBy(c => c.RequestId).ToList();
-        var candidatesBySpace = problem.Candidates.GroupBy(c => c.SpaceId).ToList();
+        var candidatesBySpace = problem.Candidates.GroupBy(c => c.ResourceId).ToList();
 
         // Decision variables: one BoolVar per candidate (request → space assignment)
-        var candidateVars = new Dictionary<(Guid RequestId, Guid SpaceId), BoolVar>();
-        var candidateStarts = new Dictionary<(Guid RequestId, Guid SpaceId), IntVar>();
-        var candidateIntervals = new Dictionary<(Guid RequestId, Guid SpaceId), IntervalVar>();
+        var candidateVars = new Dictionary<(Guid RequestId, Guid ResourceId), BoolVar>();
+        var candidateStarts = new Dictionary<(Guid RequestId, Guid ResourceId), IntVar>();
+        var candidateIntervals = new Dictionary<(Guid RequestId, Guid ResourceId), IntervalVar>();
 
         foreach (var candidate in problem.Candidates)
         {
-            var key = (candidate.RequestId, candidate.SpaceId);
-            var presence = model.NewBoolVar($"assign_{candidate.RequestId}_{candidate.SpaceId}");
+            var key = (candidate.RequestId, candidate.ResourceId);
+            var presence = model.NewBoolVar($"assign_{candidate.RequestId}_{candidate.ResourceId}");
             candidateVars[key] = presence;
 
             // Start variable bounded by feasible range
             var minStart = candidate.FeasibleStartDays.Min(d => d.DayNumber) - horizonStart.DayNumber;
             var maxStart = candidate.FeasibleStartDays.Max(d => d.DayNumber) - horizonStart.DayNumber;
-            var startVar = model.NewIntVar(minStart, maxStart, $"start_{candidate.RequestId}_{candidate.SpaceId}");
+            var startVar = model.NewIntVar(minStart, maxStart, $"start_{candidate.RequestId}_{candidate.ResourceId}");
             candidateStarts[key] = startVar;
 
             // Constrain start to only feasible days
@@ -70,37 +70,37 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
             // Optional interval: active only when presence is true
             var interval = model.NewOptionalFixedSizeIntervalVar(
                 startVar, candidate.DurationDays, presence,
-                $"interval_{candidate.RequestId}_{candidate.SpaceId}");
+                $"interval_{candidate.RequestId}_{candidate.ResourceId}");
             candidateIntervals[key] = interval;
         }
 
         // Constraint: each request assigned at most once
         foreach (var group in candidatesByRequest)
         {
-            var vars = group.Select(c => candidateVars[(c.RequestId, c.SpaceId)]).ToArray();
+            var vars = group.Select(c => candidateVars[(c.RequestId, c.ResourceId)]).ToArray();
             model.Add(LinearExpr.Sum(vars) <= 1);
         }
 
-        // Constraint: no-overlap per space (including fixed occupancy)
-        foreach (var spaceGroup in candidatesBySpace)
+        // Constraint: no-overlap per resource (including fixed occupancy)
+        foreach (var resourceGroup in candidatesBySpace)
         {
-            var spaceId = spaceGroup.Key;
-            var intervals = spaceGroup
-                .Select(c => candidateIntervals[(c.RequestId, c.SpaceId)])
+            var resourceId = resourceGroup.Key;
+            var intervals = resourceGroup
+                .Select(c => candidateIntervals[(c.RequestId, c.ResourceId)])
                 .ToList();
 
             // Add fixed occupancy as mandatory intervals
-            var fixedOnSpace = problem.Problem.FixedAssignments
-                .Where(a => a.SpaceId == spaceId)
+            var fixedOnResource = problem.Problem.FixedAssignments
+                .Where(a => a.ResourceId == resourceId)
                 .ToList();
 
-            foreach (var fixedOcc in fixedOnSpace)
+            foreach (var fixedOcc in fixedOnResource)
             {
                 var fixedStart = fixedOcc.Start.DayNumber - horizonStart.DayNumber;
                 var fixedDuration = fixedOcc.End.DayNumber - fixedOcc.Start.DayNumber + 1;
                 var fixedInterval = model.NewFixedSizeIntervalVar(
                     fixedStart, fixedDuration,
-                    $"fixed_{fixedOcc.RequestId}_{spaceId}");
+                    $"fixed_{fixedOcc.RequestId}_{resourceId}");
                 intervals.Add(fixedInterval);
             }
 
@@ -114,7 +114,7 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
         var objectiveTerms = new List<LinearExpr>();
         foreach (var candidate in problem.Candidates)
         {
-            var key = (candidate.RequestId, candidate.SpaceId);
+            var key = (candidate.RequestId, candidate.ResourceId);
             var presence = candidateVars[key];
             var startVar = candidateStarts[key];
 
@@ -175,7 +175,7 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
 
         foreach (var candidate in problem.Candidates)
         {
-            var key = (candidate.RequestId, candidate.SpaceId);
+            var key = (candidate.RequestId, candidate.ResourceId);
             if (solver.BooleanValue(candidateVars[key]))
             {
                 var startOffset = (int)solver.Value(candidateStarts[key]);
@@ -183,7 +183,7 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
                 var endDay = startDay.AddDays(candidate.DurationDays - 1);
 
                 assignments.Add(new ScheduledPlacement(
-                    candidate.RequestId, candidate.SpaceId,
+                    candidate.RequestId, candidate.ResourceId,
                     startDay, endDay,
                     candidate.DurationDays, candidate.Priority));
 

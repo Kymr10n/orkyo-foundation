@@ -71,7 +71,7 @@ export function AutoSchedulePreviewDialog({
                     {preview.assignments.map((a) => (
                       <tr key={a.requestId}>
                         <td>{a.requestName}</td>
-                        <td>{a.spaceName}</td>
+                        <td>{a.resourceName}</td>
                         <td>{a.start}</td>
                         <td>{a.end}</td>
                         <td>{a.durationDays}</td>

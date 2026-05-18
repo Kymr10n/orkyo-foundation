@@ -55,12 +55,92 @@ public sealed class MigrationHarnessSmokeTests
             "tenant foundation migrations should create the spaces table");
     }
 
+    // Phase 1 - People Resources schema validation
+    [Fact]
+    public async Task TestTenant_ShouldContain_PersonProfilesTable()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "person_profiles")).Should().BeTrue(
+            "People Resources migration (1400) should create the person_profiles table");
+    }
+
+    [Fact]
+    public async Task TestTenant_ResourceGroups_ShouldHave_DefaultAvailabilityPercentColumn()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "resource_groups", "default_availability_percent")).Should().BeTrue(
+            "People Resources migration (1400) should add default_availability_percent column");
+    }
+
+    [Fact]
+    public async Task TestTenant_ResourceAssignments_ShouldHave_RoleColumn()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "resource_assignments", "role")).Should().BeTrue(
+            "People Resources migration (1400) should add role column to resource_assignments");
+    }
+
+    [Fact]
+    public async Task TestTenant_ResourceAssignments_ShouldHave_NotesColumn()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "resource_assignments", "notes")).Should().BeTrue(
+            "People Resources migration (1400) should add notes column to resource_assignments");
+    }
+
+    // Departments + Job Titles schema validation (migration 1420)
+    [Fact]
+    public async Task TestTenant_ShouldContain_JobTitlesTable()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "job_titles")).Should().BeTrue(
+            "Departments + Job Titles migration (1420) should create the job_titles table");
+    }
+
+    [Fact]
+    public async Task TestTenant_ShouldContain_DepartmentsTable()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "departments")).Should().BeTrue(
+            "Departments + Job Titles migration (1420) should create the departments table");
+    }
+
+    [Fact]
+    public async Task TestTenant_PersonProfiles_ShouldHave_JobTitleId_And_DepartmentId()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "person_profiles", "job_title_id")).Should().BeTrue(
+            "migration 1420 should add job_title_id FK column to person_profiles");
+        (await ColumnExistsAsync(conn, "person_profiles", "department_id")).Should().BeTrue(
+            "migration 1420 should add department_id FK column to person_profiles");
+    }
+
+    [Fact]
+    public async Task TestTenant_PersonProfiles_ShouldNotHave_LegacyFreeTextColumns()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await ColumnExistsAsync(conn, "person_profiles", "job_title")).Should().BeFalse(
+            "migration 1420 (clean break) should drop the legacy job_title VARCHAR column");
+        (await ColumnExistsAsync(conn, "person_profiles", "department")).Should().BeFalse(
+            "migration 1420 (clean break) should drop the legacy department VARCHAR column");
+    }
+
     private static async Task<bool> TableExistsAsync(NpgsqlConnection conn, string tableName)
     {
         await using var cmd = new NpgsqlCommand(
             "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @t)",
             conn);
         cmd.Parameters.AddWithValue("t", tableName);
+        return (bool)(await cmd.ExecuteScalarAsync() ?? false);
+    }
+
+    private static async Task<bool> ColumnExistsAsync(NpgsqlConnection conn, string tableName, string columnName)
+    {
+        await using var cmd = new NpgsqlCommand(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = @t AND column_name = @c)",
+            conn);
+        cmd.Parameters.AddWithValue("t", tableName);
+        cmd.Parameters.AddWithValue("c", columnName);
         return (bool)(await cmd.ExecuteScalarAsync() ?? false);
     }
 }

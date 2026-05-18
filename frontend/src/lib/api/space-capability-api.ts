@@ -4,7 +4,7 @@ import { API_PATHS } from '../core/api-paths';
 
 export interface SpaceCapability {
   id: string;
-  spaceId: string;
+  resourceId: string;
   criterionId: string;
   value: CriterionValue;
   createdAt: string;
@@ -22,25 +22,25 @@ interface CreateSpaceCapabilityRequest {
   value: CriterionValue;
 }
 
-export async function getSpaceCapabilities(siteId: string, spaceId: string): Promise<SpaceCapability[]> {
-  return apiGet<SpaceCapability[]>(API_PATHS.spaceCapabilities(siteId, spaceId));
+export async function getSpaceCapabilities(siteId: string, resourceId: string): Promise<SpaceCapability[]> {
+  return apiGet<SpaceCapability[]>(API_PATHS.spaceCapabilities(siteId, resourceId));
 }
 
 export async function addSpaceCapability(
   siteId: string,
-  spaceId: string,
+  resourceId: string,
   request: CreateSpaceCapabilityRequest
 ): Promise<SpaceCapability> {
   return apiPost<SpaceCapability>(
-    API_PATHS.spaceCapabilities(siteId, spaceId),
+    API_PATHS.spaceCapabilities(siteId, resourceId),
     request
   );
 }
 
 export async function deleteSpaceCapability(
   siteId: string,
-  spaceId: string,
+  resourceId: string,
   capabilityId: string
 ): Promise<void> {
-  return apiDelete(API_PATHS.spaceCapability(siteId, spaceId, capabilityId));
+  return apiDelete(API_PATHS.spaceCapability(siteId, resourceId, capabilityId));
 }

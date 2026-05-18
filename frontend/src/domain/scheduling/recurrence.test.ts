@@ -10,7 +10,7 @@ function makeDef(overrides: Partial<OffTimeDefinition> = {}): OffTimeDefinition 
     title: "Maintenance",
     type: "maintenance",
     appliesToAllSpaces: true,
-    spaceIds: [],
+    resourceIds: [],
     startMs: utc("2026-03-02T08:00:00Z"), // Monday
     endMs: utc("2026-03-02T10:00:00Z"),
     isRecurring: false,
@@ -66,7 +66,7 @@ describe("expandRecurrence", () => {
     expect(ranges).toHaveLength(1);
     expect(ranges[0].startMs).toBe(def.startMs);
     expect(ranges[0].endMs).toBe(def.endMs);
-    expect(ranges[0].spaceIds).toBeNull(); // appliesToAllSpaces
+    expect(ranges[0].resourceIds).toBeNull(); // appliesToAllSpaces
   });
 
   it("returns empty for non-recurring outside window", () => {
@@ -75,9 +75,9 @@ describe("expandRecurrence", () => {
   });
 
   it("preserves space scoping", () => {
-    const def = makeDef({ appliesToAllSpaces: false, spaceIds: ["s1", "s2"] });
+    const def = makeDef({ appliesToAllSpaces: false, resourceIds: ["s1", "s2"] });
     const ranges = expandRecurrence(def, JAN, DEC, TZ);
-    expect(ranges[0].spaceIds).toEqual(["s1", "s2"]);
+    expect(ranges[0].resourceIds).toEqual(["s1", "s2"]);
   });
 
   it("expands DAILY recurrence", () => {

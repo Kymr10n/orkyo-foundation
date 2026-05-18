@@ -1,6 +1,6 @@
 /**
  * CreateSpaceDialog - Form dialog for creating a new space after drawing
- * 
+ *
  * Features:
  * - Name and code input with validation
  * - Properties configuration (optional)

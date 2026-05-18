@@ -22,7 +22,8 @@ public class CriterionModelsTests
         {
             Name = "valid_criterion_name",
             Description = "Test criterion",
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         var result = _createValidator.Validate(request);
@@ -90,7 +91,8 @@ public class CriterionModelsTests
         var request = new CreateCriterionRequest
         {
             Name = name,
-            DataType = CriterionDataType.Boolean
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         var result = _createValidator.Validate(request);
@@ -137,7 +139,8 @@ public class CriterionModelsTests
         {
             Name = "test_enum",
             DataType = CriterionDataType.Enum,
-            EnumValues = new List<string> { "S", "M", "L", "XL" }
+            EnumValues = new List<string> { "S", "M", "L", "XL" },
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         var result = _createValidator.Validate(request);
@@ -152,7 +155,8 @@ public class CriterionModelsTests
         {
             Name = "test_boolean",
             DataType = CriterionDataType.Boolean,
-            EnumValues = null
+            EnumValues = null,
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         var result = _createValidator.Validate(request);
@@ -167,7 +171,8 @@ public class CriterionModelsTests
         {
             Name = "test_number",
             DataType = CriterionDataType.Number,
-            Unit = "kg"
+            Unit = "kg",
+            ResourceTypeKeys = new List<string> { "space" }
         };
 
         var result = _createValidator.Validate(request);

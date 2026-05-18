@@ -71,10 +71,10 @@ describe('AboutPage', () => {
   it('opens support email link', () => {
     const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderAboutPage();
-    
+
     const supportButton = screen.getByText('Contact Support');
     fireEvent.click(supportButton);
-    
+
     expect(windowOpenSpy).toHaveBeenCalledWith(
       'mailto:support@orkyo.app',
       '_blank'

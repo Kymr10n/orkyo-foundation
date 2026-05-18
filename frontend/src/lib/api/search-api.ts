@@ -46,18 +46,18 @@ export async function globalSearch(params: SearchParams): Promise<SearchResponse
   const queryParams: Record<string, string> = {
     q: params.query,
   };
-  
+
   if (params.siteId) {
     queryParams.siteId = params.siteId;
   }
-  
+
   if (params.types && params.types.length > 0) {
     queryParams.types = params.types.join(',');
   }
-  
+
   if (params.limit) {
     queryParams.limit = params.limit.toString();
   }
-  
+
   return apiGet<SearchResponse>(API_PATHS.SEARCH, { params: queryParams });
 }

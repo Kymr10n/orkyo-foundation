@@ -5,7 +5,6 @@
 
 export * from "./useCommandPalette";
 export * from "./useCriteria";
-export * from "./useGroups";
 export * from "./useImportExport";
 export * from "./useMutations";
 export * from "./usePreferences";

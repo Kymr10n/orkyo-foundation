@@ -1,7 +1,7 @@
 /**
  * Spatial index for the preview schedule.
  *
- * Groups entries by spaceId so overlap detection is O(n) per space
+ * Groups entries by resourceId so overlap detection is O(n) per space
  * rather than O(n²) across the entire request set.
  *
  * All methods are pure — the index is immutable after construction.
@@ -10,7 +10,7 @@
 import type { PreviewEntry, PreviewSchedule } from "./schedule-model";
 
 export interface ScheduleIndex {
-  /** spaceId → entries in that space, sorted by startMs ascending */
+  /** resourceId → entries in that space, sorted by startMs ascending */
   readonly bySpace: ReadonlyMap<string, readonly PreviewEntry[]>;
 }
 
@@ -19,10 +19,10 @@ export function buildIndex(schedule: PreviewSchedule): ScheduleIndex {
   const bySpace = new Map<string, PreviewEntry[]>();
 
   for (const entry of schedule.values()) {
-    if (!bySpace.has(entry.spaceId)) {
-      bySpace.set(entry.spaceId, []);
+    if (!bySpace.has(entry.resourceId)) {
+      bySpace.set(entry.resourceId, []);
     }
-    bySpace.get(entry.spaceId)!.push(entry);
+    bySpace.get(entry.resourceId)!.push(entry);
   }
 
   // Sort each space's entries by startMs for deterministic stacking order
@@ -39,7 +39,7 @@ export function buildIndex(schedule: PreviewSchedule): ScheduleIndex {
  * An entry does NOT overlap with itself.
  */
 export function getOverlapping(index: ScheduleIndex, target: PreviewEntry): PreviewEntry[] {
-  const spaceEntries = index.bySpace.get(target.spaceId);
+  const spaceEntries = index.bySpace.get(target.resourceId);
   if (!spaceEntries) return [];
 
   const result: PreviewEntry[] = [];
@@ -84,8 +84,8 @@ export function getOverlapGroupSize(index: ScheduleIndex, target: PreviewEntry):
  * Returns the maximum simultaneous overlap count for an entire space.
  * Used to compute the space row's total height.
  */
-export function getMaxOverlapInSpace(index: ScheduleIndex, spaceId: string): number {
-  const entries = index.bySpace.get(spaceId);
+export function getMaxOverlapInSpace(index: ScheduleIndex, resourceId: string): number {
+  const entries = index.bySpace.get(resourceId);
   if (!entries || entries.length === 0) return 1;
 
   let max = 1;

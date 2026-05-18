@@ -27,4 +27,3 @@ export const Claims = {
   /** Preferred username claim (Keycloak) */
   PreferredUsername: "preferred_username",
 } as const;
-

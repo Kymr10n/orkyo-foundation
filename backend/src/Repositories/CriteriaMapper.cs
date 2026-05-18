@@ -18,6 +18,12 @@ public static class CriteriaMapper
             enumValues = JsonSerializer.Deserialize<List<string>>(enumValuesJson);
         }
 
+        // resource_type_keys is a text[] aggregate (see CriteriaRepository.SelectColumns).
+        var keysOrdinal = reader.GetOrdinal("resource_type_keys");
+        var resourceTypeKeys = reader.IsDBNull(keysOrdinal)
+            ? Array.Empty<string>()
+            : reader.GetFieldValue<string[]>(keysOrdinal);
+
         return new CriterionInfo
         {
             Id = reader.GetGuid("id"),
@@ -28,6 +34,8 @@ public static class CriteriaMapper
             Unit = reader.GetNullableString("unit"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),
+            ApplicableToRequests = reader.GetBoolean("applicable_to_requests"),
+            ResourceTypeKeys = resourceTypeKeys,
         };
     }
 }

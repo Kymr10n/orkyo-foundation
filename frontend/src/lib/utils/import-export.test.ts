@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
-import { 
-  arrayToCSV, 
-  csvToArray, 
+import {
+  arrayToCSV,
+  csvToArray,
   getExportFilename,
   getSupportedFormats,
   isImportSupported,
@@ -16,7 +16,7 @@ describe('Import/Export Utilities', () => {
         { name: 'Room A', capacity: 10 },
         { name: 'Room B', capacity: 20 }
       ];
-      
+
       const csv = arrayToCSV(data);
       expect(csv).toBe('name,capacity\nRoom A,10\nRoom B,20');
     });
@@ -61,7 +61,7 @@ describe('Import/Export Utilities', () => {
     it('should parse simple CSV', () => {
       const csv = 'name,capacity\nRoom A,10\nRoom B,20';
       const result = csvToArray(csv);
-      
+
       expect(result).toEqual([
         { name: 'Room A', capacity: '10' },
         { name: 'Room B', capacity: '20' }
@@ -71,28 +71,28 @@ describe('Import/Export Utilities', () => {
     it('should handle quoted values with commas', () => {
       const csv = 'name,size\n"Room A, Floor 1",100';
       const result = csvToArray(csv);
-      
+
       expect(result[0].name).toBe('Room A, Floor 1');
     });
 
     it('should handle escaped quotes', () => {
       const csv = 'name,size\n"Room ""A""",100';
       const result = csvToArray(csv);
-      
+
       expect(result[0].name).toBe('Room "A"');
     });
 
     it('should handle empty values', () => {
       const csv = 'name,capacity,notes\nRoom A,,';
       const result = csvToArray(csv);
-      
+
       expect(result[0]).toEqual({ name: 'Room A', capacity: '', notes: '' });
     });
 
     it('should use custom headers if provided', () => {
       const csv = 'Room A,10\nRoom B,20';
       const result = csvToArray(csv, ['name', 'capacity']);
-      
+
       expect(result).toEqual([
         { name: 'Room A', capacity: '10' },
         { name: 'Room B', capacity: '20' }

@@ -46,7 +46,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         var solution = await SolveWithFallbackAsync(analyzed, cancellationToken);
 
         var requestNames = problem.Requests.ToDictionary(r => r.RequestId, r => r.DisplayName);
-        var spaceNames = problem.Spaces.ToDictionary(s => s.SpaceId, s => s.DisplayName);
+        var spaceNames = problem.Spaces.ToDictionary(s => s.ResourceId, s => s.DisplayName);
 
         return new AutoSchedulePreviewResponse(
             solution.SolverUsed,
@@ -55,7 +55,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
             solution.Assignments
                 .Select(x => new ProposedAssignmentDto(
                     x.RequestId, requestNames.GetValueOrDefault(x.RequestId, "Unknown"),
-                    x.SpaceId, spaceNames.GetValueOrDefault(x.SpaceId, "Unknown"),
+                    x.ResourceId, spaceNames.GetValueOrDefault(x.ResourceId, "Unknown"),
                     x.Start, x.End, x.DurationDays))
                 .ToList(),
             solution.Unscheduled
@@ -96,7 +96,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 a.RequestId,
                 new ScheduleRequestRequest
                 {
-                    SpaceId = a.SpaceId,
+                    ResourceId = a.ResourceId,
                     StartTs = a.Start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                     EndTs = a.End.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 }))

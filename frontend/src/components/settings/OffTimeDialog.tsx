@@ -47,7 +47,7 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
   const [startLocal, setStartLocal] = useState("");
   const [endLocal, setEndLocal] = useState("");
   const [appliesToAllSpaces, setAppliesToAllSpaces] = useState(true);
-  const [spaceIds, setSpaceIds] = useState<string[]>([]);
+  const [resourceIds, setResourceIds] = useState<string[]>([]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -71,7 +71,7 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
         setStartLocal(toDateTimeLocal(offTime.startMs));
         setEndLocal(toDateTimeLocal(offTime.endMs));
         setAppliesToAllSpaces(offTime.appliesToAllSpaces);
-        setSpaceIds(offTime.spaceIds);
+        setResourceIds(offTime.resourceIds);
         setIsRecurring(offTime.isRecurring);
         setRecurrenceRule(offTime.recurrenceRule ?? "");
         setEnabled(offTime.enabled);
@@ -81,7 +81,7 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
         setStartLocal("");
         setEndLocal("");
         setAppliesToAllSpaces(true);
-        setSpaceIds([]);
+        setResourceIds([]);
         setIsRecurring(false);
         setRecurrenceRule("");
         setEnabled(true);
@@ -122,7 +122,7 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
         title: title.trim(),
         type,
         appliesToAllSpaces,
-        spaceIds: appliesToAllSpaces ? [] : spaceIds,
+        resourceIds: appliesToAllSpaces ? [] : resourceIds,
         startMs,
         endMs,
         isRecurring,
@@ -136,8 +136,8 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
     }
   };
 
-  const toggleSpaceId = (id: string) => {
-    setSpaceIds((prev) =>
+  const toggleResourceId = (id: string) => {
+    setResourceIds((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
   };
@@ -234,8 +234,8 @@ export function OffTimeDialog({ open, onOpenChange, offTime, onSave }: OffTimeDi
                     >
                       <input
                         type="checkbox"
-                        checked={spaceIds.includes(space.id)}
-                        onChange={() => toggleSpaceId(space.id)}
+                        checked={resourceIds.includes(space.id)}
+                        onChange={() => toggleResourceId(space.id)}
                         className="rounded"
                       />
                       <span>{space.code} – {space.name}</span>

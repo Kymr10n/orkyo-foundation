@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { durationToMs, toScheduledEntry } from './schedule-model';
 import type { Request } from '@foundation/src/types/requests';
+import { spaceAssignment, makeAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -18,6 +19,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     schedulingSettingsApply: true,
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
+    assignments: [],
     ...overrides,
   };
 }
@@ -65,37 +67,37 @@ describe('durationToMs', () => {
 describe('toScheduledEntry', () => {
   it('returns a ScheduledEntry for a fully scheduled request', () => {
     const req = makeRequest({
-      spaceId: 'space-1',
+      assignments: [spaceAssignment('space-1')],
       startTs: '2024-06-01T08:00:00.000Z',
       endTs: '2024-06-01T10:00:00.000Z',
     });
     const entry = toScheduledEntry(req);
     expect(entry).not.toBeNull();
     expect(entry!.requestId).toBe('req-1');
-    expect(entry!.spaceId).toBe('space-1');
+    expect(entry!.resourceId).toBe('space-1');
     expect(entry!.startMs).toBe(new Date('2024-06-01T08:00:00.000Z').getTime());
     expect(entry!.endMs).toBe(new Date('2024-06-01T10:00:00.000Z').getTime());
     expect(entry!.minimalDurationMs).toBe(3_600_000); // 1 hour
   });
 
-  it('returns null when spaceId is missing', () => {
-    const req = makeRequest({ startTs: '2024-06-01T08:00:00Z', endTs: '2024-06-01T10:00:00Z' });
+  it('returns null when resourceId is missing', () => {
+    const req = makeRequest({ assignments: [], startTs: '2024-06-01T08:00:00Z', endTs: '2024-06-01T10:00:00Z' });
     expect(toScheduledEntry(req)).toBeNull();
   });
 
   it('returns null when startTs is missing', () => {
-    const req = makeRequest({ spaceId: 'space-1', endTs: '2024-06-01T10:00:00Z' });
+    const req = makeRequest({ assignments: [spaceAssignment('space-1')], endTs: '2024-06-01T10:00:00Z' });
     expect(toScheduledEntry(req)).toBeNull();
   });
 
   it('returns null when endTs is missing', () => {
-    const req = makeRequest({ spaceId: 'space-1', startTs: '2024-06-01T08:00:00Z' });
+    const req = makeRequest({ assignments: [spaceAssignment('space-1')], startTs: '2024-06-01T08:00:00Z' });
     expect(toScheduledEntry(req)).toBeNull();
   });
 
   it('returns null when startTs >= endTs (zero-duration)', () => {
     const req = makeRequest({
-      spaceId: 'space-1',
+      assignments: [spaceAssignment('space-1')],
       startTs: '2024-06-01T10:00:00Z',
       endTs: '2024-06-01T10:00:00Z',
     });
@@ -104,10 +106,27 @@ describe('toScheduledEntry', () => {
 
   it('returns null when startTs > endTs (inverted)', () => {
     const req = makeRequest({
-      spaceId: 'space-1',
+      assignments: [spaceAssignment('space-1')],
       startTs: '2024-06-01T12:00:00Z',
       endTs: '2024-06-01T08:00:00Z',
     });
     expect(toScheduledEntry(req)).toBeNull();
+  });
+
+  it('uses the space assignment when request also has person and tool assignments', () => {
+    // Regression: Phase 6 exposed all assignment types; toScheduledEntry must
+    // still pick only the space assignment for the grid entry.
+    const req = makeRequest({
+      assignments: [
+        makeAssignment('person-1', 'person'),
+        spaceAssignment('space-1'),
+        makeAssignment('tool-1', 'tool'),
+      ],
+      startTs: '2024-06-01T08:00:00Z',
+      endTs: '2024-06-01T10:00:00Z',
+    });
+    const entry = toScheduledEntry(req);
+    expect(entry).not.toBeNull();
+    expect(entry!.resourceId).toBe('space-1');
   });
 });

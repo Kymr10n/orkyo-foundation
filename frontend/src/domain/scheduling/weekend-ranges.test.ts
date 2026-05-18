@@ -20,10 +20,10 @@ describe("generateWeekendRanges", () => {
     }
   });
 
-  it("applies to all spaces (spaceIds is null)", () => {
+  it("applies to all spaces (resourceIds is null)", () => {
     const ranges = generateWeekendRanges(MON, SUN_END);
     for (const r of ranges) {
-      expect(r.spaceIds).toBeNull();
+      expect(r.resourceIds).toBeNull();
     }
   });
 

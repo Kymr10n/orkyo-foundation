@@ -89,10 +89,10 @@ describe('CommandPalette', () => {
     it('calls globalSearch on input change with debounce', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       // Wait for debounce
       await waitFor(() => {
         expect(searchApi.globalSearch).toHaveBeenCalledWith({
@@ -106,10 +106,10 @@ describe('CommandPalette', () => {
     it('displays search results', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Conference Room A')).toBeInTheDocument();
       }, { timeout: 500 });
@@ -118,10 +118,10 @@ describe('CommandPalette', () => {
     it('shows subtitle when available', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Main Building')).toBeInTheDocument();
       }, { timeout: 500 });
@@ -130,10 +130,10 @@ describe('CommandPalette', () => {
     it('shows type badge', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Space')).toBeInTheDocument();
       }, { timeout: 500 });
@@ -142,10 +142,10 @@ describe('CommandPalette', () => {
     it('shows no results message when search returns empty', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: 'nonexistent', results: [] });
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'nonexistent');
-      
+
       await waitFor(() => {
         expect(screen.getByText(/no results found/i)).toBeInTheDocument();
       }, { timeout: 500 });
@@ -154,10 +154,10 @@ describe('CommandPalette', () => {
     it('shows result count in footer', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByText('1 result')).toBeInTheDocument();
       }, { timeout: 500 });
@@ -168,10 +168,10 @@ describe('CommandPalette', () => {
     it('closes on Escape', async () => {
       const onOpenChange = vi.fn();
       renderCommandPalette({ open: true, onOpenChange });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       fireEvent.keyDown(input, { key: 'Escape' });
-      
+
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
@@ -179,16 +179,16 @@ describe('CommandPalette', () => {
       const onOpenChange = vi.fn();
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true, onOpenChange });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Conference Room A')).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       fireEvent.keyDown(input, { key: 'Enter' });
-      
+
       expect(mockNavigate).toHaveBeenCalledWith('/spaces');
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
@@ -199,16 +199,16 @@ describe('CommandPalette', () => {
       const onOpenChange = vi.fn();
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true, onOpenChange });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Conference Room A')).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       fireEvent.click(screen.getByText('Conference Room A'));
-      
+
       expect(mockNavigate).toHaveBeenCalledWith('/spaces');
     });
 
@@ -222,19 +222,19 @@ describe('CommandPalette', () => {
         query: 'setup',
         results: [requestResult],
       });
-      
+
       const onOpenChange = vi.fn();
       renderCommandPalette({ open: true, onOpenChange });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'setup');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Setup Request')).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       fireEvent.click(screen.getByText('Setup Request'));
-      
+
       expect(mockNavigate).toHaveBeenCalledWith('/requests');
     });
 
@@ -249,19 +249,19 @@ describe('CommandPalette', () => {
         query: 'head',
         results: [siteResult],
       });
-      
+
       const onOpenChange = vi.fn();
       renderCommandPalette({ open: true, onOpenChange });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'head');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Headquarters')).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       fireEvent.click(screen.getByText('Headquarters'));
-      
+
       expect(mockNavigate).toHaveBeenCalledWith('/settings');
     });
   });
@@ -277,18 +277,18 @@ describe('CommandPalette', () => {
         ],
       };
       vi.mocked(searchApi.globalSearch).mockResolvedValue(multipleResults);
-      
+
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'test');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Space Result')).toBeInTheDocument();
         expect(screen.getByText('Request Result')).toBeInTheDocument();
         expect(screen.getByText('Site Result')).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       // Check all type badges are present
       expect(screen.getByText('Space')).toBeInTheDocument();
       expect(screen.getByText('Request')).toBeInTheDocument();
@@ -304,17 +304,17 @@ describe('CommandPalette', () => {
         resolveSearch = resolve;
       });
       vi.mocked(searchApi.globalSearch).mockReturnValue(searchPromise);
-      
+
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'test');
-      
+
       // Wait for debounce to trigger the search
       await waitFor(() => {
         expect(searchApi.globalSearch).toHaveBeenCalled();
       }, { timeout: 500 });
-      
+
       // Now resolve the search
       resolveSearch!({ query: 'test', results: [] });
       await waitFor(() => {});
@@ -325,10 +325,10 @@ describe('CommandPalette', () => {
     it('shows Edit button for results with canEdit permission', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
       }, { timeout: 500 });
@@ -344,14 +344,14 @@ describe('CommandPalette', () => {
         results: [noEditResult],
       });
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'test');
-      
+
       await waitFor(() => {
         expect(screen.getByText('Conference Room A')).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
     });
 
@@ -359,19 +359,19 @@ describe('CommandPalette', () => {
       const onOpenChange = vi.fn();
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true, onOpenChange });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'conference');
-      
+
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
       }, { timeout: 500 });
-      
+
       fireEvent.click(screen.getByRole('button', { name: /edit/i }));
-      
+
       // Dialog should close
       expect(onOpenChange).toHaveBeenCalledWith(false);
-      
+
       // Navigation happens async via setTimeout
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith('/spaces?edit=space-123');
@@ -382,10 +382,10 @@ describe('CommandPalette', () => {
   describe('clear button', () => {
     it('shows clear button when there is a search query', async () => {
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'test');
-      
+
       // Clear button should appear (it's an X icon button)
       await waitFor(() => {
         const clearButtons = screen.getAllByRole('button');
@@ -397,19 +397,19 @@ describe('CommandPalette', () => {
 
     it('clears search query when clear button is clicked', async () => {
       renderCommandPalette({ open: true });
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'test');
-      
+
       await waitFor(() => {
         expect(input).toHaveValue('test');
       });
-      
+
       // Find and click the clear button
       const clearButtons = screen.getAllByRole('button');
       const clearButton = clearButtons.find(btn => btn.querySelector('svg'));
       fireEvent.click(clearButton!);
-      
+
       expect(input).toHaveValue('');
     });
   });
@@ -422,26 +422,26 @@ describe('CommandPalette', () => {
           <CommandPalette open={true} onOpenChange={onOpenChange} />
         </BrowserRouter>
       );
-      
+
       const input = screen.getByPlaceholderText(/search/i);
       await userEvent.type(input, 'my search');
-      
+
       expect(input).toHaveValue('my search');
-      
+
       // Close the dialog
       rerender(
         <BrowserRouter>
           <CommandPalette open={false} onOpenChange={onOpenChange} />
         </BrowserRouter>
       );
-      
+
       // Reopen the dialog
       rerender(
         <BrowserRouter>
           <CommandPalette open={true} onOpenChange={onOpenChange} />
         </BrowserRouter>
       );
-      
+
       // Query should still be there
       const reopenedInput = screen.getByPlaceholderText(/search/i);
       expect(reopenedInput).toHaveValue('my search');

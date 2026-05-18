@@ -6,7 +6,7 @@ const defaultProps = {
   isPassiveMode: false,
   drawingMode: 'rectangle' as const,
   drawingPoints: [] as { x: number; y: number }[],
-  selectedSpaceId: undefined,
+  selectedResourceId: undefined,
 };
 
 function renderInstructions(props: Partial<React.ComponentProps<typeof CanvasInstructions>> = {}) {
@@ -55,7 +55,7 @@ describe('CanvasInstructions', () => {
       isPassiveMode: true,
       drawingMode: 'resize',
       drawingPoints: [],
-      selectedSpaceId: 'space-1',
+      selectedResourceId: 'space-1',
     });
     expect(screen.getByText('Drag the handles to resize the space')).toBeInTheDocument();
   });
@@ -65,7 +65,7 @@ describe('CanvasInstructions', () => {
       isPassiveMode: true,
       drawingMode: 'resize',
       drawingPoints: [],
-      selectedSpaceId: undefined,
+      selectedResourceId: undefined,
     });
     expect(container.innerHTML).toBe('');
   });

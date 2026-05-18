@@ -33,7 +33,7 @@ const mockOffTimeWire = {
   title: 'Christmas',
   type: 'holiday' as const,
   appliesToAllSpaces: true,
-  spaceIds: null,
+  resourceIds: null,
   startTs: '2026-12-24T00:00:00.000Z',
   endTs: '2026-12-26T00:00:00.000Z',
   isRecurring: false,
@@ -147,7 +147,7 @@ describe('scheduling-api', () => {
       expect(result).toHaveLength(1);
       expect(result[0].startMs).toBe(new Date('2026-12-24T00:00:00.000Z').getTime());
       expect(result[0].endMs).toBe(new Date('2026-12-26T00:00:00.000Z').getTime());
-      expect(result[0].spaceIds).toEqual([]); // null → []
+      expect(result[0].resourceIds).toEqual([]); // null → []
     });
   });
 
@@ -162,7 +162,7 @@ describe('scheduling-api', () => {
         title: 'Christmas',
         type: 'holiday',
         appliesToAllSpaces: true,
-        spaceIds: [],
+        resourceIds: [],
         startMs: start,
         endMs: end,
         isRecurring: false,
@@ -180,14 +180,14 @@ describe('scheduling-api', () => {
       );
     });
 
-    it('omits spaceIds when appliesToAllSpaces is true', async () => {
+    it('omits resourceIds when appliesToAllSpaces is true', async () => {
       vi.mocked(apiClient.apiPost).mockResolvedValue(mockOffTimeWire);
 
       await createOffTime(SITE_ID, {
         title: 'Test',
         type: 'custom',
         appliesToAllSpaces: true,
-        spaceIds: ['space-1'],
+        resourceIds: ['space-1'],
         startMs: Date.now(),
         endMs: Date.now() + 3600_000,
         isRecurring: false,
@@ -196,7 +196,7 @@ describe('scheduling-api', () => {
       });
 
       const sentBody = vi.mocked(apiClient.apiPost).mock.calls[0][1];
-      expect(sentBody).not.toHaveProperty('spaceIds');
+      expect(sentBody).not.toHaveProperty('resourceIds');
     });
   });
 

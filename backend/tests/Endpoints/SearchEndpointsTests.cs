@@ -179,7 +179,8 @@ public class SearchEndpointsTests
         {
             name = uniqueName,
             description = "Test criterion for search",
-            dataType = "String"
+            dataType = "String",
+            resourceTypeKeys = new[] { "space" }
         });
         createResponse.EnsureSuccessStatusCode();
 

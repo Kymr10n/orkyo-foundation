@@ -11,4 +11,3 @@ export const Roles = {
   Viewer: "viewer",
   None: "none",
 } as const;
-

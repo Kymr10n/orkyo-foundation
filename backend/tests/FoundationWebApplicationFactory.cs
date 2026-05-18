@@ -192,8 +192,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // ── Repositories ──────────────────────────────────────────────────────
         builder.Services.AddScoped<ISiteRepository, SiteRepository>();
         builder.Services.AddScoped<ISpaceRepository, SpaceRepository>();
-        builder.Services.AddScoped<ISpaceGroupRepository, SpaceGroupRepository>();
-        builder.Services.AddScoped<ISpaceCapabilityRepository, SpaceCapabilityRepository>();
+        // ISpaceCapabilityRepository is served by IResourceCapabilityRepository (Phase 2)
         builder.Services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         builder.Services.AddScoped<ICriteriaRepository, CriteriaRepository>();
         builder.Services.AddScoped<IRequestRepository, RequestRepository>();
@@ -205,6 +204,15 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
         builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
+
+        // ── Resource model (Phase 1) ──────────────────────────────────────────
+        builder.Services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
+        builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
+        builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
+        builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
+        builder.Services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
+        builder.Services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
+        builder.Services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
 
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
@@ -248,6 +256,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Services.AutoSchedule.ISchedulingSolver, Api.Services.AutoSchedule.GreedySchedulingSolver>();
         builder.Services.AddScoped<ISiteService, SiteService>();
         builder.Services.AddScoped<ISpaceService, SpaceService>();
+        // SpaceService now needs resource repos for Phase 2 coordination (already registered above)
         builder.Services.AddScoped<ICriteriaService, CriteriaService>();
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();
@@ -255,6 +264,15 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IExportService, ExportService>();
         builder.Services.AddScoped<IPresetService, PresetService>();
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
+        builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
+        builder.Services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
+        builder.Services.AddScoped<IResourceService, ResourceService>();
+        builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
+        builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
+        builder.Services.AddScoped<IJobTitleRepository, JobTitleRepository>();
+        builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+        builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
+        builder.Services.AddScoped<IUtilizationService, UtilizationService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
@@ -400,8 +418,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // ── Map all foundation endpoints ──────────────────────────────────────
         app.MapSiteEndpoints();
         app.MapSpaceEndpoints();
-        app.MapSpaceGroupEndpoints();
-        app.MapSpaceCapabilityEndpoints();
+        app.MapResourceGroupEndpoints();
         app.MapGroupCapabilityEndpoints();
         app.MapCriteriaEndpoints();
         app.MapRequestEndpoints();
@@ -422,6 +439,15 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapContactEndpoints();
         app.MapAccountLifecycleEndpoints();
         app.MapBffAuthEndpoints();
+        app.MapResourceTypeEndpoints();
+        app.MapResourceEndpoints();
+        app.MapResourceAssignmentEndpoints();
+        app.MapCriterionApplicabilityEndpoints();
+        app.MapResourceGroupMemberEndpoints();
+        app.MapUtilizationEndpoints();
+        app.MapPersonProfileEndpoints();
+        app.MapJobTitleEndpoints();
+        app.MapDepartmentEndpoints();
         // Admin endpoints
         app.MapFloorplanEndpoints();
         app.MapUserAdminEndpoints();

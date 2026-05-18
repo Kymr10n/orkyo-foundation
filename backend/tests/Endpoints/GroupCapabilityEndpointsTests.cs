@@ -10,7 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 
 /// <summary>
 /// Tests for Group Capability CRUD endpoints.
-/// Routes: /api/groups/{groupId}/capabilities
+/// Routes: /api/resource-groups/{groupId}/capabilities
 /// Requires authentication and tenant membership.
 /// </summary>
 [Collection("Database collection")]
@@ -27,27 +27,28 @@ public class GroupCapabilityEndpointsTests
 
     private async Task<Guid> CreateTestGroupAsync()
     {
-        var request = new CreateSpaceGroupRequest
+        var request = new CreateResourceGroupRequest
         {
+            ResourceTypeKey = "space",
             Name = $"CapTest {Guid.NewGuid():N}"[..20],
             Description = "Group for capability tests"
         };
 
-        var response = await _client.PostAsJsonAsync("/api/groups", request);
+        var response = await _client.PostAsJsonAsync("/api/resource-groups", request);
         response.EnsureSuccessStatusCode();
 
-        var group = await response.Content.ReadFromJsonAsync<SpaceGroupInfo>();
+        var group = await response.Content.ReadFromJsonAsync<ResourceGroupInfo>();
         return group!.Id;
     }
 
-    #region GET /api/groups/{groupId}/capabilities
+    #region GET /api/resource-groups/{groupId}/capabilities
 
     [Fact]
     public async Task GetCapabilities_NoAuth_Returns401()
     {
         var groupId = Guid.NewGuid();
 
-        var response = await _unauthenticatedClient.GetAsync($"/api/groups/{groupId}/capabilities");
+        var response = await _unauthenticatedClient.GetAsync($"/api/resource-groups/{groupId}/capabilities");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -57,7 +58,7 @@ public class GroupCapabilityEndpointsTests
     {
         var groupId = await CreateTestGroupAsync();
 
-        var response = await _client.GetAsync($"/api/groups/{groupId}/capabilities");
+        var response = await _client.GetAsync($"/api/resource-groups/{groupId}/capabilities");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -72,7 +73,7 @@ public class GroupCapabilityEndpointsTests
     {
         var groupId = await CreateTestGroupAsync();
 
-        var response = await _client.GetAsync($"/api/groups/{groupId}/capabilities");
+        var response = await _client.GetAsync($"/api/resource-groups/{groupId}/capabilities");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -81,7 +82,7 @@ public class GroupCapabilityEndpointsTests
 
     #endregion
 
-    #region POST /api/groups/{groupId}/capabilities
+    #region POST /api/resource-groups/{groupId}/capabilities
 
     [Fact]
     public async Task AddCapability_NoAuth_Returns401()
@@ -92,7 +93,7 @@ public class GroupCapabilityEndpointsTests
             Value: 42);
 
         var response = await _unauthenticatedClient.PostAsJsonAsync(
-            $"/api/groups/{groupId}/capabilities", request);
+            $"/api/resource-groups/{groupId}/capabilities", request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -109,7 +110,7 @@ public class GroupCapabilityEndpointsTests
             Value: 42);
 
         var response = await _client.PostAsJsonAsync(
-            $"/api/groups/{groupId}/capabilities", request);
+            $"/api/resource-groups/{groupId}/capabilities", request);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
@@ -132,10 +133,10 @@ public class GroupCapabilityEndpointsTests
             Value: true);
 
         var addResponse = await _client.PostAsJsonAsync(
-            $"/api/groups/{groupId}/capabilities", addRequest);
+            $"/api/resource-groups/{groupId}/capabilities", addRequest);
         addResponse.EnsureSuccessStatusCode();
 
-        var listResponse = await _client.GetAsync($"/api/groups/{groupId}/capabilities");
+        var listResponse = await _client.GetAsync($"/api/resource-groups/{groupId}/capabilities");
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
 
         var body = await listResponse.Content.ReadAsStringAsync();
@@ -144,13 +145,13 @@ public class GroupCapabilityEndpointsTests
 
     #endregion
 
-    #region DELETE /api/groups/{groupId}/capabilities/{capabilityId}
+    #region DELETE /api/resource-groups/{groupId}/capabilities/{capabilityId}
 
     [Fact]
     public async Task DeleteCapability_NoAuth_Returns401()
     {
         var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/groups/{Guid.NewGuid()}/capabilities/{Guid.NewGuid()}");
+            $"/api/resource-groups/{Guid.NewGuid()}/capabilities/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -161,7 +162,7 @@ public class GroupCapabilityEndpointsTests
         var groupId = await CreateTestGroupAsync();
 
         var response = await _client.DeleteAsync(
-            $"/api/groups/{groupId}/capabilities/{Guid.NewGuid()}");
+            $"/api/resource-groups/{groupId}/capabilities/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -179,7 +180,7 @@ public class GroupCapabilityEndpointsTests
             Value: 99);
 
         var addResponse = await _client.PostAsJsonAsync(
-            $"/api/groups/{groupId}/capabilities", addRequest);
+            $"/api/resource-groups/{groupId}/capabilities", addRequest);
         addResponse.EnsureSuccessStatusCode();
 
         var created = await addResponse.Content.ReadFromJsonAsync<GroupCapabilityInfo>();
@@ -187,7 +188,7 @@ public class GroupCapabilityEndpointsTests
 
         // Delete it
         var deleteResponse = await _client.DeleteAsync(
-            $"/api/groups/{groupId}/capabilities/{created.Id}");
+            $"/api/resource-groups/{groupId}/capabilities/{created.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
     }
@@ -201,17 +202,17 @@ public class GroupCapabilityEndpointsTests
 
         // Create
         var addResponse = await _client.PostAsJsonAsync(
-            $"/api/groups/{groupId}/capabilities",
+            $"/api/resource-groups/{groupId}/capabilities",
             new AddGroupCapabilityRequest(criterion.Id, "test-value"));
         addResponse.EnsureSuccessStatusCode();
 
         var created = await addResponse.Content.ReadFromJsonAsync<GroupCapabilityInfo>();
 
         // Delete
-        await _client.DeleteAsync($"/api/groups/{groupId}/capabilities/{created!.Id}");
+        await _client.DeleteAsync($"/api/resource-groups/{groupId}/capabilities/{created!.Id}");
 
         // Verify gone
-        var listResponse = await _client.GetAsync($"/api/groups/{groupId}/capabilities");
+        var listResponse = await _client.GetAsync($"/api/resource-groups/{groupId}/capabilities");
         var body = await listResponse.Content.ReadAsStringAsync();
         Assert.DoesNotContain(created.Id.ToString(), body);
     }
@@ -226,7 +227,7 @@ public class GroupCapabilityEndpointsTests
         var groupId = Guid.NewGuid();
 
         var response = await _unauthenticatedClient.GetAsync(
-            $"/api/groups/{groupId}/capabilities");
+            $"/api/resource-groups/{groupId}/capabilities");
 
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
     }

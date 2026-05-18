@@ -21,22 +21,22 @@ describe('useCommandPalette', () => {
 
     it('open() sets isOpen to true', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         result.current.open();
       });
-      
+
       expect(result.current.isOpen).toBe(true);
     });
 
     it('close() sets isOpen to false', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         result.current.open();
       });
       expect(result.current.isOpen).toBe(true);
-      
+
       act(() => {
         result.current.close();
       });
@@ -45,12 +45,12 @@ describe('useCommandPalette', () => {
 
     it('setIsOpen directly sets state', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         result.current.setIsOpen(true);
       });
       expect(result.current.isOpen).toBe(true);
-      
+
       act(() => {
         result.current.setIsOpen(false);
       });
@@ -61,7 +61,7 @@ describe('useCommandPalette', () => {
   describe('keyboard shortcut', () => {
     it('opens on Ctrl+K', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         const event = new KeyboardEvent('keydown', {
           key: 'k',
@@ -70,13 +70,13 @@ describe('useCommandPalette', () => {
         });
         document.dispatchEvent(event);
       });
-      
+
       expect(result.current.isOpen).toBe(true);
     });
 
     it('opens on Cmd+K (Meta)', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         const event = new KeyboardEvent('keydown', {
           key: 'k',
@@ -85,13 +85,13 @@ describe('useCommandPalette', () => {
         });
         document.dispatchEvent(event);
       });
-      
+
       expect(result.current.isOpen).toBe(true);
     });
 
     it('toggles state on repeated Ctrl+K', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       const dispatchCtrlK = () => {
         const event = new KeyboardEvent('keydown', {
           key: 'k',
@@ -100,13 +100,13 @@ describe('useCommandPalette', () => {
         });
         document.dispatchEvent(event);
       };
-      
+
       // First press - opens
       act(() => {
         dispatchCtrlK();
       });
       expect(result.current.isOpen).toBe(true);
-      
+
       // Second press - closes
       act(() => {
         dispatchCtrlK();
@@ -116,7 +116,7 @@ describe('useCommandPalette', () => {
 
     it('does not open on just K without modifier', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         const event = new KeyboardEvent('keydown', {
           key: 'k',
@@ -124,13 +124,13 @@ describe('useCommandPalette', () => {
         });
         document.dispatchEvent(event);
       });
-      
+
       expect(result.current.isOpen).toBe(false);
     });
 
     it('does not open on Ctrl with different key', () => {
       const { result } = renderHook(() => useCommandPalette());
-      
+
       act(() => {
         const event = new KeyboardEvent('keydown', {
           key: 'j',
@@ -139,7 +139,7 @@ describe('useCommandPalette', () => {
         });
         document.dispatchEvent(event);
       });
-      
+
       expect(result.current.isOpen).toBe(false);
     });
   });
@@ -147,10 +147,10 @@ describe('useCommandPalette', () => {
   describe('cleanup', () => {
     it('removes event listener on unmount', () => {
       const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
-      
+
       const { unmount } = renderHook(() => useCommandPalette());
       unmount();
-      
+
       expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
     });
   });

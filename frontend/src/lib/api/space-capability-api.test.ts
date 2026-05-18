@@ -11,7 +11,7 @@ vi.mock('../core/api-client');
 
 const mockCapability = {
   id: 'cap-123',
-  spaceId: 'space-456',
+  resourceId: 'space-456',
   criterionId: 'crit-789',
   value: 50,
   createdAt: '2024-01-01T00:00:00Z',

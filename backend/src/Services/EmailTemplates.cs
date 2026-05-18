@@ -34,37 +34,37 @@ public static class EmailTemplates
     <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
         <h1 style=""color: white; margin: 0; font-size: 28px;"">Welcome to {b.ProductName}!</h1>
     </div>
-    
+
     <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
         <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-        
+
         <p style=""font-size: 16px; margin-bottom: 20px;"">
-            Thank you for registering with {b.ProductName}. To complete your registration and activate your account, 
+            Thank you for registering with {b.ProductName}. To complete your registration and activate your account,
             please verify your email address by clicking the button below.
         </p>
-        
+
         <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{verificationLink}"" 
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none; 
+            <a href=""{verificationLink}""
+               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
                       border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
                 Verify Email Address
             </a>
         </div>
-        
+
         <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
             If the button doesn't work, copy and paste this link into your browser:
         </p>
         <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
             {verificationLink}
         </p>
-        
+
         <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This verification link will expire in 7 days. If you didn't create an account with us, 
+            This verification link will expire in 7 days. If you didn't create an account with us,
             you can safely ignore this email.
         </p>
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
             Best regards,<br>
             The {b.ProductName} Team
@@ -107,37 +107,37 @@ The {b.ProductName} Team";
     <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
         <h1 style=""color: white; margin: 0; font-size: 28px;"">Password Reset Request</h1>
     </div>
-    
+
     <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
         <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-        
+
         <p style=""font-size: 16px; margin-bottom: 20px;"">
-            We received a request to reset your password for your {b.ProductName} account. 
+            We received a request to reset your password for your {b.ProductName} account.
             Click the button below to create a new password.
         </p>
-        
+
         <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{resetLink}"" 
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none; 
+            <a href=""{resetLink}""
+               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
                       border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
                 Reset Password
             </a>
         </div>
-        
+
         <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
             If the button doesn't work, copy and paste this link into your browser:
         </p>
         <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
             {resetLink}
         </p>
-        
+
         <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This password reset link will expire in 1 hour. If you didn't request a password reset, 
+            This password reset link will expire in 1 hour. If you didn't request a password reset,
             you can safely ignore this email. Your password will remain unchanged.
         </p>
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
             Best regards,<br>
             The {b.ProductName} Team
@@ -180,30 +180,30 @@ The {b.ProductName} Team";
     <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
         <h1 style=""color: white; margin: 0; font-size: 28px;"">🎉 Welcome Aboard!</h1>
     </div>
-    
+
     <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
         <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-        
+
         <p style=""font-size: 16px; margin-bottom: 20px;"">
-            Your email has been verified successfully! You're now ready to start using {b.ProductName} 
+            Your email has been verified successfully! You're now ready to start using {b.ProductName}
             to manage your resources efficiently.
         </p>
-        
+
         <h2 style=""color: {b.PrimaryColor}; font-size: 20px; margin-top: 30px;"">Getting Started</h2>
-        
+
         <ul style=""font-size: 16px; line-height: 2;"">
             <li>Create your first site and spaces</li>
             <li>Set up resource utilization schedules</li>
             <li>Invite team members to collaborate</li>
             <li>Track and optimize your resource utilization</li>
         </ul>
-        
+
         <p style=""font-size: 16px; margin-top: 30px;"">
             If you have any questions or need help getting started, feel free to reach out to our support team.
         </p>
-        
+
         <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
             Best regards,<br>
             The {b.ProductName} Team
@@ -513,37 +513,37 @@ This is an automated alert from {b.ProductName}.";
     <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
         <h1 style=""color: white; margin: 0; font-size: 28px;"">🎉 You're Invited!</h1>
     </div>
-    
+
     <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
         <p style=""font-size: 16px; margin-bottom: 20px;"">Hello,</p>
-        
+
         <p style=""font-size: 16px; margin-bottom: 20px;"">
-            You've been invited to join a {b.ProductName} workspace. Click the button below 
+            You've been invited to join a {b.ProductName} workspace. Click the button below
             to accept the invitation and create your account.
         </p>
-        
+
         <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{signupLink}"" 
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none; 
+            <a href=""{signupLink}""
+               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
                       border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
                 Accept Invitation
             </a>
         </div>
-        
+
         <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
             If the button doesn't work, copy and paste this link into your browser:
         </p>
         <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
             {signupLink}
         </p>
-        
+
         <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This invitation link will expire on {expiryText}. If you didn't expect this invitation, 
+            This invitation link will expire on {expiryText}. If you didn't expect this invitation,
             you can safely ignore this email.
         </p>
-        
+
         <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
             Best regards,<br>
             The {b.ProductName} Team

@@ -32,7 +32,7 @@ public class SchedulingScenarioTests
 
     private static void AssertNoOverlaps(SchedulingSolution solution)
     {
-        var bySpace = solution.Assignments.GroupBy(a => a.SpaceId);
+        var bySpace = solution.Assignments.GroupBy(a => a.ResourceId);
         foreach (var group in bySpace)
         {
             var sorted = group.OrderBy(a => a.Start).ToList();
@@ -98,7 +98,7 @@ public class SchedulingScenarioTests
 
         var labPlacement = result.Assignments.FirstOrDefault(a => a.RequestId == labRequest.RequestId);
         labPlacement.Should().NotBeNull("lab request should be scheduled");
-        labPlacement!.SpaceId.Should().Be(specializedSpace.SpaceId,
+        labPlacement!.ResourceId.Should().Be(specializedSpace.ResourceId,
             "lab request must go to the only compatible space");
 
         result.Assignments.Should().HaveCount(3);
@@ -156,11 +156,11 @@ public class SchedulingScenarioTests
     {
         var solver = solverName == "Greedy" ? (ISchedulingSolver)_greedy : _orTools;
 
-        var spaceId = Guid.NewGuid();
-        var space = new SpaceNode(spaceId, "Room", new HashSet<Guid>());
+        var resourceId = Guid.NewGuid();
+        var space = new SpaceNode(resourceId, "Room", new HashSet<Guid>());
 
         var fixedReqId = Guid.NewGuid();
-        var fixedOcc = new FixedOccupancy(fixedReqId, spaceId,
+        var fixedOcc = new FixedOccupancy(fixedReqId, resourceId,
             new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 28));
 
         var newReq = Req("New Task", days: 5);
@@ -198,7 +198,7 @@ public class SchedulingScenarioTests
         result.Assignments.Should().HaveCount(3);
 
         var abPlacement = result.Assignments.First(a => a.RequestId == reqAB.RequestId);
-        abPlacement.SpaceId.Should().Be(spaceAB.SpaceId);
+        abPlacement.ResourceId.Should().Be(spaceAB.ResourceId);
 
         AssertNoOverlaps(result);
     }

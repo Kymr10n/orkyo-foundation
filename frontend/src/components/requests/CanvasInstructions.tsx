@@ -4,17 +4,17 @@ interface CanvasInstructionsProps {
   isPassiveMode: boolean;
   drawingMode: DrawingMode;
   drawingPoints: Coordinate[];
-  selectedSpaceId?: string;
+  selectedResourceId?: string;
 }
 
 export function CanvasInstructions({
   isPassiveMode,
   drawingMode,
   drawingPoints,
-  selectedSpaceId,
+  selectedResourceId,
 }: CanvasInstructionsProps) {
   const showDrawing = !isPassiveMode;
-  const showResize = drawingMode === "resize" && selectedSpaceId;
+  const showResize = drawingMode === "resize" && selectedResourceId;
 
   if (!showDrawing && !showResize) return null;
 

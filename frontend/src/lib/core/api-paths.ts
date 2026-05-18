@@ -1,6 +1,6 @@
 /**
  * Centralized API path constants.
- * 
+ *
  * All API endpoints should be defined here to:
  * 1. Prevent typos and path mismatches
  * 2. Make refactoring easier (change once, update everywhere)
@@ -27,10 +27,10 @@ export const API_PATHS = {
 
   // Spaces
   spaces: (siteId: string) => `/api/sites/${siteId}/spaces`,
-  space: (siteId: string, spaceId: string) => `/api/sites/${siteId}/spaces/${spaceId}`,
-  spaceCapabilities: (siteId: string, spaceId: string) => `/api/sites/${siteId}/spaces/${spaceId}/capabilities`,
-  spaceCapability: (siteId: string, spaceId: string, capabilityId: string) =>
-    `/api/sites/${siteId}/spaces/${spaceId}/capabilities/${capabilityId}`,
+  space: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}`,
+  spaceCapabilities: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}/capabilities`,
+  spaceCapability: (siteId: string, resourceId: string, capabilityId: string) =>
+    `/api/sites/${siteId}/spaces/${resourceId}/capabilities/${capabilityId}`,
 
   // Groups
   GROUPS: '/api/groups',
@@ -51,6 +51,28 @@ export const API_PATHS = {
   requestSubtree: (requestId: string) => `/api/requests/${requestId}/subtree`,
   requestDescendantsCount: (requestId: string) => `/api/requests/${requestId}/descendants/count`,
 
+  // Resources
+  RESOURCES: '/api/resources',
+  resource: (resourceId: string) => `/api/resources/${resourceId}`,
+  resourceUtilization: (resourceId: string) => `/api/resources/${resourceId}/utilization`,
+  resourceCapabilities: (resourceId: string) => `/api/resources/${resourceId}/capabilities`,
+  resourceCapability: (resourceId: string, capabilityId: string) =>
+    `/api/resources/${resourceId}/capabilities/${capabilityId}`,
+
+  // Person Profiles
+  PERSON_PROFILES: '/api/person-profiles',
+  personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
+  personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
+
+  // Job Titles
+  JOB_TITLES: '/api/job-titles',
+  jobTitle: (id: string) => `/api/job-titles/${id}`,
+
+  // Departments
+  DEPARTMENTS: '/api/departments',
+  DEPARTMENTS_TREE: '/api/departments/tree',
+  department: (id: string) => `/api/departments/${id}`,
+
   // Templates
   TEMPLATES: '/api/templates',
   templatesWithType: (entityType: string) => `/api/templates?entityType=${entityType}`,
@@ -59,6 +81,7 @@ export const API_PATHS = {
   // Criteria
   CRITERIA: '/api/criteria',
   criterion: (criterionId: string) => `/api/criteria/${criterionId}`,
+  criterionApplicability: (criterionId: string) => `/api/criteria/${criterionId}/applicability`,
 
   // Users
   USERS: '/api/users',
@@ -150,4 +173,18 @@ export const API_PATHS = {
   // Tenant Settings (admin-configurable)
   SETTINGS: '/api/settings',
   setting: (key: string) => `/api/settings/${key}`,
+
+  // Resource Groups (typed, e.g. people groups)
+  RESOURCE_GROUPS: '/api/resource-groups',
+  resourceGroup: (id: string) => `/api/resource-groups/${id}`,
+  resourceGroupMembers: (id: string) => `/api/resource-groups/${id}/members`,
+
+  // Resource Absences
+  resourceAbsences: (resourceId: string) => `/api/resources/${resourceId}/absences`,
+  resourceAbsence: (resourceId: string, absenceId: string) => `/api/resources/${resourceId}/absences/${absenceId}`,
+
+  // Resource Assignments
+  RESOURCE_ASSIGNMENTS: '/api/resource-assignments',
+  RESOURCE_ASSIGNMENTS_VALIDATE: '/api/resource-assignments/validate',
+  resourceAssignment: (id: string) => `/api/resource-assignments/${id}`,
 } as const;

@@ -15,8 +15,8 @@ const mockPreview: AutoSchedulePreviewResponse = {
     {
       requestId: 'r-1',
       requestName: 'Task Alpha',
-      spaceId: 'sp-1',
-      spaceName: 'Room A',
+      resourceId: 'sp-1',
+      resourceName: 'Room A',
       start: '2026-03-01',
       end: '2026-03-05',
       durationDays: 4,
@@ -24,8 +24,8 @@ const mockPreview: AutoSchedulePreviewResponse = {
     {
       requestId: 'r-2',
       requestName: 'Task Beta',
-      spaceId: 'sp-2',
-      spaceName: 'Room B',
+      resourceId: 'sp-2',
+      resourceName: 'Room B',
       start: '2026-03-01',
       end: '2026-03-03',
       durationDays: 2,

@@ -1,4 +1,20 @@
-import type { CriterionValue } from './criterion';
+import type { CriterionValue, ResourceTypeKey } from './criterion';
+
+export type { ResourceTypeKey };
+export type AssignmentStatus = 'Planned' | 'Confirmed' | 'Tentative' | 'Cancelled';
+
+export interface ResourceAssignment {
+  id: string;
+  resourceId: string;
+  resourceTypeKey: ResourceTypeKey;
+  startUtc: string;
+  endUtc: string;
+  allocationPercent?: number | null;
+  allocationUnits?: number | null;
+  assignmentStatus: AssignmentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export type DurationUnit =
   | "years"
@@ -48,9 +64,11 @@ export interface Request {
   planningMode: PlanningMode;
   sortOrder: number;
 
-  // Space and item references
-  spaceId?: string | null;
+  // Item reference
   requestItemId?: string | null;
+
+  // All resource assignments for this request
+  assignments: ResourceAssignment[];
 
   // Display icon (string ID from REQUEST_ICONS, resolved on the FE)
   icon?: string | null;
@@ -66,7 +84,7 @@ export interface Request {
   minimalDurationValue: number;
   minimalDurationUnit: DurationUnit;
 
-  // Actual scheduled duration (when allocated to a space)
+  // Actual scheduled duration (set when a leaf request is scheduled)
   actualDurationValue?: number | null;
   actualDurationUnit?: DurationUnit | null;
 
@@ -90,6 +108,8 @@ export interface RequestRequirement {
   requestId: string;
   criterionId: string;
   value: CriterionValue;
+  operator?: string; // Phase 3: ">=", "<=", "=" for Number criteria
+  allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum criteria
   createdAt?: string;
   criterion?: {
     id: string;
@@ -107,7 +127,7 @@ export interface CreateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
-  spaceId?: string;
+  resourceId?: string;
   requestItemId?: string;
   icon?: string | null;
   startTs?: string;
@@ -123,6 +143,8 @@ export interface CreateRequestRequest {
   requirements?: {
     criterionId: string;
     value: CriterionValue;
+    operator?: string; // Phase 3: ">=", "<=", "=" for Number
+    allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum
   }[];
 }
 
@@ -132,7 +154,7 @@ export interface UpdateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
-  spaceId?: string;
+  resourceId?: string;
   requestItemId?: string;
   icon?: string | null;
   startTs?: string;
@@ -148,6 +170,8 @@ export interface UpdateRequestRequest {
   requirements?: {
     criterionId: string;
     value: CriterionValue;
+    operator?: string; // Phase 3: ">=", "<=", "=" for Number
+    allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum
   }[];
 }
 

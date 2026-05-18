@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Services;
@@ -9,13 +10,14 @@ namespace Api.Repositories;
 
 public class RequestRepository : IRequestRepository
 {
-    private const string SelectColumns =
+    // Columns selected from the view.
+    private const string SelectFromView =
         @"id, name, description, parent_request_id, planning_mode, sort_order,
-          space_id, request_item_id, icon,
+          request_item_id, icon,
           start_ts, end_ts, earliest_start_ts, latest_end_ts,
           minimal_duration_value, minimal_duration_unit,
           actual_duration_value, actual_duration_unit,
-          status, scheduling_settings_apply, created_at, updated_at";
+          status, scheduling_settings_apply, created_at, updated_at, assignments";
 
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
@@ -33,20 +35,17 @@ public class RequestRepository : IRequestRepository
 
         var requests = new List<RequestInfo>();
         var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM requests ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC", db);
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
+            db);
 
         await using (var reader = await cmd.ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
-            {
                 requests.Add(RequestMapper.MapFromReader(reader));
-            }
         }
 
-        if (includeRequirements && requests.Any())
-        {
+        if (includeRequirements && requests.Count > 0)
             await LoadRequirementsForRequests(requests, db);
-        }
 
         return requests;
     }
@@ -59,12 +58,12 @@ public class RequestRepository : IRequestRepository
         var result = await DbQueryHelper.ExecutePagedQueryAsync(
             db,
             page,
-            countSql: "SELECT COUNT(*) FROM requests",
-            querySql: $"SELECT {SelectColumns} FROM requests ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset",
+            countSql: "SELECT COUNT(*) FROM v_requests_with_assignments",
+            querySql: $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset",
             addParams: null,
             mapper: RequestMapper.MapFromReader);
 
-        if (includeRequirements && result.Items.Any())
+        if (includeRequirements && result.Items.Count > 0)
         {
             var items = result.Items.ToList();
             await LoadRequirementsForRequests(items, db);
@@ -80,20 +79,28 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         var cmd = new NpgsqlCommand($@"
-            SELECT {SelectColumns}
-            FROM requests
+            SELECT {SelectFromView}
+            FROM v_requests_with_assignments
             WHERE scheduling_settings_apply = true
               AND start_ts IS NOT NULL
-              AND space_id IN (SELECT id FROM spaces WHERE site_id = @siteId)", db);
+              AND EXISTS (
+                SELECT 1 FROM resource_assignments ra
+                JOIN resources res ON res.id = ra.resource_id
+                JOIN resource_types rt ON rt.id = res.resource_type_id
+                JOIN spaces s ON s.id = res.id
+                WHERE ra.request_id = v_requests_with_assignments.id
+                  AND rt.key = @spaceKey
+                  AND ra.assignment_status != @cancelled
+                  AND s.site_id = @siteId
+              )", db);
         cmd.Parameters.AddWithValue("siteId", siteId);
+        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
 
         var requests = new List<RequestInfo>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-        {
             requests.Add(RequestMapper.MapFromReader(reader));
-        }
-
         return requests;
     }
 
@@ -103,24 +110,33 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM requests WHERE id = @id", db);
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = @id",
+            db);
         cmd.Parameters.AddWithValue("id", id);
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (!await reader.ReadAsync())
-        {
             return null;
-        }
 
         var request = RequestMapper.MapFromReader(reader);
         reader.Close();
 
         if (includeRequirements)
-        {
             request = request with { Requirements = await LoadRequirements(id, db) };
-        }
 
         return request;
+    }
+
+    private async Task<RequestInfo> ReadByIdAsync(NpgsqlConnection db, Guid id)
+    {
+        var cmd = new NpgsqlCommand(
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = @id",
+            db);
+        cmd.Parameters.AddWithValue("id", id);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+        return RequestMapper.MapFromReader(reader);
     }
 
     public async Task<RequestInfo> CreateAsync(CreateRequestRequest request)
@@ -128,10 +144,11 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync();
 
-        // Validate space_id if provided
-        if (request.SpaceId.HasValue && !await DbQueryHelper.ExistsAsync(db, "spaces", request.SpaceId.Value))
+        // Validate resource_id if provided (resource must exist)
+        if (request.ResourceId.HasValue
+            && !await DbQueryHelper.ExistsAsync(db, "resources", request.ResourceId.Value))
         {
-            throw new ArgumentException("Invalid space_id: space does not exist");
+            throw new ArgumentException("Invalid resource_id: resource does not exist");
         }
 
         await using var transaction = await db.BeginTransactionAsync();
@@ -140,18 +157,18 @@ public class RequestRepository : IRequestRepository
         {
             var cmd = new NpgsqlCommand(
                 $@"INSERT INTO requests (name, description, parent_request_id, planning_mode, sort_order,
-                                        space_id, request_item_id, icon,
+                                        request_item_id, icon,
                                         start_ts, end_ts, earliest_start_ts, latest_end_ts,
                                         minimal_duration_value, minimal_duration_unit,
                                         actual_duration_value, actual_duration_unit,
                                         status, scheduling_settings_apply)
                    VALUES (@name, @description, @parent_request_id, @planning_mode, @sort_order,
-                           @space_id, @request_item_id, @icon,
+                           @request_item_id, @icon,
                            @start_ts, @end_ts, @earliest_start_ts, @latest_end_ts,
                            @minimal_duration_value, @minimal_duration_unit,
                            @actual_duration_value, @actual_duration_unit,
                            @status, @scheduling_settings_apply)
-                   RETURNING {SelectColumns}",
+                   RETURNING id",
                 db, transaction);
 
             cmd.Parameters.AddWithValue("name", request.Name);
@@ -159,7 +176,6 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("parent_request_id", (object?)request.ParentRequestId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("planning_mode", EnumMapper.ToDbValue(request.PlanningMode));
             cmd.Parameters.AddWithValue("sort_order", request.SortOrder);
-            cmd.Parameters.AddWithValue("space_id", (object?)request.SpaceId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("request_item_id", (object?)request.RequestItemId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("icon", (object?)request.Icon ?? DBNull.Value);
             cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
@@ -169,26 +185,51 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("minimal_duration_value", request.MinimalDurationValue);
             cmd.Parameters.AddWithValue("minimal_duration_unit", EnumMapper.ToDbValue(request.MinimalDurationUnit));
             cmd.Parameters.AddWithValue("actual_duration_value", (object?)request.ActualDurationValue ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("actual_duration_unit", request.ActualDurationUnit.HasValue ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value) : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("actual_duration_unit", request.ActualDurationUnit.HasValue
+                ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value)
+                : (object)DBNull.Value);
             cmd.Parameters.AddWithValue("status", EnumMapper.ToDbValue(request.Status));
             cmd.Parameters.AddWithValue("scheduling_settings_apply", request.SchedulingSettingsApply);
 
             using var reader = await cmd.ExecuteReaderAsync();
             await reader.ReadAsync();
-            var createdRequest = RequestMapper.MapFromReader(reader);
+            var requestId = reader.GetGuid(0);
             reader.Close();
 
-            if (request.Requirements != null && request.Requirements.Any())
+            // Create resource assignment if a resource + time window was provided.
+            if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
             {
-                var requirements = await CreateRequirements(createdRequest.Id, request.Requirements, db, transaction);
-                createdRequest = createdRequest with { Requirements = requirements };
+                await WriteResourceAssignmentAsync(
+                    db, transaction,
+                    requestId, request.ResourceId.Value,
+                    request.StartTs.Value, request.EndTs.Value);
             }
-            else
+
+            if (request.Requirements is { Count: > 0 })
             {
-                createdRequest = createdRequest with { Requirements = new List<RequestRequirementInfo>() };
+                await CreateRequirements(requestId, request.Requirements, db, transaction);
             }
 
             await transaction.CommitAsync();
+
+            // Re-read from view to get full object with assignments
+            var createdRequest = await ReadByIdAsync(db, requestId);
+
+            if (request.Requirements is { Count: > 0 })
+            {
+                createdRequest = createdRequest with
+                {
+                    Requirements = await LoadRequirements(requestId, db),
+                };
+            }
+            else
+            {
+                createdRequest = createdRequest with
+                {
+                    Requirements = [],
+                };
+            }
+
             return createdRequest;
         }
         catch
@@ -198,7 +239,6 @@ public class RequestRepository : IRequestRepository
         }
     }
 
-    // Table-driven mapping of request fields → SQL columns.
     private static readonly (string Column, Func<UpdateRequestRequest, bool> HasValue, Func<UpdateRequestRequest, object> GetValue)[] UpdateFieldMap =
     {
         ("name",                      r => r.Name != null,                    r => r.Name!),
@@ -206,7 +246,6 @@ public class RequestRepository : IRequestRepository
         ("parent_request_id",         r => r.ParentRequestId.HasValue,        r => r.ParentRequestId!.Value),
         ("planning_mode",             r => r.PlanningMode.HasValue,           r => EnumMapper.ToDbValue(r.PlanningMode!.Value)),
         ("sort_order",                r => r.SortOrder.HasValue,              r => r.SortOrder!.Value),
-        ("space_id",                  r => r.SpaceId.HasValue,                r => r.SpaceId!.Value),
         ("request_item_id",           r => r.RequestItemId != null,           r => r.RequestItemId!),
         ("icon",                      r => r.Icon != null,                    r => r.Icon!),
         ("start_ts",                  r => r.StartTs.HasValue,                r => r.StartTs!.Value),
@@ -234,9 +273,7 @@ public class RequestRepository : IRequestRepository
         await using (var fetchReader = await fetchCmd.ExecuteReaderAsync())
         {
             if (!await fetchReader.ReadAsync())
-            {
                 return null;
-            }
             currentStartTs = fetchReader.IsDBNull(0) ? null : fetchReader.GetDateTime(0);
             currentEndTs = fetchReader.IsDBNull(1) ? null : fetchReader.GetDateTime(1);
         }
@@ -244,9 +281,7 @@ public class RequestRepository : IRequestRepository
         var finalStartTs = request.StartTs ?? currentStartTs;
         var finalEndTs = request.EndTs ?? currentEndTs;
         if (finalStartTs.HasValue && finalEndTs.HasValue && finalEndTs.Value <= finalStartTs.Value)
-        {
             throw new ArgumentException("End time must be after start time");
-        }
 
         var setClauses = new List<string>();
         var parameters = new List<(string Name, object Value)>();
@@ -257,61 +292,49 @@ public class RequestRepository : IRequestRepository
             parameters.Add((column, getValue(request)));
         }
 
-        if (setClauses.Count == 0 && request.Requirements == null)
-        {
+        if (setClauses.Count == 0 && request.Requirements == null && !request.ResourceId.HasValue)
             throw new ArgumentException("No fields to update");
-        }
 
-        await using var transaction = request.Requirements != null
-            ? await db.BeginTransactionAsync()
-            : null;
+        await using var transaction = await db.BeginTransactionAsync();
 
-        RequestInfo updatedRequest;
         if (setClauses.Count > 0)
         {
             var cmd = new NpgsqlCommand
             {
                 Connection = db,
                 Transaction = transaction,
-                CommandText = $"UPDATE requests SET {string.Join(", ", setClauses)} WHERE id = @id RETURNING {SelectColumns}",
+                CommandText = $"UPDATE requests SET {string.Join(", ", setClauses)} WHERE id = @id",
             };
             cmd.Parameters.AddWithValue("id", id);
             foreach (var (name, value) in parameters)
-            {
                 cmd.Parameters.AddWithValue(name, value);
-            }
-
-            await using var reader = await cmd.ExecuteReaderAsync();
-            await reader.ReadAsync();
-            updatedRequest = RequestMapper.MapFromReader(reader);
+            await cmd.ExecuteNonQueryAsync();
         }
-        else
+
+        // Update resource assignment if caller is changing the resource.
+        if (request.ResourceId.HasValue && finalStartTs.HasValue && finalEndTs.HasValue)
         {
-            var existing = await GetByIdAsync(id, includeRequirements: false);
-            if (existing == null) return null;
-            updatedRequest = existing;
+            await CancelSpaceAssignmentAsync(db, transaction, id);
+            await WriteResourceAssignmentAsync(
+                db, transaction, id, request.ResourceId.Value, finalStartTs.Value, finalEndTs.Value);
         }
 
+        // Replace requirements wholesale if the caller supplied a (possibly empty) list.
         if (request.Requirements != null)
         {
             await using var deleteCmd = new NpgsqlCommand(
                 "DELETE FROM request_requirements WHERE request_id = @request_id", db, transaction);
             deleteCmd.Parameters.AddWithValue("request_id", id);
             await deleteCmd.ExecuteNonQueryAsync();
-
-            var requirements = request.Requirements.Count > 0
-                ? await CreateRequirements(id, request.Requirements, db, transaction!)
-                : new List<RequestRequirementInfo>();
-
-            updatedRequest = updatedRequest with { Requirements = requirements };
-            await transaction!.CommitAsync();
-        }
-        else
-        {
-            updatedRequest = updatedRequest with { Requirements = await LoadRequirements(id, db) };
+            if (request.Requirements.Count > 0)
+                await CreateRequirements(id, request.Requirements, db, transaction);
         }
 
-        return updatedRequest;
+        await transaction.CommitAsync();
+
+        // Single re-read for the full object (view supplies assignments).
+        var updatedRequest = await ReadByIdAsync(db, id);
+        return updatedRequest with { Requirements = await LoadRequirements(id, db) };
     }
 
     public async Task<bool> DeleteAsync(Guid id)
@@ -335,13 +358,12 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         if (!await DbQueryHelper.ExistsAsync(db, "requests", id))
-        {
             return null;
-        }
 
-        if (request.SpaceId.HasValue && !await DbQueryHelper.ExistsAsync(db, "spaces", request.SpaceId.Value))
+        if (request.ResourceId.HasValue
+            && !await DbQueryHelper.ExistsAsync(db, "resources", request.ResourceId.Value))
         {
-            throw new ArgumentException("Invalid space_id: space does not exist");
+            throw new ArgumentException("Invalid resource_id: resource does not exist");
         }
 
         int? actualDurationValue = request.ActualDurationValue;
@@ -351,33 +373,46 @@ public class RequestRepository : IRequestRepository
 
         if (actualDurationValue == null && request.StartTs.HasValue && request.EndTs.HasValue)
         {
-            var totalMinutes = (int)(request.EndTs.Value - request.StartTs.Value).TotalMinutes;
-            actualDurationValue = totalMinutes;
+            actualDurationValue = (int)(request.EndTs.Value - request.StartTs.Value).TotalMinutes;
             actualDurationUnit = "minutes";
         }
 
+        await using var tx = await db.BeginTransactionAsync();
+
         var cmd = new NpgsqlCommand(
             $@"UPDATE requests
-               SET space_id = @space_id, start_ts = @start_ts, end_ts = @end_ts,
-                   actual_duration_value = @actual_duration_value, actual_duration_unit = @actual_duration_unit
+               SET start_ts = @start_ts, end_ts = @end_ts,
+                   actual_duration_value = @actual_duration_value,
+                   actual_duration_unit  = @actual_duration_unit
                WHERE id = @id
-               RETURNING {SelectColumns}",
-            db);
+               RETURNING id",
+            db, tx);
 
         cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("space_id", (object?)request.SpaceId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
         cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
         cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);
         cmd.Parameters.AddWithValue("actual_duration_unit", (object?)actualDurationUnit ?? DBNull.Value);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        var updatedId = (Guid?)await cmd.ExecuteScalarAsync();
+        if (!updatedId.HasValue)
         {
-            return RequestMapper.MapFromReader(reader);
+            await tx.RollbackAsync();
+            return null;
         }
 
-        return null;
+        // Cancel existing space assignment and write the new one.
+        await CancelSpaceAssignmentAsync(db, tx, updatedId.Value);
+        if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
+        {
+            await WriteResourceAssignmentAsync(
+                db, tx, updatedId.Value, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value);
+        }
+
+        await tx.CommitAsync();
+
+        // Re-read from view to get full object with assignments
+        return await ReadByIdAsync(db, updatedId.Value);
     }
 
     public async Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates)
@@ -404,11 +439,11 @@ public class RequestRepository : IRequestRepository
 
             var cmd = new NpgsqlBatchCommand(
                 @"UPDATE requests
-                  SET space_id = @space_id, start_ts = @start_ts, end_ts = @end_ts,
-                      actual_duration_value = @actual_duration_value, actual_duration_unit = @actual_duration_unit
+                  SET start_ts = @start_ts, end_ts = @end_ts,
+                      actual_duration_value = @actual_duration_value,
+                      actual_duration_unit  = @actual_duration_unit
                   WHERE id = @id");
             cmd.Parameters.AddWithValue("id", id);
-            cmd.Parameters.AddWithValue("space_id", (object?)request.SpaceId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
             cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
             cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);
@@ -417,6 +452,18 @@ public class RequestRepository : IRequestRepository
         }
 
         var rowsAffected = await batch.ExecuteNonQueryAsync();
+
+        // Update resource assignments for each scheduled item.
+        foreach (var (id, request) in updates)
+        {
+            if (!request.ResourceId.HasValue || !request.StartTs.HasValue || !request.EndTs.HasValue)
+                continue;
+
+            await CancelSpaceAssignmentAsync(db, tx, id);
+            await WriteResourceAssignmentAsync(
+                db, tx, id, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value);
+        }
+
         await tx.CommitAsync();
         return rowsAffected;
     }
@@ -427,26 +474,36 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         if (!await DbQueryHelper.ExistsAsync(db, "requests", requestId))
-        {
             throw new InvalidOperationException($"Request with ID {requestId} not found");
-        }
 
         if (!await DbQueryHelper.ExistsAsync(db, "criteria", requirement.CriterionId))
-        {
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");
+
+        // Phase 3: Validate criterion is applicable to requests
+        await using (var checkCmd = new NpgsqlCommand(
+            "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId", db))
+        {
+            checkCmd.Parameters.AddWithValue("criterionId", requirement.CriterionId);
+            var applicableToRequests = (bool?)await checkCmd.ExecuteScalarAsync();
+            if (applicableToRequests == false)
+                throw new InvalidOperationException(
+                    $"Criterion {requirement.CriterionId} is not applicable to requests");
         }
 
         var cmd = new NpgsqlCommand(@"
-            INSERT INTO request_requirements (request_id, criterion_id, value)
-            VALUES (@request_id, @criterion_id, @value::jsonb)
-            ON CONFLICT (request_id, criterion_id)
-            DO UPDATE SET value = EXCLUDED.value
-            RETURNING id, request_id, criterion_id, value, created_at
-        ", db);
+            INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
+            VALUES (@request_id, @criterion_id, @value::jsonb, @operator, @allowed_values::jsonb)
+            ON CONFLICT (request_id, criterion_id) DO UPDATE SET
+                value = EXCLUDED.value,
+                operator = EXCLUDED.operator,
+                allowed_values = EXCLUDED.allowed_values
+            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at", db);
 
         cmd.Parameters.AddWithValue("request_id", requestId);
         cmd.Parameters.AddWithValue("criterion_id", requirement.CriterionId);
         cmd.Parameters.AddWithValue("value", requirement.Value.GetRawText());
+        cmd.Parameters.AddWithValue("operator", requirement.Operator is null ? (object)DBNull.Value : requirement.Operator);
+        cmd.Parameters.AddWithValue("allowed_values", requirement.AllowedValues is null ? (object)DBNull.Value : requirement.AllowedValues.Value.GetRawText());
 
         using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();
@@ -458,13 +515,53 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync();
 
-        var cmd = new NpgsqlCommand("DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id", db);
+        var cmd = new NpgsqlCommand(
+            "DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id", db);
         cmd.Parameters.AddWithValue("id", requirementId);
         cmd.Parameters.AddWithValue("request_id", requestId);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
-        return rowsAffected > 0;
+        return await cmd.ExecuteNonQueryAsync() > 0;
     }
+
+    // ── Resource assignment helpers ───────────────────────────────────────────
+
+    private static async Task WriteResourceAssignmentAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx,
+        Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc)
+    {
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO resource_assignments
+                (request_id, resource_id, start_utc, end_utc)
+            VALUES (@requestId, @resourceId, @startUtc, @endUtc)
+            ON CONFLICT (request_id, resource_id)
+                WHERE assignment_status != 'Cancelled'
+            DO UPDATE SET start_utc = EXCLUDED.start_utc,
+                          end_utc   = EXCLUDED.end_utc,
+                          updated_at = NOW()", conn, tx);
+        cmd.Parameters.AddWithValue("requestId", requestId);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+        cmd.Parameters.AddWithValue("startUtc", startUtc);
+        cmd.Parameters.AddWithValue("endUtc", endUtc);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task CancelSpaceAssignmentAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId)
+    {
+        await using var cmd = new NpgsqlCommand(@"
+            UPDATE resource_assignments ra
+            SET assignment_status = @cancelled, updated_at = NOW()
+            FROM resources res
+            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = @spaceKey
+            WHERE ra.request_id = @requestId
+              AND ra.resource_id = res.id
+              AND ra.assignment_status != @cancelled", conn, tx);
+        cmd.Parameters.AddWithValue("requestId", requestId);
+        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    // ── Requirements helpers ──────────────────────────────────────────────────
 
     private async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection db)
     {
@@ -475,16 +572,12 @@ public class RequestRepository : IRequestRepository
             FROM request_requirements rr
             JOIN criteria c ON rr.criterion_id = c.id
             WHERE rr.request_id = @request_id
-            ORDER BY c.name
-        ", db);
+            ORDER BY c.name", db);
         cmd.Parameters.AddWithValue("request_id", requestId);
 
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-        {
             requirements.Add(RequestMapper.MapRequirementWithCriterionFromReader(reader));
-        }
-
         return requirements;
     }
 
@@ -499,34 +592,33 @@ public class RequestRepository : IRequestRepository
             FROM request_requirements rr
             JOIN criteria c ON rr.criterion_id = c.id
             WHERE rr.request_id = ANY(@request_ids)
-            ORDER BY rr.request_id, c.name
-        ", db);
+            ORDER BY rr.request_id, c.name", db);
         cmd.Parameters.AddWithValue("request_ids", requestIds);
 
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             var requestId = reader.GetGuid(1);
-            if (!requirementsMap.ContainsKey(requestId))
+            if (!requirementsMap.TryGetValue(requestId, out var list))
             {
-                requirementsMap[requestId] = new List<RequestRequirementInfo>();
+                list = [];
+                requirementsMap[requestId] = list;
             }
-
-            requirementsMap[requestId].Add(RequestMapper.MapRequirementWithCriterionFromReader(reader));
+            list.Add(RequestMapper.MapRequirementWithCriterionFromReader(reader));
         }
 
-        for (int i = 0; i < requests.Count; i++)
+        for (var i = 0; i < requests.Count; i++)
         {
             requests[i] = requests[i] with
             {
                 Requirements = requirementsMap.TryGetValue(requests[i].Id, out var reqs)
                     ? reqs
-                    : new List<RequestRequirementInfo>()
+                    : [],
             };
         }
     }
 
-    private async Task<List<RequestRequirementInfo>> CreateRequirements(
+    private static async Task<List<RequestRequirementInfo>> CreateRequirements(
         Guid requestId,
         List<CreateRequestRequirementRequest> requirements,
         NpgsqlConnection db,
@@ -535,55 +627,27 @@ public class RequestRepository : IRequestRepository
         var valueClauses = new List<string>();
         var cmd = new NpgsqlCommand { Connection = db, Transaction = transaction };
 
-        for (int i = 0; i < requirements.Count; i++)
+        for (var i = 0; i < requirements.Count; i++)
         {
-            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb)");
+            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, NULL, NULL)");
             cmd.Parameters.AddWithValue($"criterion_id_{i}", requirements[i].CriterionId);
             cmd.Parameters.AddWithValue($"value_{i}", requirements[i].Value.GetRawText());
         }
 
         cmd.Parameters.AddWithValue("request_id", requestId);
         cmd.CommandText = $@"
-            INSERT INTO request_requirements (request_id, criterion_id, value)
+            INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
             VALUES {string.Join(", ", valueClauses)}
-            RETURNING id, request_id, criterion_id, value, created_at";
+            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at";
 
-        var inserted = new List<RequestRequirementInfo>();
-        await using (var reader = await cmd.ExecuteReaderAsync())
-        {
-            while (await reader.ReadAsync())
-            {
-                inserted.Add(RequestMapper.MapRequirementFromReader(reader));
-            }
-        }
-
-        var criterionIds = requirements.Select(r => r.CriterionId).Distinct().ToArray();
-        var criteriaCmd = new NpgsqlCommand(@"
-            SELECT id, name, data_type, unit, enum_values
-            FROM criteria
-            WHERE id = ANY(@ids)", db, transaction);
-        criteriaCmd.Parameters.AddWithValue("ids", criterionIds);
-
-        var criteriaMap = new Dictionary<Guid, CriterionBasicInfo>();
-        await using (var criteriaReader = await criteriaCmd.ExecuteReaderAsync())
-        {
-            while (await criteriaReader.ReadAsync())
-            {
-                var criterion = RequestMapper.MapCriterionFromReader(criteriaReader);
-                criteriaMap[criterion.Id] = criterion;
-            }
-        }
-
-        for (int i = 0; i < inserted.Count; i++)
-        {
-            if (criteriaMap.TryGetValue(inserted[i].CriterionId, out var criterion))
-            {
-                inserted[i] = inserted[i] with { Criterion = criterion };
-            }
-        }
-
-        return inserted;
+        var createdRequirements = new List<RequestRequirementInfo>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            createdRequirements.Add(RequestMapper.MapRequirementFromReader(reader));
+        return createdRequirements;
     }
+
+    // ── Tree hierarchy methods ────────────────────────────────────────────────
 
     public async Task<List<RequestInfo>> GetChildrenAsync(Guid parentId)
     {
@@ -591,16 +655,14 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM requests WHERE parent_request_id = @parent_id ORDER BY sort_order, created_at",
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE parent_request_id = @parent_id ORDER BY sort_order, created_at",
             db);
         cmd.Parameters.AddWithValue("parent_id", parentId);
 
         var results = new List<RequestInfo>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-        {
             results.Add(RequestMapper.MapFromReader(reader));
-        }
         return results;
     }
 
@@ -613,18 +675,18 @@ public class RequestRepository : IRequestRepository
             $@"UPDATE requests
                SET parent_request_id = @parent_id, sort_order = @sort_order, updated_at = NOW()
                WHERE id = @id
-               RETURNING {SelectColumns}",
+               RETURNING id",
             db);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("parent_id", (object?)newParentId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("sort_order", sortOrder);
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            return RequestMapper.MapFromReader(reader);
-        }
-        return null;
+        var updatedId = (Guid?)await cmd.ExecuteScalarAsync();
+        if (!updatedId.HasValue)
+            return null;
+
+        // Re-read from view to get full object with assignments
+        return await ReadByIdAsync(db, updatedId.Value);
     }
 
     public async Task<int> GetDescendantCountAsync(Guid id)
@@ -641,7 +703,6 @@ public class RequestRepository : IRequestRepository
               SELECT COUNT(*)::int FROM subtree",
             db);
         cmd.Parameters.AddWithValue("id", id);
-
         return (int)(await cmd.ExecuteScalarAsync())!;
     }
 
@@ -663,7 +724,6 @@ public class RequestRepository : IRequestRepository
             db);
         cmd.Parameters.AddWithValue("request_id", requestId);
         cmd.Parameters.AddWithValue("new_parent_id", newParentId);
-
         return (bool)(await cmd.ExecuteScalarAsync())!;
     }
 
@@ -677,7 +737,6 @@ public class RequestRepository : IRequestRepository
 
         var result = await cmd.ExecuteScalarAsync();
         if (result is null or DBNull) return null;
-
         return EnumMapper.ToPlanningMode((string)result);
     }
 
@@ -689,7 +748,6 @@ public class RequestRepository : IRequestRepository
         var cmd = new NpgsqlCommand(
             "SELECT EXISTS(SELECT 1 FROM requests WHERE parent_request_id = @id)", db);
         cmd.Parameters.AddWithValue("id", id);
-
         return (bool)(await cmd.ExecuteScalarAsync())!;
     }
 
@@ -699,11 +757,9 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         var count = await GetDescendantCountAsync(id);
-
         var cmd = new NpgsqlCommand("DELETE FROM requests WHERE id = @id", db);
         cmd.Parameters.AddWithValue("id", id);
         var deleted = await cmd.ExecuteNonQueryAsync();
-
         return deleted > 0 ? count + 1 : 0;
     }
 }

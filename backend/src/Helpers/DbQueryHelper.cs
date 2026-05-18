@@ -14,7 +14,7 @@ public static class DbQueryHelper
     /// </summary>
     private static readonly HashSet<string> AllowedTables = new(StringComparer.Ordinal)
     {
-        "sites", "spaces", "space_groups", "criteria", "requests",
+        "sites", "spaces", "resource_groups", "resources", "criteria", "requests",
         "users", "tenants", "announcements", "presets", "templates"
     };
 

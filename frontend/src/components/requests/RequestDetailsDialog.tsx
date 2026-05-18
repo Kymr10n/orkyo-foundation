@@ -214,16 +214,20 @@ export function RequestDetailsDialog({
             </>
           )}
 
-          {/* Space assignment */}
-          {request.spaceId && (
+          {/* Resource assignments */}
+          {request.assignments.length > 0 && (
             <>
               <Separator />
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  Assigned Space
+                  Resource Assignments
                 </h4>
-                <p className="text-sm font-medium">{request.spaceId}</p>
+                {request.assignments.map((a) => (
+                  <p key={a.id} className="text-sm font-medium">
+                    {a.resourceTypeKey}: {a.resourceId}
+                  </p>
+                ))}
               </div>
             </>
           )}

@@ -65,12 +65,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
-  
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -137,7 +137,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
       // Build the navigation path from the result's open property
       const { route: _route, params: _params } = result.open;
-      
+
       // Map the route pattern to actual navigation
       switch (result.type) {
         case "space":

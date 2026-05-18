@@ -64,7 +64,7 @@ public class CreateOffTimeRequestValidator : AbstractValidator<CreateOffTimeRequ
 
         SharedOffTimeRules.Apply(this,
             x => x.IsRecurring, x => x.RecurrenceRule,
-            x => !x.AppliesToAllSpaces, x => x.SpaceIds);
+            x => !x.AppliesToAllResources, x => x.ResourceIds);
 
         RuleFor(x => x.RecurrenceRule)
             .Null().When(x => !x.IsRecurring)
@@ -91,7 +91,7 @@ public class UpdateOffTimeRequestValidator : AbstractValidator<UpdateOffTimeRequ
 
         SharedOffTimeRules.Apply(this,
             x => x.IsRecurring == true, x => x.RecurrenceRule,
-            x => x.AppliesToAllSpaces == false, x => x.SpaceIds);
+            x => x.AppliesToAllResources == false, x => x.ResourceIds);
     }
 }
 
@@ -104,15 +104,15 @@ internal static class SharedOffTimeRules
         AbstractValidator<T> validator,
         System.Linq.Expressions.Expression<Func<T, bool>> isRecurring,
         System.Linq.Expressions.Expression<Func<T, string?>> recurrenceRule,
-        System.Linq.Expressions.Expression<Func<T, bool>> needsSpaces,
-        System.Linq.Expressions.Expression<Func<T, List<Guid>?>> spaceIds)
+        System.Linq.Expressions.Expression<Func<T, bool>> needsResources,
+        System.Linq.Expressions.Expression<Func<T, List<Guid>?>> resourceIds)
     {
         validator.RuleFor(recurrenceRule)
             .NotEmpty().When(isRecurring.Compile())
             .WithMessage("RecurrenceRule is required when IsRecurring is true");
 
-        validator.RuleFor(spaceIds)
-            .NotEmpty().When(needsSpaces.Compile())
-            .WithMessage("SpaceIds is required when AppliesToAllSpaces is false");
+        validator.RuleFor(resourceIds)
+            .NotEmpty().When(needsResources.Compile())
+            .WithMessage("ResourceIds is required when AppliesToAllResources is false");
     }
 }

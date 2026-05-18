@@ -6,16 +6,16 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="robots" content="noindex, nofollow">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    
+
     <#if properties.meta?has_content>
         <#list properties.meta?split(' ') as meta>
             <meta name="${meta?split('==')[0]}" content="${meta?split('==')[1]}"/>
         </#list>
     </#if>
-    
+
     <title>${msg("loginTitle",(realm.displayName!''))}</title>
     <link rel="icon" href="${url.resourcesPath}/img/orkyo-logo.png" />
-    
+
     <#-- Theme detection BEFORE stylesheet links — scripts wait for preceding
          stylesheets, so placing this first avoids a white flash while CSS loads -->
     <script<#if cspNonce??> nonce="${cspNonce}"</#if>>
@@ -52,7 +52,7 @@
                 <h1 class="orkyo-title">Orkyo</h1>
                 <p class="orkyo-subtitle">Production Space Planning</p>
             </div>
-            
+
             <#-- Alert messages -->
             <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
                 <div class="orkyo-alert orkyo-alert-${message.type}" role="alert">

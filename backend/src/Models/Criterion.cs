@@ -39,6 +39,27 @@ public record CriterionInfo
 
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+
+    // Phase 3: Criterion applicability
+    public bool ApplicableToRequests { get; init; } = true;
+
+    /// <summary>
+    /// Resource-type keys this criterion applies to (e.g. ["space", "person"]).
+    /// At least one entry is required at create time; empty lists are rejected
+    /// at the API boundary.
+    /// </summary>
+    public IReadOnlyList<string> ResourceTypeKeys { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Minimal criterion metadata used for nested capability responses.
+/// </summary>
+public record CriterionMetadata
+{
+    public required Guid Id { get; init; }
+    public required string Name { get; init; }
+    public required CriterionDataType DataType { get; init; }
+    public string? Unit { get; init; }
 }
 
 /// <summary>
@@ -51,6 +72,13 @@ public record CreateCriterionRequest
     public required CriterionDataType DataType { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
+    public bool ApplicableToRequests { get; init; } = true;
+
+    /// <summary>
+    /// Required: at least one resource-type key (e.g. "space", "person", "tool").
+    /// Validated at the API boundary.
+    /// </summary>
+    public List<string>? ResourceTypeKeys { get; init; }
 }
 
 /// <summary>
@@ -61,4 +89,5 @@ public record UpdateCriterionRequest
     public string? Description { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
+    public bool? ApplicableToRequests { get; init; }
 }

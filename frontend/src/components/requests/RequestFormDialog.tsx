@@ -25,6 +25,7 @@ import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
 import { RequestConstraintsSection } from "./RequestConstraintsSection";
 import { RequestRequirementsSection } from "./RequestRequirementsSection";
+import { RequestPeopleSection } from "./RequestPeopleSection";
 import { logger } from "@foundation/src/lib/core/logger";
 
 interface RequestFormDialogProps {
@@ -42,7 +43,7 @@ export interface RequestFormData {
   icon?: string | null;
   planningMode: PlanningMode;
   parentRequestId?: string;
-  spaceId?: string;
+  resourceId?: string;
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;
@@ -86,6 +87,8 @@ export function RequestFormDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
+  const [peopleSectionOpen, setPeopleSectionOpen] = useState(false);
+  const [hasPeopleBlockers, setHasPeopleBlockers] = useState(false);
 
   // Leaf: fully editable schedule.
   // Summary/Container: structural nodes; schedule is derived from children and not editable.
@@ -238,7 +241,7 @@ export function RequestFormDialog({
       icon: state.icon ?? null,
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
-      spaceId: isLeaf ? (state.selectedSpaceId || undefined) : undefined,
+      resourceId: isLeaf ? (state.selectedResourceId || undefined) : undefined,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
       earliestStartTs: hasEditableConstraints ? earliestStartTs : undefined,
@@ -548,6 +551,29 @@ export function RequestFormDialog({
                 onRemoveRequirement={handleRemoveRequirement}
                 onRequirementValueChange={handleRequirementValueChange}
               />
+
+              {/* People — only for leaf requests that have a saved ID */}
+              {isLeaf && (
+                <>
+                  <Separator />
+                  <RequestPeopleSection
+                    requestId={request?.id}
+                    requestStartTs={
+                      hasEditableSchedule && state.startDate && state.startTime
+                        ? (() => { try { return combineDateTimeToISO(state.startDate, state.startTime); } catch { return undefined; } })()
+                        : undefined
+                    }
+                    requestEndTs={
+                      hasEditableSchedule && state.endDate && state.endTime
+                        ? (() => { try { return combineDateTimeToISO(state.endDate, state.endTime); } catch { return undefined; } })()
+                        : undefined
+                    }
+                    open={peopleSectionOpen}
+                    onOpenChange={setPeopleSectionOpen}
+                    onBlockersChange={setHasPeopleBlockers}
+                  />
+                </>
+              )}
             </div>
           </div>
 
@@ -565,7 +591,7 @@ export function RequestFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || hasPeopleBlockers}>
               {isSaving ? "Saving..." : request ? "Update Request" : "Create Request"}
             </Button>
           </div>

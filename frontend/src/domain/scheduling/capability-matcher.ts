@@ -12,7 +12,7 @@ export function validateSpaceRequirements(
   spaceCapabilities: SpaceCapability[]
 ): Conflict[] {
   const conflicts: Conflict[] = [];
-  
+
   if (!request.requirements || request.requirements.length === 0) {
     return conflicts;
   }
@@ -24,7 +24,7 @@ export function validateSpaceRequirements(
 
   for (const requirement of request.requirements) {
     const capability = capabilityMap.get(requirement.criterionId);
-    
+
     if (!capability) {
       conflicts.push({
         id: `${request.id}-${requirement.criterionId}-missing`,

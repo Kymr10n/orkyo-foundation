@@ -32,7 +32,7 @@ public static class SchedulingMapper
             SiteId = reader.GetGuid("site_id"),
             Title = reader.GetString("title"),
             Type = EnumMapper.ParseEnum<OffTimeType>(reader.GetString("type")),
-            AppliesToAllSpaces = reader.GetBoolean("applies_to_all_spaces"),
+            AppliesToAllResources = reader.GetBoolean("applies_to_all_resources"),
             StartTs = reader.GetDateTime("start_ts"),
             EndTs = reader.GetDateTime("end_ts"),
             IsRecurring = reader.GetBoolean("is_recurring"),

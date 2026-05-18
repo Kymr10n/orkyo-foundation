@@ -6,8 +6,8 @@
             <#if !realm.registrationEmailAsUsername>
                 <div class="orkyo-form-group">
                     <label for="username" class="orkyo-label">${msg("username")}</label>
-                    <input type="text" id="username" class="orkyo-input" name="username" 
-                           value="${(register.formData.username!'')}" 
+                    <input type="text" id="username" class="orkyo-input" name="username"
+                           value="${(register.formData.username!'')}"
                            autocomplete="username"
                            aria-invalid="<#if messagesPerField.existsError('username')>true</#if>" />
                     <#if messagesPerField.existsError('username')>
@@ -18,8 +18,8 @@
 
             <div class="orkyo-form-group">
                 <label for="firstName" class="orkyo-label">${msg("firstName")}</label>
-                <input type="text" id="firstName" class="orkyo-input" name="firstName" 
-                       value="${(register.formData.firstName!'')}" 
+                <input type="text" id="firstName" class="orkyo-input" name="firstName"
+                       value="${(register.formData.firstName!'')}"
                        autocomplete="given-name"
                        aria-invalid="<#if messagesPerField.existsError('firstName')>true</#if>" />
                 <#if messagesPerField.existsError('firstName')>
@@ -29,8 +29,8 @@
 
             <div class="orkyo-form-group">
                 <label for="lastName" class="orkyo-label">${msg("lastName")}</label>
-                <input type="text" id="lastName" class="orkyo-input" name="lastName" 
-                       value="${(register.formData.lastName!'')}" 
+                <input type="text" id="lastName" class="orkyo-input" name="lastName"
+                       value="${(register.formData.lastName!'')}"
                        autocomplete="family-name"
                        aria-invalid="<#if messagesPerField.existsError('lastName')>true</#if>" />
                 <#if messagesPerField.existsError('lastName')>
@@ -40,8 +40,8 @@
 
             <div class="orkyo-form-group">
                 <label for="email" class="orkyo-label">${msg("email")}</label>
-                <input type="email" id="email" class="orkyo-input" name="email" 
-                       value="${(register.formData.email!'')}" 
+                <input type="email" id="email" class="orkyo-input" name="email"
+                       value="${(register.formData.email!'')}"
                        autocomplete="email"
                        aria-invalid="<#if messagesPerField.existsError('email')>true</#if>" />
                 <#if messagesPerField.existsError('email')>
@@ -51,7 +51,7 @@
 
             <div class="orkyo-form-group">
                 <label for="password" class="orkyo-label">${msg("password")}</label>
-                <input type="password" id="password" class="orkyo-input" name="password" 
+                <input type="password" id="password" class="orkyo-input" name="password"
                        autocomplete="new-password"
                        aria-invalid="<#if messagesPerField.existsError('password','password-confirm')>true</#if>" />
                 <#if messagesPerField.existsError('password')>

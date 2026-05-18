@@ -24,5 +24,17 @@ public class CreateCriterionRequestValidator : AbstractValidator<CreateCriterion
 
         When(x => x.Unit != null, () =>
             RuleFor(x => x.Unit!).MaximumLength(DomainLimits.CriterionUnitMaxLength));
+
+        // Applicability: required, ≥1 entry, known keys only, no duplicates.
+        RuleFor(x => x.ResourceTypeKeys)
+            .NotNull().WithMessage("At least one applicability value is required.")
+            .Must(keys => keys is { Count: > 0 })
+                .WithMessage("At least one applicability value is required.")
+            .Must(keys => keys is null || keys.Distinct(StringComparer.Ordinal).Count() == keys.Count)
+                .WithMessage("Duplicate applicability values are not allowed.");
+
+        RuleForEach(x => x.ResourceTypeKeys!)
+            .Must(ResourceTypeKeys.IsKnown)
+            .WithMessage("Unknown applicability value. Allowed: space, person, tool.");
     }
 }

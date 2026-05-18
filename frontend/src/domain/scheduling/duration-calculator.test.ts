@@ -25,7 +25,7 @@ describe("computeWorkingDuration", () => {
           startMs: utc("2026-03-03T11:00:00Z"),
           endMs: utc("2026-03-03T12:00:00Z"),
           title: "Lunch",
-          spaceIds: null,
+          resourceIds: null,
         },
       ],
     });

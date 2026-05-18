@@ -462,5 +462,3 @@ export function flattenVisibleTree(
   walk(roots);
   return result;
 }
-
-

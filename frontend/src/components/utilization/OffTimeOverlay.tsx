@@ -5,7 +5,7 @@ import type { TimeColumn } from "./scheduler-types";
 interface OffTimeOverlayProps {
   offTime: OffTimeRange;
   columns: TimeColumn[];
-  spaceId: string;
+  resourceId: string;
 }
 
 /**
@@ -15,12 +15,12 @@ interface OffTimeOverlayProps {
 export const OffTimeOverlay = React.memo(function OffTimeOverlay({
   offTime,
   columns,
-  spaceId,
+  resourceId,
 }: OffTimeOverlayProps) {
   if (columns.length === 0) return null;
 
   // Skip if this off-time doesn't apply to this space
-  if (offTime.spaceIds !== null && !offTime.spaceIds.includes(spaceId)) {
+  if (offTime.resourceIds !== null && !offTime.resourceIds.includes(resourceId)) {
     return null;
   }
 

@@ -56,7 +56,7 @@ describe('EditTemplateDialog', () => {
         />
       </QueryClientProvider>
     );
-    
+
     expect(screen.getByText('Edit Request Template')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Test Template')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Test Description')).toBeInTheDocument();

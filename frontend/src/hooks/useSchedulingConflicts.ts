@@ -4,6 +4,7 @@ import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { validateSpaceRequirements } from "@foundation/src/domain/scheduling/capability-matcher";
 import { getSpaceCapabilities } from "@foundation/src/lib/api/space-capability-api";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 
@@ -54,29 +55,29 @@ export function useSchedulingConflicts(
 
     let isCancelled = false;
 
-     
+
     const timer = setTimeout(async () => {
-      const scheduledRequests = requests.filter((r) => r.spaceId && r.requirements?.length);
-      const spaceIds = [...new Set(scheduledRequests.map((r) => r.spaceId!))];
+      const scheduledRequests = requests.filter((r) => getSpaceResourceId(r) && r.requirements?.length);
+      const resourceIds = [...new Set(scheduledRequests.map((r) => getSpaceResourceId(r)!))];
 
       const capsBySpace = new Map<string, Awaited<ReturnType<typeof getSpaceCapabilities>>>();
       const results = await Promise.allSettled(
-        spaceIds.map(async (spaceId) => {
-          const caps = await getSpaceCapabilities(selectedSiteId, spaceId);
-          return { spaceId, caps };
+        resourceIds.map(async (resourceId) => {
+          const caps = await getSpaceCapabilities(selectedSiteId, resourceId);
+          return { resourceId, caps };
         }),
       );
       if (isCancelled) return;
 
       for (const result of results) {
         if (result.status === "fulfilled") {
-          capsBySpace.set(result.value.spaceId, result.value.caps);
+          capsBySpace.set(result.value.resourceId, result.value.caps);
         }
       }
 
       for (const request of scheduledRequests) {
         if (isCancelled) return;
-        const capabilities = capsBySpace.get(request.spaceId!);
+        const capabilities = capsBySpace.get(getSpaceResourceId(request)!);
         if (!capabilities) continue;
 
         const capConflicts = validateSpaceRequirements(request, capabilities);

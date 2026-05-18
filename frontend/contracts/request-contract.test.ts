@@ -20,6 +20,7 @@ import type {
   RequestStatus,
   UpdateRequestRequest,
 } from "../src/types/requests";
+import type { ScheduleRequestData } from "../src/lib/api/utilization-api";
 import { describe, expect, it } from "vitest";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
-    | "spaceId"
+    | "assignments"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -164,7 +165,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "parentRequestId",
     "planningMode",
     "sortOrder",
-    "spaceId",
+    "assignments",
     "requestItemId",
     "icon",
     "startTs",
@@ -195,7 +196,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       parentRequestId: null,
       planningMode: "leaf",
       sortOrder: 0,
-      spaceId: null,
+      assignments: [],
       requestItemId: null,
       icon: null,
       startTs: null,
@@ -248,6 +249,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       status: "planned",
       createdAt: "2025-01-01T00:00:00Z",
       updatedAt: "2025-01-01T00:00:00Z",
+      assignments: [],
     };
 
     for (const field of phantomFields) {
@@ -267,6 +269,8 @@ describe("Contract - RequestRequirement (FE) ↔ RequestRequirementInfo (BE)", (
     | "requestId"
     | "criterionId"
     | "value"
+    | "operator"
+    | "allowedValues"
     | "createdAt"
     | "criterion"
   >;
@@ -327,7 +331,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
-    | "spaceId"
+    | "resourceId"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -351,7 +355,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
       "parentRequestId",
       "planningMode",
       "sortOrder",
-      "spaceId",
+      "resourceId",
       "requestItemId",
       "icon",
       "startTs",
@@ -397,7 +401,7 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
-    | "spaceId"
+    | "resourceId"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -454,6 +458,44 @@ describe("Contract - MoveRequestRequest DTO", () => {
 // JSON casing contract (BE uses JsonNamingPolicy.CamelCase)
 // ─────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────
+// ScheduleRequestData DTO contract
+// BE source: ScheduleRequestRequest (Models/Request.cs)
+// History: primaryResourceId → resourceId drift caused a 400 on 2026-05-15.
+// ─────────────────────────────────────────────────────────────────────
+
+describe("Contract - ScheduleRequestData DTO", () => {
+  type _ScheduleKeysCheck = AssertKeys<
+    Required<ScheduleRequestData>,
+    "resourceId" | "startTs" | "endTs"
+  >;
+  const _typeCheck: _ScheduleKeysCheck = true;
+
+  it("should match BE ScheduleRequestRequest fields", () => {
+    const sample: ScheduleRequestData = {
+      resourceId: "00000000-0000-0000-0000-000000000000",
+      startTs: "2026-01-01T08:00:00Z",
+      endTs: "2026-01-01T10:00:00Z",
+    };
+    expect(sample).toHaveProperty("resourceId");
+    expect(sample).toHaveProperty("startTs");
+    expect(sample).toHaveProperty("endTs");
+  });
+
+  it("should accept null for unschedule", () => {
+    const sample: ScheduleRequestData = {
+      resourceId: null,
+      startTs: null,
+      endTs: null,
+    };
+    expect(sample.resourceId).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// JSON field casing contract (BE uses JsonNamingPolicy.CamelCase)
+// ─────────────────────────────────────────────────────────────────────
+
 describe("Contract - JSON field casing", () => {
   it("BE uses camelCase naming policy — all FE field names must be camelCase", () => {
     // These are the exact wire-format field names from BE RequestInfo
@@ -465,7 +507,7 @@ describe("Contract - JSON field casing", () => {
       "parentRequestId",
       "planningMode",
       "sortOrder",
-      "spaceId",
+      "assignments",
       "requestItemId",
       "startTs",
       "endTs",

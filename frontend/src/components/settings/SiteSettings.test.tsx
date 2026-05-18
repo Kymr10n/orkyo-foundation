@@ -158,10 +158,10 @@ describe('SiteSettings', () => {
     // Get all icon buttons (non-text buttons) - skip the "Add Site" button at the top
     const allButtons = screen.getAllByRole('button');
     // Filter out the main action buttons (Add Site, Import, Export which have text)
-    const iconButtons = allButtons.filter(btn => 
+    const iconButtons = allButtons.filter(btn =>
       !btn.textContent || btn.textContent.trim() === ''
     );
-    
+
     // First site has 2 icon buttons (Edit, Delete), click the 2nd one (Delete)
     if (iconButtons.length >= 2) {
       await user.click(iconButtons[1]); // First site's Delete button
@@ -191,10 +191,10 @@ describe('SiteSettings', () => {
 
     // Get all icon buttons (non-text buttons)
     const allButtons = screen.getAllByRole('button');
-    const iconButtons = allButtons.filter(btn => 
+    const iconButtons = allButtons.filter(btn =>
       !btn.textContent || btn.textContent.trim() === ''
     );
-    
+
     // First site has 2 icon buttons (Edit, Delete), click the 2nd one (Delete)
     if (iconButtons.length >= 2) {
       await user.click(iconButtons[1]); // First site's Delete button
@@ -257,7 +257,7 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
       expect(screen.getByText('Building B')).toBeInTheDocument();
     });
-    
+
     // Both sites rendered, each should have edit and delete buttons (2 per site = 4 icon buttons total)
     const allButtons = screen.getAllByRole('button');
     const iconButtons = allButtons.filter(btn => !btn.textContent?.includes('Add Site') && !btn.textContent?.includes('Import') && !btn.textContent?.includes('Export'));
@@ -295,7 +295,7 @@ describe('SiteSettings', () => {
     const buildingAText = screen.getByText('Building A');
     const buildingACard = buildingAText.closest('div[class*="shadow"]'); // Find closest div with shadow class
     expect(buildingACard).toBeInTheDocument();
-    
+
     // Get all buttons in that card (Edit and Delete)
     const buttons = within(buildingACard as HTMLElement).getAllByRole('button');
     await user.click(buttons[1]); // Edit is 0, Delete is 1

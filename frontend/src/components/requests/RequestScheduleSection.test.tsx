@@ -47,7 +47,7 @@ const baseState = {
   icon: null,
   planningMode: 'leaf' as const,
   parentRequestId: '',
-  selectedSpaceId: '',
+  selectedResourceId: '',
   startDate: '',
   startTime: '',
   endDate: '',

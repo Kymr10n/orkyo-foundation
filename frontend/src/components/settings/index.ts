@@ -11,7 +11,6 @@ export { EditSiteDialog } from "./EditSiteDialog";
 export { EditTemplateDialog } from "./EditTemplateDialog";
 export { EditUserRoleDialog } from "./EditUserRoleDialog";
 export { GroupCapabilitiesEditor } from "./GroupCapabilitiesEditor";
-export { GroupSettings } from "./GroupSettings";
 export { GroupSpacesEditor } from "./GroupSpacesEditor";
 export { InviteUserDialog } from "./InviteUserDialog";
 export { OrganizationSettings } from "./OrganizationSettings";

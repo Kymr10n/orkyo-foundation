@@ -137,7 +137,7 @@ describe('useSpaces', () => {
       expect(queryResult.current.data?.[0].name).toBe('Conference Room A');
 
       await updateResult.current.mutateAsync({
-        spaceId: 'space-1',
+        resourceId: 'space-1',
         data: {
           name: 'Updated Name',
           code: 'CR-A',
@@ -188,7 +188,7 @@ describe('useSpaces', () => {
       });
 
       await result.current.mutateAsync({
-        spaceId: 'space-1',
+        resourceId: 'space-1',
         space: mockSpace,
         newGeometry,
       });
@@ -222,7 +222,7 @@ describe('useSpaces', () => {
       });
 
       await result.current.mutateAsync({
-        spaceId: 'space-1',
+        resourceId: 'space-1',
         space: mockSpace,
         newGeometry,
       });
@@ -245,9 +245,9 @@ describe('useSpaces', () => {
           mutations: { retry: false },
         },
       });
-      
+
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
-      
+
       const wrapper = ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       );

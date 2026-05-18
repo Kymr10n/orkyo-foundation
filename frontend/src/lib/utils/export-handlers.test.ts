@@ -19,6 +19,7 @@ import type { Space } from '@foundation/src/types/space';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
+import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // Mock downloadFile
 let mockDownloadFile = vi.fn();
@@ -74,7 +75,7 @@ describe('Export Handlers', () => {
 
     it('should export spaces as CSV', async () => {
       await exportSpaces(mockSpaces, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename, mimetype] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('Room A');
@@ -86,14 +87,14 @@ describe('Export Handlers', () => {
     it('should export spaces as JSON', async () => {
       // JSON export is not implemented for spaces in the current version
       await exportSpaces(mockSpaces, 'json');
-      
+
       // Since JSON export isn't implemented, it won't call downloadFile
       expect(mockDownloadFile).toHaveBeenCalledTimes(0);
     });
 
     it('should include siteId in filename when provided', async () => {
       await exportSpaces(mockSpaces, 'csv', 'site-123');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [, filename] = mockDownloadFile.mock.calls[0];
       // Note: Current implementation doesn't use siteId in filename for exportSpaces
@@ -105,9 +106,9 @@ describe('Export Handlers', () => {
     it('should import spaces from CSV', async () => {
       const csvContent = 'id,name,site_id,is_physical\n1,Room A,site1,true\n2,Room B,site1,false';
       const file = createMockFile(csvContent, 'spaces.csv', 'text/csv');
-      
+
       const result = await importSpaces(file, 'csv');
-      
+
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({
         name: 'Room A',
@@ -123,18 +124,18 @@ describe('Export Handlers', () => {
         ]
       });
       const file = createMockFile(jsonContent, 'spaces.json', 'application/json');
-      
+
       const result = await importSpaces(file, 'json');
-      
+
       // JSON import not implemented for spaces - returns empty array
       expect(result).toEqual([]);
     });
 
     it('should return empty array for unsupported format', async () => {
       const file = createMockFile('invalid', 'spaces.txt', 'text/plain');
-      
+
       const result = await importSpaces(file, 'pdf' as any);
-      
+
       // Returns empty array for unsupported formats
       expect(result).toEqual([]);
     });
@@ -145,7 +146,7 @@ describe('Export Handlers', () => {
       {
         id: '1',
         name: 'Request 1',
-        spaceId: 'space1',
+        assignments: [spaceAssignment('space1')],
         minimalDurationValue: 60,
         minimalDurationUnit: 'minutes',
         status: 'planned',
@@ -158,7 +159,7 @@ describe('Export Handlers', () => {
       {
         id: '2',
         name: 'Request 2',
-        spaceId: 'space2',
+        assignments: [spaceAssignment('space2')],
         minimalDurationValue: 120,
         minimalDurationUnit: 'minutes',
         status: 'done',
@@ -172,7 +173,7 @@ describe('Export Handlers', () => {
 
     it('should export requests as CSV', async () => {
       await exportRequests(mockRequests, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('planned');
@@ -183,18 +184,18 @@ describe('Export Handlers', () => {
     it('should export requests as JSON', async () => {
       // JSON export not implemented for requests
       await exportRequests(mockRequests, 'json');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(0);
     });
   });
 
   describe('importRequests', () => {
     it('should import requests from CSV', async () => {
-      const csvContent = 'id,name,space_id,start_ts,end_ts,status\n1,Request 1,space1,2026-01-01,2026-01-31,pending';
+      const csvContent = 'id,name,resource_id,start_ts,end_ts,status\n1,Request 1,resource1,2026-01-01,2026-01-31,pending';
       const file = createMockFile(csvContent, 'requests.csv', 'text/csv');
-      
+
       const result = await importRequests(file, 'csv');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         name: 'Request 1',
@@ -206,13 +207,13 @@ describe('Export Handlers', () => {
       // JSON import not implemented - returns empty array
       const jsonContent = JSON.stringify({
         data: [
-          { id: '1', title: 'Request 1', name: 'Request 1', spaceId: 'space1', startDate: '2026-01-01', endDate: '2026-01-31' },
+          { id: '1', title: 'Request 1', name: 'Request 1', resourceId: 'space1', startDate: '2026-01-01', endDate: '2026-01-31' },
         ]
       });
       const file = createMockFile(jsonContent, 'requests.json', 'application/json');
-      
+
       const result = await importRequests(file, 'json');
-      
+
       expect(result).toEqual([]);
     });
   });
@@ -229,7 +230,7 @@ describe('Export Handlers', () => {
 
     it('should export conflicts as CSV', async () => {
       await exportConflicts(mockConflicts, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('overlap');
@@ -245,14 +246,15 @@ describe('Export Handlers', () => {
         name: 'Duration',
         dataType: 'Number',
         description: 'Request duration',
-        createdAt: '2024-01-01T00:00:00Z',
+        resourceTypeKeys: ['space'],
+      createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
       },
     ];
 
     it('should export criteria as CSV', async () => {
       await exportCriteria(mockCriteria, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('Duration');
@@ -261,7 +263,7 @@ describe('Export Handlers', () => {
 
     it('should export criteria as JSON', async () => {
       await exportCriteria(mockCriteria, 'json');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       const parsed = JSON.parse(content);
@@ -275,9 +277,9 @@ describe('Export Handlers', () => {
     it('should import criteria from CSV', async () => {
       const csvContent = 'id,name,type,description\n1,Duration,range,Request duration';
       const file = createMockFile(csvContent, 'criteria.csv', 'text/csv');
-      
+
       const result = await importCriteria(file, 'csv');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         name: 'Duration',
@@ -292,9 +294,9 @@ describe('Export Handlers', () => {
         ]
       });
       const file = createMockFile(jsonContent, 'criteria.json', 'application/json');
-      
+
       const result = await importCriteria(file, 'json');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('Duration');
     });
@@ -314,7 +316,7 @@ describe('Export Handlers', () => {
 
     it('should export sites as CSV', async () => {
       await exportSites(mockSites, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('Main Campus');
@@ -323,7 +325,7 @@ describe('Export Handlers', () => {
 
     it('should export sites as JSON', async () => {
       await exportSites(mockSites, 'json');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       const parsed = JSON.parse(content);
@@ -337,9 +339,9 @@ describe('Export Handlers', () => {
     it('should import sites from CSV', async () => {
       const csvContent = 'id,name,location\n1,Main Campus,123 Main St';
       const file = createMockFile(csvContent, 'sites.csv', 'text/csv');
-      
+
       const result = await importSites(file, 'csv');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         name: 'Main Campus',
@@ -354,9 +356,9 @@ describe('Export Handlers', () => {
         ]
       });
       const file = createMockFile(jsonContent, 'sites.json', 'application/json');
-      
+
       const result = await importSites(file, 'json');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('Main Campus');
     });
@@ -375,7 +377,7 @@ describe('Export Handlers', () => {
 
     it('should export templates as CSV', async () => {
       await exportTemplates(mockTemplates, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('Conference Room Booking');
@@ -384,7 +386,7 @@ describe('Export Handlers', () => {
 
     it('should export templates as JSON', async () => {
       await exportTemplates(mockTemplates, 'json');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       const parsed = JSON.parse(content);
@@ -398,9 +400,9 @@ describe('Export Handlers', () => {
     it('should import templates from CSV', async () => {
       const csvContent = 'id,name,description\n1,Conference Room Booking,Template for conference room bookings';
       const file = createMockFile(csvContent, 'templates.csv', 'text/csv');
-      
+
       const result = await importTemplates(file, 'csv');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         name: 'Conference Room Booking',
@@ -415,9 +417,9 @@ describe('Export Handlers', () => {
         ]
       });
       const file = createMockFile(jsonContent, 'templates.json', 'application/json');
-      
+
       const result = await importTemplates(file, 'json');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('Conference Room Booking');
     });
@@ -436,7 +438,7 @@ describe('Export Handlers', () => {
 
     it('should export users as CSV', async () => {
       await exportUsers(mockUsers, 'csv');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       expect(content).toContain('user@example.com');
@@ -445,7 +447,7 @@ describe('Export Handlers', () => {
 
     it('should export users as JSON', async () => {
       await exportUsers(mockUsers, 'json');
-      
+
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
       const parsed = JSON.parse(content);
@@ -459,9 +461,9 @@ describe('Export Handlers', () => {
     it('should import users from CSV', async () => {
       const csvContent = 'id,email,role,displayName\n1,user@example.com,admin,John Doe';
       const file = createMockFile(csvContent, 'users.csv', 'text/csv');
-      
+
       const result = await importUsers(file, 'csv');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         email: 'user@example.com',
@@ -476,9 +478,9 @@ describe('Export Handlers', () => {
         ]
       });
       const file = createMockFile(jsonContent, 'users.json', 'application/json');
-      
+
       const result = await importUsers(file, 'json');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].email).toBe('user@example.com');
     });
@@ -487,18 +489,18 @@ describe('Export Handlers', () => {
   describe('Error Handling', () => {
     it('should handle empty files gracefully', async () => {
       const file = createMockFile('', 'empty.csv', 'text/csv');
-      
+
       const result = await importSpaces(file, 'csv');
-      
+
       expect(result).toEqual([]);
     });
 
     it('should handle malformed CSV with property conversion', async () => {
       const csvContent = 'name,isPhysical\nRoom A,invalid'; // Invalid boolean
       const file = createMockFile(csvContent, 'spaces.csv', 'text/csv');
-      
+
       const result = await importSpaces(file, 'csv');
-      
+
       expect(result).toHaveLength(1);
       // Invalid boolean becomes string 'invalid' which is truthy
       expect(result[0].name).toBe('Room A');
@@ -506,7 +508,7 @@ describe('Export Handlers', () => {
 
     it('should handle malformed JSON gracefully', async () => {
       const file = createMockFile('{ invalid json }', 'spaces.json', 'application/json');
-      
+
       // JSON import for spaces just returns empty array (not implemented)
       const result = await importSpaces(file, 'json');
       expect(result).toEqual([]);
