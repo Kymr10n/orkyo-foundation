@@ -62,7 +62,7 @@ interface AppState {
   setRightPanelTab: (tab: "details" | "floorplan") => void;
 
   // Space groups collapse state
-  collapsedGroupIds: Set<string>;
+  collapsedGroupIds: string[];
   toggleGroupCollapse: (groupId: string) => void;
 
   // Theme
@@ -157,16 +157,13 @@ export const useAppStore = create<AppState>((set) => ({
   rightPanelTab: "floorplan", // Default to floorplan
   setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
 
-  collapsedGroupIds: new Set<string>(),
+  collapsedGroupIds: [],
   toggleGroupCollapse: (groupId) =>
     set((state) => {
-      const newSet = new Set(state.collapsedGroupIds);
-      if (newSet.has(groupId)) {
-        newSet.delete(groupId);
-      } else {
-        newSet.add(groupId);
-      }
-      return { collapsedGroupIds: newSet };
+      const collapsed = state.collapsedGroupIds.includes(groupId)
+        ? state.collapsedGroupIds.filter((id) => id !== groupId)
+        : [...state.collapsedGroupIds, groupId];
+      return { collapsedGroupIds: collapsed };
     }),
 
   theme:

@@ -24,10 +24,10 @@ public static class EndpointHelpers
     {
         return ex switch
         {
-            InvalidOperationException ioe when ioe.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
-                => ErrorResponses.NotFound(ioe.Message, Guid.Empty),
-            InvalidOperationException ioe
-                => ErrorResponses.Conflict(ioe.Message),
+            NotFoundException nfe
+                => ErrorResponses.NotFound(nfe.ResourceType.Length > 0 ? nfe.ResourceType : nfe.Message, nfe.ResourceId),
+            ConflictException ce
+                => ErrorResponses.Conflict(ce.Message),
             KeyNotFoundException knf
                 => ErrorResponses.NotFound(knf.Message, Guid.Empty),
             CapabilityNotApplicableException cna
@@ -38,6 +38,8 @@ public static class EndpointHelpers
                 => Results.Forbid(),
             KeycloakAdminException kae
                 => KeycloakAdminExceptionMapper.Map(kae),
+            // Backstop: translate any 23505 unique-violation that escaped the repository layer.
+            // Repositories should throw ConflictException for known violations; this catches the rest.
             Npgsql.PostgresException pg when pg.SqlState == "23505"
                 => ErrorResponses.Conflict("A record with this identifier already exists"),
             _ => LogAndProblem(ex, logger, operationName)

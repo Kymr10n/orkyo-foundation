@@ -221,7 +221,7 @@ jobs:
           restore-keys: nuget-
 
       - name: Restore (locked mode)
-        run: dotnet restore Orkyo.Foundation.slnx --locked-mode --locked-mode
+        run: dotnet restore Orkyo.Foundation.slnx --locked-mode
 
       - name: Format check
         run: dotnet format Orkyo.Foundation.slnx --verify-no-changes --no-restore

@@ -94,7 +94,7 @@ public class SiteRepository : ISiteRepository
 
         if (count > 0)
         {
-            throw new InvalidOperationException("Site with this code already exists");
+            throw new ConflictException("Site with this code already exists");
         }
 
         // Create the site
@@ -129,7 +129,7 @@ public class SiteRepository : ISiteRepository
 
         if (count > 0)
         {
-            throw new InvalidOperationException("Another site with this code already exists");
+            throw new ConflictException("Another site with this code already exists");
         }
 
         await using var cmd = new NpgsqlCommand(

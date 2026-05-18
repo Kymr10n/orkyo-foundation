@@ -107,7 +107,7 @@ public class SpaceRepository : ISpaceRepository
             var count = (long)(await checkCmd.ExecuteScalarAsync() ?? 0L);
             if (count > 0)
             {
-                throw new InvalidOperationException($"Space code '{code}' already exists for this site");
+                throw new ConflictException($"Space code '{code}' already exists for this site");
             }
         }
 

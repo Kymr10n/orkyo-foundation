@@ -474,7 +474,7 @@ public class RequestRepository : IRequestRepository
         await db.OpenAsync();
 
         if (!await DbQueryHelper.ExistsAsync(db, "requests", requestId))
-            throw new InvalidOperationException($"Request with ID {requestId} not found");
+            throw new NotFoundException("Request", requestId);
 
         if (!await DbQueryHelper.ExistsAsync(db, "criteria", requirement.CriterionId))
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");

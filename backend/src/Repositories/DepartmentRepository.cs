@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -80,13 +81,12 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         catch (PostgresException ex) when (ex.SqlState == "23505")
         {
             // ux_departments_root_name or ux_departments_sibling_name violation
-            throw new InvalidOperationException(
-                "A department with this name already exists under the same parent");
+            throw new ConflictException("A department with this name already exists under the same parent");
         }
         catch (PostgresException ex) when (ex.SqlState == "23503")
         {
             // FK violation (parent does not exist)
-            throw new InvalidOperationException("Parent department does not exist");
+            throw new ArgumentException("Parent department does not exist");
         }
     }
 
@@ -101,10 +101,9 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         if (request.ChangeParent && request.ParentDepartmentId is { } proposedParent)
         {
             if (proposedParent == id)
-                throw new InvalidOperationException("A department cannot be its own parent");
+                throw new ArgumentException("A department cannot be its own parent");
             if (await WouldCreateCycleAsync(id, proposedParent, db))
-                throw new InvalidOperationException(
-                    "Reparenting would create a circular hierarchy");
+                throw new ConflictException("Reparenting would create a circular hierarchy");
         }
 
         var sets = new List<string>();
@@ -149,12 +148,11 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         }
         catch (PostgresException ex) when (ex.SqlState == "23505")
         {
-            throw new InvalidOperationException(
-                "A department with this name already exists under the same parent");
+            throw new ConflictException("A department with this name already exists under the same parent");
         }
         catch (PostgresException ex) when (ex.SqlState == "23503")
         {
-            throw new InvalidOperationException("Parent department does not exist");
+            throw new ArgumentException("Parent department does not exist");
         }
     }
 
@@ -172,8 +170,7 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         catch (PostgresException ex) when (ex.SqlState == "23503")
         {
             // FK RESTRICT from a child department blocks the delete.
-            throw new InvalidOperationException(
-                "Cannot delete a department that has child departments. Move or delete the children first.");
+            throw new ConflictException("Cannot delete a department that has child departments. Move or delete the children first.");
         }
     }
 

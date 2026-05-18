@@ -49,12 +49,9 @@ public class ResourceService(
         if (request.Name is not null && string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("Name cannot be blank");
 
-        var existing = await resourceRepository.GetByIdAsync(id)
+        // Verify existence; Space deactivation flows through SpaceService, not here.
+        _ = await resourceRepository.GetByIdAsync(id)
             ?? throw new KeyNotFoundException($"Resource {id} not found");
-
-        // System resource types cannot be deactivated via the generic update.
-        // (Space deactivation flows through SpaceService.)
-        _ = existing;
 
         return await resourceRepository.UpdateAsync(id, request);
     }

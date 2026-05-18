@@ -358,8 +358,7 @@ public class TemplateRepository : ITemplateRepository
         }
         catch (PostgresException ex) when (ex.SqlState == "23505") // unique violation
         {
-            throw new InvalidOperationException(
-                $"Template already has this criterion: {item.CriterionId}");
+            throw new ConflictException($"Template already has this criterion: {item.CriterionId}");
         }
     }
 

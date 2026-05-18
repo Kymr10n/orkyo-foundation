@@ -3,6 +3,7 @@ using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -22,24 +23,18 @@ public static class SecurityEndpoints
             IKeycloakAdminService keycloakService,
             ITenantSettingsService settingsService,
             ChangePasswordRequest request,
+            IValidator<ChangePasswordRequest> validator,
             ILogger<EndpointLoggerCategory> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var sub = principal.RequireExternalSubject();
 
-                if (string.IsNullOrEmpty(request.CurrentPassword))
-                    return ErrorResponses.BadRequest("Current password is required");
-                if (string.IsNullOrEmpty(request.NewPassword))
-                    return ErrorResponses.BadRequest("New password is required");
-
                 var settings = await settingsService.GetSettingsAsync();
-                if (request.NewPassword.Length < settings.PasswordMinLength)
+                if (request.NewPassword!.Length < settings.PasswordMinLength)
                     return ErrorResponses.BadRequest($"New password must be at least {settings.PasswordMinLength} characters");
-                if (request.NewPassword != request.ConfirmPassword)
-                    return ErrorResponses.BadRequest("Passwords do not match");
 
-                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword, request.NewPassword);
+                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword);
                 logger.LogInformation("Password changed for user {Sub}", sub);
                 return Results.Ok(new { message = "Password changed successfully" });
             }, logger, "change password");

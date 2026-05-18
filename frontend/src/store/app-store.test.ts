@@ -246,7 +246,7 @@ describe('useAppStore - UI state', () => {
 describe('useAppStore - space groups', () => {
   beforeEach(() => {
     useAppStore.setState({
-      collapsedGroupIds: new Set<string>(),
+      collapsedGroupIds: [],
     });
   });
 
@@ -255,17 +255,17 @@ describe('useAppStore - space groups', () => {
 
     toggleGroupCollapse('group-1');
 
-    expect(useAppStore.getState().collapsedGroupIds.has('group-1')).toBe(true);
+    expect(useAppStore.getState().collapsedGroupIds.includes('group-1')).toBe(true);
   });
 
   it('should expand collapsed group', () => {
     const { toggleGroupCollapse } = useAppStore.getState();
 
     toggleGroupCollapse('group-1');
-    expect(useAppStore.getState().collapsedGroupIds.has('group-1')).toBe(true);
+    expect(useAppStore.getState().collapsedGroupIds.includes('group-1')).toBe(true);
 
     toggleGroupCollapse('group-1');
-    expect(useAppStore.getState().collapsedGroupIds.has('group-1')).toBe(false);
+    expect(useAppStore.getState().collapsedGroupIds.includes('group-1')).toBe(false);
   });
 
   it('should handle multiple groups', () => {
@@ -275,9 +275,9 @@ describe('useAppStore - space groups', () => {
     toggleGroupCollapse('group-2');
 
     const collapsed = useAppStore.getState().collapsedGroupIds;
-    expect(collapsed.has('group-1')).toBe(true);
-    expect(collapsed.has('group-2')).toBe(true);
-    expect(collapsed.size).toBe(2);
+    expect(collapsed.includes('group-1')).toBe(true);
+    expect(collapsed.includes('group-2')).toBe(true);
+    expect(collapsed.length).toBe(2);
   });
 });
 

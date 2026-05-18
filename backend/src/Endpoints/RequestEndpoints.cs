@@ -45,12 +45,6 @@ public static class RequestEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                if (request.ParentRequestId.HasValue)
-                {
-                    var parentMode = await requestService.GetPlanningModeAsync(request.ParentRequestId.Value);
-                    if (parentMode == null) return ErrorResponses.NotFound("Parent request", request.ParentRequestId.Value);
-                    if (parentMode == PlanningMode.Leaf) return Results.BadRequest(new { error = "Cannot add children to a leaf request" });
-                }
                 var adjusted = await schedulingService.ApplySchedulingToCreateAsync(request);
                 var created = await requestService.CreateAsync(adjusted);
                 return Results.Created($"/requests/{created.Id}", created);
@@ -63,24 +57,6 @@ public static class RequestEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                if (request.ParentRequestId.HasValue)
-                {
-                    if (request.ParentRequestId.Value == id) return Results.BadRequest(new { error = "A request cannot be its own parent" });
-                    var wouldCycle = await requestService.WouldCreateCycleAsync(id, request.ParentRequestId.Value);
-                    if (wouldCycle) return Results.BadRequest(new { error = "This change would create a circular reference" });
-                    var parentMode = await requestService.GetPlanningModeAsync(request.ParentRequestId.Value);
-                    if (parentMode == null) return ErrorResponses.NotFound("Parent request", request.ParentRequestId.Value);
-                    if (parentMode == PlanningMode.Leaf) return Results.BadRequest(new { error = "Cannot add children to a leaf request" });
-                }
-                if (request.PlanningMode == PlanningMode.Leaf)
-                {
-                    var hasChildren = await requestService.HasChildrenAsync(id);
-                    if (hasChildren) return Results.BadRequest(new { error = "Cannot change to leaf mode while request has children" });
-                }
-                var existingMode = await requestService.GetPlanningModeAsync(id);
-                var effectiveMode = request.PlanningMode ?? existingMode;
-                if (effectiveMode != PlanningMode.Leaf && (request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue))
-                    return Results.BadRequest(new { error = "Only leaf requests can be directly scheduled to a space" });
                 var adjusted = await schedulingService.ApplySchedulingToUpdateAsync(id, request);
                 var updated = await requestService.UpdateAsync(id, adjusted);
                 return updated == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(updated);
@@ -104,11 +80,6 @@ public static class RequestEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var mode = await requestService.GetPlanningModeAsync(id);
-                if (mode == null) return ErrorResponses.NotFound("Request", id);
-                var isSchedulingPayload = request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue;
-                if (mode != PlanningMode.Leaf && isSchedulingPayload)
-                    return Results.BadRequest(new { error = "Only leaf requests can be directly scheduled to a space" });
                 var adjusted = await schedulingService.ApplySchedulingToScheduleAsync(id, request);
                 var updated = await requestService.UpdateScheduleAsync(id, adjusted);
                 return updated == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(updated);
@@ -154,14 +125,6 @@ public static class RequestEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                if (request.NewParentRequestId.HasValue)
-                {
-                    if (request.NewParentRequestId.Value == id) return Results.BadRequest(new { error = "A request cannot be its own parent" });
-                    if (await requestService.WouldCreateCycleAsync(id, request.NewParentRequestId.Value)) return Results.BadRequest(new { error = "Moving this request would create a circular reference" });
-                    var parentMode = await requestService.GetPlanningModeAsync(request.NewParentRequestId.Value);
-                    if (parentMode == null) return ErrorResponses.NotFound("Parent request", request.NewParentRequestId.Value);
-                    if (parentMode == PlanningMode.Leaf) return Results.BadRequest(new { error = "Cannot move a request under a leaf request" });
-                }
                 var moved = await requestService.MoveAsync(id, request.NewParentRequestId, request.SortOrder);
                 return moved == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(moved);
             }, logger, "move request", new { id });

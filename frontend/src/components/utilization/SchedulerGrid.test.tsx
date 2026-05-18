@@ -21,7 +21,7 @@ vi.mock('@foundation/src/store/app-store', () => ({
       selectedSiteId: 'site-1',
       spaceOrder: [],
       timeCursorEnabled: false,
-      collapsedGroupIds: new Set<string>(),
+      collapsedGroupIds: [],
       toggleGroupCollapse: vi.fn(),
       conflicts: new Map(),
     };

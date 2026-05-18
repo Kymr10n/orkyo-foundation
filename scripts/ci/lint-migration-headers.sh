@@ -26,8 +26,8 @@ else
   DIFF_BASE="HEAD~1"
 fi
 
-CHANGED_SQL=$(git diff --name-only "$DIFF_BASE"...HEAD -- "$SQL_DIR/**/*.sql" 2>/dev/null || \
-              git diff --name-only "$DIFF_BASE" HEAD -- "*.sql" 2>/dev/null || true)
+CHANGED_SQL=$(git diff --name-only "$DIFF_BASE"...HEAD -- ":(glob)$SQL_DIR/**/*.sql" 2>/dev/null || \
+              git diff --name-only "$DIFF_BASE" HEAD -- ":(glob)$SQL_DIR/**/*.sql" 2>/dev/null || true)
 
 if [ -z "$CHANGED_SQL" ]; then
   echo "No migration SQL files changed — skipping lint."
@@ -39,7 +39,7 @@ echo "$CHANGED_SQL"
 echo ""
 
 # ── Rule 3: No modification of existing files ─────────────────────────────────
-MODIFIED=$(git diff --name-only --diff-filter=M "$DIFF_BASE"...HEAD -- "$SQL_DIR/**/*.sql" 2>/dev/null || true)
+MODIFIED=$(git diff --name-only --diff-filter=M "$DIFF_BASE"...HEAD -- ":(glob)$SQL_DIR/**/*.sql" 2>/dev/null || true)
 if [ -n "$MODIFIED" ]; then
   echo "::error::VIOLATION — existing migration files must never be modified:"
   echo "$MODIFIED"
@@ -47,7 +47,7 @@ if [ -n "$MODIFIED" ]; then
 fi
 
 # ── Check new files only ──────────────────────────────────────────────────────
-NEW_FILES=$(git diff --name-only --diff-filter=A "$DIFF_BASE"...HEAD -- "$SQL_DIR/**/*.sql" 2>/dev/null || true)
+NEW_FILES=$(git diff --name-only --diff-filter=A "$DIFF_BASE"...HEAD -- ":(glob)$SQL_DIR/**/*.sql" 2>/dev/null || true)
 
 for FILE in $NEW_FILES; do
   [ -f "$FILE" ] || continue

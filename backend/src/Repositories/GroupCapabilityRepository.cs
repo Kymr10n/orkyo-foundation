@@ -31,7 +31,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
         // Verify group exists
         if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
-            throw new InvalidOperationException("Group not found");
+            throw new NotFoundException("Group", groupId);
 
         // Get capabilities with criterion details
         await using var cmd = new NpgsqlCommand(@"
@@ -70,10 +70,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
         // Verify group and criterion exist
         if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
-            throw new InvalidOperationException("Group not found");
+            throw new NotFoundException("Group", groupId);
 
         if (!await DbQueryHelper.ExistsAsync(conn, "criteria", criterionId))
-            throw new InvalidOperationException("Criterion not found");
+            throw new NotFoundException("Criterion", criterionId);
 
         // Insert capability
         await using var cmd = new NpgsqlCommand(@"
@@ -97,7 +97,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         }
         catch (PostgresException ex) when (ex.SqlState == "23505") // Unique violation
         {
-            throw new InvalidOperationException("This criterion already has a value for this group");
+            throw new ConflictException("This criterion already has a value for this group");
         }
     }
 
@@ -108,7 +108,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
         // Verify group exists
         if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
-            throw new InvalidOperationException("Group not found");
+            throw new NotFoundException("Group", groupId);
 
         // Delete capability
         await using var cmd = new NpgsqlCommand(

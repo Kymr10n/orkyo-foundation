@@ -453,7 +453,7 @@ export function SchedulerGrid({
           <div className="relative">
             <SortableContext items={sortedSpaces.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {groupedSpaces.map((group) => {
-                const isCollapsed = collapsedGroupIds.has(group.groupId || "ungrouped");
+                const isCollapsed = collapsedGroupIds.includes(group.groupId || "ungrouped");
 
                 return (
                   <div key={group.groupId || 'ungrouped'}>

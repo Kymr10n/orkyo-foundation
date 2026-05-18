@@ -1,15 +1,37 @@
-/**
- * Hooks barrel export
- * Import from '@foundation/src/hooks' to access all custom hooks
- */
-
-export * from "./useCommandPalette";
-export * from "./useCriteria";
-export * from "./useImportExport";
-export * from "./useMutations";
-export * from "./usePreferences";
-export * from "./useRequestForm";
-export * from "./useSites";
-export * from "./useSpaces";
-export * from "./useTemplateForm";
+export { useCommandPalette } from "./useCommandPalette";
+export {
+  useCriteria,
+  useCreateCriterion,
+  useUpdateCriterion,
+  useDeleteCriterion,
+  useFilteredCriteria,
+  useUpdateCriterionApplicability,
+} from "./useCriteria";
+export { useExportHandler, useImportHandler } from "./useImportExport";
+export { createCrudHooks } from "./useMutations";
+export {
+  usePreferences,
+  useUpdatePreferences,
+  type UserPreferences,
+} from "./usePreferences";
+export {
+  useRequestForm,
+  formReducer,
+  buildInitialState,
+  type RequestFormState,
+} from "./useRequestForm";
+export { useSites, useCreateSite, useUpdateSite, useDeleteSite } from "./useSites";
+export {
+  useSpaces,
+  useCreateSpace,
+  useUpdateSpace,
+  useDeleteSpace,
+  useMoveSpace,
+} from "./useSpaces";
+export {
+  useTemplateForm,
+  templateFormReducer,
+  getDefaultValueForCriterion,
+  type TemplateFormState,
+} from "./useTemplateForm";
 export { useRequests, useScheduleRequest } from "./useUtilization";

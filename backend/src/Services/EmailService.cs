@@ -76,8 +76,8 @@ public class EmailService : IEmailService
 
             using var client = new SmtpClient();
 
-            _logger.LogInformation("Attempting to send email to {Email} via {Host}:{Port} (SSL: {UseSsl})",
-                toEmail, smtpHost, smtpPort, smtpUseSsl);
+            _logger.LogInformation("Attempting to send email via {Host}:{Port} (SSL: {UseSsl})",
+                smtpHost, smtpPort, smtpUseSsl);
 
             // Connect to SMTP server
             // MailHog doesn't support SSL/TLS, so we need to use None for local development
@@ -97,13 +97,13 @@ public class EmailService : IEmailService
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
 
-            _logger.LogInformation("Email sent successfully to {Email} with subject: {Subject}", toEmail, subject);
+            _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email to {Email} with subject: {Subject}. SMTP: {Host}:{Port}",
-                toEmail, subject, _configuration[ConfigKeys.SmtpHost], _configuration[ConfigKeys.SmtpPort]);
+            _logger.LogError(ex, "Failed to send email (subject: {Subject}) via SMTP {Host}:{Port}",
+                subject, _configuration[ConfigKeys.SmtpHost], _configuration[ConfigKeys.SmtpPort]);
             return false;
         }
     }
