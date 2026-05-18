@@ -37,14 +37,6 @@ vi.mock('@foundation/src/hooks/useCriteria', () => ({
   }),
 }));
 
-vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    isValidSlug: (s: string) => /^[a-z][a-z0-9-]*$/.test(s),
-  };
-});
-
 vi.mock('./EnumValueEditor', () => ({
   EnumValueEditor: () => <div data-testid="enum-editor" />,
 }));
@@ -76,14 +68,14 @@ describe('CreateCriterionDialog', () => {
     expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('submits form with valid name', async () => {
+  it('submits form with a display name containing spaces', async () => {
     render(<CreateCriterionDialog {...defaultProps} />);
-    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'test-criterion' } });
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Project Management' } });
     fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith({
-        name: 'test-criterion',
+        name: 'Project Management',
         description: undefined,
         dataType: 'Boolean',
         enumValues: undefined,
@@ -99,16 +91,6 @@ describe('CreateCriterionDialog', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/name is required/i);
-    });
-  });
-
-  it('shows slug validation error for invalid name', async () => {
-    render(<CreateCriterionDialog {...defaultProps} />);
-    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Invalid Name!' } });
-    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/alphanumeric/i);
     });
   });
 

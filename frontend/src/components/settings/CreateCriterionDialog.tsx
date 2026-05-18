@@ -21,7 +21,6 @@ import {
 } from '@foundation/src/components/ui/select';
 import type { Criterion, CriterionDataType, ResourceTypeKey } from '@foundation/src/types/criterion';
 import { useCreateCriterion } from '@foundation/src/hooks/useCriteria';
-import { isValidSlug } from '@foundation/src/lib/utils';
 import { EnumValueEditor } from './EnumValueEditor';
 
 const RESOURCE_TYPE_OPTIONS: { key: ResourceTypeKey; label: string }[] = [
@@ -80,11 +79,6 @@ export function CreateCriterionDialog({
       return;
     }
 
-    if (!isValidSlug(name)) {
-      setError('Name must contain only alphanumeric characters, underscores, and hyphens');
-      return;
-    }
-
     if (dataType === 'Enum' && enumValues.length === 0) {
       setError('At least one enum value is required');
       return;
@@ -135,14 +129,11 @@ export function CreateCriterionDialog({
               <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
-                placeholder="e.g., max_load_kg, power_400v"
+                placeholder="e.g., Project Management, Max Load (kg)"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isSubmitting}
               />
-              <p className="text-xs text-muted-foreground">
-                Use lowercase with underscores or hyphens (alphanumeric only)
-              </p>
             </div>
 
             {/* Description */}
