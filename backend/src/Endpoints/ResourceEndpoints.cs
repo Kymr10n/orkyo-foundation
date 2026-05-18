@@ -128,11 +128,22 @@ public static class ResourceEndpoints
             AddResourceCapabilityRequest request,
             IResourceService service,
             IResourceCapabilityRepository repository,
+            ICriteriaService criteriaService,
             ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
-                if (await service.GetByIdAsync(id) is null)
+                var resource = await service.GetByIdAsync(id);
+                if (resource is null)
                     return ErrorResponses.NotFound("Resource", id);
+
+                var criterion = await criteriaService.GetByIdAsync(request.CriterionId);
+                if (criterion is null)
+                    return ErrorResponses.NotFound("Criterion", request.CriterionId);
+
+                if (!criterion.ResourceTypeKeys.Contains(resource.ResourceTypeKey, StringComparer.Ordinal))
+                    return ErrorResponses.BadRequest(
+                        $"Criterion '{criterion.Name}' is not applicable to resource type '{resource.ResourceTypeKey}'.");
+
                 var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value);
                 return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);
             }, logger, "add resource capability", new { id, criterionId = request.CriterionId }))
