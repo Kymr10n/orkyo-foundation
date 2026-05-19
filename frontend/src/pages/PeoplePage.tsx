@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
+import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
 
 // Tab value <-> sub-route path. Source of truth lives here so the trigger order
 // and the URL segment cannot drift.
-const TABS: { value: string; label: string }[] = [
+const TABS: PageTab[] = [
   { value: 'list', label: 'People' },
   { value: 'groups', label: 'Groups' },
   { value: 'absences', label: 'Absences' },
@@ -39,27 +39,18 @@ export function PeoplePage() {
   const active = pathname.split('/')[2] ?? 'list';
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">People</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage person resources, groups, and absences
-          </p>
-        </div>
-      </div>
-
-      <Tabs value={active} onValueChange={(v) => navigate(`/people/${v}`)} className="flex-1 flex flex-col">
-        <TabsList className="mb-4">
-          {TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
-          ))}
-        </TabsList>
-
-        <div className="flex-1">
-          <Outlet />
-        </div>
-      </Tabs>
-    </div>
+    <PageLayout>
+      <PageHeader
+        title="People"
+        description="Manage person resources, groups, and absences"
+      />
+      <PageTabs
+        tabs={TABS}
+        value={active}
+        onChange={(v) => navigate(`/people/${v}`)}
+      >
+        <Outlet />
+      </PageTabs>
+    </PageLayout>
   );
 }

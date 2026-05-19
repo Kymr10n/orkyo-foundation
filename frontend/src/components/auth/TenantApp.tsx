@@ -17,6 +17,14 @@ import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsen
 import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
 import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
+import { CriteriaSettings } from '@foundation/src/components/settings/CriteriaSettings';
+import { SiteSettings } from '@foundation/src/components/settings/SiteSettings';
+import { TemplateSettings } from '@foundation/src/components/settings/TemplateSettings';
+import { PresetSettings } from '@foundation/src/components/settings/PresetSettings';
+import { UserSettings } from '@foundation/src/components/settings/UserSettings';
+import { OrganizationSettings } from '@foundation/src/components/settings/OrganizationSettings';
+import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
+import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
 import { SpaceCapabilitiesTab } from '@foundation/src/components/spaces/SpaceCapabilitiesTab';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
@@ -97,7 +105,19 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
           <Route index element={<UtilizationPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="conflicts" element={<ConflictsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+
+          {/* Settings — nested sub-routes. Default = criteria. */}
+          <Route path="settings" element={<SettingsPage />}>
+            <Route index element={<Navigate to="criteria" replace />} />
+            <Route path="criteria" element={<CriteriaSettings />} />
+            <Route path="sites" element={<SiteSettings />} />
+            <Route path="templates" element={<TemplateSettings entityType="request" />} />
+            <Route path="presets" element={<PresetSettings />} />
+            <Route path="users" element={<UserSettings />} />
+            <Route path="organization" element={<OrganizationSettings />} />
+            <Route path="scheduling" element={<SchedulingSettings />} />
+            <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
+          </Route>
 
           {/* People — nested sub-routes (PR 2). Skills are now managed per-person via
               a row action on the People list (no standalone Skills tab). */}

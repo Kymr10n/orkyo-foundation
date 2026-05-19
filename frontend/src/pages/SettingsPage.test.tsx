@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
@@ -13,38 +14,32 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: () => ({ data: [{ id: 's1', name: 'HQ' }, { id: 's2', name: 'Branch' }] }),
 }));
 
-// Mock all settings sub-components
-vi.mock('@foundation/src/components/settings/CriteriaSettings', () => ({
-  CriteriaSettings: () => <div data-testid="criteria-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/PresetSettings', () => ({
-  PresetSettings: () => <div data-testid="preset-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/TemplateSettings', () => ({
-  TemplateSettings: () => <div data-testid="template-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/SiteSettings', () => ({
-  SiteSettings: () => <div data-testid="site-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/UserSettings', () => ({
-  UserSettings: () => <div data-testid="user-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/OrganizationSettings', () => ({
-  OrganizationSettings: () => <div data-testid="org-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/TenantConfigSettings', () => ({
-  TenantConfigSettings: () => <div data-testid="config-settings" />,
-}));
-vi.mock('@foundation/src/components/settings/SchedulingSettings', () => ({
-  SchedulingSettings: () => <div data-testid="scheduling-settings" />,
-}));
+function Stub({ id }: { id: string }) {
+  return <div data-testid={id} />;
+}
 
-function renderSettingsPage(initialPath = '/settings') {
+function LocationProbe() {
+  const loc = useLocation();
+  return <div data-testid="path">{loc.pathname}</div>;
+}
+
+function renderAt(initialPath: string) {
   return render(
-    <MemoryRouter
-      initialEntries={[initialPath]}
-    >
-      <SettingsPage />
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/settings" element={<SettingsPage />}>
+          <Route index element={<Navigate to="criteria" replace />} />
+          <Route path="criteria" element={<Stub id="criteria-settings" />} />
+          <Route path="sites" element={<Stub id="site-settings" />} />
+          <Route path="templates" element={<Stub id="template-settings" />} />
+          <Route path="presets" element={<Stub id="preset-settings" />} />
+          <Route path="users" element={<Stub id="user-settings" />} />
+          <Route path="organization" element={<Stub id="org-settings" />} />
+          <Route path="scheduling" element={<Stub id="scheduling-settings" />} />
+          <Route path="configuration" element={<Stub id="config-settings" />} />
+        </Route>
+        <Route path="*" element={<LocationProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -55,55 +50,70 @@ describe('SettingsPage', () => {
   });
 
   it('renders page title', () => {
-    renderSettingsPage();
-    expect(screen.getByText('Settings')).toBeInTheDocument();
+    renderAt('/settings/criteria');
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
   });
 
-  it('renders all tabs for admin user', () => {
-    renderSettingsPage();
-    expect(screen.getByText('Criteria')).toBeInTheDocument();
-    expect(screen.getByText('Sites')).toBeInTheDocument();
-    expect(screen.getByText('Templates')).toBeInTheDocument();
-    expect(screen.getByText('Presets')).toBeInTheDocument();
-    expect(screen.getByText('Users')).toBeInTheDocument();
-    expect(screen.getByText('Organization')).toBeInTheDocument();
-    expect(screen.getByText('Scheduling')).toBeInTheDocument();
-    expect(screen.getByText('Configuration')).toBeInTheDocument();
+  it('renders all tabs for admin user on Professional tier', () => {
+    renderAt('/settings/criteria');
+    for (const label of [
+      'Criteria',
+      'Sites',
+      'Templates',
+      'Presets',
+      'Users',
+      'Organization',
+      'Scheduling',
+      'Configuration',
+    ]) {
+      expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
+    }
   });
 
   it('does not expose resource-domain master data tabs (moved to owning pages)', () => {
-    renderSettingsPage();
+    renderAt('/settings/criteria');
     expect(screen.queryByRole('tab', { name: 'Groups' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Departments' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Job Titles' })).not.toBeInTheDocument();
   });
 
-  it('defaults to Criteria tab', () => {
-    renderSettingsPage();
+  it('index route redirects to /settings/criteria', () => {
+    renderAt('/settings');
     expect(screen.getByTestId('criteria-settings')).toBeInTheDocument();
   });
 
-  it('opens specific tab from URL param', () => {
-    renderSettingsPage('/settings?tab=organization');
+  it.each([
+    ['/settings/criteria', 'criteria-settings'],
+    ['/settings/sites', 'site-settings'],
+    ['/settings/templates', 'template-settings'],
+    ['/settings/presets', 'preset-settings'],
+    ['/settings/users', 'user-settings'],
+    ['/settings/organization', 'org-settings'],
+    ['/settings/scheduling', 'scheduling-settings'],
+    ['/settings/configuration', 'config-settings'],
+  ])('deep-links %s renders the right child', (path, id) => {
+    renderAt(path);
+    expect(screen.getByTestId(id)).toBeInTheDocument();
+  });
+
+  it('clicking a tab navigates to its sub-route', async () => {
+    renderAt('/settings/criteria');
+    await userEvent.click(screen.getByRole('tab', { name: 'Organization' }));
     expect(screen.getByTestId('org-settings')).toBeInTheDocument();
   });
 
   it.each([
+    ['criteria', '/settings/criteria'],
+    ['organization', '/settings/organization'],
     ['jobTitles', '/people/job-titles'],
     ['departments', '/people/departments'],
-  ])('redirects legacy ?tab=%s to %s', (legacy, target) => {
-    function LocationProbe() {
-      const loc = useLocation();
-      return <div data-testid="path">{loc.pathname}</div>;
+  ])('legacy ?tab=%s redirects to %s', (legacy, target) => {
+    renderAt(`/settings?tab=${legacy}`);
+    if (target.startsWith('/settings/')) {
+      const id = `${target.split('/').pop()!}-settings`.replace('organization-settings', 'org-settings');
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    } else {
+      expect(screen.getByTestId('path').textContent).toBe(target);
     }
-    render(
-      <MemoryRouter initialEntries={[`/settings?tab=${legacy}`]}>
-        <Routes>
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/people/*" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    expect(screen.getByTestId('path').textContent).toBe(target);
   });
 });

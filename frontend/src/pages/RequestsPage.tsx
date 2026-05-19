@@ -19,6 +19,7 @@ import {
 } from "@foundation/src/components/ui/alert-dialog";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
+import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import {
     Tooltip,
     TooltipContent,
@@ -467,13 +468,11 @@ export function RequestsPage() {
 
   return (
     <TooltipProvider>
-    <div className="rounded-2xl border bg-card overflow-hidden flex flex-col h-full">
-      {/* Header */}
-      <div className="p-6 border-b">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-semibold">Requests</h1>
-          <div className="flex gap-2">
-            {/* View mode toggle */}
+    <PageLayout>
+      <PageHeader
+        title="Requests"
+        actions={
+          <>
             <div className="flex border rounded-md">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -512,29 +511,29 @@ export function RequestsPage() {
               <Plus className="h-4 w-4 mr-2" />
               New Group
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        {/* Search and Filters */}
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search requests..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-          </Button>
+      {/* Search and Filters */}
+      <div className="flex gap-3 mb-4 shrink-0">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search requests..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
         </div>
+        <Button variant="outline" size="sm">
+          <Filter className="h-4 w-4 mr-2" />
+          Filters
+        </Button>
       </div>
 
       {/* Body: View + Detail Panel */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Main content area */}
         <div className={`flex-1 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
           {loading && requests.length === 0 ? (
@@ -676,7 +675,7 @@ export function RequestsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
     </TooltipProvider>
   );
 }

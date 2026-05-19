@@ -7,6 +7,7 @@ import { exportConflicts } from "@foundation/src/lib/utils/export-handlers";
 import type { Conflict, Request } from "@foundation/src/types/requests";
 import React, { useMemo } from "react";
 import { logger } from "@foundation/src/lib/core/logger";
+import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 
 type ConflictWithRequest = Conflict & { request: Request };
 
@@ -156,21 +157,18 @@ export function ConflictsPage() {
     }
   };
 
+  const description = visibleConflictItems.length === 0
+    ? "No conflicts detected. All scheduled requests meet their requirements."
+    : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`;
+
   return (
-    <div className="rounded-2xl border bg-card p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold mb-2">Conflicts</h1>
-        <p className="text-muted-foreground">
-          {visibleConflictItems.length === 0
-            ? "No conflicts detected. All scheduled requests meet their requirements."
-            : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`}
+    <PageLayout>
+      <PageHeader title="Conflicts" description={description} />
+      {targetRequestId && (
+        <p className="text-xs text-muted-foreground -mt-4 mb-4">
+          Filtered to request {targetRequestId}
         </p>
-        {targetRequestId && (
-          <p className="text-xs text-muted-foreground mt-2">
-            Filtered to request {targetRequestId}
-          </p>
-        )}
-      </div>
+      )}
 
       {visibleConflictItems.length === 0 ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -193,6 +191,6 @@ export function ConflictsPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

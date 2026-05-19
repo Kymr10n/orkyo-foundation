@@ -3,7 +3,8 @@ import { RequestsPanel } from "@foundation/src/components/utilization/RequestsPa
 import { ScaleSelect } from "@foundation/src/components/utilization/ScaleSelect";
 import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerGrid";
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@foundation/src/components/ui/tabs";
+import { TabsContent } from "@foundation/src/components/ui/tabs";
+import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/components/layout";
 import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
@@ -391,56 +392,41 @@ export function UtilizationPage() {
     );
   }, [requests, scheduleMutation]);
 
+  const tabs: PageTab[] = [
+    { value: 'space', label: 'Space allocation' },
+    { value: 'people', label: 'People' },
+  ];
+
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Top Bar — shared between both tabs */}
-      <div className="h-14 border-b bg-card px-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold">Utilization</h1>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {autoScheduleAvailable && userCanEdit && activeTab === 'space' && (
-            <AutoScheduleButton
-              onClick={handleAutoScheduleClick}
-              loading={previewMutation.isPending}
-              disabled={!selectedSiteId}
+    <PageLayout>
+      <PageHeader
+        title="Utilization"
+        description="Schedule space allocations and review people utilization"
+        actions={
+          <>
+            {autoScheduleAvailable && userCanEdit && activeTab === 'space' && (
+              <AutoScheduleButton
+                onClick={handleAutoScheduleClick}
+                loading={previewMutation.isPending}
+                disabled={!selectedSiteId}
+              />
+            )}
+            <ScaleSelect value={scale} onChange={setScale} />
+            <TimeNavigator
+              scale={scale}
+              anchorTs={anchorTs}
+              onAnchorChange={setAnchorTs}
+              onPrevious={handlePrevious}
+              onNext={handleNext}
+              onToday={handleToday}
             />
-          )}
-          <ScaleSelect value={scale} onChange={setScale} />
-          <TimeNavigator
-            scale={scale}
-            anchorTs={anchorTs}
-            onAnchorChange={setAnchorTs}
-            onPrevious={handlePrevious}
-            onNext={handleNext}
-            onToday={handleToday}
-          />
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={handleTabChange}
-        className="flex-1 flex flex-col overflow-hidden"
-      >
-        {/* Tab triggers */}
-        <div className="px-4 pt-4 shrink-0">
-          <TabsList className="mb-4 w-full">
-            <TabsTrigger value="space">Space allocation</TabsTrigger>
-            <TabsTrigger value="people">People</TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Space allocation tab
-            No flex on TabsContent itself — Radix hides the inactive tab via the
-            [hidden] HTML attribute (user-agent display:none). Applying display:flex
-            here would override that and cause both tabs to share space simultaneously.
-            Instead we use data-[state=inactive]:hidden (Tailwind) to hide via a class
-            that wins the specificity race, and wrap the content in an explicit h-full
-            flex-col div so the inner layout works correctly. */}
-        <TabsContent value="space" className="flex-1 overflow-hidden m-0 data-[state=inactive]:hidden">
+          </>
+        }
+      />
+      <PageTabs tabs={tabs} value={activeTab} onChange={handleTabChange}>
+        {/* Radix hides the inactive tab via data-[state=inactive]:hidden
+            (display:none), so the active one takes h-full of the wrapper. */}
+        <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
           <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
             <div className="h-full flex flex-col overflow-hidden">
               {/* Collapsible Floorplan */}
@@ -491,10 +477,10 @@ export function UtilizationPage() {
         </TabsContent>
 
         {/* People tab */}
-        <TabsContent value="people" className="flex-1 overflow-hidden m-0 data-[state=inactive]:hidden">
+        <TabsContent value="people" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
           <PeopleUtilizationGrid anchorTs={anchorTs} scale={scale} />
         </TabsContent>
-      </Tabs>
+      </PageTabs>
 
       {/* Dialogs — rendered outside tabs; they portal to document.body */}
       <RequestFormDialog
@@ -540,6 +526,6 @@ export function UtilizationPage() {
           setAutoScheduleError(null);
         }}
       />
-    </div>
+    </PageLayout>
   );
 }

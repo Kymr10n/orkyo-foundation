@@ -13,8 +13,8 @@ function renderAt(initialPath: string) {
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route path="/spaces" element={<SpacesPage />}>
-          <Route index element={<Navigate to="list" replace />} />
-          <Route path="list" element={<Stub id="list" />} />
+          <Route index element={<Navigate to="floorplan" replace />} />
+          <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
           <Route path="floorplan" element={<Stub id="floorplan" />} />
           <Route path="groups" element={<Stub id="groups" />} />
           <Route path="capabilities" element={<Stub id="capabilities" />} />
@@ -26,19 +26,28 @@ function renderAt(initialPath: string) {
 
 describe('SpacesPage', () => {
   it('renders all tab triggers', () => {
-    renderAt('/spaces/list');
-    for (const label of ['Spaces', 'Floorplan', 'Groups', 'Capabilities']) {
+    renderAt('/spaces/floorplan');
+    for (const label of ['Floorplan', 'Groups', 'Capabilities']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
   });
 
-  it('index route redirects to /spaces/list', () => {
+  it('does not expose a standalone Spaces list tab (Floorplan owns space management)', () => {
+    renderAt('/spaces/floorplan');
+    expect(screen.queryByRole('tab', { name: 'Spaces' })).not.toBeInTheDocument();
+  });
+
+  it('index route redirects to /spaces/floorplan', () => {
     renderAt('/spaces');
-    expect(screen.getByTestId('list')).toBeInTheDocument();
+    expect(screen.getByTestId('floorplan')).toBeInTheDocument();
+  });
+
+  it('legacy /spaces/list redirects to /spaces/floorplan', () => {
+    renderAt('/spaces/list');
+    expect(screen.getByTestId('floorplan')).toBeInTheDocument();
   });
 
   it.each([
-    ['/spaces/list', 'list'],
     ['/spaces/floorplan', 'floorplan'],
     ['/spaces/groups', 'groups'],
     ['/spaces/capabilities', 'capabilities'],
@@ -48,7 +57,7 @@ describe('SpacesPage', () => {
   });
 
   it('clicking a tab navigates to its sub-route', async () => {
-    renderAt('/spaces/list');
+    renderAt('/spaces/floorplan');
     await userEvent.click(screen.getByRole('tab', { name: 'Capabilities' }));
     expect(screen.getByTestId('capabilities')).toBeInTheDocument();
   });
