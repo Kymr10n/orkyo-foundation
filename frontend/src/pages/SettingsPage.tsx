@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react';
-import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { useSites } from '@foundation/src/hooks/useSites';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
+import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
+import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
 
 // Map legacy ?tab= values (pre nested-route routing) to the new path segment.
 // Includes both same-domain renames and out-of-domain redirects retained from the
@@ -30,20 +32,11 @@ export function SettingsPage() {
   const { data: sites = [] } = useSites();
   const showSites = tier !== 'Free' || sites.length > 1;
 
-  const { pathname } = useLocation();
+  const active = useActiveTab('criteria');
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   // Backward-compat: redirect legacy ?tab= to the path-based route.
-  useEffect(() => {
-    const legacy = searchParams.get('tab');
-    if (legacy && LEGACY_TAB_TO_PATH[legacy]) {
-      navigate(LEGACY_TAB_TO_PATH[legacy], { replace: true });
-    }
-  }, [searchParams, navigate]);
-
-  // Active tab = path segment after /settings/...
-  const active = pathname.split('/')[2] ?? 'criteria';
+  useLegacyTabRedirect(LEGACY_TAB_TO_PATH);
 
   const tabs = useMemo<PageTab[]>(() => {
     const all: PageTab[] = [

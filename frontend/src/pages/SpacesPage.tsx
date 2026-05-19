@@ -1,5 +1,6 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
+import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 
 const TABS: PageTab[] = [
   { value: 'floorplan', label: 'Floorplan' },
@@ -8,9 +9,8 @@ const TABS: PageTab[] = [
 ];
 
 export function SpacesPage() {
-  const { pathname } = useLocation();
+  const active = useActiveTab('floorplan');
   const navigate = useNavigate();
-  const active = pathname.split('/')[2] ?? 'floorplan';
 
   return (
     <PageLayout>

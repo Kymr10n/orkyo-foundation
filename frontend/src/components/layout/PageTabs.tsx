@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@foundation/src/components/ui/tabs";
+import { cn } from "@foundation/src/lib/utils";
 
 export interface PageTab {
   value: string;
@@ -11,11 +12,12 @@ interface PageTabsProps {
   value: string;
   onChange: (value: string) => void;
   children: ReactNode;
+  className?: string;
 }
 
-export function PageTabs({ tabs, value, onChange, children }: PageTabsProps) {
+export function PageTabs({ tabs, value, onChange, children, className }: PageTabsProps) {
   return (
-    <Tabs value={value} onValueChange={onChange} className="flex-1 flex flex-col">
+    <Tabs value={value} onValueChange={onChange} className={cn("flex-1 flex flex-col", className)}>
       <TabsList className="mb-4">
         {tabs.map((t) => (
           <TabsTrigger key={t.value} value={t.value}>

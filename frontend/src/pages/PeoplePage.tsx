@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
-import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
+import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
+import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
 
 // Tab value <-> sub-route path. Source of truth lives here so the trigger order
 // and the URL segment cannot drift.
@@ -12,31 +13,22 @@ const TABS: PageTab[] = [
   { value: 'departments', label: 'Departments' },
 ];
 
-// Map legacy ?tab= values (pre PR 2, query-param routing) to the new path segment.
+// Map legacy ?tab= values (pre PR 2, query-param routing) to the new absolute path.
 // TODO 2026-08-17: remove this redirect after one release cycle.
 const LEGACY_TAB_REDIRECTS: Record<string, string> = {
-  people: 'list',
-  groups: 'groups',
-  absences: 'absences',
-  jobTitles: 'job-titles',
-  departments: 'departments',
+  people: '/people/list',
+  groups: '/people/groups',
+  absences: '/people/absences',
+  jobTitles: '/people/job-titles',
+  departments: '/people/departments',
 };
 
 export function PeoplePage() {
-  const { pathname } = useLocation();
+  const active = useActiveTab('list');
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   // Backward-compat redirect: /people?tab=jobTitles -> /people/job-titles
-  useEffect(() => {
-    const legacy = searchParams.get('tab');
-    if (legacy && LEGACY_TAB_REDIRECTS[legacy]) {
-      navigate(`/people/${LEGACY_TAB_REDIRECTS[legacy]}`, { replace: true });
-    }
-  }, [searchParams, navigate]);
-
-  // Active tab is the first path segment after /people/...
-  const active = pathname.split('/')[2] ?? 'list';
+  useLegacyTabRedirect(LEGACY_TAB_REDIRECTS);
 
   return (
     <PageLayout>

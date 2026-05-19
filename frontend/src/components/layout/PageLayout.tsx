@@ -1,5 +1,15 @@
 import type { ReactNode } from "react";
+import { cn } from "@foundation/src/lib/utils";
 
-export function PageLayout({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">{children}</div>;
+interface PageLayoutProps {
+  children: ReactNode;
+  className?: string;
+}
+
+export function PageLayout({ children, className }: PageLayoutProps) {
+  return (
+    <div className={cn("flex flex-col h-full p-4 md:p-6 lg:p-8", className)}>
+      {children}
+    </div>
+  );
 }
