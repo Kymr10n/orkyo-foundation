@@ -258,7 +258,7 @@ export function SpaceManagementPanel({
     <div className={cn("flex h-full gap-4", className)}>
       {/* Space List Sidebar */}
       <div className="w-80 flex flex-col bg-card rounded-lg border">
-        <div className="p-4 border-b">
+        <div className="px-4 min-h-[72px] flex items-center border-b">
           <h3 className="font-semibold">Spaces ({spaces.length})</h3>
         </div>
         <SpaceList
@@ -280,7 +280,7 @@ export function SpaceManagementPanel({
           <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-muted-foreground" />
-              <h2 className="font-semibold">Floorplan & Spaces</h2>
+              <h2 className="font-semibold">Floorplan</h2>
             </div>
             <div className="flex items-center gap-2">
               {floorplanMetadata ? (

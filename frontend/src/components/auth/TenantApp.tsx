@@ -17,7 +17,6 @@ import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsen
 import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
 import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
-import { SpaceListView } from '@foundation/src/components/spaces/SpaceListView';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
 import { SpaceCapabilitiesTab } from '@foundation/src/components/spaces/SpaceCapabilitiesTab';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
@@ -111,10 +110,10 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="job-titles" element={<JobTitleSettings />} />
           </Route>
 
-          {/* Spaces — nested sub-routes (PR 3). Default = list (spec choice). */}
+          {/* Spaces — nested sub-routes. Default = floorplan. */}
           <Route path="spaces" element={<SpacesPage />}>
-            <Route index element={<Navigate to="list" replace />} />
-            <Route path="list" element={<SpaceListView />} />
+            <Route index element={<Navigate to="floorplan" replace />} />
+            <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
             <Route path="floorplan" element={<FloorplanView />} />
             <Route path="groups" element={<ResourceGroupList resourceTypeKey="space" />} />
             <Route path="capabilities" element={<SpaceCapabilitiesTab />} />

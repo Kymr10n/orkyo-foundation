@@ -129,7 +129,7 @@ describe('SpaceManagementPanel', () => {
 
   it('renders floorplan panel heading', () => {
     render(<SpaceManagementPanel siteId="site-1" />);
-    expect(screen.getByText('Floorplan & Spaces')).toBeInTheDocument();
+    expect(screen.getByText('Floorplan')).toBeInTheDocument();
   });
 
   it('shows two Upload Floorplan buttons when no floorplan (header + empty state)', () => {

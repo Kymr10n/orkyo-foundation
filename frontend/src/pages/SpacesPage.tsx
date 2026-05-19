@@ -2,7 +2,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 
 const TABS: { value: string; label: string }[] = [
-  { value: 'list', label: 'Spaces' },
   { value: 'floorplan', label: 'Floorplan' },
   { value: 'groups', label: 'Groups' },
   { value: 'capabilities', label: 'Capabilities' },
@@ -11,7 +10,7 @@ const TABS: { value: string; label: string }[] = [
 export function SpacesPage() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const active = pathname.split('/')[2] ?? 'list';
+  const active = pathname.split('/')[2] ?? 'floorplan';
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
