@@ -3,6 +3,7 @@ import { RequestsPanel } from "@foundation/src/components/utilization/RequestsPa
 import { ScaleSelect } from "@foundation/src/components/utilization/ScaleSelect";
 import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerGrid";
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@foundation/src/components/ui/tabs";
 import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
@@ -35,6 +36,7 @@ import { DndContext, type DragEndEvent, PointerSensor, pointerWithin, useSensor,
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format } from "date-fns";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
 
 export function UtilizationPage() {
@@ -64,6 +66,15 @@ export function UtilizationPage() {
     activationConstraint: { distance: 8 },
   });
   const sensors = useSensors(pointerSensor);
+
+  // Tab state — persisted in URL so the view is bookmarkable
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') ?? 'space') as 'space' | 'people';
+  const handleTabChange = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
 
   // Floorplan height state
   const [floorplanHeight, setFloorplanHeight] = useState(280);
@@ -381,83 +392,111 @@ export function UtilizationPage() {
   }, [requests, scheduleMutation]);
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
-      <div className="h-full flex flex-col bg-background">
-        {/* Top Bar */}
-        <div className="h-14 border-b bg-card px-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold">Utilization</h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {autoScheduleAvailable && userCanEdit && (
-              <AutoScheduleButton
-                onClick={handleAutoScheduleClick}
-                loading={previewMutation.isPending}
-                disabled={!selectedSiteId}
-              />
-            )}
-            <ScaleSelect value={scale} onChange={setScale} />
-            <TimeNavigator
-              scale={scale}
-              anchorTs={anchorTs}
-              onAnchorChange={setAnchorTs}
-              onPrevious={handlePrevious}
-              onNext={handleNext}
-              onToday={handleToday}
-            />
-          </div>
+    <div className="h-full flex flex-col bg-background">
+      {/* Top Bar — shared between both tabs */}
+      <div className="h-14 border-b bg-card px-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-semibold">Utilization</h1>
         </div>
 
-        {/* Collapsible Floorplan */}
-        <CollapsibleFloorplan
-          isCollapsed={isFloorplanCollapsed}
-          onToggle={() => setIsFloorplanCollapsed(!isFloorplanCollapsed)}
-          timeCursorTs={timeCursorTs}
-          requests={requests}
-          conflicts={conflictingRequestIds}
-          height={floorplanHeight}
-          onHeightChange={setFloorplanHeight}
-        />
-
-        {/* People Resources Grid — collapsible, between Floorplan and Space grid (spec §10) */}
-        <PeopleUtilizationGrid anchorTs={anchorTs} scale={scale} />
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex overflow-hidden bg-background">
-          {/* Left: Requests Panel */}
-          <RequestsPanel requests={requests} isLoading={requestsLoading} onCreateChild={userCanEdit ? handleCreateChild : undefined} />
-
-          {/* Center: Scheduler Grid */}
-          {spacesLoading || requestsLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-muted-foreground">Loading...</div>
-            </div>
-          ) : (
-            <SchedulerGrid
-              spaces={spaces}
-              requests={requests}
-              scale={scale}
-              anchorTs={anchorTs}
-              timeCursorTs={timeCursorTs}
-              onRequestClick={setSelectedRequestId}
-              onRequestDoubleClick={handleRequestDoubleClick}
-              onRequestResize={handleResizeRequest}
-              onTimeCursorClick={setTimeCursorTs}
-              onAnchorChange={setAnchorTs}
-              offTimeRanges={offTimeRanges}
-              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
-              workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
-              workingDayStart={schedulingSettings?.workingDayStart}
-              workingDayEnd={schedulingSettings?.workingDayEnd}
+        <div className="flex items-center gap-2">
+          {autoScheduleAvailable && userCanEdit && activeTab === 'space' && (
+            <AutoScheduleButton
+              onClick={handleAutoScheduleClick}
+              loading={previewMutation.isPending}
+              disabled={!selectedSiteId}
             />
           )}
-
-          {/* Right: Details Panel (optional, can be added later) */}
+          <ScaleSelect value={scale} onChange={setScale} />
+          <TimeNavigator
+            scale={scale}
+            anchorTs={anchorTs}
+            onAnchorChange={setAnchorTs}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            onToday={handleToday}
+          />
         </div>
       </div>
 
-      {/* Edit Request Dialog (for editors/admins) */}
+      {/* Tabs */}
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="flex-1 flex flex-col overflow-hidden"
+      >
+        {/* Tab triggers */}
+        <div className="border-b bg-card px-4 shrink-0">
+          <TabsList className="h-9">
+            <TabsTrigger value="space">Space allocation</TabsTrigger>
+            <TabsTrigger value="people">People</TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Space allocation tab
+            No flex on TabsContent itself — Radix hides the inactive tab via the
+            [hidden] HTML attribute (user-agent display:none). Applying display:flex
+            here would override that and cause both tabs to share space simultaneously.
+            Instead we use data-[state=inactive]:hidden (Tailwind) to hide via a class
+            that wins the specificity race, and wrap the content in an explicit h-full
+            flex-col div so the inner layout works correctly. */}
+        <TabsContent value="space" className="flex-1 overflow-hidden m-0 data-[state=inactive]:hidden">
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
+            <div className="h-full flex flex-col overflow-hidden">
+              {/* Collapsible Floorplan */}
+              <CollapsibleFloorplan
+                isCollapsed={isFloorplanCollapsed}
+                onToggle={() => setIsFloorplanCollapsed(!isFloorplanCollapsed)}
+                timeCursorTs={timeCursorTs}
+                requests={requests}
+                conflicts={conflictingRequestIds}
+                height={floorplanHeight}
+                onHeightChange={setFloorplanHeight}
+              />
+
+              {/* Scheduler + Requests Panel */}
+              <div className="flex-1 flex overflow-hidden bg-background">
+                <RequestsPanel
+                  requests={requests}
+                  isLoading={requestsLoading}
+                  onCreateChild={userCanEdit ? handleCreateChild : undefined}
+                />
+
+                {spacesLoading || requestsLoading ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-muted-foreground">Loading...</div>
+                  </div>
+                ) : (
+                  <SchedulerGrid
+                    spaces={spaces}
+                    requests={requests}
+                    scale={scale}
+                    anchorTs={anchorTs}
+                    timeCursorTs={timeCursorTs}
+                    onRequestClick={setSelectedRequestId}
+                    onRequestDoubleClick={handleRequestDoubleClick}
+                    onRequestResize={handleResizeRequest}
+                    onTimeCursorClick={setTimeCursorTs}
+                    onAnchorChange={setAnchorTs}
+                    offTimeRanges={offTimeRanges}
+                    weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+                    workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
+                    workingDayStart={schedulingSettings?.workingDayStart}
+                    workingDayEnd={schedulingSettings?.workingDayEnd}
+                  />
+                )}
+              </div>
+            </div>
+          </DndContext>
+        </TabsContent>
+
+        {/* People tab */}
+        <TabsContent value="people" className="flex-1 overflow-hidden m-0 data-[state=inactive]:hidden">
+          <PeopleUtilizationGrid anchorTs={anchorTs} scale={scale} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Dialogs — rendered outside tabs; they portal to document.body */}
       <RequestFormDialog
         key={dialogRequest?.id ?? 'new'}
         open={isEditDialogOpen}
@@ -469,7 +508,6 @@ export function UtilizationPage() {
         onSave={handleSaveRequest}
       />
 
-      {/* Create Child Request Dialog */}
       <RequestFormDialog
         key={`child-${createChildParent?.id ?? 'none'}`}
         open={isCreateChildDialogOpen}
@@ -481,7 +519,6 @@ export function UtilizationPage() {
         onSave={handleSaveChildRequest}
       />
 
-      {/* Details Dialog (for viewers) */}
       <RequestDetailsDialog
         open={isDetailsDialogOpen}
         onOpenChange={(open) => {
@@ -491,7 +528,6 @@ export function UtilizationPage() {
         request={dialogRequest}
       />
 
-      {/* Auto-Schedule Preview Dialog */}
       <AutoSchedulePreviewDialog
         open={isPreviewDialogOpen}
         preview={autoSchedulePreview}
@@ -504,6 +540,6 @@ export function UtilizationPage() {
           setAutoScheduleError(null);
         }}
       />
-    </DndContext>
+    </div>
   );
 }

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import {
   getResourceUtilization,
   type ResourceUtilizationBucket,
 } from '@foundation/src/lib/api/resource-utilization-api';
+import { getPersonProfile, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
 import {
   startOfDay,
   startOfWeek,
@@ -64,7 +64,7 @@ function bucketLabel(bucket: ResourceUtilizationBucket, granularity: string): st
   const d = new Date(bucket.start);
   switch (granularity) {
     case 'week': return format(d, 'MMM d');
-    case 'day':  return format(d, 'MMM d');
+    case 'day':  return format(d, 'EEE d');
     case 'hour': return format(d, 'HH:mm');
     default:     return format(d, 'MMM d');
   }
@@ -80,19 +80,56 @@ function bucketStatus(bucket: ResourceUtilizationBucket): BucketStatus {
   return 'partial';
 }
 
-// Design-system token classes — semantic names, not arbitrary hex colors.
+function overallPercent(buckets: ResourceUtilizationBucket[]): number {
+  if (!buckets.length) return 0;
+  const working = buckets.filter((b) => b.effectiveAvailabilityPercent > 0);
+  if (!working.length) return 0;
+  return Math.round(
+    working.reduce((s, b) => s + b.allocatedPercent, 0) / working.length,
+  );
+}
+
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+// Shared color classes — used by both cells and the legend so they always match.
 const STATUS_CELL_CLASS: Record<BucketStatus, string> = {
   available:     'bg-emerald-100/60 dark:bg-emerald-950/40',
-  partial:       'bg-amber-100/60 dark:bg-amber-950/40',
-  assigned:      'bg-blue-100/60 dark:bg-blue-950/40',
-  overbooked:    'bg-red-100/60 dark:bg-red-950/40',
+  partial:       'bg-amber-100/60   dark:bg-amber-950/40',
+  assigned:      'bg-blue-100/60    dark:bg-blue-950/40',
+  overbooked:    'bg-red-100/60     dark:bg-red-950/40',
   'non-working': 'bg-muted/40',
 };
+
+const STATUS_BORDER_CLASS: Record<BucketStatus, string> = {
+  available:     'border-emerald-200 dark:border-emerald-800',
+  partial:       'border-amber-200   dark:border-amber-800',
+  assigned:      'border-blue-200    dark:border-blue-800',
+  overbooked:    'border-red-200     dark:border-red-800',
+  'non-working': 'border-muted-foreground/30',
+};
+
+// ── Legend dot ───────────────────────────────────────────────────────────────
+
+function LegendDot({ status, label }: { status: BucketStatus; label: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className={`inline-block h-2.5 w-4 rounded-sm border ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]}`} />
+      {label}
+    </span>
+  );
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGridProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [search, setSearch] = useState('');
 
   const { from, to, granularity } = getViewWindow(anchorTs, scale);
 
@@ -112,73 +149,94 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
     })),
   });
 
-  // Don't render the section at all until we know whether any people exist
-  if (peopleLoading) return null;
-  if (people.length === 0) return null;
+  // 3. Fetch per-person profiles for job title
+  const profileQueries = useQueries({
+    queries: people.map((p) => ({
+      queryKey: ['person-profile', p.id],
+      queryFn: () => getPersonProfile(p.id).catch(() => null),
+      staleTime: 5 * 60_000,
+    })),
+  });
 
-  // Build column headers from the first person's buckets (all should be the same shape)
+  const filteredPeople = people.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  if (peopleLoading) {
+    return (
+      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+        Loading people…
+      </div>
+    );
+  }
+
+  if (people.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+        No people defined yet.
+      </div>
+    );
+  }
+
+  // Column headers from first person's buckets (all buckets share the same shape)
   const firstBuckets = utilQueries[0]?.data?.buckets ?? [];
 
   return (
-    <div className="border-b bg-card" data-testid="people-utilization-grid">
-      {/* Section header */}
-      <button
-        type="button"
-        className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-left hover:bg-accent/50 transition-colors"
-        onClick={() => setIsCollapsed((c) => !c)}
-        data-testid="people-grid-toggle"
-      >
-        {isCollapsed ? (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
-        <span>People ({people.length})</span>
-        {!isCollapsed && (
-          <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground font-normal">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-4 rounded-sm bg-emerald-100 border border-emerald-200" /> Available
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-4 rounded-sm bg-amber-100 border border-amber-200" /> Partial
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-4 rounded-sm bg-blue-100 border border-blue-200" /> Assigned
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-4 rounded-sm bg-red-100 border border-red-200" /> Overbooked
-            </span>
-          </div>
-        )}
-      </button>
+    <div className="h-full flex flex-col overflow-hidden bg-background" data-testid="people-utilization-grid">
+      {/* Legend + Search strip */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <LegendDot status="available"    label="Available" />
+          <LegendDot status="partial"      label="Partial" />
+          <LegendDot status="assigned"     label="Assigned" />
+          <LegendDot status="overbooked"   label="Overbooked" />
+          <LegendDot status="non-working"  label="Off" />
+        </div>
+        <input
+          type="search"
+          placeholder="Search people…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-8 w-48 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
+        />
+      </div>
 
-      {/* Grid body */}
-      {!isCollapsed && (
-        <div className="overflow-x-auto" data-testid="people-grid-body">
-          <table className="w-full text-xs border-collapse">
-            {firstBuckets.length > 0 && (
-              <thead>
-                <tr>
-                  {/* Sticky name column header */}
-                  <th className="sticky left-0 z-10 bg-card w-40 min-w-40 px-3 py-1 text-left text-muted-foreground font-normal border-b border-r">
-                    Person
+      {/* Scrollable grid */}
+      <div className="flex-1 overflow-auto" data-testid="people-grid-body">
+        <table className="text-xs border-collapse" style={{ minWidth: '100%' }}>
+          {firstBuckets.length > 0 && (
+            <thead className="sticky top-0 z-20 bg-card">
+              <tr>
+                {/* Sticky name column header */}
+                <th className="sticky left-0 z-30 bg-card w-56 min-w-56 px-3 py-2 text-left text-muted-foreground font-normal border-b border-r">
+                  Person
+                </th>
+                {firstBuckets.map((b, i) => (
+                  <th
+                    key={i}
+                    className="px-1 py-2 text-center text-muted-foreground font-normal border-b border-r last:border-r-0 min-w-16 w-16"
+                  >
+                    {bucketLabel(b, granularity)}
                   </th>
-                  {firstBuckets.map((b, i) => (
-                    <th
-                      key={i}
-                      className="px-1 py-1 text-center text-muted-foreground font-normal border-b min-w-10 w-10"
-                    >
-                      {bucketLabel(b, granularity)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {people.map((person, pIdx) => {
+                ))}
+              </tr>
+            </thead>
+          )}
+          <tbody>
+            {filteredPeople.length === 0 ? (
+              <tr>
+                <td colSpan={firstBuckets.length + 1} className="px-4 py-8 text-center text-muted-foreground">
+                  No people match your search.
+                </td>
+              </tr>
+            ) : (
+              filteredPeople.map((person) => {
+                const pIdx = people.indexOf(person);
                 const q = utilQueries[pIdx];
                 const buckets = q?.data?.buckets ?? [];
                 const isLoadingRow = q?.isLoading;
+                const profile = profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined;
+                const overallPct = overallPercent(buckets);
 
                 return (
                   <tr
@@ -187,48 +245,75 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
                     data-testid={`person-row-${person.id}`}
                   >
                     {/* Sticky name cell */}
-                    <td
-                      className="sticky left-0 z-10 bg-card px-3 py-1.5 font-medium border-r truncate max-w-40 w-40 min-w-40"
-                      title={person.name}
-                    >
-                      {person.name}
+                    <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r w-56 min-w-56">
+                      <div className="flex items-center gap-2">
+                        {/* Initials circle */}
+                        <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-semibold shrink-0 select-none">
+                          {initials(person.name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate" title={person.name}>
+                            {person.name}
+                          </div>
+                          {profile?.jobTitleName && (
+                            <div className="text-muted-foreground truncate" title={profile.jobTitleName}>
+                              {profile.jobTitleName}
+                            </div>
+                          )}
+                        </div>
+                        {/* Overall utilization % */}
+                        <span
+                          className={`font-semibold tabular-nums shrink-0 ${
+                            overallPct > 100
+                              ? 'text-red-500'
+                              : overallPct > 0
+                              ? 'text-foreground'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          {overallPct}%
+                        </span>
+                      </div>
                     </td>
 
                     {/* Bucket cells */}
                     {isLoadingRow ? (
                       <td
                         colSpan={firstBuckets.length || 1}
-                        className="px-2 py-1 text-muted-foreground italic"
+                        className="px-2 py-2 text-muted-foreground italic"
                       >
                         Loading…
                       </td>
                     ) : buckets.length === 0 ? (
                       <td
                         colSpan={firstBuckets.length || 1}
-                        className="px-2 py-1 text-muted-foreground"
+                        className="px-2 py-2 text-muted-foreground"
                       >
                         No data
                       </td>
                     ) : (
                       buckets.map((bucket, bIdx) => {
                         const status = bucketStatus(bucket);
+                        const pct = Math.round(bucket.allocatedPercent);
                         return (
                           <td
                             key={bIdx}
-                            className={`border-r last:border-r-0 min-w-10 w-10 h-7 ${STATUS_CELL_CLASS[status]}`}
-                            title={`${bucketLabel(bucket, granularity)}: ${Math.round(bucket.allocatedPercent)}% allocated`}
+                            className={`border-r last:border-r-0 min-w-16 w-16 h-10 text-center font-medium align-middle ${STATUS_CELL_CLASS[status]}`}
+                            title={`${bucketLabel(bucket, granularity)}: ${pct}% allocated`}
                             data-status={status}
-                          />
+                          >
+                            {pct > 0 ? `${pct}%` : ''}
+                          </td>
                         );
                       })
                     )}
                   </tr>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

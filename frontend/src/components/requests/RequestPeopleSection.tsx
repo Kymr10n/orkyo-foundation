@@ -36,7 +36,7 @@ interface PendingRow {
   /** Unique key for React rendering */
   key: string;
   resourceId: string;
-  allocationPercent: number;
+  allocationPercent: number | null;  // null for Exclusive resources
   role: string;
   notes: string;
   validating: boolean;
@@ -173,7 +173,7 @@ export function RequestPeopleSection({
           resourceId: updatedRow.resourceId,
           startUtc: requestStartTs,
           endUtc: requestEndTs,
-          allocationPercent: updatedRow.allocationPercent,
+          allocationPercent: updatedRow.allocationPercent ?? undefined,
         });
         updatePendingRow(row.key, { validating: false, validationResult: result });
       } catch {
@@ -186,14 +186,16 @@ export function RequestPeopleSection({
 
   const handlePersonChange = (key: string, resourceId: string) => {
     const row = pendingRows.find((r) => r.key === key)!;
-    const updated = { ...row, resourceId };
-    updatePendingRow(key, { resourceId });
+    const person = people.find((p) => p.id === resourceId);
+    const allocationPercent = person?.allocationMode === 'Exclusive' ? null : (row.allocationPercent ?? 100);
+    const updated = { ...row, resourceId, allocationPercent };
+    updatePendingRow(key, { resourceId, allocationPercent });
     scheduleValidation(row, updated);
   };
 
   const handleAllocationChange = (key: string, value: string) => {
     const parsed = parseInt(value.replace(/\D/g, ''), 10);
-    const allocationPercent = isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+    const allocationPercent: number | null = isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
     const row = pendingRows.find((r) => r.key === key)!;
     const updated = { ...row, allocationPercent };
     updatePendingRow(key, { allocationPercent });
@@ -216,7 +218,7 @@ export function RequestPeopleSection({
         resourceId: row.resourceId,
         startUtc: requestStartTs,
         endUtc: requestEndTs,
-        allocationPercent: row.allocationPercent,
+        allocationPercent: row.allocationPercent ?? undefined,
       });
       setAssignments((prev) => [...prev, created]);
       removePendingRow(key);
@@ -274,9 +276,12 @@ export function RequestPeopleSection({
           })}
 
           {/* Pending (unsaved) rows */}
-          {pendingRows.map((row) => (
+          {pendingRows.map((row) => {
+            const selectedPerson = people.find((p) => p.id === row.resourceId);
+            const isExclusive = selectedPerson?.allocationMode === 'Exclusive';
+            return (
             <div key={row.key} className="space-y-2 rounded-md border p-3" data-testid="pending-row">
-              <div className="grid grid-cols-[1fr_80px] gap-2">
+              <div className={`grid gap-2 ${isExclusive ? 'grid-cols-1' : 'grid-cols-[1fr_80px]'}`}>
                 <div className="space-y-1">
                   <Label className="text-xs">Person</Label>
                   <Select
@@ -297,16 +302,18 @@ export function RequestPeopleSection({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Alloc %</Label>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    value={row.allocationPercent}
-                    onChange={(e) => handleAllocationChange(row.key, e.target.value)}
-                    data-testid="allocation-input"
-                  />
-                </div>
+                {!isExclusive && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Alloc %</Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={row.allocationPercent ?? ''}
+                      onChange={(e) => handleAllocationChange(row.key, e.target.value)}
+                      data-testid="allocation-input"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -372,7 +379,8 @@ export function RequestPeopleSection({
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
 
           <Button
             type="button"

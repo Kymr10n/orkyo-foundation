@@ -69,6 +69,13 @@ const mockPeople = [
   { id: 'res-person-2', name: 'Bob', resourceTypeKey: 'person', isActive: true, resourceTypeId: 'rt-1', allocationMode: 'percent', baseAvailabilityPercent: 100, createdAt: '', updatedAt: '' },
 ];
 
+// The Select mock always triggers onValueChange('res-person-1'), so for Exclusive
+// tests we make res-person-1 the Exclusive resource.
+const mockPeopleWithExclusive = [
+  { id: 'res-person-1', name: 'Hans Huber', resourceTypeKey: 'person', isActive: true, resourceTypeId: 'rt-1', allocationMode: 'Exclusive', baseAvailabilityPercent: 100, createdAt: '', updatedAt: '' },
+  { id: 'res-person-2', name: 'Anna Meier', resourceTypeKey: 'person', isActive: true, resourceTypeId: 'rt-1', allocationMode: 'Fractional', baseAvailabilityPercent: 100, createdAt: '', updatedAt: '' },
+];
+
 const mockAssignment = {
   id: 'assign-1',
   requestId: 'req-1',
@@ -250,5 +257,70 @@ describe('RequestPeopleSection', () => {
     // Each code should map to a non-empty string label (tested via REASON_LABELS being used in IssueList)
     // We verify the component renders without crashing with each code by checking they exist
     expect(reasonCodes).toHaveLength(10);
+  });
+
+  // ── Exclusive resource tests ────────────────────────────────────────────────
+
+  it('hides the Alloc % input when the selected person is Exclusive', async () => {
+    (getResources as Mock).mockResolvedValue({ data: mockPeopleWithExclusive, total: 2, page: 1, pageSize: 50 });
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+
+    // Trigger person selection — mock always picks res-person-1 (Exclusive)
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    expect(screen.queryByTestId('allocation-input')).not.toBeInTheDocument();
+  });
+
+  it('shows the Alloc % input for a Fractional resource', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+
+    // res-person-1 is 'percent' in mockPeople (default)
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    expect(screen.getByTestId('allocation-input')).toBeInTheDocument();
+  });
+
+  it('calls createAssignment without allocationPercent for an Exclusive resource', async () => {
+    (getResources as Mock).mockResolvedValue({ data: mockPeopleWithExclusive, total: 2, page: 1, pageSize: 50 });
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+
+    // Select the Exclusive person
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    // Trigger save
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+
+    await waitFor(() => {
+      expect(createAssignment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceId: 'res-person-1',
+          allocationPercent: undefined,
+        }),
+      );
+    });
+  });
+
+  it('calls createAssignment with allocationPercent for a Fractional resource', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+
+    fireEvent.click(screen.getByTestId('person-select'));
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+
+    await waitFor(() => {
+      expect(createAssignment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceId: 'res-person-1',
+          allocationPercent: 100,
+        }),
+      );
+    });
   });
 });
