@@ -426,8 +426,8 @@ export function UtilizationPage() {
         className="flex-1 flex flex-col overflow-hidden"
       >
         {/* Tab triggers */}
-        <div className="border-b bg-card px-4 shrink-0">
-          <TabsList className="h-9">
+        <div className="px-4 pt-4 shrink-0">
+          <TabsList className="mb-4 w-full">
             <TabsTrigger value="space">Space allocation</TabsTrigger>
             <TabsTrigger value="people">People</TabsTrigger>
           </TabsList>
