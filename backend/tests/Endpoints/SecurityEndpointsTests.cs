@@ -137,10 +137,14 @@ public class SecurityEndpointsTests
         // Act
         var response = await _client.SendAsync(request);
 
-        // Assert
+        // Assert — FluentValidation returns a ValidationProblem with an "errors"
+        // dictionary, not the {"error":...} shape that ErrorResponses.BadRequest uses.
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("Current password");
+        var allMessages = content.GetProperty("errors").EnumerateObject()
+            .SelectMany(p => p.Value.EnumerateArray().Select(v => v.GetString() ?? ""))
+            .ToList();
+        allMessages.Should().Contain(m => m.Contains("Current password", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -161,10 +165,13 @@ public class SecurityEndpointsTests
         // Act
         var response = await _client.SendAsync(request);
 
-        // Assert
+        // Assert — FluentValidation ValidationProblem uses "errors" (plural), not "error".
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("New password");
+        var allMessages = content.GetProperty("errors").EnumerateObject()
+            .SelectMany(p => p.Value.EnumerateArray().Select(v => v.GetString() ?? ""))
+            .ToList();
+        allMessages.Should().Contain(m => m.Contains("New password", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -213,10 +220,13 @@ public class SecurityEndpointsTests
         // Act
         var response = await _client.SendAsync(request);
 
-        // Assert
+        // Assert — FluentValidation ValidationProblem uses "errors" (plural), not "error".
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("do not match");
+        var allMessages = content.GetProperty("errors").EnumerateObject()
+            .SelectMany(p => p.Value.EnumerateArray().Select(v => v.GetString() ?? ""))
+            .ToList();
+        allMessages.Should().Contain(m => m.Contains("do not match", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

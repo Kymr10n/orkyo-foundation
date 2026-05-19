@@ -101,7 +101,7 @@ public class DepartmentRepository(OrgContext orgContext, IOrgDbConnectionFactory
         if (request.ChangeParent && request.ParentDepartmentId is { } proposedParent)
         {
             if (proposedParent == id)
-                throw new ArgumentException("A department cannot be its own parent");
+                throw new ConflictException("A department cannot be its own parent");
             if (await WouldCreateCycleAsync(id, proposedParent, db))
                 throw new ConflictException("Reparenting would create a circular hierarchy");
         }

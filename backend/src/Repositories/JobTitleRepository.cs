@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -57,7 +58,7 @@ public class JobTitleRepository(OrgContext orgContext, IOrgDbConnectionFactory c
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
-            throw new InvalidOperationException("A job title with this name already exists");
+            throw new ConflictException("A job title with this name already exists");
         return Map(reader);
     }
 

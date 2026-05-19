@@ -141,7 +141,7 @@ public class CriteriaRepository : ICriteriaRepository
 
             var idObj = await insertCriterion.ExecuteScalarAsync(ct);
             if (idObj is null)
-                throw new InvalidOperationException("A criterion with this name already exists");
+                throw new ConflictException("A criterion with this name already exists");
             var criterionId = (Guid)idObj;
 
             // Insert applicability rows. Resolve resource_type_ids by key one

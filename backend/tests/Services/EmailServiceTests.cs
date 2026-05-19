@@ -68,11 +68,13 @@ public class EmailServiceTests
         method!.ReturnType.Should().Be(typeof(Task<bool>));
 
         var parameters = method.GetParameters();
-        parameters.Should().HaveCount(4);
+        parameters.Should().HaveCount(5); // toEmail, displayName, confirmToken, warningNumber, ct
         parameters[0].Name.Should().Be("toEmail");
         parameters[1].Name.Should().Be("displayName");
         parameters[2].Name.Should().Be("confirmToken");
         parameters[3].Name.Should().Be("warningNumber");
+        parameters[4].Name.Should().Be("ct");
+        parameters[4].ParameterType.Should().Be(typeof(System.Threading.CancellationToken));
     }
 
     [Fact]
@@ -84,9 +86,11 @@ public class EmailServiceTests
         method!.ReturnType.Should().Be(typeof(Task<bool>));
 
         var parameters = method.GetParameters();
-        parameters.Should().HaveCount(2);
+        parameters.Should().HaveCount(3); // toEmail, displayName, ct
         parameters[0].Name.Should().Be("toEmail");
         parameters[1].Name.Should().Be("displayName");
+        parameters[2].Name.Should().Be("ct");
+        parameters[2].ParameterType.Should().Be(typeof(System.Threading.CancellationToken));
     }
 
     [Fact]

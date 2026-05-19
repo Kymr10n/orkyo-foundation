@@ -35,39 +35,23 @@ public class EndpointHelpersTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldMapInvalidOperationNotFound_To404()
+    public async Task ExecuteAsync_ShouldFallThroughToProblem_ForUnhandledInvalidOperationException()
     {
+        // InvalidOperationException is intentionally NOT mapped to a specific status.
+        // Repositories must throw ConflictException for known business violations; an
+        // InvalidOperationException reaching the handler is an unexpected programming
+        // error that should surface as a 500 Problem response for investigation.
         var logger = Mock.Of<ILogger>();
 
         var result = await EndpointHelpers.ExecuteAsync(
-            () => throw new InvalidOperationException("tenant not found"),
+            () => throw new InvalidOperationException("unexpected state"),
             logger,
-            "resolve tenant");
+            "some operation");
 
         var context = CreateHttpContext();
         await result.ExecuteAsync(context);
-        var payload = await ReadJsonAsync(context);
 
-        context.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_ShouldMapInvalidOperation_To409()
-    {
-        var logger = Mock.Of<ILogger>();
-
-        var result = await EndpointHelpers.ExecuteAsync(
-            () => throw new InvalidOperationException("state conflict"),
-            logger,
-            "update state");
-
-        var context = CreateHttpContext();
-        await result.ExecuteAsync(context);
-        var payload = await ReadJsonAsync(context);
-
-        context.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
+        context.Response.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
 
     [Fact]
