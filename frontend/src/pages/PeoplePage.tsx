@@ -10,7 +10,6 @@ const TABS: { value: string; label: string }[] = [
   { value: 'absences', label: 'Absences' },
   { value: 'job-titles', label: 'Job Titles' },
   { value: 'departments', label: 'Departments' },
-  { value: 'skills', label: 'Skills' },
 ];
 
 // Map legacy ?tab= values (pre PR 2, query-param routing) to the new path segment.
@@ -21,7 +20,6 @@ const LEGACY_TAB_REDIRECTS: Record<string, string> = {
   absences: 'absences',
   jobTitles: 'job-titles',
   departments: 'departments',
-  skills: 'skills',
 };
 
 export function PeoplePage() {

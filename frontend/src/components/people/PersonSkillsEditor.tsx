@@ -24,11 +24,12 @@ import {
   upsertResourceCapability,
 } from '@foundation/src/lib/api/resource-capabilities-api';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
-import type { CriterionValue } from '@foundation/src/types/criterion';
-import { Plus, Trash2 } from 'lucide-react';
+import type { Criterion, CriterionValue } from '@foundation/src/types/criterion';
+import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CriterionRequirementInput } from '../requests/CriterionRequirementInput';
+import { CreateCriterionDialog } from '../settings/CreateCriterionDialog';
 import { logger } from '@foundation/src/lib/core/logger';
 
 interface PersonSkillsEditorProps {
@@ -53,6 +54,8 @@ export function PersonSkillsEditor({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: caps, isLoading: capsLoading, error: capsError } = useQuery({
     queryKey: ['resource-capabilities', resourceId],
@@ -132,6 +135,14 @@ export function PersonSkillsEditor({
 
   const selectableCriteria = availableCriteria.filter((c) => !assignments.has(c.id));
 
+  const handleCriterionCreated = async (criterion: Criterion) => {
+    // Refresh the person-applicable criteria list so the newly created one
+    // appears in the select. Pre-select it as a UX shortcut.
+    await queryClient.invalidateQueries({ queryKey: ['criteria', { resourceType: 'person' }] });
+    setSelectedCriterionId(criterion.id);
+    setCreateOpen(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
@@ -156,42 +167,58 @@ export function PersonSkillsEditor({
                 <Badge variant="outline" className="text-xs">{assignments.size} active</Badge>
               </div>
 
-              {selectableCriteria.length > 0 && (
-                <div className="flex gap-2">
-                  <Select
-                    value={selectedCriterionId}
-                    onValueChange={setSelectedCriterionId}
-                    disabled={isLoading || isSubmitting}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Select a skill to add" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableCriteria.map((criterion) => (
-                        <SelectItem key={criterion.id} value={criterion.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{criterion.name}</span>
-                            <Badge
-                              variant="outline"
-                              className={`text-xs ${getDataTypeColor(criterion.dataType)}`}
-                            >
-                              {criterion.dataType}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    onClick={handleAdd}
-                    disabled={!selectedCriterionId || isSubmitting}
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                {selectableCriteria.length > 0 ? (
+                  <>
+                    <Select
+                      value={selectedCriterionId}
+                      onValueChange={setSelectedCriterionId}
+                      disabled={isLoading || isSubmitting}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select a skill to add" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectableCriteria.map((criterion) => (
+                          <SelectItem key={criterion.id} value={criterion.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{criterion.name}</span>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${getDataTypeColor(criterion.dataType)}`}
+                              >
+                                {criterion.dataType}
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      onClick={handleAdd}
+                      disabled={!selectedCriterionId || isSubmitting}
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <p className="flex-1 text-xs text-muted-foreground py-2">
+                    All person-applicable criteria are already assigned, or none exist yet.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCreateOpen(true)}
+                  disabled={isSubmitting}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Add Skill Criterion
+                </Button>
+              </div>
 
               {assignments.size === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground border rounded-lg border-dashed">
@@ -246,6 +273,13 @@ export function PersonSkillsEditor({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <CreateCriterionDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSuccess={handleCriterionCreated}
+        defaultResourceType="person"
+      />
     </Dialog>
   );
 }

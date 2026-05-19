@@ -14,7 +14,6 @@ import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { PersonList } from '@foundation/src/components/people/PersonList';
 import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsenceList';
-import { PersonSkillsTab } from '@foundation/src/components/people/PersonSkillsTab';
 import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
 import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
@@ -101,7 +100,8 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
           <Route path="conflicts" element={<ConflictsPage />} />
           <Route path="settings" element={<SettingsPage />} />
 
-          {/* People — nested sub-routes (PR 2). Skills tab added in PR 4. */}
+          {/* People — nested sub-routes (PR 2). Skills are now managed per-person via
+              a row action on the People list (no standalone Skills tab). */}
           <Route path="people" element={<PeoplePage />}>
             <Route index element={<Navigate to="list" replace />} />
             <Route path="list" element={<PersonList />} />
@@ -109,7 +109,6 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="absences" element={<PersonAbsenceList />} />
             <Route path="departments" element={<DepartmentSettings />} />
             <Route path="job-titles" element={<JobTitleSettings />} />
-            <Route path="skills" element={<PersonSkillsTab />} />
           </Route>
 
           {/* Spaces — nested sub-routes (PR 3). Default = list (spec choice). */}

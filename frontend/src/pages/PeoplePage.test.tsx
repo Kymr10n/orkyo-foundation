@@ -24,7 +24,6 @@ function renderAt(initialPath: string) {
           <Route path="absences" element={<Stub id="absences" />} />
           <Route path="departments" element={<Stub id="departments" />} />
           <Route path="job-titles" element={<Stub id="job-titles" />} />
-          <Route path="skills" element={<Stub id="skills" />} />
         </Route>
         <Route path="*" element={<LocationProbe />} />
       </Routes>
@@ -38,9 +37,14 @@ describe('PeoplePage', () => {
   it('renders page title and tab triggers', () => {
     renderAt('/people/list');
     expect(screen.getByText('People', { selector: 'h1' })).toBeInTheDocument();
-    for (const label of ['People', 'Groups', 'Absences', 'Job Titles', 'Departments', 'Skills']) {
+    for (const label of ['People', 'Groups', 'Absences', 'Job Titles', 'Departments']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
+  });
+
+  it('does not render a standalone Skills tab (skills are managed per-person via row action)', () => {
+    renderAt('/people/list');
+    expect(screen.queryByRole('tab', { name: 'Skills' })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -49,7 +53,6 @@ describe('PeoplePage', () => {
     ['/people/absences', 'absences'],
     ['/people/job-titles', 'job-titles'],
     ['/people/departments', 'departments'],
-    ['/people/skills', 'skills'],
   ])('deep-links %s renders the right child', (path, id) => {
     renderAt(path);
     expect(screen.getByTestId(id)).toBeInTheDocument();

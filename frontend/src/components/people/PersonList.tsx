@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Sliders } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
+import { PersonSkillsEditor } from './PersonSkillsEditor';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 
 export function PersonList() {
   const [editingPerson, setEditingPerson] = useState<ResourceInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [skillsPerson, setSkillsPerson] = useState<ResourceInfo | null>(null);
 
   const { data: people, isLoading, error } = useQuery({
     queryKey: ['resources', 'person'],
@@ -106,13 +108,23 @@ export function PersonList() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit(person)}
+                      aria-label={`Edit ${person.name}`}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => setSkillsPerson(person)}
+                      aria-label={`Manage skills for ${person.name}`}
+                    >
+                      <Sliders className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(person.id)}
+                      aria-label={`Deactivate ${person.name}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -131,6 +143,15 @@ export function PersonList() {
         onClose={handleDialogClose}
         onSaved={handlePersonSaved}
       />
+
+      {skillsPerson && (
+        <PersonSkillsEditor
+          open={!!skillsPerson}
+          onOpenChange={(open) => !open && setSkillsPerson(null)}
+          resourceId={skillsPerson.id}
+          personName={skillsPerson.name}
+        />
+      )}
     </div>
   );
 }

@@ -39,6 +39,33 @@ vi.mock('./PersonEditDialog', () => ({
     ) : null,
 }));
 
+// PersonSkillsEditor pulls in CreateCriterionDialog and several queries;
+// stub it so this suite stays focused on the list-row plumbing.
+vi.mock('./PersonSkillsEditor', () => ({
+  PersonSkillsEditor: ({
+    open,
+    resourceId,
+    personName,
+    onOpenChange,
+  }: {
+    open: boolean;
+    resourceId: string;
+    personName: string;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div
+        data-testid="person-skills-editor"
+        data-resource-id={resourceId}
+        data-person-name={personName}
+      >
+        <button data-testid="skills-close" onClick={() => onOpenChange(false)}>
+          Close
+        </button>
+      </div>
+    ) : null,
+}));
+
 import { getResources, deleteResource } from '@foundation/src/lib/api/resources-api';
 
 const mockPerson = (id: string, name: string): ResourceInfo => ({
@@ -135,26 +162,44 @@ describe('PersonList', () => {
     expect(screen.getByTestId('person-edit-dialog')).toBeInTheDocument();
   });
 
-  it('renders edit and delete action buttons for each person', async () => {
+  it('renders edit, manage-skills, and delete actions for each person', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    // Two rows × two buttons each = 4 ghost buttons
-    const editButtons = screen.getAllByRole('button', { name: '' });
-    expect(editButtons.length).toBeGreaterThanOrEqual(4);
+    expect(screen.getByRole('button', { name: 'Edit Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Manage skills for Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Deactivate Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Bob' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Manage skills for Bob' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Deactivate Bob' })).toBeInTheDocument();
   });
 
-  it('opens the dialog with the correct person when edit is clicked', async () => {
+  it('opens the edit dialog with the correct person when edit is clicked', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    const editButtons = screen.getAllByRole('button', { name: '' });
-    // First ghost button in the first row is the Pencil button
-    fireEvent.click(editButtons[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Alice' }));
     const dialog = screen.getByTestId('person-edit-dialog');
-    expect(dialog).toBeInTheDocument();
     expect(dialog).toHaveAttribute('data-person-id', 'person-1');
   });
 
-  it('closes the dialog when onClose is called', async () => {
+  it('opens the skills editor with the correct person when manage-skills is clicked', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Manage skills for Bob' }));
+    const editor = screen.getByTestId('person-skills-editor');
+    expect(editor).toHaveAttribute('data-resource-id', 'person-2');
+    expect(editor).toHaveAttribute('data-person-name', 'Bob');
+  });
+
+  it('closes the skills editor when its onOpenChange fires', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Manage skills for Alice' }));
+    expect(screen.getByTestId('person-skills-editor')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('skills-close'));
+    expect(screen.queryByTestId('person-skills-editor')).not.toBeInTheDocument();
+  });
+
+  it('closes the edit dialog when onClose is called', async () => {
     renderList();
     await waitFor(() => screen.getByRole('button', { name: /Add Person/i }));
     fireEvent.click(screen.getByRole('button', { name: /Add Person/i }));
@@ -163,7 +208,7 @@ describe('PersonList', () => {
     expect(screen.queryByTestId('person-edit-dialog')).not.toBeInTheDocument();
   });
 
-  it('closes the dialog and refreshes when onSaved is called', async () => {
+  it('closes the edit dialog and refreshes when onSaved is called', async () => {
     renderList();
     await waitFor(() => screen.getByRole('button', { name: /Add Person/i }));
     fireEvent.click(screen.getByRole('button', { name: /Add Person/i }));
@@ -176,9 +221,7 @@ describe('PersonList', () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    const allButtons = screen.getAllByRole('button', { name: '' });
-    // Second ghost button in the first row is the Trash button (index 1)
-    fireEvent.click(allButtons[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
     await waitFor(() =>
       expect(deleteResource).toHaveBeenCalledWith('person-1'),
     );
@@ -189,8 +232,7 @@ describe('PersonList', () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(false));
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    const allButtons = screen.getAllByRole('button', { name: '' });
-    fireEvent.click(allButtons[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
     expect(deleteResource).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });

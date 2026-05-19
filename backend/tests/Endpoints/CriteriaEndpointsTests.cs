@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Api.Endpoints;
 using Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -547,6 +548,43 @@ public class CriteriaEndpointsTests
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteCriterion_Returns409_WhenReferencedByResourceAssignment()
+    {
+        // Spec: deleting a criterion with existing assignments must be blocked.
+        // The FKs are ON DELETE CASCADE in schema, so without the repository
+        // guard the delete would silently destroy the assignments.
+        var criterion = await CreateWithApplicabilityAsync(
+            $"del_inuse_{Guid.NewGuid():N}", new[] { "person" });
+        var person = await CreatePersonAsync($"DelInUse-{Guid.NewGuid().ToString("N")[..12]}");
+        var capRequest = new AddResourceCapabilityRequest(
+            criterion.Id, JsonSerializer.SerializeToElement(true));
+        var capResponse = await _client.PostAsJsonAsync(
+            $"/api/resources/{person.Id}/capabilities", capRequest);
+        capResponse.EnsureSuccessStatusCode();
+
+        var response = await _client.DeleteAsync($"/api/criteria/{criterion.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        // Criterion still exists after the failed delete
+        var getResponse = await _client.GetAsync($"/api/criteria/{criterion.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+    }
+
+    private async Task<ResourceInfo> CreatePersonAsync(string name)
+    {
+        var request = new CreateResourceRequest
+        {
+            ResourceTypeKey = "person",
+            Name = name,
+            AllocationMode = "Fractional",
+            BaseAvailabilityPercent = 100,
+        };
+        var response = await _client.PostAsJsonAsync("/api/resources", request);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ResourceInfo>(_jsonOptions))!;
     }
 
     #endregion

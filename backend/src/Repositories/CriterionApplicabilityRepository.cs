@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -92,9 +93,51 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
 
     public async Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds, CancellationToken ct = default)
     {
+        var newTypeIds = new HashSet<Guid>(resourceTypeIds);
+
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync();
+
+        // Block removing applicability for a resource type while assignments of
+        // that type still reference this criterion. Without this guard, the
+        // criterion could be silently rendered non-applicable to existing
+        // assignments, leaving the system in an inconsistent state.
+        var currentTypeIds = await GetApplicableResourceTypeIdsAsync(criterionId, ct);
+        var removedTypeIds = currentTypeIds.Where(t => !newTypeIds.Contains(t)).ToList();
+
+        foreach (var typeId in removedTypeIds)
+        {
+            await using var checkCmd = new NpgsqlCommand(
+                "SELECT " +
+                "  (SELECT COUNT(*) FROM resource_capabilities rc " +
+                "     JOIN resources r ON r.id = rc.resource_id " +
+                "    WHERE rc.criterion_id = @criterionId AND r.resource_type_id = @typeId) AS resources, " +
+                "  (SELECT COUNT(*) FROM resource_group_capabilities rgc " +
+                "     JOIN resource_groups rg ON rg.id = rgc.resource_group_id " +
+                "    WHERE rgc.criterion_id = @criterionId AND rg.resource_type_id = @typeId) AS groups, " +
+                "  (SELECT key FROM resource_types WHERE id = @typeId) AS type_key",
+                db, tx);
+            checkCmd.Parameters.AddWithValue("criterionId", criterionId);
+            checkCmd.Parameters.AddWithValue("typeId", typeId);
+
+            await using var reader = await checkCmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) continue;
+            var resources = reader.GetInt64(0);
+            var groups = reader.GetInt64(1);
+            var typeKey = reader.IsDBNull(2) ? typeId.ToString() : reader.GetString(2);
+            await reader.CloseAsync();
+
+            if (resources > 0 || groups > 0)
+            {
+                var parts = new List<string>();
+                if (resources > 0) parts.Add($"{resources} resource assignment{(resources == 1 ? "" : "s")}");
+                if (groups > 0) parts.Add($"{groups} group assignment{(groups == 1 ? "" : "s")}");
+                throw new ConflictException(
+                    $"Cannot remove '{typeKey}' applicability: criterion still has {string.Join(", ", parts)} on {typeKey} resources. " +
+                    "Clear those assignments first.");
+            }
+        }
 
         // Replace all entries for this criterion.
         await using var del = new NpgsqlCommand(
@@ -102,7 +145,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         del.Parameters.AddWithValue("id", criterionId);
         await del.ExecuteNonQueryAsync(ct);
 
-        foreach (var typeId in resourceTypeIds)
+        foreach (var typeId in newTypeIds)
         {
             await using var ins = new NpgsqlCommand(
                 "INSERT INTO criterion_resource_types (criterion_id, resource_type_id) " +

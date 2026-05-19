@@ -257,6 +257,47 @@ public class CriteriaRepository : ICriteriaRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
+
+        // All FKs to criteria(id) are ON DELETE CASCADE, so a raw DELETE would
+        // silently destroy capabilities and requirements that reference this
+        // criterion. Guard against that by counting references first and refusing
+        // the delete when any exist; the user must clear assignments explicitly.
+        await using var checkCmd = new NpgsqlCommand(
+            "SELECT " +
+            "  (SELECT COUNT(*) FROM resource_capabilities       WHERE criterion_id = @id) AS resources, " +
+            "  (SELECT COUNT(*) FROM resource_group_capabilities WHERE criterion_id = @id) AS groups, " +
+            "  (SELECT COUNT(*) FROM request_requirements        WHERE criterion_id = @id) AS requests, " +
+            "  (SELECT COUNT(*) FROM request_template_requirements WHERE criterion_id = @id) AS request_templates, " +
+            "  (SELECT COUNT(*) FROM template_items              WHERE criterion_id = @id) AS templates",
+            db);
+        checkCmd.Parameters.AddWithValue("id", id);
+
+        long resources, groups, requests, requestTemplates, templates;
+        await using (var reader = await checkCmd.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct))
+                throw new InvalidOperationException("Reference count query returned no rows");
+            resources = reader.GetInt64(0);
+            groups = reader.GetInt64(1);
+            requests = reader.GetInt64(2);
+            requestTemplates = reader.GetInt64(3);
+            templates = reader.GetInt64(4);
+        }
+
+        var parts = new List<string>();
+        if (resources > 0) parts.Add($"{resources} resource assignment{(resources == 1 ? "" : "s")}");
+        if (groups > 0) parts.Add($"{groups} group assignment{(groups == 1 ? "" : "s")}");
+        if (requests > 0) parts.Add($"{requests} request requirement{(requests == 1 ? "" : "s")}");
+        if (requestTemplates > 0) parts.Add($"{requestTemplates} request template requirement{(requestTemplates == 1 ? "" : "s")}");
+        if (templates > 0) parts.Add($"{templates} template item{(templates == 1 ? "" : "s")}");
+
+        if (parts.Count > 0)
+        {
+            throw new ConflictException(
+                $"Cannot delete criterion: still referenced by {string.Join(", ", parts)}. " +
+                "Remove these assignments first.");
+        }
+
         var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(db, "DELETE FROM criteria WHERE id = @id", id);
         return rowsAffected > 0;
     }

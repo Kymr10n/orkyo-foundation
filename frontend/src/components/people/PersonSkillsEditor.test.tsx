@@ -17,6 +17,40 @@ vi.mock('@foundation/src/lib/core/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+// Stub CreateCriterionDialog. The real dialog mounts react-query mutations and
+// is exercised by its own test suite; here we only care that the editor wires
+// it up correctly and reacts to onSuccess.
+const mockCreateCriterionDialogProps = vi.fn();
+vi.mock('../settings/CreateCriterionDialog', () => ({
+  CreateCriterionDialog: (props: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSuccess: (criterion: Criterion) => void;
+    defaultResourceType?: string;
+  }) => {
+    mockCreateCriterionDialogProps(props);
+    return props.open ? (
+      <div data-testid="create-criterion-dialog" data-default-resource-type={props.defaultResourceType}>
+        <button
+          data-testid="create-criterion-success"
+          onClick={() =>
+            props.onSuccess({
+              id: 'new-criterion-id',
+              name: 'Newly created',
+              dataType: 'Boolean',
+              resourceTypeKeys: ['person'],
+              createdAt: '2026-01-01T00:00:00Z',
+              updatedAt: '2026-01-01T00:00:00Z',
+            })
+          }
+        >
+          Pretend create succeeded
+        </button>
+      </div>
+    ) : null;
+  },
+}));
+
 import { getCriteria } from '@foundation/src/lib/api/criteria-api';
 import {
   getResourceCapabilities,
@@ -116,6 +150,47 @@ describe('PersonSkillsEditor', () => {
 
     await waitFor(() => {
       expect(deleteResourceCapability).toHaveBeenCalledWith('p-1', 'cap-1');
+    });
+  });
+
+  it('opens the create-criterion dialog with person applicability defaulted', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
+
+    await waitFor(() => screen.getByText('Skills for Alice'));
+    await user.click(screen.getByRole('button', { name: /add skill criterion/i }));
+
+    const dialog = await screen.findByTestId('create-criterion-dialog');
+    expect(dialog).toHaveAttribute('data-default-resource-type', 'person');
+  });
+
+  it('refreshes the criteria list when a quick-created criterion succeeds', async () => {
+    // After successful create, the editor must invalidate the person-criteria
+    // query so the new criterion appears in the select without a page reload.
+    vi.mocked(getCriteria)
+      .mockResolvedValueOnce([PERSON_SKILL])
+      .mockResolvedValueOnce([
+        PERSON_SKILL,
+        {
+          id: 'new-criterion-id',
+          name: 'Newly created',
+          dataType: 'Boolean',
+          resourceTypeKeys: ['person'],
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      ]);
+
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
+
+    await waitFor(() => screen.getByText('Skills for Alice'));
+    await user.click(screen.getByRole('button', { name: /add skill criterion/i }));
+    await user.click(screen.getByTestId('create-criterion-success'));
+
+    await waitFor(() => {
+      // Initial render fetches once; invalidation triggers a refetch.
+      expect(getCriteria).toHaveBeenCalledTimes(2);
     });
   });
 });
