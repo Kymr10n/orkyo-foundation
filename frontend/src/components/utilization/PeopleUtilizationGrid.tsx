@@ -93,7 +93,7 @@ function bucketLabel(bucket: ResourceUtilizationBucket, granularity: string): st
   return columnLabel(new Date(bucket.start), granularity);
 }
 
-type BucketStatus = 'available' | 'partial' | 'assigned' | 'overbooked' | 'non-working';
+import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
 
 function bucketStatus(bucket: ResourceUtilizationBucket): BucketStatus {
   if (bucket.effectiveAvailabilityPercent === 0) return 'non-working';
@@ -121,22 +121,6 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-// Shared color classes — used by both cells and the legend so they always match.
-const STATUS_CELL_CLASS: Record<BucketStatus, string> = {
-  available:     'bg-emerald-100/60 dark:bg-emerald-950/40',
-  partial:       'bg-amber-100/60   dark:bg-amber-950/40',
-  assigned:      'bg-blue-100/60    dark:bg-blue-950/40',
-  overbooked:    'bg-red-100/60     dark:bg-red-950/40',
-  'non-working': 'bg-muted/40',
-};
-
-const STATUS_BORDER_CLASS: Record<BucketStatus, string> = {
-  available:     'border-emerald-200 dark:border-emerald-800',
-  partial:       'border-amber-200   dark:border-amber-800',
-  assigned:      'border-blue-200    dark:border-blue-800',
-  overbooked:    'border-red-200     dark:border-red-800',
-  'non-working': 'border-muted-foreground/30',
-};
 
 // ── Legend dot ───────────────────────────────────────────────────────────────
 

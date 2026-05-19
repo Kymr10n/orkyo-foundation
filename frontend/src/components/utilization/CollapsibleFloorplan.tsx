@@ -1,4 +1,5 @@
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
+import { SPACE_CANVAS_COLORS, SPACE_LEGEND_CELL_CLASS, SPACE_LEGEND_BORDER_CLASS, type SpaceStatus } from "@foundation/src/components/utilization/schedule-colors";
 import { Button } from "@foundation/src/components/ui/button";
 import { useFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
 import { useSpaces } from "@foundation/src/hooks/useSpaces";
@@ -42,7 +43,7 @@ export function CollapsibleFloorplan({
 
   const {
     data: spaces = [],
-    isLoading: isLoadingSpaces,
+    isLoading: _isLoadingSpaces,
     error: spacesError,
   } = useSpaces(selectedSiteId);
 
@@ -122,14 +123,14 @@ export function CollapsibleFloorplan({
   const spaceColors = useMemo(
     () =>
       Object.fromEntries(
-        spacesWithGeometry.map((space) => [
-          space.id,
-          conflictingResourceIds.has(space.id)
-            ? { fill: "rgba(249, 115, 22, 0.35)", stroke: "#f97316" }
+        spacesWithGeometry.map((space) => {
+          const status: SpaceStatus = conflictingResourceIds.has(space.id)
+            ? 'conflict'
             : occupiedResourceIds.has(space.id)
-              ? { fill: "rgba(239, 68, 68, 0.25)", stroke: "#ef4444" }
-              : { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },
-        ]),
+              ? 'occupied'
+              : 'available';
+          return [space.id, SPACE_CANVAS_COLORS[status]];
+        }),
       ),
     [spacesWithGeometry, occupiedResourceIds, conflictingResourceIds],
   );
@@ -213,31 +214,21 @@ export function CollapsibleFloorplan({
                   className="h-full w-full shadow-md border border-border rounded-lg"
                 />
 
-                {/* Occupied spaces legend */}
-                <div className="absolute top-2 right-2 bg-background/90 px-3 py-2 rounded-md shadow-md text-xs space-y-1">
-                  <div className="font-medium">Space Status</div>
-                  {isLoadingSpaces && (
-                    <div className="text-muted-foreground">Updating spaces...</div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded border-2 border-green-500 bg-green-200/70" />
-                    <span className="text-muted-foreground">
-                      Available ({spacesWithGeometry.length - occupiedResourceIds.size})
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded border-2 border-red-500 bg-red-200/70" />
-                    <span className="text-muted-foreground">
-                      Occupied ({occupiedResourceIds.size - conflictingResourceIds.size})
-                    </span>
-                  </div>
+                {/* Space status legend */}
+                <div className="absolute top-2 right-2 flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span className={`inline-block h-2.5 w-4 rounded-sm border ${SPACE_LEGEND_CELL_CLASS.available} ${SPACE_LEGEND_BORDER_CLASS.available}`} />
+                    Available ({spacesWithGeometry.length - occupiedResourceIds.size})
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className={`inline-block h-2.5 w-4 rounded-sm border ${SPACE_LEGEND_CELL_CLASS.occupied} ${SPACE_LEGEND_BORDER_CLASS.occupied}`} />
+                    Occupied ({occupiedResourceIds.size - conflictingResourceIds.size})
+                  </span>
                   {conflictingResourceIds.size > 0 && (
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded border-2 border-orange-500 bg-orange-200/70" />
-                      <span className="text-muted-foreground">
-                        Conflict ({conflictingResourceIds.size})
-                      </span>
-                    </div>
+                    <span className="flex items-center gap-1">
+                      <span className={`inline-block h-2.5 w-4 rounded-sm border ${SPACE_LEGEND_CELL_CLASS.conflict} ${SPACE_LEGEND_BORDER_CLASS.conflict}`} />
+                      Conflict ({conflictingResourceIds.size})
+                    </span>
                   )}
                 </div>
               </div>
