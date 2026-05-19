@@ -251,6 +251,79 @@ describe('PeopleUtilizationGrid', () => {
     expect(screen.getByText('Mon 11')).toBeInTheDocument();
   });
 
+  // ── Navigation / column-generation tests ────────────────────────────────────
+  // These pin the key behavioral fix: column headers must be derived from the
+  // view window (not from API bucket data) so they appear immediately when the
+  // anchor changes, even before the new utilization fetch has completed.
+
+  it('renders column headers while utilization data is still loading', async () => {
+    // getResourceUtilization never resolves — simulates the in-flight state
+    // after the user presses prev/next.
+    vi.mocked(getResourceUtilization).mockReturnValue(new Promise(() => {}));
+
+    renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
+
+    // People load immediately; utilization is pending. Headers must still appear.
+    await waitFor(() => screen.getByText('Alice Smith'));
+    expect(screen.getByText('Mon 11')).toBeInTheDocument();
+    expect(screen.getByText('Sun 17')).toBeInTheDocument();
+    expect(screen.getByText('Person')).toBeInTheDocument();
+  });
+
+  it('renders 7 day-columns for week scale', async () => {
+    // Anchor on Monday 2026-05-11; week starts Mon, ends Sun 17.
+    renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Mon 11'));
+
+    const dayLabels = ['Mon 11', 'Tue 12', 'Wed 13', 'Thu 14', 'Fri 15', 'Sat 16', 'Sun 17'];
+    for (const label of dayLabels) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it('renders 24 hour-columns for day scale', async () => {
+    renderGrid({ scale: 'day', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Alice Smith'));
+
+    // Hours rendered as HH:mm
+    expect(screen.getByText('00:00')).toBeInTheDocument();
+    expect(screen.getByText('12:00')).toBeInTheDocument();
+    expect(screen.getByText('23:00')).toBeInTheDocument();
+
+    // Exactly 24 hour-labelled columns (th elements after the Person header)
+    const ths = screen.getAllByRole('columnheader', { hidden: true });
+    // +1 for the "Person" sticky header
+    expect(ths).toHaveLength(25);
+  });
+
+  it('renders 31 day-columns for a 31-day month scale', async () => {
+    // May 2026 has 31 days; anchorTs anywhere in May → month view = May 1–31
+    renderGrid({ scale: 'month', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Alice Smith'));
+
+    const ths = screen.getAllByRole('columnheader', { hidden: true });
+    expect(ths).toHaveLength(32); // 31 day columns + 1 Person header
+  });
+
+  it('column headers update immediately when anchorTs changes to a new week', async () => {
+    const { rerender } = renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Mon 11'));
+
+    // Simulate pressing "next" — anchorTs advances by one week
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <PeopleUtilizationGrid anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" />
+      </QueryClientProvider>,
+    );
+
+    // Headers must update to the new week immediately, without waiting for data
+    await waitFor(() => expect(screen.getByText('Mon 18')).toBeInTheDocument());
+    expect(screen.queryByText('Mon 11')).not.toBeInTheDocument();
+  });
+
   // ── Legend color-consistency tests ──────────────────────────────────────────
   // These verify that legend dots use the same color classes as the cells they
   // describe. A mismatch here means dark/light mode renders the wrong colors.

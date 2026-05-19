@@ -11,6 +11,8 @@ import {
   startOfWeek,
   startOfMonth,
   addDays,
+  addHours,
+  addWeeks,
   addMonths,
   format,
 } from 'date-fns';
@@ -60,14 +62,35 @@ function getViewWindow(anchorTs: Date, scale: TimeScale): ViewWindow {
   }
 }
 
-function bucketLabel(bucket: ResourceUtilizationBucket, granularity: string): string {
-  const d = new Date(bucket.start);
-  switch (granularity) {
-    case 'week': return format(d, 'MMM d');
-    case 'day':  return format(d, 'EEE d');
-    case 'hour': return format(d, 'HH:mm');
-    default:     return format(d, 'MMM d');
+// Generate column start-times from the view window — same math as the API uses
+// for bucket boundaries. This lets headers render immediately on navigation
+// without waiting for a data fetch.
+function generateColumnDates(from: Date, to: Date, granularity: string): Date[] {
+  const cols: Date[] = [];
+  let cur = new Date(from);
+  while (cur < to) {
+    cols.push(new Date(cur));
+    switch (granularity) {
+      case 'hour':  cur = addHours(cur, 1); break;
+      case 'day':   cur = addDays(cur, 1);  break;
+      case 'week':  cur = addWeeks(cur, 1); break;
+      default:      cur = addDays(cur, 1);  break;
+    }
   }
+  return cols;
+}
+
+function columnLabel(date: Date, granularity: string): string {
+  switch (granularity) {
+    case 'week': return format(date, 'MMM d');
+    case 'day':  return format(date, 'EEE d');
+    case 'hour': return format(date, 'HH:mm');
+    default:     return format(date, 'MMM d');
+  }
+}
+
+function bucketLabel(bucket: ResourceUtilizationBucket, granularity: string): string {
+  return columnLabel(new Date(bucket.start), granularity);
 }
 
 type BucketStatus = 'available' | 'partial' | 'assigned' | 'overbooked' | 'non-working';
@@ -140,12 +163,20 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
   });
   const people: ResourceInfo[] = peopleResponse?.data ?? [];
 
+  // Column dates are derived from the view window — no dependency on API data.
+  // This means headers render immediately when the anchor changes, even before
+  // the utilization queries for the new time range have completed.
+  const columnDates = generateColumnDates(from, to, granularity);
+
   // 2. Fetch per-person utilization in parallel
   const utilQueries = useQueries({
     queries: people.map((p) => ({
       queryKey: ['resource-utilization', p.id, from.toISOString(), to.toISOString(), granularity],
       queryFn: () => getResourceUtilization(p.id, from, to, granularity),
       staleTime: 60_000,
+      // Keep showing the previous period's data while the new fetch is in flight
+      // so navigation feels fluid rather than flashing blank cells.
+      placeholderData: (prev: typeof p | undefined) => prev,
     })),
   });
 
@@ -178,9 +209,6 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
     );
   }
 
-  // Column headers from first person's buckets (all buckets share the same shape)
-  const firstBuckets = utilQueries[0]?.data?.buckets ?? [];
-
   return (
     <div className="h-full flex flex-col overflow-hidden bg-background" data-testid="people-utilization-grid">
       {/* Legend + Search strip */}
@@ -204,28 +232,26 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
       {/* Scrollable grid */}
       <div className="flex-1 overflow-auto" data-testid="people-grid-body">
         <table className="text-xs border-collapse" style={{ minWidth: '100%' }}>
-          {firstBuckets.length > 0 && (
-            <thead className="sticky top-0 z-20 bg-card">
-              <tr>
-                {/* Sticky name column header */}
-                <th className="sticky left-0 z-30 bg-card w-56 min-w-56 px-3 py-2 text-left text-muted-foreground font-normal border-b border-r">
-                  Person
+          <thead className="sticky top-0 z-20 bg-card">
+            <tr>
+              {/* Sticky name column header */}
+              <th className="sticky left-0 z-30 bg-card w-56 min-w-56 px-3 py-2 text-left text-muted-foreground font-normal border-b border-r">
+                Person
+              </th>
+              {columnDates.map((date, i) => (
+                <th
+                  key={i}
+                  className="px-1 py-2 text-center text-muted-foreground font-normal border-b border-r last:border-r-0 min-w-16 w-16"
+                >
+                  {columnLabel(date, granularity)}
                 </th>
-                {firstBuckets.map((b, i) => (
-                  <th
-                    key={i}
-                    className="px-1 py-2 text-center text-muted-foreground font-normal border-b border-r last:border-r-0 min-w-16 w-16"
-                  >
-                    {bucketLabel(b, granularity)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-          )}
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {filteredPeople.length === 0 ? (
               <tr>
-                <td colSpan={firstBuckets.length + 1} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={columnDates.length + 1} className="px-4 py-8 text-center text-muted-foreground">
                   No people match your search.
                 </td>
               </tr>
@@ -279,14 +305,14 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
                     {/* Bucket cells */}
                     {isLoadingRow ? (
                       <td
-                        colSpan={firstBuckets.length || 1}
+                        colSpan={columnDates.length || 1}
                         className="px-2 py-2 text-muted-foreground italic"
                       >
                         Loading…
                       </td>
                     ) : buckets.length === 0 ? (
                       <td
-                        colSpan={firstBuckets.length || 1}
+                        colSpan={columnDates.length || 1}
                         className="px-2 py-2 text-muted-foreground"
                       >
                         No data
