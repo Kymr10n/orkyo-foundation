@@ -1,4 +1,3 @@
-using Api.Constants;
 using Api.Integrations.Keycloak;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
@@ -7,54 +6,14 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 namespace Api.Helpers;
 
 /// <summary>
-/// Wrapper for standardizing endpoint handlers with try-catch and logging.
+/// Wrapper for standardizing endpoint handlers with validation and null-to-404 coercion.
+/// Exception mapping is handled globally by <see cref="AppExceptionHandler"/>.
 ///
-/// Lives in <c>orkyo-foundation</c> because the exception-to-HTTP routing,
-/// validation envelope, and try/catch wrapper shape are identical across
-/// multi-tenant SaaS and single-tenant Community deployments. The underlying
-/// <see cref="ErrorResponses"/> contract and <see cref="KeycloakAdminExceptionMapper"/>
-/// it dispatches to are also foundation-owned.
+/// Lives in <c>orkyo-foundation</c> because the validation envelope and try/catch wrapper
+/// shape are identical across multi-tenant SaaS and single-tenant Community deployments.
 /// </summary>
 public static class EndpointHelpers
 {
-    /// <summary>
-    /// Central exception-to-IResult mapper — single source of truth for HTTP status routing.
-    /// </summary>
-    private static IResult MapExceptionToResult(Exception ex, ILogger? logger, string operationName)
-    {
-        return ex switch
-        {
-            NotFoundException nfe
-                => ErrorResponses.NotFound(nfe.ResourceType.Length > 0 ? nfe.ResourceType : nfe.Message, nfe.ResourceId),
-            ConflictException ce
-                => ErrorResponses.Conflict(ce.Message),
-            KeyNotFoundException knf
-                => ErrorResponses.NotFound(knf.Message, Guid.Empty),
-            CapabilityNotApplicableException cna
-                => ErrorResponses.BadRequest(cna.Message),
-            ArgumentException arg
-                => ErrorResponses.BadRequest(arg.Message),
-            UnauthorizedAccessException
-                => Results.Forbid(),
-            KeycloakAdminException kae
-                => KeycloakAdminExceptionMapper.Map(kae),
-            // Backstop: translate any 23505 unique-violation that escaped the repository layer.
-            // Repositories should throw ConflictException for known violations; this catches the rest.
-            Npgsql.PostgresException pg when pg.SqlState == "23505"
-                => ErrorResponses.Conflict("A record with this identifier already exists"),
-            _ => LogAndProblem(ex, logger, operationName)
-        };
-    }
-
-    private static IResult LogAndProblem(Exception ex, ILogger? logger, string operationName)
-    {
-        // No logger provided — silent fallback. Composition layers that want a
-        // global static fallback (e.g. Serilog.Log.Error) should always pass
-        // their own ILogger.
-        logger?.LogError(ex, "Failed to {Operation}", operationName);
-        return Results.Problem($"Failed to {operationName}");
-    }
-
     /// <summary>
     /// Execute an async handler with standard error handling and logging
     /// </summary>
@@ -64,18 +23,11 @@ public static class EndpointHelpers
         string operationName,
         object? context = null)
     {
-        try
-        {
-            return await handler();
-        }
-        catch (Exception ex)
-        {
-            return MapExceptionToResult(ex, logger, operationName);
-        }
+        return await handler();
     }
 
     /// <summary>
-    /// Execute an async handler that returns data with standard error handling
+    /// Execute an async handler that returns data, mapping null to 404.
     /// </summary>
     public static async Task<IResult> ExecuteAsync<T>(
         Func<Task<T?>> handler,
@@ -83,15 +35,8 @@ public static class EndpointHelpers
         string operationName,
         object? context = null) where T : class
     {
-        try
-        {
-            var result = await handler();
-            return result != null ? Results.Ok(result) : Results.NotFound();
-        }
-        catch (Exception ex)
-        {
-            return MapExceptionToResult(ex, logger, operationName);
-        }
+        var result = await handler();
+        return result != null ? Results.Ok(result) : Results.NotFound();
     }
 
     /// <summary>
@@ -109,7 +54,7 @@ public static class EndpointHelpers
         if (!validationResult.IsValid)
             return Results.ValidationProblem(validationResult.ToDictionary());
 
-        return await ExecuteAsync(handler, logger, operationName, context);
+        return await handler();
     }
 
     /// <summary>
@@ -124,14 +69,7 @@ public static class EndpointHelpers
         if (!validationResult.IsValid)
             return Results.ValidationProblem(validationResult.ToDictionary());
 
-        try
-        {
-            var result = await handler();
-            return Results.Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return MapExceptionToResult(ex, null, "process request");
-        }
+        var result = await handler();
+        return Results.Ok(result);
     }
 }
