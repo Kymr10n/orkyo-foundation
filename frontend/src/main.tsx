@@ -7,23 +7,9 @@ import "./index.css";
 import { TrackingProvider } from "./infrastructure/tracking";
 import { queryClient } from "./lib/core/query-client";
 import { initRUM } from "./lib/core/rum";
-import { STORAGE_KEYS } from "./constants/storage";
-import { COOKIE_NAMES } from "./constants/http";
+import { initTheme } from "./lib/core/theme";
 
-// Apply theme on load and sync cookie for Keycloak
-if (typeof document !== "undefined") {
-  const stored = localStorage.getItem(STORAGE_KEYS.THEME) || "system";
-  let isDark: boolean;
-  if (stored === "system") {
-    isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  } else {
-    isDark = stored === "dark";
-  }
-  document.documentElement.classList.toggle("dark", isDark);
-  document.cookie = `${COOKIE_NAMES.THEME}=${isDark ? "dark" : "light"};path=/;max-age=31536000;SameSite=Lax`;
-}
-
-// Initialize Real User Monitoring (Web Vitals + long tasks)
+initTheme();
 initRUM();
 
 createRoot(document.getElementById("root")!).render(
