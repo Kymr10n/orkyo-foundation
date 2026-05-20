@@ -317,11 +317,14 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
+        builder.Services.AddExceptionHandler<Api.Helpers.AppExceptionHandler>();
+        builder.Services.AddProblemDetails();
 
         var app = builder.Build();
 
         // Run routing before our test middleware so endpoint metadata
         // (e.g. SkipTenantResolutionAttribute) is available.
+        app.UseExceptionHandler();
         app.UseRouting();
         app.UseAuthentication();
 
