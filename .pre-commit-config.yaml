@@ -12,6 +12,7 @@ repos:
       - id: trailing-whitespace
         exclude: '(\.md|backend/migrations.*/sql/.*\.sql)$'
       - id: end-of-file-fixer
+        exclude: 'packages\.lock\.json$'
       - id: check-yaml
       - id: check-json
       - id: check-merge-conflict
@@ -27,6 +28,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: dotnet-restore-lock
+        name: dotnet restore (sync lock files)
+        entry: bash -c 'dotnet restore Orkyo.Foundation.slnx --locked-mode 2>/dev/null || { dotnet restore Orkyo.Foundation.slnx && git diff --name-only -- "*/packages.lock.json" | while IFS= read -r f; do [ -n "$(tail -c1 "$f")" ] && printf "\n" >> "$f"; git add "$f"; done; }'
+        language: system
+        pass_filenames: false
+        files: '\.csproj$|packages\.lock\.json$|\.slnx$'
+
       - id: dotnet-format
         name: dotnet format (auto-fix)
         entry: bash -c 'dotnet format Orkyo.Foundation.slnx --no-restore && git diff --name-only --diff-filter=M "*.cs" | xargs --no-run-if-empty git add'

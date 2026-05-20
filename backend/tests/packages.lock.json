@@ -117,6 +117,14 @@
         "resolved": "11.12.0",
         "contentHash": "Wim3rI1nGZKO5S/lgJ0ZpD3W/uu1CECoJ8pETzC8av34ejr+jCDr4paKhSJRG0Ltcv8UjdxtYCynG+RUEfEUDA=="
       },
+      "FluentValidation.DependencyInjectionExtensions": {
+        "type": "Transitive",
+        "resolved": "11.12.0",
+        "contentHash": "lS+nClm9NEROCD5ITprZq9bVZEAoTyUb42xbm8Z80pHdRPdExISaypEZiLIJWDLfq2/j64sZgUcmgm7hjrZS+Q==",
+        "dependencies": {
+          "FluentValidation": "11.12.0"
+        }
+      },
       "Google.OrTools": {
         "type": "Transitive",
         "resolved": "9.15.6755",
@@ -469,6 +477,7 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[11.*, )",
+          "FluentValidation.DependencyInjectionExtensions": "[11.*, )",
           "Google.OrTools": "[9.*, )",
           "MailKit": "[4.16.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.7, )",
