@@ -59,7 +59,7 @@
     "zustand": ">=5.0.0"
   },
   "dependencies": {
-    "@testing-library/dom": "10.4.0",
+    "@testing-library/dom": "10.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jspdf": "^4.2.1",
