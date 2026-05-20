@@ -73,6 +73,7 @@ public static class UserManagementEndpoints
             {
                 var (user, error) = await invitationService.AcceptInvitationAsync(request.Token, request.DisplayName, request.Password, ct);
                 if (error != null) throw new ArgumentException(error);
+                if (user == null) throw new ArgumentException("Invalid or expired invitation token");
                 return new
                 {
                     user = new { id = user!.Id, email = user.Email, displayName = user.DisplayName, role = user.Role.ToString().ToLowerInvariant() },

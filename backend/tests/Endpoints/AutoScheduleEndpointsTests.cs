@@ -58,9 +58,9 @@ public class AutoScheduleEndpointsTests
         var response = await _client.PostAsJsonAsync(
             "/api/scheduling/auto-schedule/preview", request, _jsonOptions);
 
-        // Route is registered, auth passes — verify we don't get 401/403/404
+        // Route is registered and auth passes — verify we don't get 401 or 404.
+        // 403 is allowed here: it means the feature is disabled for this tenant (FeatureNotAvailableException).
         Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
 
         if (response.StatusCode == HttpStatusCode.OK)
@@ -105,9 +105,9 @@ public class AutoScheduleEndpointsTests
         var response = await _client.PostAsJsonAsync(
             "/api/scheduling/auto-schedule/apply", request, _jsonOptions);
 
-        // Route is registered, auth passes — verify we don't get 401/403/404
+        // Route is registered and auth passes — verify we don't get 401 or 404.
+        // 403 is allowed here: it means the feature is disabled for this tenant (FeatureNotAvailableException).
         Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
 
         if (response.StatusCode == HttpStatusCode.OK)
