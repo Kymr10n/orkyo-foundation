@@ -34,6 +34,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Conflict, Request } from "@foundation/src/types/requests";
 import { DndContext, type DragEndEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format } from "date-fns";
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -199,8 +200,14 @@ export function UtilizationPage() {
         previewFingerprint: autoSchedulePreview?.fingerprint,
       });
       setIsPreviewDialogOpen(false);
+      const scheduledCount = autoSchedulePreview?.assignments.length ?? 0;
       setAutoSchedulePreview(null);
       queryClient.invalidateQueries({ queryKey: ["requests"] });
+      toast.success(
+        scheduledCount > 0
+          ? `Scheduled ${scheduledCount} request${scheduledCount === 1 ? "" : "s"}`
+          : "Auto-schedule applied",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to apply schedule";
       if (message.startsWith("API Error (409)")) {
@@ -318,7 +325,9 @@ export function UtilizationPage() {
     }
     const endTs = new Date(startTs.getTime() + durationMs);
 
-    // Validate space capabilities
+    // Validate space capabilities BEFORE mutating so an incompatible drop is
+    // rejected with feedback instead of silently creating a conflict the user
+    // only discovers later on the Conflicts page.
     const allConflicts: Conflict[] = [];
     try {
       const capabilities = await getSpaceCapabilities(selectedSiteId!, resourceId);
@@ -327,19 +336,26 @@ export function UtilizationPage() {
       logger.error("Failed to validate space requirements:", error);
     }
 
+    if (allConflicts.length > 0) {
+      const targetSpace = spaces.find((s) => s.id === resourceId);
+      const spaceName = targetSpace?.name ?? "this space";
+      const firstReason = allConflicts[0]?.message ?? "missing required capability";
+      const extra = allConflicts.length > 1 ? ` (+${allConflicts.length - 1} more)` : "";
+      toast.error(`Cannot schedule to ${spaceName}`, {
+        description: `${firstReason}${extra}`,
+      });
+      return;
+    }
+
     await scheduleMutation.mutateAsync({
       requestId: draggedData.id,
       data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
     });
 
-    logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space:`, {
-      hasRequirements: draggedData.requirements?.length || 0,
-      capabilityConflicts: allConflicts.length,
-      conflictDetails: allConflicts,
-    });
+    logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space "${resourceId}"`);
 
     setSelectedRequestId(draggedData.id);
-  }, [scheduleMutation, selectedSiteId, setSelectedRequestId]);
+  }, [scheduleMutation, selectedSiteId, spaces, setSelectedRequestId]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;

@@ -90,6 +90,7 @@ export function SpaceList({
                         onCapabilitiesEdit(space);
                       }}
                       title="Edit Capabilities"
+                      aria-label={`Edit capabilities for ${space.name}`}
                     >
                       <Settings className="h-3.5 w-3.5" />
                     </Button>
@@ -104,6 +105,7 @@ export function SpaceList({
                         onSpaceEdit(space);
                       }}
                       title="Edit Space"
+                      aria-label={`Edit space ${space.name}`}
                     >
                       <Edit className="h-3.5 w-3.5" />
                     </Button>
@@ -120,6 +122,7 @@ export function SpaceList({
                         }
                       }}
                       title="Delete Space"
+                      aria-label={`Delete space ${space.name}`}
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>

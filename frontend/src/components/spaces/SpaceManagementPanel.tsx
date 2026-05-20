@@ -290,6 +290,7 @@ export function SpaceManagementPanel({
                     size="icon"
                     onClick={handleDeleteFloorplan}
                     title="Delete floorplan"
+                    aria-label="Delete floorplan"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -300,6 +301,8 @@ export function SpaceManagementPanel({
                       size="icon"
                       onClick={() => handleSetDrawingMode("select")}
                       title="Select (S)"
+                      aria-label="Select tool"
+                      aria-pressed={drawingMode === "select"}
                     >
                       <MousePointer2
                         className={cn(
@@ -313,6 +316,8 @@ export function SpaceManagementPanel({
                       size="icon"
                       onClick={() => handleSetDrawingMode("resize")}
                       title="Resize (Z)"
+                      aria-label="Resize tool"
+                      aria-pressed={drawingMode === "resize"}
                     >
                       <Maximize2
                         className={cn(
@@ -326,6 +331,8 @@ export function SpaceManagementPanel({
                       size="icon"
                       onClick={() => handleSetDrawingMode("rectangle")}
                       title="Draw Rectangle (R)"
+                      aria-label="Draw rectangle"
+                      aria-pressed={drawingMode === "rectangle"}
                     >
                       <Square
                         className={cn(
@@ -339,6 +346,8 @@ export function SpaceManagementPanel({
                       size="icon"
                       onClick={() => handleSetDrawingMode("polygon")}
                       title="Draw Polygon (P)"
+                      aria-label="Draw polygon"
+                      aria-pressed={drawingMode === "polygon"}
                     >
                       <Pentagon
                         className={cn(
@@ -355,6 +364,7 @@ export function SpaceManagementPanel({
                       size="icon"
                       onClick={handleZoomOut}
                       disabled={zoom <= 0.5}
+                      aria-label="Zoom out"
                     >
                       <ZoomOut className="h-4 w-4" />
                     </Button>
@@ -363,6 +373,7 @@ export function SpaceManagementPanel({
                       size="sm"
                       onClick={handleZoomReset}
                       className="min-w-[3rem] h-8 text-xs"
+                      title="Reset zoom to 100%"
                     >
                       {Math.round(zoom * 100)}%
                     </Button>
@@ -371,6 +382,7 @@ export function SpaceManagementPanel({
                       size="icon"
                       onClick={handleZoomIn}
                       disabled={zoom >= 3}
+                      aria-label="Zoom in"
                     >
                       <ZoomIn className="h-4 w-4" />
                     </Button>

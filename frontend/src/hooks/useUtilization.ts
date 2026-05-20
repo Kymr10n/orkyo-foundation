@@ -7,6 +7,7 @@ import {
 import { applySpaceAssignmentOptimistic, clearSpaceAssignmentOptimistic } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 // Fetch all requests
 export function useRequests() {
@@ -81,11 +82,14 @@ export function useScheduleRequest() {
       );
     },
 
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       // Roll back to the snapshot if the mutation fails
       if (context?.previous) {
         queryClient.setQueryData(["requests"], context.previous);
       }
+      toast.error("Failed to schedule request", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     },
 
     onSettled: (_data, error) => {

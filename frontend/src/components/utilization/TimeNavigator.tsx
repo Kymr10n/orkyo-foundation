@@ -57,6 +57,7 @@ export function TimeNavigator({
         size="icon"
         onClick={onPrevious}
         title={`Previous ${scale}`}
+        aria-label={`Previous ${scale}`}
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
@@ -94,6 +95,7 @@ export function TimeNavigator({
         size="icon"
         onClick={onNext}
         title={`Next ${scale}`}
+        aria-label={`Next ${scale}`}
       >
         <ChevronRight className="h-4 w-4" />
       </Button>

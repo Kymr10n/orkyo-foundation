@@ -188,6 +188,7 @@ export function TopBar() {
           size="icon"
           onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
           title="Search (⌘K)"
+          aria-label="Search (⌘K)"
         >
           <Search className="h-4 w-4" />
         </Button>
@@ -199,6 +200,7 @@ export function TopBar() {
           onClick={() => setImportDialogOpen(true)}
           disabled={!canImport}
           title={canImport ? `Import ${currentContext}` : 'Import not available'}
+          aria-label={canImport ? `Import ${currentContext}` : 'Import not available'}
         >
           <Upload className="h-4 w-4" />
         </Button>
@@ -210,6 +212,7 @@ export function TopBar() {
           onClick={() => setExportDialogOpen(true)}
           disabled={!canExport}
           title={canExport ? `Export ${currentContext}` : 'Export not available'}
+          aria-label={canExport ? `Export ${currentContext}` : 'Export not available'}
         >
           <Download className="h-4 w-4" />
         </Button>
@@ -224,6 +227,7 @@ export function TopBar() {
             className="relative"
             onClick={() => navigate("/messages")}
             title={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
+            aria-label={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
           >
             <Megaphone className="h-4 w-4" />
             <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -234,7 +238,7 @@ export function TopBar() {
 
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" data-testid="user-menu-trigger">
+            <Button variant="ghost" size="icon" data-testid="user-menu-trigger" aria-label="Open user menu">
               <User className="h-4 w-4" />
             </Button>
           </PopoverTrigger>

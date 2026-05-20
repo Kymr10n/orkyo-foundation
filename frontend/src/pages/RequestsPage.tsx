@@ -20,6 +20,7 @@ import {
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
+import { toast } from "sonner";
 import {
     Tooltip,
     TooltipContent,
@@ -364,9 +365,12 @@ export function RequestsPage() {
 
       await loadRequests();
       queryClient.invalidateQueries({ queryKey: ["requests"] });
+      toast.success("Request deleted");
     } catch (err) {
       logger.error("Failed to delete request:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete request");
+      const message = err instanceof Error ? err.message : "Failed to delete request";
+      setError(message);
+      toast.error("Failed to delete request", { description: message });
     } finally {
       setLoading(false);
     }
@@ -377,7 +381,8 @@ export function RequestsPage() {
       setLoading(true);
       setError(null);
 
-      if (dialog?.kind === "edit") {
+      const isEdit = dialog?.kind === "edit";
+      if (isEdit) {
         await updateRequest(dialog.request.id, buildUpdatePayload(data));
       } else {
         await createRequest(buildCreatePayload(data));
@@ -386,9 +391,14 @@ export function RequestsPage() {
       await loadRequests();
       queryClient.invalidateQueries({ queryKey: ["requests"] });
       setDialog(null);
+      toast.success(isEdit ? "Request updated" : "Request created");
     } catch (err) {
       logger.error("Failed to save request:", err);
-      setError(err instanceof Error ? err.message : "Failed to save request");
+      const message = err instanceof Error ? err.message : "Failed to save request";
+      setError(message);
+      toast.error(dialog?.kind === "edit" ? "Failed to update request" : "Failed to create request", {
+        description: message,
+      });
       throw err;
     } finally {
       setLoading(false);
@@ -473,7 +483,7 @@ export function RequestsPage() {
         title="Requests"
         actions={
           <>
-            <div className="flex border rounded-md">
+            <div className="flex border rounded-md" role="group" aria-label="View mode">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -481,6 +491,8 @@ export function RequestsPage() {
                     size="sm"
                     className="rounded-r-none"
                     onClick={() => setViewMode("tree")}
+                    aria-label="Tree view"
+                    aria-pressed={viewMode === "tree"}
                   >
                     <TreePine className="h-4 w-4" />
                   </Button>
@@ -494,6 +506,8 @@ export function RequestsPage() {
                     size="sm"
                     className="rounded-l-none"
                     onClick={() => setViewMode("list")}
+                    aria-label="List view"
+                    aria-pressed={viewMode === "list"}
                   >
                     <List className="h-4 w-4" />
                   </Button>

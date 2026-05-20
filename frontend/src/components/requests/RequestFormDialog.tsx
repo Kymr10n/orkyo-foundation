@@ -21,6 +21,7 @@ import type { Space } from "@foundation/src/types/space";
 import { ChevronDown, FileText, Layers } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRequestForm } from "@foundation/src/hooks/useRequestForm";
+import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
 import { RequestConstraintsSection } from "./RequestConstraintsSection";
@@ -89,6 +90,18 @@ export function RequestFormDialog({
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
   const [peopleSectionOpen, setPeopleSectionOpen] = useState(false);
   const [hasPeopleBlockers, setHasPeopleBlockers] = useState(false);
+
+  // Track unsaved-changes state. Flips to true on first user interaction with
+  // any form input; reset when the dialog is reopened.
+  const [isDirty, setIsDirty] = useState(false);
+  useEffect(() => {
+    if (open) setIsDirty(false);
+  }, [open]);
+
+  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+    isDirty,
+    onOpenChange,
+  });
 
   // Leaf: fully editable schedule.
   // Summary/Container: structural nodes; schedule is derived from children and not editable.
@@ -272,7 +285,8 @@ export function RequestFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={guardedOnOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="text-xl">
@@ -287,7 +301,12 @@ export function RequestFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <form
+          onSubmit={handleSubmit}
+          onInput={() => setIsDirty(true)}
+          onChange={() => setIsDirty(true)}
+          className="flex flex-col flex-1 min-h-0"
+        >
           <div className="flex-1 px-6 overflow-y-auto">
             <div className="space-y-6 pb-6">              {/* Template Selector - Only show in create mode */}
               {!request && availableTemplates.length > 0 && (
@@ -586,7 +605,7 @@ export function RequestFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => guardedOnOpenChange(false)}
               disabled={isSaving}
             >
               Cancel
@@ -598,5 +617,7 @@ export function RequestFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+    {ConfirmDiscardDialog}
+    </>
   );
 }

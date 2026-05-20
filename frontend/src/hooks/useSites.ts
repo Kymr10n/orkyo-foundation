@@ -11,6 +11,7 @@ const sitesHooks = createCrudHooks<Site, CreateSiteRequest, UpdateSiteRequest>({
   // Deleting a site cascades to spaces and requests; over-invalidating on
   // create/update is harmless and keeps the factory contract simple.
   invalidateKeys: () => [["spaces"], ["requests"]],
+  entityLabel: "Site",
 });
 
 export const useSites = () => sitesHooks.useQuery(undefined, { enabled: true });

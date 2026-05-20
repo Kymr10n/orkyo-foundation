@@ -21,8 +21,9 @@ import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import type { Space } from "@foundation/src/types/space";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
+import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 
 interface EditSpaceDialogProps {
   space: Space;
@@ -56,6 +57,19 @@ export function EditSpaceDialog({
     }
   }, [open, space]);
 
+  const isDirty = useMemo(
+    () =>
+      name !== space.name ||
+      description !== (space.description || "") ||
+      capacity !== (space.capacity ?? 1),
+    [name, description, capacity, space],
+  );
+
+  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+    isDirty,
+    onOpenChange,
+  });
+
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -85,7 +99,8 @@ export function EditSpaceDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={guardedOnOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Edit Space</DialogTitle>
@@ -164,7 +179,7 @@ export function EditSpaceDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => guardedOnOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancel
@@ -179,5 +194,7 @@ export function EditSpaceDialog({
         </form>
       </DialogContent>
     </Dialog>
+    {ConfirmDiscardDialog}
+    </>
   );
 }

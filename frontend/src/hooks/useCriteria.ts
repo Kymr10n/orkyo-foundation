@@ -12,6 +12,7 @@ const criteriaHooks = createCrudHooks<Criterion, CreateCriterionRequest, UpdateC
   updateFn: (id, data) => updateCriterion(id, data),
   deleteFn: (id) => deleteCriterion(id),
   invalidateKeys: () => [["requests"]],
+  entityLabel: "Criterion",
 });
 
 export const useCriteria = () => criteriaHooks.useQuery(undefined, { enabled: true });

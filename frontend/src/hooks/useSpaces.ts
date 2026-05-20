@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { createSpace, deleteSpace, getSpaces, updateSpace } from "@foundation/src/lib/api/space-api";
 import type { CreateSpaceRequest, SpaceGeometry, Space as SpaceType, UpdateSpaceRequest } from "@foundation/src/types/space";
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // Query hook
 export function useSpaces(siteId: string | null) {
@@ -27,7 +32,13 @@ export function useCreateSpace(siteId: string) {
   const { invalidate } = useSpaceMutation(siteId);
   return useMutation({
     mutationFn: (data: CreateSpaceRequest) => createSpace(siteId, data),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Space created");
+    },
+    onError: (err) => {
+      toast.error("Failed to create space", { description: errorMessage(err) });
+    },
   });
 }
 
@@ -36,7 +47,13 @@ export function useUpdateSpace(siteId: string) {
   return useMutation({
     mutationFn: ({ resourceId, data }: { resourceId: string; data: UpdateSpaceRequest }) =>
       updateSpace(siteId, resourceId, data),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Space updated");
+    },
+    onError: (err) => {
+      toast.error("Failed to update space", { description: errorMessage(err) });
+    },
   });
 }
 
@@ -55,11 +72,15 @@ export function useDeleteSpace(siteId: string) {
       );
       return { previous };
     },
-    onError: (_err, _resourceId, context) => {
+    onError: (err, _resourceId, context) => {
       // Rollback to snapshot on failure
       if (context?.previous !== undefined) {
         queryClient.setQueryData(["spaces", siteId], context.previous);
       }
+      toast.error("Failed to delete space", { description: errorMessage(err) });
+    },
+    onSuccess: () => {
+      toast.success("Space deleted");
     },
     onSettled: invalidate,
   });
@@ -80,5 +101,9 @@ export function useMoveSpace(siteId: string) {
       geometry: newGeometry,
     }),
     onSuccess: invalidate,
+    // Move/resize is a visible drag — silent on success. Surface failure.
+    onError: (err) => {
+      toast.error("Failed to move space", { description: errorMessage(err) });
+    },
   });
 }

@@ -112,11 +112,22 @@ describe('CreateSpaceDialog', () => {
     });
   });
 
-  it('resets form on cancel', () => {
+  it('prompts to discard changes when cancelling a dirty form', async () => {
     renderDialog();
     fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
       target: { value: 'Zone A' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    // The dirty-guard confirm dialog appears; the dialog is not yet closed.
+    expect(defaultProps.onOpenChange).not.toHaveBeenCalled();
+    const discardBtn = await screen.findByRole('button', { name: /Discard changes/i });
+    fireEvent.click(discardBtn);
+    expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('closes immediately on cancel when form is clean', () => {
+    renderDialog();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });

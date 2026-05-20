@@ -16,6 +16,7 @@ import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
+import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
 
 interface CreateSpaceDialogProps {
   open: boolean;
@@ -37,6 +38,13 @@ export function CreateSpaceDialog({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isDirty = name !== '' || code !== '' || description !== '';
+
+  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+    isDirty,
+    onOpenChange,
+  });
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -73,17 +81,14 @@ export function CreateSpaceDialog({
   };
 
   const handleCancel = () => {
-    setName('');
-    setCode('');
-    setDescription('');
-    setError(null);
-    onOpenChange(false);
+    guardedOnOpenChange(false);
   };
 
   const geometryInfo = `${geometry.type} with ${geometry.coordinates.length} points`;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={guardedOnOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Space</DialogTitle>
@@ -172,5 +177,7 @@ export function CreateSpaceDialog({
         </form>
       </DialogContent>
     </Dialog>
+    {ConfirmDiscardDialog}
+    </>
   );
 }
