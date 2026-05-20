@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Orkyo.Foundation.Seed</RootNamespace>
+    <AssemblyName>Orkyo.Foundation.Seed</AssemblyName>
+
+    <PackageId>Orkyo.Foundation.Seed</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Orkyo</Authors>
+    <Description>Dev-only realistic test-data generator. Produces large, FK-valid workspaces for local development of orkyo-saas and orkyo-community. Never ship to production: this library writes raw SQL and bypasses API validation.</Description>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Orkyo.Foundation.Seed.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Bogus" Version="35.*" />
+    <PackageReference Include="CommandLineParser" Version="2.9.*" />
+    <PackageReference Include="Npgsql" Version="8.0.5" />
+  </ItemGroup>
+</Project>

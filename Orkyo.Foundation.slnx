@@ -14,7 +14,11 @@
   <Folder Name="/src/">
     <Project Path="backend/src/Orkyo.Foundation.csproj" />
   </Folder>
+  <Folder Name="/seeding/">
+    <Project Path="backend/seeding/Orkyo.Foundation.Seed.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="backend/tests/Orkyo.Foundation.Tests.csproj" />
+    <Project Path="backend/seeding-tests/Orkyo.Foundation.Seed.Tests.csproj" />
   </Folder>
 </Solution>
