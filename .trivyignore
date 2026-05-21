@@ -15,6 +15,14 @@ CVE-2026-4282  # HIGH | Keycloak: Privilege escalation via forged token — not 
 CVE-2026-4634  # HIGH | Keycloak: Denial of Service via excessive resource usage — not yet fixed in KC 26.6.2 | Added: 2026-04-28 | Review: 2026-06-04
 CVE-2026-4636  # HIGH | Keycloak: UMA policy bypass allows authenticated access — not yet fixed in KC 26.6.2 | Added: 2026-04-28 | Review: 2026-06-04
 
+# ── Keycloak embedded JARs — netty 4.1.132 → 4.1.133 (not yet shipped by KC) ─
+# KC 26.6.2 ships netty 4.1.132.Final; these CVEs require 4.1.133.Final.
+# Newly appeared in Trivy Java DB after KC 26.6.2 was published.
+CVE-2026-42579 # HIGH | netty-codec-dns: input validation bypass — KC 26.6.2 ships 4.1.132; fix requires 4.1.133 | Added: 2026-05-21 | Review: 2026-06-04
+CVE-2026-42583 # HIGH | netty-codec: Lz4FrameDecoder resource exhaustion — KC 26.6.2 ships 4.1.132; fix requires 4.1.133 | Added: 2026-05-21 | Review: 2026-06-04
+CVE-2026-42584 # HIGH | netty-codec-http: HttpClientCodec desync — KC 26.6.2 ships 4.1.132; fix requires 4.1.133 | Added: 2026-05-21 | Review: 2026-06-04
+CVE-2026-42587 # HIGH | netty-codec-http/http2: decompression bypass — KC 26.6.2 ships 4.1.132; fix requires 4.1.133 | Added: 2026-05-21 | Review: 2026-06-04
+
 # ── Keycloak base image JDK (fixed in future KC base image update) ────────────
 CVE-2026-34282 # HIGH | openjdk: Enhance TLS connection handling — not yet in KC 26.6.2 ubi9 base image | Added: 2026-04-28 | Review: 2026-06-04
 
