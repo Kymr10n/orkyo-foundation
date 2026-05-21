@@ -27,7 +27,7 @@ on:
 
 concurrency:
   group: release-ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions: {}
 
@@ -128,6 +128,8 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
           ignore-unfixed: true
+        env:
+          TRIVY_SKIP_JAVA_DB_UPDATE: "true"
 
       - name: Migration header lint
         run: bash scripts/ci/lint-migration-headers.sh backend/migrations-foundation/sql
