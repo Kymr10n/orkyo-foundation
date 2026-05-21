@@ -21,6 +21,7 @@ import {
 } from "@foundation/src/components/ui/select";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { createInvitation, type CreateInvitationRequest } from "@foundation/src/lib/api/user-api";
+import { isValidEmail } from "@foundation/src/lib/utils/validation";
 
 interface InviteUserDialogProps {
   open: boolean;
@@ -59,7 +60,7 @@ export function InviteUserDialog({
       return;
     }
 
-    if (!email.includes("@")) {
+    if (!isValidEmail(email.trim())) {
       setError("Please enter a valid email address");
       return;
     }

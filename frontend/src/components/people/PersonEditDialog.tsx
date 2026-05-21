@@ -41,6 +41,7 @@ import {
 } from '@foundation/src/lib/api/departments-api';
 import { JobTitleEditDialog } from '@foundation/src/components/settings/JobTitleEditDialog';
 import { DepartmentEditDialog } from '@foundation/src/components/settings/DepartmentEditDialog';
+import { isValidEmail } from '@foundation/src/lib/utils/validation';
 
 interface PersonEditDialogProps {
   person: ResourceInfo | null;
@@ -197,6 +198,12 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (form.email && !isValidEmail(form.email)) {
+      toast.error(isEditing ? 'Failed to update person' : 'Failed to create person', {
+        description: 'Please enter a valid email address',
+      });
+      return;
+    }
     setIsSubmitting(true);
     saveMutation.mutate();
   };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateSpaceRequirements } from './validation';
+import { validateSpaceRequirements, isValidEmail } from './validation';
 import type { Request, RequestRequirement } from '@foundation/src/types/requests';
 import type { SpaceCapability } from '@foundation/src/lib/api/space-capability-api';
 
@@ -775,5 +775,30 @@ describe('validateSpaceRequirements', () => {
       expect(conflicts[0].kind).toBe('connector_mismatch'); // boolean
       expect(conflicts[1].kind).toBe('size_mismatch'); // enum
     });
+  });
+});
+
+describe('isValidEmail', () => {
+  it.each([
+    'user@example.com',
+    'alice.bob@sub.domain.org',
+    'user+tag@example.co.uk',
+    'x@y.z',
+    '123@456.789',
+  ])('returns true for valid address: %s', (email) => {
+    expect(isValidEmail(email)).toBe(true);
+  });
+
+  it.each([
+    '',
+    'notanemail',
+    '@nodomain',
+    'missing-at-sign.com',
+    'user@',
+    'user@ example.com',
+    'user @example.com',
+    'user@example',
+  ])('returns false for invalid address: %s', (email) => {
+    expect(isValidEmail(email)).toBe(false);
   });
 });

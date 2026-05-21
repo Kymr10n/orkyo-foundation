@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -128,8 +128,10 @@ describe('InviteUserDialog', () => {
     expect(userApi.createInvitation).not.toHaveBeenCalled();
   });
 
-  it('validates email format', async () => {
-    const user = userEvent.setup();
+  it.each([
+    ['missing @ sign', 'invalid-email'],
+    ['missing TLD', 'user@nodomain'],
+  ])('rejects malformed email (%s) and shows error', async (_label, badEmail) => {
     render(
       <QueryClientProvider client={queryClient}>
         <InviteUserDialog
@@ -141,16 +143,12 @@ describe('InviteUserDialog', () => {
     );
 
     const emailInput = screen.getByLabelText('Email Address');
-    await user.clear(emailInput);
-    await user.type(emailInput, 'invalid-email');
+    fireEvent.change(emailInput, { target: { value: badEmail } });
+    fireEvent.submit(emailInput.closest('form')!);
 
-    const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
-    await user.click(submitButton);
-
-    // Give time for validation
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Email without @ should not be submitted to API
+    await waitFor(() => {
+      expect(screen.getByText('Please enter a valid email address')).toBeInTheDocument();
+    });
     expect(userApi.createInvitation).not.toHaveBeenCalled();
   });
 

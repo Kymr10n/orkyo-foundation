@@ -101,4 +101,34 @@ describe('RequestAccessPage', () => {
       expect(screen.getByText(/network error/i)).toBeInTheDocument();
     });
   });
+
+  it('rejects a malformed email and shows an error before submitting', async () => {
+    render(<RequestAccessPage />);
+
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'notanemail' } });
+    const passwordInputs = screen.getAllByLabelText(/password/i);
+    fireEvent.change(passwordInputs[0], { target: { value: 'password123' } });
+    fireEvent.change(passwordInputs[1], { target: { value: 'password123' } });
+    fireEvent.submit(passwordInputs[0].closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/please enter a valid email address/i)).toBeInTheDocument();
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects an email without a TLD (passes @ check but fails format check)', async () => {
+    render(<RequestAccessPage />);
+
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@nodomain' } });
+    const passwordInputs = screen.getAllByLabelText(/password/i);
+    fireEvent.change(passwordInputs[0], { target: { value: 'password123' } });
+    fireEvent.change(passwordInputs[1], { target: { value: 'password123' } });
+    fireEvent.submit(passwordInputs[0].closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/please enter a valid email address/i)).toBeInTheDocument();
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

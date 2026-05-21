@@ -12,6 +12,7 @@ import {
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
+import { isValidEmail } from "@foundation/src/lib/utils/validation";
 
 export function RequestAccessPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -27,6 +28,11 @@ export function RequestAccessPage() {
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
+    if (formData.email && !isValidEmail(formData.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
 
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {

@@ -200,4 +200,33 @@ describe('PersonEditDialog', () => {
       ),
     );
   });
+
+  it('shows an error toast when a malformed email is submitted', async () => {
+    renderDialog({ onSaved: vi.fn() });
+
+    const nameInput = screen.getByLabelText(/Name/);
+    fireEvent.change(nameInput, { target: { value: 'Alice' } });
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'notanemail' } });
+    fireEvent.submit(nameInput.closest('form')!);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Failed to create person',
+        expect.objectContaining({ description: 'Please enter a valid email address' }),
+      ),
+    );
+    expect(createResource).not.toHaveBeenCalled();
+  });
+
+  it('does not validate email when the field is empty (optional field)', async () => {
+    renderDialog({ onSaved: vi.fn() });
+
+    const nameInput = screen.getByLabelText(/Name/);
+    fireEvent.change(nameInput, { target: { value: 'Alice' } });
+    // Leave email blank
+    fireEvent.submit(nameInput.closest('form')!);
+
+    await waitFor(() => expect(createResource).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalled();
+  });
 });
