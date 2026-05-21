@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
 import { Plus, Pencil, Trash2, Sliders } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
@@ -42,6 +43,11 @@ export function PersonList() {
     mutationFn: (id: string) => deleteResource(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['resources', 'person'] });
+      toast.success('Person deactivated');
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : 'Failed to deactivate person';
+      toast.error('Failed to deactivate person', { description: message });
     },
   });
 

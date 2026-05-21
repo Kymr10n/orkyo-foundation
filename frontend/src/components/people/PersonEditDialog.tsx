@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -156,6 +157,8 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const isEditing = !!person;
+
   const saveMutation = useMutation({
     mutationFn: async (): Promise<ResourceInfo> => {
       const resourceFields = {
@@ -180,7 +183,16 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
       return saved;
     },
     onSettled: () => setIsSubmitting(false),
-    onSuccess: () => onSaved(),
+    onSuccess: () => {
+      toast.success(isEditing ? 'Person updated' : 'Person created');
+      onSaved();
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : 'Failed to save person';
+      toast.error(isEditing ? 'Failed to update person' : 'Failed to create person', {
+        description: message,
+      });
+    },
   });
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {

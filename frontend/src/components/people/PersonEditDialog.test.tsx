@@ -22,11 +22,15 @@ vi.mock('@foundation/src/lib/api/job-titles-api', () => ({
 vi.mock('@foundation/src/lib/api/departments-api', () => ({
   getDepartmentTree: vi.fn(),
 }));
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 import { createResource, updateResource } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfile, upsertPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getJobTitles } from '@foundation/src/lib/api/job-titles-api';
 import { getDepartmentTree } from '@foundation/src/lib/api/departments-api';
+import { toast } from 'sonner';
 
 const createdResource: ResourceInfo = {
   id: 'res-1',
@@ -162,5 +166,38 @@ describe('PersonEditDialog', () => {
     expect(save).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'A' } });
     expect(save).not.toBeDisabled();
+  });
+
+  it('shows a success toast with "Person created" after a successful create', async () => {
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Person created'));
+  });
+
+  it('shows a success toast with "Person updated" after a successful edit', async () => {
+    renderDialog({ person: createdResource, onSaved: vi.fn() });
+
+    await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Person updated'));
+  });
+
+  it('shows an error toast when create fails', async () => {
+    vi.mocked(createResource).mockRejectedValue(new Error('Server error'));
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Failed to create person',
+        expect.objectContaining({ description: 'Server error' }),
+      ),
+    );
   });
 });

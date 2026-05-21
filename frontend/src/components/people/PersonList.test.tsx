@@ -13,6 +13,10 @@ vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
   getPersonProfile: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
 // PersonEditDialog is a heavyweight dialog; stub it out so the list tests
 // focus on the list itself rather than the dialog's dependencies.
 vi.mock('./PersonEditDialog', () => ({
@@ -67,6 +71,7 @@ vi.mock('./PersonSkillsEditor', () => ({
 }));
 
 import { getResources, deleteResource } from '@foundation/src/lib/api/resources-api';
+import { toast } from 'sonner';
 
 const mockPerson = (id: string, name: string): ResourceInfo => ({
   id,
@@ -234,6 +239,30 @@ describe('PersonList', () => {
     await waitFor(() => screen.getByText('Alice'));
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
     expect(deleteResource).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a success toast after deactivating a person', async () => {
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Person deactivated'));
+    vi.unstubAllGlobals();
+  });
+
+  it('shows an error toast when deactivation fails', async () => {
+    vi.mocked(deleteResource).mockRejectedValue(new Error('Network error'));
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Failed to deactivate person',
+        expect.objectContaining({ description: 'Network error' }),
+      ),
+    );
     vi.unstubAllGlobals();
   });
 });

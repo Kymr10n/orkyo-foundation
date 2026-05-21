@@ -409,7 +409,7 @@ export function UtilizationPage() {
   }, [requests, scheduleMutation]);
 
   const tabs: PageTab[] = [
-    { value: 'space', label: 'Space allocation' },
+    { value: 'space', label: 'Spaces' },
     { value: 'people', label: 'People' },
   ];
 
