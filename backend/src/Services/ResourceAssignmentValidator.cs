@@ -59,7 +59,7 @@ public class ResourceAssignmentValidator(
         var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id);
         if (siteId is null) return;
 
-        await CheckOffTimesAndHolidaysAsync(request, resource, siteId.Value, warnings);
+        await CheckOffTimesAndHolidaysAsync(request, resource, siteId.Value, warnings, ct);
         await CheckWeekendsAsync(request, resource, siteId.Value, warnings);
     }
 
@@ -97,21 +97,20 @@ public class ResourceAssignmentValidator(
         Guid siteId,
         List<ValidationIssue> warnings, CancellationToken ct = default)
     {
-        var blockingOffTimes = await offTimeResourceQuery.GetBlockingOffTimesAsync(
-            resource.Id, siteId, request.StartUtc, request.EndUtc);
+        var blocking = await offTimeResourceQuery.GetBlockingPeriodsAsync(
+            resource.Id, request.StartUtc, request.EndUtc);
 
-        foreach (var offTime in blockingOffTimes)
+        foreach (var period in blocking)
         {
-            // Holidays are surfaced as a distinct reason code so the UI can render them
-            // differently (e.g. "public holiday" label) from generic maintenance/custom off-times.
-            var isHoliday = offTime.Type == OffTimeType.Holiday;
+            var isHoliday = period.Source == BlockedPeriodSource.AvailabilityEvent
+                            && period.EventType == "public_holiday";
             warnings.Add(new ValidationIssue
             {
                 Code = isHoliday ? ValidationReasonCode.NonWorkingHoliday : ValidationReasonCode.OffTimeOverlap,
                 Message = isHoliday ? "Assignment overlaps a public holiday" : "Resource has off-time during this period",
                 ResourceId = resource.Id,
-                ConflictingOffTimeId = offTime.Id,
-                Details = $"{offTime.Type}: {offTime.Title}"
+                ConflictingAvailabilityId = period.Id,
+                Details = period.Title
             });
         }
     }

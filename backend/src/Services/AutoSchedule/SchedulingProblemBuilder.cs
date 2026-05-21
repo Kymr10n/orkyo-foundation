@@ -11,19 +11,22 @@ public class SchedulingProblemBuilder
     private readonly IResourceCapabilityRepository _capabilityRepository;
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IResourceRepository _resourceRepository;
+    private readonly IAvailabilityResolver _resolver;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
         ISpaceRepository spaceRepository,
         IResourceCapabilityRepository capabilityRepository,
         ISchedulingRepository schedulingRepository,
-        IResourceRepository resourceRepository)
+        IResourceRepository resourceRepository,
+        IAvailabilityResolver resolver)
     {
         _requestRepository = requestRepository;
         _spaceRepository = spaceRepository;
         _capabilityRepository = capabilityRepository;
         _schedulingRepository = schedulingRepository;
         _resourceRepository = resourceRepository;
+        _resolver = resolver;
     }
 
     public virtual async Task<SchedulingProblem> BuildAsync(
@@ -31,7 +34,6 @@ public class SchedulingProblemBuilder
         CancellationToken cancellationToken)
     {
         var settings = await _schedulingRepository.GetSettingsAsync(request.SiteId);
-        var offTimes = await _schedulingRepository.GetOffTimesAsync(request.SiteId);
         var allRequests = await _requestRepository.GetAllAsync(includeRequirements: true);
 
         var eligibleRequests = allRequests
@@ -53,6 +55,10 @@ public class SchedulingProblemBuilder
             var capabilities = await _capabilityRepository.GetByResourceAsync(space.Id);
             spaceNodes.Add(new SpaceNode(space.Id, space.Name, capabilities.Select(c => c.CriterionId).ToHashSet()));
         }
+
+        var spaceResourceIds = spaceNodes.Select(s => s.ResourceId).ToList();
+        var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(
+            request.SiteId, spaceResourceIds, cancellationToken);
 
         var requestNodes = new List<RequestNode>();
         foreach (var r in eligibleRequests)
@@ -91,7 +97,7 @@ public class SchedulingProblemBuilder
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd,
             requestNodes, spaceNodes, fixedAssignments,
-            settings, offTimes, request.Mode, additionalResources);
+            settings, blockedPeriodsByResource, request.Mode, additionalResources);
     }
 
     private async Task<IReadOnlyList<ResourceNode>> LoadNonSpaceResourcesAsync()

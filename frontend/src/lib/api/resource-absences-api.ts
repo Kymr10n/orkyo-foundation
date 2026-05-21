@@ -1,18 +1,14 @@
-/**
- * API client for per-resource absence (off-time) operations.
- * Maps to GET/POST/PUT/DELETE /api/resources/{id}/absences[/{absenceId}].
- */
-
-import { apiGet, apiPost, apiDelete } from '../core/api-client';
+import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+
+export type AbsenceType = 'vacation' | 'sickness' | 'unavailable' | 'training' | 'maintenance' | 'custom';
 
 export interface ResourceAbsenceInfo {
   id: string;
-  siteId: string;
+  resourceId: string;
+  absenceType: AbsenceType;
   title: string;
-  type: string;
-  appliesToAllResources: boolean;
-  resourceIds?: string[];
+  notes?: string;
   startTs: string;
   endTs: string;
   isRecurring: boolean;
@@ -22,26 +18,45 @@ export interface ResourceAbsenceInfo {
   updatedAt: string;
 }
 
-export async function getResourceAbsences(resourceId: string, siteId: string): Promise<ResourceAbsenceInfo[]> {
-  return apiGet<ResourceAbsenceInfo[]>(
-    `${API_PATHS.resourceAbsences(resourceId)}?siteId=${encodeURIComponent(siteId)}`,
-  );
+export interface CreateResourceAbsenceRequest {
+  absenceType: AbsenceType;
+  title: string;
+  notes?: string;
+  startTs: string;
+  endTs: string;
+  isRecurring?: boolean;
+  recurrenceRule?: string;
+  enabled?: boolean;
+}
+
+export interface UpdateResourceAbsenceRequest {
+  absenceType?: AbsenceType;
+  title?: string;
+  notes?: string;
+  startTs?: string;
+  endTs?: string;
+  isRecurring?: boolean;
+  recurrenceRule?: string;
+  enabled?: boolean;
+}
+
+export async function getResourceAbsences(resourceId: string): Promise<ResourceAbsenceInfo[]> {
+  return apiGet<ResourceAbsenceInfo[]>(API_PATHS.resourceAbsences(resourceId));
 }
 
 export async function createResourceAbsence(
   resourceId: string,
-  request: {
-    siteId: string;
-    title: string;
-    type: string;
-    startTs: string;
-    endTs: string;
-    isRecurring?: boolean;
-    recurrenceRule?: string;
-    enabled?: boolean;
-  },
+  request: CreateResourceAbsenceRequest,
 ): Promise<ResourceAbsenceInfo> {
   return apiPost<ResourceAbsenceInfo>(API_PATHS.resourceAbsences(resourceId), request);
+}
+
+export async function updateResourceAbsence(
+  resourceId: string,
+  absenceId: string,
+  request: UpdateResourceAbsenceRequest,
+): Promise<ResourceAbsenceInfo> {
+  return apiPut<ResourceAbsenceInfo>(API_PATHS.resourceAbsence(resourceId, absenceId), request);
 }
 
 export async function deleteResourceAbsence(resourceId: string, absenceId: string): Promise<void> {

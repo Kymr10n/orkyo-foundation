@@ -17,7 +17,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof PersonAbsenceEd
     <QueryClientProvider client={queryClient}>
       <PersonAbsenceEditDialog
         personId="person-alice"
-        siteId="site-1"
         isOpen={true}
         onClose={() => {}}
         onSaved={() => {}}
@@ -32,11 +31,9 @@ describe('PersonAbsenceEditDialog', () => {
     vi.clearAllMocks();
     vi.mocked(createResourceAbsence).mockResolvedValue({
       id: 'abs-1',
-      siteId: 'site-1',
+      resourceId: 'person-alice',
+      absenceType: 'vacation',
       title: 'vacation',
-      type: 'vacation',
-      appliesToAllResources: false,
-      resourceIds: ['person-alice'],
       startTs: '2026-06-01T00:00:00Z',
       endTs: '2026-06-07T00:00:00Z',
       isRecurring: false,
@@ -54,9 +51,9 @@ describe('PersonAbsenceEditDialog', () => {
     expect(screen.getByText(/End Date/)).toBeInTheDocument();
   });
 
-  it('does not render a person selector', () => {
+  it('does not render a site picker', () => {
     renderDialog();
-    expect(screen.queryByText(/Person/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Site/i)).not.toBeInTheDocument();
   });
 
   it('Save button is disabled before dates are selected', () => {
@@ -71,20 +68,16 @@ describe('PersonAbsenceEditDialog', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('calls createResourceAbsence with personId and siteId from props', async () => {
-    const onSaved = vi.fn();
-    renderDialog({ personId: 'person-bob', siteId: 'site-2', onSaved });
+  it('calls createResourceAbsence with personId from props (no siteId)', async () => {
+    renderDialog({ personId: 'person-bob' });
 
-    // Simulate date selection by directly submitting — dates come from calendar
-    // which is hard to drive in unit tests; just verify the call shape when
-    // mutation is triggered programmatically.
     vi.mocked(createResourceAbsence).mockImplementation((resourceId, req) => {
       expect(resourceId).toBe('person-bob');
-      expect(req.siteId).toBe('site-2');
+      expect(req).not.toHaveProperty('siteId');
       return Promise.resolve({
-        id: 'abs-2', siteId: 'site-2', title: 'vacation', type: 'vacation',
-        appliesToAllResources: false, startTs: '', endTs: '',
-        isRecurring: false, enabled: true,
+        id: 'abs-2', resourceId: 'person-bob',
+        absenceType: 'vacation' as const, title: 'vacation',
+        startTs: '', endTs: '', isRecurring: false, enabled: true,
         createdAt: '', updatedAt: '',
       });
     });

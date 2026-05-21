@@ -89,6 +89,9 @@ public static class FoundationServiceExtensions
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IIdentityLinkService, KeycloakIdentityLinkService>();
         services.AddScoped<IInvitationService, InvitationService>();
+        services.AddScoped<IAvailabilityEventRepository, AvailabilityEventRepository>();
+        services.AddScoped<IResourceAbsenceRepository, ResourceAbsenceRepository>();
+        services.AddScoped<IAvailabilityResolver, AvailabilityResolver>();
         services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
         services.AddScoped<IPresetService, PresetService>();
         services.AddScoped<IRequestService, RequestService>();

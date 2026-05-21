@@ -14,7 +14,7 @@ internal static class AutoScheduleTestHelpers
         DateOnly? horizonStart = null,
         DateOnly? horizonEnd = null,
         SchedulingSettingsInfo? settings = null,
-        List<OffTimeInfo>? offTimes = null)
+        Dictionary<Guid, List<BlockedPeriod>>? blockedPeriodsByResource = null)
         => new(
             SiteId: Guid.NewGuid(),
             HorizonStart: horizonStart ?? DefaultHorizonStart,
@@ -23,7 +23,7 @@ internal static class AutoScheduleTestHelpers
             Spaces: spaces,
             FixedAssignments: fixedAssignments ?? [],
             Settings: settings,
-            OffTimes: offTimes,
+            BlockedPeriodsByResource: blockedPeriodsByResource,
             Mode: AutoScheduleMode.FillGapsOnly);
 
     internal static AnalyzedSchedulingProblem MakeAnalyzed(
@@ -41,7 +41,7 @@ internal static class AutoScheduleTestHelpers
                 Spaces: [],
                 FixedAssignments: fixedAssignments ?? [],
                 Settings: null,
-                OffTimes: null,
+                BlockedPeriodsByResource: null,
                 Mode: AutoScheduleMode.FillGapsOnly),
             Candidates: candidates,
             Rejections: rejections ?? [],

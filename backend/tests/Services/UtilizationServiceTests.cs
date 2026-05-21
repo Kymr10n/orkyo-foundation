@@ -40,26 +40,20 @@ public class UtilizationServiceTests
             UpdatedAt = DateTime.UtcNow,
         };
 
-    private static OffTimeInfo MakeOffTime(DateTime start, DateTime end) => new()
+    private static BlockedPeriod MakeBlockedPeriod(DateTime start, DateTime end) => new()
     {
         Id = Guid.NewGuid(),
-        SiteId = Guid.NewGuid(),
         Title = "Off",
-        Type = OffTimeType.Custom,
-        AppliesToAllResources = false,
-        ResourceIds = [ResourceId],
         StartTs = start,
         EndTs = end,
-        IsRecurring = false,
-        Enabled = true,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
+        Source = BlockedPeriodSource.ResourceAbsence,
+        AbsenceType = "custom"
     };
 
     private static IUtilizationService BuildService(
         ResourceInfo resource,
         List<ResourceAssignmentInfo>? assignments = null,
-        List<OffTimeInfo>? offTimes = null,
+        List<BlockedPeriod>? blockedPeriods = null,
         ResourceGroupMembersResponse? groupMembers = null)
     {
         var resourceRepo = new Mock<IResourceRepository>();
@@ -75,12 +69,11 @@ public class UtilizationServiceTests
         groupRepo.Setup(r => r.GetMembersAsync(GroupId))
             .ReturnsAsync(groupMembers ?? new ResourceGroupMembersResponse { GroupId = GroupId, Members = [resource] });
 
-        var schedulingRepo = new Mock<ISchedulingRepository>();
-        schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(ResourceId)).ReturnsAsync((Guid?)null);
-        schedulingRepo.Setup(r => r.GetOffTimesByResourceAsync(ResourceId, It.IsAny<Guid>()))
-            .ReturnsAsync(offTimes ?? []);
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blockedPeriods ?? []);
 
-        return new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, schedulingRepo.Object);
+        return new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
     }
 
     // ── Exclusive resource tests ───────────────────────────────────────────
@@ -173,14 +166,7 @@ public class UtilizationServiceTests
         var resource = MakeResource(AllocationModes.Fractional);
         var from = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = from.AddDays(2);
-        var offTimes = new List<OffTimeInfo>
-        {
-            MakeOffTime(from, from.AddDays(1)),
-        };
-        var schedulingRepo = new Mock<ISchedulingRepository>();
-        schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(ResourceId)).ReturnsAsync(Guid.NewGuid());
-        schedulingRepo.Setup(r => r.GetOffTimesByResourceAsync(ResourceId, It.IsAny<Guid>()))
-            .ReturnsAsync(offTimes);
+        var blocked = new List<BlockedPeriod> { MakeBlockedPeriod(from, from.AddDays(1)) };
 
         var resourceRepo = new Mock<IResourceRepository>();
         resourceRepo.Setup(r => r.GetByIdAsync(ResourceId)).ReturnsAsync(resource);
@@ -188,8 +174,11 @@ public class UtilizationServiceTests
         assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
             .ReturnsAsync([]);
         var groupRepo = new Mock<IResourceGroupMemberRepository>();
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blocked);
 
-        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, schedulingRepo.Object);
+        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
         var result = await service.GetResourceUtilizationAsync(ResourceId, from, to, "day");
 
         Assert.Equal(0m, result!.Buckets[0].EffectiveAvailabilityPercent); // off-time day
@@ -238,10 +227,11 @@ public class UtilizationServiceTests
         groupRepo.Setup(r => r.GetMembersAsync(GroupId))
             .ReturnsAsync(new ResourceGroupMembersResponse { GroupId = GroupId, Members = [resource1, resource2] });
 
-        var schedulingRepo = new Mock<ISchedulingRepository>();
-        schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(It.IsAny<Guid>())).ReturnsAsync((Guid?)null);
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
-        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, schedulingRepo.Object);
+        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
         var result = await service.GetGroupUtilizationAsync(GroupId, from, to, "day");
 
         Assert.Single(result!.Buckets);

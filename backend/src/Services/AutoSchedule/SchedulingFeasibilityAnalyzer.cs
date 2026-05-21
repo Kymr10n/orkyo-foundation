@@ -92,19 +92,16 @@ public sealed class SchedulingFeasibilityAnalyzer
             .Select(a => (a.Start, a.End))
             .ToList();
 
-        // Pre-compute off-time date ranges if scheduling settings apply
+        // Pre-compute blocked date ranges for this resource if scheduling settings apply
         var offDates = new HashSet<DateOnly>();
-        if (request.RespectSchedulingSettings && problem.OffTimes != null)
+        if (request.RespectSchedulingSettings && problem.BlockedPeriodsByResource != null)
         {
-            foreach (var ot in problem.OffTimes.Where(o => o.Enabled))
+            var periods = problem.BlockedPeriodsByResource.GetValueOrDefault(space.ResourceId, []);
+            foreach (var p in periods)
             {
-                // Only include off-times that apply to this space
-                if (!ot.AppliesToAllResources && ot.ResourceIds != null && !ot.ResourceIds.Contains(space.ResourceId))
-                    continue;
-
-                var otStart = DateOnly.FromDateTime(ot.StartTs);
-                var otEnd = DateOnly.FromDateTime(ot.EndTs);
-                for (var d = otStart; d <= otEnd; d = d.AddDays(1))
+                var pStart = DateOnly.FromDateTime(p.StartTs);
+                var pEnd = DateOnly.FromDateTime(p.EndTs);
+                for (var d = pStart; d <= pEnd; d = d.AddDays(1))
                     offDates.Add(d);
             }
         }

@@ -20,62 +20,61 @@ const mockSettings = {
 };
 
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: mockSettings, isLoading: false }));
-const mockUseOffTimes = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
+const mockUseAvailabilityEvents = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 const mockUpsertMutateAsync = vi.fn();
 const mockDeleteSettingsMutateAsync = vi.fn();
-const mockCreateOffTimeMutateAsync = vi.fn();
-const mockUpdateOffTimeMutateAsync = vi.fn();
-const mockDeleteOffTimeMutateAsync = vi.fn();
+const mockCreateEventMutateAsync = vi.fn();
+const mockUpdateEventMutateAsync = vi.fn();
+const mockDeleteEventMutateAsync = vi.fn();
 
 vi.mock('@foundation/src/hooks/useScheduling', () => ({
   useSchedulingSettings: (siteId: any) => mockUseSchedulingSettings(siteId),
   useUpsertSchedulingSettings: () => ({ mutateAsync: mockUpsertMutateAsync }),
   useDeleteSchedulingSettings: () => ({ mutateAsync: mockDeleteSettingsMutateAsync }),
-  useOffTimes: (siteId: any) => mockUseOffTimes(siteId),
-  useCreateOffTime: () => ({ mutateAsync: mockCreateOffTimeMutateAsync }),
-  useUpdateOffTime: () => ({ mutateAsync: mockUpdateOffTimeMutateAsync }),
-  useDeleteOffTime: () => ({ mutateAsync: mockDeleteOffTimeMutateAsync }),
+  useAvailabilityEvents: (siteId: any) => mockUseAvailabilityEvents(siteId),
+  useCreateAvailabilityEvent: () => ({ mutateAsync: mockCreateEventMutateAsync }),
+  useUpdateAvailabilityEvent: () => ({ mutateAsync: mockUpdateEventMutateAsync }),
+  useDeleteAvailabilityEvent: () => ({ mutateAsync: mockDeleteEventMutateAsync }),
 }));
 
-vi.mock('@foundation/src/domain/scheduling/types', () => ({
-  OFF_TIME_TYPE_LABELS: { maintenance: 'Maintenance', holiday: 'Holiday', custom: 'Custom' },
-}));
-
-// OffTimeDialog mock exposes onSave so handleSaveOffTime can be tested
-vi.mock('./OffTimeDialog', () => ({
-  OffTimeDialog: ({ open, onSave }: any) =>
+// AvailabilityEventDialog mock exposes onSave so handleSaveEvent can be tested
+vi.mock('./AvailabilityEventDialog', () => ({
+  AvailabilityEventDialog: ({ open, onSave }: any) =>
     open ? (
       <button
-        data-testid="mock-offtime-save"
+        data-testid="mock-event-save"
         onClick={() =>
           onSave({
-            title: 'Test Off Time',
-            type: 'holiday',
-            startMs: 1000,
-            endMs: 2000,
+            title: 'Test Availability Event',
+            eventType: 'shutdown',
+            defaultEffect: 'closed',
+            startTs: '2026-12-24T00:00:00.000Z',
+            endTs: '2026-12-26T00:00:00.000Z',
             enabled: true,
             isRecurring: false,
-            appliesToAllSpaces: true,
-            resourceIds: [],
           })
         }
       >
-        Save Off Time
+        Save Availability Event
       </button>
     ) : null,
 }));
 
-const mockOffTime = {
-  id: 'ot-1',
+const mockAvailabilityEvent = {
+  id: 'event-1',
   siteId: 'site-1',
   title: 'Christmas Closure',
-  type: 'holiday' as const,
-  startMs: new Date('2024-12-24').getTime(),
-  endMs: new Date('2024-12-26').getTime(),
+  description: null,
+  eventType: 'public_holiday' as const,
+  defaultEffect: 'closed' as const,
+  startTs: '2024-12-24T00:00:00.000Z',
+  endTs: '2024-12-26T00:00:00.000Z',
   enabled: true,
   isRecurring: false,
-  appliesToAllSpaces: true,
-  resourceIds: [],
+  recurrenceRule: null,
+  scopes: [],
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
 };
 
 function setup() {
@@ -84,12 +83,12 @@ function setup() {
     selector({ selectedSiteId: 'site-1' }),
   );
   mockUseSchedulingSettings.mockReturnValue({ data: mockSettings, isLoading: false });
-  mockUseOffTimes.mockReturnValue({ data: [], isLoading: false });
+  mockUseAvailabilityEvents.mockReturnValue({ data: [], isLoading: false });
   mockUpsertMutateAsync.mockResolvedValue(undefined);
   mockDeleteSettingsMutateAsync.mockResolvedValue(undefined);
-  mockCreateOffTimeMutateAsync.mockResolvedValue(undefined);
-  mockUpdateOffTimeMutateAsync.mockResolvedValue(undefined);
-  mockDeleteOffTimeMutateAsync.mockResolvedValue(undefined);
+  mockCreateEventMutateAsync.mockResolvedValue(undefined);
+  mockUpdateEventMutateAsync.mockResolvedValue(undefined);
+  mockDeleteEventMutateAsync.mockResolvedValue(undefined);
 }
 
 // ── Render tests ─────────────────────────────────────────────────────────────
@@ -117,9 +116,9 @@ describe('SchedulingSettings', () => {
     expect(screen.getByText('Weekends')).toBeInTheDocument();
   });
 
-  it('renders off-times section with Add button', () => {
+  it('renders availability events section with Add button', () => {
     render(<SchedulingSettings />);
-    expect(screen.getByText('Off-Times')).toBeInTheDocument();
+    expect(screen.getByText('Availability Events')).toBeInTheDocument();
     expect(screen.getByText('Add')).toBeInTheDocument();
   });
 
@@ -138,42 +137,52 @@ describe('SchedulingSettings', () => {
     expect(screen.queryByText('Scheduling')).not.toBeInTheDocument();
   });
 
-  it('shows loading spinner when off-times are loading', () => {
-    mockUseOffTimes.mockReturnValue({ data: [], isLoading: true });
+  it('shows loading spinner when availability events are loading', () => {
+    mockUseAvailabilityEvents.mockReturnValue({ data: [], isLoading: true });
     const { container } = render(<SchedulingSettings />);
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
-  it('shows "No off-times configured" when list is empty', () => {
+  it('shows "No availability events configured" when list is empty', () => {
     render(<SchedulingSettings />);
-    expect(screen.getByText('No off-times configured.')).toBeInTheDocument();
+    expect(screen.getByText('No availability events configured.')).toBeInTheDocument();
   });
 
-  it('renders off-time items when present', () => {
-    mockUseOffTimes.mockReturnValue({ data: [mockOffTime], isLoading: false });
+  it('renders availability event items when present', () => {
+    mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
     expect(screen.getByText('Christmas Closure')).toBeInTheDocument();
-    expect(screen.getByText('Holiday')).toBeInTheDocument();
-    expect(screen.getByText(/All spaces/)).toBeInTheDocument();
+    expect(screen.getByText('public holiday')).toBeInTheDocument();
+    expect(screen.getByText('closed')).toBeInTheDocument();
   });
 
-  it('shows Recurring badge on recurring off-times', () => {
-    mockUseOffTimes.mockReturnValue({
-      data: [{ ...mockOffTime, id: 'ot-2', title: 'Weekly Maintenance', type: 'maintenance', isRecurring: true }],
+  it('shows Recurring badge on recurring availability events', () => {
+    mockUseAvailabilityEvents.mockReturnValue({
+      data: [{ ...mockAvailabilityEvent, id: 'event-2', title: 'Weekly Maintenance', eventType: 'maintenance', isRecurring: true }],
       isLoading: false,
     });
     render(<SchedulingSettings />);
     expect(screen.getByText('Recurring')).toBeInTheDocument();
   });
 
-  it('shows Disabled badge on disabled off-times', () => {
-    mockUseOffTimes.mockReturnValue({
-      data: [{ ...mockOffTime, id: 'ot-3', title: 'Paused Event', type: 'custom', enabled: false, appliesToAllSpaces: false, resourceIds: ['s1', 's2'] }],
+  it('shows Disabled badge and scope count on scoped availability events', () => {
+    mockUseAvailabilityEvents.mockReturnValue({
+      data: [{
+        ...mockAvailabilityEvent,
+        id: 'event-3',
+        title: 'Paused Event',
+        eventType: 'custom',
+        enabled: false,
+        scopes: [
+          { id: 'scope-1', availabilityEventId: 'event-3', targetType: 'resource', targetId: 's1', effect: 'available' },
+          { id: 'scope-2', availabilityEventId: 'event-3', targetType: 'resource', targetId: 's2', effect: 'available' },
+        ],
+      }],
       isLoading: false,
     });
     render(<SchedulingSettings />);
     expect(screen.getByText('Disabled')).toBeInTheDocument();
-    expect(screen.getByText(/2 space\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/2 override\(s\)/)).toBeInTheDocument();
   });
 
   it('renders public holidays section', () => {
@@ -230,65 +239,65 @@ describe('SchedulingSettings — interactions', () => {
     await waitFor(() => expect(sw.getAttribute('aria-checked')).not.toBe(before));
   });
 
-  it('clicking Add fires handleCreateOffTime and opens dialog', async () => {
+  it('clicking Add opens the availability event dialog', async () => {
     const user = userEvent.setup();
     render(<SchedulingSettings />);
 
     await user.click(screen.getByRole('button', { name: /^Add$/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('mock-offtime-save')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-event-save')).toBeInTheDocument();
     });
   });
 
-  it('saving from dialog calls handleSaveOffTime → createOffTime', async () => {
+  it('saving from dialog creates an availability event', async () => {
     const user = userEvent.setup();
     render(<SchedulingSettings />);
 
     await user.click(screen.getByRole('button', { name: /^Add$/i }));
-    await waitFor(() => screen.getByTestId('mock-offtime-save'));
-    await user.click(screen.getByTestId('mock-offtime-save'));
+    await waitFor(() => screen.getByTestId('mock-event-save'));
+    await user.click(screen.getByTestId('mock-event-save'));
 
     await waitFor(() => {
-      expect(mockCreateOffTimeMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Test Off Time', type: 'holiday' }),
+      expect(mockCreateEventMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Test Availability Event', eventType: 'shutdown' }),
       );
     });
   });
 
-  it('clicking edit on an off-time fires handleEditOffTime', async () => {
+  it('clicking edit on an availability event opens dialog', async () => {
     const user = userEvent.setup();
-    mockUseOffTimes.mockReturnValue({ data: [mockOffTime], isLoading: false });
+    mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
 
     const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
     await user.click(iconButtons[0]);
 
     await waitFor(() => {
-      expect(screen.getByTestId('mock-offtime-save')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-event-save')).toBeInTheDocument();
     });
   });
 
-  it('saving from edit dialog calls handleSaveOffTime → updateOffTime', async () => {
+  it('saving from edit dialog updates availability event', async () => {
     const user = userEvent.setup();
-    mockUseOffTimes.mockReturnValue({ data: [mockOffTime], isLoading: false });
+    mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
 
     const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
     await user.click(iconButtons[0]);
-    await waitFor(() => screen.getByTestId('mock-offtime-save'));
-    await user.click(screen.getByTestId('mock-offtime-save'));
+    await waitFor(() => screen.getByTestId('mock-event-save'));
+    await user.click(screen.getByTestId('mock-event-save'));
 
     await waitFor(() => {
-      expect(mockUpdateOffTimeMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ offTimeId: mockOffTime.id }),
+      expect(mockUpdateEventMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ eventId: mockAvailabilityEvent.id }),
       );
     });
   });
 
-  it('deleting an off-time through confirm dialog fires handleDeleteOffTime', async () => {
+  it('deleting an availability event through confirm dialog fires handleDeleteEvent', async () => {
     const user = userEvent.setup();
-    mockUseOffTimes.mockReturnValue({ data: [mockOffTime], isLoading: false });
+    mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
 
     const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
@@ -298,7 +307,7 @@ describe('SchedulingSettings — interactions', () => {
     await user.click(deleteButton);
 
     await waitFor(() => {
-      expect(mockDeleteOffTimeMutateAsync).toHaveBeenCalledWith(mockOffTime.id);
+      expect(mockDeleteEventMutateAsync).toHaveBeenCalledWith(mockAvailabilityEvent.id);
     });
   });
 

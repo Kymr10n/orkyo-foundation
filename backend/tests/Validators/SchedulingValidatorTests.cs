@@ -95,67 +95,55 @@ public class SchedulingValidatorTests
         result.ShouldNotHaveValidationErrorFor(x => x.PublicHolidayRegion);
     }
 
-    // ── CreateOffTimeRequest ────────────────────────────────────────
+    // ── CreateAvailabilityEventRequest ─────────────────────────────
 
-    private readonly CreateOffTimeRequestValidator _createValidator = new();
+    private readonly CreateAvailabilityEventRequestValidator _createEventValidator = new();
 
     [Fact]
-    public void CreateOffTime_ValidRequest_Passes()
+    public void CreateAvailabilityEvent_ValidRequest_Passes()
     {
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
             Title = "Christmas",
-            Type = OffTimeType.Holiday,
+            EventType = AvailabilityEventType.PublicHoliday,
+            DefaultEffect = DefaultEffect.Closed,
             StartTs = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc)
         };
-        var result = _createValidator.TestValidate(request);
+        var result = _createEventValidator.TestValidate(request);
         result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]
-    public void CreateOffTime_EmptyTitle_Fails()
+    public void CreateAvailabilityEvent_EmptyTitle_Fails()
     {
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
             Title = "",
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1)
         };
-        var result = _createValidator.TestValidate(request);
+        var result = _createEventValidator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Title);
     }
 
     [Fact]
-    public void CreateOffTime_TitleTooLong_Fails()
+    public void CreateAvailabilityEvent_EndBeforeStart_Fails()
     {
-        var request = new CreateOffTimeRequest
-        {
-            Title = new string('a', 201),
-            StartTs = DateTime.UtcNow,
-            EndTs = DateTime.UtcNow.AddHours(1)
-        };
-        var result = _createValidator.TestValidate(request);
-        result.ShouldHaveValidationErrorFor(x => x.Title);
-    }
-
-    [Fact]
-    public void CreateOffTime_EndBeforeStart_Fails()
-    {
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
             Title = "Test",
             StartTs = DateTime.UtcNow.AddHours(1),
             EndTs = DateTime.UtcNow
         };
-        var result = _createValidator.TestValidate(request);
+        var result = _createEventValidator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.EndTs);
     }
 
     [Fact]
-    public void CreateOffTime_RecurringWithoutRule_Fails()
+    public void CreateAvailabilityEvent_RecurringWithoutRule_Fails()
     {
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
             Title = "Test",
             StartTs = DateTime.UtcNow,
@@ -163,80 +151,73 @@ public class SchedulingValidatorTests
             IsRecurring = true,
             RecurrenceRule = null
         };
-        var result = _createValidator.TestValidate(request);
+        var result = _createEventValidator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.RecurrenceRule);
     }
 
+    // ── CreateResourceAbsenceRequest ───────────────────────────────
+
+    private readonly CreateResourceAbsenceRequestValidator _createAbsenceValidator = new();
+
     [Fact]
-    public void CreateOffTime_NonRecurringWithRule_Fails()
+    public void CreateAbsence_ValidRequest_Passes()
     {
-        var request = new CreateOffTimeRequest
+        var request = new CreateResourceAbsenceRequest
         {
-            Title = "Test",
+            AbsenceType = AbsenceType.Vacation,
+            Title = "Holiday",
             StartTs = DateTime.UtcNow,
-            EndTs = DateTime.UtcNow.AddHours(1),
-            IsRecurring = false,
-            RecurrenceRule = "FREQ=YEARLY"
+            EndTs = DateTime.UtcNow.AddDays(5)
         };
-        var result = _createValidator.TestValidate(request);
-        result.ShouldHaveValidationErrorFor(x => x.RecurrenceRule);
-    }
-
-    [Fact]
-    public void CreateOffTime_NotAllSpaces_RequiresResourceIds()
-    {
-        var request = new CreateOffTimeRequest
-        {
-            Title = "Test",
-            StartTs = DateTime.UtcNow,
-            EndTs = DateTime.UtcNow.AddHours(1),
-            AppliesToAllResources = false,
-            ResourceIds = null
-        };
-        var result = _createValidator.TestValidate(request);
-        result.ShouldHaveValidationErrorFor(x => x.ResourceIds);
-    }
-
-    [Fact]
-    public void CreateOffTime_NotAllSpaces_EmptyResourceIds_Fails()
-    {
-        var request = new CreateOffTimeRequest
-        {
-            Title = "Test",
-            StartTs = DateTime.UtcNow,
-            EndTs = DateTime.UtcNow.AddHours(1),
-            AppliesToAllResources = false,
-            ResourceIds = new List<Guid>()
-        };
-        var result = _createValidator.TestValidate(request);
-        result.ShouldHaveValidationErrorFor(x => x.ResourceIds);
-    }
-
-    // ── UpdateOffTimeRequest ────────────────────────────────────────
-
-    private readonly UpdateOffTimeRequestValidator _updateValidator = new();
-
-    [Fact]
-    public void UpdateOffTime_EmptyRequest_Passes()
-    {
-        var request = new UpdateOffTimeRequest();
-        var result = _updateValidator.TestValidate(request);
+        var result = _createAbsenceValidator.TestValidate(request);
         result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]
-    public void UpdateOffTime_ValidPartialUpdate_Passes()
+    public void CreateAbsence_EmptyTitle_Fails()
     {
-        var request = new UpdateOffTimeRequest { Title = "Updated Title" };
-        var result = _updateValidator.TestValidate(request);
+        var request = new CreateResourceAbsenceRequest
+        {
+            AbsenceType = AbsenceType.Custom,
+            Title = "",
+            StartTs = DateTime.UtcNow,
+            EndTs = DateTime.UtcNow.AddHours(1)
+        };
+        var result = _createAbsenceValidator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Title);
+    }
+
+    [Fact]
+    public void CreateAbsence_EndBeforeStart_Fails()
+    {
+        var request = new CreateResourceAbsenceRequest
+        {
+            AbsenceType = AbsenceType.Sickness,
+            Title = "Sick",
+            StartTs = DateTime.UtcNow.AddHours(1),
+            EndTs = DateTime.UtcNow
+        };
+        var result = _createAbsenceValidator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.EndTs);
+    }
+
+    // ── UpdateResourceAbsenceRequest ───────────────────────────────
+
+    private readonly UpdateResourceAbsenceRequestValidator _updateAbsenceValidator = new();
+
+    [Fact]
+    public void UpdateAbsence_EmptyRequest_Passes()
+    {
+        var request = new UpdateResourceAbsenceRequest();
+        var result = _updateAbsenceValidator.TestValidate(request);
         result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]
-    public void UpdateOffTime_TitleTooLong_Fails()
+    public void UpdateAbsence_TitleTooLong_Fails()
     {
-        var request = new UpdateOffTimeRequest { Title = new string('a', 201) };
-        var result = _updateValidator.TestValidate(request);
+        var request = new UpdateResourceAbsenceRequest { Title = new string('a', 201) };
+        var result = _updateAbsenceValidator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Title);
     }
 }

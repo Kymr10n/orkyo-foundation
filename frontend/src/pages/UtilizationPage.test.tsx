@@ -16,7 +16,7 @@ const mockUseSpaces = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 const mockUseAutoScheduleAvailable = vi.fn((_?: any): any => false);
 let capturedExportHandler: ((format: string) => Promise<void>) | null = null;
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: null }));
-const mockUseOffTimes = vi.fn((_?: any): any => ({ data: [] }));
+const mockUseAvailabilityEvents = vi.fn((_?: any): any => ({ data: [] }));
 
 // Mock AuthContext — default: admin
 let mockRole = "admin";
@@ -93,7 +93,7 @@ vi.mock("@foundation/src/hooks/usePreferences", () => ({
 
 vi.mock("@foundation/src/hooks/useScheduling", () => ({
   useSchedulingSettings: (arg?: any) => mockUseSchedulingSettings(arg),
-  useOffTimes: (arg?: any) => mockUseOffTimes(arg),
+  useAvailabilityEvents: (arg?: any) => mockUseAvailabilityEvents(arg),
 }));
 
 vi.mock("@foundation/src/hooks/useSchedulingConflicts", () => ({
@@ -272,7 +272,7 @@ describe("UtilizationPage", () => {
     mockUseSpaces.mockReturnValue({ data: [], isLoading: false });
     mockUseAutoScheduleAvailable.mockReturnValue(false);
     mockUseSchedulingSettings.mockReturnValue({ data: null });
-    mockUseOffTimes.mockReturnValue({ data: [] });
+    mockUseAvailabilityEvents.mockReturnValue({ data: [] });
     capturedExportHandler = null;
     capturedOnDragEnd = null;
     mockStoreOverrides = {};
@@ -599,10 +599,22 @@ describe("UtilizationPage", () => {
     expect(vi.mocked(exportUtilization)).not.toHaveBeenCalled();
   });
 
-  // --- Off-time / scheduling settings ---
+  // --- Availability events / scheduling settings ---
 
-  it("expands off-time recurrences when off-time data is present", () => {
-    mockUseOffTimes.mockReturnValue({ data: [{ id: "ot1", enabled: true }] });
+  it("expands availability event recurrences when event data is present", () => {
+    mockUseAvailabilityEvents.mockReturnValue({
+      data: [{
+        id: "event-1",
+        siteId: "site-1",
+        title: "Shutdown",
+        eventType: "shutdown",
+        defaultEffect: "closed",
+        startTs: "2026-12-24T00:00:00.000Z",
+        endTs: "2026-12-26T00:00:00.000Z",
+        isRecurring: false,
+        enabled: true,
+      }],
+    });
     mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: "America/New_York", weekendsEnabled: true } });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -626,13 +638,38 @@ describe("UtilizationPage", () => {
     expect(vi.mocked(generateWeekendRanges)).not.toHaveBeenCalled();
   });
 
-  it("filters out disabled off-time definitions", () => {
-    mockUseOffTimes.mockReturnValue({ data: [{ id: "ot1", enabled: false }, { id: "ot2", enabled: true }] });
+  it("filters out disabled availability events", () => {
+    mockUseAvailabilityEvents.mockReturnValue({
+      data: [
+        {
+          id: "event-1",
+          siteId: "site-1",
+          title: "Disabled shutdown",
+          eventType: "shutdown",
+          defaultEffect: "closed",
+          startTs: "2026-12-24T00:00:00.000Z",
+          endTs: "2026-12-26T00:00:00.000Z",
+          isRecurring: false,
+          enabled: false,
+        },
+        {
+          id: "event-2",
+          siteId: "site-1",
+          title: "Active shutdown",
+          eventType: "shutdown",
+          defaultEffect: "closed",
+          startTs: "2026-12-24T00:00:00.000Z",
+          endTs: "2026-12-26T00:00:00.000Z",
+          isRecurring: false,
+          enabled: true,
+        },
+      ],
+    });
     mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: "UTC", weekendsEnabled: true } });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // Only the enabled off-time should be expanded
+    // Only the enabled event should be expanded
     expect(vi.mocked(expandRecurrence)).toHaveBeenCalledTimes(1);
   });
 

@@ -5,10 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersonAbsenceList } from './PersonAbsenceList';
 import type { ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
 
-vi.mock('@foundation/src/lib/api/site-api', () => ({
-  getSites: vi.fn(),
-}));
-
 vi.mock('@foundation/src/lib/api/resource-absences-api', () => ({
   getResourceAbsences: vi.fn(),
   deleteResourceAbsence: vi.fn(),
@@ -27,21 +23,14 @@ vi.mock('./PersonAbsenceEditDialog', () => ({
   ) : null,
 }));
 
-import { getSites } from '@foundation/src/lib/api/site-api';
 import { getResourceAbsences, deleteResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
-
-const mockSites = [
-  { id: 'site-1', name: 'Main Office', code: 'MAIN' },
-];
 
 const mockAbsences: ResourceAbsenceInfo[] = [
   {
     id: 'abs-1',
-    siteId: 'site-1',
+    resourceId: 'person-alice',
+    absenceType: 'vacation',
     title: 'Summer break',
-    type: 'vacation',
-    appliesToAllResources: false,
-    resourceIds: ['person-alice'],
     startTs: '2026-07-01T00:00:00Z',
     endTs: '2026-07-14T00:00:00Z',
     isRecurring: false,
@@ -71,7 +60,6 @@ function renderList(props: Partial<React.ComponentProps<typeof PersonAbsenceList
 describe('PersonAbsenceList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getSites).mockResolvedValue(mockSites as never);
     vi.mocked(getResourceAbsences).mockResolvedValue(mockAbsences);
     vi.mocked(deleteResourceAbsence).mockResolvedValue(undefined);
   });
@@ -81,30 +69,23 @@ describe('PersonAbsenceList', () => {
     await waitFor(() => expect(screen.getByText(/Absences — Alice/i)).toBeInTheDocument());
   });
 
-  it('shows site selector and disabled Add Absence button before a site is chosen', async () => {
+  it('does not render a site picker', async () => {
     renderList();
-    await waitFor(() => expect(getSites).toHaveBeenCalled());
-    expect(screen.getByRole('button', { name: /Add Absence/i })).toBeDisabled();
+    await waitFor(() => expect(getResourceAbsences).toHaveBeenCalled());
+    expect(screen.queryByText(/Select site/i)).not.toBeInTheDocument();
   });
 
-  it('does not render a person selector', async () => {
-    renderList();
-    await waitFor(() => expect(getSites).toHaveBeenCalled());
-    expect(screen.queryByText(/Select a person/i)).not.toBeInTheDocument();
-  });
-
-  it('fetches absences for the given personId across all sites', async () => {
+  it('fetches absences for the given personId without a siteId', async () => {
     renderList({ personId: 'person-bob' });
     await waitFor(() =>
-      expect(getResourceAbsences).toHaveBeenCalledWith('person-bob', 'site-1'),
+      expect(getResourceAbsences).toHaveBeenCalledWith('person-bob'),
     );
   });
 
-  it('renders absence rows with type, dates, reason, and site', async () => {
+  it('renders absence rows with type, dates, and reason', async () => {
     renderList();
     await waitFor(() => expect(screen.getByText('Vacation')).toBeInTheDocument());
     expect(screen.getByText('Summer break')).toBeInTheDocument();
-    expect(screen.getByText('Main Office')).toBeInTheDocument();
   });
 
   it('shows empty state when no absences exist', async () => {
@@ -125,17 +106,10 @@ describe('PersonAbsenceList', () => {
     );
   });
 
-  it('enables Add Absence button and opens add dialog after selecting a site', async () => {
+  it('opens the add absence dialog when Add Absence is clicked', async () => {
     const user = userEvent.setup();
     renderList();
-    await waitFor(() => expect(getSites).toHaveBeenCalled());
-
-    const trigger = screen.getByRole('combobox');
-    await user.click(trigger);
-    const option = await screen.findByRole('option', { name: /Main Office/i });
-    await user.click(option);
-
-    expect(screen.getByRole('button', { name: /Add Absence/i })).not.toBeDisabled();
+    await waitFor(() => expect(getResourceAbsences).toHaveBeenCalled());
     await user.click(screen.getByRole('button', { name: /Add Absence/i }));
     expect(screen.getByTestId('absence-edit-dialog')).toBeInTheDocument();
   });

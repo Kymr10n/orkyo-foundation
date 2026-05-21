@@ -47,14 +47,24 @@ public class EnumSerializationTests
     }
 
     [Theory]
-    [InlineData(OffTimeType.Holiday, "holiday")]
-    [InlineData(OffTimeType.Maintenance, "maintenance")]
-    [InlineData(OffTimeType.Custom, "custom")]
-    [InlineData(OffTimeType.Vacation, "vacation")]
-    [InlineData(OffTimeType.SickLeave, "sick_leave")]
-    [InlineData(OffTimeType.Unavailable, "unavailable")]
-    [InlineData(OffTimeType.Training, "training")]
-    public void OffTimeType_SerializesToLowercase(OffTimeType value, string expected)
+    [InlineData(AvailabilityEventType.PublicHoliday, "public_holiday")]
+    [InlineData(AvailabilityEventType.Shutdown, "shutdown")]
+    [InlineData(AvailabilityEventType.Maintenance, "maintenance")]
+    [InlineData(AvailabilityEventType.Custom, "custom")]
+    public void AvailabilityEventType_SerializesToLowercase(AvailabilityEventType value, string expected)
+    {
+        var json = JsonSerializer.Serialize(value, Options);
+        json.Should().Be($"\"{expected}\"");
+    }
+
+    [Theory]
+    [InlineData(AbsenceType.Vacation, "vacation")]
+    [InlineData(AbsenceType.Sickness, "sickness")]
+    [InlineData(AbsenceType.Unavailable, "unavailable")]
+    [InlineData(AbsenceType.Training, "training")]
+    [InlineData(AbsenceType.Maintenance, "maintenance")]
+    [InlineData(AbsenceType.Custom, "custom")]
+    public void AbsenceType_SerializesToLowercase(AbsenceType value, string expected)
     {
         var json = JsonSerializer.Serialize(value, Options);
         json.Should().Be($"\"{expected}\"");

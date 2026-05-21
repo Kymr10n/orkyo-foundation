@@ -1,29 +1,23 @@
 using Api.Models;
-using Api.Repositories;
 
 namespace Api.Services;
 
+/// <summary>
+/// Returns blocked periods for a specific resource in a given time window.
+/// Used by <see cref="ResourceAssignmentValidator"/> to check availability before scheduling.
+/// </summary>
 public interface IOffTimeResourceQuery
 {
-    Task<List<OffTimeInfo>> GetBlockingOffTimesAsync(Guid resourceId, Guid siteId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default);
+    Task<List<BlockedPeriod>> GetBlockingPeriodsAsync(
+        Guid resourceId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Queries off-times that block a specific resource.
-/// Returns off-times where AppliesToAllResources=true OR the resource is in ResourceIds.
-/// </summary>
-public class OffTimeResourceQuery(ISchedulingRepository schedulingRepository) : IOffTimeResourceQuery
+public class OffTimeResourceQuery(IAvailabilityResolver resolver) : IOffTimeResourceQuery
 {
-    public async Task<List<OffTimeInfo>> GetBlockingOffTimesAsync(
-        Guid resourceId, Guid siteId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
+    public async Task<List<BlockedPeriod>> GetBlockingPeriodsAsync(
+        Guid resourceId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
-        var all = await schedulingRepository.GetOffTimesAsync(siteId);
-
-        return all.Where(ot =>
-            ot.Enabled &&
-            ot.StartTs < endUtc &&
-            ot.EndTs > startUtc &&
-            (ot.AppliesToAllResources || (ot.ResourceIds != null && ot.ResourceIds.Contains(resourceId)))
-        ).ToList();
+        var all = await resolver.GetBlockedPeriodsAsync(resourceId, ct);
+        return all.Where(p => p.StartTs < endUtc && p.EndTs > startUtc).ToList();
     }
 }

@@ -32,9 +32,9 @@ public static class SchedulingEngine
         int requestedDurationMinutes,
         bool schedulingSettingsApply,
         SchedulingSettingsInfo? settings,
-        List<OffTimeInfo>? offTimes)
+        List<BlockedPeriod>? offTimes)
     {
-        var hasActiveOffTimes = offTimes != null && offTimes.Count > 0 && offTimes.Any(o => o.Enabled);
+        var hasActiveOffTimes = offTimes != null && offTimes.Count > 0;
 
         if (!schedulingSettingsApply || settings == null ||
             (!settings.WorkingHoursEnabled && !hasActiveOffTimes))
@@ -49,7 +49,7 @@ public static class SchedulingEngine
         }
 
         var tz = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZone);
-        var enabledOffTimes = offTimes?.Where(o => o.Enabled).ToList() ?? [];
+        var enabledOffTimes = offTimes ?? [];
 
         // Snap start forward if it falls outside working time
         var current = SnapToNextWorkingTime(desiredStart, settings, tz, enabledOffTimes);
@@ -101,7 +101,7 @@ public static class SchedulingEngine
         DateTime utcTime,
         SchedulingSettingsInfo settings,
         TimeZoneInfo tz,
-        List<OffTimeInfo> enabledOffTimes)
+        List<BlockedPeriod> enabledOffTimes)
     {
         var local = ToLocal(utcTime, tz);
 
@@ -124,7 +124,7 @@ public static class SchedulingEngine
     /// <summary>
     /// Checks whether a UTC instant falls within any active off-time window.
     /// </summary>
-    public static bool IsInOffTime(DateTime utcTime, List<OffTimeInfo> offTimes)
+    public static bool IsInOffTime(DateTime utcTime, List<BlockedPeriod> offTimes)
     {
         foreach (var ot in offTimes)
         {
@@ -141,7 +141,7 @@ public static class SchedulingEngine
         DateTime utcTime,
         SchedulingSettingsInfo settings,
         TimeZoneInfo tz,
-        List<OffTimeInfo> enabledOffTimes)
+        List<BlockedPeriod> enabledOffTimes)
     {
         var current = utcTime;
 

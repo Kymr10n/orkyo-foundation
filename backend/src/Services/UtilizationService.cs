@@ -20,7 +20,7 @@ public class UtilizationService(
     IResourceRepository resourceRepository,
     IResourceAssignmentRepository assignmentRepository,
     IResourceGroupMemberRepository groupMemberRepository,
-    ISchedulingRepository schedulingRepository) : IUtilizationService
+    IAvailabilityResolver resolver) : IUtilizationService
 {
     public async Task<UtilizationResponse?> GetResourceUtilizationAsync(
         Guid resourceId, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
@@ -29,12 +29,9 @@ public class UtilizationService(
         if (resource is null) return null;
 
         var assignments = await assignmentRepository.GetByResourceAsync(resourceId, from, to);
-        var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resourceId);
-        var offTimes = siteId.HasValue
-            ? await schedulingRepository.GetOffTimesByResourceAsync(resourceId, siteId.Value)
-            : [];
+        var blockedPeriods = await resolver.GetBlockedPeriodsAsync(resourceId, ct);
 
-        var buckets = ComputeBuckets(resource, assignments, offTimes, from, to, granularity);
+        var buckets = ComputeBuckets(resource, assignments, blockedPeriods, from, to, granularity);
         return new UtilizationResponse
         {
             From = from,
@@ -168,26 +165,23 @@ public class UtilizationService(
     private static List<UtilizationBucket> ComputeBuckets(
         ResourceInfo resource,
         List<ResourceAssignmentInfo> assignments,
-        List<OffTimeInfo> offTimes,
+        List<BlockedPeriod> blockedPeriods,
         DateTime from, DateTime to, string granularity)
     {
         var shells = BuildBucketShells(from, to, granularity);
-        return shells.Select(shell => ComputeBucket(resource, assignments, offTimes, shell.Start, shell.End)).ToList();
+        return shells.Select(shell => ComputeBucket(resource, assignments, blockedPeriods, shell.Start, shell.End)).ToList();
     }
 
     private static UtilizationBucket ComputeBucket(
         ResourceInfo resource,
         List<ResourceAssignmentInfo> assignments,
-        List<OffTimeInfo> offTimes,
+        List<BlockedPeriod> blockedPeriods,
         DateTime bucketStart, DateTime bucketEnd)
     {
         var bucketSpan = (bucketEnd - bucketStart).TotalMinutes;
 
-        // Check if the whole bucket is blocked by an off-time
-        var isOffTime = offTimes.Any(ot =>
-            ot.Enabled && ot.StartTs < bucketEnd && ot.EndTs > bucketStart);
-
-        var effectiveAvailability = isOffTime ? 0m : resource.BaseAvailabilityPercent;
+        var isBlocked = blockedPeriods.Any(p => p.StartTs < bucketEnd && p.EndTs > bucketStart);
+        var effectiveAvailability = isBlocked ? 0m : resource.BaseAvailabilityPercent;
 
         // Overlapping active assignments within this bucket
         var overlapping = assignments.Where(a =>

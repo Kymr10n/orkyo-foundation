@@ -3,10 +3,6 @@ import {
   getSchedulingSettings,
   upsertSchedulingSettings,
   deleteSchedulingSettings,
-  getOffTimes,
-  createOffTime,
-  updateOffTime,
-  deleteOffTime,
 } from './scheduling-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -25,20 +21,6 @@ const mockSettingsWire = {
   weekendsEnabled: true,
   publicHolidaysEnabled: false,
   publicHolidayRegion: null,
-};
-
-const mockOffTimeWire = {
-  id: 'ot-1',
-  siteId: SITE_ID,
-  title: 'Christmas',
-  type: 'holiday' as const,
-  appliesToAllSpaces: true,
-  resourceIds: null,
-  startTs: '2026-12-24T00:00:00.000Z',
-  endTs: '2026-12-26T00:00:00.000Z',
-  isRecurring: false,
-  recurrenceRule: null,
-  enabled: true,
 };
 
 describe('scheduling-api', () => {
@@ -135,101 +117,4 @@ describe('scheduling-api', () => {
     });
   });
 
-  // ── Off-Times ───────────────────────────────────────────────
-
-  describe('getOffTimes', () => {
-    it('calls apiGet and maps timestamps to epoch ms', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([mockOffTimeWire]);
-
-      const result = await getOffTimes(SITE_ID);
-
-      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.offTimes(SITE_ID));
-      expect(result).toHaveLength(1);
-      expect(result[0].startMs).toBe(new Date('2026-12-24T00:00:00.000Z').getTime());
-      expect(result[0].endMs).toBe(new Date('2026-12-26T00:00:00.000Z').getTime());
-      expect(result[0].resourceIds).toEqual([]); // null → []
-    });
-  });
-
-  describe('createOffTime', () => {
-    it('maps epoch ms to ISO timestamps', async () => {
-      vi.mocked(apiClient.apiPost).mockResolvedValue(mockOffTimeWire);
-
-      const start = new Date('2026-12-24T00:00:00.000Z').getTime();
-      const end = new Date('2026-12-26T00:00:00.000Z').getTime();
-
-      await createOffTime(SITE_ID, {
-        title: 'Christmas',
-        type: 'holiday',
-        appliesToAllSpaces: true,
-        resourceIds: [],
-        startMs: start,
-        endMs: end,
-        isRecurring: false,
-        recurrenceRule: null,
-        enabled: true,
-      });
-
-      expect(apiClient.apiPost).toHaveBeenCalledWith(
-        API_PATHS.offTimes(SITE_ID),
-        expect.objectContaining({
-          title: 'Christmas',
-          startTs: '2026-12-24T00:00:00.000Z',
-          endTs: '2026-12-26T00:00:00.000Z',
-        }),
-      );
-    });
-
-    it('omits resourceIds when appliesToAllSpaces is true', async () => {
-      vi.mocked(apiClient.apiPost).mockResolvedValue(mockOffTimeWire);
-
-      await createOffTime(SITE_ID, {
-        title: 'Test',
-        type: 'custom',
-        appliesToAllSpaces: true,
-        resourceIds: ['space-1'],
-        startMs: Date.now(),
-        endMs: Date.now() + 3600_000,
-        isRecurring: false,
-        recurrenceRule: null,
-        enabled: true,
-      });
-
-      const sentBody = vi.mocked(apiClient.apiPost).mock.calls[0][1];
-      expect(sentBody).not.toHaveProperty('resourceIds');
-    });
-  });
-
-  describe('updateOffTime', () => {
-    it('sends only changed fields', async () => {
-      vi.mocked(apiClient.apiPut).mockResolvedValue(mockOffTimeWire);
-
-      await updateOffTime(SITE_ID, 'ot-1', { title: 'Updated', enabled: false });
-
-      expect(apiClient.apiPut).toHaveBeenCalledWith(
-        API_PATHS.offTime(SITE_ID, 'ot-1'),
-        { title: 'Updated', enabled: false },
-      );
-    });
-
-    it('converts epoch ms to ISO when updating times', async () => {
-      vi.mocked(apiClient.apiPut).mockResolvedValue(mockOffTimeWire);
-
-      const newStart = new Date('2026-12-25T00:00:00.000Z').getTime();
-      await updateOffTime(SITE_ID, 'ot-1', { startMs: newStart });
-
-      const sentBody = vi.mocked(apiClient.apiPut).mock.calls[0][1];
-      expect(sentBody).toEqual({ startTs: '2026-12-25T00:00:00.000Z' });
-    });
-  });
-
-  describe('deleteOffTime', () => {
-    it('calls apiDelete with correct path', async () => {
-      vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
-
-      await deleteOffTime(SITE_ID, 'ot-1');
-
-      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.offTime(SITE_ID, 'ot-1'));
-    });
-  });
 });

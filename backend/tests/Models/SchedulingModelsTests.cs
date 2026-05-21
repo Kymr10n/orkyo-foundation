@@ -46,15 +46,15 @@ public class SchedulingModelsTests
     }
 
     [Fact]
-    public void OffTimeInfo_ShouldStoreAllProperties()
+    public void AvailabilityEventInfo_ShouldStoreAllProperties()
     {
-        var offTime = new OffTimeInfo
+        var ev = new AvailabilityEventInfo
         {
             Id = Guid.NewGuid(),
             SiteId = Guid.NewGuid(),
             Title = "Christmas",
-            Type = OffTimeType.Holiday,
-            AppliesToAllResources = true,
+            EventType = AvailabilityEventType.PublicHoliday,
+            DefaultEffect = DefaultEffect.Closed,
             StartTs = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc),
             IsRecurring = true,
@@ -62,73 +62,81 @@ public class SchedulingModelsTests
             Enabled = true
         };
 
-        offTime.Title.Should().Be("Christmas");
-        offTime.Type.Should().Be(OffTimeType.Holiday);
-        offTime.AppliesToAllResources.Should().BeTrue();
-        offTime.IsRecurring.Should().BeTrue();
-        offTime.RecurrenceRule.Should().NotBeNull();
+        ev.Title.Should().Be("Christmas");
+        ev.EventType.Should().Be(AvailabilityEventType.PublicHoliday);
+        ev.DefaultEffect.Should().Be(DefaultEffect.Closed);
+        ev.IsRecurring.Should().BeTrue();
+        ev.RecurrenceRule.Should().NotBeNull();
     }
 
     [Fact]
-    public void CreateOffTimeRequest_ShouldHaveDefaults()
+    public void CreateResourceAbsenceRequest_ShouldHaveDefaults()
     {
-        var request = new CreateOffTimeRequest
+        var request = new CreateResourceAbsenceRequest
         {
+            AbsenceType = AbsenceType.Vacation,
             Title = "Test",
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1)
         };
 
-        request.Type.Should().Be(OffTimeType.Custom);
-        request.AppliesToAllResources.Should().BeTrue();
         request.IsRecurring.Should().BeFalse();
         request.Enabled.Should().BeTrue();
+        request.Notes.Should().BeNull();
+        request.RecurrenceRule.Should().BeNull();
     }
 
     [Fact]
-    public void OffTimeType_ShouldContainSchedulingAndHrValues()
+    public void AbsenceType_ShouldContainExpectedValues()
     {
-        var values = Enum.GetValues<OffTimeType>();
-        // Scheduling types
-        values.Should().Contain(OffTimeType.Holiday);
-        values.Should().Contain(OffTimeType.Maintenance);
-        values.Should().Contain(OffTimeType.Custom);
-        // HR absence types
-        values.Should().Contain(OffTimeType.Vacation);
-        values.Should().Contain(OffTimeType.SickLeave);
-        values.Should().Contain(OffTimeType.Unavailable);
-        values.Should().Contain(OffTimeType.Training);
+        var values = Enum.GetValues<AbsenceType>();
+        values.Should().Contain(AbsenceType.Vacation);
+        values.Should().Contain(AbsenceType.Sickness);
+        values.Should().Contain(AbsenceType.Unavailable);
+        values.Should().Contain(AbsenceType.Training);
+        values.Should().Contain(AbsenceType.Maintenance);
+        values.Should().Contain(AbsenceType.Custom);
     }
 
     [Fact]
-    public void OffTimeInfo_ResourceIds_NullByDefault()
+    public void AvailabilityEventType_ShouldContainExpectedValues()
     {
-        var offTime = new OffTimeInfo
+        var values = Enum.GetValues<AvailabilityEventType>();
+        values.Should().Contain(AvailabilityEventType.PublicHoliday);
+        values.Should().Contain(AvailabilityEventType.Shutdown);
+        values.Should().Contain(AvailabilityEventType.Maintenance);
+        values.Should().Contain(AvailabilityEventType.Custom);
+    }
+
+    [Fact]
+    public void ResourceAbsenceInfo_ScopesEmptyByDefault()
+    {
+        var info = new ResourceAbsenceInfo
         {
             Id = Guid.NewGuid(),
-            SiteId = Guid.NewGuid(),
+            ResourceId = Guid.NewGuid(),
+            AbsenceType = AbsenceType.Custom,
             Title = "Test",
-            Type = OffTimeType.Custom,
-            AppliesToAllResources = true,
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1),
             IsRecurring = false,
             Enabled = true
         };
 
-        offTime.ResourceIds.Should().BeNull();
+        info.Notes.Should().BeNull();
+        info.RecurrenceRule.Should().BeNull();
     }
 
     [Fact]
-    public void OffTimeInfo_WithExpression_ShouldCreateModifiedCopy()
+    public void AvailabilityEventInfo_WithExpression_ShouldCreateModifiedCopy()
     {
-        var original = new OffTimeInfo
+        var original = new AvailabilityEventInfo
         {
             Id = Guid.NewGuid(),
             SiteId = Guid.NewGuid(),
             Title = "Test",
-            Type = OffTimeType.Custom,
-            AppliesToAllResources = true,
+            EventType = AvailabilityEventType.Custom,
+            DefaultEffect = DefaultEffect.Closed,
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1),
             IsRecurring = false,
@@ -175,14 +183,13 @@ public class SchedulingModelsTests
     }
 
     [Fact]
-    public void UpdateOffTimeRequest_AllPropertiesNullByDefault()
+    public void UpdateResourceAbsenceRequest_AllPropertiesNullByDefault()
     {
-        var req = new UpdateOffTimeRequest();
+        var req = new UpdateResourceAbsenceRequest();
 
         req.Title.Should().BeNull();
-        req.Type.Should().BeNull();
-        req.AppliesToAllResources.Should().BeNull();
-        req.ResourceIds.Should().BeNull();
+        req.AbsenceType.Should().BeNull();
+        req.Notes.Should().BeNull();
         req.StartTs.Should().BeNull();
         req.EndTs.Should().BeNull();
         req.IsRecurring.Should().BeNull();
@@ -191,16 +198,16 @@ public class SchedulingModelsTests
     }
 
     [Fact]
-    public void UpdateOffTimeRequest_StoresProvidedValues()
+    public void UpdateAvailabilityEventRequest_StoresProvidedValues()
     {
         var start = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc);
 
-        var req = new UpdateOffTimeRequest
+        var req = new UpdateAvailabilityEventRequest
         {
             Title = "Christmas Holiday",
-            Type = OffTimeType.Holiday,
-            AppliesToAllResources = true,
+            EventType = AvailabilityEventType.PublicHoliday,
+            DefaultEffect = DefaultEffect.Closed,
             StartTs = start,
             EndTs = end,
             IsRecurring = false,
@@ -208,8 +215,8 @@ public class SchedulingModelsTests
         };
 
         req.Title.Should().Be("Christmas Holiday");
-        req.Type.Should().Be(OffTimeType.Holiday);
-        req.AppliesToAllResources.Should().BeTrue();
+        req.EventType.Should().Be(AvailabilityEventType.PublicHoliday);
+        req.DefaultEffect.Should().Be(DefaultEffect.Closed);
         req.StartTs.Should().Be(start);
     }
 }

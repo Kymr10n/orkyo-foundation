@@ -8,6 +8,12 @@ public interface IResourceGroupMemberRepository
 {
     Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId, CancellationToken ct = default);
     Task SetMembersAsync(Guid groupId, IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
+
+    /// <summary>Returns the IDs of all resource groups that contain the given resource.</summary>
+    Task<IReadOnlyList<Guid>> GetGroupIdsForResourceAsync(Guid resourceId, CancellationToken ct = default);
+
+    /// <summary>Returns group IDs keyed by resource ID for a batch of resources.</summary>
+    Task<Dictionary<Guid, IReadOnlyList<Guid>>> GetGroupIdsForResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 }
 
 public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -101,6 +107,51 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         }
 
         await tx.CommitAsync();
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetGroupIdsForResourceAsync(Guid resourceId, CancellationToken ct = default)
+    {
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        await db.OpenAsync(ct);
+
+        await using var cmd = new NpgsqlCommand(
+            "SELECT resource_group_id FROM resource_group_members WHERE resource_id = @resourceId", db);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+
+        var ids = new List<Guid>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            ids.Add(reader.GetGuid(0));
+        return ids;
+    }
+
+    public async Task<Dictionary<Guid, IReadOnlyList<Guid>>> GetGroupIdsForResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        await db.OpenAsync(ct);
+
+        await using var cmd = new NpgsqlCommand(
+            "SELECT resource_id, resource_group_id FROM resource_group_members WHERE resource_id = ANY(@ids)", db);
+        cmd.Parameters.AddWithValue("ids", resourceIds.ToArray());
+
+        var map = new Dictionary<Guid, List<Guid>>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var rId = reader.GetGuid(0);
+            var gId = reader.GetGuid(1);
+            if (!map.TryGetValue(rId, out var list))
+            {
+                list = [];
+                map[rId] = list;
+            }
+            list.Add(gId);
+        }
+
+        return map.ToDictionary(kvp => kvp.Key, kvp => (IReadOnlyList<Guid>)kvp.Value);
     }
 
     private static ResourceInfo MapResource(NpgsqlDataReader r) => new()

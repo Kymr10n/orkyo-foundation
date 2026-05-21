@@ -91,7 +91,7 @@ public class ResourceAssignmentService(
             Type = type,
             Message = issue.Message,
             ConflictingAssignmentId = issue.ConflictingAssignmentId,
-            ConflictingOffTimeId = issue.ConflictingOffTimeId,
+            ConflictingAvailabilityId = issue.ConflictingAvailabilityId,
         };
     }
 }

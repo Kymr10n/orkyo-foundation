@@ -214,6 +214,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
         builder.Services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
 
+        // ── Availability model ────────────────────────────────────────────────
+        builder.Services.AddScoped<IAvailabilityEventRepository, AvailabilityEventRepository>();
+        builder.Services.AddScoped<IResourceAbsenceRepository, ResourceAbsenceRepository>();
+        builder.Services.AddScoped<IAvailabilityResolver, AvailabilityResolver>();
+
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
 
@@ -426,6 +431,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapCriteriaEndpoints();
         app.MapRequestEndpoints();
         app.MapSchedulingEndpoints();
+        app.MapAvailabilityEventEndpoints();
         app.MapAutoScheduleEndpoints();
         app.MapExportEndpoints();
         app.MapPresetEndpoints();

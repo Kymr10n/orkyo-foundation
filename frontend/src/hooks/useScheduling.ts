@@ -1,20 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { SchedulingSettings, OffTimeDefinition } from "@foundation/src/domain/scheduling/types";
+import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
 import {
   getSchedulingSettings,
   upsertSchedulingSettings,
   deleteSchedulingSettings,
-  getOffTimes,
-  createOffTime,
-  updateOffTime,
-  deleteOffTime,
 } from "@foundation/src/lib/api/scheduling-api";
+import {
+  getAvailabilityEvents,
+  createAvailabilityEvent,
+  updateAvailabilityEvent,
+  deleteAvailabilityEvent,
+  type CreateAvailabilityEventRequest,
+  type UpdateAvailabilityEventRequest,
+} from "@foundation/src/lib/api/availability-events-api";
 
 // ── Query keys ──────────────────────────────────────────────────
 
 const keys = {
   settings: (siteId: string) => ["scheduling-settings", siteId] as const,
-  offTimes: (siteId: string) => ["off-times", siteId] as const,
+  availabilityEvents: (siteId: string) => ["availability-events", siteId] as const,
 };
 
 // ── Settings hooks ──────────────────────────────────────────────
@@ -48,41 +52,39 @@ export function useDeleteSchedulingSettings(siteId: string) {
   });
 }
 
-// ── Off-times hooks ─────────────────────────────────────────────
+// ── Availability Event hooks ────────────────────────────────────
 
-export function useOffTimes(siteId: string | undefined) {
+export function useAvailabilityEvents(siteId: string | undefined) {
   return useQuery({
-    queryKey: keys.offTimes(siteId!),
-    queryFn: () => getOffTimes(siteId!),
+    queryKey: keys.availabilityEvents(siteId!),
+    queryFn: () => getAvailabilityEvents(siteId!),
     enabled: !!siteId,
     staleTime: 60_000,
   });
 }
 
-export function useCreateOffTime(siteId: string) {
+export function useCreateAvailabilityEvent(siteId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (offTime: Omit<OffTimeDefinition, "id" | "siteId">) =>
-      createOffTime(siteId, offTime),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.offTimes(siteId) }),
+    mutationFn: (request: CreateAvailabilityEventRequest) =>
+      createAvailabilityEvent(siteId, request),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.availabilityEvents(siteId) }),
   });
 }
 
-export function useUpdateOffTime(siteId: string) {
+export function useUpdateAvailabilityEvent(siteId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ offTimeId, updates }: {
-      offTimeId: string;
-      updates: Partial<Omit<OffTimeDefinition, "id" | "siteId">>;
-    }) => updateOffTime(siteId, offTimeId, updates),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.offTimes(siteId) }),
+    mutationFn: ({ eventId, updates }: { eventId: string; updates: UpdateAvailabilityEventRequest }) =>
+      updateAvailabilityEvent(siteId, eventId, updates),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.availabilityEvents(siteId) }),
   });
 }
 
-export function useDeleteOffTime(siteId: string) {
+export function useDeleteAvailabilityEvent(siteId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (offTimeId: string) => deleteOffTime(siteId, offTimeId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.offTimes(siteId) }),
+    mutationFn: (eventId: string) => deleteAvailabilityEvent(siteId, eventId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.availabilityEvents(siteId) }),
   });
 }

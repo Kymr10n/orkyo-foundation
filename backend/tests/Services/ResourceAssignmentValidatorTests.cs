@@ -27,8 +27,8 @@ public class ResourceAssignmentValidatorTests
             .Setup(r => r.GetOverlappingActiveAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new List<ResourceAssignmentInfo>());
         _offTimeQueryMock
-            .Setup(q => q.GetBlockingOffTimesAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(new List<OffTimeInfo>());
+            .Setup(q => q.GetBlockingPeriodsAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BlockedPeriod>());
 
         _validator = new ResourceAssignmentValidator(
             _resourceRepoMock.Object,
@@ -177,24 +177,18 @@ public class ResourceAssignmentValidatorTests
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)Guid.NewGuid());
-        _offTimeQueryMock.Setup(o => o.GetBlockingOffTimesAsync(
-            resource.Id, It.IsAny<Guid>(), request.StartUtc, request.EndUtc))
-            .ReturnsAsync(new List<OffTimeInfo>
+        _offTimeQueryMock.Setup(o => o.GetBlockingPeriodsAsync(
+            resource.Id, request.StartUtc, request.EndUtc, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BlockedPeriod>
             {
-                new OffTimeInfo
+                new()
                 {
                     Id = Guid.NewGuid(),
-                    SiteId = Guid.NewGuid(),
                     Title = "Scheduled maintenance",
-                    Type = OffTimeType.Maintenance, // non-holiday → generic OffTimeOverlap
-                    AppliesToAllResources = false,
-                    ResourceIds = new List<Guid> { resource.Id },
+                    Source = BlockedPeriodSource.AvailabilityEvent,
+                    EventType = "maintenance", // non-holiday → generic OffTimeOverlap
                     StartTs = request.StartUtc.AddDays(-1),
                     EndTs = request.EndUtc.AddDays(1),
-                    IsRecurring = false,
-                    Enabled = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
                 }
             });
 
@@ -326,19 +320,17 @@ public class ResourceAssignmentValidatorTests
         _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true)).ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id)).ReturnsAsync(siteId);
         _offTimeQueryMock
-            .Setup(q => q.GetBlockingOffTimesAsync(resource.Id, siteId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync(new List<OffTimeInfo>
+            .Setup(q => q.GetBlockingPeriodsAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BlockedPeriod>
             {
-                new() {
+                new()
+                {
                     Id = Guid.NewGuid(),
-                    SiteId = siteId,
-                    Type = OffTimeType.Holiday,
                     Title = "Independence Day",
+                    Source = BlockedPeriodSource.AvailabilityEvent,
+                    EventType = "public_holiday", // triggers NonWorkingHoliday warning code
                     StartTs = request.StartUtc,
                     EndTs = request.EndUtc,
-                    AppliesToAllResources = true,
-                    IsRecurring = false,
-                    Enabled = true,
                 }
             });
 

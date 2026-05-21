@@ -41,15 +41,18 @@ import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
   useDeleteSchedulingSettings,
-  useOffTimes,
-  useCreateOffTime,
-  useUpdateOffTime,
-  useDeleteOffTime,
+  useAvailabilityEvents,
+  useCreateAvailabilityEvent,
+  useUpdateAvailabilityEvent,
+  useDeleteAvailabilityEvent,
 } from "@foundation/src/hooks/useScheduling";
 import type { SchedulingSettings as SchedulingSettingsType } from "@foundation/src/domain/scheduling/types";
-import type { OffTimeDefinition } from "@foundation/src/domain/scheduling/types";
-import { OFF_TIME_TYPE_LABELS } from "@foundation/src/domain/scheduling/types";
-import { OffTimeDialog } from "./OffTimeDialog";
+import type {
+  AvailabilityEventInfo,
+  CreateAvailabilityEventRequest,
+  UpdateAvailabilityEventRequest,
+} from "@foundation/src/lib/api/availability-events-api";
+import { AvailabilityEventDialog } from "./AvailabilityEventDialog";
 
 const COMMON_TIMEZONES = [
   "Europe/London",
@@ -142,17 +145,17 @@ export function SchedulingSettings() {
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
 
   const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
-  const { data: offTimes = [], isLoading: offTimesLoading } = useOffTimes(selectedSiteId ?? undefined);
+  const { data: availabilityEvents = [], isLoading: eventsLoading } = useAvailabilityEvents(selectedSiteId ?? undefined);
 
   const upsertMutation = useUpsertSchedulingSettings(selectedSiteId ?? "");
   const deleteMutation = useDeleteSchedulingSettings(selectedSiteId ?? "");
-  const createOffTimeMutation = useCreateOffTime(selectedSiteId ?? "");
-  const updateOffTimeMutation = useUpdateOffTime(selectedSiteId ?? "");
-  const deleteOffTimeMutation = useDeleteOffTime(selectedSiteId ?? "");
+  const createEventMutation = useCreateAvailabilityEvent(selectedSiteId ?? "");
+  const updateEventMutation = useUpdateAvailabilityEvent(selectedSiteId ?? "");
+  const deleteEventMutation = useDeleteAvailabilityEvent(selectedSiteId ?? "");
 
   const [form, setForm] = useState(DEFAULT_SETTINGS);
-  const [offTimeDialogOpen, setOffTimeDialogOpen] = useState(false);
-  const [editingOffTime, setEditingOffTime] = useState<OffTimeDefinition | null>(null);
+  const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<AvailabilityEventInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
@@ -162,7 +165,9 @@ export function SchedulingSettings() {
 
   // Seed form once per site when settings arrive
   const [initializedForSite, setInitializedForSite] = useState<string | null>(null);
-  if (selectedSiteId && selectedSiteId !== initializedForSite) {
+  useEffect(() => {
+    if (!selectedSiteId || selectedSiteId === initializedForSite) return;
+
     if (settings) {
       setForm(settingsFromApi(settings));
       setInitializedForSite(selectedSiteId);
@@ -170,7 +175,7 @@ export function SchedulingSettings() {
       setForm(DEFAULT_SETTINGS);
       setInitializedForSite(selectedSiteId);
     }
-  }
+  }, [initializedForSite, selectedSiteId, settings, settingsLoading]);
 
   const saveSettings = useCallback(async (formState: SettingsFormState) => {
     if (!selectedSiteId) return;
@@ -231,31 +236,34 @@ export function SchedulingSettings() {
     }
   };
 
-  const handleCreateOffTime = () => {
-    setEditingOffTime(null);
-    setOffTimeDialogOpen(true);
+  const handleCreateEvent = () => {
+    setEditingEvent(null);
+    setEventDialogOpen(true);
   };
 
-  const handleEditOffTime = (ot: OffTimeDefinition) => {
-    setEditingOffTime(ot);
-    setOffTimeDialogOpen(true);
+  const handleEditEvent = (ev: AvailabilityEventInfo) => {
+    setEditingEvent(ev);
+    setEventDialogOpen(true);
   };
 
-  const handleSaveOffTime = async (data: Omit<OffTimeDefinition, "id" | "siteId">) => {
-    if (editingOffTime) {
-      await updateOffTimeMutation.mutateAsync({
-        offTimeId: editingOffTime.id,
+  const handleDeleteEvent = async (id: string) => {
+    await deleteEventMutation.mutateAsync(id);
+  };
+
+  const handleSaveEvent = async (
+    data: CreateAvailabilityEventRequest | UpdateAvailabilityEventRequest,
+  ) => {
+    if (editingEvent) {
+      await updateEventMutation.mutateAsync({
+        eventId: editingEvent.id,
         updates: data,
       });
     } else {
-      await createOffTimeMutation.mutateAsync(data);
+      await createEventMutation.mutateAsync(data as CreateAvailabilityEventRequest);
     }
-    setOffTimeDialogOpen(false);
-    setEditingOffTime(null);
-  };
 
-  const handleDeleteOffTime = async (id: string) => {
-    await deleteOffTimeMutation.mutateAsync(id);
+    setEventDialogOpen(false);
+    setEditingEvent(null);
   };
 
   if (!selectedSiteId) {
@@ -266,7 +274,7 @@ export function SchedulingSettings() {
     );
   }
 
-  if (settingsLoading || offTimesLoading) {
+  if (settingsLoading || eventsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -455,62 +463,65 @@ export function SchedulingSettings() {
         </CardContent>
       </Card>
 
-      {/* Off-Times */}
+      {/* Availability Events */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Off-Times
+                Availability Events
               </CardTitle>
               <CardDescription>
                 Define periods when no work should be scheduled (closures, maintenance, etc.).
               </CardDescription>
             </div>
-            <Button size="sm" onClick={handleCreateOffTime}>
+            <Button size="sm" onClick={handleCreateEvent}>
               <Plus className="h-4 w-4 mr-1" />
               Add
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {offTimes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No off-times configured.</p>
+          {availabilityEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No availability events configured.</p>
           ) : (
             <div className="space-y-2">
-              {offTimes.map((ot) => (
+              {availabilityEvents.map((ev) => (
                 <div
-                  key={ot.id}
+                  key={ev.id}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{ot.title}</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        {OFF_TIME_TYPE_LABELS[ot.type]}
+                      <span className="font-medium text-sm">{ev.title}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                        {ev.eventType.replace("_", " ")}
                       </span>
-                      {ot.isRecurring && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                        {ev.defaultEffect}
+                      </span>
+                      {ev.isRecurring && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                           Recurring
                         </span>
                       )}
-                      {!ot.enabled && (
+                      {!ev.enabled && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">
                           Disabled
                         </span>
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {new Date(ot.startMs).toLocaleDateString()} – {new Date(ot.endMs).toLocaleDateString()}
-                      {ot.appliesToAllSpaces ? " · All spaces" : ` · ${ot.resourceIds.length} space(s)`}
+                      {new Date(ev.startTs).toLocaleDateString()} – {new Date(ev.endTs).toLocaleDateString()}
+                      {ev.scopes.length > 0 && ` · ${ev.scopes.length} override(s)`}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleEditOffTime(ot)}
+                      onClick={() => handleEditEvent(ev)}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -522,14 +533,14 @@ export function SchedulingSettings() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete off-time</AlertDialogTitle>
+                          <AlertDialogTitle>Delete availability event</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Delete "{ot.title}"? This cannot be undone.
+                            Delete "{ev.title}"? This cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteOffTime(ot.id)}>
+                          <AlertDialogAction onClick={() => handleDeleteEvent(ev.id)}>
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
@@ -543,14 +554,12 @@ export function SchedulingSettings() {
         </CardContent>
       </Card>
 
-
-
-      {/* Off-Time Dialog */}
-      <OffTimeDialog
-        open={offTimeDialogOpen}
-        onOpenChange={setOffTimeDialogOpen}
-        offTime={editingOffTime}
-        onSave={handleSaveOffTime}
+      <AvailabilityEventDialog
+        open={eventDialogOpen}
+        onOpenChange={setEventDialogOpen}
+        siteId={selectedSiteId ?? ""}
+        event={editingEvent}
+        onSave={handleSaveEvent}
       />
     </div>
   );

@@ -248,7 +248,7 @@ public class AutoScheduleModelsTests
             Spaces: new List<SpaceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
-            OffTimes: null,
+            BlockedPeriodsByResource: null,
             Mode: AutoScheduleMode.FillGapsOnly);
 
         problem.SiteId.Should().Be(siteId);
@@ -327,7 +327,7 @@ public class AutoScheduleModelsTests
             Spaces: new List<SpaceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
-            OffTimes: null,
+            BlockedPeriodsByResource: null,
             Mode: AutoScheduleMode.FillGapsOnly);
 
         var analyzed = new AnalyzedSchedulingProblem(

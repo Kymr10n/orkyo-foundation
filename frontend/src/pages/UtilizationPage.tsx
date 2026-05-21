@@ -12,7 +12,7 @@ import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hook
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
-import { useSchedulingSettings, useOffTimes } from "@foundation/src/hooks/useScheduling";
+import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
@@ -110,15 +110,29 @@ export function UtilizationPage() {
 
   // Scheduling off-times for grid overlay
   const { data: schedulingSettings } = useSchedulingSettings(selectedSiteId ?? undefined);
-  const { data: offTimeDefs = [] } = useOffTimes(selectedSiteId ?? undefined);
+  const { data: availabilityEventDefs = [] } = useAvailabilityEvents(selectedSiteId ?? undefined);
   const offTimeRanges: readonly OffTimeRange[] = useMemo(() => {
     const tz = schedulingSettings?.timeZone ?? "UTC";
-    // Expand recurrences for a generous window around the anchor
     const windowStart = addMonths(anchorTs, -1).getTime();
     const windowEnd = addMonths(anchorTs, 13).getTime();
-    const expanded = offTimeDefs
-      .filter((d) => d.enabled)
-      .flatMap((d) => expandRecurrence(d, windowStart, windowEnd, tz));
+    const expanded = availabilityEventDefs
+      .filter((e) => e.enabled && e.defaultEffect === "closed")
+      .flatMap((e) => expandRecurrence(
+        {
+          id: e.id,
+          siteId: e.siteId,
+          title: e.title,
+          type: "custom" as const,
+          appliesToAllSpaces: true,
+          resourceIds: [],
+          startMs: new Date(e.startTs).getTime(),
+          endMs: new Date(e.endTs).getTime(),
+          isRecurring: e.isRecurring,
+          recurrenceRule: e.recurrenceRule ?? null,
+          enabled: e.enabled,
+        },
+        windowStart, windowEnd, tz,
+      ));
 
     // Weekends as off-time ranges (consistent with manual off-times)
     if (schedulingSettings && !schedulingSettings.weekendsEnabled) {
@@ -126,7 +140,7 @@ export function UtilizationPage() {
     }
 
     return expanded;
-  }, [offTimeDefs, schedulingSettings, anchorTs]);
+  }, [availabilityEventDefs, schedulingSettings, anchorTs]);
 
   // Initialize space order from preferences
   const spaceOrder = useAppStore((state) => state.spaceOrder);

@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Api.Models;
 
 namespace Orkyo.Foundation.Tests;
@@ -6,6 +8,18 @@ namespace Orkyo.Foundation.Tests;
 /// <summary>Shared helper methods for test classes to reduce code duplication.</summary>
 public static class TestHelpers
 {
+    /// <summary>
+    /// JSON options that match the backend's serialization settings:
+    /// enums are serialized as camelCase strings, not integers.
+    /// Use with PostAsJsonAsync / ReadFromJsonAsync when the body contains enum properties.
+    /// </summary>
+    public static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+
     public static async Task<Guid> GetOrCreateTestSite(HttpClient client)
     {
         var sitesResponse = await client.GetAsync("/api/sites");

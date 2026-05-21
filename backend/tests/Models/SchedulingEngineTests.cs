@@ -24,18 +24,15 @@ public class SchedulingEngineTests
             PublicHolidaysEnabled = publicHolidaysEnabled
         };
 
-    private static OffTimeInfo MakeOffTime(DateTime start, DateTime end, bool enabled = true) =>
+    private static BlockedPeriod MakeBlockedPeriod(DateTime start, DateTime end) =>
         new()
         {
             Id = Guid.NewGuid(),
-            SiteId = Guid.NewGuid(),
             Title = "Off",
-            Type = OffTimeType.Custom,
-            AppliesToAllResources = true,
             StartTs = start,
             EndTs = end,
-            IsRecurring = false,
-            Enabled = enabled
+            Source = BlockedPeriodSource.ResourceAbsence,
+            AbsenceType = "custom"
         };
 
     // ── Plain elapsed time (no scheduling settings) ─────────────────
@@ -169,9 +166,9 @@ public class SchedulingEngineTests
     {
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Off-time from 10:00 to 12:00
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -189,9 +186,9 @@ public class SchedulingEngineTests
     public void CalculateSchedule_StartInOffTime_SnapsToEndOfOffTime()
     {
         var settings = MakeSettings();
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 9, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -204,21 +201,15 @@ public class SchedulingEngineTests
     }
 
     [Fact]
-    public void CalculateSchedule_DisabledOffTime_IsIgnored()
+    public void CalculateSchedule_EmptyBlockedPeriods_RunsStraightThrough()
     {
         var settings = MakeSettings();
-        var offTimes = new List<OffTimeInfo>
-        {
-            MakeOffTime(
-                new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
-                new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc),
-                enabled: false)
-        };
+        // Resolver pre-filters disabled records — engine receives an empty list.
+        var offTimes = new List<BlockedPeriod>();
 
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
         var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, offTimes);
 
-        // Disabled off-time is ignored — should go straight through
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start.AddMinutes(60));
     }
@@ -277,9 +268,9 @@ public class SchedulingEngineTests
     {
         var settings = MakeSettings();
         var tz = TimeZoneInfo.FindSystemTimeZoneById("UTC");
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -293,9 +284,9 @@ public class SchedulingEngineTests
     [Fact]
     public void IsInOffTime_WithinWindow_ReturnsTrue()
     {
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -307,9 +298,9 @@ public class SchedulingEngineTests
     [Fact]
     public void IsInOffTime_OutsideWindow_ReturnsFalse()
     {
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -321,9 +312,9 @@ public class SchedulingEngineTests
     [Fact]
     public void IsInOffTime_AtExactEnd_ReturnsFalse()
     {
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -354,9 +345,9 @@ public class SchedulingEngineTests
     {
         var settings = MakeSettings(workingHoursEnabled: false);
         // Off-time from 10:00 to 14:00
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 14, 0, 0, DateTimeKind.Utc))
         };
@@ -374,9 +365,9 @@ public class SchedulingEngineTests
     public void CalculateSchedule_WorkingHoursDisabledStartInOffTime_SnapsForward()
     {
         var settings = MakeSettings(workingHoursEnabled: false);
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };
@@ -406,12 +397,12 @@ public class SchedulingEngineTests
     public void CalculateSchedule_MultipleOffTimes_SkipsAll()
     {
         var settings = MakeSettings(); // 08:00-17:00 UTC
-        var offTimes = new List<OffTimeInfo>
+        var offTimes = new List<BlockedPeriod>
         {
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 9, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc)),
-            MakeOffTime(
+            MakeBlockedPeriod(
                 new DateTime(2026, 4, 1, 11, 0, 0, DateTimeKind.Utc),
                 new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc))
         };

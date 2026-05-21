@@ -203,28 +203,29 @@ public class ExportModelsTests
         template.Items.Should().BeEmpty();
     }
 
-    // ── ExportOffTime ──────────────────────────────────────────────────────
+    // ── ExportAvailabilityEvent ────────────────────────────────────────────
 
     [Fact]
-    public void ExportOffTime_StoresAllFields()
+    public void ExportAvailabilityEvent_StoresAllFields()
     {
         var start = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc);
         var end = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc);
 
-        var offTime = new ExportOffTime
+        var ev = new ExportAvailabilityEvent
         {
             Title = "Christmas",
-            Type = OffTimeType.Holiday,
-            AppliesToAllResources = true,
+            EventType = AvailabilityEventType.PublicHoliday,
+            DefaultEffect = DefaultEffect.Closed,
             StartTs = start,
             EndTs = end,
             IsRecurring = false,
             Enabled = true
         };
 
-        offTime.Title.Should().Be("Christmas");
-        offTime.Type.Should().Be(OffTimeType.Holiday);
-        offTime.StartTs.Should().Be(start);
+        ev.Title.Should().Be("Christmas");
+        ev.EventType.Should().Be(AvailabilityEventType.PublicHoliday);
+        ev.DefaultEffect.Should().Be(DefaultEffect.Closed);
+        ev.StartTs.Should().Be(start);
     }
 
     // ── ExportSchedulingSettings ───────────────────────────────────────────

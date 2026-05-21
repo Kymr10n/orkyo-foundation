@@ -51,6 +51,9 @@ export const API_PATHS = {
   requestSubtree: (requestId: string) => `/api/requests/${requestId}/subtree`,
   requestDescendantsCount: (requestId: string) => `/api/requests/${requestId}/descendants/count`,
 
+  // Resource Types
+  RESOURCE_TYPES: '/api/resource-types',
+
   // Resources
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
@@ -163,8 +166,6 @@ export const API_PATHS = {
 
   // Scheduling
   scheduling: (siteId: string) => `/api/sites/${siteId}/scheduling`,
-  offTimes: (siteId: string) => `/api/sites/${siteId}/off-times`,
-  offTime: (siteId: string, offTimeId: string) => `/api/sites/${siteId}/off-times/${offTimeId}`,
 
   // Auto-Schedule (Professional+ tier)
   AUTO_SCHEDULE_PREVIEW: '/api/scheduling/auto-schedule/preview',
@@ -182,6 +183,12 @@ export const API_PATHS = {
   // Resource Absences
   resourceAbsences: (resourceId: string) => `/api/resources/${resourceId}/absences`,
   resourceAbsence: (resourceId: string, absenceId: string) => `/api/resources/${resourceId}/absences/${absenceId}`,
+
+  // Availability Events
+  availabilityEvents: (siteId: string) => `/api/sites/${siteId}/availability-events`,
+  availabilityEvent: (siteId: string, eventId: string) => `/api/sites/${siteId}/availability-events/${eventId}`,
+  availabilityEventScopes: (siteId: string, eventId: string) => `/api/sites/${siteId}/availability-events/${eventId}/scopes`,
+  availabilityEventScope: (siteId: string, eventId: string, scopeId: string) => `/api/sites/${siteId}/availability-events/${eventId}/scopes/${scopeId}`,
 
   // Resource Assignments
   RESOURCE_ASSIGNMENTS: '/api/resource-assignments',

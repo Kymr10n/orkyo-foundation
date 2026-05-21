@@ -1,34 +1,9 @@
 using System.Text.Json.Serialization;
+using Api.Helpers;
 
 namespace Api.Models;
 
-/// <summary>
-/// Off-time type classification.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum OffTimeType
-{
-    [JsonStringEnumMemberName("holiday")]
-    Holiday,
-
-    [JsonStringEnumMemberName("maintenance")]
-    Maintenance,
-
-    [JsonStringEnumMemberName("custom")]
-    Custom,
-
-    [JsonStringEnumMemberName("vacation")]
-    Vacation,
-
-    [JsonStringEnumMemberName("sick_leave")]
-    SickLeave,
-
-    [JsonStringEnumMemberName("unavailable")]
-    Unavailable,
-
-    [JsonStringEnumMemberName("training")]
-    Training
-}
+// ── Scheduling Settings ──────────────────────────────────────────────────────
 
 /// <summary>
 /// Scheduling settings for a site (one per site).
@@ -48,10 +23,6 @@ public record SchedulingSettingsInfo
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 
-    /// <summary>
-    /// Returns sensible defaults (all scheduling features disabled).
-    /// The application behaves as if scheduling was never configured.
-    /// </summary>
     public static SchedulingSettingsInfo Default(Guid siteId) => new()
     {
         Id = Guid.Empty,
@@ -65,9 +36,6 @@ public record SchedulingSettingsInfo
     };
 }
 
-/// <summary>
-/// Request to create or update scheduling settings for a site.
-/// </summary>
 public record UpsertSchedulingSettingsRequest
 {
     public string TimeZone { get; init; } = "UTC";
@@ -79,17 +47,154 @@ public record UpsertSchedulingSettingsRequest
     public string? PublicHolidayRegion { get; init; }
 }
 
-/// <summary>
-/// Off-time entry (holiday, maintenance window, or custom off period).
-/// </summary>
-public record OffTimeInfo
+// ── Availability Events ──────────────────────────────────────────────────────
+
+[JsonConverter(typeof(DbMappedEnumConverter<AvailabilityEventType>))]
+public enum AvailabilityEventType
+{
+    [JsonStringEnumMemberName("public_holiday")]
+    PublicHoliday,
+
+    [JsonStringEnumMemberName("shutdown")]
+    Shutdown,
+
+    [JsonStringEnumMemberName("maintenance")]
+    Maintenance,
+
+    [JsonStringEnumMemberName("custom")]
+    Custom
+}
+
+[JsonConverter(typeof(DbMappedEnumConverter<DefaultEffect>))]
+public enum DefaultEffect
+{
+    [JsonStringEnumMemberName("closed")]
+    Closed,
+
+    [JsonStringEnumMemberName("available")]
+    Available
+}
+
+[JsonConverter(typeof(DbMappedEnumConverter<ScopeEffect>))]
+public enum ScopeEffect
+{
+    [JsonStringEnumMemberName("available")]
+    Available,
+
+    [JsonStringEnumMemberName("closed")]
+    Closed
+}
+
+[JsonConverter(typeof(DbMappedEnumConverter<ScopeTargetType>))]
+public enum ScopeTargetType
+{
+    [JsonStringEnumMemberName("resource")]
+    Resource,
+
+    [JsonStringEnumMemberName("resource_group")]
+    ResourceGroup,
+
+    [JsonStringEnumMemberName("resource_type")]
+    ResourceType
+}
+
+public record AvailabilityEventScopeInfo
+{
+    public required Guid Id { get; init; }
+    public required Guid AvailabilityEventId { get; init; }
+    public required ScopeTargetType TargetType { get; init; }
+    public required Guid TargetId { get; init; }
+    public required ScopeEffect Effect { get; init; }
+}
+
+public record AvailabilityEventInfo
 {
     public required Guid Id { get; init; }
     public required Guid SiteId { get; init; }
     public required string Title { get; init; }
-    public required OffTimeType Type { get; init; }
-    public required bool AppliesToAllResources { get; init; }
-    public List<Guid>? ResourceIds { get; init; }
+    public string? Description { get; init; }
+    public required AvailabilityEventType EventType { get; init; }
+    public required DefaultEffect DefaultEffect { get; init; }
+    public required DateTime StartTs { get; init; }
+    public required DateTime EndTs { get; init; }
+    public required bool IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public required bool Enabled { get; init; }
+    public List<AvailabilityEventScopeInfo> Scopes { get; init; } = [];
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+}
+
+public record AddScopeRequest
+{
+    public required ScopeTargetType TargetType { get; init; }
+    public required Guid TargetId { get; init; }
+    public required ScopeEffect Effect { get; init; }
+}
+
+public record UpdateScopeRequest
+{
+    public ScopeEffect? Effect { get; init; }
+}
+
+public record CreateAvailabilityEventRequest
+{
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public AvailabilityEventType EventType { get; init; } = AvailabilityEventType.Custom;
+    public DefaultEffect DefaultEffect { get; init; } = DefaultEffect.Closed;
+    public required DateTime StartTs { get; init; }
+    public required DateTime EndTs { get; init; }
+    public bool IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public bool Enabled { get; init; } = true;
+    public List<AddScopeRequest> Scopes { get; init; } = [];
+}
+
+public record UpdateAvailabilityEventRequest
+{
+    public string? Title { get; init; }
+    public string? Description { get; init; }
+    public AvailabilityEventType? EventType { get; init; }
+    public DefaultEffect? DefaultEffect { get; init; }
+    public DateTime? StartTs { get; init; }
+    public DateTime? EndTs { get; init; }
+    public bool? IsRecurring { get; init; }
+    public string? RecurrenceRule { get; init; }
+    public bool? Enabled { get; init; }
+}
+
+// ── Resource Absences ────────────────────────────────────────────────────────
+
+[JsonConverter(typeof(DbMappedEnumConverter<AbsenceType>))]
+public enum AbsenceType
+{
+    [JsonStringEnumMemberName("vacation")]
+    Vacation,
+
+    [JsonStringEnumMemberName("sickness")]
+    Sickness,
+
+    [JsonStringEnumMemberName("unavailable")]
+    Unavailable,
+
+    [JsonStringEnumMemberName("training")]
+    Training,
+
+    [JsonStringEnumMemberName("maintenance")]
+    Maintenance,
+
+    [JsonStringEnumMemberName("custom")]
+    Custom
+}
+
+public record ResourceAbsenceInfo
+{
+    public required Guid Id { get; init; }
+    public required Guid ResourceId { get; init; }
+    public required AbsenceType AbsenceType { get; init; }
+    public required string Title { get; init; }
+    public string? Notes { get; init; }
     public required DateTime StartTs { get; init; }
     public required DateTime EndTs { get; init; }
     public required bool IsRecurring { get; init; }
@@ -99,47 +204,11 @@ public record OffTimeInfo
     public DateTime UpdatedAt { get; init; }
 }
 
-/// <summary>
-/// Request to create an off-time entry.
-/// </summary>
-public record CreateOffTimeRequest
-{
-    public required string Title { get; init; }
-    public OffTimeType Type { get; init; } = OffTimeType.Custom;
-    public bool AppliesToAllResources { get; init; } = true;
-    public List<Guid>? ResourceIds { get; init; }
-    public required DateTime StartTs { get; init; }
-    public required DateTime EndTs { get; init; }
-    public bool IsRecurring { get; init; }
-    public string? RecurrenceRule { get; init; }
-    public bool Enabled { get; init; } = true;
-}
-
-/// <summary>
-/// Request to update an existing off-time entry.
-/// </summary>
-public record UpdateOffTimeRequest
-{
-    public string? Title { get; init; }
-    public OffTimeType? Type { get; init; }
-    public bool? AppliesToAllResources { get; init; }
-    public List<Guid>? ResourceIds { get; init; }
-    public DateTime? StartTs { get; init; }
-    public DateTime? EndTs { get; init; }
-    public bool? IsRecurring { get; init; }
-    public string? RecurrenceRule { get; init; }
-    public bool? Enabled { get; init; }
-}
-
-/// <summary>
-/// Request to create an absence (off-time) for a specific resource.
-/// Always stored with applies_to_all_resources=false, linked to the route resource.
-/// </summary>
 public record CreateResourceAbsenceRequest
 {
-    public required Guid SiteId { get; init; }
+    public required AbsenceType AbsenceType { get; init; }
     public required string Title { get; init; }
-    public OffTimeType Type { get; init; } = OffTimeType.Custom;
+    public string? Notes { get; init; }
     public required DateTime StartTs { get; init; }
     public required DateTime EndTs { get; init; }
     public bool IsRecurring { get; init; }
@@ -147,16 +216,40 @@ public record CreateResourceAbsenceRequest
     public bool Enabled { get; init; } = true;
 }
 
-/// <summary>
-/// Request to update an absence for a specific resource.
-/// </summary>
 public record UpdateResourceAbsenceRequest
 {
+    public AbsenceType? AbsenceType { get; init; }
     public string? Title { get; init; }
-    public OffTimeType? Type { get; init; }
+    public string? Notes { get; init; }
     public DateTime? StartTs { get; init; }
     public DateTime? EndTs { get; init; }
     public bool? IsRecurring { get; init; }
     public string? RecurrenceRule { get; init; }
     public bool? Enabled { get; init; }
+}
+
+// ── Engine-facing type ───────────────────────────────────────────────────────
+
+/// <summary>
+/// A resolved unavailability window for a resource. Produced by
+/// <see cref="IAvailabilityResolver"/> as the union of resource absences
+/// and closing availability events. Consumed by the scheduling engine and validator.
+/// </summary>
+public enum BlockedPeriodSource
+{
+    AvailabilityEvent,
+    ResourceAbsence
+}
+
+public record BlockedPeriod
+{
+    public required Guid Id { get; init; }
+    public required DateTime StartTs { get; init; }
+    public required DateTime EndTs { get; init; }
+    public required string Title { get; init; }
+    public required BlockedPeriodSource Source { get; init; }
+    /// <summary>Set when Source == AvailabilityEvent. Value matches the DB event_type string.</summary>
+    public string? EventType { get; init; }
+    /// <summary>Set when Source == ResourceAbsence. Value matches the DB absence_type string.</summary>
+    public string? AbsenceType { get; init; }
 }

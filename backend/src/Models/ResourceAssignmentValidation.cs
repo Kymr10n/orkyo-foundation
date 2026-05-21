@@ -64,7 +64,7 @@ public record ValidationIssue
     public required string Message { get; init; }
     public Guid? ResourceId { get; init; }
     public Guid? ConflictingAssignmentId { get; init; }
-    public Guid? ConflictingOffTimeId { get; init; }
+    public Guid? ConflictingAvailabilityId { get; init; }
     public Guid? CriterionId { get; init; }
     public string? Details { get; init; }
 }

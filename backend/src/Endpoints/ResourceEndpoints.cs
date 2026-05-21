@@ -4,6 +4,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -167,86 +168,67 @@ public static class ResourceEndpoints
 
         group.MapGet("/{id:guid}/absences", async (
             Guid id,
-            Guid siteId,
-            ISchedulingRepository scheduling,
+            IResourceAbsenceRepository absenceRepo,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await scheduling.GetOffTimesByResourceAsync(id, siteId)),
-            logger, "get resource absences", new { id, siteId }))
+                Results.Ok(await absenceRepo.GetByResourceAsync(id, ct)),
+            logger, "get resource absences", new { id }))
             .WithName("GetResourceAbsences")
-            .WithSummary("Get all absences (off-times) for a resource within a site");
+            .WithSummary("Get all absences for a resource");
 
         group.MapPost("/{id:guid}/absences", async (
             Guid id,
             [FromBody] CreateResourceAbsenceRequest request,
-            ISchedulingRepository scheduling,
+            IResourceService resourceService,
+            IResourceAbsenceRepository absenceRepo,
+            IValidator<CreateResourceAbsenceRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var offtime = await scheduling.CreateOffTimeAsync(request.SiteId, new CreateOffTimeRequest
-                {
-                    Title = request.Title,
-                    Type = request.Type,
-                    AppliesToAllResources = false,
-                    ResourceIds = [id],
-                    StartTs = request.StartTs,
-                    EndTs = request.EndTs,
-                    IsRecurring = request.IsRecurring,
-                    RecurrenceRule = request.RecurrenceRule,
-                    Enabled = request.Enabled,
-                });
-                return Results.Created($"/api/resources/{id}/absences/{offtime.Id}", offtime);
+                var resource = await resourceService.GetByIdAsync(id);
+                if (resource is null) return ErrorResponses.NotFound("Resource", id);
+                var absence = await absenceRepo.CreateAsync(id, request, ct);
+                return Results.Created($"/api/resources/{id}/absences/{absence.Id}", absence);
             }, logger, "create resource absence", new { id }))
             .RequireAdminAccess()
             .WithName("CreateResourceAbsence")
-            .WithSummary("Create an absence (off-time) for a resource");
+            .WithSummary("Create an absence for a resource");
 
         group.MapPut("/{id:guid}/absences/{absenceId:guid}", async (
             Guid id,
             Guid absenceId,
             [FromBody] UpdateResourceAbsenceRequest request,
-            ISchedulingRepository scheduling,
+            IResourceAbsenceRepository absenceRepo,
+            IValidator<UpdateResourceAbsenceRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var existing = await scheduling.GetOffTimeByIdAsync(absenceId);
-                if (existing is null || existing.ResourceIds?.Contains(id) != true)
+                var existing = await absenceRepo.GetByIdAsync(absenceId, ct);
+                if (existing is null || existing.ResourceId != id)
                     return ErrorResponses.NotFound("Absence", absenceId);
-
-                var updated = await scheduling.UpdateOffTimeAsync(existing.SiteId, absenceId,
-                    new UpdateOffTimeRequest
-                    {
-                        Title = request.Title,
-                        Type = request.Type,
-                        StartTs = request.StartTs,
-                        EndTs = request.EndTs,
-                        IsRecurring = request.IsRecurring,
-                        RecurrenceRule = request.RecurrenceRule,
-                        Enabled = request.Enabled,
-                    });
+                var updated = await absenceRepo.UpdateAsync(absenceId, request, ct);
                 return updated is null ? ErrorResponses.NotFound("Absence", absenceId) : Results.Ok(updated);
             }, logger, "update resource absence", new { id, absenceId }))
             .RequireAdminAccess()
             .WithName("UpdateResourceAbsence")
-            .WithSummary("Update an absence (off-time) for a resource");
+            .WithSummary("Update an absence for a resource");
 
         group.MapDelete("/{id:guid}/absences/{absenceId:guid}", async (
             Guid id,
             Guid absenceId,
-            ISchedulingRepository scheduling,
+            IResourceAbsenceRepository absenceRepo,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
-                var existing = await scheduling.GetOffTimeByIdAsync(absenceId);
-                if (existing is null || existing.ResourceIds?.Contains(id) != true)
+                var existing = await absenceRepo.GetByIdAsync(absenceId, ct);
+                if (existing is null || existing.ResourceId != id)
                     return ErrorResponses.NotFound("Absence", absenceId);
-
-                var deleted = await scheduling.DeleteOffTimeAsync(existing.SiteId, absenceId);
+                var deleted = await absenceRepo.DeleteAsync(absenceId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Absence", absenceId);
             }, logger, "delete resource absence", new { id, absenceId }))
             .RequireAdminAccess()
             .WithName("DeleteResourceAbsence")
-            .WithSummary("Delete an absence (off-time) for a resource");
+            .WithSummary("Delete an absence for a resource");
     }
 }
 

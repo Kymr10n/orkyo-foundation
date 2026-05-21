@@ -117,7 +117,7 @@ public sealed record SchedulingProblem(
     IReadOnlyList<SpaceNode> Spaces,
     IReadOnlyList<FixedOccupancy> FixedAssignments,
     SchedulingSettingsInfo? Settings,
-    List<OffTimeInfo>? OffTimes,
+    Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource,
     AutoScheduleMode Mode,
     // Non-Space resources available for multi-type requirements (Phase 4+).
     // Empty for all existing single-Space problems — no behavioral change.

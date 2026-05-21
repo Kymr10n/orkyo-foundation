@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
+import { createResourceAbsence, type AbsenceType } from '@foundation/src/lib/api/resource-absences-api';
 import {
   Dialog,
   DialogContent,
@@ -12,30 +12,29 @@ import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@foundation/src/components/ui/select';
-import { Loader2 } from 'lucide-react';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@foundation/src/components/ui/popover';
 import { Calendar } from '@foundation/src/components/ui/calendar';
 import { format } from 'date-fns';
 
 interface PersonAbsenceEditDialogProps {
   personId: string;
-  siteId: string;
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-const absenceTypes = [
+const absenceTypes: { value: AbsenceType; label: string }[] = [
   { value: 'vacation', label: 'Vacation' },
-  { value: 'sick_leave', label: 'Sick Leave' },
+  { value: 'sickness', label: 'Sickness' },
   { value: 'unavailable', label: 'Unavailable' },
   { value: 'training', label: 'Training' },
+  { value: 'maintenance', label: 'Maintenance' },
   { value: 'custom', label: 'Custom' },
 ];
 
-export function PersonAbsenceEditDialog({ personId, siteId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
-  const [type, setType] = useState('vacation');
+export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
+  const [absenceType, setAbsenceType] = useState<AbsenceType>('vacation');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -43,14 +42,13 @@ export function PersonAbsenceEditDialog({ personId, siteId, isOpen, onClose, onS
   const saveMutation = useMutation({
     mutationFn: () =>
       createResourceAbsence(personId, {
-        siteId,
-        title: title || type,
-        type,
+        absenceType,
+        title: title || absenceType,
         startTs: startDate!.toISOString(),
         endTs: endDate!.toISOString(),
       }),
     onSuccess: () => {
-      setType('vacation');
+      setAbsenceType('vacation');
       setTitle('');
       setStartDate(undefined);
       setEndDate(undefined);
@@ -73,7 +71,7 @@ export function PersonAbsenceEditDialog({ personId, siteId, isOpen, onClose, onS
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="type">Type</Label>
-            <Select value={type} onValueChange={setType}>
+            <Select value={absenceType} onValueChange={(v) => setAbsenceType(v as AbsenceType)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>

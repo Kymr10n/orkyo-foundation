@@ -18,6 +18,7 @@ public class ExportService : IExportService
     private readonly IResourceCapabilityRepository _capabilityRepo;
     private readonly IGroupCapabilityRepository _groupCapabilityRepo;
     private readonly ISchedulingRepository _schedulingRepo;
+    private readonly IAvailabilityEventRepository _availabilityEventRepo;
     private readonly IRequestRepository _requestRepo;
     private readonly ICurrentTenant _currentTenant;
 
@@ -30,6 +31,7 @@ public class ExportService : IExportService
         IResourceCapabilityRepository capabilityRepo,
         IGroupCapabilityRepository groupCapabilityRepo,
         ISchedulingRepository schedulingRepo,
+        IAvailabilityEventRepository availabilityEventRepo,
         IRequestRepository requestRepo,
         ICurrentTenant currentTenant)
     {
@@ -41,6 +43,7 @@ public class ExportService : IExportService
         _capabilityRepo = capabilityRepo;
         _groupCapabilityRepo = groupCapabilityRepo;
         _schedulingRepo = schedulingRepo;
+        _availabilityEventRepo = availabilityEventRepo;
         _requestRepo = requestRepo;
         _currentTenant = currentTenant;
     }
@@ -162,7 +165,7 @@ public class ExportService : IExportService
                 Description = site.Description,
                 Address = site.Address,
                 SchedulingSettings = await BuildSchedulingSettingsAsync(site.Id),
-                OffTimes = await BuildOffTimesAsync(site.Id, spaces),
+                AvailabilityEvents = await BuildAvailabilityEventsAsync(site.Id),
                 Spaces = exportSpaces
             });
         }
@@ -187,28 +190,24 @@ public class ExportService : IExportService
         };
     }
 
-    private async Task<List<ExportOffTime>?> BuildOffTimesAsync(Guid siteId, List<SpaceInfo> spaces)
+    private async Task<List<ExportAvailabilityEvent>?> BuildAvailabilityEventsAsync(Guid siteId)
     {
-        var offTimes = await _schedulingRepo.GetOffTimesAsync(siteId);
-        if (offTimes.Count == 0) return null;
+        var events = await _availabilityEventRepo.GetBySiteAsync(siteId);
+        if (events.Count == 0) return null;
 
-        var resourceIdToName = spaces.ToDictionary(s => s.Id, s => s.Name);
-
-        return offTimes
-            .OrderBy(ot => ot.StartTs)
-            .Select(ot => new ExportOffTime
+        return events
+            .OrderBy(e => e.StartTs)
+            .Select(e => new ExportAvailabilityEvent
             {
-                Title = ot.Title,
-                Type = ot.Type,
-                AppliesToAllResources = ot.AppliesToAllResources,
-                ResourceNames = ot.ResourceIds is { Count: > 0 }
-                    ? ot.ResourceIds.Where(resourceIdToName.ContainsKey).Select(id => resourceIdToName[id]).OrderBy(n => n, StringComparer.Ordinal).ToList()
-                    : null,
-                StartTs = ot.StartTs,
-                EndTs = ot.EndTs,
-                IsRecurring = ot.IsRecurring,
-                RecurrenceRule = ot.RecurrenceRule,
-                Enabled = ot.Enabled
+                Title = e.Title,
+                Description = e.Description,
+                EventType = e.EventType,
+                DefaultEffect = e.DefaultEffect,
+                StartTs = e.StartTs,
+                EndTs = e.EndTs,
+                IsRecurring = e.IsRecurring,
+                RecurrenceRule = e.RecurrenceRule,
+                Enabled = e.Enabled
             }).ToList();
     }
 

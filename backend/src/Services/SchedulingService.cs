@@ -3,35 +3,14 @@ using Api.Repositories;
 
 namespace Api.Services;
 
-/// <summary>
-/// Manages scheduling configuration (settings, off-times) for sites and applies
-/// scheduling rules to request create/update/schedule operations.
-/// </summary>
 public interface ISchedulingService
 {
-    /// <summary>Returns scheduling settings for a site, or <c>null</c> if using defaults.</summary>
     Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default);
-    /// <summary>Creates or replaces scheduling settings for a site.</summary>
     Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default);
-    /// <summary>Removes custom settings, reverting to defaults.</summary>
     Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default);
-    /// <summary>Returns all off-time blocks for a site.</summary>
-    Task<List<OffTimeInfo>> GetOffTimesAsync(Guid siteId, CancellationToken ct = default);
-    /// <summary>Returns a specific off-time block, or <c>null</c> if not found.</summary>
-    Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid siteId, Guid offTimeId, CancellationToken ct = default);
-    /// <summary>Creates an off-time block.</summary>
-    Task<OffTimeInfo> CreateOffTimeAsync(Guid siteId, CreateOffTimeRequest request, CancellationToken ct = default);
-    /// <summary>Updates an off-time block. Returns <c>null</c> if not found.</summary>
-    Task<OffTimeInfo?> UpdateOffTimeAsync(Guid siteId, Guid offTimeId, UpdateOffTimeRequest request, CancellationToken ct = default);
-    /// <summary>Deletes an off-time block. Returns <c>false</c> if not found.</summary>
-    Task<bool> DeleteOffTimeAsync(Guid siteId, Guid offTimeId, CancellationToken ct = default);
-    /// <summary>Re-evaluates start/end times for all scheduled requests on a site after settings change.</summary>
     Task RecalculateScheduledRequestsAsync(Guid siteId, CancellationToken ct = default);
-    /// <summary>Applies scheduling rules to a create request, returning a potentially adjusted copy.</summary>
     Task<CreateRequestRequest> ApplySchedulingToCreateAsync(CreateRequestRequest request, CancellationToken ct = default);
-    /// <summary>Applies scheduling rules to an update request.</summary>
     Task<UpdateRequestRequest> ApplySchedulingToUpdateAsync(Guid requestId, UpdateRequestRequest request, CancellationToken ct = default);
-    /// <summary>Applies scheduling rules to a schedule-only patch request.</summary>
     Task<ScheduleRequestRequest> ApplySchedulingToScheduleAsync(Guid requestId, ScheduleRequestRequest request, CancellationToken ct = default);
 }
 
@@ -39,15 +18,18 @@ public class SchedulingService : ISchedulingService
 {
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IRequestRepository _requestRepository;
+    private readonly IAvailabilityResolver _resolver;
     private readonly ILogger<SchedulingService> _logger;
 
     public SchedulingService(
         ISchedulingRepository schedulingRepository,
         IRequestRepository requestRepository,
+        IAvailabilityResolver resolver,
         ILogger<SchedulingService> logger)
     {
         _schedulingRepository = schedulingRepository;
         _requestRepository = requestRepository;
+        _resolver = resolver;
         _logger = logger;
     }
 
@@ -60,26 +42,10 @@ public class SchedulingService : ISchedulingService
     public Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default)
         => _schedulingRepository.DeleteSettingsAsync(siteId, ct);
 
-    public Task<List<OffTimeInfo>> GetOffTimesAsync(Guid siteId, CancellationToken ct = default)
-        => _schedulingRepository.GetOffTimesAsync(siteId, ct);
-
-    public Task<OffTimeInfo?> GetOffTimeByIdAsync(Guid siteId, Guid offTimeId, CancellationToken ct = default)
-        => _schedulingRepository.GetOffTimeByIdAsync(siteId, offTimeId, ct);
-
-    public Task<OffTimeInfo> CreateOffTimeAsync(Guid siteId, CreateOffTimeRequest request, CancellationToken ct = default)
-        => _schedulingRepository.CreateOffTimeAsync(siteId, request, ct);
-
-    public Task<OffTimeInfo?> UpdateOffTimeAsync(Guid siteId, Guid offTimeId, UpdateOffTimeRequest request, CancellationToken ct = default)
-        => _schedulingRepository.UpdateOffTimeAsync(siteId, offTimeId, request, ct);
-
-    public Task<bool> DeleteOffTimeAsync(Guid siteId, Guid offTimeId, CancellationToken ct = default)
-        => _schedulingRepository.DeleteOffTimeAsync(siteId, offTimeId, ct);
-
     public async Task RecalculateScheduledRequestsAsync(Guid siteId, CancellationToken ct = default)
     {
         var settings = await _schedulingRepository.GetSettingsAsync(siteId)
             ?? SchedulingSettingsInfo.Default(siteId);
-        var offTimes = await _schedulingRepository.GetOffTimesAsync(siteId);
         var toRecalculate = await _requestRepository.GetScheduledBySiteAsync(siteId);
 
         if (toRecalculate.Count == 0) return;
@@ -92,14 +58,19 @@ public class SchedulingService : ISchedulingService
         {
             try
             {
+                var resourceId = request.GetSpaceResourceId();
+                var blockedPeriods = resourceId.HasValue
+                    ? await _resolver.GetBlockedPeriodsAsync(resourceId.Value, ct)
+                    : [];
+
                 var durationMinutes = SchedulingEngine.DurationToMinutes(
                     request.MinimalDurationValue, request.MinimalDurationUnit);
                 var result = SchedulingEngine.CalculateSchedule(
-                    request.StartTs!.Value, durationMinutes, true, settings, offTimes);
+                    request.StartTs!.Value, durationMinutes, true, settings, blockedPeriods);
 
                 updates.Add((request.Id, new ScheduleRequestRequest
                 {
-                    ResourceId = request.GetSpaceResourceId(),
+                    ResourceId = resourceId,
                     StartTs = result.ActualStart,
                     EndTs = result.ActualEnd,
                     ActualDurationValue = result.ActualDurationMinutes,
@@ -113,9 +84,7 @@ public class SchedulingService : ISchedulingService
         }
 
         if (updates.Count > 0)
-        {
             await _requestRepository.BatchUpdateSchedulesAsync(updates);
-        }
 
         _logger.LogInformation("Recalculated {Count} requests for site {SiteId}",
             updates.Count, siteId);
@@ -128,7 +97,7 @@ public class SchedulingService : ISchedulingService
 
         var result = await ComputeScheduledTimesAsync(
             request.ResourceId.Value, request.StartTs.Value,
-            request.MinimalDurationValue, request.MinimalDurationUnit);
+            request.MinimalDurationValue, request.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
         {
@@ -155,7 +124,7 @@ public class SchedulingService : ISchedulingService
         var result = await ComputeScheduledTimesAsync(
             resourceId.Value, startTs.Value,
             request.MinimalDurationValue ?? existing.MinimalDurationValue,
-            request.MinimalDurationUnit ?? existing.MinimalDurationUnit);
+            request.MinimalDurationUnit ?? existing.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
         {
@@ -174,14 +143,11 @@ public class SchedulingService : ISchedulingService
         var existing = await _requestRepository.GetByIdAsync(requestId);
         if (existing == null || !existing.SchedulingSettingsApply) return request;
 
-        // When the caller supplied an explicit EndTs (same-space resize or
-        // cross-space reschedule with explicit times), honour the provided
-        // timestamps instead of recalculating from the minimal duration.
         if (request.EndTs != null) return request;
 
         var result = await ComputeScheduledTimesAsync(
             request.ResourceId.Value, request.StartTs.Value,
-            existing.MinimalDurationValue, existing.MinimalDurationUnit);
+            existing.MinimalDurationValue, existing.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
         {
@@ -192,27 +158,17 @@ public class SchedulingService : ISchedulingService
         };
     }
 
-    private async Task<(SchedulingSettingsInfo Settings, List<OffTimeInfo> OffTimes)?> LoadSchedulingContextAsync(
-        Guid resourceId, CancellationToken ct = default)
-    {
-        var siteId = await _schedulingRepository.GetSiteIdForResourceAsync(resourceId);
-        if (siteId == null) return null;
-
-        var settings = await _schedulingRepository.GetSettingsAsync(siteId.Value)
-            ?? SchedulingSettingsInfo.Default(siteId.Value);
-
-        var offTimes = await _schedulingRepository.GetOffTimesAsync(siteId.Value);
-        return (settings, offTimes);
-    }
-
     private async Task<SchedulingEngine.ScheduleResult?> ComputeScheduledTimesAsync(
         Guid resourceId, DateTime startTs, int durationValue, DurationUnit durationUnit, CancellationToken ct = default)
     {
-        var ctx = await LoadSchedulingContextAsync(resourceId);
-        if (ctx == null) return null;
+        var siteId = await _schedulingRepository.GetSiteIdForResourceAsync(resourceId, ct);
+        if (siteId == null) return null;
 
+        var settings = await _schedulingRepository.GetSettingsAsync(siteId.Value, ct)
+            ?? SchedulingSettingsInfo.Default(siteId.Value);
+
+        var blockedPeriods = await _resolver.GetBlockedPeriodsAsync(resourceId, ct);
         var durationMinutes = SchedulingEngine.DurationToMinutes(durationValue, durationUnit);
-        return SchedulingEngine.CalculateSchedule(
-            startTs, durationMinutes, true, ctx.Value.Settings, ctx.Value.OffTimes);
+        return SchedulingEngine.CalculateSchedule(startTs, durationMinutes, true, settings, blockedPeriods);
     }
 }

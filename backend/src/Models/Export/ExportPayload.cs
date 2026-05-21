@@ -41,7 +41,7 @@ public record ExportSite
     public string? Description { get; init; }
     public string? Address { get; init; }
     public ExportSchedulingSettings? SchedulingSettings { get; init; }
-    public List<ExportOffTime>? OffTimes { get; init; }
+    public List<ExportAvailabilityEvent>? AvailabilityEvents { get; init; }
     public List<ExportSpace> Spaces { get; init; } = new();
 }
 
@@ -115,13 +115,14 @@ public record ExportSchedulingSettings
     public string? PublicHolidayRegion { get; init; }
 }
 
-public record ExportOffTime
+public record ExportAvailabilityEvent
 {
     public required string Title { get; init; }
+    public string? Description { get; init; }
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public required OffTimeType Type { get; init; }
-    public required bool AppliesToAllResources { get; init; }
-    public List<string>? ResourceNames { get; init; }
+    public required AvailabilityEventType EventType { get; init; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public required DefaultEffect DefaultEffect { get; init; }
     public required DateTime StartTs { get; init; }
     public required DateTime EndTs { get; init; }
     public required bool IsRecurring { get; init; }

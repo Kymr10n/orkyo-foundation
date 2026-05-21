@@ -6,7 +6,7 @@ public record ResourceConflict
     public required ResourceConflictType Type { get; init; }
     public required string Message { get; init; }
     public Guid? ConflictingAssignmentId { get; init; }
-    public Guid? ConflictingOffTimeId { get; init; }
+    public Guid? ConflictingAvailabilityId { get; init; }
 }
 
 public enum ResourceConflictType

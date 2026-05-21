@@ -38,81 +38,100 @@ public class UpsertSchedulingSettingsRequestValidator : AbstractValidator<Upsert
             .WithMessage("PublicHolidayRegion is required when public holidays are enabled");
     }
 
-    private static bool BeValidTime(string time)
+    private static bool BeValidTime(string time) => TimeSpan.TryParse(time, out _);
+}
+
+public class CreateAvailabilityEventRequestValidator : AbstractValidator<CreateAvailabilityEventRequest>
+{
+    public CreateAvailabilityEventRequestValidator()
     {
-        return TimeSpan.TryParse(time, out _);
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.EventType).IsInEnum();
+        RuleFor(x => x.DefaultEffect).IsInEnum();
+        RuleFor(x => x.StartTs).NotEmpty();
+        RuleFor(x => x.EndTs).NotEmpty().GreaterThan(x => x.StartTs).WithMessage("EndTs must be after StartTs");
+        SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
+
+        RuleForEach(x => x.Scopes).SetValidator(new AddScopeRequestValidator());
     }
 }
 
-public class CreateOffTimeRequestValidator : AbstractValidator<CreateOffTimeRequest>
+public class UpdateAvailabilityEventRequestValidator : AbstractValidator<UpdateAvailabilityEventRequest>
 {
-    public CreateOffTimeRequestValidator()
+    public UpdateAvailabilityEventRequestValidator()
     {
-        RuleFor(x => x.Title)
-            .NotEmpty().WithMessage("Title is required")
-            .MaximumLength(200);
-
-        RuleFor(x => x.Type)
-            .IsInEnum().WithMessage("Type must be Holiday, Maintenance, or Custom");
-
-        RuleFor(x => x.StartTs)
-            .NotEmpty().WithMessage("StartTs is required");
-
-        RuleFor(x => x.EndTs)
-            .NotEmpty().WithMessage("EndTs is required")
-            .GreaterThan(x => x.StartTs).WithMessage("EndTs must be after StartTs");
-
-        SharedOffTimeRules.Apply(this,
-            x => x.IsRecurring, x => x.RecurrenceRule,
-            x => !x.AppliesToAllResources, x => x.ResourceIds);
-
-        RuleFor(x => x.RecurrenceRule)
-            .Null().When(x => !x.IsRecurring)
-            .WithMessage("RecurrenceRule must be null when IsRecurring is false");
-    }
-}
-
-public class UpdateOffTimeRequestValidator : AbstractValidator<UpdateOffTimeRequest>
-{
-    public UpdateOffTimeRequestValidator()
-    {
-        RuleFor(x => x.Title)
-            .MaximumLength(200)
-            .When(x => x.Title != null);
-
-        RuleFor(x => x.Type)
-            .IsInEnum().WithMessage("Type must be Holiday, Maintenance, or Custom")
-            .When(x => x.Type.HasValue);
-
+        RuleFor(x => x.Title).MaximumLength(200).When(x => x.Title != null);
         RuleFor(x => x.EndTs)
             .GreaterThan(x => x.StartTs!.Value)
             .When(x => x.StartTs.HasValue && x.EndTs.HasValue)
             .WithMessage("EndTs must be after StartTs");
-
-        SharedOffTimeRules.Apply(this,
-            x => x.IsRecurring == true, x => x.RecurrenceRule,
-            x => x.AppliesToAllResources == false, x => x.ResourceIds);
+        RuleFor(x => x.RecurrenceRule)
+            .NotEmpty().When(x => x.IsRecurring == true)
+            .WithMessage("RecurrenceRule is required when IsRecurring is true");
+        RuleFor(x => x.RecurrenceRule)
+            .Null().When(x => x.IsRecurring == false)
+            .WithMessage("RecurrenceRule must be null when IsRecurring is false");
     }
 }
 
-/// <summary>
-/// Shared validation rules for create/update off-time requests.
-/// </summary>
-internal static class SharedOffTimeRules
+public class AddScopeRequestValidator : AbstractValidator<AddScopeRequest>
+{
+    public AddScopeRequestValidator()
+    {
+        RuleFor(x => x.TargetType).IsInEnum();
+        RuleFor(x => x.TargetId).NotEmpty();
+        RuleFor(x => x.Effect).IsInEnum();
+    }
+}
+
+public class CreateResourceAbsenceRequestValidator : AbstractValidator<CreateResourceAbsenceRequest>
+{
+    public CreateResourceAbsenceRequestValidator()
+    {
+        RuleFor(x => x.AbsenceType).IsInEnum();
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.StartTs).NotEmpty();
+        RuleFor(x => x.EndTs).NotEmpty().GreaterThan(x => x.StartTs).WithMessage("EndTs must be after StartTs");
+        SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
+    }
+}
+
+public class UpdateResourceAbsenceRequestValidator : AbstractValidator<UpdateResourceAbsenceRequest>
+{
+    public UpdateResourceAbsenceRequestValidator()
+    {
+        RuleFor(x => x.Title).MaximumLength(200).When(x => x.Title != null);
+        RuleFor(x => x.EndTs)
+            .GreaterThan(x => x.StartTs!.Value)
+            .When(x => x.StartTs.HasValue && x.EndTs.HasValue)
+            .WithMessage("EndTs must be after StartTs");
+        RuleFor(x => x.RecurrenceRule)
+            .NotEmpty().When(x => x.IsRecurring == true)
+            .WithMessage("RecurrenceRule is required when IsRecurring is true");
+        RuleFor(x => x.RecurrenceRule)
+            .Null().When(x => x.IsRecurring == false)
+            .WithMessage("RecurrenceRule must be null when IsRecurring is false");
+    }
+}
+
+internal static class SharedRecurrenceRules
 {
     public static void Apply<T>(
         AbstractValidator<T> validator,
         System.Linq.Expressions.Expression<Func<T, bool>> isRecurring,
-        System.Linq.Expressions.Expression<Func<T, string?>> recurrenceRule,
-        System.Linq.Expressions.Expression<Func<T, bool>> needsResources,
-        System.Linq.Expressions.Expression<Func<T, List<Guid>?>> resourceIds)
+        System.Linq.Expressions.Expression<Func<T, string?>> recurrenceRule)
     {
         validator.RuleFor(recurrenceRule)
             .NotEmpty().When(isRecurring.Compile())
             .WithMessage("RecurrenceRule is required when IsRecurring is true");
 
-        validator.RuleFor(resourceIds)
-            .NotEmpty().When(needsResources.Compile())
-            .WithMessage("ResourceIds is required when AppliesToAllResources is false");
+        validator.RuleFor(recurrenceRule)
+            .Null().When(isRecurring.Compile().Negate())
+            .WithMessage("RecurrenceRule must be null when IsRecurring is false");
     }
+}
+
+internal static class FuncExtensions
+{
+    public static Func<T, bool> Negate<T>(this Func<T, bool> fn) => x => !fn(x);
 }

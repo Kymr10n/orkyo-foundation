@@ -173,167 +173,169 @@ public class SchedulingEndpointsTests
 
     #endregion
 
-    #region Off-Times
+    #region Availability Events
 
     [Fact]
-    public async Task GetOffTimes_Empty_ReturnsEmptyList()
+    public async Task GetAvailabilityEvents_Empty_ReturnsEmptyList()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var response = await _client.GetAsync($"/api/sites/{siteId}/off-times");
+        var response = await _client.GetAsync($"/api/sites/{siteId}/availability-events");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var offTimes = await response.Content.ReadFromJsonAsync<List<OffTimeInfo>>();
-        Assert.NotNull(offTimes);
+        var events = await response.Content.ReadFromJsonAsync<List<AvailabilityEventInfo>>();
+        Assert.NotNull(events);
     }
 
     [Fact]
-    public async Task CreateOffTime_Valid_Returns201()
+    public async Task CreateAvailabilityEvent_Valid_Returns201()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
-            Title = $"Test OffTime {Guid.NewGuid():N}"[..30],
-            Type = OffTimeType.Holiday,
+            Title = $"Holiday {Guid.NewGuid():N}"[..30],
+            EventType = AvailabilityEventType.PublicHoliday,
+            DefaultEffect = DefaultEffect.Closed,
             StartTs = new DateTime(2026, 12, 25, 0, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc)
         };
 
-        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times", request);
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sites/{siteId}/availability-events", request, TestHelpers.JsonOpts);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var offTime = await response.Content.ReadFromJsonAsync<OffTimeInfo>();
-        Assert.NotNull(offTime);
-        Assert.Equal(siteId, offTime.SiteId);
-        Assert.Equal(OffTimeType.Holiday, offTime.Type);
-        Assert.True(offTime.AppliesToAllResources);
-        Assert.True(offTime.Enabled);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.Created, $"Expected 201 Created, got {response.StatusCode}: {body}");
+        var ev = await response.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
+        Assert.NotNull(ev);
+        Assert.Equal(siteId, ev.SiteId);
+        Assert.Equal(AvailabilityEventType.PublicHoliday, ev.EventType);
+        Assert.Equal(DefaultEffect.Closed, ev.DefaultEffect);
+        Assert.True(ev.Enabled);
     }
 
     [Fact]
-    public async Task CreateOffTime_EmptyTitle_Returns400()
+    public async Task CreateAvailabilityEvent_EmptyTitle_Returns400()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
             Title = "",
             StartTs = DateTime.UtcNow,
             EndTs = DateTime.UtcNow.AddHours(1)
         };
 
-        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times", request);
+        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events", request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task CreateOffTime_EndBeforeStart_Returns400()
+    public async Task CreateAvailabilityEvent_EndBeforeStart_Returns400()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var request = new CreateOffTimeRequest
+        var request = new CreateAvailabilityEventRequest
         {
             Title = "Invalid",
             StartTs = DateTime.UtcNow.AddHours(1),
             EndTs = DateTime.UtcNow
         };
 
-        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times", request);
+        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events", request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task GetOffTimeById_AfterCreate_ReturnsOffTime()
+    public async Task GetAvailabilityEventById_AfterCreate_ReturnsEvent()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times",
-            new CreateOffTimeRequest
+        var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
+            new CreateAvailabilityEventRequest
             {
                 Title = $"Get Test {Guid.NewGuid():N}"[..30],
                 StartTs = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
                 EndTs = new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc)
-            });
+            }, TestHelpers.JsonOpts);
 
-        var created = await createResponse.Content.ReadFromJsonAsync<OffTimeInfo>();
+        var created = await createResponse.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
 
-        var response = await _client.GetAsync($"/api/sites/{siteId}/off-times/{created!.Id}");
+        var response = await _client.GetAsync($"/api/sites/{siteId}/availability-events/{created!.Id}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var offTime = await response.Content.ReadFromJsonAsync<OffTimeInfo>();
-        Assert.NotNull(offTime);
-        Assert.Equal(created.Id, offTime.Id);
+        var ev = await response.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
+        Assert.NotNull(ev);
+        Assert.Equal(created.Id, ev.Id);
     }
 
     [Fact]
-    public async Task GetOffTimeById_NonExistent_Returns404()
+    public async Task GetAvailabilityEventById_NonExistent_Returns404()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var response = await _client.GetAsync($"/api/sites/{siteId}/off-times/{Guid.NewGuid()}");
+        var response = await _client.GetAsync($"/api/sites/{siteId}/availability-events/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task UpdateOffTime_PartialUpdate_Returns200()
+    public async Task UpdateAvailabilityEvent_PartialUpdate_Returns200()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times",
-            new CreateOffTimeRequest
+        var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
+            new CreateAvailabilityEventRequest
             {
                 Title = $"Update Test {Guid.NewGuid():N}"[..30],
                 StartTs = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc),
                 EndTs = new DateTime(2026, 8, 2, 0, 0, 0, DateTimeKind.Utc)
-            });
+            }, TestHelpers.JsonOpts);
 
-        var created = await createResponse.Content.ReadFromJsonAsync<OffTimeInfo>();
+        var created = await createResponse.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
 
-        var updateRequest = new UpdateOffTimeRequest { Title = "Updated Title", Enabled = false };
+        var updateRequest = new UpdateAvailabilityEventRequest { Title = "Updated Title", Enabled = false };
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/off-times/{created!.Id}", updateRequest);
+            $"/api/sites/{siteId}/availability-events/{created!.Id}", updateRequest, TestHelpers.JsonOpts);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var updated = await response.Content.ReadFromJsonAsync<OffTimeInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
         Assert.NotNull(updated);
         Assert.Equal("Updated Title", updated.Title);
         Assert.False(updated.Enabled);
     }
 
     [Fact]
-    public async Task DeleteOffTime_AfterCreate_Returns204()
+    public async Task DeleteAvailabilityEvent_AfterCreate_Returns204()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times",
-            new CreateOffTimeRequest
+        var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
+            new CreateAvailabilityEventRequest
             {
                 Title = $"Delete Test {Guid.NewGuid():N}"[..30],
                 StartTs = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
                 EndTs = new DateTime(2026, 9, 2, 0, 0, 0, DateTimeKind.Utc)
-            });
+            }, TestHelpers.JsonOpts);
 
-        var created = await createResponse.Content.ReadFromJsonAsync<OffTimeInfo>();
+        var created = await createResponse.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
 
-        var response = await _client.DeleteAsync($"/api/sites/{siteId}/off-times/{created!.Id}");
+        var response = await _client.DeleteAsync($"/api/sites/{siteId}/availability-events/{created!.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        // Verify deleted
-        var getResponse = await _client.GetAsync($"/api/sites/{siteId}/off-times/{created.Id}");
+        var getResponse = await _client.GetAsync($"/api/sites/{siteId}/availability-events/{created.Id}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     [Fact]
-    public async Task DeleteOffTime_NonExistent_Returns404()
+    public async Task DeleteAvailabilityEvent_NonExistent_Returns404()
     {
         var siteId = await GetOrCreateSiteId();
 
-        var response = await _client.DeleteAsync($"/api/sites/{siteId}/off-times/{Guid.NewGuid()}");
+        var response = await _client.DeleteAsync($"/api/sites/{siteId}/availability-events/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -359,15 +361,16 @@ public class SchedulingEndpointsTests
                 WeekendsEnabled = true
             });
 
-        // 2. Create an off-time from 10:00-14:00 on 2027-01-05 (Monday)
-        await _client.PostAsJsonAsync($"/api/sites/{siteId}/off-times",
-            new CreateOffTimeRequest
+        // 2. Create a maintenance availability event from 10:00-14:00 on 2027-01-05 (Monday)
+        await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
+            new CreateAvailabilityEventRequest
             {
                 Title = "Test Maintenance",
-                Type = OffTimeType.Maintenance,
+                EventType = AvailabilityEventType.Maintenance,
+                DefaultEffect = DefaultEffect.Closed,
                 StartTs = new DateTime(2027, 1, 5, 10, 0, 0, DateTimeKind.Utc),
-                EndTs = new DateTime(2027, 1, 5, 14, 0, 0, DateTimeKind.Utc)
-            });
+                EndTs = new DateTime(2027, 1, 5, 14, 0, 0, DateTimeKind.Utc),
+            }, TestHelpers.JsonOpts);
 
         // 3. Create a request: start 09:00, duration 4 hours, scheduling applied
         var requestPayload = new CreateRequestRequest

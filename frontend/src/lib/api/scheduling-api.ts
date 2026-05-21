@@ -1,9 +1,5 @@
-import type {
-  SchedulingSettings,
-  OffTimeDefinition,
-  OffTimeType,
-} from "@foundation/src/domain/scheduling/types";
-import { apiGet, apiPut, apiPost, apiDelete } from "../core/api-client";
+import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
+import { apiGet, apiPut, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
 // ── Wire types (match backend JSON exactly) ─────────────────────
@@ -28,44 +24,6 @@ interface UpsertSchedulingSettingsWire {
   weekendsEnabled: boolean;
   publicHolidaysEnabled: boolean;
   publicHolidayRegion: string | null;
-}
-
-interface OffTimeWire {
-  id: string;
-  siteId: string;
-  title: string;
-  type: OffTimeType;
-  appliesToAllSpaces: boolean;
-  resourceIds: string[] | null;
-  startTs: string; // ISO 8601
-  endTs: string;   // ISO 8601
-  isRecurring: boolean;
-  recurrenceRule: string | null;
-  enabled: boolean;
-}
-
-interface CreateOffTimeWire {
-  title: string;
-  type: OffTimeType;
-  appliesToAllSpaces: boolean;
-  resourceIds?: string[];
-  startTs: string;
-  endTs: string;
-  isRecurring: boolean;
-  recurrenceRule?: string | null;
-  enabled: boolean;
-}
-
-interface UpdateOffTimeWire {
-  title?: string;
-  type?: OffTimeType;
-  appliesToAllSpaces?: boolean;
-  resourceIds?: string[];
-  startTs?: string;
-  endTs?: string;
-  isRecurring?: boolean;
-  recurrenceRule?: string | null;
-  enabled?: boolean;
 }
 
 // ── Mappers ─────────────────────────────────────────────────────
@@ -101,51 +59,6 @@ function mapSettingsToWire(s: Omit<SchedulingSettings, "siteId">): UpsertSchedul
   };
 }
 
-function mapOffTimeFromWire(w: OffTimeWire): OffTimeDefinition {
-  return {
-    id: w.id,
-    siteId: w.siteId,
-    title: w.title,
-    type: w.type,
-    appliesToAllSpaces: w.appliesToAllSpaces,
-    resourceIds: w.resourceIds ?? [],
-    startMs: new Date(w.startTs).getTime(),
-    endMs: new Date(w.endTs).getTime(),
-    isRecurring: w.isRecurring,
-    recurrenceRule: w.recurrenceRule,
-    enabled: w.enabled,
-  };
-}
-
-function mapOffTimeToCreateWire(o: Omit<OffTimeDefinition, "id" | "siteId">): CreateOffTimeWire {
-  const wire: CreateOffTimeWire = {
-    title: o.title,
-    type: o.type,
-    appliesToAllSpaces: o.appliesToAllSpaces,
-    startTs: new Date(o.startMs).toISOString(),
-    endTs: new Date(o.endMs).toISOString(),
-    isRecurring: o.isRecurring,
-    recurrenceRule: o.recurrenceRule,
-    enabled: o.enabled,
-  };
-  if (!o.appliesToAllSpaces) wire.resourceIds = o.resourceIds;
-  return wire;
-}
-
-function mapOffTimeToUpdateWire(o: Partial<Omit<OffTimeDefinition, "id" | "siteId">>): UpdateOffTimeWire {
-  const wire: UpdateOffTimeWire = {};
-  if (o.title !== undefined) wire.title = o.title;
-  if (o.type !== undefined) wire.type = o.type;
-  if (o.appliesToAllSpaces !== undefined) wire.appliesToAllSpaces = o.appliesToAllSpaces;
-  if (o.resourceIds !== undefined) wire.resourceIds = o.resourceIds;
-  if (o.startMs !== undefined) wire.startTs = new Date(o.startMs).toISOString();
-  if (o.endMs !== undefined) wire.endTs = new Date(o.endMs).toISOString();
-  if (o.isRecurring !== undefined) wire.isRecurring = o.isRecurring;
-  if (o.recurrenceRule !== undefined) wire.recurrenceRule = o.recurrenceRule;
-  if (o.enabled !== undefined) wire.enabled = o.enabled;
-  return wire;
-}
-
 // ── Settings API ────────────────────────────────────────────────
 
 export async function getSchedulingSettings(siteId: string): Promise<SchedulingSettings> {
@@ -166,38 +79,4 @@ export async function upsertSchedulingSettings(
 
 export async function deleteSchedulingSettings(siteId: string): Promise<void> {
   return apiDelete(API_PATHS.scheduling(siteId));
-}
-
-// ── Off-Times API ───────────────────────────────────────────────
-
-export async function getOffTimes(siteId: string): Promise<OffTimeDefinition[]> {
-  const wire = await apiGet<OffTimeWire[]>(API_PATHS.offTimes(siteId));
-  return wire.map(mapOffTimeFromWire);
-}
-
-export async function createOffTime(
-  siteId: string,
-  offTime: Omit<OffTimeDefinition, "id" | "siteId">,
-): Promise<OffTimeDefinition> {
-  const wire = await apiPost<OffTimeWire>(
-    API_PATHS.offTimes(siteId),
-    mapOffTimeToCreateWire(offTime),
-  );
-  return mapOffTimeFromWire(wire);
-}
-
-export async function updateOffTime(
-  siteId: string,
-  offTimeId: string,
-  updates: Partial<Omit<OffTimeDefinition, "id" | "siteId">>,
-): Promise<OffTimeDefinition> {
-  const wire = await apiPut<OffTimeWire>(
-    API_PATHS.offTime(siteId, offTimeId),
-    mapOffTimeToUpdateWire(updates),
-  );
-  return mapOffTimeFromWire(wire);
-}
-
-export async function deleteOffTime(siteId: string, offTimeId: string): Promise<void> {
-  return apiDelete(API_PATHS.offTime(siteId, offTimeId));
 }

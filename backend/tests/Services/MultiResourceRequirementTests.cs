@@ -29,7 +29,7 @@ public class MultiResourceRequirementTests
             Spaces: spaces,
             FixedAssignments: fixedAssignments ?? [],
             Settings: null,
-            OffTimes: null,
+            BlockedPeriodsByResource: null,
             Mode: AutoScheduleMode.FillGapsOnly,
             AdditionalResources: additionalResources ?? []);
     }
@@ -151,7 +151,7 @@ public class MultiResourceRequirementTests
             Spaces: [MakeSpace(Guid.NewGuid()), MakeSpace(Guid.NewGuid())],
             FixedAssignments: [],
             Settings: null,
-            OffTimes: null,
+            BlockedPeriodsByResource: null,
             Mode: AutoScheduleMode.FillGapsOnly,
             AdditionalResources: [MakePerson(personId)]);
 
