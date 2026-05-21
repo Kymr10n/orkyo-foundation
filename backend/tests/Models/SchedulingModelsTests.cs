@@ -86,12 +86,18 @@ public class SchedulingModelsTests
     }
 
     [Fact]
-    public void OffTimeType_ShouldHaveThreeValues()
+    public void OffTimeType_ShouldContainSchedulingAndHrValues()
     {
-        Enum.GetValues<OffTimeType>().Should().HaveCount(3);
-        Enum.GetValues<OffTimeType>().Should().Contain(OffTimeType.Holiday);
-        Enum.GetValues<OffTimeType>().Should().Contain(OffTimeType.Maintenance);
-        Enum.GetValues<OffTimeType>().Should().Contain(OffTimeType.Custom);
+        var values = Enum.GetValues<OffTimeType>();
+        // Scheduling types
+        values.Should().Contain(OffTimeType.Holiday);
+        values.Should().Contain(OffTimeType.Maintenance);
+        values.Should().Contain(OffTimeType.Custom);
+        // HR absence types
+        values.Should().Contain(OffTimeType.Vacation);
+        values.Should().Contain(OffTimeType.SickLeave);
+        values.Should().Contain(OffTimeType.Unavailable);
+        values.Should().Contain(OffTimeType.Training);
     }
 
     [Fact]

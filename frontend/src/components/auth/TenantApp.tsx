@@ -13,7 +13,6 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { PersonList } from '@foundation/src/components/people/PersonList';
-import { PersonAbsenceList } from '@foundation/src/components/people/PersonAbsenceList';
 import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
 import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
@@ -119,13 +118,12 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
           </Route>
 
-          {/* People — nested sub-routes (PR 2). Skills are now managed per-person via
-              a row action on the People list (no standalone Skills tab). */}
+          {/* People — nested sub-routes. Skills and absences are managed per-person
+              via row actions on the People list (no standalone tabs). */}
           <Route path="people" element={<PeoplePage />}>
             <Route index element={<Navigate to="list" replace />} />
             <Route path="list" element={<PersonList />} />
             <Route path="groups" element={<ResourceGroupList resourceTypeKey="person" />} />
-            <Route path="absences" element={<PersonAbsenceList />} />
             <Route path="departments" element={<DepartmentSettings />} />
             <Route path="job-titles" element={<JobTitleSettings />} />
           </Route>

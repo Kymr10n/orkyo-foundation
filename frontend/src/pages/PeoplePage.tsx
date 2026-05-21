@@ -8,7 +8,6 @@ import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect
 const TABS: PageTab[] = [
   { value: 'list', label: 'People' },
   { value: 'groups', label: 'Groups' },
-  { value: 'absences', label: 'Absences' },
   { value: 'job-titles', label: 'Job Titles' },
   { value: 'departments', label: 'Departments' },
 ];
@@ -18,7 +17,6 @@ const TABS: PageTab[] = [
 const LEGACY_TAB_REDIRECTS: Record<string, string> = {
   people: '/people/list',
   groups: '/people/groups',
-  absences: '/people/absences',
   jobTitles: '/people/job-titles',
   departments: '/people/departments',
 };

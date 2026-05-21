@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
-import { Plus, Pencil, Trash2, Sliders } from 'lucide-react';
+import { Plus, Pencil, Trash2, Sliders, CalendarOff } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
+import { PersonAbsenceList } from './PersonAbsenceList';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 
@@ -12,6 +13,7 @@ export function PersonList() {
   const [editingPerson, setEditingPerson] = useState<ResourceInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [skillsPerson, setSkillsPerson] = useState<ResourceInfo | null>(null);
+  const [absencePerson, setAbsencePerson] = useState<ResourceInfo | null>(null);
 
   const { data: people, isLoading, error } = useQuery({
     queryKey: ['resources', 'person'],
@@ -129,6 +131,14 @@ export function PersonList() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => setAbsencePerson(person)}
+                      aria-label={`Manage absences for ${person.name}`}
+                    >
+                      <CalendarOff className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(person.id)}
                       aria-label={`Deactivate ${person.name}`}
                     >
@@ -156,6 +166,15 @@ export function PersonList() {
           onOpenChange={(open) => !open && setSkillsPerson(null)}
           resourceId={skillsPerson.id}
           personName={skillsPerson.name}
+        />
+      )}
+
+      {absencePerson && (
+        <PersonAbsenceList
+          open={!!absencePerson}
+          onOpenChange={(open) => !open && setAbsencePerson(null)}
+          personId={absencePerson.id}
+          personName={absencePerson.name}
         />
       )}
     </div>

@@ -15,7 +15,19 @@ public enum OffTimeType
     Maintenance,
 
     [JsonStringEnumMemberName("custom")]
-    Custom
+    Custom,
+
+    [JsonStringEnumMemberName("vacation")]
+    Vacation,
+
+    [JsonStringEnumMemberName("sick_leave")]
+    SickLeave,
+
+    [JsonStringEnumMemberName("unavailable")]
+    Unavailable,
+
+    [JsonStringEnumMemberName("training")]
+    Training
 }
 
 /// <summary>

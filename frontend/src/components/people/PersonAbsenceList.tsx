@@ -2,10 +2,15 @@ import { useState, useMemo } from 'react';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@foundation/src/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@foundation/src/components/ui/dialog';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { getSites } from '@foundation/src/lib/api/site-api';
-import { getResources } from '@foundation/src/lib/api/resources-api';
-import { getResourceAbsences, deleteResourceAbsence, type ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
+import { getResourceAbsences, deleteResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
 import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
 import { format } from 'date-fns';
 
@@ -14,158 +19,145 @@ const ABSENCE_TYPE_LABELS: Record<string, string> = {
   sick_leave: 'Sick Leave',
   unavailable: 'Unavailable',
   training: 'Training',
-  public_holiday: 'Public Holiday',
-  other: 'Other',
   custom: 'Custom',
+  holiday: 'Holiday',
+  maintenance: 'Maintenance',
 };
 
-interface AbsenceRow extends ResourceAbsenceInfo {
-  personName: string;
+interface PersonAbsenceListProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   personId: string;
+  personName: string;
 }
 
-export function PersonAbsenceList() {
+export function PersonAbsenceList({ open, onOpenChange, personId, personName }: PersonAbsenceListProps) {
   const queryClient = useQueryClient();
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   const { data: sites = [] } = useQuery({
     queryKey: ['sites'],
     queryFn: getSites,
-  });
-
-  const { data: people = [] } = useQuery({
-    queryKey: ['resources', 'person'],
-    queryFn: () => getResources({ resourceTypeKey: 'person' }),
-    enabled: !!selectedSiteId,
-    select: (d) => d.data,
+    enabled: open,
   });
 
   const absenceQueries = useQueries({
-    queries: people.map((person) => ({
-      queryKey: ['resource-absences', person.id, selectedSiteId],
-      queryFn: () => getResourceAbsences(person.id, selectedSiteId),
-      enabled: !!selectedSiteId,
+    queries: sites.map((site) => ({
+      queryKey: ['resource-absences', personId, site.id],
+      queryFn: () => getResourceAbsences(personId, site.id),
+      enabled: open,
     })),
   });
 
-  const absenceRows = useMemo<AbsenceRow[]>(() => {
-    const rows: AbsenceRow[] = [];
+  const absenceRows = useMemo(() => {
+    const rows: ({ siteId: string; siteName: string } & Awaited<ReturnType<typeof getResourceAbsences>>[number])[] = [];
     absenceQueries.forEach((q, i) => {
-      const person = people[i];
-      if (!person || !q.data) return;
-      q.data.forEach((absence) =>
-        rows.push({ ...absence, personName: person.name, personId: person.id }),
-      );
+      const site = sites[i];
+      if (!site || !q.data) return;
+      q.data.forEach((absence) => rows.push({ ...absence, siteId: site.id, siteName: site.name }));
     });
     return rows.sort((a, b) => a.startTs.localeCompare(b.startTs));
-  }, [absenceQueries, people]);
+  }, [absenceQueries, sites]);
 
-  const isLoadingAbsences = absenceQueries.some((q) => q.isLoading);
+  const isLoading = absenceQueries.some((q) => q.isLoading) && absenceRows.length === 0;
 
   const deleteMutation = useMutation({
-    mutationFn: ({ personId, absenceId }: { personId: string; absenceId: string }) =>
-      deleteResourceAbsence(personId, absenceId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['resource-absences'] }),
+    mutationFn: (absenceId: string) => deleteResourceAbsence(personId, absenceId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource-absences', personId] }),
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Site:</span>
-          <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select a site" />
-            </SelectTrigger>
-            <SelectContent>
-              {sites.map((site) => (
-                <SelectItem key={site.id} value={site.id}>
-                  {site.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={() => setIsDialogOpen(true)} disabled={!selectedSiteId}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Absence
-        </Button>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[640px]">
+        <DialogHeader>
+          <DialogTitle>Absences — {personName}</DialogTitle>
+        </DialogHeader>
 
-      <div className="border rounded-lg overflow-hidden">
-        {!selectedSiteId ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Select a site to view absences.
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium shrink-0">Add to site:</span>
+              <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Select site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" onClick={() => setIsAddOpen(true)} disabled={!selectedSiteId}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Absence
+            </Button>
           </div>
-        ) : isLoadingAbsences ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="text-left p-4 font-medium">Person</th>
-                <th className="text-left p-4 font-medium">Type</th>
-                <th className="text-left p-4 font-medium">Start</th>
-                <th className="text-left p-4 font-medium">End</th>
-                <th className="text-left p-4 font-medium">Reason</th>
-                <th className="text-right p-4 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {absenceRows.length === 0 ? (
-                <tr>
-                  <td className="p-4" colSpan={6}>
-                    <div className="text-center py-4 text-muted-foreground">
-                      No absences recorded for this site.
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                absenceRows.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-muted/50">
-                    <td className="p-4 font-medium">{row.personName}</td>
-                    <td className="p-4">{ABSENCE_TYPE_LABELS[row.type] ?? row.type}</td>
-                    <td className="p-4">{format(new Date(row.startTs), 'PP')}</td>
-                    <td className="p-4">{format(new Date(row.endTs), 'PP')}</td>
-                    <td className="p-4 text-muted-foreground">{row.title}</td>
-                    <td className="p-4">
-                      <div className="flex justify-end">
+
+          <div className="border rounded-lg overflow-hidden">
+            {isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : absenceRows.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                No absences recorded.
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Type</th>
+                    <th className="text-left p-3 font-medium">Start</th>
+                    <th className="text-left p-3 font-medium">End</th>
+                    <th className="text-left p-3 font-medium">Reason</th>
+                    <th className="text-left p-3 font-medium">Site</th>
+                    <th className="p-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {absenceRows.map((row) => (
+                    <tr key={row.id} className="border-t hover:bg-muted/50">
+                      <td className="p-3">{ABSENCE_TYPE_LABELS[row.type] ?? row.type}</td>
+                      <td className="p-3">{format(new Date(row.startTs), 'PP')}</td>
+                      <td className="p-3">{format(new Date(row.endTs), 'PP')}</td>
+                      <td className="p-3 text-muted-foreground">{row.title}</td>
+                      <td className="p-3 text-muted-foreground">{row.siteName}</td>
+                      <td className="p-3 text-right">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() =>
-                            deleteMutation.mutate({ personId: row.personId, absenceId: row.id })
-                          }
+                          onClick={() => deleteMutation.mutate(row.id)}
                           disabled={deleteMutation.isPending}
-                          aria-label={`Delete absence for ${row.personName}`}
+                          aria-label={`Delete absence`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
 
-      {selectedSiteId && (
-        <PersonAbsenceEditDialog
-          siteId={selectedSiteId}
-          isOpen={isDialogOpen}
-          onClose={() => setIsDialogOpen(false)}
-          onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ['resource-absences'] });
-            setIsDialogOpen(false);
-          }}
-        />
-      )}
-    </div>
+        {selectedSiteId && (
+          <PersonAbsenceEditDialog
+            personId={personId}
+            siteId={selectedSiteId}
+            isOpen={isAddOpen}
+            onClose={() => setIsAddOpen(false)}
+            onSaved={() => {
+              queryClient.invalidateQueries({ queryKey: ['resource-absences', personId] });
+              setIsAddOpen(false);
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

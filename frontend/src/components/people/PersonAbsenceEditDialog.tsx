@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { getResources } from '@foundation/src/lib/api/resources-api';
+import { useMutation } from '@tanstack/react-query';
 import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
 import {
   Dialog,
@@ -20,6 +19,7 @@ import { Calendar } from '@foundation/src/components/ui/calendar';
 import { format } from 'date-fns';
 
 interface PersonAbsenceEditDialogProps {
+  personId: string;
   siteId: string;
   isOpen: boolean;
   onClose: () => void;
@@ -31,24 +31,14 @@ const absenceTypes = [
   { value: 'sick_leave', label: 'Sick Leave' },
   { value: 'unavailable', label: 'Unavailable' },
   { value: 'training', label: 'Training' },
-  { value: 'public_holiday', label: 'Public Holiday' },
-  { value: 'other', label: 'Other' },
+  { value: 'custom', label: 'Custom' },
 ];
 
-export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
-  const [personId, setPersonId] = useState('');
+export function PersonAbsenceEditDialog({ personId, siteId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
   const [type, setType] = useState('vacation');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-
-  const { data: people } = useQuery({
-    queryKey: ['resources', 'person'],
-    queryFn: () => getResources({ resourceTypeKey: 'person' }),
-    enabled: isOpen,
-    select: (d) => d.data,
-  });
-  const personList = people ?? [];
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -60,7 +50,6 @@ export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: Pe
         endTs: endDate!.toISOString(),
       }),
     onSuccess: () => {
-      setPersonId('');
       setType('vacation');
       setTitle('');
       setStartDate(undefined);
@@ -76,28 +65,12 @@ export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: Pe
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>Add Absence</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="person">Person *</Label>
-            <Select value={personId} onValueChange={setPersonId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a person" />
-              </SelectTrigger>
-              <SelectContent>
-                {personList.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="type">Type</Label>
             <Select value={type} onValueChange={setType}>
@@ -115,12 +88,12 @@ export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: Pe
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Reason / Title</Label>
+            <Label htmlFor="title">Reason</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Optional description"
+              placeholder="Optional"
             />
           </div>
 
@@ -129,21 +102,13 @@ export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: Pe
               <Label>Start Date *</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <CalendarIcon className="h-4 w-4 mr-2" />
                     {startDate ? format(startDate, 'PP') : 'Pick a date'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    autoFocus
-                  />
+                  <Calendar mode="single" selected={startDate} onSelect={setStartDate} autoFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -152,21 +117,13 @@ export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: Pe
               <Label>End Date *</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <CalendarIcon className="h-4 w-4 mr-2" />
                     {endDate ? format(endDate, 'PP') : 'Pick a date'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    autoFocus
-                  />
+                  <Calendar mode="single" selected={endDate} onSelect={setEndDate} autoFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -176,10 +133,7 @@ export function PersonAbsenceEditDialog({ siteId, isOpen, onClose, onSaved }: Pe
             <Button type="button" variant="outline" onClick={onClose} disabled={saveMutation.isPending}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={saveMutation.isPending || !personId || !startDate || !endDate}
-            >
+            <Button type="submit" disabled={saveMutation.isPending || !startDate || !endDate}>
               {saveMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
