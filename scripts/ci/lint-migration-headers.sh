@@ -72,6 +72,10 @@ for FILE in $NEW_FILES; do
         ;;
     esac
 
+    if [ "$CLASSIFICATION" = "contract" ]; then
+      echo "::warning file=$FILE::contract migration detected — the deploy workflow will require approve_unsafe_migration=true (not rollback-safe)"
+    fi
+
     # Rule 2: destructive DDL requires contract classification
     if grep -qiE "^\s*(DROP\s+COLUMN|DROP\s+TABLE|TRUNCATE)" "$FILE"; then
       if [ "$CLASSIFICATION" != "contract" ]; then
