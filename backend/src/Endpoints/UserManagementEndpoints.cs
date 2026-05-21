@@ -52,7 +52,7 @@ public static class UserManagementEndpoints
             .WithDescription("Revoke a pending invitation (Admin only)");
 
         // Public invitation endpoints (no auth, no tenant)
-        app.MapGet("/api/invitations/validate", async (IInvitationService invitationService, [FromQuery] string? token, CancellationToken ct) =>
+        app.MapGet("/api/invitations/validate", async ([FromServices] IInvitationService invitationService, [FromQuery] string? token, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(token) || !Guid.TryParse(token, out _))
                 return Results.BadRequest(new { error = "Invalid invitation token" });
@@ -68,7 +68,7 @@ public static class UserManagementEndpoints
         .WithName("ValidateInvitation")
         .WithDescription("Validate an invitation token and get invitation details");
 
-        app.MapPost("/api/invitations/accept", async (IInvitationService invitationService, AcceptInvitationRequest request, IValidator<AcceptInvitationRequest> validator, CancellationToken ct) =>
+        app.MapPost("/api/invitations/accept", async ([FromServices] IInvitationService invitationService, AcceptInvitationRequest request, IValidator<AcceptInvitationRequest> validator, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var (user, error) = await invitationService.AcceptInvitationAsync(request.Token, request.DisplayName, request.Password, ct);
