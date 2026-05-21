@@ -70,6 +70,31 @@ vi.mock('./PersonSkillsEditor', () => ({
     ) : null,
 }));
 
+vi.mock('./PersonAbsenceList', () => ({
+  PersonAbsenceList: ({
+    open,
+    personId,
+    personName,
+    onOpenChange,
+  }: {
+    open: boolean;
+    personId: string;
+    personName: string;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div
+        data-testid="person-absence-list"
+        data-person-id={personId}
+        data-person-name={personName}
+      >
+        <button data-testid="absence-close" onClick={() => onOpenChange(false)}>
+          Close
+        </button>
+      </div>
+    ) : null,
+}));
+
 import { getResources, deleteResource } from '@foundation/src/lib/api/resources-api';
 import { toast } from 'sonner';
 
@@ -264,5 +289,30 @@ describe('PersonList', () => {
       ),
     );
     vi.unstubAllGlobals();
+  });
+
+  it('renders manage-absences action for each person', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    expect(screen.getByRole('button', { name: 'Manage absences for Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Manage absences for Bob' })).toBeInTheDocument();
+  });
+
+  it('opens the absence list with the correct person when the absence button is clicked', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Manage absences for Alice' }));
+    const panel = screen.getByTestId('person-absence-list');
+    expect(panel).toHaveAttribute('data-person-id', 'person-1');
+    expect(panel).toHaveAttribute('data-person-name', 'Alice');
+  });
+
+  it('closes the absence list when its onOpenChange fires', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Manage absences for Alice' }));
+    expect(screen.getByTestId('person-absence-list')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('absence-close'));
+    expect(screen.queryByTestId('person-absence-list')).not.toBeInTheDocument();
   });
 });

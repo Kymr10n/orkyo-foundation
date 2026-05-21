@@ -21,7 +21,6 @@ function renderAt(initialPath: string) {
           <Route index element={<Navigate to="list" replace />} />
           <Route path="list" element={<Stub id="list" />} />
           <Route path="groups" element={<Stub id="groups" />} />
-          <Route path="absences" element={<Stub id="absences" />} />
           <Route path="departments" element={<Stub id="departments" />} />
           <Route path="job-titles" element={<Stub id="job-titles" />} />
         </Route>
@@ -37,9 +36,14 @@ describe('PeoplePage', () => {
   it('renders page title and tab triggers', () => {
     renderAt('/people/list');
     expect(screen.getByText('People', { selector: 'h1' })).toBeInTheDocument();
-    for (const label of ['People', 'Groups', 'Absences', 'Job Titles', 'Departments']) {
+    for (const label of ['People', 'Groups', 'Job Titles', 'Departments']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
+  });
+
+  it('does not render a standalone Absences tab (absences are managed per-person via row action)', () => {
+    renderAt('/people/list');
+    expect(screen.queryByRole('tab', { name: 'Absences' })).not.toBeInTheDocument();
   });
 
   it('does not render a standalone Skills tab (skills are managed per-person via row action)', () => {
@@ -50,7 +54,6 @@ describe('PeoplePage', () => {
   it.each([
     ['/people/list', 'list'],
     ['/people/groups', 'groups'],
-    ['/people/absences', 'absences'],
     ['/people/job-titles', 'job-titles'],
     ['/people/departments', 'departments'],
   ])('deep-links %s renders the right child', (path, id) => {
