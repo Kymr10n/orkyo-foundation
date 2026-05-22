@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { cn } from "@foundation/src/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,8 @@ import {
 } from "@foundation/src/components/ui/select";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Badge } from "@foundation/src/components/ui/badge";
+import { Combobox, type ComboboxOption } from "@foundation/src/components/ui/combobox";
+import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
 import { Loader2, Plus, X } from "lucide-react";
 import { getResources } from "@foundation/src/lib/api/resources-api";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
@@ -29,6 +32,7 @@ import {
   addAvailabilityEventScope,
   deleteAvailabilityEventScope,
   type AvailabilityEventInfo,
+  type AvailabilityEventScopeInfo,
   type AvailabilityEventType,
   type DefaultEffect,
   type ScopeEffect,
@@ -36,6 +40,12 @@ import {
   type CreateAvailabilityEventRequest,
   type UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
+
+interface ScopeDraft {
+  targetType: ScopeTargetType;
+  targetId: string;
+  effect: ScopeEffect;
+}
 
 interface ResourceTypeInfo {
   id: string;
@@ -77,6 +87,10 @@ const TARGET_TYPES: { value: ScopeTargetType; label: string }[] = [
   { value: "resource_type", label: "Resource type" },
 ];
 
+// Sentinel used by the type-filter Select to represent "no filter" — Radix
+// Select does not allow an empty string as an item value.
+const ALL_TYPES_VALUE = "__all__";
+
 function toDateTimeLocal(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -111,25 +125,18 @@ function useScopePickerOptions() {
   return { resources, groups, resourceTypes };
 }
 
-// ── Scope row ────────────────────────────────────────────────────────────────
+// ── Scope row (controlled) ──────────────────────────────────────────────────
 
 function ScopeRow({
-  siteId,
-  eventId,
   scope,
-  onDeleted,
+  onDelete,
+  isDeleting,
 }: {
-  siteId: string;
-  eventId: string;
-  scope: AvailabilityEventInfo["scopes"][number];
-  onDeleted: () => void;
+  scope: ScopeDraft;
+  onDelete: () => void;
+  isDeleting?: boolean;
 }) {
   const { resources, groups, resourceTypes } = useScopePickerOptions();
-
-  const deleteScope = useMutation({
-    mutationFn: () => deleteAvailabilityEventScope(siteId, eventId, scope.id),
-    onSuccess: onDeleted,
-  });
 
   const targetLabel = () => {
     if (scope.targetType === "resource") {
@@ -167,11 +174,11 @@ function ScopeRow({
         variant="ghost"
         size="icon"
         className="h-6 w-6 shrink-0"
-        onClick={() => deleteScope.mutate()}
-        disabled={deleteScope.isPending}
+        onClick={onDelete}
+        disabled={isDeleting}
         aria-label="Remove override"
       >
-        {deleteScope.isPending ? (
+        {isDeleting ? (
           <Loader2 className="h-3 w-3 animate-spin" />
         ) : (
           <X className="h-3 w-3" />
@@ -181,45 +188,79 @@ function ScopeRow({
   );
 }
 
-// ── Add scope inline form ────────────────────────────────────────────────────
-
-function AddScopeForm({
+// Edit-mode wrapper: handles the delete mutation against the server.
+function ServerScopeRow({
   siteId,
   eventId,
-  onAdded,
+  scope,
+  onDeleted,
 }: {
   siteId: string;
   eventId: string;
-  onAdded: () => void;
+  scope: AvailabilityEventScopeInfo;
+  onDeleted: () => void;
+}) {
+  const deleteScope = useMutation({
+    mutationFn: () => deleteAvailabilityEventScope(siteId, eventId, scope.id),
+    onSuccess: onDeleted,
+  });
+
+  return (
+    <ScopeRow
+      scope={scope}
+      onDelete={() => deleteScope.mutate()}
+      isDeleting={deleteScope.isPending}
+    />
+  );
+}
+
+// ── Add scope inline form (controlled) ──────────────────────────────────────
+
+function AddScopeForm({
+  onAdd,
+  isSubmitting,
+  error,
+}: {
+  onAdd: (req: ScopeDraft) => void | Promise<void>;
+  isSubmitting?: boolean;
+  error?: string | null;
 }) {
   const [targetType, setTargetType] = useState<ScopeTargetType>("resource");
   const [targetId, setTargetId] = useState("");
   const [effect, setEffect] = useState<ScopeEffect>("available");
-  const [error, setError] = useState<string | null>(null);
+  // Only meaningful for `resource` / `resource_group` targets. Empty = no filter.
+  const [filterTypeKey, setFilterTypeKey] = useState<string>("");
 
   const { resources, groups, resourceTypes } = useScopePickerOptions();
 
-  const addScope = useMutation({
-    mutationFn: () =>
-      addAvailabilityEventScope(siteId, eventId, {
-        targetType,
-        targetId,
-        effect,
-      }),
-    onSuccess: () => {
-      setTargetId("");
-      setError(null);
-      onAdded();
-    },
-    onError: (err: Error) => setError(err.message),
-  });
+  const handleAdd = async () => {
+    if (!targetId) return;
+    await onAdd({ targetType, targetId, effect });
+    // Clear selection regardless of caller's success/failure handling — the
+    // caller is responsible for surfacing errors via the `error` prop. Keep
+    // the type filter so the user can quickly add another override of the
+    // same kind.
+    setTargetId("");
+  };
 
-  const targetOptions = () => {
+  const typeFilterOptions: ComboboxOption[] = useMemo(
+    () =>
+      (resourceTypes ?? [])
+        .filter((t) => t.isActive)
+        .map((t) => ({ id: t.key, label: t.displayName })),
+    [resourceTypes],
+  );
+
+  const targetOptions: ComboboxOption[] = useMemo(() => {
     if (targetType === "resource") {
-      return (resources ?? []).map((r) => ({ id: r.id, label: `${r.name} (${r.resourceTypeKey})` }));
+      return (resources ?? [])
+        .filter((r) => !filterTypeKey || r.resourceTypeKey === filterTypeKey)
+        .map((r) => ({ id: r.id, label: `${r.name} (${r.resourceTypeKey})` }));
     }
     if (targetType === "resource_group") {
-      return (groups ?? []).map((g) => ({ id: g.id, label: `${g.name} (${g.resourceTypeKey})` }));
+      return (groups ?? [])
+        .filter((g) => !filterTypeKey || g.resourceTypeKey === filterTypeKey)
+        .map((g) => ({ id: g.id, label: `${g.name} (${g.resourceTypeKey})` }));
     }
     if (targetType === "resource_type") {
       return (resourceTypes ?? [])
@@ -227,21 +268,36 @@ function AddScopeForm({
         .map((t) => ({ id: t.id, label: t.displayName }));
     }
     return [];
-  };
+  }, [targetType, filterTypeKey, resources, groups, resourceTypes]);
 
-  const options = targetOptions();
-
-  // Reset target when type changes
+  // Reset target + type filter when target type changes.
   const handleTargetTypeChange = (v: string) => {
     setTargetType(v as ScopeTargetType);
     setTargetId("");
+    setFilterTypeKey("");
   };
+
+  // If the active type filter no longer matches any options (e.g. data
+  // refresh), clear the selected target to avoid a stale id.
+  useEffect(() => {
+    if (targetId && !targetOptions.some((o) => o.id === targetId)) {
+      setTargetId("");
+    }
+  }, [targetOptions, targetId]);
+
+  const showTypeFilter =
+    targetType === "resource" || targetType === "resource_group";
 
   return (
     <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
       <p className="text-xs font-medium text-muted-foreground">New override</p>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div
+        className={cn(
+          "grid gap-2",
+          showTypeFilter ? "sm:grid-cols-4" : "sm:grid-cols-3",
+        )}
+      >
         <Select value={targetType} onValueChange={handleTargetTypeChange}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Target type" />
@@ -255,18 +311,40 @@ function AddScopeForm({
           </SelectContent>
         </Select>
 
-        <Select value={targetId} onValueChange={setTargetId} disabled={options.length === 0}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder={options.length === 0 ? "Loading…" : "Select target"} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((o) => (
-              <SelectItem key={o.id} value={o.id} className="text-xs">
-                {o.label}
+        {showTypeFilter && (
+          <Select
+            value={filterTypeKey || ALL_TYPES_VALUE}
+            onValueChange={(v) =>
+              setFilterTypeKey(v === ALL_TYPES_VALUE ? "" : v)
+            }
+            disabled={typeFilterOptions.length === 0}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_TYPES_VALUE} className="text-xs">
+                All types
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {typeFilterOptions.map((t) => (
+                <SelectItem key={t.id} value={t.id} className="text-xs">
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Combobox
+          value={targetId}
+          onChange={setTargetId}
+          options={targetOptions}
+          placeholder={targetOptions.length === 0 ? "Loading…" : "Select target"}
+          searchPlaceholder="Search…"
+          emptyText="No matches"
+          disabled={targetOptions.length === 0}
+          className="h-8 text-xs"
+        />
 
         <Select value={effect} onValueChange={(v) => setEffect(v as ScopeEffect)}>
           <SelectTrigger className="h-8 text-xs">
@@ -286,12 +364,13 @@ function AddScopeForm({
 
       <div className="flex justify-end">
         <Button
+          type="button"
           size="sm"
           className="h-7 text-xs"
-          disabled={!targetId || addScope.isPending}
-          onClick={() => addScope.mutate()}
+          disabled={!targetId || isSubmitting}
+          onClick={() => void handleAdd()}
         >
-          {addScope.isPending ? (
+          {isSubmitting ? (
             <Loader2 className="h-3 w-3 mr-1 animate-spin" />
           ) : (
             <Plus className="h-3 w-3 mr-1" />
@@ -300,6 +379,36 @@ function AddScopeForm({
         </Button>
       </div>
     </div>
+  );
+}
+
+// Edit-mode wrapper: handles the add mutation against the server.
+function ServerAddScopeForm({
+  siteId,
+  eventId,
+  onAdded,
+}: {
+  siteId: string;
+  eventId: string;
+  onAdded: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const addScope = useMutation({
+    mutationFn: (req: ScopeDraft) =>
+      addAvailabilityEventScope(siteId, eventId, req),
+    onSuccess: () => {
+      setError(null);
+      onAdded();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  return (
+    <AddScopeForm
+      onAdd={async (req) => { await addScope.mutateAsync(req); }}
+      isSubmitting={addScope.isPending}
+      error={error}
+    />
   );
 }
 
@@ -319,9 +428,10 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddScope, setShowAddScope] = useState(false);
+  const [draftScopes, setDraftScopes] = useState<ScopeDraft[]>([]);
 
   // Live scopes state (optimistic-ish: re-read from event prop, refreshed via query invalidation)
-  const scopes = event?.scopes ?? [];
+  const serverScopes = event?.scopes ?? [];
 
   useEffect(() => {
     if (!open) return;
@@ -335,6 +445,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
     setEnabled(event?.enabled ?? true);
     setError(null);
     setShowAddScope(false);
+    setDraftScopes([]);
   }, [event, open]);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -352,7 +463,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
     }
     setSaving(true);
     try {
-      await onSave({
+      const payload: CreateAvailabilityEventRequest & UpdateAvailabilityEventRequest = {
         title: title.trim(),
         eventType,
         defaultEffect,
@@ -361,7 +472,13 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
         isRecurring,
         recurrenceRule: isRecurring ? recurrenceRule.trim() : undefined,
         enabled,
-      });
+      };
+      // Only attach draft scopes when creating; in edit mode scopes are
+      // managed server-side via add/delete mutations.
+      if (!event && draftScopes.length > 0) {
+        payload.scopes = draftScopes;
+      }
+      await onSave(payload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save.");
     } finally {
@@ -436,20 +553,20 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ae-start">Start</Label>
-              <Input
+              <DateTimePicker
                 id="ae-start"
-                type="datetime-local"
                 value={startLocal}
-                onChange={(e) => setStartLocal(e.target.value)}
+                onChange={setStartLocal}
+                placeholder="Pick start time"
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ae-end">End</Label>
-              <Input
+              <DateTimePicker
                 id="ae-end"
-                type="datetime-local"
                 value={endLocal}
-                onChange={(e) => setEndLocal(e.target.value)}
+                onChange={setEndLocal}
+                placeholder="Pick end time"
               />
             </div>
           </div>
@@ -475,30 +592,30 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
             </div>
           )}
 
-          {/* ── Scope overrides (edit mode only) ─────────────────────── */}
-          {event && (
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Scope overrides</p>
-                  <p className="text-xs text-muted-foreground">
-                    Override the default effect for specific resources, groups, or types.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={() => setShowAddScope((v) => !v)}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add override
-                </Button>
+          {/* ── Scope overrides (available in both create and edit modes) ── */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Scope overrides</p>
+                <p className="text-xs text-muted-foreground">
+                  Override the default effect for specific resources, groups, or types.
+                </p>
               </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => setShowAddScope((v) => !v)}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add override
+              </Button>
+            </div>
 
-              {showAddScope && (
-                <AddScopeForm
+            {showAddScope && (
+              event ? (
+                <ServerAddScopeForm
                   siteId={siteId}
                   eventId={event.id}
                   onAdded={() => {
@@ -506,16 +623,25 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
                     invalidateEvent();
                   }}
                 />
-              )}
+              ) : (
+                <AddScopeForm
+                  onAdd={(req) => {
+                    setDraftScopes((prev) => [...prev, req]);
+                    setShowAddScope(false);
+                  }}
+                />
+              )
+            )}
 
-              {scopes.length === 0 && !showAddScope ? (
+            {event ? (
+              serverScopes.length === 0 && !showAddScope ? (
                 <p className="text-xs text-muted-foreground py-1">
                   No overrides — default effect applies to all resources.
                 </p>
               ) : (
                 <div className="divide-y border rounded-lg px-3">
-                  {scopes.map((scope) => (
-                    <ScopeRow
+                  {serverScopes.map((scope) => (
+                    <ServerScopeRow
                       key={scope.id}
                       siteId={siteId}
                       eventId={event.id}
@@ -524,9 +650,27 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
                     />
                   ))}
                 </div>
-              )}
-            </div>
-          )}
+              )
+            ) : (
+              draftScopes.length === 0 && !showAddScope ? (
+                <p className="text-xs text-muted-foreground py-1">
+                  No overrides — default effect applies to all resources.
+                </p>
+              ) : (
+                <div className="divide-y border rounded-lg px-3">
+                  {draftScopes.map((scope, idx) => (
+                    <ScopeRow
+                      key={`${scope.targetType}:${scope.targetId}:${idx}`}
+                      scope={scope}
+                      onDelete={() =>
+                        setDraftScopes((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    />
+                  ))}
+                </div>
+              )
+            )}
+          </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -296,13 +296,14 @@ describe('PeopleUtilizationGrid', () => {
     expect(ths).toHaveLength(25);
   });
 
-  it('renders 31 day-columns for a 31-day month scale', async () => {
-    // May 2026 has 31 days; anchorTs anywhere in May → month view = May 1–31
+  it('renders 35 day-columns for month scale (5-week sliding window)', async () => {
+    // Month scale always shows a 35-day (5-week) sliding window starting from
+    // the Monday of the anchor's week, regardless of calendar month length.
     renderGrid({ scale: 'month', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
 
     const ths = screen.getAllByRole('columnheader', { hidden: true });
-    expect(ths).toHaveLength(32); // 31 day columns + 1 Person header
+    expect(ths).toHaveLength(36); // 35 day columns + 1 Person header
   });
 
   it('column headers update immediately when anchorTs changes to a new week', async () => {

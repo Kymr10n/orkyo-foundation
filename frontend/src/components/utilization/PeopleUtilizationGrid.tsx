@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import {
@@ -6,8 +6,10 @@ import {
   type ResourceUtilizationBucket,
 } from '@foundation/src/lib/api/resource-utilization-api';
 import { getPersonProfile, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
+import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import {
   startOfDay,
+  startOfHour,
   startOfWeek,
   startOfMonth,
   addDays,
@@ -24,6 +26,14 @@ type TimeScale = 'year' | 'month' | 'week' | 'day' | 'hour';
 export interface PeopleUtilizationGridProps {
   anchorTs: Date;
   scale: TimeScale;
+  /**
+   * Site-level non-working ranges (availability events + weekends). Any
+   * bucket overlapping one of these is rendered as “Off”, mirroring the
+   * Spaces grid’s OffTimeOverlay behaviour. `resourceIds === null` means the
+   * range applies to every resource (site-wide). When non-null, only those
+   * person resources are affected.
+   */
+  offTimeRanges?: readonly OffTimeRange[];
 }
 
 interface ViewWindow {
@@ -36,29 +46,34 @@ interface ViewWindow {
 
 function getViewWindow(anchorTs: Date, scale: TimeScale): ViewWindow {
   switch (scale) {
-    case 'year':
-      return {
-        from: startOfMonth(new Date(anchorTs.getFullYear(), 0, 1)),
-        to: addMonths(startOfMonth(new Date(anchorTs.getFullYear(), 0, 1)), 12),
-        granularity: 'week',
-      };
-    case 'week': {
-      const ws = startOfWeek(anchorTs, { weekStartsOn: 1 });
-      return { from: ws, to: addDays(ws, 7), granularity: 'day' };
+    case 'year': {
+      // 12-month sliding window from the anchor's month — mirrors SchedulerGrid.
+      // navigateTime('year', ±1) adds ±1 month, so each press shifts by one column.
+      const ms = startOfMonth(anchorTs);
+      return { from: ms, to: addMonths(ms, 12), granularity: 'week' };
     }
-    case 'day':
-      return {
-        from: startOfDay(anchorTs),
-        to: addDays(startOfDay(anchorTs), 1),
-        granularity: 'hour',
-      };
-    case 'month':
-    default:
-      return {
-        from: startOfMonth(anchorTs),
-        to: addMonths(startOfMonth(anchorTs), 1),
-        granularity: 'day',
-      };
+    case 'month': {
+      // 5-week (35-day) sliding window from the anchor's Monday — mirrors SchedulerGrid.
+      // navigateTime('month', ±1) adds ±1 week, so each press shifts by one week.
+      const ws = startOfWeek(anchorTs, { weekStartsOn: 1 });
+      return { from: ws, to: addDays(ws, 35), granularity: 'day' };
+    }
+    case 'week': {
+      // 7-day sliding window from the anchor's day — mirrors SchedulerGrid.
+      // navigateTime('week', ±1) adds ±1 day, so each press shifts by one column.
+      const ds = startOfDay(anchorTs);
+      return { from: ds, to: addDays(ds, 7), granularity: 'day' };
+    }
+    case 'day': {
+      // 24-hour window from the anchor's hour — mirrors SchedulerGrid.
+      // navigateTime('day', ±1) adds ±1 hour, so each press shifts by one column.
+      const hs = startOfHour(anchorTs);
+      return { from: hs, to: addHours(hs, 24), granularity: 'hour' };
+    }
+    default: {
+      const ds = startOfDay(anchorTs);
+      return { from: ds, to: addDays(ds, 7), granularity: 'day' };
+    }
   }
 }
 
@@ -95,17 +110,47 @@ function bucketLabel(bucket: ResourceUtilizationBucket, granularity: string): st
 
 import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
 
-function bucketStatus(bucket: ResourceUtilizationBucket): BucketStatus {
+function bucketIsOff(
+  bucket: ResourceUtilizationBucket,
+  resourceId: string,
+  offTimeRanges: readonly OffTimeRange[],
+): boolean {
+  if (offTimeRanges.length === 0) return false;
+  const bucketStartMs = new Date(bucket.start).getTime();
+  const bucketEndMs = new Date(bucket.end).getTime();
+  return offTimeRanges.some((ot) => {
+    if (ot.resourceIds !== null && !ot.resourceIds.includes(resourceId)) {
+      return false;
+    }
+    // Standard half-open interval overlap.
+    return ot.startMs < bucketEndMs && ot.endMs > bucketStartMs;
+  });
+}
+
+function bucketStatus(
+  bucket: ResourceUtilizationBucket,
+  resourceId: string,
+  offTimeRanges: readonly OffTimeRange[],
+): BucketStatus {
   if (bucket.effectiveAvailabilityPercent === 0) return 'non-working';
+  if (bucketIsOff(bucket, resourceId, offTimeRanges)) return 'non-working';
   if (bucket.isExclusiveOccupied)               return 'assigned';
   if (bucket.allocatedPercent === 0)             return 'available';
   if (bucket.allocatedPercent >= bucket.effectiveAvailabilityPercent) return 'overbooked';
   return 'partial';
 }
 
-function overallPercent(buckets: ResourceUtilizationBucket[]): number {
+function overallPercent(
+  buckets: ResourceUtilizationBucket[],
+  resourceId: string,
+  offTimeRanges: readonly OffTimeRange[],
+): number {
   if (!buckets.length) return 0;
-  const working = buckets.filter((b) => b.effectiveAvailabilityPercent > 0);
+  const working = buckets.filter(
+    (b) =>
+      b.effectiveAvailabilityPercent > 0 &&
+      !bucketIsOff(b, resourceId, offTimeRanges),
+  );
   if (!working.length) return 0;
   return Math.round(
     working.reduce((s, b) => s + b.allocatedPercent, 0) / working.length,
@@ -135,10 +180,15 @@ function LegendDot({ status, label }: { status: BucketStatus; label: string }) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGridProps) {
+export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: PeopleUtilizationGridProps) {
   const [search, setSearch] = useState('');
 
   const { from, to, granularity } = getViewWindow(anchorTs, scale);
+
+  // Stabilise the off-time reference so downstream memos / overallPercent
+  // don’t re-evaluate on every render when the parent rebuilds the array
+  // identity without changing contents.
+  const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
   // 1. Fetch all active person resources
   const { data: peopleResponse, isLoading: peopleLoading } = useQuery({
@@ -246,7 +296,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
                 const buckets = q?.data?.buckets ?? [];
                 const isLoadingRow = q?.isLoading;
                 const profile = profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined;
-                const overallPct = overallPercent(buckets);
+                const overallPct = overallPercent(buckets, person.id, offTimes);
 
                 return (
                   <tr
@@ -303,7 +353,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale }: PeopleUtilizationGrid
                       </td>
                     ) : (
                       buckets.map((bucket, bIdx) => {
-                        const status = bucketStatus(bucket);
+                        const status = bucketStatus(bucket, person.id, offTimes);
                         const pct = Math.round(bucket.allocatedPercent);
                         return (
                           <td
