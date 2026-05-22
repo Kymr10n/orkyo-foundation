@@ -17,7 +17,6 @@ function renderAt(initialPath: string) {
           <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
           <Route path="floorplan" element={<Stub id="floorplan" />} />
           <Route path="groups" element={<Stub id="groups" />} />
-          <Route path="capabilities" element={<Stub id="capabilities" />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -27,7 +26,7 @@ function renderAt(initialPath: string) {
 describe('SpacesPage', () => {
   it('renders all tab triggers', () => {
     renderAt('/spaces/floorplan');
-    for (const label of ['Floorplan', 'Groups', 'Capabilities']) {
+    for (const label of ['Floorplan', 'Groups']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
   });
@@ -50,7 +49,6 @@ describe('SpacesPage', () => {
   it.each([
     ['/spaces/floorplan', 'floorplan'],
     ['/spaces/groups', 'groups'],
-    ['/spaces/capabilities', 'capabilities'],
   ])('deep-links %s renders the right child', (path, id) => {
     renderAt(path);
     expect(screen.getByTestId(id)).toBeInTheDocument();
@@ -58,8 +56,8 @@ describe('SpacesPage', () => {
 
   it('clicking a tab navigates to its sub-route', async () => {
     renderAt('/spaces/floorplan');
-    await userEvent.click(screen.getByRole('tab', { name: 'Capabilities' }));
-    expect(screen.getByTestId('capabilities')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Groups' }));
+    expect(screen.getByTestId('groups')).toBeInTheDocument();
   });
 });
 

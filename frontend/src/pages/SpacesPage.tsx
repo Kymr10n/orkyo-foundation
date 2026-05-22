@@ -5,7 +5,6 @@ import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 const TABS: PageTab[] = [
   { value: 'floorplan', label: 'Floorplan' },
   { value: 'groups', label: 'Groups' },
-  { value: 'capabilities', label: 'Capabilities' },
 ];
 
 export function SpacesPage() {
@@ -16,7 +15,7 @@ export function SpacesPage() {
     <PageLayout>
       <PageHeader
         title="Spaces"
-        description="Manage spaces, floorplan, groups, and capabilities"
+        description="Manage spaces, floorplan, and groups"
       />
       <PageTabs
         tabs={TABS}

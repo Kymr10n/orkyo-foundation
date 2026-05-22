@@ -25,7 +25,6 @@ import { OrganizationSettings } from '@foundation/src/components/settings/Organi
 import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
 import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
-import { SpaceCapabilitiesTab } from '@foundation/src/components/spaces/SpaceCapabilitiesTab';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
@@ -134,7 +133,6 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
             <Route path="floorplan" element={<FloorplanView />} />
             <Route path="groups" element={<ResourceGroupList resourceTypeKey="space" />} />
-            <Route path="capabilities" element={<SpaceCapabilitiesTab />} />
           </Route>
 
           {/* Backward-compatible redirects: resource-domain master data moved
