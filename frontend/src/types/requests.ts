@@ -46,6 +46,8 @@ export interface Conflict {
     | "capacity_exceeded";
   severity: "warning" | "error";
   message: string;
+  /** For `overlap` conflicts: the id of the other request that this one overlaps with. */
+  peerRequestId?: string;
 }
 
 export type PlanningMode = "leaf" | "summary" | "container";

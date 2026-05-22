@@ -111,6 +111,16 @@ describe('evaluateSchedule', () => {
     expect(aConflicts).toHaveLength(2);
   });
 
+  it('overlap conflict includes peerRequestId referencing the other entry', () => {
+    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
+    const b = makeEntry('b', 's1', '2024-01-01T09:00Z', '2024-01-01T11:00Z');
+    const result = evaluateSchedule(makeSchedule(a, b));
+    const aOverlap = result.get('a')!.find((c) => c.kind === 'overlap')!;
+    expect(aOverlap.peerRequestId).toBe('b');
+    const bOverlap = result.get('b')!.find((c) => c.kind === 'overlap')!;
+    expect(bOverlap.peerRequestId).toBe('a');
+  });
+
   // --- capacity ---
 
   it('allows overlaps when within space capacity', () => {

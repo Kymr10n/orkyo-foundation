@@ -1,5 +1,6 @@
 import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import { useRequests } from "@foundation/src/hooks/useUtilization";
+import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
@@ -15,21 +16,34 @@ type ConflictWithRequest = Conflict & { request: Request };
 const ConflictItem = React.memo(function ConflictItem({
   item,
   isHighlighted,
+  onOpen,
+  peerRequest,
   getSeverityIcon,
   getSeverityBadgeClass,
   getConflictKindLabel,
 }: {
   item: ConflictWithRequest;
   isHighlighted: boolean;
+  onOpen: (request: Request) => void;
+  peerRequest?: Request;
   getSeverityIcon: (severity: string) => React.ReactNode;
   getSeverityBadgeClass: (severity: string) => string;
   getConflictKindLabel: (kind: string) => string;
 }) {
   return (
     <div
-      className={`border rounded-lg p-4 hover:bg-accent/50 transition-colors ${
+      role="button"
+      tabIndex={0}
+      className={`border rounded-lg p-4 hover:bg-accent/50 transition-colors cursor-pointer ${
         isHighlighted ? "ring-2 ring-destructive/60 bg-destructive/5" : ""
       }`}
+      onClick={() => onOpen(item.request)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(item.request);
+        }
+      }}
     >
       <div className="flex items-start gap-3">
         <div className="mt-0.5">{getSeverityIcon(item.severity)}</div>
@@ -59,6 +73,19 @@ const ConflictItem = React.memo(function ConflictItem({
               </span>
             </div>
           )}
+          {peerRequest && (
+            <div className="mt-3">
+              <button
+                className="text-xs text-primary underline-offset-2 hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen(peerRequest);
+                }}
+              >
+                View other request: {peerRequest.name}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -66,6 +93,7 @@ const ConflictItem = React.memo(function ConflictItem({
 });
 
 export function ConflictsPage() {
+  const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   const { conflicts } = useConflicts();
   // useRequests is deduped by React Query (same key as inside useConflicts)
   const { data: requests = [] } = useRequests();
@@ -184,6 +212,8 @@ export function ConflictsPage() {
               key={item.id}
               item={item}
               isHighlighted={targetConflictId === item.id}
+              onOpen={openRequestEditor}
+              peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
               getSeverityIcon={getSeverityIcon}
               getSeverityBadgeClass={getSeverityBadgeClass}
               getConflictKindLabel={getConflictKindLabel}
@@ -191,6 +221,7 @@ export function ConflictsPage() {
           ))}
         </div>
       )}
+      {requestEditorDialogs}
     </PageLayout>
   );
 }

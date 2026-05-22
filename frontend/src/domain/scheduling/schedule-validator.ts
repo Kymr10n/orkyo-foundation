@@ -51,6 +51,7 @@ export function evaluateSchedule(
           id: `${entry.requestId}-overlap-${other.requestId}`,
           kind: "overlap",
           severity: "error",
+          peerRequestId: other.requestId,
           message: `Overlaps with "${other.name}" in the same space`,
         });
       }

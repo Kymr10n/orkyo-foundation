@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ConflictsPage } from '@foundation/src/pages/ConflictsPage';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
@@ -49,6 +49,11 @@ vi.mock('@foundation/src/hooks/useUtilization', () => ({
   useSpaces: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
+const mockOpen = vi.fn();
+vi.mock('@foundation/src/components/requests/useRequestEditor', () => ({
+  useRequestEditor: () => ({ open: mockOpen, dialogs: null }),
+}));
+
 const createWrapper = () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) => (
@@ -57,6 +62,10 @@ const createWrapper = () => {
 };
 
 describe('ConflictsPage', () => {
+  beforeEach(() => {
+    mockOpen.mockClear();
+  });
+
   describe('with conflicts', () => {
     it('should render conflicts page with title', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
@@ -165,6 +174,116 @@ describe('ConflictsPage', () => {
       const errorBadges = screen.getAllByText('error');
       errorBadges.forEach((badge) => {
         expect(badge.className).toMatch(/bg-red-100|dark:bg-red-900/);
+      });
+    });
+  });
+
+  describe('interaction', () => {
+    beforeEach(async () => {
+      const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
+      vi.mocked(useConflicts).mockReturnValue({
+        conflicts: mockConflicts,
+        conflictingRequestIds: new Set(['req-1', 'req-2']),
+        schedulingValidation: new Map(),
+        spaceCapacities: new Map(),
+      });
+    });
+
+    it('conflict rows have role="button"', () => {
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      const buttons = screen.getAllByRole('button');
+      // 3 conflicts from mockConflicts, all rendered as buttons
+      expect(buttons.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('clicking a conflict row calls open with the associated request', () => {
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      const row = screen
+        .getByText('Capacity: Space has 30, but requires 50')
+        .closest('[role="button"]')!;
+      fireEvent.click(row);
+      expect(mockOpen).toHaveBeenCalledTimes(1);
+      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0]);
+    });
+
+    it('pressing Enter on a conflict row calls open', () => {
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      const row = screen
+        .getByText('Capacity: Space has 30, but requires 50')
+        .closest('[role="button"]')!;
+      fireEvent.keyDown(row, { key: 'Enter' });
+      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0]);
+    });
+
+    it('pressing Space on a conflict row calls open', () => {
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      const row = screen
+        .getByText('Capacity: Space has 30, but requires 50')
+        .closest('[role="button"]')!;
+      fireEvent.keyDown(row, { key: ' ' });
+      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0]);
+    });
+
+    it('other keys do not trigger open', () => {
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      const row = screen
+        .getByText('Capacity: Space has 30, but requires 50')
+        .closest('[role="button"]')!;
+      fireEvent.keyDown(row, { key: 'Tab' });
+      expect(mockOpen).not.toHaveBeenCalled();
+    });
+
+    describe('overlap peer link', () => {
+      const overlapConflicts = new Map<string, Conflict[]>([
+        ['req-1', [{
+          id: 'overlap-1',
+          kind: 'overlap' as const,
+          severity: 'error' as const,
+          peerRequestId: 'req-2',
+          message: 'Overlaps with "Workshop Space Request" in the same space',
+        }]],
+      ]);
+
+      beforeEach(async () => {
+        const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
+        vi.mocked(useConflicts).mockReturnValue({
+          conflicts: overlapConflicts,
+          conflictingRequestIds: new Set(['req-1']),
+          schedulingValidation: new Map(),
+          spaceCapacities: new Map(),
+        });
+      });
+
+      it('renders "View other request" link when peerRequestId is set', () => {
+        render(<ConflictsPage />, { wrapper: createWrapper() });
+        expect(
+          screen.getByText(/View other request: Workshop Space Request/)
+        ).toBeInTheDocument();
+      });
+
+      it('does not render a peer link for non-overlap conflicts', async () => {
+        const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
+        vi.mocked(useConflicts).mockReturnValue({
+          conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'error' as const, message: 'Capacity exceeded' }]]]),
+          conflictingRequestIds: new Set(['req-1']),
+          schedulingValidation: new Map(),
+          spaceCapacities: new Map(),
+        });
+        render(<ConflictsPage />, { wrapper: createWrapper() });
+        expect(screen.queryByText(/View other request/)).not.toBeInTheDocument();
+      });
+
+      it('clicking "View other request" calls open with the peer request', () => {
+        render(<ConflictsPage />, { wrapper: createWrapper() });
+        fireEvent.click(screen.getByText(/View other request:/));
+        expect(mockOpen).toHaveBeenCalledWith(mockRequests[1]);
+      });
+
+      it('clicking "View other request" calls open exactly once (stopPropagation prevents row click)', () => {
+        render(<ConflictsPage />, { wrapper: createWrapper() });
+        fireEvent.click(screen.getByText(/View other request:/));
+        expect(mockOpen).toHaveBeenCalledTimes(1);
+        expect(mockOpen).toHaveBeenCalledWith(mockRequests[1]);
       });
     });
   });

@@ -5,8 +5,8 @@ import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerG
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/components/layout";
-import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
+import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
@@ -20,10 +20,10 @@ import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilizatio
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
-import { updateRequest, createRequest, moveRequest } from "@foundation/src/lib/api/request-api";
+import { createRequest, moveRequest } from "@foundation/src/lib/api/request-api";
 import { wouldCreateCycle, getNextSortOrder } from "@foundation/src/domain/request-tree";
 import { logger } from "@foundation/src/lib/core/logger";
-import { buildUpdatePayload, buildCreatePayload } from "@foundation/src/lib/utils/utils";
+import { buildCreatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { getSpaceCapabilities } from "@foundation/src/lib/api/space-capability-api";
@@ -82,10 +82,8 @@ export function UtilizationPage() {
   const [floorplanHeight, setFloorplanHeight] = useState(280);
 
   // Request dialog state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   const [isCreateChildDialogOpen, setIsCreateChildDialogOpen] = useState(false);
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [dialogRequest, setDialogRequest] = useState<Request | null>(null);
   const [createChildParent, setCreateChildParent] = useState<Request | null>(null);
   const queryClient = useQueryClient();
 
@@ -245,25 +243,8 @@ export function UtilizationPage() {
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {
     const request = requests.find(r => r.id === requestId);
-    if (!request) return;
-
-    setDialogRequest(request);
-    if (userCanEdit) {
-      setIsEditDialogOpen(true);
-    } else {
-      setIsDetailsDialogOpen(true);
-    }
-  }, [requests, userCanEdit]);
-
-  // Handle save request from edit dialog
-  const handleSaveRequest = useCallback(async (data: RequestFormData) => {
-    if (!dialogRequest) return;
-
-    await updateRequest(dialogRequest.id, buildUpdatePayload(data));
-    queryClient.invalidateQueries({ queryKey: ["requests"] });
-    setIsEditDialogOpen(false);
-    setDialogRequest(null);
-  }, [dialogRequest, queryClient]);
+    if (request) openRequestEditor(request);
+  }, [requests, openRequestEditor]);
 
   // Handle "Add child" from RequestsPanel
   const handleCreateChild = useCallback((parentId: string) => {
@@ -513,16 +494,7 @@ export function UtilizationPage() {
       </PageTabs>
 
       {/* Dialogs — rendered outside tabs; they portal to document.body */}
-      <RequestFormDialog
-        key={dialogRequest?.id ?? 'new'}
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) setDialogRequest(null);
-        }}
-        request={dialogRequest}
-        onSave={handleSaveRequest}
-      />
+      {requestEditorDialogs}
 
       <RequestFormDialog
         key={`child-${createChildParent?.id ?? 'none'}`}
@@ -533,15 +505,6 @@ export function UtilizationPage() {
         }}
         parentRequest={createChildParent}
         onSave={handleSaveChildRequest}
-      />
-
-      <RequestDetailsDialog
-        open={isDetailsDialogOpen}
-        onOpenChange={(open) => {
-          setIsDetailsDialogOpen(open);
-          if (!open) setDialogRequest(null);
-        }}
-        request={dialogRequest}
       />
 
       <AutoSchedulePreviewDialog
