@@ -117,6 +117,7 @@ export function PersonList() {
                       size="sm"
                       onClick={() => handleEdit(person)}
                       aria-label={`Edit ${person.name}`}
+                      title="Edit Person"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -125,6 +126,7 @@ export function PersonList() {
                       size="sm"
                       onClick={() => setSkillsPerson(person)}
                       aria-label={`Manage skills for ${person.name}`}
+                      title="Manage Skills"
                     >
                       <Sliders className="h-4 w-4" />
                     </Button>
@@ -133,6 +135,7 @@ export function PersonList() {
                       size="sm"
                       onClick={() => setAbsencePerson(person)}
                       aria-label={`Manage absences for ${person.name}`}
+                      title="Manage Absences"
                     >
                       <CalendarOff className="h-4 w-4" />
                     </Button>
@@ -141,8 +144,9 @@ export function PersonList() {
                       size="sm"
                       onClick={() => handleDelete(person.id)}
                       aria-label={`Deactivate ${person.name}`}
+                      title="Deactivate Person"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </td>
                 </tr>
