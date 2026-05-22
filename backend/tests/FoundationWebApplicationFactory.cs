@@ -131,7 +131,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // In-memory config so services that read IConfiguration get sensible values
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["FILE_STORAGE_PATH"] = Path.Combine(Path.GetTempPath(), "orkyo-test-storage"),
             ["APP_BASE_URL"] = "http://localhost:5173",
             ["SMTP_HOST"] = "localhost",
             ["SMTP_PORT"] = "1025",
@@ -246,7 +245,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             SmtpUseSsl = false,
             SmtpFromEmail = "test@test.local",
             SmtpFromName = "Test",
-            FileStoragePath = Path.Combine(Path.GetTempPath(), "orkyo-test-storage"),
             OidcAuthority = "http://localhost:8080/realms/orkyo",
             KeycloakUrl = "http://localhost:8080",
             KeycloakRealm = "orkyo",
@@ -259,6 +257,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Services.AutoSchedule.SchedulingProblemBuilder>();
         builder.Services.AddScoped<Api.Services.AutoSchedule.SchedulingFeasibilityAnalyzer>();
         builder.Services.AddScoped<Api.Services.AutoSchedule.ISchedulingSolver, Api.Services.AutoSchedule.GreedySchedulingSolver>();
+        builder.Services.AddScoped<IAssetRepository, AssetRepository>();
         builder.Services.AddScoped<ISiteService, SiteService>();
         builder.Services.AddScoped<ISpaceService, SpaceService>();
         // SpaceService now needs resource repos for Phase 2 coordination (already registered above)
@@ -270,7 +269,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IPresetService, PresetService>();
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
-        builder.Services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
         builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
@@ -285,6 +283,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ITenantUserService, TenantUserService>();
         builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+        builder.Services.AddScoped<IAssetStorageService, AssetStorageService>();
         builder.Services.AddScoped<UserLifecycleService>();
 
         // BFF auth — wires BffOptions binding, in-memory PKCE/session stores, DataProtection,
@@ -294,7 +293,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // Services backed by external systems → mock
         builder.Services.AddSingleton<IKeycloakAdminService>(mockKeycloak);
         builder.Services.AddScoped<IEmailService>(sp => Mock.Of<IEmailService>());
-        builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
         builder.Services.AddScoped<IInvitationService>(sp => Mock.Of<IInvitationService>());
         builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
         builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());

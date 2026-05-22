@@ -27,9 +27,6 @@ public sealed record DeploymentConfig
     public string? SmtpUsername { get; init; }
     public string? SmtpPassword { get; init; }
 
-    // ── Storage ──────────────────────────────────────────────────────────
-    public required string FileStoragePath { get; init; }
-
     // ── Identity ─────────────────────────────────────────────────────────
     public required string OidcAuthority { get; init; }
     public required string KeycloakUrl { get; init; }
@@ -68,9 +65,6 @@ public sealed record DeploymentConfig
         // URLs
         ConfigKeys.AppBaseUrl,
 
-        // File storage
-        ConfigKeys.FileStoragePath,
-
         // Email
         ConfigKeys.SmtpHost,
         ConfigKeys.SmtpPort,
@@ -107,7 +101,6 @@ public sealed record DeploymentConfig
             SmtpUsername = configuration[ConfigKeys.SmtpUsername],
             SmtpPassword = configuration[ConfigKeys.SmtpPassword],
 
-            FileStoragePath = configuration[ConfigKeys.FileStoragePath] ?? "/app/storage",
             OidcAuthority = Require(ConfigKeys.OidcAuthority),
             KeycloakUrl = Require(ConfigKeys.KeycloakUrl),
             KeycloakRealm = Require(ConfigKeys.KeycloakRealm),

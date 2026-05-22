@@ -15,9 +15,11 @@ public record SiteInfo
 
 public record FloorplanMetadata
 {
-    public required string ImagePath { get; init; }
+    public required Guid AssetId { get; init; }
+    public required string FileName { get; init; }
     public required string MimeType { get; init; }
     public long FileSizeBytes { get; init; }
+    public required string ChecksumSha256 { get; init; }
     public int WidthPx { get; init; }
     public int HeightPx { get; init; }
     public DateTime UploadedAt { get; init; }

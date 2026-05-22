@@ -268,7 +268,6 @@ export interface AdminSettingsResponse {
     smtpHost: string;
     smtpPort: number;
     keycloakRealm: string;
-    fileStoragePath: string;
     logLevel: string;
   };
   systemInfo: {

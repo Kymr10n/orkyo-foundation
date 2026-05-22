@@ -123,7 +123,6 @@ public class StarterTemplateServiceTests
 
         var sut = new StarterTemplateService(
             mockConn.Object,
-            new Mock<IFileStorageService>().Object,
             new Mock<Microsoft.Extensions.Logging.ILogger<StarterTemplateService>>().Object);
 
         var act = () => sut.ApplyStarterTemplateAsync(Guid.NewGuid(), "tenant_test", Guid.NewGuid(), key);
@@ -141,7 +140,6 @@ public class StarterTemplateServiceTests
 
         var sut = new StarterTemplateService(
             mockConn.Object,
-            new Mock<IFileStorageService>().Object,
             new Mock<Microsoft.Extensions.Logging.ILogger<StarterTemplateService>>().Object);
 
         var act = () => sut.ApplyStarterTemplateAsync(Guid.NewGuid(), "tenant_test", Guid.NewGuid(), "demo");
@@ -194,12 +192,10 @@ public class StarterTemplateServiceTests
     private static StarterTemplateService CreateService()
     {
         var connFactory = new Mock<IDbConnectionFactory>();
-        var fileStorage = new Mock<IFileStorageService>();
         var logger = new Mock<Microsoft.Extensions.Logging.ILogger<StarterTemplateService>>();
 
         return new StarterTemplateService(
             connFactory.Object,
-            fileStorage.Object,
             logger.Object);
     }
 }

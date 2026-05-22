@@ -65,9 +65,11 @@ describe("floorplan-api", () => {
   describe("uploadFloorplan", () => {
     it("resolves with metadata on successful upload", async () => {
       const mockMetadata = {
-        imagePath: "/storage/floorplans/test.png",
+        assetId: "asset-1",
+        fileName: "test.png",
         mimeType: "image/png",
         fileSizeBytes: 5000,
+        checksumSha256: "abc",
         widthPx: 1024,
         heightPx: 768,
         uploadedAt: "2024-01-01T00:00:00Z",
@@ -142,7 +144,7 @@ describe("floorplan-api", () => {
       xhr.status = 200;
       xhr.responseText = JSON.stringify({
         success: true,
-        metadata: { imagePath: "/f.png", mimeType: "image/png", fileSizeBytes: 1, widthPx: 1, heightPx: 1, uploadedAt: "" },
+        metadata: { assetId: "asset-1", fileName: "f.png", mimeType: "image/png", fileSizeBytes: 1, checksumSha256: "abc", widthPx: 1, heightPx: 1, uploadedAt: "" },
       });
       vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
 
@@ -162,7 +164,7 @@ describe("floorplan-api", () => {
       xhr.status = 200;
       xhr.responseText = JSON.stringify({
         success: true,
-        metadata: { imagePath: "/f.png", mimeType: "image/png", fileSizeBytes: 1, widthPx: 1, heightPx: 1, uploadedAt: "" },
+        metadata: { assetId: "asset-1", fileName: "f.png", mimeType: "image/png", fileSizeBytes: 1, checksumSha256: "abc", widthPx: 1, heightPx: 1, uploadedAt: "" },
       });
       vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
 
@@ -226,9 +228,11 @@ describe("floorplan-api", () => {
     it("fetches metadata via apiRawFetch and returns it", async () => {
       const { apiRawFetch } = await import("../core/api-client");
       const mockMetadata = {
-        imagePath: "/storage/floorplans/test.png",
+        assetId: "asset-1",
+        fileName: "test.png",
         mimeType: "image/png",
         fileSizeBytes: 12345,
+        checksumSha256: "abc",
         widthPx: 800,
         heightPx: 600,
         uploadedAt: "2024-01-01T00:00:00Z",

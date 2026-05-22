@@ -118,16 +118,15 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
             WHERE id = @id
             RETURNING {EventCols}", conn);
 
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("title", request.Title ?? existing.Title);
-        cmd.Parameters.AddWithValue("description", (object?)(request.Description ?? existing.Description) ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("eventType", EnumMapper.ToDbValue(request.EventType ?? existing.EventType));
-        cmd.Parameters.AddWithValue("defaultEffect", EnumMapper.ToDbValue(request.DefaultEffect ?? existing.DefaultEffect));
-        cmd.Parameters.AddWithValue("startTs", request.StartTs ?? existing.StartTs);
-        cmd.Parameters.AddWithValue("endTs", request.EndTs ?? existing.EndTs);
-        cmd.Parameters.AddWithValue("isRecurring", isRecurring);
-        cmd.Parameters.AddWithValue("recurrenceRule", (object?)recurrenceRule ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("enabled", request.Enabled ?? existing.Enabled);
+        BindEventParams(cmd, id, existing.SiteId,
+            request.Title ?? existing.Title,
+            request.Description ?? existing.Description,
+            request.EventType ?? existing.EventType,
+            request.DefaultEffect ?? existing.DefaultEffect,
+            request.StartTs ?? existing.StartTs,
+            request.EndTs ?? existing.EndTs,
+            isRecurring, recurrenceRule,
+            request.Enabled ?? existing.Enabled);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
@@ -155,25 +154,6 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
         return await InsertScopeAsync(conn, null, eventId, request, ct);
-    }
-
-    public async Task<AvailabilityEventScopeInfo?> UpdateScopeAsync(
-        Guid eventId, Guid scopeId, UpdateScopeRequest request, CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        if (request.Effect == null) return await FetchScopeByIdAsync(conn, eventId, scopeId, ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"UPDATE availability_event_scopes SET effect = @effect WHERE id = @id AND availability_event_id = @eventId RETURNING {ScopeCols}", conn);
-        cmd.Parameters.AddWithValue("id", scopeId);
-        cmd.Parameters.AddWithValue("eventId", eventId);
-        cmd.Parameters.AddWithValue("effect", EnumMapper.ToDbValue(request.Effect.Value));
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return SchedulingMapper.MapScopeFromReader(reader);
     }
 
     public async Task<bool> DeleteScopeAsync(Guid eventId, Guid scopeId, CancellationToken ct = default)
@@ -249,19 +229,6 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
             list.Add(scope);
         }
         return map;
-    }
-
-    private static async Task<AvailabilityEventScopeInfo?> FetchScopeByIdAsync(
-        NpgsqlConnection conn, Guid eventId, Guid id, CancellationToken ct)
-    {
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {ScopeCols} FROM availability_event_scopes WHERE id = @id AND availability_event_id = @eventId", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("eventId", eventId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return SchedulingMapper.MapScopeFromReader(reader);
     }
 
     private static async Task<AvailabilityEventScopeInfo> InsertScopeAsync(

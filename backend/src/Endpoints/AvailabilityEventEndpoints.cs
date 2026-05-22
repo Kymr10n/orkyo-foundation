@@ -116,25 +116,6 @@ public static class AvailabilityEventEndpoints
             .WithName("AddAvailabilityEventScope")
             .WithSummary("Add a scoped override to an availability event");
 
-        events.MapPut("/{eventId:guid}/scopes/{scopeId:guid}", async (
-            Guid siteId,
-            Guid eventId,
-            Guid scopeId,
-            [FromBody] UpdateScopeRequest request,
-            IAvailabilityEventRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var existing = await repo.GetByIdAsync(eventId, ct);
-                if (existing is null || existing.SiteId != siteId)
-                    return ErrorResponses.NotFound("AvailabilityEvent", eventId);
-                var result = await repo.UpdateScopeAsync(eventId, scopeId, request, ct);
-                return result is null ? ErrorResponses.NotFound("Scope", scopeId) : Results.Ok(result);
-            }, logger, "update event scope", new { siteId, eventId, scopeId }))
-            .RequireAdminAccess()
-            .WithName("UpdateAvailabilityEventScope")
-            .WithSummary("Update a scoped override");
-
         events.MapDelete("/{eventId:guid}/scopes/{scopeId:guid}", async (
             Guid siteId,
             Guid eventId,

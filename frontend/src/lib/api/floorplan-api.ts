@@ -3,9 +3,11 @@ import { API_BASE_URL, getApiHeaders } from '../core/api-utils';
 import { API_PATHS } from '../core/api-paths';
 
 export interface FloorplanMetadata {
-  imagePath: string;
+  assetId: string;
+  fileName: string;
   mimeType: string;
   fileSizeBytes: number;
+  checksumSha256: string;
   widthPx: number;
   heightPx: number;
   uploadedAt: string;

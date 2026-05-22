@@ -51,7 +51,6 @@ public class CreateAvailabilityEventRequestValidator : AbstractValidator<CreateA
         RuleFor(x => x.StartTs).NotEmpty();
         RuleFor(x => x.EndTs).NotEmpty().GreaterThan(x => x.StartTs).WithMessage("EndTs must be after StartTs");
         SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
-
         RuleForEach(x => x.Scopes).SetValidator(new AddScopeRequestValidator());
     }
 }
@@ -65,12 +64,7 @@ public class UpdateAvailabilityEventRequestValidator : AbstractValidator<UpdateA
             .GreaterThan(x => x.StartTs!.Value)
             .When(x => x.StartTs.HasValue && x.EndTs.HasValue)
             .WithMessage("EndTs must be after StartTs");
-        RuleFor(x => x.RecurrenceRule)
-            .NotEmpty().When(x => x.IsRecurring == true)
-            .WithMessage("RecurrenceRule is required when IsRecurring is true");
-        RuleFor(x => x.RecurrenceRule)
-            .Null().When(x => x.IsRecurring == false)
-            .WithMessage("RecurrenceRule must be null when IsRecurring is false");
+        SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
     }
 }
 
@@ -105,33 +99,28 @@ public class UpdateResourceAbsenceRequestValidator : AbstractValidator<UpdateRes
             .GreaterThan(x => x.StartTs!.Value)
             .When(x => x.StartTs.HasValue && x.EndTs.HasValue)
             .WithMessage("EndTs must be after StartTs");
-        RuleFor(x => x.RecurrenceRule)
-            .NotEmpty().When(x => x.IsRecurring == true)
-            .WithMessage("RecurrenceRule is required when IsRecurring is true");
-        RuleFor(x => x.RecurrenceRule)
-            .Null().When(x => x.IsRecurring == false)
-            .WithMessage("RecurrenceRule must be null when IsRecurring is false");
+        SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
     }
 }
 
 internal static class SharedRecurrenceRules
 {
+    /// <summary>
+    /// Adds the standard "recurrence_rule iff is_recurring" pair of rules.
+    /// Works for both create (bool IsRecurring) and update (bool? IsRecurring)
+    /// validators: the rules only fire when IsRecurring has a definite value.
+    /// </summary>
     public static void Apply<T>(
         AbstractValidator<T> validator,
-        System.Linq.Expressions.Expression<Func<T, bool>> isRecurring,
+        Func<T, bool?> isRecurring,
         System.Linq.Expressions.Expression<Func<T, string?>> recurrenceRule)
     {
         validator.RuleFor(recurrenceRule)
-            .NotEmpty().When(isRecurring.Compile())
+            .NotEmpty().When(x => isRecurring(x) == true)
             .WithMessage("RecurrenceRule is required when IsRecurring is true");
 
         validator.RuleFor(recurrenceRule)
-            .Null().When(isRecurring.Compile().Negate())
+            .Null().When(x => isRecurring(x) == false)
             .WithMessage("RecurrenceRule must be null when IsRecurring is false");
     }
-}
-
-internal static class FuncExtensions
-{
-    public static Func<T, bool> Negate<T>(this Func<T, bool> fn) => x => !fn(x);
 }

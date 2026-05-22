@@ -84,7 +84,7 @@ describe('FloorplanUploadDialog', () => {
   });
 
   it('calls uploadFloorplan on upload', async () => {
-    const metadata = { imagePath: '/uploads/plan.png', mimeType: 'image/png', fileSizeBytes: 1024, widthPx: 800, heightPx: 600, uploadedAt: new Date().toISOString() };
+    const metadata = { assetId: 'asset-1', fileName: 'plan.png', mimeType: 'image/png', fileSizeBytes: 1024, checksumSha256: 'abc', widthPx: 800, heightPx: 600, uploadedAt: new Date().toISOString() };
     vi.mocked(uploadFloorplan).mockResolvedValue(metadata);
     renderDialog();
     const input = document.getElementById('file-input') as HTMLInputElement;
@@ -97,7 +97,7 @@ describe('FloorplanUploadDialog', () => {
   });
 
   it('calls onUploadComplete after successful upload', async () => {
-    const metadata = { imagePath: '/uploads/plan.png', mimeType: 'image/png', fileSizeBytes: 1024, widthPx: 800, heightPx: 600, uploadedAt: new Date().toISOString() };
+    const metadata = { assetId: 'asset-1', fileName: 'plan.png', mimeType: 'image/png', fileSizeBytes: 1024, checksumSha256: 'abc', widthPx: 800, heightPx: 600, uploadedAt: new Date().toISOString() };
     vi.mocked(uploadFloorplan).mockResolvedValue(metadata);
     renderDialog();
     const input = document.getElementById('file-input') as HTMLInputElement;

@@ -132,11 +132,6 @@ public record AddScopeRequest
     public required ScopeEffect Effect { get; init; }
 }
 
-public record UpdateScopeRequest
-{
-    public ScopeEffect? Effect { get; init; }
-}
-
 public record CreateAvailabilityEventRequest
 {
     public required string Title { get; init; }
@@ -248,8 +243,8 @@ public record BlockedPeriod
     public required DateTime EndTs { get; init; }
     public required string Title { get; init; }
     public required BlockedPeriodSource Source { get; init; }
-    /// <summary>Set when Source == AvailabilityEvent. Value matches the DB event_type string.</summary>
-    public string? EventType { get; init; }
-    /// <summary>Set when Source == ResourceAbsence. Value matches the DB absence_type string.</summary>
-    public string? AbsenceType { get; init; }
+    /// <summary>Set when Source == AvailabilityEvent.</summary>
+    public AvailabilityEventType? EventType { get; init; }
+    /// <summary>Set when Source == ResourceAbsence.</summary>
+    public AbsenceType? AbsenceType { get; init; }
 }

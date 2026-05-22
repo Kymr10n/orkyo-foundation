@@ -11,7 +11,6 @@ public interface IAvailabilityEventRepository
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     Task<AvailabilityEventScopeInfo> AddScopeAsync(Guid eventId, AddScopeRequest request, CancellationToken ct = default);
-    Task<AvailabilityEventScopeInfo?> UpdateScopeAsync(Guid eventId, Guid scopeId, UpdateScopeRequest request, CancellationToken ct = default);
     Task<bool> DeleteScopeAsync(Guid eventId, Guid scopeId, CancellationToken ct = default);
 
     /// <summary>Returns all enabled events for the site, with their scopes loaded. Used by the availability resolver.</summary>

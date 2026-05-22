@@ -14,9 +14,11 @@ public class SiteModelsTests
         var created = DateTime.UtcNow;
         var floorplan = new FloorplanMetadata
         {
-            ImagePath = "uploads/site-1.png",
+            AssetId = Guid.NewGuid(),
+            FileName = "site-1.png",
             MimeType = "image/png",
             FileSizeBytes = 1024,
+            ChecksumSha256 = new string('a', 64),
             WidthPx = 1200,
             HeightPx = 800,
             UploadedAt = created,
@@ -51,16 +53,18 @@ public class SiteModelsTests
     {
         var meta = new FloorplanMetadata
         {
-            ImagePath = "uploads/site-2.webp",
-            MimeType = "image/webp",
+            AssetId = Guid.NewGuid(),
+            FileName = "site-2.jpg",
+            MimeType = "image/jpeg",
             FileSizeBytes = 2048,
+            ChecksumSha256 = new string('b', 64),
             WidthPx = 1920,
             HeightPx = 1080,
             UploadedAt = DateTime.UtcNow,
             UploadedByUserId = null
         };
 
-        Assert.Equal("uploads/site-2.webp", meta.ImagePath);
+        Assert.Equal("site-2.jpg", meta.FileName);
         Assert.Null(meta.UploadedByUserId);
     }
 

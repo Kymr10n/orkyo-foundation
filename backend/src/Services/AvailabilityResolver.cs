@@ -1,4 +1,3 @@
-using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 
@@ -130,7 +129,7 @@ public class AvailabilityResolver(
                 EndTs = a.EndTs,
                 Title = a.Title,
                 Source = BlockedPeriodSource.ResourceAbsence,
-                AbsenceType = EnumMapper.ToDbValue(a.AbsenceType),
+                AbsenceType = a.AbsenceType,
             })
             .ToList();
 
@@ -141,6 +140,6 @@ public class AvailabilityResolver(
         EndTs = ev.EndTs,
         Title = ev.Title,
         Source = BlockedPeriodSource.AvailabilityEvent,
-        EventType = EnumMapper.ToDbValue(ev.EventType),
+        EventType = ev.EventType,
     };
 }

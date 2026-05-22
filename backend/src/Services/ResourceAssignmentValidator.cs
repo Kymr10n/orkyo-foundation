@@ -21,7 +21,7 @@ public class ResourceAssignmentValidator(
     IResourceRepository resourceRepository,
     IResourceAssignmentRepository assignmentRepository,
     ICapabilityMatcher capabilityMatcher,
-    IOffTimeResourceQuery offTimeResourceQuery,
+    IAvailabilityResolver availabilityResolver,
     IRequestRepository requestRepository,
     ISchedulingRepository schedulingRepository) : IResourceAssignmentValidator
 {
@@ -97,13 +97,13 @@ public class ResourceAssignmentValidator(
         Guid siteId,
         List<ValidationIssue> warnings, CancellationToken ct = default)
     {
-        var blocking = await offTimeResourceQuery.GetBlockingPeriodsAsync(
-            resource.Id, request.StartUtc, request.EndUtc);
+        var allBlocked = await availabilityResolver.GetBlockedPeriodsAsync(resource.Id, ct);
+        var blocking = allBlocked.Where(p => p.StartTs < request.EndUtc && p.EndTs > request.StartUtc);
 
         foreach (var period in blocking)
         {
             var isHoliday = period.Source == BlockedPeriodSource.AvailabilityEvent
-                            && period.EventType == "public_holiday";
+                            && period.EventType == AvailabilityEventType.PublicHoliday;
             warnings.Add(new ValidationIssue
             {
                 Code = isHoliday ? ValidationReasonCode.NonWorkingHoliday : ValidationReasonCode.OffTimeOverlap,

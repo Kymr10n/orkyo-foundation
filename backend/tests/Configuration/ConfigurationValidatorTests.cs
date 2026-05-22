@@ -166,7 +166,6 @@ public class ConfigurationValidatorTests
         [ConfigKeys.KeycloakBackendClientSecret] = "secret",
         ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
         [ConfigKeys.AppBaseUrl] = "http://localhost:8080",
-        [ConfigKeys.FileStoragePath] = ".local/storage",
         [ConfigKeys.SmtpHost] = "localhost",
         [ConfigKeys.SmtpPort] = "1025",
         [ConfigKeys.SmtpUseSsl] = "false",

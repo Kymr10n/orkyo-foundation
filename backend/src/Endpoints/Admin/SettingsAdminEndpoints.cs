@@ -74,7 +74,6 @@ public static class SettingsAdminEndpoints
                 SmtpHost = deployment.GetValueOrDefault(nameof(DeploymentConfig.SmtpHost)) ?? "",
                 SmtpPort = deploymentConfig.SmtpPort,
                 KeycloakRealm = deployment.GetValueOrDefault(nameof(DeploymentConfig.KeycloakRealm)) ?? "",
-                FileStoragePath = deployment.GetValueOrDefault(nameof(DeploymentConfig.FileStoragePath)) ?? "",
                 LogLevel = deployment.GetValueOrDefault(nameof(DeploymentConfig.LogLevel)) ?? "Information",
             },
             SystemInfo = new SystemInfo
@@ -180,7 +179,6 @@ public sealed class DeploymentSettings
     public required string SmtpHost { get; init; }
     public required int SmtpPort { get; init; }
     public required string KeycloakRealm { get; init; }
-    public required string FileStoragePath { get; init; }
     public required string LogLevel { get; init; }
 }
 

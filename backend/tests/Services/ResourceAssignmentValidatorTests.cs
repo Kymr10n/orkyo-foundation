@@ -13,7 +13,7 @@ public class ResourceAssignmentValidatorTests
     private readonly Mock<IResourceRepository> _resourceRepoMock = new();
     private readonly Mock<IResourceAssignmentRepository> _assignmentRepoMock = new();
     private readonly Mock<ICapabilityMatcher> _capabilityMatcherMock = new();
-    private readonly Mock<IOffTimeResourceQuery> _offTimeQueryMock = new();
+    private readonly Mock<IAvailabilityResolver> _availabilityResolverMock = new();
     private readonly Mock<IRequestRepository> _requestRepoMock = new();
     private readonly Mock<ISchedulingRepository> _schedulingRepoMock = new();
     private readonly ResourceAssignmentValidator _validator;
@@ -26,15 +26,15 @@ public class ResourceAssignmentValidatorTests
         _assignmentRepoMock
             .Setup(r => r.GetOverlappingActiveAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new List<ResourceAssignmentInfo>());
-        _offTimeQueryMock
-            .Setup(q => q.GetBlockingPeriodsAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _availabilityResolverMock
+            .Setup(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BlockedPeriod>());
 
         _validator = new ResourceAssignmentValidator(
             _resourceRepoMock.Object,
             _assignmentRepoMock.Object,
             _capabilityMatcherMock.Object,
-            _offTimeQueryMock.Object,
+            _availabilityResolverMock.Object,
             _requestRepoMock.Object,
             _schedulingRepoMock.Object);
     }
@@ -177,8 +177,8 @@ public class ResourceAssignmentValidatorTests
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)Guid.NewGuid());
-        _offTimeQueryMock.Setup(o => o.GetBlockingPeriodsAsync(
-            resource.Id, request.StartUtc, request.EndUtc, It.IsAny<CancellationToken>()))
+        _availabilityResolverMock.Setup(r => r.GetBlockedPeriodsAsync(
+            resource.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BlockedPeriod>
             {
                 new()
@@ -186,7 +186,7 @@ public class ResourceAssignmentValidatorTests
                     Id = Guid.NewGuid(),
                     Title = "Scheduled maintenance",
                     Source = BlockedPeriodSource.AvailabilityEvent,
-                    EventType = "maintenance", // non-holiday → generic OffTimeOverlap
+                    EventType = AvailabilityEventType.Maintenance, // non-holiday → generic OffTimeOverlap
                     StartTs = request.StartUtc.AddDays(-1),
                     EndTs = request.EndUtc.AddDays(1),
                 }
@@ -319,8 +319,8 @@ public class ResourceAssignmentValidatorTests
         _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
         _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true)).ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id)).ReturnsAsync(siteId);
-        _offTimeQueryMock
-            .Setup(q => q.GetBlockingPeriodsAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _availabilityResolverMock
+            .Setup(r => r.GetBlockedPeriodsAsync(resource.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BlockedPeriod>
             {
                 new()
@@ -328,7 +328,7 @@ public class ResourceAssignmentValidatorTests
                     Id = Guid.NewGuid(),
                     Title = "Independence Day",
                     Source = BlockedPeriodSource.AvailabilityEvent,
-                    EventType = "public_holiday", // triggers NonWorkingHoliday warning code
+                    EventType = AvailabilityEventType.PublicHoliday, // triggers NonWorkingHoliday warning code
                     StartTs = request.StartUtc,
                     EndTs = request.EndUtc,
                 }

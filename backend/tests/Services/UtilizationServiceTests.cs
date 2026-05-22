@@ -47,7 +47,7 @@ public class UtilizationServiceTests
         StartTs = start,
         EndTs = end,
         Source = BlockedPeriodSource.ResourceAbsence,
-        AbsenceType = "custom"
+        AbsenceType = AbsenceType.Custom
     };
 
     private static IUtilizationService BuildService(

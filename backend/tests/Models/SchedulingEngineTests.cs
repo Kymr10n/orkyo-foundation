@@ -32,7 +32,7 @@ public class SchedulingEngineTests
             StartTs = start,
             EndTs = end,
             Source = BlockedPeriodSource.ResourceAbsence,
-            AbsenceType = "custom"
+            AbsenceType = AbsenceType.Custom
         };
 
     // ── Plain elapsed time (no scheduling settings) ─────────────────

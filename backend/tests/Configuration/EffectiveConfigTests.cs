@@ -43,7 +43,6 @@ public class EffectiveConfigTests
         SmtpUseSsl = true,
         SmtpFromEmail = "noreply@example.com",
         SmtpFromName = "Orkyo",
-        FileStoragePath = "/app/storage",
         OidcAuthority = "https://auth.example.com/realms/orkyo",
         KeycloakUrl = "https://auth.example.com",
         KeycloakRealm = "orkyo",

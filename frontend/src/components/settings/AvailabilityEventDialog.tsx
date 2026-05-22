@@ -84,19 +84,9 @@ function toDateTimeLocal(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ── Scope row ────────────────────────────────────────────────────────────────
+// ── Shared scope-picker data ─────────────────────────────────────────────────
 
-function ScopeRow({
-  siteId,
-  eventId,
-  scope,
-  onDeleted,
-}: {
-  siteId: string;
-  eventId: string;
-  scope: AvailabilityEventInfo["scopes"][number];
-  onDeleted: () => void;
-}) {
+function useScopePickerOptions() {
   const { data: resources } = useQuery({
     queryKey: ["resources-all"],
     queryFn: () => getResources({ isActive: true }).then((r) => r.data),
@@ -118,6 +108,23 @@ function ScopeRow({
     queryFn: () => apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES),
     staleTime: 300_000,
   });
+  return { resources, groups, resourceTypes };
+}
+
+// ── Scope row ────────────────────────────────────────────────────────────────
+
+function ScopeRow({
+  siteId,
+  eventId,
+  scope,
+  onDeleted,
+}: {
+  siteId: string;
+  eventId: string;
+  scope: AvailabilityEventInfo["scopes"][number];
+  onDeleted: () => void;
+}) {
+  const { resources, groups, resourceTypes } = useScopePickerOptions();
 
   const deleteScope = useMutation({
     mutationFn: () => deleteAvailabilityEventScope(siteId, eventId, scope.id),
@@ -190,27 +197,7 @@ function AddScopeForm({
   const [effect, setEffect] = useState<ScopeEffect>("available");
   const [error, setError] = useState<string | null>(null);
 
-  const { data: resources } = useQuery({
-    queryKey: ["resources-all"],
-    queryFn: () => getResources({ isActive: true }).then((r) => r.data),
-    staleTime: 60_000,
-  });
-  const { data: groups } = useQuery({
-    queryKey: ["resource-groups-all"],
-    queryFn: async () => {
-      const types = await apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES);
-      const allGroups = await Promise.all(
-        types.filter((t) => t.isActive).map((t) => getResourceGroups(t.key)),
-      );
-      return allGroups.flat();
-    },
-    staleTime: 60_000,
-  });
-  const { data: resourceTypes } = useQuery({
-    queryKey: ["resource-types"],
-    queryFn: () => apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES),
-    staleTime: 300_000,
-  });
+  const { resources, groups, resourceTypes } = useScopePickerOptions();
 
   const addScope = useMutation({
     mutationFn: () =>

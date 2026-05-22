@@ -19,7 +19,6 @@ public class ValidateModeTests
         ["SMTP_USE_SSL"] = "true",
         ["SMTP_FROM_EMAIL"] = "noreply@example.com",
         ["SMTP_FROM_NAME"] = "Orkyo",
-        ["FILE_STORAGE_PATH"] = "/app/storage",
         ["OIDC_AUTHORITY"] = "https://auth.example.com/realms/orkyo",
         ["KEYCLOAK_URL"] = "https://auth.example.com",
         ["KEYCLOAK_REALM"] = "orkyo",

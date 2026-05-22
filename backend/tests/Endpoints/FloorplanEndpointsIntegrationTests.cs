@@ -102,9 +102,9 @@ public class FloorplanEndpointsIntegrationTests
     }
 
     [Fact]
-    public async Task UploadFloorplan_WithBearer_ShouldReturnBadRequest()
+    public async Task UploadFloorplan_WithBearer_ShouldReturnNotFound()
     {
-        // BadRequest = authenticated OK, rejected for invalid image format (4-byte stub).
+        // NotFound = authenticated OK; endpoint logic ran and rejected the unknown site.
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
@@ -117,7 +117,7 @@ public class FloorplanEndpointsIntegrationTests
 
         var response = await client.PostAsync($"/api/sites/{siteId}/floorplan", content);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     #endregion

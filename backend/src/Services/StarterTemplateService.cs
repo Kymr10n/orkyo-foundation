@@ -1,6 +1,9 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using Api.Models;
 using Api.Models.Preset;
 using Npgsql;
+using SixLabors.ImageSharp;
 
 namespace Api.Services;
 
@@ -29,18 +32,15 @@ public interface IStarterTemplateService
 public class StarterTemplateService : IStarterTemplateService
 {
     private readonly IDbConnectionFactory _connectionFactory;
-    private readonly IFileStorageService _fileStorageService;
     private readonly ILogger<StarterTemplateService> _logger;
 
 
 
     public StarterTemplateService(
         IDbConnectionFactory connectionFactory,
-        IFileStorageService fileStorageService,
         ILogger<StarterTemplateService> logger)
     {
         _connectionFactory = connectionFactory;
-        _fileStorageService = fileStorageService;
         _logger = logger;
     }
 
@@ -149,33 +149,55 @@ public class StarterTemplateService : IStarterTemplateService
             using var ms = new MemoryStream();
             await resourceStream.CopyToAsync(ms);
 
-            // Save via IFileStorageService
             ms.Position = 0;
-            var relativePath = await _fileStorageService.SaveFloorplanFromStreamAsync(
-                ms, "image/png", siteId, tenantId);
+            var imageInfo = await Image.IdentifyAsync(ms, ct);
+            if (imageInfo is null)
+            {
+                _logger.LogWarning("Demo floorplan dimensions could not be read - skipping");
+                return;
+            }
 
-            // Get dimensions
-            ms.Position = 0;
-            var (width, height) = await _fileStorageService.GetImageDimensionsAsync(ms);
+            var data = ms.ToArray();
+            var checksum = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
 
-            // Update site record with floorplan metadata
             await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
             await conn.OpenAsync(ct);
             await using var cmd = new Npgsql.NpgsqlCommand(@"
-                UPDATE sites SET
-                    floorplan_image_path = @path,
-                    floorplan_mime_type = @mime,
-                    floorplan_file_size_bytes = @size,
-                    floorplan_width_px = @w,
-                    floorplan_height_px = @h,
-                    floorplan_uploaded_at = NOW()
-                WHERE id = @siteId", conn);
-            cmd.Parameters.AddWithValue("path", relativePath);
-            cmd.Parameters.AddWithValue("mime", "image/png");
-            cmd.Parameters.AddWithValue("size", ms.Length);
-            cmd.Parameters.AddWithValue("w", width);
-            cmd.Parameters.AddWithValue("h", height);
+                INSERT INTO assets (
+                    tenant_id, owner_type, owner_id, asset_type, file_name, content_type,
+                    size_bytes, checksum_sha256, width_px, height_px, storage_kind, data,
+                    external_uri, created_by_user_id, updated_by_user_id
+                )
+                VALUES (
+                    @tenantId, @ownerType, @siteId, @assetType, @fileName, @mime,
+                    @size, @checksum, @w, @h, @storageKind, @data,
+                    NULL, NULL, NULL
+                )
+                ON CONFLICT (tenant_id, owner_type, owner_id, asset_type)
+                WHERE asset_type = 'floorplan'
+                DO UPDATE SET
+                    file_name = EXCLUDED.file_name,
+                    content_type = EXCLUDED.content_type,
+                    size_bytes = EXCLUDED.size_bytes,
+                    checksum_sha256 = EXCLUDED.checksum_sha256,
+                    width_px = EXCLUDED.width_px,
+                    height_px = EXCLUDED.height_px,
+                    storage_kind = EXCLUDED.storage_kind,
+                    data = EXCLUDED.data,
+                    external_uri = NULL,
+                    updated_at = NOW()", conn);
+            cmd.Parameters.AddWithValue("tenantId", tenantId);
+            cmd.Parameters.AddWithValue("ownerType", AssetOwnerTypes.Site);
             cmd.Parameters.AddWithValue("siteId", siteId);
+            cmd.Parameters.AddWithValue("assetType", AssetTypes.Floorplan);
+            cmd.Parameters.AddWithValue("fileName", "demo-floorplan.png");
+            cmd.Parameters.AddWithValue("mime", "image/png");
+            cmd.Parameters.AddWithValue("size", (long)data.Length);
+            cmd.Parameters.AddWithValue("checksum", checksum);
+            cmd.Parameters.AddWithValue("w", imageInfo.Width);
+            cmd.Parameters.AddWithValue("h", imageInfo.Height);
+            cmd.Parameters.AddWithValue("storageKind", AssetStorageKinds.Postgres);
+            cmd.Parameters.AddWithValue("data", data);
             await cmd.ExecuteNonQueryAsync(ct);
 
             _logger.LogInformation("Installed demo floorplan for site {SiteId}", siteId);

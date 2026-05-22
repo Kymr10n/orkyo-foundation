@@ -65,6 +65,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IJobTitleRepository, JobTitleRepository>();
         services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
         services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
         services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
@@ -86,13 +87,12 @@ public static class FoundationServiceExtensions
         services.AddScoped<ICriteriaService, CriteriaService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IExportService, ExportService>();
-        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IAssetStorageService, AssetStorageService>();
         services.AddScoped<IIdentityLinkService, KeycloakIdentityLinkService>();
         services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<IAvailabilityEventRepository, AvailabilityEventRepository>();
         services.AddScoped<IResourceAbsenceRepository, ResourceAbsenceRepository>();
         services.AddScoped<IAvailabilityResolver, AvailabilityResolver>();
-        services.AddScoped<IOffTimeResourceQuery, OffTimeResourceQuery>();
         services.AddScoped<IPresetService, PresetService>();
         services.AddScoped<IRequestService, RequestService>();
         services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();

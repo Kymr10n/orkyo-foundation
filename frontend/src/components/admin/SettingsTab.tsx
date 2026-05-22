@@ -261,7 +261,6 @@ export function SettingsTab() {
             label="Auth Provider"
             value={`${data.systemInfo.authProvider} / ${data.systemInfo.authRealm}`}
           />
-          <InfoRow label="File Storage" value={data.deployment.fileStoragePath} />
           <InfoRow label="Log Level" value={data.deployment.logLevel} />
         </CardContent>
       </Card>
