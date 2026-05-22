@@ -15,7 +15,7 @@ export function SpacesPage() {
     <PageLayout>
       <PageHeader
         title="Spaces"
-        description="Manage spaces, floorplan, and groups"
+        description="Manage spaces, floorplans and groups"
       />
       <PageTabs
         tabs={TABS}
