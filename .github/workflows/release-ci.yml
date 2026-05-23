@@ -256,7 +256,9 @@ jobs:
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/migrator-runtime/Orkyo.Migrator.csproj \
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/src/Orkyo.Foundation.csproj \
+          dotnet pack backend/core/Orkyo.Foundation.Core.csproj \
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/src/Orkyo.Foundation.Web.csproj \
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
@@ -526,9 +528,16 @@ jobs:
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o ./nupkgs
 
-      - name: Pack Orkyo.Foundation
+      - name: Pack Orkyo.Foundation.Core
         run: |
-          dotnet pack backend/src/Orkyo.Foundation.csproj \
+          dotnet pack backend/core/Orkyo.Foundation.Core.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
+      - name: Pack Orkyo.Foundation.Web
+        run: |
+          dotnet pack backend/src/Orkyo.Foundation.Web.csproj \
             -c Release --no-build \
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o ./nupkgs
@@ -734,7 +743,8 @@ jobs:
             backend/shared/Orkyo.Shared.csproj \
             backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
             backend/migrator-runtime/Orkyo.Migrator.csproj \
-            backend/src/Orkyo.Foundation.csproj \
+            backend/core/Orkyo.Foundation.Core.csproj \
+            backend/src/Orkyo.Foundation.Web.csproj \
             backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj; do
             dotnet pack "$proj" -c Release --no-build \
               -p:Version=${{ steps.version.outputs.VERSION }} \
