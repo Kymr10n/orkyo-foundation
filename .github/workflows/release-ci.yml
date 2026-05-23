@@ -437,6 +437,9 @@ jobs:
     name: Publish
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    concurrency:
+      group: nuget-push
+      cancel-in-progress: false
     needs: [backend-ci, frontend-ci, keycloak-dry-build]
     # !failure() && !cancelled() is robust against skipped keycloak-dry-build:
     # it's true when all upstream jobs are success or skipped, false only on failure/cancel.
@@ -672,6 +675,9 @@ jobs:
     name: Publish Nightly
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    concurrency:
+      group: nuget-push
+      cancel-in-progress: false
     needs: [backend-ci, frontend-ci, nightly-publish-gate]
     if: >-
       !failure() && !cancelled() &&
