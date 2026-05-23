@@ -21,7 +21,7 @@ public interface IAssetStorageService
     Task<FloorplanMetadataInfo> UploadSiteFloorplanAsync(
         Guid tenantId,
         Guid siteId,
-        IFormFile file,
+        UploadFloorplanRequest request,
         Guid? userId,
         CancellationToken ct = default);
 
@@ -64,7 +64,7 @@ public class AssetStorageService(
     public async Task<FloorplanMetadataInfo> UploadSiteFloorplanAsync(
         Guid tenantId,
         Guid siteId,
-        IFormFile file,
+        UploadFloorplanRequest request,
         Guid? userId,
         CancellationToken ct = default)
     {
@@ -72,14 +72,14 @@ public class AssetStorageService(
             throw new KeyNotFoundException($"Site {siteId} not found");
 
         var settings = await settingsService.GetSettingsAsync();
-        var validated = await ValidateFloorplanAsync(file, settings, ct);
+        var validated = await ValidateFloorplanAsync(request, settings, ct);
 
         var asset = await assetRepository.UpsertPostgresAssetAsync(
             tenantId,
             AssetOwnerTypes.Site,
             siteId,
             AssetTypes.Floorplan,
-            SanitizeFileName(file.FileName, validated.Extension),
+            SanitizeFileName(request.FileName, validated.Extension),
             validated.ContentType,
             validated.Data,
             validated.ChecksumSha256,
@@ -108,15 +108,15 @@ public class AssetStorageService(
     }
 
     private static async Task<ValidatedFloorplan> ValidateFloorplanAsync(
-        IFormFile file,
+        UploadFloorplanRequest file,
         TenantSettings settings,
         CancellationToken ct)
     {
-        FloorplanUploadValidationPolicy.AssertNonEmpty(file.Length);
-        FloorplanUploadValidationPolicy.AssertWithinSizeLimit(file.Length, settings.Upload_MaxFileSizeMb);
+        FloorplanUploadValidationPolicy.AssertNonEmpty(file.ContentLength);
+        FloorplanUploadValidationPolicy.AssertWithinSizeLimit(file.ContentLength, settings.Upload_MaxFileSizeMb);
 
         byte[] data;
-        await using (var input = file.OpenReadStream())
+        await using (var input = file.Content)
         using (var ms = new MemoryStream())
         {
             await input.CopyToAsync(ms, ct);

@@ -1,4 +1,3 @@
-using Api.Endpoints;
 using Api.Models;
 using Npgsql;
 using Orkyo.Shared;

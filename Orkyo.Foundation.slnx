@@ -11,8 +11,11 @@
   <Folder Name="/shared/">
     <Project Path="backend/shared/Orkyo.Shared.csproj" />
   </Folder>
+  <Folder Name="/core/">
+    <Project Path="backend/core/Orkyo.Foundation.Core.csproj" />
+  </Folder>
   <Folder Name="/src/">
-    <Project Path="backend/src/Orkyo.Foundation.csproj" />
+    <Project Path="backend/src/Orkyo.Foundation.Web.csproj" />
   </Folder>
   <Folder Name="/seeding/">
     <Project Path="backend/seeding/Orkyo.Foundation.Seed.csproj" />

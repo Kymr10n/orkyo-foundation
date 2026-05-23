@@ -1,4 +1,4 @@
-using Api.Helpers;
+using Api.Constants;
 
 namespace Api.Security;
 
@@ -41,7 +41,7 @@ public sealed class IdentityLinkResult
     {
         Success = false,
         Error = error,
-        ErrorCode = errorCode ?? ProblemDetailsHelper.AuthCodes.IdentityNotLinked
+        ErrorCode = errorCode ?? ApiErrorCodes.Auth.IdentityNotLinked
     };
 }
 

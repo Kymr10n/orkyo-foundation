@@ -1,6 +1,7 @@
 using Api.Configuration;
 using Api.Endpoints;
 using Api.Middleware;
+using Api.Models;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 

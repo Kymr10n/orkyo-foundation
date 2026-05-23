@@ -1,6 +1,5 @@
 using Api.Models;
 using Microsoft.AspNetCore.Http;
-using Moq;
 using Xunit;
 
 namespace Api.Tests.Models;
@@ -71,12 +70,16 @@ public class SiteModelsTests
     [Fact]
     public void UploadFloorplanRequest_StoresProvidedFile()
     {
-        var formFile = new Mock<IFormFile>();
+        var content = new MemoryStream();
         var request = new UploadFloorplanRequest
         {
-            File = formFile.Object
+            Content = content,
+            FileName = "test.png",
+            ContentType = "image/png"
         };
 
-        Assert.Same(formFile.Object, request.File);
+        Assert.Same(content, request.Content);
+        Assert.Equal("test.png", request.FileName);
+        Assert.Equal("image/png", request.ContentType);
     }
 }

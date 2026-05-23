@@ -473,19 +473,15 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "orkyo.foundation": {
+      "orkyo.foundation.core": {
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[11.*, )",
           "FluentValidation.DependencyInjectionExtensions": "[11.*, )",
           "Google.OrTools": "[9.*, )",
           "MailKit": "[4.16.0, )",
-          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.7, )",
-          "Microsoft.AspNetCore.DataProtection.StackExchangeRedis": "[10.0.7, )",
           "Npgsql": "[8.0.5, )",
           "Orkyo.Shared": "[0.1.0, )",
-          "Serilog.AspNetCore": "[10.0.0, )",
-          "Serilog.Sinks.Grafana.Loki": "[8.3.2, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
           "StackExchange.Redis": "[2.12.14, )"
         }
@@ -495,6 +491,16 @@
         "dependencies": {
           "Orkyo.Migration.Abstractions": "[0.1.0, )",
           "Orkyo.Migrator": "[0.1.0, )"
+        }
+      },
+      "orkyo.foundation.web": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.7, )",
+          "Microsoft.AspNetCore.DataProtection.StackExchangeRedis": "[10.0.7, )",
+          "Orkyo.Foundation.Core": "[0.1.0, )",
+          "Serilog.AspNetCore": "[10.0.0, )",
+          "Serilog.Sinks.Grafana.Loki": "[8.3.2, )"
         }
       },
       "orkyo.migration.abstractions": {

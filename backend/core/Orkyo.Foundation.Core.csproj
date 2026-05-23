@@ -7,10 +7,10 @@
     <RootNamespace>Api</RootNamespace>
 
     <!-- NuGet packaging -->
-    <PackageId>Orkyo.Foundation</PackageId>
+    <PackageId>Orkyo.Foundation.Core</PackageId>
     <Version>0.1.0</Version>
     <Authors>Orkyo</Authors>
-    <Description>Orkyo Foundation — domain models, services, repositories, scheduler, and interfaces shared across Orkyo product variants.</Description>
+    <Description>Orkyo Foundation Core — domain models, services, repositories, validators, and interfaces shared across Orkyo product variants. No ASP.NET Core dependency; suitable for worker and CLI hosts.</Description>
     <PackageTags>orkyo;scheduling;booking;foundation</PackageTags>
     <RepositoryUrl>https://github.com/Kymr10n/orkyo-foundation</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -19,27 +19,22 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Orkyo.Foundation.Tests" />
+    <InternalsVisibleTo Include="Orkyo.Foundation.Web" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\shared\Orkyo.Shared.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
+  <!-- No FrameworkReference — must remain ASP.NET-free -->
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.*" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.*" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="Npgsql" Version="8.0.5" />
     <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="Google.OrTools" Version="9.*" />
     <PackageReference Include="StackExchange.Redis" Version="2.12.14" />
-    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-    <PackageReference Include="Serilog.Sinks.Grafana.Loki" Version="8.3.2" />
   </ItemGroup>
 </Project>

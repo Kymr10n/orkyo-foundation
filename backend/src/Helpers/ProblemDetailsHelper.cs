@@ -1,3 +1,5 @@
+using Api.Constants;
+
 namespace Api.Helpers;
 
 /// <summary>
@@ -8,24 +10,15 @@ public static class ProblemDetailsHelper
 {
     /// <summary>
     /// Error codes used by the bootstrap/auth flow.
-    /// These are stable identifiers that frontends can map to user-friendly messages.
+    /// Delegates to <see cref="ApiErrorCodes.Auth"/> (defined in Core).
     /// </summary>
     public static class AuthCodes
     {
-        /// <summary>Keycloak identity is not linked to any user</summary>
-        public const string IdentityNotLinked = "identity_not_linked";
-
-        /// <summary>User exists but was not invited/activated</summary>
-        public const string NotInvited = "not_invited";
-
-        /// <summary>Email address not verified by identity provider</summary>
-        public const string EmailNotVerified = "email_not_verified";
-
-        /// <summary>User account is disabled or inactive</summary>
-        public const string AccountInactive = "account_inactive";
-
-        /// <summary>Invalid or missing authentication token</summary>
-        public const string InvalidToken = "invalid_token";
+        public const string IdentityNotLinked = ApiErrorCodes.Auth.IdentityNotLinked;
+        public const string NotInvited = ApiErrorCodes.Auth.NotInvited;
+        public const string EmailNotVerified = ApiErrorCodes.Auth.EmailNotVerified;
+        public const string AccountInactive = ApiErrorCodes.Auth.AccountInactive;
+        public const string InvalidToken = ApiErrorCodes.Auth.InvalidToken;
     }
 
     /// <summary>

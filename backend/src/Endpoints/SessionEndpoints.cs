@@ -321,16 +321,7 @@ public record CreateAccountRequest
     public string? DisplayName { get; init; }
 }
 
-// Response models for session endpoints
-public record SessionBootstrapResponse
-{
-    public required UserInfo User { get; init; }
-    public bool TosRequired { get; init; }
-    public string? RequiredTosVersion { get; init; }
-    public List<TenantMembershipInfo> Tenants { get; init; } = new();
-    public string? SuggestedTenantSlug { get; init; }
-    public bool IsSiteAdmin { get; init; }
-}
+// SessionBootstrapResponse, UserInfo, TenantMembershipInfo live in Orkyo.Foundation.Core (Api.Models.SessionModels)
 
 /// <summary>
 /// Flat response for GET /api/session/me — mirrors the frontend AppUser interface
@@ -348,24 +339,4 @@ public record MeResponse
     public List<TenantMembershipInfo> Tenants { get; init; } = new();
 }
 
-public record UserInfo
-{
-    public Guid Id { get; init; }
-    public required string Email { get; init; }
-    public required string DisplayName { get; init; }
-    public string? KeycloakId { get; init; }
-    public DateTime CreatedAt { get; init; }
-    public DateTime? LastLoginAt { get; init; }
-    public bool HasSeenTour { get; init; }
-}
-
-public record TenantMembershipInfo
-{
-    public Guid TenantId { get; init; }
-    public required string Slug { get; init; }
-    public required string DisplayName { get; init; }
-    public required string Role { get; init; }
-    public required string State { get; init; }
-    public bool IsOwner { get; init; }
-    public required string Tier { get; init; }
-}
+// UserInfo and TenantMembershipInfo live in Orkyo.Foundation.Core (Api.Models.SessionModels)

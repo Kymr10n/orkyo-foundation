@@ -130,7 +130,7 @@ public class KeycloakAdminService : IKeycloakAdminService
 
         if (await UserExistsAsync(email))
         {
-            throw new KeycloakAdminException("An account with this email already exists", StatusCodes.Status409Conflict);
+            throw new KeycloakAdminException("An account with this email already exists", 409);
         }
 
         var userPayload = new
@@ -158,7 +158,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             _logger.LogWarning("Failed to create user: {Status} - {Body}", response.StatusCode, body);
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                throw new KeycloakAdminException("An account with this email already exists", StatusCodes.Status409Conflict);
+                throw new KeycloakAdminException("An account with this email already exists", 409);
             }
             throw new KeycloakAdminException("Failed to create account");
         }
@@ -249,7 +249,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             var credentials = JsonSerializer.Deserialize<List<KeycloakCredential>>(credJson) ?? new();
             if (!credentials.Any(c => c.Id == credentialId))
             {
-                throw new KeycloakAdminException("Credential not found for this user", StatusCodes.Status404NotFound);
+                throw new KeycloakAdminException("Credential not found for this user", 404);
             }
         }
 
@@ -362,7 +362,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         if (!roleResponse.IsSuccessStatusCode)
         {
             _logger.LogWarning("Realm role {Role} not found", roleName);
-            throw new KeycloakAdminException($"Realm role '{roleName}' not found", StatusCodes.Status404NotFound);
+            throw new KeycloakAdminException($"Realm role '{roleName}' not found", 404);
         }
 
         var roleJson = await roleResponse.Content.ReadAsStringAsync();
@@ -432,7 +432,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var adminToken = await GetAdminTokenAsync();
 
         var userId = await GetKeycloakUserIdAsync(keycloakSub, adminToken)
-            ?? throw new KeycloakAdminException("User not found in Keycloak", StatusCodes.Status404NotFound);
+            ?? throw new KeycloakAdminException("User not found in Keycloak", 404);
 
         // Get user details to get username
         var userUrl = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
@@ -474,7 +474,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var response = await _httpClient.SendAsync(verifyRequest);
         if (!response.IsSuccessStatusCode)
         {
-            throw new KeycloakAdminException("Current password is incorrect", StatusCodes.Status400BadRequest);
+            throw new KeycloakAdminException("Current password is incorrect", 400);
         }
     }
 
@@ -484,7 +484,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     /// Throws <see cref="KeycloakAdminException"/> with <paramref name="publicErrorMessage"/>
     /// if the response isn't successful, logging the upstream body first.
     /// </summary>
-    private async Task EnsureSuccessAsync(HttpResponseMessage response, string publicErrorMessage, int statusCode = StatusCodes.Status502BadGateway)
+    private async Task EnsureSuccessAsync(HttpResponseMessage response, string publicErrorMessage, int statusCode = 502)
     {
         if (response.IsSuccessStatusCode) return;
 
@@ -501,7 +501,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     {
         var token = await GetAdminTokenAsync();
         var userId = await GetKeycloakUserIdAsync(keycloakSub, token)
-            ?? throw new KeycloakAdminException("User not found in Keycloak", StatusCodes.Status404NotFound);
+            ?? throw new KeycloakAdminException("User not found in Keycloak", 404);
         return (token, userId);
     }
 

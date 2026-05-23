@@ -188,7 +188,4 @@ public static class UserManagementEndpoints
                 return Results.Ok(new { message = "Invitation revoked successfully" });
             }, logger, "RevokeInvitation");
 }
-
-public record InviteUserRequest(string Email, UserRole Role);
-public record AcceptInvitationRequest(string Token, string DisplayName, string Password);
-public record UpdateUserRoleRequest(UserRole Role);
+// InviteUserRequest, AcceptInvitationRequest, UpdateUserRoleRequest moved to Api.Models (Core)

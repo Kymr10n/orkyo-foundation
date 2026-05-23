@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
+using Api.Models;
 using Api.Security;
 using Api.Services;
 using FluentValidation;
@@ -246,13 +247,7 @@ public static class SecurityEndpoints
         .WithTags("Security");
     }
 }
-
-public record ChangePasswordRequest
-{
-    public string? CurrentPassword { get; init; }
-    public string? NewPassword { get; init; }
-    public string? ConfirmPassword { get; init; }
-}
+// ChangePasswordRequest moved to Api.Models (Core)
 
 public record SessionResponse
 {

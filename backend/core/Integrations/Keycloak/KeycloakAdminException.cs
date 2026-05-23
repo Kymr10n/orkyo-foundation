@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Http;
-
 namespace Api.Integrations.Keycloak;
 
 /// <summary>
@@ -20,7 +18,7 @@ public sealed class KeycloakAdminException : Exception
     /// </summary>
     public int StatusCode { get; }
 
-    public KeycloakAdminException(string message, int statusCode = StatusCodes.Status502BadGateway, Exception? inner = null)
+    public KeycloakAdminException(string message, int statusCode = 502, Exception? inner = null)
         : base(message, inner)
     {
         StatusCode = statusCode;

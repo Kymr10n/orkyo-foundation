@@ -1,4 +1,4 @@
-using Api.Endpoints;
+using Api.Models;
 
 namespace Api.Validators;
 

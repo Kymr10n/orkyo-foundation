@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Endpoints;
+using Api.Models;
 using Api.Validators;
 using FluentValidation;
 

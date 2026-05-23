@@ -34,7 +34,15 @@ public static class FloorplanEndpoints
             {
                 var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
                 var metadata = await assetStorage.UploadSiteFloorplanAsync(
-                    tenant.TenantId, siteId, file, userId, ct);
+                    tenant.TenantId, siteId,
+                    new UploadFloorplanRequest
+                    {
+                        Content = file.OpenReadStream(),
+                        FileName = file.FileName,
+                        ContentType = file.ContentType,
+                        ContentLength = file.Length
+                    },
+                    userId, ct);
 
                 return Results.Ok(new { success = true, metadata });
             }

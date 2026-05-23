@@ -1,5 +1,4 @@
 using Api.Constants;
-using Api.Helpers;
 using Api.Security;
 using Api.Services;
 using Npgsql;
@@ -64,12 +63,12 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
     {
         if (token.Provider != AuthProvider.Keycloak)
         {
-            return IdentityLinkResult.Failed($"Unsupported provider: {token.Provider}", ProblemDetailsHelper.AuthCodes.InvalidToken);
+            return IdentityLinkResult.Failed($"Unsupported provider: {token.Provider}", ApiErrorCodes.Auth.InvalidToken);
         }
 
         if (string.IsNullOrEmpty(token.Subject))
         {
-            return IdentityLinkResult.Failed("Token subject is required", ProblemDetailsHelper.AuthCodes.InvalidToken);
+            return IdentityLinkResult.Failed("Token subject is required", ApiErrorCodes.Auth.InvalidToken);
         }
 
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
@@ -109,7 +108,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             {
                 return IdentityLinkResult.Failed(
                     "User account is not active. Please contact your administrator.",
-                    ProblemDetailsHelper.AuthCodes.AccountInactive);
+                    ApiErrorCodes.Auth.AccountInactive);
             }
 
             // Link the Keycloak identity to the existing user
@@ -135,7 +134,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         var newUser = await CreateUserFromKeycloakAsync(conn, token);
         if (newUser == null)
         {
-            return IdentityLinkResult.Failed("Failed to create user account", ProblemDetailsHelper.AuthCodes.IdentityNotLinked);
+            return IdentityLinkResult.Failed("Failed to create user account", ApiErrorCodes.Auth.IdentityNotLinked);
         }
 
         _ = _emailService.SendNewUserAlertAsync(newUser.Email, newUser.DisplayName ?? newUser.Email);
