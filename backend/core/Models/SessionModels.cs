@@ -31,5 +31,6 @@ public record TenantMembershipInfo
     public required string Role { get; init; }
     public required string State { get; init; }
     public bool IsOwner { get; init; }
+    public bool IsTenantAdmin { get; init; }
     public required string Tier { get; init; }
 }

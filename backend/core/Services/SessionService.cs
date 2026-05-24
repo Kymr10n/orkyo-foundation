@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Npgsql;
 using Orkyo.Shared;
@@ -324,6 +325,7 @@ public class SessionService : ISessionService
                 Role = role,
                 State = status,
                 IsOwner = isOwner,
+                IsTenantAdmin = role == RoleConstants.Admin,
                 Tier = ((ServiceTier)reader.GetInt32(6)).ToString()
             });
         }
