@@ -23,8 +23,12 @@ vi.mock('@foundation/src/domain/scheduling/schedule-selectors', () => ({
 
 // ---- Stub child components so this test stays bounded to SpaceRow's own behavior ----
 vi.mock('./TimeCell', () => ({
-  TimeCell: ({ column }: { column: TimeColumn }) => (
-    <div data-testid="time-cell" data-label={column.label} />
+  TimeCell: ({ column, isOffTime }: { column: TimeColumn; isOffTime?: boolean }) => (
+    <div
+      data-testid="time-cell"
+      data-label={column.label}
+      data-off-time={isOffTime ? 'true' : 'false'}
+    />
   ),
 }));
 
@@ -43,12 +47,6 @@ vi.mock('./ScheduledRequestOverlay', () => ({
     >
       {request.name}
     </button>
-  ),
-}));
-
-vi.mock('./OffTimeOverlay', () => ({
-  OffTimeOverlay: ({ offTime }: { offTime: { id: string } }) => (
-    <div data-testid={`offtime-${offTime.id}`} />
   ),
 }));
 
@@ -119,19 +117,29 @@ function buildIndex(entries: PreviewEntry[]): ScheduleIndex {
 const emptyValidation: ValidationResult = new Map();
 const emptyPreview: PreviewSchedule = new Map();
 
+interface OffTimeRangeFixture {
+  id: string;
+  startMs: number;
+  endMs: number;
+  title: string;
+  resourceIds: string[] | null;
+}
+
 function renderRow({
   requests = [],
   previewEntries = [],
   overlapCount = 1,
   isDragging = false,
   offTimeRanges = [],
+  columns,
   onRequestClick = vi.fn(),
 }: {
   requests?: Request[];
   previewEntries?: PreviewEntry[];
   overlapCount?: number;
   isDragging?: boolean;
-  offTimeRanges?: { id: string; resourceId: string; startTs: string; endTs: string }[];
+  offTimeRanges?: OffTimeRangeFixture[];
+  columns?: TimeColumn[];
   onRequestClick?: (id: string) => void;
 } = {}) {
   mockUseSortable.mockReturnValue({
@@ -147,7 +155,7 @@ function renderRow({
   const result = render(
     <SpaceRow
       space={baseSpace}
-      columns={[makeColumn('08'), makeColumn('09'), makeColumn('10')]}
+      columns={columns ?? [makeColumn('08'), makeColumn('09'), makeColumn('10')]}
       requests={requests}
       previewSchedule={emptyPreview}
       scheduleIndex={buildIndex(previewEntries)}
@@ -233,14 +241,46 @@ describe('SpaceRow', () => {
     expect(root.style.opacity).toBe('0.5');
   });
 
-  it('renders an OffTimeOverlay for each provided off-time range', () => {
-    const { getByTestId } = renderRow({
+  it('marks TimeCells whose column overlaps an off-time range as off-time', () => {
+    const cols: TimeColumn[] = [
+      { start: new Date('2026-01-01T08:00:00Z'), end: new Date('2026-01-01T09:00:00Z'), label: '08' },
+      { start: new Date('2026-01-01T09:00:00Z'), end: new Date('2026-01-01T10:00:00Z'), label: '09' },
+      { start: new Date('2026-01-01T10:00:00Z'), end: new Date('2026-01-01T11:00:00Z'), label: '10' },
+    ];
+    const { getAllByTestId } = renderRow({
+      columns: cols,
       offTimeRanges: [
-        { id: 'ot-1', resourceId: 'space-1', startTs: '2026-01-01T12:00:00Z', endTs: '2026-01-01T13:00:00Z' },
-        { id: 'ot-2', resourceId: 'space-1', startTs: '2026-01-01T17:00:00Z', endTs: '2026-01-01T18:00:00Z' },
+        {
+          id: 'ot-1',
+          startMs: Date.parse('2026-01-01T09:00:00Z'),
+          endMs: Date.parse('2026-01-01T10:00:00Z'),
+          title: 'Lunch',
+          resourceIds: ['space-1'],
+        },
       ],
     });
-    expect(getByTestId('offtime-ot-1')).toBeInTheDocument();
-    expect(getByTestId('offtime-ot-2')).toBeInTheDocument();
+    const cells = getAllByTestId('time-cell');
+    expect(cells[0].getAttribute('data-off-time')).toBe('false');
+    expect(cells[1].getAttribute('data-off-time')).toBe('true');
+    expect(cells[2].getAttribute('data-off-time')).toBe('false');
+  });
+
+  it('does not mark TimeCells as off-time when the range applies to a different resource', () => {
+    const cols: TimeColumn[] = [
+      { start: new Date('2026-01-01T09:00:00Z'), end: new Date('2026-01-01T10:00:00Z'), label: '09' },
+    ];
+    const { getAllByTestId } = renderRow({
+      columns: cols,
+      offTimeRanges: [
+        {
+          id: 'ot-1',
+          startMs: Date.parse('2026-01-01T09:00:00Z'),
+          endMs: Date.parse('2026-01-01T10:00:00Z'),
+          title: 'Other space',
+          resourceIds: ['some-other-space'],
+        },
+      ],
+    });
+    expect(getAllByTestId('time-cell')[0].getAttribute('data-off-time')).toBe('false');
   });
 });

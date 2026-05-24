@@ -1,11 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { useShallow } from 'zustand/react/shallow';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import {
   getResourceUtilization,
   type ResourceUtilizationBucket,
 } from '@foundation/src/lib/api/resource-utilization-api';
 import { getPersonProfile, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
+import {
+  getResourceGroups,
+  getResourceGroupMembers,
+  type ResourceGroupInfo,
+} from '@foundation/src/lib/api/resource-groups-api';
+import { useAppStore } from '@foundation/src/store/app-store';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import {
   startOfDay,
@@ -18,6 +25,10 @@ import {
   addMonths,
   format,
 } from 'date-fns';
+import { GroupHeader } from './GroupHeader';
+import { PersonRow } from './PersonRow';
+import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
+import type { PeopleByGroup } from './scheduler-types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,9 +40,9 @@ export interface PeopleUtilizationGridProps {
   /**
    * Site-level non-working ranges (availability events + weekends). Any
    * bucket overlapping one of these is rendered as “Off”, mirroring the
-   * Spaces grid’s OffTimeOverlay behaviour. `resourceIds === null` means the
-   * range applies to every resource (site-wide). When non-null, only those
-   * person resources are affected.
+   * Spaces grid's off-time cell-tint behaviour. `resourceIds === null` means
+   * the range applies to every resource (site-wide). When non-null, only
+   * those person resources are affected.
    */
   offTimeRanges?: readonly OffTimeRange[];
 }
@@ -44,29 +55,27 @@ interface ViewWindow {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// View windows mirror SchedulerGrid.generateColumns so both grids land on the
+// same column rhythm (and column count) at every scale.
 function getViewWindow(anchorTs: Date, scale: TimeScale): ViewWindow {
   switch (scale) {
     case 'year': {
-      // 12-month sliding window from the anchor's month — mirrors SchedulerGrid.
-      // navigateTime('year', ±1) adds ±1 month, so each press shifts by one column.
+      // 12 monthly buckets.
       const ms = startOfMonth(anchorTs);
-      return { from: ms, to: addMonths(ms, 12), granularity: 'week' };
+      return { from: ms, to: addMonths(ms, 12), granularity: 'month' };
     }
     case 'month': {
-      // 5-week (35-day) sliding window from the anchor's Monday — mirrors SchedulerGrid.
-      // navigateTime('month', ±1) adds ±1 week, so each press shifts by one week.
+      // 5 weekly buckets (matches SchedulerGrid's 5-week sliding window).
       const ws = startOfWeek(anchorTs, { weekStartsOn: 1 });
-      return { from: ws, to: addDays(ws, 35), granularity: 'day' };
+      return { from: ws, to: addWeeks(ws, 5), granularity: 'week' };
     }
     case 'week': {
-      // 7-day sliding window from the anchor's day — mirrors SchedulerGrid.
-      // navigateTime('week', ±1) adds ±1 day, so each press shifts by one column.
+      // 7 daily buckets.
       const ds = startOfDay(anchorTs);
       return { from: ds, to: addDays(ds, 7), granularity: 'day' };
     }
     case 'day': {
-      // 24-hour window from the anchor's hour — mirrors SchedulerGrid.
-      // navigateTime('day', ±1) adds ±1 hour, so each press shifts by one column.
+      // 24 hourly buckets.
       const hs = startOfHour(anchorTs);
       return { from: hs, to: addHours(hs, 24), granularity: 'hour' };
     }
@@ -77,9 +86,6 @@ function getViewWindow(anchorTs: Date, scale: TimeScale): ViewWindow {
   }
 }
 
-// Generate column start-times from the view window — same math as the API uses
-// for bucket boundaries. This lets headers render immediately on navigation
-// without waiting for a data fetch.
 function generateColumnDates(from: Date, to: Date, granularity: string): Date[] {
   const cols: Date[] = [];
   let cur = new Date(from);
@@ -89,26 +95,23 @@ function generateColumnDates(from: Date, to: Date, granularity: string): Date[] 
       case 'hour':  cur = addHours(cur, 1); break;
       case 'day':   cur = addDays(cur, 1);  break;
       case 'week':  cur = addWeeks(cur, 1); break;
+      case 'month': cur = addMonths(cur, 1); break;
       default:      cur = addDays(cur, 1);  break;
     }
   }
   return cols;
 }
 
+// Label formats mirror SchedulerGrid.generateColumns.
 function columnLabel(date: Date, granularity: string): string {
   switch (granularity) {
-    case 'week': return format(date, 'MMM d');
-    case 'day':  return format(date, 'EEE d');
-    case 'hour': return format(date, 'HH:mm');
-    default:     return format(date, 'MMM d');
+    case 'month': return format(date, "MMM ''yy");
+    case 'week':  return format(date, 'MMM dd');
+    case 'day':   return format(date, 'EEE dd');
+    case 'hour':  return format(date, 'HH:00');
+    default:      return format(date, 'MMM dd');
   }
 }
-
-function bucketLabel(bucket: ResourceUtilizationBucket, granularity: string): string {
-  return columnLabel(new Date(bucket.start), granularity);
-}
-
-import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
 
 function bucketIsOff(
   bucket: ResourceUtilizationBucket,
@@ -119,25 +122,9 @@ function bucketIsOff(
   const bucketStartMs = new Date(bucket.start).getTime();
   const bucketEndMs = new Date(bucket.end).getTime();
   return offTimeRanges.some((ot) => {
-    if (ot.resourceIds !== null && !ot.resourceIds.includes(resourceId)) {
-      return false;
-    }
-    // Standard half-open interval overlap.
+    if (ot.resourceIds !== null && !ot.resourceIds.includes(resourceId)) return false;
     return ot.startMs < bucketEndMs && ot.endMs > bucketStartMs;
   });
-}
-
-function bucketStatus(
-  bucket: ResourceUtilizationBucket,
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
-): BucketStatus {
-  if (bucket.effectiveAvailabilityPercent === 0) return 'non-working';
-  if (bucketIsOff(bucket, resourceId, offTimeRanges)) return 'non-working';
-  if (bucket.isExclusiveOccupied)               return 'assigned';
-  if (bucket.allocatedPercent === 0)             return 'available';
-  if (bucket.allocatedPercent >= bucket.effectiveAvailabilityPercent) return 'overbooked';
-  return 'partial';
 }
 
 function overallPercent(
@@ -157,16 +144,6 @@ function overallPercent(
   );
 }
 
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-
 // ── Legend dot ───────────────────────────────────────────────────────────────
 
 function LegendDot({ status, label }: { status: BucketStatus; label: string }) {
@@ -185,36 +162,53 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
 
   const { from, to, granularity } = getViewWindow(anchorTs, scale);
 
-  // Stabilise the off-time reference so downstream memos / overallPercent
-  // don’t re-evaluate on every render when the parent rebuilds the array
-  // identity without changing contents.
+  // Shared with the Spaces grid — same Zustand slice, session-scoped.
+  const { collapsedGroupIds, toggleGroupCollapse } = useAppStore(
+    useShallow((s) => ({
+      collapsedGroupIds: s.collapsedGroupIds,
+      toggleGroupCollapse: s.toggleGroupCollapse,
+    })),
+  );
+
   const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
-  // 1. Fetch all active person resources
+  // 1. People resources
   const { data: peopleResponse, isLoading: peopleLoading } = useQuery({
     queryKey: ['resources', 'person', 'utilization-grid'],
     queryFn: () => getResources({ resourceTypeKey: 'person', isActive: true }),
   });
-  const people: ResourceInfo[] = peopleResponse?.data ?? [];
+  const people: ResourceInfo[] = useMemo(() => peopleResponse?.data ?? [], [peopleResponse]);
 
-  // Column dates are derived from the view window — no dependency on API data.
-  // This means headers render immediately when the anchor changes, even before
-  // the utilization queries for the new time range have completed.
+  // 2. Person groups
+  const { data: groupsData } = useQuery({
+    queryKey: ['resource-groups', 'person'],
+    queryFn: () => getResourceGroups('person'),
+  });
+  const groups: ResourceGroupInfo[] = useMemo(() => groupsData ?? [], [groupsData]);
+
+  // 3. Members per group — one query per group. Same pattern PersonList uses
+  //    for per-person profile fetching. Acceptable at expected scale (tens).
+  const memberQueries = useQueries({
+    queries: groups.map((g) => ({
+      queryKey: ['resource-group-members', g.id],
+      queryFn: () => getResourceGroupMembers(g.id),
+      staleTime: 60_000,
+    })),
+  });
+
   const columnDates = generateColumnDates(from, to, granularity);
 
-  // 2. Fetch per-person utilization in parallel
+  // 4. Per-person utilization
   const utilQueries = useQueries({
     queries: people.map((p) => ({
       queryKey: ['resource-utilization', p.id, from.toISOString(), to.toISOString(), granularity],
       queryFn: () => getResourceUtilization(p.id, from, to, granularity),
       staleTime: 60_000,
-      // Keep showing the previous period's data while the new fetch is in flight
-      // so navigation feels fluid rather than flashing blank cells.
       placeholderData: (prev: typeof p | undefined) => prev,
     })),
   });
 
-  // 3. Fetch per-person profiles for job title
+  // 5. Per-person profile (for job title in the label cell)
   const profileQueries = useQueries({
     queries: people.map((p) => ({
       queryKey: ['person-profile', p.id],
@@ -223,9 +217,66 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
     })),
   });
 
-  const filteredPeople = people.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  // Build a personId → utilization-query-index lookup once.
+  const personIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    people.forEach((p, i) => map.set(p.id, i));
+    return map;
+  }, [people]);
+
+  // Build groups → people mapping. Mirrors SchedulerGrid's sort logic: groups
+  // sorted by displayOrder, ungrouped bucket last.
+  const peopleByGroup: PeopleByGroup[] = useMemo(() => {
+    if (people.length === 0) return [];
+
+    // Map groupId → resource IDs that belong to it
+    const groupIdToMemberIds = new Map<string, Set<string>>();
+    groups.forEach((g, idx) => {
+      const members = memberQueries[idx]?.data?.members ?? [];
+      groupIdToMemberIds.set(g.id, new Set(members.map((m) => m.id)));
+    });
+
+    // Track which people are unassigned (in no group)
+    const assignedPersonIds = new Set<string>();
+    groupIdToMemberIds.forEach((set) => set.forEach((id) => assignedPersonIds.add(id)));
+
+    const peopleById = new Map(people.map((p) => [p.id, p]));
+
+    const sortedGroups = [...groups].sort(
+      (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
+    );
+
+    const filterFn = (p: ResourceInfo) =>
+      p.name.toLowerCase().includes(search.toLowerCase());
+
+    const result: PeopleByGroup[] = [];
+    for (const g of sortedGroups) {
+      const ids = groupIdToMemberIds.get(g.id) ?? new Set();
+      const members = Array.from(ids)
+        .map((id) => peopleById.get(id))
+        .filter((p): p is ResourceInfo => Boolean(p))
+        .filter(filterFn);
+      // Show empty groups too, so users see their structure — match Spaces grid.
+      result.push({
+        groupId: g.id,
+        groupName: g.name,
+        groupColor: g.color,
+        people: members,
+      });
+    }
+
+    const ungrouped = people
+      .filter((p) => !assignedPersonIds.has(p.id))
+      .filter(filterFn);
+    if (ungrouped.length > 0) {
+      result.push({
+        groupId: 'ungrouped',
+        groupName: 'Ungrouped',
+        people: ungrouped,
+      });
+    }
+    return result;
+  }, [people, groups, memberQueries, search]);
 
   if (peopleLoading) {
     return (
@@ -242,6 +293,8 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
       </div>
     );
   }
+
+  const totalVisible = peopleByGroup.reduce((s, g) => s + g.people.length, 0);
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-background" data-testid="people-utilization-grid">
@@ -263,116 +316,70 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
         />
       </div>
 
-      {/* Scrollable grid */}
+      {/* Header row — same shape as SchedulerGrid */}
+      <div className="flex border-b bg-muted/50 overflow-hidden">
+        <div className="w-52 flex-shrink-0 px-3 py-2 border-r text-xs font-medium text-muted-foreground">
+          Person
+        </div>
+        <div className="flex-1 flex">
+          {columnDates.map((date, i) => (
+            <div
+              key={i}
+              className="flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground"
+            >
+              {columnLabel(date, granularity)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Scrollable body */}
       <div className="flex-1 overflow-auto" data-testid="people-grid-body">
-        <table className="text-xs border-collapse" style={{ minWidth: '100%' }}>
-          <thead className="sticky top-0 z-20 bg-card">
-            <tr>
-              {/* Sticky name column header */}
-              <th className="sticky left-0 z-30 bg-card w-56 min-w-56 px-3 py-2 text-left text-muted-foreground font-normal border-b border-r">
-                Person
-              </th>
-              {columnDates.map((date, i) => (
-                <th
-                  key={i}
-                  className="px-1 py-2 text-center text-muted-foreground font-normal border-b border-r last:border-r-0 min-w-16 w-16"
-                >
-                  {columnLabel(date, granularity)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPeople.length === 0 ? (
-              <tr>
-                <td colSpan={columnDates.length + 1} className="px-4 py-8 text-center text-muted-foreground">
-                  No people match your search.
-                </td>
-              </tr>
-            ) : (
-              filteredPeople.map((person) => {
-                const pIdx = people.indexOf(person);
-                const q = utilQueries[pIdx];
-                const buckets = q?.data?.buckets ?? [];
-                const isLoadingRow = q?.isLoading;
-                const profile = profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined;
-                const overallPct = overallPercent(buckets, person.id, offTimes);
+        {totalVisible === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            No people match your search.
+          </div>
+        ) : (
+          peopleByGroup.map((group) => {
+            const isCollapsed = collapsedGroupIds.includes(group.groupId);
+            return (
+              <div key={group.groupId}>
+                <GroupHeader
+                  groupName={group.groupName}
+                  groupColor={group.groupColor}
+                  count={group.people.length}
+                  isCollapsed={isCollapsed}
+                  onToggle={() => toggleGroupCollapse(group.groupId)}
+                />
+                {!isCollapsed &&
+                  group.people.map((person) => {
+                    const pIdx = personIndex.get(person.id) ?? -1;
+                    const q = pIdx >= 0 ? utilQueries[pIdx] : undefined;
+                    const buckets = q?.data?.buckets ?? [];
+                    const isLoadingRow = !!q?.isLoading;
+                    const profile = (pIdx >= 0
+                      ? (profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined)
+                      : null);
+                    const overallPct = overallPercent(buckets, person.id, offTimes);
 
-                return (
-                  <tr
-                    key={person.id}
-                    className="border-b last:border-b-0 hover:bg-accent/30"
-                    data-testid={`person-row-${person.id}`}
-                  >
-                    {/* Sticky name cell */}
-                    <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r w-56 min-w-56">
-                      <div className="flex items-center gap-2">
-                        {/* Initials circle */}
-                        <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-semibold shrink-0 select-none">
-                          {initials(person.name)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate" title={person.name}>
-                            {person.name}
-                          </div>
-                          {profile?.jobTitleName && (
-                            <div className="text-muted-foreground truncate" title={profile.jobTitleName}>
-                              {profile.jobTitleName}
-                            </div>
-                          )}
-                        </div>
-                        {/* Overall utilization % */}
-                        <span
-                          className={`font-semibold tabular-nums shrink-0 ${
-                            overallPct > 100
-                              ? 'text-red-500'
-                              : overallPct > 0
-                              ? 'text-foreground'
-                              : 'text-muted-foreground'
-                          }`}
-                        >
-                          {overallPct}%
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Bucket cells */}
-                    {isLoadingRow ? (
-                      <td
-                        colSpan={columnDates.length || 1}
-                        className="px-2 py-2 text-muted-foreground italic"
-                      >
-                        Loading…
-                      </td>
-                    ) : buckets.length === 0 ? (
-                      <td
-                        colSpan={columnDates.length || 1}
-                        className="px-2 py-2 text-muted-foreground"
-                      >
-                        No data
-                      </td>
-                    ) : (
-                      buckets.map((bucket, bIdx) => {
-                        const status = bucketStatus(bucket, person.id, offTimes);
-                        const pct = Math.round(bucket.allocatedPercent);
-                        return (
-                          <td
-                            key={bIdx}
-                            className={`border-r last:border-r-0 min-w-16 w-16 h-10 text-center font-medium align-middle ${STATUS_CELL_CLASS[status]}`}
-                            title={`${bucketLabel(bucket, granularity)}: ${pct}% allocated`}
-                            data-status={status}
-                          >
-                            {pct > 0 ? `${pct}%` : ''}
-                          </td>
-                        );
-                      })
-                    )}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                    return (
+                      <PersonRow
+                        key={`${group.groupId}-${person.id}`}
+                        person={person}
+                        jobTitle={profile?.jobTitleName}
+                        buckets={buckets}
+                        isLoadingRow={isLoadingRow}
+                        columnCount={columnDates.length}
+                        overallPct={overallPct}
+                        offTimeRanges={offTimes}
+                        columnLabel={(d) => columnLabel(d, granularity)}
+                      />
+                    );
+                  })}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

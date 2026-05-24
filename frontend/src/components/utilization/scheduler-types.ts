@@ -1,4 +1,5 @@
 import type { Space } from "@foundation/src/types/space";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 
 export interface TimeColumn {
   start: Date;
@@ -13,4 +14,11 @@ export interface SpacesByGroup {
   groupName: string;
   groupColor?: string;
   spaces: Space[];
+}
+
+export interface PeopleByGroup {
+  groupId: string; // Use "ungrouped" for people without a group
+  groupName: string;
+  groupColor?: string;
+  people: ResourceInfo[];
 }

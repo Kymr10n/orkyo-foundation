@@ -14,10 +14,15 @@ vi.mock('@foundation/src/lib/api/resource-utilization-api', () => ({
 vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
   getPersonProfile: vi.fn().mockResolvedValue(null),
 }));
+vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
+  getResourceGroups: vi.fn().mockResolvedValue([]),
+  getResourceGroupMembers: vi.fn().mockResolvedValue({ groupId: '', members: [] }),
+}));
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
 import { getResourceUtilization } from '@foundation/src/lib/api/resource-utilization-api';
 import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
+import { getResourceGroups, getResourceGroupMembers } from '@foundation/src/lib/api/resource-groups-api';
 
 const ANCHOR = new Date('2026-05-01T00:00:00Z');
 
@@ -89,12 +94,18 @@ function renderGrid(props?: Partial<React.ComponentProps<typeof PeopleUtilizatio
   );
 }
 
+function cellsWithStatus(container: HTMLElement, status: string): HTMLElement[] {
+  return Array.from(container.querySelectorAll(`[data-status="${status}"]`)) as HTMLElement[];
+}
+
 describe('PeopleUtilizationGrid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getResources).mockResolvedValue(twoPeople);
     vi.mocked(getResourceUtilization).mockResolvedValue(availableUtil);
     vi.mocked(getPersonProfile).mockResolvedValue(null as never);
+    vi.mocked(getResourceGroups).mockResolvedValue([]);
+    vi.mocked(getResourceGroupMembers).mockResolvedValue({ groupId: '', members: [] });
   });
 
   it('shows loading state while people are loading', () => {
@@ -120,13 +131,6 @@ describe('PeopleUtilizationGrid', () => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
-  });
-
-  it('renders initials in the left column', async () => {
-    renderGrid();
-    await waitFor(() => screen.getByText('Alice Smith'));
-    expect(screen.getByText('AS')).toBeInTheDocument(); // Alice Smith → AS
-    expect(screen.getByText('BJ')).toBeInTheDocument(); // Bob Jones → BJ
   });
 
   it('shows job title from profile when available', async () => {
@@ -161,12 +165,11 @@ describe('PeopleUtilizationGrid', () => {
   });
 
   it('renders bucket cells with correct status for available buckets', async () => {
-    renderGrid();
+    const { container } = renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
-    const cells = screen.getAllByRole('cell', { hidden: true }).filter(
-      (c) => c.getAttribute('data-status') === 'available',
+    await waitFor(() =>
+      expect(cellsWithStatus(container, 'available').length).toBeGreaterThan(0),
     );
-    expect(cells.length).toBeGreaterThan(0);
   });
 
   it('marks overbooked bucket with overbooked status', async () => {
@@ -175,12 +178,11 @@ describe('PeopleUtilizationGrid', () => {
       buckets: makeBuckets(31, { allocatedPercent: 120, effectiveAvailabilityPercent: 100 }),
     };
     vi.mocked(getResourceUtilization).mockResolvedValue(overbookedUtil);
-    renderGrid();
+    const { container } = renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
-    const cells = screen.getAllByRole('cell', { hidden: true }).filter(
-      (c) => c.getAttribute('data-status') === 'overbooked',
+    await waitFor(() =>
+      expect(cellsWithStatus(container, 'overbooked').length).toBeGreaterThan(0),
     );
-    expect(cells.length).toBeGreaterThan(0);
   });
 
   it('marks non-working bucket with non-working status', async () => {
@@ -189,12 +191,11 @@ describe('PeopleUtilizationGrid', () => {
       buckets: makeBuckets(31, { effectiveAvailabilityPercent: 0, allocatedPercent: 0 }),
     };
     vi.mocked(getResourceUtilization).mockResolvedValue(nonWorkingUtil);
-    renderGrid();
+    const { container } = renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
-    const cells = screen.getAllByRole('cell', { hidden: true }).filter(
-      (c) => c.getAttribute('data-status') === 'non-working',
+    await waitFor(() =>
+      expect(cellsWithStatus(container, 'non-working').length).toBeGreaterThan(0),
     );
-    expect(cells.length).toBeGreaterThan(0);
   });
 
   it('shows percentage label inside allocated cells', async () => {
@@ -244,26 +245,17 @@ describe('PeopleUtilizationGrid', () => {
     expect(screen.getByText('Overbooked')).toBeInTheDocument();
   });
 
-  it('uses EEE d column header format for day granularity (week scale)', async () => {
+  it('uses EEE dd column header format for day granularity (week scale)', async () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
-    // 'Mon 11' format (EEE d)
     expect(screen.getByText('Mon 11')).toBeInTheDocument();
   });
 
-  // ── Navigation / column-generation tests ────────────────────────────────────
-  // These pin the key behavioral fix: column headers must be derived from the
-  // view window (not from API bucket data) so they appear immediately when the
-  // anchor changes, even before the new utilization fetch has completed.
-
   it('renders column headers while utilization data is still loading', async () => {
-    // getResourceUtilization never resolves — simulates the in-flight state
-    // after the user presses prev/next.
     vi.mocked(getResourceUtilization).mockReturnValue(new Promise(() => {}));
 
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
 
-    // People load immediately; utilization is pending. Headers must still appear.
     await waitFor(() => screen.getByText('Alice Smith'));
     expect(screen.getByText('Mon 11')).toBeInTheDocument();
     expect(screen.getByText('Sun 17')).toBeInTheDocument();
@@ -271,7 +263,6 @@ describe('PeopleUtilizationGrid', () => {
   });
 
   it('renders 7 day-columns for week scale', async () => {
-    // Anchor on Monday 2026-05-11; week starts Mon, ends Sun 17.
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Mon 11'));
 
@@ -285,32 +276,37 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid({ scale: 'day', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    // Hours rendered as HH:mm
     expect(screen.getByText('00:00')).toBeInTheDocument();
     expect(screen.getByText('12:00')).toBeInTheDocument();
     expect(screen.getByText('23:00')).toBeInTheDocument();
-
-    // Exactly 24 hour-labelled columns (th elements after the Person header)
-    const ths = screen.getAllByRole('columnheader', { hidden: true });
-    // +1 for the "Person" sticky header
-    expect(ths).toHaveLength(25);
   });
 
-  it('renders 35 day-columns for month scale (5-week sliding window)', async () => {
-    // Month scale always shows a 35-day (5-week) sliding window starting from
-    // the Monday of the anchor's week, regardless of calendar month length.
+  it('renders 5 week-columns for month scale (5-week sliding window)', async () => {
     renderGrid({ scale: 'month', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    const ths = screen.getAllByRole('columnheader', { hidden: true });
-    expect(ths).toHaveLength(36); // 35 day columns + 1 Person header
+    // Month scale = 5 weekly buckets starting at the anchor's Monday.
+    const weekLabels = ['May 11', 'May 18', 'May 25', 'Jun 01', 'Jun 08'];
+    for (const label of weekLabels) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it('renders 12 month-columns for year scale', async () => {
+    renderGrid({ scale: 'year', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Alice Smith'));
+
+    // Year scale = 12 monthly buckets starting at the anchor's month, with 2-digit year.
+    const monthLabels = ["May '26", "Jun '26", "Jul '26", "Aug '26", "Sep '26", "Oct '26", "Nov '26", "Dec '26", "Jan '27", "Feb '27", "Mar '27", "Apr '27"];
+    for (const label of monthLabels) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it('column headers update immediately when anchorTs changes to a new week', async () => {
     const { rerender } = renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Mon 11'));
 
-    // Simulate pressing "next" — anchorTs advances by one week
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -320,34 +316,28 @@ describe('PeopleUtilizationGrid', () => {
       </QueryClientProvider>,
     );
 
-    // Headers must update to the new week immediately, without waiting for data
     await waitFor(() => expect(screen.getByText('Mon 18')).toBeInTheDocument());
     expect(screen.queryByText('Mon 11')).not.toBeInTheDocument();
   });
 
   // ── Legend color-consistency tests ──────────────────────────────────────────
-  // These verify that legend dots use the same color classes as the cells they
-  // describe. A mismatch here means dark/light mode renders the wrong colors.
 
-  // getLegendDot: LegendDot renders <span class="flex items-center gap-1"><span class="...colors..." />{label}</span>
-  // getByText returns the outer wrapper span; the color dot is its first child element.
   function getLegendDot(label: string): HTMLElement {
     return screen.getByText(label).firstElementChild as HTMLElement;
   }
 
   it('legend dot for "Available" has the same background class as an available cell', async () => {
-    renderGrid();
+    const { container } = renderGrid();
     await waitFor(() => screen.getByText('Available'));
 
     const dot = getLegendDot('Available');
     expect(dot.className).toMatch(/bg-emerald-100/);
     expect(dot.className).toMatch(/dark:bg-emerald-950/);
 
-    const availableCell = screen.getAllByRole('cell', { hidden: true }).find(
-      (c) => c.getAttribute('data-status') === 'available',
-    );
-    expect(availableCell?.className).toMatch(/bg-emerald-100/);
-    expect(availableCell?.className).toMatch(/dark:bg-emerald-950/);
+    await waitFor(() => expect(cellsWithStatus(container, 'available').length).toBeGreaterThan(0));
+    const availableCell = cellsWithStatus(container, 'available')[0];
+    expect(availableCell.className).toMatch(/bg-emerald-100/);
+    expect(availableCell.className).toMatch(/dark:bg-emerald-950/);
   });
 
   it('legend dot for "Assigned" has the same background class as an assigned cell', async () => {
@@ -356,18 +346,17 @@ describe('PeopleUtilizationGrid', () => {
       buckets: makeBuckets(31, { isExclusiveOccupied: true, effectiveAvailabilityPercent: 100 }),
     };
     vi.mocked(getResourceUtilization).mockResolvedValue(assignedUtil);
-    renderGrid();
+    const { container } = renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
 
     const dot = getLegendDot('Assigned');
     expect(dot.className).toMatch(/bg-blue-100/);
     expect(dot.className).toMatch(/dark:bg-blue-950/);
 
-    const assignedCell = screen.getAllByRole('cell', { hidden: true }).find(
-      (c) => c.getAttribute('data-status') === 'assigned',
-    );
-    expect(assignedCell?.className).toMatch(/bg-blue-100/);
-    expect(assignedCell?.className).toMatch(/dark:bg-blue-950/);
+    await waitFor(() => expect(cellsWithStatus(container, 'assigned').length).toBeGreaterThan(0));
+    const assignedCell = cellsWithStatus(container, 'assigned')[0];
+    expect(assignedCell.className).toMatch(/bg-blue-100/);
+    expect(assignedCell.className).toMatch(/dark:bg-blue-950/);
   });
 
   it('legend dot for "Overbooked" has the same background class as an overbooked cell', async () => {
@@ -376,17 +365,16 @@ describe('PeopleUtilizationGrid', () => {
       buckets: makeBuckets(31, { allocatedPercent: 120, effectiveAvailabilityPercent: 100 }),
     };
     vi.mocked(getResourceUtilization).mockResolvedValue(overbookedUtil);
-    renderGrid();
+    const { container } = renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
 
     const dot = getLegendDot('Overbooked');
     expect(dot.className).toMatch(/bg-red-100/);
     expect(dot.className).toMatch(/dark:bg-red-950/);
 
-    const overbookedCell = screen.getAllByRole('cell', { hidden: true }).find(
-      (c) => c.getAttribute('data-status') === 'overbooked',
-    );
-    expect(overbookedCell?.className).toMatch(/bg-red-100/);
-    expect(overbookedCell?.className).toMatch(/dark:bg-red-950/);
+    await waitFor(() => expect(cellsWithStatus(container, 'overbooked').length).toBeGreaterThan(0));
+    const overbookedCell = cellsWithStatus(container, 'overbooked')[0];
+    expect(overbookedCell.className).toMatch(/bg-red-100/);
+    expect(overbookedCell.className).toMatch(/dark:bg-red-950/);
   });
 });

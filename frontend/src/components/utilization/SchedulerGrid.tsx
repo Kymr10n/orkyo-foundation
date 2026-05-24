@@ -63,7 +63,7 @@ function generateColumns(scale: TimeScale, anchorTs: Date, weekendsEnabled = fal
       for (let i = 0; i < 12; i++) {
         const start = addMonths(monthStart, i);
         const end = addMonths(start, 1);
-        columns.push({ start, end, label: format(start, "MMM") });
+        columns.push({ start, end, label: format(start, "MMM ''yy") });
       }
       break;
     }
@@ -416,7 +416,7 @@ export function SchedulerGrid({
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
       {/* Header Row - scrolls with content */}
       <div className="flex border-b bg-muted/50 overflow-hidden">
-        <div className="w-40 flex-shrink-0 p-2 border-r font-semibold text-sm">
+        <div className="w-52 flex-shrink-0 px-3 py-2 border-r text-xs font-medium text-muted-foreground">
           Space
         </div>
         <div
@@ -428,7 +428,7 @@ export function SchedulerGrid({
             {columns.map((col, idx) => (
               <div
                 key={idx}
-                className={`flex-1 min-w-[60px] p-2 border-r text-center text-xs font-medium cursor-pointer hover:bg-accent/50 ${col.isWeekend ? 'bg-destructive/10 text-destructive' : col.isOutsideWorkingHours ? 'bg-muted/80 text-muted-foreground' : ''}`}
+                className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-accent/50 ${col.isWeekend ? 'bg-destructive/10 text-destructive' : col.isOutsideWorkingHours ? 'bg-muted/80' : ''}`}
                 title={format(col.start, scale === "day" || scale === "hour" ? "EEEE, MMMM d, yyyy HH:mm" : "EEEE, MMMM d, yyyy")}
                 onClick={() => onTimeCursorClick(col.start)}
               >
@@ -458,7 +458,9 @@ export function SchedulerGrid({
                 return (
                   <div key={group.groupId || 'ungrouped'}>
                     <GroupHeader
-                      group={group}
+                      groupName={group.groupName}
+                      groupColor={group.groupColor}
+                      count={group.spaces.length}
                       isCollapsed={isCollapsed}
                       onToggle={() => {
                         const groupIdToToggle = group.groupId || "ungrouped";
@@ -491,7 +493,7 @@ export function SchedulerGrid({
               <>
                 {/* Left edge indicator */}
                 <div
-                  className={`absolute top-0 bottom-0 left-40 w-[60px] pointer-events-none transition-opacity duration-150 ${
+                  className={`absolute top-0 bottom-0 left-52 w-[60px] pointer-events-none transition-opacity duration-150 ${
                     edgeScrollDirection === 'left' ? 'opacity-100' : 'opacity-0'
                   }`}
                   style={{
@@ -513,7 +515,7 @@ export function SchedulerGrid({
             {/* Draggable Time Cursor Line - positioned after space column */}
             <div
               ref={timeColumnsRef}
-              className="absolute top-0 bottom-0 left-40 right-0 pointer-events-none"
+              className="absolute top-0 bottom-0 left-52 right-0 pointer-events-none"
             >
               <div
                 className={`absolute top-0 bottom-0 w-0.5 z-20 transition-colors ${
