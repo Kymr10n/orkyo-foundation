@@ -20,7 +20,8 @@ function renderAt(initialPath: string) {
         <Route path="/people" element={<PeoplePage />}>
           <Route index element={<Navigate to="list" replace />} />
           <Route path="list" element={<Stub id="list" />} />
-          <Route path="groups" element={<Stub id="groups" />} />
+          <Route path="teams" element={<Stub id="teams" />} />
+          <Route path="groups" element={<Navigate to="/people/teams" replace />} />
           <Route path="departments" element={<Stub id="departments" />} />
           <Route path="job-titles" element={<Stub id="job-titles" />} />
         </Route>
@@ -36,7 +37,7 @@ describe('PeoplePage', () => {
   it('renders page title and tab triggers', () => {
     renderAt('/people/list');
     expect(screen.getByText('People', { selector: 'h1' })).toBeInTheDocument();
-    for (const label of ['People', 'Groups', 'Job Titles', 'Departments']) {
+    for (const label of ['People', 'Teams', 'Job Titles', 'Departments']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
   });
@@ -53,7 +54,7 @@ describe('PeoplePage', () => {
 
   it.each([
     ['/people/list', 'list'],
-    ['/people/groups', 'groups'],
+    ['/people/teams', 'teams'],
     ['/people/job-titles', 'job-titles'],
     ['/people/departments', 'departments'],
   ])('deep-links %s renders the right child', (path, id) => {
@@ -71,7 +72,7 @@ describe('PeoplePage', () => {
     ['people', '/people/list'],
     ['jobTitles', '/people/job-titles'],
     ['departments', '/people/departments'],
-    ['groups', '/people/groups'],
+    ['groups', '/people/teams'],
   ])('legacy ?tab=%s redirects to %s', (legacy, target) => {
     renderAt(`/people?tab=${legacy}`);
     // After redirect, the new path renders the matching child.

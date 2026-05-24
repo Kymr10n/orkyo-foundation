@@ -8,9 +8,10 @@ import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
 
 interface ResourceGroupListProps {
   resourceTypeKey: string;
+  entityLabel?: string;
 }
 
-export function ResourceGroupList({ resourceTypeKey }: ResourceGroupListProps) {
+export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group' }: ResourceGroupListProps) {
   const queryClient = useQueryClient();
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -51,7 +52,7 @@ export function ResourceGroupList({ resourceTypeKey }: ResourceGroupListProps) {
       <div className="flex justify-end">
         <Button onClick={handleAdd}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Group
+          Add {entityLabel}
         </Button>
       </div>
 
@@ -62,7 +63,7 @@ export function ResourceGroupList({ resourceTypeKey }: ResourceGroupListProps) {
           </div>
         ) : groups.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No groups yet. Click &quot;Add Group&quot; to create one.
+            No {entityLabel.toLowerCase()}s yet. Click &quot;Add {entityLabel}&quot; to create one.
           </div>
         ) : (
           <table className="w-full">
@@ -125,6 +126,7 @@ export function ResourceGroupList({ resourceTypeKey }: ResourceGroupListProps) {
         isOpen={isDialogOpen}
         onClose={handleClose}
         onSaved={handleSaved}
+        entityLabel={entityLabel}
       />
 
       {managingMembersFor && (

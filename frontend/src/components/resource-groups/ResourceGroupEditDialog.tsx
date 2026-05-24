@@ -20,9 +20,10 @@ interface ResourceGroupEditDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
+  entityLabel?: string;
 }
 
-export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClose, onSaved }: ResourceGroupEditDialogProps) {
+export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClose, onSaved, entityLabel = 'Group' }: ResourceGroupEditDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [defaultAvailabilityPercent, setDefaultAvailabilityPercent] = useState(100);
@@ -65,7 +66,7 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{group ? 'Edit Group' : 'Add Group'}</DialogTitle>
+          <DialogTitle>{group ? `Edit ${entityLabel}` : `Add ${entityLabel}`}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

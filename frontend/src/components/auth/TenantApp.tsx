@@ -122,7 +122,8 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
           <Route path="people" element={<PeoplePage />}>
             <Route index element={<Navigate to="list" replace />} />
             <Route path="list" element={<PersonList />} />
-            <Route path="groups" element={<ResourceGroupList resourceTypeKey="person" />} />
+            <Route path="teams" element={<ResourceGroupList resourceTypeKey="person" entityLabel="Team" />} />
+            <Route path="groups" element={<Navigate to="/people/teams" replace />} />
             <Route path="departments" element={<DepartmentSettings />} />
             <Route path="job-titles" element={<JobTitleSettings />} />
           </Route>

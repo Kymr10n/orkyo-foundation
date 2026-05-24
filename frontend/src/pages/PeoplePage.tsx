@@ -7,7 +7,7 @@ import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect
 // and the URL segment cannot drift.
 const TABS: PageTab[] = [
   { value: 'list', label: 'People' },
-  { value: 'groups', label: 'Groups' },
+  { value: 'teams', label: 'Teams' },
   { value: 'job-titles', label: 'Job Titles' },
   { value: 'departments', label: 'Departments' },
 ];
@@ -16,7 +16,7 @@ const TABS: PageTab[] = [
 // TODO 2026-08-17: remove this redirect after one release cycle.
 const LEGACY_TAB_REDIRECTS: Record<string, string> = {
   people: '/people/list',
-  groups: '/people/groups',
+  groups: '/people/teams',
   jobTitles: '/people/job-titles',
   departments: '/people/departments',
 };
@@ -32,7 +32,7 @@ export function PeoplePage() {
     <PageLayout>
       <PageHeader
         title="People"
-        description="Manage person resources, groups, and absences"
+        description="Manage person resources, teams, and absences"
       />
       <PageTabs
         tabs={TABS}
