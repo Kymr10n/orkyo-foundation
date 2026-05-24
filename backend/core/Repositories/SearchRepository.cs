@@ -114,6 +114,7 @@ public class SearchRepository : ISearchRepository
             "site" => new SearchResultOpen { Route = "/settings/sites", Params = new Dictionary<string, string> { ["siteId"] = entityId.ToString(), ["mode"] = "edit" } },
             "template" => new SearchResultOpen { Route = "/settings/templates", Params = new Dictionary<string, string> { ["templateId"] = entityId.ToString(), ["mode"] = "edit" } },
             "criterion" => new SearchResultOpen { Route = "/settings/criteria", Params = new Dictionary<string, string> { ["criterionId"] = entityId.ToString(), ["mode"] = "edit" } },
+            "person" => new SearchResultOpen { Route = "/people/list", Params = new Dictionary<string, string> { ["personId"] = entityId.ToString() } },
             _ => new SearchResultOpen { Route = "/", Params = new Dictionary<string, string>() }
         };
 }

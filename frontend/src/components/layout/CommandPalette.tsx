@@ -13,6 +13,7 @@ import {
   ListChecks,
   MapPin,
   Search,
+  User,
   X,
 } from "lucide-react";
 import { Badge } from "@foundation/src/components/ui/badge";
@@ -34,6 +35,7 @@ const typeIcons: Record<SearchResult["type"], React.ReactNode> = {
   site: <Building2 className="h-4 w-4" />,
   template: <ListChecks className="h-4 w-4" />,
   criterion: <MapPin className="h-4 w-4" />,
+  person: <User className="h-4 w-4" />,
 };
 
 // Display labels for entity types
@@ -44,6 +46,7 @@ const typeLabels: Record<SearchResult["type"], string> = {
   site: "Site",
   template: "Template",
   criterion: "Criterion",
+  person: "Person",
 };
 
 // Badge colors for entity types
@@ -54,6 +57,7 @@ const typeBadgeVariants: Record<SearchResult["type"], "default" | "secondary" | 
   site: "outline",
   template: "outline",
   criterion: "outline",
+  person: "secondary",
 };
 
 interface CommandPaletteProps {
@@ -164,6 +168,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           // Templates and criteria are in settings
           navigate("/settings");
           break;
+        case "person":
+          navigate("/people/list");
+          break;
         default:
           navigate("/");
       }
@@ -207,6 +214,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             break;
           case "criterion":
             navigate(`/settings?tab=criteria&edit=${result.id}`);
+            break;
+          case "person":
+            navigate(`/people/list?edit=${result.id}`);
             break;
           default:
             navigate("/");

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
 import { Plus, Pencil, Trash2, Sliders, CalendarOff } from 'lucide-react';
@@ -14,11 +15,24 @@ export function PersonList() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [skillsPerson, setSkillsPerson] = useState<ResourceInfo | null>(null);
   const [absencePerson, setAbsencePerson] = useState<ResourceInfo | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: people, isLoading, error } = useQuery({
     queryKey: ['resources', 'person'],
     queryFn: () => getResources({ resourceTypeKey: 'person' }),
   });
+
+  // Open edit dialog when navigated here with ?edit=<id> (e.g. from search)
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId || !people?.data) return;
+    const target = people.data.find((p: ResourceInfo) => p.id === editId);
+    if (target) {
+      setEditingPerson(target);
+      setIsDialogOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, people, setSearchParams]);
 
   // Fetch each person's profile in parallel. The backend has no batch endpoint
   // for profiles yet; this keeps the grid honest (instead of showing "-" for

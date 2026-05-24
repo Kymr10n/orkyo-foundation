@@ -16,7 +16,7 @@ export interface SearchResultPermissions {
 }
 
 export interface SearchResult {
-  type: 'space' | 'request' | 'group' | 'site' | 'template' | 'criterion';
+  type: 'space' | 'request' | 'group' | 'site' | 'template' | 'criterion' | 'person';
   id: string;
   title: string;
   subtitle?: string;
