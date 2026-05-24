@@ -97,7 +97,8 @@ public static class DiagnosticsAdminEndpoints
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            var discoveryUrl = OidcDiscoveryUrlPolicy.BuildDiscoveryUrl(deploymentConfig.OidcAuthority);
+            var probeAuthority = deploymentConfig.OidcInternalAuthority ?? deploymentConfig.OidcAuthority;
+            var discoveryUrl = OidcDiscoveryUrlPolicy.BuildDiscoveryUrl(probeAuthority);
             if (discoveryUrl is not null)
             {
                 var response = await http.GetAsync(discoveryUrl);

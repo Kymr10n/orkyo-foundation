@@ -55,6 +55,63 @@ public class DeploymentConfigTests
     }
 
     [Fact]
+    public void FromConfiguration_PopulatesOidcInternalAuthority_WhenKeyIsPresent()
+    {
+        var config = BuildConfig(RequiredValues(new Dictionary<string, string?>
+        {
+            [ConfigKeys.OidcInternalAuthority] = "http://keycloak:8080/realms/orkyo",
+        }));
+
+        var result = DeploymentConfig.FromConfiguration(config);
+
+        result.OidcInternalAuthority.Should().Be("http://keycloak:8080/realms/orkyo");
+    }
+
+    [Fact]
+    public void FromConfiguration_LeavesOidcInternalAuthorityNull_WhenKeyIsAbsent()
+    {
+        var config = BuildConfig(RequiredValues());
+
+        var result = DeploymentConfig.FromConfiguration(config);
+
+        result.OidcInternalAuthority.Should().BeNull();
+    }
+
+    [Fact]
+    public void OidcInternalAuthority_FallbackPattern_PrefersInternalOverPublic()
+    {
+        // Guard: the diagnostics probe uses null-coalescing, so this documents
+        // the intended fallback behaviour independent of the HTTP call.
+        var withInternal = new DeploymentConfig
+        {
+            PublicUrl = "http://app",
+            AuthPublicUrl = "http://kc-public",
+            AppBaseUrl = "http://app",
+            CorsAllowedOrigins = "",
+            SmtpHost = "localhost",
+            SmtpPort = 25,
+            SmtpUseSsl = false,
+            SmtpFromEmail = "a@b.com",
+            SmtpFromName = "T",
+            OidcAuthority = "http://kc-public/realms/orkyo",
+            OidcInternalAuthority = "http://keycloak:8080/realms/orkyo",
+            KeycloakUrl = "http://kc-public",
+            KeycloakRealm = "orkyo",
+            KeycloakBackendClientId = "id",
+            KeycloakBackendClientSecret = "s",
+            PostgresConnectionString = "cs",
+        };
+
+        var withoutInternal = withInternal with { OidcInternalAuthority = null };
+
+        (withInternal.OidcInternalAuthority ?? withInternal.OidcAuthority)
+            .Should().Be("http://keycloak:8080/realms/orkyo");
+
+        (withoutInternal.OidcInternalAuthority ?? withoutInternal.OidcAuthority)
+            .Should().Be("http://kc-public/realms/orkyo");
+    }
+
+    [Fact]
     public void Redacted_MasksSecrets()
     {
         var config = BuildConfig(new Dictionary<string, string?>
@@ -89,5 +146,29 @@ public class DeploymentConfigTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
+    }
+
+    /// <summary>Returns the minimum set of required keys, optionally merged with overrides.</summary>
+    private static Dictionary<string, string?> RequiredValues(Dictionary<string, string?>? overrides = null)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            [ConfigKeys.AppBaseUrl] = "http://localhost:8080",
+            [ConfigKeys.OidcAuthority] = "http://localhost:8180/realms/orkyo",
+            [ConfigKeys.KeycloakUrl] = "http://localhost:8180",
+            [ConfigKeys.KeycloakRealm] = "orkyo",
+            [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
+            [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
+            [ConfigKeys.SmtpHost] = "localhost",
+            [ConfigKeys.SmtpPort] = "1025",
+            [ConfigKeys.SmtpUseSsl] = "false",
+            [ConfigKeys.SmtpFromEmail] = "noreply@example.com",
+            [ConfigKeys.SmtpFromName] = "Orkyo",
+        };
+        if (overrides is not null)
+            foreach (var (k, v) in overrides)
+                values[k] = v;
+        return values;
     }
 }

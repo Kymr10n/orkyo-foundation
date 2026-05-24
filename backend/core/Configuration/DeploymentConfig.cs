@@ -40,6 +40,13 @@ public sealed record DeploymentConfig
     // ── Logging ──────────────────────────────────────────────────────────
     public string LogLevel { get; init; } = "Information";
 
+    // ── Internal identity ────────────────────────────────────────────────
+    /// <summary>
+    /// Internal OIDC authority URL used for server-to-server calls (e.g. diagnostics probe).
+    /// Falls back to <see cref="OidcAuthority"/> when not set.
+    /// </summary>
+    public string? OidcInternalAuthority { get; init; }
+
     // ── Version ──────────────────────────────────────────────────────────
     public string? Version { get; init; }
 
@@ -102,6 +109,7 @@ public sealed record DeploymentConfig
             SmtpPassword = configuration[ConfigKeys.SmtpPassword],
 
             OidcAuthority = Require(ConfigKeys.OidcAuthority),
+            OidcInternalAuthority = configuration[ConfigKeys.OidcInternalAuthority],
             KeycloakUrl = Require(ConfigKeys.KeycloakUrl),
             KeycloakRealm = Require(ConfigKeys.KeycloakRealm),
             KeycloakBackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
