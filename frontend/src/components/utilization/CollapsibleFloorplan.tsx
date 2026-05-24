@@ -168,7 +168,7 @@ export function CollapsibleFloorplan({
       {/* Floorplan content */}
       {!isCollapsed && (
         <>
-          <div style={{ height: `${height}px` }} className="p-4 bg-muted overflow-hidden">
+          <div style={{ height: `${height}px` }} className="p-4 bg-card overflow-hidden">
             {isLoadingFloorplan ? (
               <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                 Loading floorplan...
@@ -211,7 +211,7 @@ export function CollapsibleFloorplan({
                   zoom={1}
                   fitMode="contain"
                   spaceColors={spaceColors}
-                  className="h-full w-full shadow-md border border-border rounded-lg"
+                  className="h-full w-full border border-border rounded-lg"
                 />
 
                 {/* Space status legend */}
