@@ -14,25 +14,19 @@ import {
 } from '@foundation/src/lib/api/resource-groups-api';
 import { useAppStore } from '@foundation/src/store/app-store';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
-import {
-  startOfDay,
-  startOfHour,
-  startOfWeek,
-  startOfMonth,
-  addDays,
-  addHours,
-  addWeeks,
-  addMonths,
-  format,
-} from 'date-fns';
 import { GroupHeader } from './GroupHeader';
 import { PersonRow } from './PersonRow';
 import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
 import type { PeopleByGroup } from './scheduler-types';
+import type { TimeScale } from './ScaleSelect';
+import {
+  formatTimeColumn,
+  generateTimeColumns,
+  overlapsOffTimeRange,
+  utilizationGranularityForScale,
+} from './time-grid-utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type TimeScale = 'year' | 'month' | 'week' | 'day' | 'hour';
 
 export interface PeopleUtilizationGridProps {
   anchorTs: Date;
@@ -47,84 +41,19 @@ export interface PeopleUtilizationGridProps {
   offTimeRanges?: readonly OffTimeRange[];
 }
 
-interface ViewWindow {
-  from: Date;
-  to: Date;
-  granularity: string;
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-// View windows mirror SchedulerGrid.generateColumns so both grids land on the
-// same column rhythm (and column count) at every scale.
-function getViewWindow(anchorTs: Date, scale: TimeScale): ViewWindow {
-  switch (scale) {
-    case 'year': {
-      // 12 monthly buckets.
-      const ms = startOfMonth(anchorTs);
-      return { from: ms, to: addMonths(ms, 12), granularity: 'month' };
-    }
-    case 'month': {
-      // 5 weekly buckets (matches SchedulerGrid's 5-week sliding window).
-      const ws = startOfWeek(anchorTs, { weekStartsOn: 1 });
-      return { from: ws, to: addWeeks(ws, 5), granularity: 'week' };
-    }
-    case 'week': {
-      // 7 daily buckets.
-      const ds = startOfDay(anchorTs);
-      return { from: ds, to: addDays(ds, 7), granularity: 'day' };
-    }
-    case 'day': {
-      // 24 hourly buckets.
-      const hs = startOfHour(anchorTs);
-      return { from: hs, to: addHours(hs, 24), granularity: 'hour' };
-    }
-    default: {
-      const ds = startOfDay(anchorTs);
-      return { from: ds, to: addDays(ds, 7), granularity: 'day' };
-    }
-  }
-}
-
-function generateColumnDates(from: Date, to: Date, granularity: string): Date[] {
-  const cols: Date[] = [];
-  let cur = new Date(from);
-  while (cur < to) {
-    cols.push(new Date(cur));
-    switch (granularity) {
-      case 'hour':  cur = addHours(cur, 1); break;
-      case 'day':   cur = addDays(cur, 1);  break;
-      case 'week':  cur = addWeeks(cur, 1); break;
-      case 'month': cur = addMonths(cur, 1); break;
-      default:      cur = addDays(cur, 1);  break;
-    }
-  }
-  return cols;
-}
-
-// Label formats mirror SchedulerGrid.generateColumns.
-function columnLabel(date: Date, granularity: string): string {
-  switch (granularity) {
-    case 'month': return format(date, "MMM ''yy");
-    case 'week':  return format(date, 'MMM dd');
-    case 'day':   return format(date, 'EEE dd');
-    case 'hour':  return format(date, 'HH:00');
-    default:      return format(date, 'MMM dd');
-  }
-}
 
 function bucketIsOff(
   bucket: ResourceUtilizationBucket,
   resourceId: string,
   offTimeRanges: readonly OffTimeRange[],
 ): boolean {
-  if (offTimeRanges.length === 0) return false;
-  const bucketStartMs = new Date(bucket.start).getTime();
-  const bucketEndMs = new Date(bucket.end).getTime();
-  return offTimeRanges.some((ot) => {
-    if (ot.resourceIds !== null && !ot.resourceIds.includes(resourceId)) return false;
-    return ot.startMs < bucketEndMs && ot.endMs > bucketStartMs;
-  });
+  return overlapsOffTimeRange(
+    resourceId,
+    new Date(bucket.start).getTime(),
+    new Date(bucket.end).getTime(),
+    offTimeRanges,
+  );
 }
 
 function overallPercent(
@@ -160,7 +89,10 @@ function LegendDot({ status, label }: { status: BucketStatus; label: string }) {
 export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: PeopleUtilizationGridProps) {
   const [search, setSearch] = useState('');
 
-  const { from, to, granularity } = getViewWindow(anchorTs, scale);
+  const columns = generateTimeColumns(scale, anchorTs);
+  const from = columns[0].start;
+  const to = columns[columns.length - 1].end;
+  const granularity = utilizationGranularityForScale(scale);
 
   // Shared with the Spaces grid — same Zustand slice, session-scoped.
   const { collapsedGroupIds, toggleGroupCollapse } = useAppStore(
@@ -195,8 +127,6 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
       staleTime: 60_000,
     })),
   });
-
-  const columnDates = generateColumnDates(from, to, granularity);
 
   // 4. Per-person utilization
   const utilQueries = useQueries({
@@ -322,12 +252,12 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
           Person
         </div>
         <div className="flex-1 flex">
-          {columnDates.map((date, i) => (
+          {columns.map((column, i) => (
             <div
               key={i}
               className="flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground"
             >
-              {columnLabel(date, granularity)}
+              {column.label}
             </div>
           ))}
         </div>
@@ -341,7 +271,8 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
           </div>
         ) : (
           peopleByGroup.map((group) => {
-            const isCollapsed = collapsedGroupIds.includes(group.groupId);
+            const collapseId = `people:${group.groupId}`;
+            const isCollapsed = collapsedGroupIds.includes(collapseId);
             return (
               <div key={group.groupId}>
                 <GroupHeader
@@ -349,7 +280,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
                   groupColor={group.groupColor}
                   count={group.people.length}
                   isCollapsed={isCollapsed}
-                  onToggle={() => toggleGroupCollapse(group.groupId)}
+                  onToggle={() => toggleGroupCollapse(collapseId)}
                 />
                 {!isCollapsed &&
                   group.people.map((person) => {
@@ -369,10 +300,10 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
                         jobTitle={profile?.jobTitleName}
                         buckets={buckets}
                         isLoadingRow={isLoadingRow}
-                        columnCount={columnDates.length}
+                        columnCount={columns.length}
                         overallPct={overallPct}
                         offTimeRanges={offTimes}
-                        columnLabel={(d) => columnLabel(d, granularity)}
+                        columnLabel={(d) => formatTimeColumn(d, granularity)}
                       />
                     );
                   })}

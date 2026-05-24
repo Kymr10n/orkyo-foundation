@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PeopleUtilizationGrid } from './PeopleUtilizationGrid';
+import { useAppStore } from '@foundation/src/store/app-store';
 import type { ResourcesResponse } from '@foundation/src/lib/api/resources-api';
 import type { ResourceUtilizationResponse } from '@foundation/src/lib/api/resource-utilization-api';
 
@@ -101,6 +102,7 @@ function cellsWithStatus(container: HTMLElement, status: string): HTMLElement[] 
 describe('PeopleUtilizationGrid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
     vi.mocked(getResourceUtilization).mockResolvedValue(availableUtil);
     vi.mocked(getPersonProfile).mockResolvedValue(null as never);
@@ -131,6 +133,19 @@ describe('PeopleUtilizationGrid', () => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
+  });
+
+  it('uses a people-scoped collapse id so space groups do not collapse people', async () => {
+    useAppStore.setState({ collapsedGroupIds: ['spaces:ungrouped'] });
+    renderGrid();
+
+    await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Ungrouped'));
+
+    expect(useAppStore.getState().collapsedGroupIds).toContain('spaces:ungrouped');
+    expect(useAppStore.getState().collapsedGroupIds).toContain('people:ungrouped');
+    expect(useAppStore.getState().collapsedGroupIds).not.toContain('ungrouped');
   });
 
   it('shows job title from profile when available', async () => {
@@ -279,6 +294,22 @@ describe('PeopleUtilizationGrid', () => {
     expect(screen.getByText('00:00')).toBeInTheDocument();
     expect(screen.getByText('12:00')).toBeInTheDocument();
     expect(screen.getByText('23:00')).toBeInTheDocument();
+  });
+
+  it('renders 4 quarter-hour columns for hour scale', async () => {
+    renderGrid({ scale: 'hour', anchorTs: new Date(2026, 4, 11, 10, 20, 0) });
+    await waitFor(() => screen.getByText('Alice Smith'));
+
+    expect(screen.getByText('10:15')).toBeInTheDocument();
+    expect(screen.getByText('10:30')).toBeInTheDocument();
+    expect(screen.getByText('10:45')).toBeInTheDocument();
+    expect(screen.getByText('11:00')).toBeInTheDocument();
+    expect(getResourceUtilization).toHaveBeenCalledWith(
+      'p-alice',
+      expect.any(Date),
+      expect.any(Date),
+      'minute',
+    );
   });
 
   it('renders 5 week-columns for month scale (5-week sliding window)', async () => {

@@ -233,6 +233,8 @@ public class UtilizationService(
         {
             var next = granularity.ToLowerInvariant() switch
             {
+                "minute" => current.AddMinutes(15),
+                "hour" => current.AddHours(1),
                 "week" => current.AddDays(7),
                 "month" => current.AddMonths(1),
                 _ => current.AddDays(1), // day

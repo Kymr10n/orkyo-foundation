@@ -6,20 +6,7 @@ import {
   type BucketStatus,
   STATUS_CELL_CLASS,
 } from "./schedule-colors";
-
-function bucketIsOff(
-  bucket: ResourceUtilizationBucket,
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
-): boolean {
-  if (offTimeRanges.length === 0) return false;
-  const bucketStartMs = new Date(bucket.start).getTime();
-  const bucketEndMs = new Date(bucket.end).getTime();
-  return offTimeRanges.some((ot) => {
-    if (ot.resourceIds !== null && !ot.resourceIds.includes(resourceId)) return false;
-    return ot.startMs < bucketEndMs && ot.endMs > bucketStartMs;
-  });
-}
+import { overlapsOffTimeRange } from "./time-grid-utils";
 
 function bucketStatus(
   bucket: ResourceUtilizationBucket,
@@ -27,7 +14,16 @@ function bucketStatus(
   offTimeRanges: readonly OffTimeRange[],
 ): BucketStatus {
   if (bucket.effectiveAvailabilityPercent === 0) return "non-working";
-  if (bucketIsOff(bucket, resourceId, offTimeRanges)) return "non-working";
+  if (
+    overlapsOffTimeRange(
+      resourceId,
+      new Date(bucket.start).getTime(),
+      new Date(bucket.end).getTime(),
+      offTimeRanges,
+    )
+  ) {
+    return "non-working";
+  }
   if (bucket.isExclusiveOccupied) return "assigned";
   if (bucket.allocatedPercent === 0) return "available";
   if (bucket.allocatedPercent >= bucket.effectiveAvailabilityPercent) return "overbooked";

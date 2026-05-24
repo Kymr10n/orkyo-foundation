@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
 import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
@@ -12,6 +12,11 @@ import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-
 import { DndContext } from '@dnd-kit/core';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
+const appStoreMock = vi.hoisted(() => ({
+  collapsedGroupIds: [] as string[],
+  toggleGroupCollapse: vi.fn(),
+}));
+
 // Mock the store
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
@@ -21,8 +26,8 @@ vi.mock('@foundation/src/store/app-store', () => ({
       selectedSiteId: 'site-1',
       spaceOrder: [],
       timeCursorEnabled: false,
-      collapsedGroupIds: [],
-      toggleGroupCollapse: vi.fn(),
+      collapsedGroupIds: appStoreMock.collapsedGroupIds,
+      toggleGroupCollapse: appStoreMock.toggleGroupCollapse,
       conflicts: new Map(),
     };
     return selector ? selector(mockState) : mockState;
@@ -108,6 +113,7 @@ const _mockColumns = [
 describe('SchedulerGrid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    appStoreMock.collapsedGroupIds = [];
   });
 
   it('renders without crashing', async () => {
@@ -248,6 +254,33 @@ describe('SchedulerGrid', () => {
     // Should render grouped spaces
     expect(screen.getByText('Room A101')).toBeInTheDocument();
     expect(screen.getByText('Room A102')).toBeInTheDocument();
+    await act(async () => {});
+  });
+
+  it('uses a spaces-scoped collapse id so people groups do not collapse spaces', async () => {
+    appStoreMock.collapsedGroupIds = ['people:ungrouped'];
+    const Wrapper = createWrapper();
+
+    render(
+      <Wrapper>
+        <SchedulerGrid
+          spaces={mockSpaces}
+          requests={[]}
+          scale="month"
+          anchorTs={new Date('2024-01-15')}
+          timeCursorTs={new Date()}
+          onRequestClick={vi.fn()}
+          onTimeCursorClick={vi.fn()}
+        />
+      </Wrapper>
+    );
+
+    expect(screen.getByText('Room A101')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Ungrouped'));
+
+    expect(appStoreMock.toggleGroupCollapse).toHaveBeenCalledWith('spaces:ungrouped');
+    expect(appStoreMock.toggleGroupCollapse).not.toHaveBeenCalledWith('ungrouped');
     await act(async () => {});
   });
 

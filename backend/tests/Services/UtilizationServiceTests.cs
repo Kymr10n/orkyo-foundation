@@ -158,6 +158,28 @@ public class UtilizationServiceTests
         Assert.Equal(50m, result.Buckets[0].AllocatedPercent);
     }
 
+    [Theory]
+    [InlineData("hour", 24, 60)]
+    [InlineData("minute", 96, 15)]
+    public async Task ResourceUtilization_FineGranularity_BuildsExpectedBuckets(
+        string granularity,
+        int expectedCount,
+        int expectedMinutes)
+    {
+        var resource = MakeResource(AllocationModes.Fractional);
+        var service = BuildService(resource);
+        var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+        var to = from.AddDays(1);
+
+        var result = await service.GetResourceUtilizationAsync(ResourceId, from, to, granularity);
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedCount, result.Buckets.Count);
+        Assert.Equal(from, result.Buckets[0].Start);
+        Assert.Equal(from.AddMinutes(expectedMinutes), result.Buckets[0].End);
+        Assert.Equal(to, result.Buckets[^1].End);
+    }
+
     // ── Off-time tests ────────────────────────────────────────────────────
 
     [Fact]

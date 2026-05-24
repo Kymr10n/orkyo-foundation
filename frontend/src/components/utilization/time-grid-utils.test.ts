@@ -1,0 +1,111 @@
+import { describe, expect, it } from "vitest";
+import {
+  generateTimeColumns,
+  overlapsOffTimeRange,
+  parseTimeToHour,
+  utilizationGranularityForScale,
+} from "./time-grid-utils";
+import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
+
+describe("time-grid-utils", () => {
+  it("generates aligned column labels and counts for each scale", () => {
+    const anchor = new Date(2026, 4, 11, 10, 20, 0);
+
+    const year = generateTimeColumns("year", anchor);
+    expect(year).toHaveLength(12);
+    expect(year[0].label).toBe("May '26");
+    expect(year[8].label).toBe("Jan '27");
+
+    const month = generateTimeColumns("month", anchor);
+    expect(month).toHaveLength(5);
+    expect(month.map((c) => c.label)).toEqual(["May 11", "May 18", "May 25", "Jun 01", "Jun 08"]);
+
+    const week = generateTimeColumns("week", anchor);
+    expect(week).toHaveLength(7);
+    expect(week[0].label).toBe("Mon 11");
+
+    const day = generateTimeColumns("day", anchor);
+    expect(day).toHaveLength(24);
+    expect(day[0].label).toBe("10:00");
+
+    const hour = generateTimeColumns("hour", anchor);
+    expect(hour).toHaveLength(4);
+    expect(hour.map((c) => c.label)).toEqual(["10:15", "10:30", "10:45", "11:00"]);
+  });
+
+  it("maps UI scales to API utilization granularities", () => {
+    expect(utilizationGranularityForScale("year")).toBe("month");
+    expect(utilizationGranularityForScale("month")).toBe("week");
+    expect(utilizationGranularityForScale("week")).toBe("day");
+    expect(utilizationGranularityForScale("day")).toBe("hour");
+    expect(utilizationGranularityForScale("hour")).toBe("minute");
+  });
+
+  it("marks weekend and outside-working-hours columns when requested", () => {
+    const weekendColumns = generateTimeColumns("week", new Date(2026, 4, 11), true);
+    expect(weekendColumns.map((c) => c.isWeekend ?? false)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+    ]);
+
+    const dayColumns = generateTimeColumns("day", new Date(2026, 4, 11), false, {
+      enabled: true,
+      start: 8,
+      end: 17,
+    });
+    expect(dayColumns[0].isOutsideWorkingHours).toBe(true);
+    expect(dayColumns[8].isOutsideWorkingHours).toBe(false);
+    expect(dayColumns[17].isOutsideWorkingHours).toBe(true);
+  });
+
+  it("parses hour strings and detects scoped off-time overlap", () => {
+    expect(parseTimeToHour("08:30")).toBe(8);
+
+    const offTimeRanges: OffTimeRange[] = [
+      {
+        id: "ot-all",
+        title: "Site closed",
+        startMs: Date.parse("2026-05-11T09:00:00Z"),
+        endMs: Date.parse("2026-05-11T10:00:00Z"),
+        resourceIds: null,
+      },
+      {
+        id: "ot-space-2",
+        title: "Space 2 maintenance",
+        startMs: Date.parse("2026-05-11T12:00:00Z"),
+        endMs: Date.parse("2026-05-11T13:00:00Z"),
+        resourceIds: ["space-2"],
+      },
+    ];
+
+    expect(
+      overlapsOffTimeRange(
+        "space-1",
+        Date.parse("2026-05-11T09:30:00Z"),
+        Date.parse("2026-05-11T10:30:00Z"),
+        offTimeRanges,
+      ),
+    ).toBe(true);
+    expect(
+      overlapsOffTimeRange(
+        "space-1",
+        Date.parse("2026-05-11T12:15:00Z"),
+        Date.parse("2026-05-11T12:45:00Z"),
+        offTimeRanges,
+      ),
+    ).toBe(false);
+    expect(
+      overlapsOffTimeRange(
+        "space-2",
+        Date.parse("2026-05-11T12:15:00Z"),
+        Date.parse("2026-05-11T12:45:00Z"),
+        offTimeRanges,
+      ),
+    ).toBe(true);
+  });
+});

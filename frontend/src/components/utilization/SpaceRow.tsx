@@ -11,24 +11,11 @@ import { TimeCell } from "./TimeCell";
 import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
 import type { TimeColumn } from "./scheduler-types";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
+import { overlapsOffTimeRange } from "./time-grid-utils";
 
 // Constants for row height calculation
 const BASE_ROW_HEIGHT = 52; // Base height for a single request
 const REQUEST_HEIGHT = 44; // Height of each request block
-
-function columnIsOffTime(
-  column: TimeColumn,
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
-): boolean {
-  if (offTimeRanges.length === 0) return false;
-  const colStart = column.start.getTime();
-  const colEnd = column.end.getTime();
-  return offTimeRanges.some((ot) => {
-    if (ot.resourceIds !== null && !ot.resourceIds.includes(resourceId)) return false;
-    return ot.startMs < colEnd && ot.endMs > colStart;
-  });
-}
 
 export const SpaceRow = React.memo(function SpaceRow({
   space,
@@ -115,7 +102,12 @@ export const SpaceRow = React.memo(function SpaceRow({
             timeCursorTs={timeCursorTs}
             requests={spaceRequests}
             onRequestClick={onRequestClick}
-            isOffTime={columnIsOffTime(col, space.id, offTimeRanges)}
+            isOffTime={overlapsOffTimeRange(
+              space.id,
+              col.start.getTime(),
+              col.end.getTime(),
+              offTimeRanges,
+            )}
           />
         ))}
         {/* Render scheduled requests from preview (reflects draft bounds) */}

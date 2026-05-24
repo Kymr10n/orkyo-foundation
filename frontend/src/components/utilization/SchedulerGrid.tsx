@@ -12,12 +12,13 @@ import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { addDays, addHours, addMinutes, addMonths, addWeeks, format, isWeekend, startOfDay, startOfHour, startOfMonth, startOfWeek } from "date-fns";
+import { format } from "date-fns";
 import type { TimeScale } from "./ScaleSelect";
-import type { TimeColumn, SpacesByGroup } from "./scheduler-types";
+import type { SpacesByGroup } from "./scheduler-types";
 import { GroupHeader } from "./GroupHeader";
 import { SpaceRow } from "./SpaceRow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
+import { generateTimeColumns, parseTimeToHour, type WorkingHoursConfig } from "./time-grid-utils";
 
 interface SchedulerGridProps {
   spaces: Space[];
@@ -35,99 +36,6 @@ interface SchedulerGridProps {
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
   workingDayEnd?: string;
-}
-
-interface WorkingHoursConfig {
-  enabled: boolean;
-  start: number; // hour, e.g. 8
-  end: number;   // hour, e.g. 17
-}
-
-function parseTimeToHour(time: string): number {
-  const [h] = time.split(":").map(Number);
-  return h;
-}
-
-function isHourOutsideWorkingHours(hour: number, wh: WorkingHoursConfig | null): boolean {
-  if (!wh?.enabled) return false;
-  return hour < wh.start || hour >= wh.end;
-}
-
-function generateColumns(scale: TimeScale, anchorTs: Date, weekendsEnabled = false, workingHours: WorkingHoursConfig | null = null): TimeColumn[] {
-  const columns: TimeColumn[] = [];
-
-  switch (scale) {
-    case "year": {
-      // Show 12 months starting from the anchor's month
-      const monthStart = startOfMonth(anchorTs);
-      for (let i = 0; i < 12; i++) {
-        const start = addMonths(monthStart, i);
-        const end = addMonths(start, 1);
-        columns.push({ start, end, label: format(start, "MMM ''yy") });
-      }
-      break;
-    }
-    case "month": {
-      // Show 5 weeks starting from the anchor's week
-      const weekStart = startOfWeek(anchorTs, { weekStartsOn: 1 });
-      for (let i = 0; i < 5; i++) {
-        const start = addWeeks(weekStart, i);
-        const end = addWeeks(start, 1);
-        columns.push({ start, end, label: format(start, "MMM dd") });
-      }
-      break;
-    }
-    case "week": {
-      // Always show 7 days; mark weekends when weekendsEnabled
-      const dayStart = startOfDay(anchorTs);
-      for (let i = 0; i < 7; i++) {
-        const start = addDays(dayStart, i);
-        const end = addDays(start, 1);
-        columns.push({
-          start,
-          end,
-          label: format(start, "EEE dd"),
-          isWeekend: weekendsEnabled && isWeekend(start),
-        });
-      }
-      break;
-    }
-    case "day": {
-      // Show 24 hours starting from the anchor's hour
-      const hourStart = startOfHour(anchorTs);
-      for (let i = 0; i < 24; i++) {
-        const start = addHours(hourStart, i);
-        const end = addHours(start, 1);
-        columns.push({
-          start,
-          end,
-          label: format(start, "HH:00"),
-          isOutsideWorkingHours: isHourOutsideWorkingHours(start.getHours(), workingHours),
-        });
-      }
-      break;
-    }
-    case "hour": {
-      // Show 4x 15-minute slots starting from the anchor's nearest 15-min mark
-      const hourStart = startOfHour(anchorTs);
-      const minuteSlot = Math.floor(anchorTs.getMinutes() / 15) * 15;
-      const slotStart = new Date(hourStart);
-      slotStart.setMinutes(minuteSlot);
-      for (let i = 0; i < 4; i++) {
-        const start = addMinutes(slotStart, i * 15);
-        const end = addMinutes(start, 15);
-        columns.push({
-          start,
-          end,
-          label: format(start, "HH:mm"),
-          isOutsideWorkingHours: isHourOutsideWorkingHours(start.getHours(), workingHours),
-        });
-      }
-      break;
-    }
-  }
-
-  return columns;
 }
 
 export function SchedulerGrid({
@@ -150,7 +58,7 @@ export function SchedulerGrid({
   const workingHours: WorkingHoursConfig | null = workingHoursEnabled
     ? { enabled: true, start: parseTimeToHour(workingDayStart), end: parseTimeToHour(workingDayEnd) }
     : null;
-  const columns = generateColumns(scale, anchorTs, weekendsEnabled, workingHours);
+  const columns = generateTimeColumns(scale, anchorTs, weekendsEnabled, workingHours);
   const { spaceOrder, collapsedGroupIds, toggleGroupCollapse } = useAppStore(
     useShallow((state) => ({
       spaceOrder: state.spaceOrder,
@@ -453,7 +361,9 @@ export function SchedulerGrid({
           <div className="relative">
             <SortableContext items={sortedSpaces.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {groupedSpaces.map((group) => {
-                const isCollapsed = collapsedGroupIds.includes(group.groupId || "ungrouped");
+                const groupId = group.groupId || "ungrouped";
+                const collapseId = `spaces:${groupId}`;
+                const isCollapsed = collapsedGroupIds.includes(collapseId);
 
                 return (
                   <div key={group.groupId || 'ungrouped'}>
@@ -462,10 +372,7 @@ export function SchedulerGrid({
                       groupColor={group.groupColor}
                       count={group.spaces.length}
                       isCollapsed={isCollapsed}
-                      onToggle={() => {
-                        const groupIdToToggle = group.groupId || "ungrouped";
-                        toggleGroupCollapse(groupIdToToggle);
-                      }}
+                      onToggle={() => toggleGroupCollapse(collapseId)}
                     />
                     {!isCollapsed && group.spaces.map((space) => (
                       <SpaceRow
