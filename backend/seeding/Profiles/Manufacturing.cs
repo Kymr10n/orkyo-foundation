@@ -30,6 +30,12 @@ public sealed class Manufacturing : IProfile
         "Packaging Lines", "Calibration Rooms", "Tool Cribs",
     };
 
+    public IReadOnlyList<string> PersonGroupPool { get; } = new[]
+    {
+        "Production Crew", "Quality Team", "Maintenance Team", "Logistics Team",
+        "Engineering Team", "Management Team", "Shift A", "Shift B",
+    };
+
     public IReadOnlyList<string> RequestNameVerbs { get; } = new[]
     {
         "Run", "Inspect", "Calibrate", "Retool", "Repair", "Audit", "Schedule",

@@ -30,6 +30,12 @@ public sealed class Generic : IProfile
         "Storage", "Studio Space", "Lounge", "Workshop", "Outdoor",
     };
 
+    public IReadOnlyList<string> PersonGroupPool { get; } = new[]
+    {
+        "Engineering Team", "Sales Team", "Operations Team", "Finance Team",
+        "Support Team", "Strategy Team", "People Team", "Leadership",
+    };
+
     public IReadOnlyList<string> RequestNameVerbs { get; } = new[]
     {
         "Plan", "Review", "Draft", "Launch", "Pilot", "Refresh", "Migrate", "Onboard",

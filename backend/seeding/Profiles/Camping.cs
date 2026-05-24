@@ -30,6 +30,12 @@ public sealed class Camping : IProfile
         "Family Plots", "Quiet Zone", "Group Camp",
     };
 
+    public IReadOnlyList<string> PersonGroupPool { get; } = new[]
+    {
+        "Reception Staff", "Maintenance Team", "Catering Crew", "Activity Leaders",
+        "Security Team", "Housekeeping", "Management",
+    };
+
     public IReadOnlyList<string> RequestNameVerbs { get; } = new[]
     {
         "Host", "Reserve", "Welcome", "Set up", "Prepare", "Inspect", "Clean",

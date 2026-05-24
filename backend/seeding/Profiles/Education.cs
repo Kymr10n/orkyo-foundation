@@ -30,6 +30,12 @@ public sealed class Education : IProfile
         "Studios", "Sports Halls", "Music Rooms", "Study Pods",
     };
 
+    public IReadOnlyList<string> PersonGroupPool { get; } = new[]
+    {
+        "Teaching Staff", "Lab Technicians", "Administrative Staff", "Support Staff",
+        "Research Team", "Faculty Leadership", "Student Services", "IT Team",
+    };
+
     public IReadOnlyList<string> RequestNameVerbs { get; } = new[]
     {
         "Teach", "Schedule", "Review", "Grade", "Hold", "Set up", "Run",

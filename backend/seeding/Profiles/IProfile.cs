@@ -17,8 +17,11 @@ public interface IProfile
     /// <summary>Top-level department names (children generated automatically).</summary>
     IReadOnlyList<string> DepartmentRootPool { get; }
 
-    /// <summary>Candidate resource-group names.</summary>
+    /// <summary>Candidate resource-group names (space groups).</summary>
     IReadOnlyList<string> ResourceGroupPool { get; }
+
+    /// <summary>Candidate people-group names (team / crew names).</summary>
+    IReadOnlyList<string> PersonGroupPool { get; }
 
     /// <summary>Request name template parts. Combined to produce realistic-looking task names.</summary>
     IReadOnlyList<string> RequestNameVerbs { get; }

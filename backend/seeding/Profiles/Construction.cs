@@ -30,6 +30,12 @@ public sealed class Construction : IProfile
         "Storage Yards", "Site Offices",
     };
 
+    public IReadOnlyList<string> PersonGroupPool { get; } = new[]
+    {
+        "Site Crew", "Foremen", "Electricians", "Plumbers",
+        "Safety Officers", "Project Managers", "Equipment Operators", "Surveyors",
+    };
+
     public IReadOnlyList<string> RequestNameVerbs { get; } = new[]
     {
         "Pour", "Erect", "Install", "Inspect", "Survey", "Excavate", "Tear down",

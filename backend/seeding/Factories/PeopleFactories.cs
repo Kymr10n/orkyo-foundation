@@ -21,6 +21,7 @@ public static class PeopleFactories
     public sealed record SeededJobTitle(Guid Id, string Name);
     public sealed record SeededDepartment(Guid Id, string Name);
     public sealed record SeededPerson(Guid ResourceId, string Name);
+    public sealed record SeededPersonGroup(Guid Id, string Name);
 
     public static async Task<Guid> ResolvePersonResourceTypeIdAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx)
@@ -169,6 +170,90 @@ public static class PeopleFactories
 
         _ = profile;
         return people;
+    }
+
+    public static async Task<IReadOnlyList<SeededPersonGroup>> SeedPersonGroupsAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx,
+        IProfile profile, IScale scale, Faker faker,
+        Guid personResourceTypeId)
+    {
+        var pool = profile.PersonGroupPool;
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; names.Count < scale.ResourceGroups && i < scale.ResourceGroups * 5; i++)
+        {
+            var baseName = pool[i % pool.Count];
+            var candidate = i < pool.Count ? baseName : $"{baseName} {i / pool.Count + 1}";
+            if (seen.Add(candidate)) names.Add(candidate);
+        }
+
+        var seeded = new List<SeededPersonGroup>(names.Count);
+        var now = DateTime.UtcNow;
+        _ = tx;
+        using var writer = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
+            "FROM STDIN (FORMAT BINARY)");
+
+        for (var i = 0; i < names.Count; i++)
+        {
+            var id = Guid.NewGuid();
+            await writer.StartRowAsync();
+            await writer.WriteAsync(id, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(names[i], NpgsqlDbType.Varchar);
+            await writer.WriteNullAsync();                               // description
+            await writer.WriteNullAsync();                               // color
+            await writer.WriteAsync(i, NpgsqlDbType.Integer);           // display_order
+            await writer.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            seeded.Add(new SeededPersonGroup(id, names[i]));
+        }
+        await writer.CompleteAsync();
+        _ = faker;
+        return seeded;
+    }
+
+    public static async Task<int> SeedPersonGroupMembersAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx,
+        Faker faker,
+        IReadOnlyList<SeededPerson> people,
+        IReadOnlyList<SeededPersonGroup> groups,
+        Guid personResourceTypeId)
+    {
+        if (groups.Count == 0 || people.Count == 0) return 0;
+
+        // Each person gets one primary group (round-robin for even distribution).
+        // ~25 % also get a second distinct group.
+        var memberships = new List<(Guid GroupId, Guid ResourceId)>(
+            (int)(people.Count * 1.25));
+
+        for (var i = 0; i < people.Count; i++)
+        {
+            var primaryGroup = groups[i % groups.Count];
+            memberships.Add((primaryGroup.Id, people[i].ResourceId));
+
+            if (faker.Random.Bool(0.25f))
+            {
+                var secondaryGroup = groups[faker.Random.Int(0, groups.Count - 1)];
+                if (secondaryGroup.Id != primaryGroup.Id)
+                    memberships.Add((secondaryGroup.Id, people[i].ResourceId));
+            }
+        }
+
+        _ = tx;
+        using var writer = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
+            "FROM STDIN (FORMAT BINARY)");
+
+        foreach (var (groupId, resourceId) in memberships)
+        {
+            await writer.StartRowAsync();
+            await writer.WriteAsync(groupId, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(resourceId, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
+        }
+        await writer.CompleteAsync();
+        return memberships.Count;
     }
 
     private static string Slugify(string s)
