@@ -480,7 +480,7 @@
           "FluentValidation.DependencyInjectionExtensions": "[11.*, )",
           "Google.OrTools": "[9.*, )",
           "MailKit": "[4.16.0, )",
-          "Npgsql": "[8.0.5, )",
+          "Npgsql": "[9.0.2, )",
           "Orkyo.Shared": "[0.1.0, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
           "StackExchange.Redis": "[2.12.14, )"

@@ -175,8 +175,8 @@
       },
       "Npgsql": {
         "type": "Transitive",
-        "resolved": "8.0.5",
-        "contentHash": "zRG5V8cyeZLpzJlKzFKjEwkRMYIYnHWJvEor2lWXeccS2E1G2nIWYYhnukB51iz5XsWSVEtqg3AxTWM0QJ6vfg=="
+        "resolved": "9.0.2",
+        "contentHash": "hCbO8box7i/XXiTFqCJ3GoowyLqx3JXxyrbOJ6om7dr+eAknvBNhhUHeJVGAQo44sySZTfdVffp4BrtPeLZOAA=="
       },
       "Pipelines.Sockets.Unofficial": {
         "type": "Transitive",
@@ -286,7 +286,7 @@
           "FluentValidation.DependencyInjectionExtensions": "[11.*, )",
           "Google.OrTools": "[9.*, )",
           "MailKit": "[4.16.0, )",
-          "Npgsql": "[8.0.5, )",
+          "Npgsql": "[9.0.2, )",
           "Orkyo.Shared": "[0.1.0, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
           "StackExchange.Redis": "[2.12.14, )"

@@ -59,7 +59,7 @@
     "zustand": ">=5.0.0"
   },
   "dependencies": {
-    "@testing-library/dom": "10.4.0",
+    "@testing-library/dom": "10.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jspdf": "^4.2.1",
@@ -72,11 +72,11 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^24.7.2",
-    "@types/react": "19.2.14",
+    "@types/node": "^25.6.0",
+    "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.1",
-    "@vitest/coverage-v8": "4.1.5",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitest/coverage-v8": "4.1.7",
     "eslint": "9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -85,8 +85,11 @@
     "happy-dom": "20.9.0",
     "tsc-alias": "^1.8.17",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.59.2",
-    "vite": "8.0.11",
-    "vitest": "4.1.5"
+    "typescript-eslint": "8.59.4",
+    "vite": "8.0.14",
+    "vitest": "4.1.7"
+  },
+  "overrides": {
+    "ws": "^8.21.0"
   }
 }
