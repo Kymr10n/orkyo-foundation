@@ -70,43 +70,87 @@ public static class PeopleFactories
         return seeded;
     }
 
+    // Subdivision suffixes for child departments — generic enough to work across
+    // all profiles; combined with parent name (e.g. "Operations North").
+    private static readonly string[] DeptSubdivisions =
+        ["North", "South", "East", "West", "Central", "Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
+
     public static async Task<IReadOnlyList<SeededDepartment>> SeedDepartmentsAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx,
         IProfile profile, IScale scale, Faker faker)
     {
-        // Flat hierarchy for MVP. Names must be unique at root level (per partial
-        // unique index ux_departments_root_name).
+        // ── Root departments ──────────────────────────────────────────────────
+        // ux_departments_root_name enforces uniqueness at root level.
         var pool = profile.DepartmentRootPool;
-        var names = new List<string>();
+        var rootCount = Math.Max(2, scale.Departments / 3);
+        var childCount = scale.Departments - rootCount;
+
+        var rootNames = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; names.Count < scale.Departments && i < scale.Departments * 5; i++)
+        for (var i = 0; rootNames.Count < rootCount && i < rootCount * 5; i++)
         {
             var baseName = pool[i % pool.Count];
             var candidate = i < pool.Count ? baseName : $"{baseName} {i / pool.Count + 1}";
-            if (seen.Add(candidate)) names.Add(candidate);
+            if (seen.Add(candidate)) rootNames.Add(candidate);
         }
 
-        var seeded = new List<SeededDepartment>(names.Count);
-        var now = DateTime.UtcNow;
-        using var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.departments (id, parent_department_id, name, is_active, created_at, updated_at) FROM STDIN (FORMAT BINARY)");
-        _ = tx;
+        var roots = rootNames.Select(n => new SeededDepartment(Guid.NewGuid(), n)).ToList();
 
-        foreach (var name in names)
+        // ── Child departments ─────────────────────────────────────────────────
+        // ux_departments_sibling_name enforces (parent_id, name) uniqueness, so
+        // suffixes only need to be unique within a single parent.
+        var childCounters = new int[roots.Count];
+        var children = new List<(SeededDepartment Dept, Guid ParentId)>(childCount);
+        for (var i = 0; i < childCount; i++)
         {
-            var id = Guid.NewGuid();
-            await writer.StartRowAsync();
-            await writer.WriteAsync(id, NpgsqlDbType.Uuid);
-            await writer.WriteNullAsync();                                  // parent_department_id (flat for MVP)
-            await writer.WriteAsync(name, NpgsqlDbType.Varchar);
-            await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            seeded.Add(new SeededDepartment(id, name));
+            var parentIdx = i % roots.Count;
+            var suffix = DeptSubdivisions[childCounters[parentIdx]++ % DeptSubdivisions.Length];
+            var childName = $"{roots[parentIdx].Name} {suffix}";
+            children.Add((new SeededDepartment(Guid.NewGuid(), childName), roots[parentIdx].Id));
         }
-        await writer.CompleteAsync();
+
+        var now = DateTime.UtcNow;
+        _ = tx;
         _ = faker;
-        return seeded;
+        const string copySql =
+            "COPY public.departments (id, parent_department_id, name, is_active, created_at, updated_at) " +
+            "FROM STDIN (FORMAT BINARY)";
+
+        // Write roots first — FK is ON DELETE RESTRICT, so parents must exist.
+        using (var writer = await conn.BeginBinaryImportAsync(copySql))
+        {
+            foreach (var root in roots)
+            {
+                await writer.StartRowAsync();
+                await writer.WriteAsync(root.Id, NpgsqlDbType.Uuid);
+                await writer.WriteNullAsync();                              // parent_department_id
+                await writer.WriteAsync(root.Name, NpgsqlDbType.Varchar);
+                await writer.WriteAsync(true, NpgsqlDbType.Boolean);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            }
+            await writer.CompleteAsync();
+        }
+
+        using (var writer = await conn.BeginBinaryImportAsync(copySql))
+        {
+            foreach (var (dept, parentId) in children)
+            {
+                await writer.StartRowAsync();
+                await writer.WriteAsync(dept.Id, NpgsqlDbType.Uuid);
+                await writer.WriteAsync(parentId, NpgsqlDbType.Uuid);      // parent_department_id
+                await writer.WriteAsync(dept.Name, NpgsqlDbType.Varchar);
+                await writer.WriteAsync(true, NpgsqlDbType.Boolean);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            }
+            await writer.CompleteAsync();
+        }
+
+        var all = new List<SeededDepartment>(scale.Departments);
+        all.AddRange(roots);
+        all.AddRange(children.Select(c => c.Dept));
+        return all;
     }
 
     public static async Task<IReadOnlyList<SeededPerson>> SeedPeopleAsync(

@@ -10,10 +10,13 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// <summary>
 /// Seeds requests and their resource assignments.
 ///
-/// MVP scope:
-///  - All requests are leaf (no summary/container hierarchy).
-///  - No criteria / templates / requirements yet — those plug in via PresetApplier later.
-///  - Each scheduled request gets 1-3 random people assigned at allocation_percent=100.
+/// Request hierarchy: ~1/8 of total requests are 'summary' parents (no
+/// timestamps — scheduling is derived from children). The remaining 7/8 are
+/// 'leaf' children distributed round-robin across parents. Parents are written
+/// first in a separate COPY pass because the FK is not deferrable.
+///
+/// Only leaf requests receive resource assignments (summary rows have no
+/// timestamps and are skipped by the assignments step automatically).
 /// </summary>
 public static class WorkItemFactories
 {
@@ -24,55 +27,104 @@ public static class WorkItemFactories
         IProfile profile, IScale scale, Faker faker,
         RequestTimeDistribution timing)
     {
-        // Two-phase: build the row tuples first so we can return their IDs for
-        // the resource-assignments step, then bulk-import with COPY.
-        var rows = new List<SeededRequest>(scale.Requests);
-        var names = new List<string>(scale.Requests);
-        for (var i = 0; i < scale.Requests; i++)
+        var parentCount = Math.Max(1, scale.Requests / 8);
+        var leafCount = scale.Requests - parentCount;
+
+        // ── Phase 1: build parent (summary) rows ─────────────────────────────
+        var parentRows = new List<(SeededRequest Req, string Name)>(parentCount);
+        for (var i = 0; i < parentCount; i++)
         {
+            var verb = profile.RequestNameVerbs[faker.Random.Int(0, profile.RequestNameVerbs.Count - 1)];
+            var noun = profile.RequestNameNouns[faker.Random.Int(0, profile.RequestNameNouns.Count - 1)];
+            var name = $"{verb} {noun}";
+            if (name.Length > 200) name = name[..200];
+            parentRows.Add((new SeededRequest(Guid.NewGuid(), null, null, "planned"), name));
+        }
+
+        // ── Phase 2: build leaf rows ──────────────────────────────────────────
+        // Round-robin distribution gives even parent sizes; sort_order is
+        // sequential within each parent.
+        var childCounters = new int[parentCount];
+        var leafRows = new List<(SeededRequest Req, string Name, Guid ParentId, int SortOrder)>(leafCount);
+        for (var i = 0; i < leafCount; i++)
+        {
+            var parentIdx = i % parentCount;
             var slot = timing.Pick();
             var range = timing.Generate(slot);
             var verb = profile.RequestNameVerbs[faker.Random.Int(0, profile.RequestNameVerbs.Count - 1)];
             var noun = profile.RequestNameNouns[faker.Random.Int(0, profile.RequestNameNouns.Count - 1)];
             var name = $"{verb} {noun}";
             if (name.Length > 200) name = name[..200];
-            names.Add(name);
-            rows.Add(new SeededRequest(
-                Id: Guid.NewGuid(),
-                StartTs: range?.start,
-                EndTs: range?.end,
-                Status: timing.StatusFor(slot)));
+            leafRows.Add((
+                Req: new SeededRequest(Guid.NewGuid(), range?.start, range?.end, timing.StatusFor(slot)),
+                Name: name,
+                ParentId: parentRows[parentIdx].Req.Id,
+                SortOrder: childCounters[parentIdx]++));
         }
 
         var now = DateTime.UtcNow;
         _ = tx;
-        using var writer = await conn.BeginBinaryImportAsync(
+        const string copySql =
             "COPY public.requests (" +
                 "id, name, description, start_ts, end_ts, " +
                 "minimal_duration_value, minimal_duration_unit, status, " +
-                "created_at, updated_at, scheduling_settings_apply, planning_mode, sort_order" +
-            ") FROM STDIN (FORMAT BINARY)");
+                "created_at, updated_at, scheduling_settings_apply, " +
+                "planning_mode, sort_order, parent_request_id" +
+            ") FROM STDIN (FORMAT BINARY)";
 
-        for (var i = 0; i < rows.Count; i++)
+        // ── Write parents first (FK requires parents before children) ─────────
+        using (var writer = await conn.BeginBinaryImportAsync(copySql))
         {
-            var r = rows[i];
-            await writer.StartRowAsync();
-            await writer.WriteAsync(r.Id, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(names[i], NpgsqlDbType.Varchar);
-            await writer.WriteNullAsync();                                                  // description
-            if (r.StartTs is null) await writer.WriteNullAsync(); else await writer.WriteAsync(r.StartTs.Value, NpgsqlDbType.TimestampTz);
-            if (r.EndTs is null) await writer.WriteNullAsync(); else await writer.WriteAsync(r.EndTs.Value, NpgsqlDbType.TimestampTz);
-            await writer.WriteAsync(60, NpgsqlDbType.Integer);                                // minimal_duration_value
-            await writer.WriteAsync("minutes", NpgsqlDbType.Varchar);                         // minimal_duration_unit
-            await writer.WriteAsync(r.Status, NpgsqlDbType.Varchar);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await writer.WriteAsync(true, NpgsqlDbType.Boolean);                              // scheduling_settings_apply
-            await writer.WriteAsync("leaf", NpgsqlDbType.Varchar);                            // planning_mode
-            await writer.WriteAsync(i, NpgsqlDbType.Integer);                                 // sort_order
+            for (var i = 0; i < parentRows.Count; i++)
+            {
+                var (req, name) = parentRows[i];
+                await writer.StartRowAsync();
+                await writer.WriteAsync(req.Id, NpgsqlDbType.Uuid);
+                await writer.WriteAsync(name, NpgsqlDbType.Varchar);
+                await writer.WriteNullAsync();                                  // description
+                await writer.WriteNullAsync();                                  // start_ts
+                await writer.WriteNullAsync();                                  // end_ts
+                await writer.WriteAsync(60, NpgsqlDbType.Integer);              // minimal_duration_value
+                await writer.WriteAsync("minutes", NpgsqlDbType.Varchar);       // minimal_duration_unit
+                await writer.WriteAsync("planned", NpgsqlDbType.Varchar);       // status
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(false, NpgsqlDbType.Boolean);           // scheduling_settings_apply
+                await writer.WriteAsync("summary", NpgsqlDbType.Varchar);       // planning_mode
+                await writer.WriteAsync(i, NpgsqlDbType.Integer);               // sort_order
+                await writer.WriteNullAsync();                                  // parent_request_id
+            }
+            await writer.CompleteAsync();
         }
-        await writer.CompleteAsync();
-        return rows;
+
+        // ── Write leaves ──────────────────────────────────────────────────────
+        using (var writer = await conn.BeginBinaryImportAsync(copySql))
+        {
+            foreach (var (req, name, parentId, sortOrder) in leafRows)
+            {
+                await writer.StartRowAsync();
+                await writer.WriteAsync(req.Id, NpgsqlDbType.Uuid);
+                await writer.WriteAsync(name, NpgsqlDbType.Varchar);
+                await writer.WriteNullAsync();                                  // description
+                if (req.StartTs is null) await writer.WriteNullAsync(); else await writer.WriteAsync(req.StartTs.Value, NpgsqlDbType.TimestampTz);
+                if (req.EndTs is null) await writer.WriteNullAsync(); else await writer.WriteAsync(req.EndTs.Value, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(60, NpgsqlDbType.Integer);              // minimal_duration_value
+                await writer.WriteAsync("minutes", NpgsqlDbType.Varchar);       // minimal_duration_unit
+                await writer.WriteAsync(req.Status, NpgsqlDbType.Varchar);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await writer.WriteAsync(true, NpgsqlDbType.Boolean);            // scheduling_settings_apply
+                await writer.WriteAsync("leaf", NpgsqlDbType.Varchar);          // planning_mode
+                await writer.WriteAsync(sortOrder, NpgsqlDbType.Integer);       // sort_order
+                await writer.WriteAsync(parentId, NpgsqlDbType.Uuid);           // parent_request_id
+            }
+            await writer.CompleteAsync();
+        }
+
+        var all = new List<SeededRequest>(scale.Requests);
+        all.AddRange(parentRows.Select(p => p.Req));
+        all.AddRange(leafRows.Select(l => l.Req));
+        return all;
     }
 
     public static async Task<int> SeedAssignmentsAsync(
