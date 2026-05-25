@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { PersonList } from './PersonList';
 import type { ResourceInfo, ResourcesResponse } from '@foundation/src/lib/api/resources-api';
 
@@ -119,14 +120,16 @@ const populatedResponse: ResourcesResponse = {
   pageSize: 50,
 };
 
-function renderList() {
+function renderList(initialEntries: string[] = ['/']) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <PersonList />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={initialEntries}>
+      <QueryClientProvider client={queryClient}>
+        <PersonList />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
