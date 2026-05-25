@@ -187,11 +187,11 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
     const message = emailChangeStatusMessages[status];
     if (message.kind === "success") {
       toast.success(message.title, { id: `email-change-${status}` });
-      // Refetch profile so the email field reflects the new address immediately.
-      // Also trigger an auth session refresh so the page header (appUser.email)
-      // updates without requiring the user to re-login.
+      // Refetch profile so the email field on this page reflects the new address.
+      // We do NOT call refresh() here: refresh() transitions the auth machine back
+      // to `initializing`, which unmounts TenantApp (and its Toaster) before Sonner
+      // can display the toast notification.
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      refresh();
     } else {
       toast.error(message.title, {
         id: `email-change-${status}`,
