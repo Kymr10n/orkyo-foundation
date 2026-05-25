@@ -567,4 +567,78 @@ The {b.ProductName} Team";
 
         return (subject, htmlBody, textBody);
     }
+
+    public static (string subject, string htmlBody, string textBody) GetEmailChangeConfirmationEmail(
+        string displayName, string confirmUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var subject = "Confirm your new email address";
+
+        var htmlBody = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=""utf-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>Confirm Your New Email</title>
+</head>
+<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
+    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
+        <h1 style=""color: white; margin: 0; font-size: 28px;"">Confirm Your New Email</h1>
+    </div>
+
+    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
+        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
+
+        <p style=""font-size: 16px; margin-bottom: 20px;"">
+            You recently requested to change the email address on your {b.ProductName} account.
+            Click the button below to confirm this is your new address.
+            Your current email remains valid until you confirm.
+        </p>
+
+        <div style=""text-align: center; margin: 30px 0;"">
+            <a href=""{confirmUrl}""
+               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
+                      border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
+                Confirm New Email Address
+            </a>
+        </div>
+
+        <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
+            If the button doesn't work, copy and paste this link into your browser:
+        </p>
+        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
+            {confirmUrl}
+        </p>
+
+        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
+
+        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
+            This confirmation link will expire in 24 hours. If you did not request an email change,
+            you can safely ignore this email — your current address will remain unchanged.
+        </p>
+
+        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
+            Best regards,<br>
+            The {b.ProductName} Team
+        </p>
+    </div>
+</body>
+</html>";
+
+        var textBody = $@"Confirm Your New Email Address
+
+Hi {displayName},
+
+You recently requested to change the email address on your {b.ProductName} account. Visit the link below to confirm this is your new address. Your current email remains valid until you confirm.
+
+{confirmUrl}
+
+This confirmation link will expire in 24 hours. If you did not request an email change, you can safely ignore this email.
+
+Best regards,
+The {b.ProductName} Team";
+
+        return (subject, htmlBody, textBody);
+    }
 }

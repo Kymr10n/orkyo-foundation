@@ -83,4 +83,33 @@ public class EmailTemplatesTests
         textBody.Should().Contain("Create your first site and spaces");
         textBody.Should().Contain("Invite team members to collaborate");
     }
+
+    [Fact]
+    public void GetEmailChangeConfirmationEmail_ShouldUseDefaultBranding_WhenBrandingNotProvided()
+    {
+        var (subject, htmlBody, textBody) = EmailTemplates.GetEmailChangeConfirmationEmail(
+            "Alex", "https://app.test/confirm-email?token=abc");
+
+        subject.Should().Be("Confirm your new email address");
+        htmlBody.Should().Contain("Confirm Your New Email");
+        htmlBody.Should().Contain("Hi Alex,");
+        htmlBody.Should().Contain("https://app.test/confirm-email?token=abc");
+        htmlBody.Should().Contain("expire in 24 hours");
+        htmlBody.Should().Contain("#667eea");
+        textBody.Should().Contain("https://app.test/confirm-email?token=abc");
+        textBody.Should().Contain("expire in 24 hours");
+    }
+
+    [Fact]
+    public void GetEmailChangeConfirmationEmail_ShouldApplyCustomBranding()
+    {
+        var (_, htmlBody, textBody) = EmailTemplates.GetEmailChangeConfirmationEmail(
+            "Alex", "https://app.test/confirm-email?token=abc", CustomBranding);
+
+        htmlBody.Should().Contain("your Acme account");
+        htmlBody.Should().Contain("#111111");
+        htmlBody.Should().Contain("#222222");
+        textBody.Should().Contain("your Acme account");
+        textBody.Should().Contain("The Acme Team");
+    }
 }

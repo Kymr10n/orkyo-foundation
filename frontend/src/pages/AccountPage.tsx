@@ -9,7 +9,7 @@
  * - Managing security settings (password, sessions)
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@foundation/src/components/ui/button";
 import {
@@ -56,20 +56,60 @@ import {
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getUserProfile, updateUserProfile } from "@foundation/src/lib/api/security-api";
+import { getUserProfile, updateUserProfile, requestEmailChange } from "@foundation/src/lib/api/security-api";
 import {
   navigateToTenantSubdomain,
   navigateToApex,
 } from "@foundation/src/lib/utils/tenant-navigation";
 import { logger } from "@foundation/src/lib/core/logger";
+import { toast } from "sonner";
 
 type Membership = TenantMembership;
+type EmailChangeStatus = "confirmed" | "expired" | "invalid" | "error" | "conflict";
 
 const roleColors: Record<string, string> = {
   admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   editor: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   viewer: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
 };
+
+const emailChangeStatusMessages: Record<
+  EmailChangeStatus,
+  { kind: "success" | "error"; title: string; description?: string }
+> = {
+  confirmed: {
+    kind: "success",
+    title: "Your email address has been updated successfully.",
+  },
+  expired: {
+    kind: "error",
+    title: "Email confirmation link expired",
+    description: "Please request a new email change.",
+  },
+  invalid: {
+    kind: "error",
+    title: "Email confirmation link invalid",
+    description: "Please request a new email change.",
+  },
+  conflict: {
+    kind: "error",
+    title: "Email address unavailable",
+    description: "That email address is no longer available. Please choose another one.",
+  },
+  error: {
+    kind: "error",
+    title: "Could not confirm email change",
+    description: "Please try again.",
+  },
+};
+
+function isEmailChangeStatus(status: string | null): status is EmailChangeStatus {
+  return status === "confirmed" ||
+    status === "expired" ||
+    status === "invalid" ||
+    status === "error" ||
+    status === "conflict";
+}
 
 interface AccountPageProps {
   /** Optional plan comparison tab content (SaaS-injected). */
@@ -87,6 +127,7 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
     isSiteAdmin,
     setAppUser,
     send,
+    refresh,
   } = useAuth();
   const queryClient = useQueryClient();
   const tabParam = searchParams.get("tab");
@@ -100,6 +141,9 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
   const [selectedTenant, setSelectedTenant] = useState<Membership | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const handledEmailChangeStatusRef = useRef<string | null>(null);
 
   // Load user profile from Keycloak
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -119,6 +163,47 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
       setIsEditingName(false);
     },
   });
+
+  const emailChangeMutation = useMutation({
+    mutationFn: (email: string) => requestEmailChange(email),
+    onSuccess: (_, email) => {
+      setIsEditingEmail(false);
+      setNewEmail("");
+      toast.success(`Confirmation email sent to ${email}. Check your inbox.`);
+    },
+  });
+
+  // Read ?email-change query param on mount and strip it
+  useEffect(() => {
+    const status = searchParams.get("email-change");
+    if (!isEmailChangeStatus(status)) {
+      return;
+    }
+    if (handledEmailChangeStatusRef.current === status) {
+      return;
+    }
+    handledEmailChangeStatusRef.current = status;
+
+    const message = emailChangeStatusMessages[status];
+    if (message.kind === "success") {
+      toast.success(message.title, { id: `email-change-${status}` });
+      // Refetch profile so the email field reflects the new address immediately.
+      // Also trigger an auth session refresh so the page header (appUser.email)
+      // updates without requiring the user to re-login.
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      refresh();
+    } else {
+      toast.error(message.title, {
+        id: `email-change-${status}`,
+        description: message.description,
+      });
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("email-change");
+    setSearchParams(next, { replace: true });
+    setActiveTab("profile");
+  }, [queryClient, refresh, searchParams, setSearchParams]);
 
   const handleStartEditName = () => {
     setNameForm({
@@ -341,14 +426,68 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
               ) : (
                 <>
                   <div className="space-y-4">
-                    <div className="space-y-1">
-                      <Label className="text-muted-foreground text-xs">
-                        Email
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {profile?.email || appUser?.email || "—"}
-                      </p>
-                    </div>
+                    {isEditingEmail ? (
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="newEmail">New Email Address</Label>
+                          <Input
+                            id="newEmail"
+                            type="email"
+                            value={newEmail}
+                            onChange={(e) => setNewEmail(e.target.value)}
+                            placeholder="Enter new email address"
+                            autoFocus
+                          />
+                        </div>
+                        {emailChangeMutation.isError && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              {emailChangeMutation.error?.message || "Failed to request email change"}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => emailChangeMutation.mutate(newEmail)}
+                            disabled={emailChangeMutation.isPending || !newEmail.trim()}
+                          >
+                            {emailChangeMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4 mr-1" />
+                            )}
+                            Send Confirmation
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setIsEditingEmail(false); setNewEmail(""); emailChangeMutation.reset(); }}
+                            disabled={emailChangeMutation.isPending}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Label className="text-muted-foreground text-xs">Email</Label>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">
+                            {profile?.email || appUser?.email || "—"}
+                          </p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setIsEditingEmail(true); setNewEmail(""); }}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" />
+                            Change
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {isEditingName ? (
                       <div className="space-y-3">

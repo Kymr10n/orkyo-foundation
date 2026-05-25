@@ -30,6 +30,7 @@ import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
+import { Toaster } from '@foundation/src/components/ui/sonner';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
@@ -144,6 +145,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
         </Route>
       </Routes>
       </Suspense>
+      <Toaster />
     </>
   );
 }

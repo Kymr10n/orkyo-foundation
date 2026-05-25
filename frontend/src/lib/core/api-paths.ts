@@ -125,6 +125,7 @@ export const API_PATHS = {
     MFA_STATUS: '/api/account/mfa-status',
     MFA: '/api/account/mfa',
     PROFILE: '/api/account/profile',
+    EMAIL: '/api/account/email',
     session: (sessionId: string) => `/api/account/sessions/${sessionId}`,
   },
 

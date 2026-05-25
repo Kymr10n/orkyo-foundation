@@ -298,6 +298,48 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Profile updated for user {Sub}", keycloakSub);
     }
 
+    public async Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default)
+    {
+        var (token, userId) = await ResolveUserAsync(keycloakSub);
+
+        await UpdateEmailByUserIdAsync(token, userId, newEmail, ct);
+        _logger.LogInformation("Email updated for user {Sub}", keycloakSub);
+    }
+
+    public async Task UpdateEmailForAccountAsync(string? keycloakSub, string currentEmail, string newEmail, CancellationToken ct = default)
+    {
+        var token = await GetAdminTokenAsync();
+        if (!string.IsNullOrWhiteSpace(keycloakSub))
+        {
+            var userId = await GetKeycloakUserIdAsync(keycloakSub, token);
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                await UpdateEmailByUserIdAsync(token, userId, newEmail, ct);
+                _logger.LogInformation("Email updated for user {Sub}", keycloakSub);
+                return;
+            }
+
+            _logger.LogWarning(
+                "Could not resolve Keycloak subject {Sub} while confirming email change; falling back to current email lookup",
+                keycloakSub);
+        }
+
+        var fallbackUserId = await GetKeycloakUserIdByEmailAsync(currentEmail, token, ct)
+            ?? throw new KeycloakAdminException("User not found in Keycloak", 404);
+
+        await UpdateEmailByUserIdAsync(token, fallbackUserId, newEmail, ct);
+        _logger.LogInformation("Email updated for account with previous email {CurrentEmail}", currentEmail);
+    }
+
+    private async Task UpdateEmailByUserIdAsync(string token, string userId, string newEmail, CancellationToken ct)
+    {
+        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
+        var request = CreateAdminRequest(HttpMethod.Put, url, token, new { email = newEmail, emailVerified = true });
+
+        var response = await _httpClient.SendAsync(request, ct);
+        await EnsureSuccessAsync(response, "Failed to update email");
+    }
+
     public async Task EnableMfaAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub);
@@ -634,6 +676,19 @@ public class KeycloakAdminService : IKeycloakAdminService
             "Keycloak user lookup failed for {Sub}: {Status} — {Body} (URL: {Url})",
             keycloakSub, response.StatusCode, body, url);
         return null;
+    }
+
+    private async Task<string?> GetKeycloakUserIdByEmailAsync(string email, string token, CancellationToken ct)
+    {
+        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users?email={Uri.EscapeDataString(email)}&exact=true";
+        var request = CreateAdminRequest(HttpMethod.Get, url, token);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        await EnsureSuccessAsync(response, "Failed to find user by email");
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        var users = JsonSerializer.Deserialize<List<KeycloakUser>>(json);
+        return users?.FirstOrDefault()?.Id;
     }
 
     private class TokenResponse

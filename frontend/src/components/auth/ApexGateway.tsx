@@ -46,6 +46,7 @@ import { RequestAccessPage } from '@foundation/src/pages/RequestAccessPage';
 import { SignupPage } from '@foundation/src/pages/SignupPage';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { AuthErrorScreen } from '@foundation/src/components/ui/AuthErrorScreen';
+import { Toaster } from '@foundation/src/components/ui/sonner';
 
 export interface TenantSelectPageRenderArgs {
   tenants: TenantMembership[];
@@ -63,7 +64,16 @@ export interface ApexGatewayProps {
   renderPlanCards?: () => ReactNode;
 }
 
-export function ApexGateway({
+export function ApexGateway(props: ApexGatewayProps = {}) {
+  return (
+    <>
+      <ApexGatewayInner {...props} />
+      <Toaster />
+    </>
+  );
+}
+
+function ApexGatewayInner({
   renderAdminPage,
   renderTenantSelectPage,
   renderPlanCards,

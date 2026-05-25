@@ -39,17 +39,22 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 {
     private readonly IHost _host;
     private readonly MockKeycloakAdminService _mockKeycloak;
+    private readonly MockEmailService _mockEmail;
 
     /// <summary>Shared Keycloak mock — tests can inspect calls and configure responses.</summary>
     public MockKeycloakAdminService MockKeycloakAdminService => _mockKeycloak;
 
+    /// <summary>Shared email mock — tests can inspect calls and configure responses.</summary>
+    public MockEmailService MockEmailService => _mockEmail;
+
     /// <summary>Exposes the application's service provider for advanced test scenarios.</summary>
     public IServiceProvider Services => ((WebApplication)_host).Services;
 
-    private FoundationWebApplicationFactory(IHost host, MockKeycloakAdminService mockKeycloak)
+    private FoundationWebApplicationFactory(IHost host, MockKeycloakAdminService mockKeycloak, MockEmailService mockEmail)
     {
         _host = host;
         _mockKeycloak = mockKeycloak;
+        _mockEmail = mockEmail;
     }
 
     // ── Public surface ────────────────────────────────────────────────────────
@@ -109,9 +114,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         string controlPlaneConnectionString)
     {
         var mockKeycloak = new MockKeycloakAdminService();
-        var app = BuildWebApplication(tenantConnectionString, controlPlaneConnectionString, mockKeycloak);
+        var mockEmail = new MockEmailService();
+        var app = BuildWebApplication(tenantConnectionString, controlPlaneConnectionString, mockKeycloak, mockEmail);
         await app.StartAsync();
-        return new FoundationWebApplicationFactory(app, mockKeycloak);
+        return new FoundationWebApplicationFactory(app, mockKeycloak, mockEmail);
     }
 
     // ── App bootstrap ─────────────────────────────────────────────────────────
@@ -119,7 +125,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     private static WebApplication BuildWebApplication(
         string tenantCs,
         string controlPlaneCs,
-        MockKeycloakAdminService mockKeycloak)
+        MockKeycloakAdminService mockKeycloak,
+        MockEmailService mockEmail)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -292,7 +299,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         // Services backed by external systems → mock
         builder.Services.AddSingleton<IKeycloakAdminService>(mockKeycloak);
-        builder.Services.AddScoped<IEmailService>(sp => Mock.Of<IEmailService>());
+        builder.Services.AddSingleton<IEmailService>(mockEmail);
         builder.Services.AddScoped<IInvitationService>(sp => Mock.Of<IInvitationService>());
         builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
         builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());
@@ -445,6 +452,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapUserPreferencesEndpoints();
         app.MapContactEndpoints();
         app.MapAccountLifecycleEndpoints();
+        app.MapAccountEmailChangeEndpoints();
         app.MapBffAuthEndpoints();
         app.MapResourceTypeEndpoints();
         app.MapResourceEndpoints();

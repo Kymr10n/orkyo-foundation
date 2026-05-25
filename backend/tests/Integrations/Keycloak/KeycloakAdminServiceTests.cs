@@ -478,6 +478,47 @@ public class KeycloakAdminServiceTests
         await svc.UpdateUserProfileAsync("kc-user-id", "Bob", "Jones");
     }
 
+    // ── UpdateEmailForAccountAsync ─────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateEmailForAccountAsync_UsesSubject_WhenSubjectResolves()
+    {
+        var svc = Build(
+        [
+            ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
+            ("/users/kc-user-id", HttpStatusCode.NoContent, "")
+        ]);
+
+        await svc.UpdateEmailForAccountAsync("kc-user-id", "old@example.com", "new@example.com");
+    }
+
+    [Fact]
+    public async Task UpdateEmailForAccountAsync_FallsBackToCurrentEmail_WhenSubjectMissing()
+    {
+        var svc = Build(
+        [
+            ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
+            ("/users/missing-sub", HttpStatusCode.NotFound, ""),
+            ("/users?email=", HttpStatusCode.OK, UsersJson("fallback-id")),
+            ("/users/fallback-id", HttpStatusCode.NoContent, "")
+        ]);
+
+        await svc.UpdateEmailForAccountAsync("missing-sub", "old@example.com", "new@example.com");
+    }
+
+    [Fact]
+    public async Task UpdateEmailForAccountAsync_FallsBackToCurrentEmail_WhenSubjectNotStored()
+    {
+        var svc = Build(
+        [
+            ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
+            ("/users?email=", HttpStatusCode.OK, UsersJson("fallback-id")),
+            ("/users/fallback-id", HttpStatusCode.NoContent, "")
+        ]);
+
+        await svc.UpdateEmailForAccountAsync(null, "old@example.com", "new@example.com");
+    }
+
     // ── EnableMfaAsync ─────────────────────────────────────────────────────
 
     [Fact]

@@ -16,6 +16,7 @@ public static class FoundationEndpointExtensions
         app.MapBffAuthEndpoints();
         app.MapSessionEndpoints();
         app.MapAccountLifecycleEndpoints();
+        app.MapAccountEmailChangeEndpoints();
 
         // Admin
         app.MapAuditEndpoints();

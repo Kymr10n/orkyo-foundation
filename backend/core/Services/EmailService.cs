@@ -15,6 +15,7 @@ public interface IEmailService
     Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default);
     Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default);
     Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
+    Task<bool> SendEmailChangeConfirmationAsync(string toEmail, string displayName, string confirmationToken, CancellationToken ct = default);
     Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default);
     Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail, CancellationToken ct = default);
 }
@@ -152,6 +153,13 @@ public class EmailService : IEmailService
     public async Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
     {
         var (subject, htmlBody, textBody) = EmailTemplates.GetDormancyNoticeEmail(displayName, await GetBrandingAsync());
+        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+    }
+
+    public async Task<bool> SendEmailChangeConfirmationAsync(string toEmail, string displayName, string confirmationToken, CancellationToken ct = default)
+    {
+        var confirmUrl = BuildTokenLink("api/account/confirm-email", "token", confirmationToken);
+        var (subject, htmlBody, textBody) = EmailTemplates.GetEmailChangeConfirmationEmail(displayName, confirmUrl, await GetBrandingAsync());
         return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
     }
 

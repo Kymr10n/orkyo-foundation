@@ -6,7 +6,6 @@ import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
-import { Toaster } from "@foundation/src/components/ui/sonner";
 import { useCommandPalette } from "@foundation/src/hooks/useCommandPalette";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TourDialog } from "@foundation/src/components/tour/TourDialog";
@@ -89,7 +88,6 @@ export function AppLayout() {
       <FeedbackButton />
       <CommandPalette open={isCommandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       <TourDialog open={tourOpen} onClose={() => setTourOpen(false)} />
-      <Toaster />
     </div>
   );
 }

@@ -4,6 +4,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { AccountPage } from "@foundation/src/pages/AccountPage";
 
+const { mockToastSuccess, mockToastError } = vi.hoisted(() => ({
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: mockToastSuccess,
+    error: mockToastError,
+  },
+}));
+
 // Mock navigate
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
@@ -27,6 +39,7 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
     setMembership: mockSetMembership,
     logout: mockLogout,
     send: mockSend,
+    refresh: vi.fn(),
     user: { sub: "test-user", email: "test@example.com" },
     appUser: {
       id: "test-user",
@@ -58,6 +71,7 @@ vi.mock("@foundation/src/lib/api/tenant-account-api", () => ({
 
 // Mock security-api (used by Profile tab)
 const mockUpdateUserProfile = vi.fn().mockResolvedValue({ message: "ok", displayName: "Bob Smith" });
+const mockRequestEmailChange = vi.fn().mockResolvedValue({ message: "ok" });
 
 vi.mock("@foundation/src/lib/api/security-api", () => ({
   getUserProfile: () =>
@@ -68,6 +82,7 @@ vi.mock("@foundation/src/lib/api/security-api", () => ({
       emailVerified: true,
     }),
   updateUserProfile: (...args: unknown[]) => mockUpdateUserProfile(...args),
+  requestEmailChange: (...args: unknown[]) => mockRequestEmailChange(...args),
   getSecurityInfo: () =>
     Promise.resolve({ isFederated: false, canChangePassword: true }),
   getSessions: () => Promise.resolve([]),
@@ -127,6 +142,7 @@ describe("AccountPage", () => {
     };
     mockIsSiteAdmin = false;
     mockGetTenantMemberships.mockResolvedValue(mockMemberships);
+    mockRequestEmailChange.mockResolvedValue({ message: "ok" });
   });
 
   it("renders loading state initially", async () => {
@@ -587,6 +603,47 @@ describe("AccountPage", () => {
     });
     expect(screen.getByText("Deleting")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /switch/i })).not.toBeInTheDocument();
+  });
+
+  it("shows email change confirmation as a toast", async () => {
+    const Wrapper = createWrapper("/account?email-change=confirmed");
+    render(<Wrapper><AccountPage /></Wrapper>);
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Your email address has been updated successfully.", {
+        id: "email-change-confirmed",
+      });
+    });
+    expect(screen.queryByText("Your email address has been updated successfully.")).not.toBeInTheDocument();
+  });
+
+  it("shows email change failure as a toast", async () => {
+    const Wrapper = createWrapper("/account?email-change=error");
+    render(<Wrapper><AccountPage /></Wrapper>);
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith("Could not confirm email change", {
+        id: "email-change-error",
+        description: "Please try again.",
+      });
+    });
+    expect(screen.queryByText("We could not confirm the email change. Please try again.")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["expired", "Email confirmation link expired", "Please request a new email change."],
+    ["invalid", "Email confirmation link invalid", "Please request a new email change."],
+    ["conflict", "Email address unavailable", "That email address is no longer available. Please choose another one."],
+  ])("shows email change %s status as a toast", async (status, title, description) => {
+    const Wrapper = createWrapper(`/account?email-change=${status}`);
+    render(<Wrapper><AccountPage /></Wrapper>);
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(title, {
+        id: `email-change-${status}`,
+        description,
+      });
+    });
   });
 
   it("enters name edit mode on Edit click", async () => {

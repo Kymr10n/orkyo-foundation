@@ -143,3 +143,10 @@ export async function updateUserProfile(
     data
   );
 }
+
+/**
+ * Request an email address change. Sends a confirmation link to the new address.
+ */
+export async function requestEmailChange(newEmail: string): Promise<{ message: string }> {
+  return apiPost<{ message: string }>(API_PATHS.ACCOUNT.EMAIL, { newEmail });
+}
