@@ -4,9 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { AccountPage } from "@foundation/src/pages/AccountPage";
 
-const { mockToastSuccess, mockToastError } = vi.hoisted(() => ({
+const { mockToastSuccess, mockToastError, mockRefresh } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockRefresh: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -39,7 +40,7 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
     setMembership: mockSetMembership,
     logout: mockLogout,
     send: mockSend,
-    refresh: vi.fn(),
+    refresh: mockRefresh,
     user: { sub: "test-user", email: "test@example.com" },
     appUser: {
       id: "test-user",
@@ -615,6 +616,10 @@ describe("AccountPage", () => {
       });
     });
     expect(screen.queryByText("Your email address has been updated successfully.")).not.toBeInTheDocument();
+    // refresh() must NOT be called on confirmed — it causes the auth machine to
+    // cycle back through `initializing`, unmounting TenantApp's Toaster before
+    // the toast can render (regression guard for the confirmed-toast bug fix).
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("shows email change failure as a toast", async () => {
