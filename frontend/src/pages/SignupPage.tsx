@@ -13,7 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
+import { apiGet, apiPost } from "@foundation/src/lib/core/api-client";
 import { API_PATHS } from "@foundation/src/lib/core/api-paths";
 
 interface InvitationDetails {
@@ -49,21 +49,15 @@ export function SignupPage() {
       }
 
       try {
-        const response = await fetch(
-          `${API_BASE_URL}${API_PATHS.INVITATION_VALIDATE}?token=${encodeURIComponent(invitationToken)}`,
+        const data = await apiGet<InvitationDetails>(
+          API_PATHS.INVITATION_VALIDATE,
+          { params: { token: invitationToken } },
         );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          setValidationError(data.error || "Invalid invitation");
-          setIsValidating(false);
-          return;
-        }
-
         setInvitation(data);
-      } catch {
-        setValidationError("Failed to validate invitation");
+      } catch (err) {
+        setValidationError(
+          err instanceof Error ? err.message : "Failed to validate invitation",
+        );
       } finally {
         setIsValidating(false);
       }
@@ -89,32 +83,14 @@ export function SignupPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}${API_PATHS.INVITATION_ACCEPT}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            token: invitationToken,
-            displayName:
-              formData.displayName || invitation?.email.split("@")[0],
-            password: formData.password,
-          }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || data.detail || "Failed to create account");
-        return;
-      }
-
+      await apiPost<void>(API_PATHS.INVITATION_ACCEPT, {
+        token: invitationToken,
+        displayName: formData.displayName || invitation?.email.split("@")[0],
+        password: formData.password,
+      });
       setSubmitted(true);
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
       setIsLoading(false);
     }

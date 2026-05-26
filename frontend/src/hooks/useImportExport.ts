@@ -1,52 +1,47 @@
 /**
- * React hook for handling import/export events from TopBar
- * Pages can use this hook to respond to import/export actions
+ * React hooks for handling import/export actions fired from TopBar.
+ * Pages subscribe via the ui-actions Zustand store; each tick increment
+ * means a fresh trigger to consume.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
-
-interface ExportEvent {
-  context: ExportContext;
-  format: ExportFormat;
-}
-
-interface ImportEvent {
-  context: ExportContext;
-  format: ImportFormat;
-  file: File;
-}
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 export function useExportHandler(
   context: ExportContext,
-  handler: (format: ExportFormat) => void | Promise<void>
+  handler: (format: ExportFormat) => void | Promise<void>,
 ) {
-  useEffect(() => {
-    const handleExport = (event: Event) => {
-      const customEvent = event as CustomEvent<ExportEvent>;
-      if (customEvent.detail.context === context) {
-        handler(customEvent.detail.format);
-      }
-    };
+  const tick = useUiActionsStore((s) => s.exportTick);
+  const payload = useUiActionsStore((s) => s.lastExport);
+  const lastTickRef = useRef(tick);
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
 
-    window.addEventListener('export-data', handleExport);
-    return () => window.removeEventListener('export-data', handleExport);
-  }, [context, handler]);
+  useEffect(() => {
+    if (tick === lastTickRef.current) return;
+    lastTickRef.current = tick;
+    if (payload?.context === context) {
+      void handlerRef.current(payload.format);
+    }
+  }, [tick, payload, context]);
 }
 
 export function useImportHandler(
   context: ExportContext,
-  handler: (file: File, format: ImportFormat) => void | Promise<void>
+  handler: (file: File, format: ImportFormat) => void | Promise<void>,
 ) {
-  useEffect(() => {
-    const handleImport = (event: Event) => {
-      const customEvent = event as CustomEvent<ImportEvent>;
-      if (customEvent.detail.context === context) {
-        handler(customEvent.detail.file, customEvent.detail.format);
-      }
-    };
+  const tick = useUiActionsStore((s) => s.importTick);
+  const payload = useUiActionsStore((s) => s.lastImport);
+  const lastTickRef = useRef(tick);
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
 
-    window.addEventListener('import-data', handleImport);
-    return () => window.removeEventListener('import-data', handleImport);
-  }, [context, handler]);
+  useEffect(() => {
+    if (tick === lastTickRef.current) return;
+    lastTickRef.current = tick;
+    if (payload?.context === context) {
+      void handlerRef.current(payload.file, payload.format);
+    }
+  }, [tick, payload, context]);
 }

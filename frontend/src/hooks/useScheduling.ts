@@ -28,7 +28,7 @@ export function useSchedulingSettings(siteId: string | undefined) {
     queryKey: keys.settings(siteId!),
     queryFn: () => getSchedulingSettings(siteId!),
     enabled: !!siteId,
-    staleTime: 0,
+    staleTime: 60_000,
   });
 }
 

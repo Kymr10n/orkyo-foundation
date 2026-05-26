@@ -63,8 +63,8 @@ describe('useCriteria', () => {
       });
 
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'] });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'], exact: false });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
       });
     });
   });

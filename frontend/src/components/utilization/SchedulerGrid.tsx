@@ -333,9 +333,9 @@ export function SchedulerGrid({
           onScroll={handleHeaderScroll}
         >
           <div className="flex">
-            {columns.map((col, idx) => (
+            {columns.map((col) => (
               <div
-                key={idx}
+                key={col.start.getTime()}
                 className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-accent/50 ${col.isWeekend ? 'bg-destructive/10 text-destructive' : col.isOutsideWorkingHours ? 'bg-muted/80' : ''}`}
                 title={format(col.start, scale === "day" || scale === "hour" ? "EEEE, MMMM d, yyyy HH:mm" : "EEEE, MMMM d, yyyy")}
                 onClick={() => onTimeCursorClick(col.start)}

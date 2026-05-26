@@ -22,12 +22,10 @@ import {
 import type { Criterion, CriterionDataType, ResourceTypeKey } from '@foundation/src/types/criterion';
 import { useCreateCriterion } from '@foundation/src/hooks/useCriteria';
 import { EnumValueEditor } from './EnumValueEditor';
-
-const RESOURCE_TYPE_OPTIONS: { key: ResourceTypeKey; label: string }[] = [
-  { key: 'space', label: 'Spaces' },
-  { key: 'person', label: 'People' },
-  { key: 'tool', label: 'Tools' },
-];
+import {
+  CRITERION_RESOURCE_TYPE_OPTIONS as RESOURCE_TYPE_OPTIONS,
+  useCriterionForm,
+} from './useCriterionForm';
 
 interface CreateCriterionDialogProps {
   open: boolean;
@@ -44,59 +42,41 @@ export function CreateCriterionDialog({
   defaultResourceType,
 }: CreateCriterionDialogProps) {
   const createMutation = useCreateCriterion();
+  const form = useCriterionForm({ resourceTypeKeys: [defaultResourceType ?? 'space'] });
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [dataType, setDataType] = useState<CriterionDataType>('Boolean');
-  const [unit, setUnit] = useState('');
-  const [enumValues, setEnumValues] = useState<string[]>([]);
-  const [resourceTypeKeys, setResourceTypeKeys] = useState<ResourceTypeKey[]>([defaultResourceType ?? 'space']);
   const [error, setError] = useState<string | null>(null);
   const isSubmitting = createMutation.isPending;
 
   const resetForm = () => {
     setName('');
-    setDescription('');
     setDataType('Boolean');
-    setUnit('');
-    setEnumValues([]);
-    setResourceTypeKeys([defaultResourceType ?? 'space']);
+    form.reset({ resourceTypeKeys: [defaultResourceType ?? 'space'] });
     setError(null);
-  };
-
-  const toggleResourceType = (key: ResourceTypeKey, checked: boolean) => {
-    setResourceTypeKeys((prev) =>
-      checked ? [...prev, key] : prev.filter((k) => k !== key)
-    );
   };
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (!name.trim()) {
       setError('Name is required');
       return;
     }
-
-    if (dataType === 'Enum' && enumValues.length === 0) {
-      setError('At least one enum value is required');
-      return;
-    }
-
-    if (resourceTypeKeys.length === 0) {
-      setError('At least one applicability scope must be selected');
+    const validationError = form.validate(dataType);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     try {
       const newCriterion = await createMutation.mutateAsync({
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: form.description.trim() || undefined,
         dataType,
-        enumValues: dataType === 'Enum' ? enumValues : undefined,
-        unit: dataType === 'Number' && unit.trim() ? unit.trim() : undefined,
-        resourceTypeKeys,
+        enumValues: dataType === 'Enum' ? form.enumValues : undefined,
+        unit: dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
+        resourceTypeKeys: form.resourceTypeKeys,
       });
       onSuccess(newCriterion);
       resetForm();
@@ -142,8 +122,8 @@ export function CreateCriterionDialog({
               <Textarea
                 id="description"
                 placeholder="Describe what this criterion represents"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                value={form.description}
+                onChange={(e) => form.setDescription(e.target.value)}
                 disabled={isSubmitting}
                 rows={2}
               />
@@ -176,8 +156,8 @@ export function CreateCriterionDialog({
                 <Input
                   id="unit"
                   placeholder="e.g., kg, m², kW"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
+                  value={form.unit}
+                  onChange={(e) => form.setUnit(e.target.value)}
                   disabled={isSubmitting}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -189,8 +169,8 @@ export function CreateCriterionDialog({
             {/* Enum Values (for Enum type) */}
             {dataType === 'Enum' && (
               <EnumValueEditor
-                values={enumValues}
-                onChange={setEnumValues}
+                values={form.enumValues}
+                onChange={form.setEnumValues}
                 disabled={isSubmitting}
               />
             )}
@@ -203,8 +183,8 @@ export function CreateCriterionDialog({
                   <div key={key} className="flex items-center gap-2">
                     <Checkbox
                       id={`applies-to-${key}`}
-                      checked={resourceTypeKeys.includes(key)}
-                      onCheckedChange={(checked) => toggleResourceType(key, !!checked)}
+                      checked={form.resourceTypeKeys.includes(key)}
+                      onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
                       disabled={isSubmitting}
                     />
                     <Label htmlFor={`applies-to-${key}`} className="font-normal cursor-pointer">

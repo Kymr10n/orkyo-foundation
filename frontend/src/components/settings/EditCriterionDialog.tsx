@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,15 +13,14 @@ import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
-import type { Criterion, ResourceTypeKey } from '@foundation/src/types/criterion';
+import type { Criterion } from '@foundation/src/types/criterion';
 import { useUpdateCriterion, useUpdateCriterionApplicability } from '@foundation/src/hooks/useCriteria';
 import { EnumValueEditor } from './EnumValueEditor';
-
-const RESOURCE_TYPE_OPTIONS: { key: ResourceTypeKey; label: string }[] = [
-  { key: 'space', label: 'Spaces' },
-  { key: 'person', label: 'People' },
-  { key: 'tool', label: 'Tools' },
-];
+import {
+  CRITERION_RESOURCE_TYPE_OPTIONS as RESOURCE_TYPE_OPTIONS,
+  useCriterionForm,
+  useSeedCriterionForm,
+} from './useCriterionForm';
 
 interface EditCriterionDialogProps {
   criterion: Criterion;
@@ -38,42 +37,19 @@ export function EditCriterionDialog({
 }: EditCriterionDialogProps) {
   const updateMutation = useUpdateCriterion();
   const applicabilityMutation = useUpdateCriterionApplicability();
-  const [description, setDescription] = useState('');
-  const [unit, setUnit] = useState('');
-  const [enumValues, setEnumValues] = useState<string[]>([]);
-  const [resourceTypeKeys, setResourceTypeKeys] = useState<ResourceTypeKey[]>([]);
+  const form = useCriterionForm();
   const [error, setError] = useState<string | null>(null);
   const isSubmitting = updateMutation.isPending || applicabilityMutation.isPending;
 
-  // Initialize form when criterion changes
-  useEffect(() => {
-    if (criterion) {
-      setDescription(criterion.description || '');
-      setUnit(criterion.unit || '');
-      setEnumValues(criterion.enumValues || []);
-      setResourceTypeKeys([...(criterion.resourceTypeKeys ?? [])]);
-      setError(null);
-    }
-  }, [criterion]);
-
-  const toggleResourceType = (key: ResourceTypeKey, checked: boolean) => {
-    setResourceTypeKeys((prev) =>
-      checked ? [...prev, key] : prev.filter((k) => k !== key)
-    );
-  };
+  useSeedCriterionForm(form, criterion);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
-    // Validation
-    if (criterion.dataType === 'Enum' && enumValues.length === 0) {
-      setError('At least one enum value is required');
-      return;
-    }
-
-    if (resourceTypeKeys.length === 0) {
-      setError('At least one applicability scope must be selected');
+    const validationError = form.validate(criterion.dataType);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -81,19 +57,19 @@ export function EditCriterionDialog({
       const updated = await updateMutation.mutateAsync({
         id: criterion.id,
         data: {
-          description: description.trim() || undefined,
-          enumValues: criterion.dataType === 'Enum' ? enumValues : undefined,
-          unit: criterion.dataType === 'Number' && unit.trim() ? unit.trim() : undefined,
+          description: form.description.trim() || undefined,
+          enumValues: criterion.dataType === 'Enum' ? form.enumValues : undefined,
+          unit: criterion.dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
         },
       });
 
       // Update applicability if it changed
       const currentKeys = [...(criterion.resourceTypeKeys ?? [])].sort().join(',');
-      const newKeys = [...resourceTypeKeys].sort().join(',');
+      const newKeys = [...form.resourceTypeKeys].sort().join(',');
       if (currentKeys !== newKeys) {
         await applicabilityMutation.mutateAsync({
           id: criterion.id,
-          data: { resourceTypeKeys },
+          data: { resourceTypeKeys: form.resourceTypeKeys },
         });
       }
 
@@ -143,8 +119,8 @@ export function EditCriterionDialog({
               <Textarea
                 id="description"
                 placeholder="Describe what this criterion represents"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                value={form.description}
+                onChange={(e) => form.setDescription(e.target.value)}
                 disabled={isSubmitting}
                 rows={2}
               />
@@ -157,8 +133,8 @@ export function EditCriterionDialog({
                 <Input
                   id="unit"
                   placeholder="e.g., kg, m², kW"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
+                  value={form.unit}
+                  onChange={(e) => form.setUnit(e.target.value)}
                   disabled={isSubmitting}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -170,8 +146,8 @@ export function EditCriterionDialog({
             {/* Enum Values (for Enum type) */}
             {criterion.dataType === 'Enum' && (
               <EnumValueEditor
-                values={enumValues}
-                onChange={setEnumValues}
+                values={form.enumValues}
+                onChange={form.setEnumValues}
                 disabled={isSubmitting}
                 helpText="Warning: Removing values may cause validation errors for existing assignments"
               />
@@ -185,8 +161,8 @@ export function EditCriterionDialog({
                   <div key={key} className="flex items-center gap-2">
                     <Checkbox
                       id={`edit-applies-to-${key}`}
-                      checked={resourceTypeKeys.includes(key)}
-                      onCheckedChange={(checked) => toggleResourceType(key, !!checked)}
+                      checked={form.resourceTypeKeys.includes(key)}
+                      onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
                       disabled={isSubmitting}
                     />
                     <Label htmlFor={`edit-applies-to-${key}`} className="font-normal cursor-pointer">

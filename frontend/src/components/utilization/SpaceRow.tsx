@@ -94,9 +94,9 @@ export const SpaceRow = React.memo(function SpaceRow({
 
       {/* Time cells */}
       <div className="flex-1 flex relative" style={{ minHeight: `${rowHeight}px` }}>
-        {columns.map((col, idx) => (
+        {columns.map((col) => (
           <TimeCell
-            key={idx}
+            key={col.start.getTime()}
             column={col}
             space={space}
             timeCursorTs={timeCursorTs}

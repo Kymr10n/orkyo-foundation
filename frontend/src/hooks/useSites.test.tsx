@@ -107,9 +107,9 @@ describe('useSites', () => {
       await result.current.mutateAsync('site-1');
 
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['sites'] });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['spaces'] });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['sites'], exact: false });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['spaces'], exact: false });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
       });
     });
   });

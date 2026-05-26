@@ -10,6 +10,7 @@ import { useCommandPalette } from "@foundation/src/hooks/useCommandPalette";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TourDialog } from "@foundation/src/components/tour/TourDialog";
 import { logger } from "@foundation/src/lib/core/logger";
+import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
 export function AppLayout() {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
@@ -29,19 +30,26 @@ export function AppLayout() {
     }
   }, [appUser]);
 
-  // Listen for open-command-palette events from TopBar
-  useEffect(() => {
-    const handleOpenCommandPalette = () => openCommandPalette();
-    window.addEventListener('open-command-palette', handleOpenCommandPalette);
-    return () => window.removeEventListener('open-command-palette', handleOpenCommandPalette);
-  }, [openCommandPalette]);
+  // Subscribe to ui-actions triggers from TopBar. Each tick increment means
+  // a fresh trigger to consume.
+  const commandPaletteTick = useUiActionsStore((s) => s.commandPaletteTick);
+  const tourTick = useUiActionsStore((s) => s.tourTick);
+  const lastCommandPaletteTick = useRef(commandPaletteTick);
+  const lastTourTick = useRef(tourTick);
 
-  // Listen for open-tour events from TopBar user menu
   useEffect(() => {
-    const handleOpenTour = () => setTourOpen(true);
-    window.addEventListener('open-tour', handleOpenTour);
-    return () => window.removeEventListener('open-tour', handleOpenTour);
-  }, []);
+    if (commandPaletteTick !== lastCommandPaletteTick.current) {
+      lastCommandPaletteTick.current = commandPaletteTick;
+      openCommandPalette();
+    }
+  }, [commandPaletteTick, openCommandPalette]);
+
+  useEffect(() => {
+    if (tourTick !== lastTourTick.current) {
+      lastTourTick.current = tourTick;
+      setTourOpen(true);
+    }
+  }, [tourTick]);
 
   // Load sites and validate/set default selection
   useEffect(() => {

@@ -116,8 +116,8 @@ describe("createCrudHooks", () => {
 
       expect(mockCreateFn).toHaveBeenCalledWith({ name: "Item C" }, undefined);
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"] });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"], exact: false });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"], exact: false });
       });
     });
 
@@ -135,7 +135,7 @@ describe("createCrudHooks", () => {
 
       expect(mockCreateFn).toHaveBeenCalledWith({ name: "New" }, "site-1");
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items", "site-1"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items", "site-1"], exact: false });
       });
     });
   });
@@ -150,8 +150,8 @@ describe("createCrudHooks", () => {
 
       expect(mockUpdateFn).toHaveBeenCalledWith("1", { name: "Updated" }, undefined);
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"] });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"], exact: false });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"], exact: false });
       });
     });
   });
@@ -166,8 +166,8 @@ describe("createCrudHooks", () => {
 
       expect(mockDeleteFn).toHaveBeenCalledWith("1", undefined);
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"] });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"], exact: false });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"], exact: false });
       });
     });
   });
@@ -181,9 +181,9 @@ describe("createCrudHooks", () => {
 
       await waitFor(() => {
         // Primary key
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["test-items"], exact: false });
         // Additional invalidateKeys
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["related-items"], exact: false });
       });
     });
 
@@ -200,7 +200,7 @@ describe("createCrudHooks", () => {
       await result.current.mutateAsync({ name: "test" });
 
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["simple"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["simple"], exact: false });
         // Only 1 call — no additional keys
         expect(spy).toHaveBeenCalledTimes(1);
       });

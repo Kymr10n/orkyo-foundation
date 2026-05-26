@@ -29,13 +29,16 @@ function errorMessage(err: unknown): string {
 export function createCrudHooks<TData, TCreate = Partial<TData>, TUpdate = Partial<TData>, TParams = undefined>(
   config: MutationConfig<TData, TCreate, TUpdate, TParams>
 ) {
+  // Invalidate by prefix (exact: false) so a mutation against e.g. ['sites']
+  // also invalidates ['sites', filter] variants. The previous exact-match
+  // behaviour silently missed param-bearing cache entries.
   const invalidateAll = (queryClient: ReturnType<typeof useQueryClient>, params?: TParams) => {
     const keysToInvalidate = [
       config.queryKey(params),
       ...(config.invalidateKeys?.(params) || []),
     ];
-    keysToInvalidate.forEach(key => {
-      queryClient.invalidateQueries({ queryKey: key });
+    keysToInvalidate.forEach((key) => {
+      queryClient.invalidateQueries({ queryKey: key, exact: false });
     });
   };
 

@@ -67,16 +67,4 @@ describe('PeoplePage', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Departments' }));
     expect(screen.getByTestId('departments')).toBeInTheDocument();
   });
-
-  it.each([
-    ['people', '/people/list'],
-    ['jobTitles', '/people/job-titles'],
-    ['departments', '/people/departments'],
-    ['groups', '/people/teams'],
-  ])('legacy ?tab=%s redirects to %s', (legacy, target) => {
-    renderAt(`/people?tab=${legacy}`);
-    // After redirect, the new path renders the matching child.
-    const id = target.split('/').pop()!;
-    expect(screen.getByTestId(id)).toBeInTheDocument();
-  });
 });

@@ -41,6 +41,7 @@ import { lazy, Suspense, useState } from "react";
 import type { ExportContext, ExportFormat, ImportFormat } from "@foundation/src/lib/utils/import-export";
 import { isImportSupported } from "@foundation/src/lib/utils/import-export";
 import { logger } from "@foundation/src/lib/core/logger";
+import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
 // Lazy load the import/export dialog to reduce initial bundle size
 const ImportExportDialog = lazy(() =>
@@ -65,18 +66,28 @@ export function TopBar() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
+  // UI action triggers — replace prior window.dispatchEvent pattern.
+  const uiTriggerExport = useUiActionsStore((s) => s.triggerExport);
+  const uiTriggerImport = useUiActionsStore((s) => s.triggerImport);
+  const uiOpenCommandPalette = useUiActionsStore((s) => s.openCommandPalette);
+  const uiOpenTour = useUiActionsStore((s) => s.openTour);
+
   // Load sites with React Query
   const { data: sites = [], isLoading: isLoadingSites } = useQuery({
     queryKey: ["sites"],
     queryFn: getSites,
   });
 
-  // Poll unread message count
+  // Poll unread message count. refetchIntervalInBackground defaults to false,
+  // so polling pauses when the tab is hidden (React Query honors document
+  // visibility). refetchOnWindowFocus runs a single refetch when the tab is
+  // refocused, which is cheaper than burning a poll cycle while hidden.
   const { data: unreadData } = useQuery({
     queryKey: ["unread-announcements"],
     queryFn: getUnreadAnnouncementCount,
-    refetchInterval: 60_000, // poll every 60s
+    refetchInterval: 60_000,
     staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
   const unreadCount = unreadData?.unreadCount ?? 0;
 
@@ -99,18 +110,13 @@ export function TopBar() {
   const canExport = currentContext !== null;
 
   const handleExport = (format: ExportFormat) => {
-    // This will be handled by the dialog component which will call the appropriate handler
-    // For now, we'll emit a custom event that pages can listen to
-    window.dispatchEvent(new CustomEvent('export-data', {
-      detail: { context: currentContext, format }
-    }));
+    if (!currentContext) return;
+    uiTriggerExport({ context: currentContext, format });
   };
 
   const handleImport = (file: File, format: ImportFormat) => {
-    // Emit custom event for pages to handle
-    window.dispatchEvent(new CustomEvent('import-data', {
-      detail: { context: currentContext, format, file }
-    }));
+    if (!currentContext) return;
+    uiTriggerImport({ context: currentContext, format, file });
   };
 
   const handleLogout = async () => {
@@ -186,7 +192,7 @@ export function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+          onClick={() => uiOpenCommandPalette()}
           title="Search (⌘K)"
           aria-label="Search (⌘K)"
         >
@@ -301,7 +307,7 @@ export function TopBar() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => window.dispatchEvent(new CustomEvent('open-tour'))}
+                  onClick={() => uiOpenTour()}
                 >
                   <Compass className="h-4 w-4 mr-2" />
                   Take a tour

@@ -2,17 +2,30 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SignupPage } from './SignupPage';
+import type * as TenantNavigation from '@foundation/src/lib/utils/tenant-navigation';
+import type * as ApiUtils from '@foundation/src/lib/core/api-utils';
 
-vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
-  navigateToApex: vi.fn(),
-}));
+vi.mock('@foundation/src/lib/utils/tenant-navigation', async (importOriginal) => {
+  const mod = await importOriginal<typeof TenantNavigation>();
+  return {
+    ...mod,
+    navigateToApex: vi.fn(),
+  };
+});
 
-vi.mock('@foundation/src/lib/core/api-utils', () => ({
-  API_BASE_URL: 'http://localhost:5000',
-}));
+vi.mock('@foundation/src/lib/core/api-utils', async (importOriginal) => {
+  const mod = await importOriginal<typeof ApiUtils>();
+  return {
+    ...mod,
+    API_BASE_URL: 'http://localhost:5000',
+  };
+});
 
 vi.mock('@foundation/src/lib/core/api-paths', () => ({
-  API_PATHS: { INVITATION_VALIDATE: '/api/invitations/validate' },
+  API_PATHS: {
+    INVITATION_VALIDATE: '/api/invitations/validate',
+    INVITATION_ACCEPT: '/api/invitations/accept',
+  },
 }));
 
 function renderSignup(search = '') {
@@ -51,6 +64,7 @@ describe('SignupPage', () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('valid-token'),
+        expect.anything(),
       );
     });
   });
@@ -74,13 +88,17 @@ describe('SignupPage', () => {
     vi.stubGlobal('fetch', vi.fn(() =>
       Promise.resolve({
         ok: false,
+        status: 400,
+        statusText: 'Bad Request',
         json: () => Promise.resolve({ error: 'Invitation expired' }),
+        content: { readAsStringAsync: () => Promise.resolve('') },
       }),
     ));
 
     renderSignup('?invitation=expired-token');
     await waitFor(() => {
-      expect(screen.getByText('Invitation expired')).toBeInTheDocument();
+      // handleApiError wraps the body.error as "API Error (status): {message}"
+      expect(screen.getByText(/Invitation expired/)).toBeInTheDocument();
     });
   });
 

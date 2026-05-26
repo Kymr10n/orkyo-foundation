@@ -14,11 +14,26 @@ import { API_PATHS } from '../core/api-paths';
 
 export type ServiceTier = 'Free' | 'Professional' | 'Enterprise';
 
+/** Mirrors backend TenantStatusConstants and the DB check constraint. */
+export type TenantStatus = 'active' | 'suspended' | 'deleting';
+
+export const TENANT_STATUS = {
+  ACTIVE: 'active',
+  SUSPENDED: 'suspended',
+  DELETING: 'deleting',
+} as const satisfies Record<string, TenantStatus>;
+
+export const SERVICE_TIER = {
+  FREE: 'Free',
+  PROFESSIONAL: 'Professional',
+  ENTERPRISE: 'Enterprise',
+} as const satisfies Record<string, ServiceTier>;
+
 export interface AdminTenant {
   id: string;
   slug: string;
   displayName: string;
-  status: string;
+  status: TenantStatus;
   dbIdentifier: string;
   createdAt: string;
   updatedAt: string;

@@ -1,11 +1,24 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useExportHandler, useImportHandler } from './useImportExport';
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import type { ExportFormat, ImportFormat, ExportContext } from '../lib/utils/import-export';
+
+function resetStore() {
+  useUiActionsStore.setState({
+    exportTick: 0,
+    importTick: 0,
+    commandPaletteTick: 0,
+    tourTick: 0,
+    lastExport: null,
+    lastImport: null,
+  });
+}
 
 describe('useExportHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetStore();
   });
 
   it('calls handler when context matches', () => {
@@ -14,10 +27,9 @@ describe('useExportHandler', () => {
 
     renderHook(() => useExportHandler(context, handler));
 
-    const event = new CustomEvent('export-data', {
-      detail: { context: 'spaces', format: 'csv' as ExportFormat },
+    act(() => {
+      useUiActionsStore.getState().triggerExport({ context: 'spaces', format: 'csv' as ExportFormat });
     });
-    window.dispatchEvent(event);
 
     expect(handler).toHaveBeenCalledWith('csv');
     expect(handler).toHaveBeenCalledTimes(1);
@@ -29,10 +41,9 @@ describe('useExportHandler', () => {
 
     renderHook(() => useExportHandler(context, handler));
 
-    const event = new CustomEvent('export-data', {
-      detail: { context: 'requests', format: 'csv' as ExportFormat },
+    act(() => {
+      useUiActionsStore.getState().triggerExport({ context: 'requests', format: 'csv' as ExportFormat });
     });
-    window.dispatchEvent(event);
 
     expect(handler).not.toHaveBeenCalled();
   });
@@ -43,33 +54,28 @@ describe('useExportHandler', () => {
 
     renderHook(() => useExportHandler(context, handler));
 
-    const csvEvent = new CustomEvent('export-data', {
-      detail: { context: 'requests', format: 'csv' as ExportFormat },
+    act(() => {
+      useUiActionsStore.getState().triggerExport({ context: 'requests', format: 'csv' as ExportFormat });
     });
-    window.dispatchEvent(csvEvent);
-
-    const xlsxEvent = new CustomEvent('export-data', {
-      detail: { context: 'requests', format: 'xlsx' as ExportFormat },
+    act(() => {
+      useUiActionsStore.getState().triggerExport({ context: 'requests', format: 'xlsx' as ExportFormat });
     });
-    window.dispatchEvent(xlsxEvent);
 
     expect(handler).toHaveBeenCalledWith('csv');
     expect(handler).toHaveBeenCalledWith('xlsx');
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
-  it('removes event listener on unmount', () => {
+  it('does not re-fire after unmount', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
     const { unmount } = renderHook(() => useExportHandler(context, handler));
-
     unmount();
 
-    const event = new CustomEvent('export-data', {
-      detail: { context: 'spaces', format: 'csv' as ExportFormat },
+    act(() => {
+      useUiActionsStore.getState().triggerExport({ context: 'spaces', format: 'csv' as ExportFormat });
     });
-    window.dispatchEvent(event);
 
     expect(handler).not.toHaveBeenCalled();
   });
@@ -78,6 +84,7 @@ describe('useExportHandler', () => {
 describe('useImportHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetStore();
   });
 
   it('calls handler when context matches', () => {
@@ -87,10 +94,9 @@ describe('useImportHandler', () => {
 
     renderHook(() => useImportHandler(context, handler));
 
-    const event = new CustomEvent('import-data', {
-      detail: { context: 'spaces', format: 'csv' as ImportFormat, file: mockFile },
+    act(() => {
+      useUiActionsStore.getState().triggerImport({ context: 'spaces', format: 'csv' as ImportFormat, file: mockFile });
     });
-    window.dispatchEvent(event);
 
     expect(handler).toHaveBeenCalledWith(mockFile, 'csv');
     expect(handler).toHaveBeenCalledTimes(1);
@@ -103,10 +109,9 @@ describe('useImportHandler', () => {
 
     renderHook(() => useImportHandler(context, handler));
 
-    const event = new CustomEvent('import-data', {
-      detail: { context: 'requests', format: 'csv' as ImportFormat, file: mockFile },
+    act(() => {
+      useUiActionsStore.getState().triggerImport({ context: 'requests', format: 'csv' as ImportFormat, file: mockFile });
     });
-    window.dispatchEvent(event);
 
     expect(handler).not.toHaveBeenCalled();
   });
@@ -119,34 +124,29 @@ describe('useImportHandler', () => {
 
     renderHook(() => useImportHandler(context, handler));
 
-    const csvEvent = new CustomEvent('import-data', {
-      detail: { context: 'requests', format: 'csv' as ImportFormat, file: csvFile },
+    act(() => {
+      useUiActionsStore.getState().triggerImport({ context: 'requests', format: 'csv' as ImportFormat, file: csvFile });
     });
-    window.dispatchEvent(csvEvent);
-
-    const xlsxEvent = new CustomEvent('import-data', {
-      detail: { context: 'requests', format: 'xlsx' as ImportFormat, file: xlsxFile },
+    act(() => {
+      useUiActionsStore.getState().triggerImport({ context: 'requests', format: 'xlsx' as ImportFormat, file: xlsxFile });
     });
-    window.dispatchEvent(xlsxEvent);
 
     expect(handler).toHaveBeenCalledWith(csvFile, 'csv');
     expect(handler).toHaveBeenCalledWith(xlsxFile, 'xlsx');
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
-  it('removes event listener on unmount', () => {
+  it('does not re-fire after unmount', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
     const mockFile = new File(['test'], 'test.csv', { type: 'text/csv' });
 
     const { unmount } = renderHook(() => useImportHandler(context, handler));
-
     unmount();
 
-    const event = new CustomEvent('import-data', {
-      detail: { context: 'spaces', format: 'csv' as ImportFormat, file: mockFile },
+    act(() => {
+      useUiActionsStore.getState().triggerImport({ context: 'spaces', format: 'csv' as ImportFormat, file: mockFile });
     });
-    window.dispatchEvent(event);
 
     expect(handler).not.toHaveBeenCalled();
   });
