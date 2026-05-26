@@ -6,7 +6,6 @@ import {
   useCreateCriterion,
   useUpdateCriterion,
   useDeleteCriterion,
-  useFilteredCriteria,
   useUpdateCriterionApplicability,
 } from './useCriteria';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
@@ -100,21 +99,6 @@ describe('useCriteria', () => {
       await result.current.mutateAsync('criterion-1');
 
       expect(criteriaApi.deleteCriterion).toHaveBeenCalledWith('criterion-1');
-    });
-  });
-
-  describe('useFilteredCriteria', () => {
-    it('fetches criteria with the given resourceType filter', async () => {
-      const spaceCriteria = [mockCriterion];
-      vi.mocked(criteriaApi.getCriteria).mockResolvedValue(spaceCriteria);
-
-      const { result } = renderHook(() => useFilteredCriteria('space'), {
-        wrapper: createTestQueryWrapper(),
-      });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data).toEqual(spaceCriteria);
-      expect(criteriaApi.getCriteria).toHaveBeenCalledWith({ resourceType: 'space' });
     });
   });
 

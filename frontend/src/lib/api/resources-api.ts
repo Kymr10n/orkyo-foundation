@@ -94,14 +94,3 @@ export async function updateResource(id: string, request: UpdateResourceRequest)
 export async function deleteResource(id: string): Promise<void> {
   return apiDelete(API_PATHS.resource(id));
 }
-
-// React Query hooks
-export function useResourcesApi() {
-  return {
-    getResources,
-    getResource,
-    createResource,
-    updateResource,
-    deleteResource,
-  };
-}

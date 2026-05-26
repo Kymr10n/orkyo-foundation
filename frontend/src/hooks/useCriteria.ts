@@ -1,7 +1,7 @@
 import { createCrudHooks } from "./useMutations";
 import { createCriterion, deleteCriterion, getCriteria, updateCriterion, updateCriterionApplicability } from "@foundation/src/lib/api/criteria-api";
-import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest, UpdateCriterionApplicabilityRequest, CriterionApplicabilityInfo, ResourceTypeKey } from "@foundation/src/types/criterion";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest, UpdateCriterionApplicabilityRequest, CriterionApplicabilityInfo } from "@foundation/src/types/criterion";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const CRITERIA_QUERY_KEY = ["criteria"] as const;
 
@@ -19,14 +19,6 @@ export const useCriteria = () => criteriaHooks.useQuery(undefined, { enabled: tr
 export const useCreateCriterion = () => criteriaHooks.useCreate();
 export const useUpdateCriterion = () => criteriaHooks.useUpdate();
 export const useDeleteCriterion = () => criteriaHooks.useDelete();
-
-/** Returns only criteria applicable to the given resource type. */
-export function useFilteredCriteria(resourceType: ResourceTypeKey) {
-  return useQuery<Criterion[]>({
-    queryKey: [...CRITERIA_QUERY_KEY, resourceType],
-    queryFn: () => getCriteria({ resourceType }),
-  });
-}
 
 /** Mutation to update criterion applicability via PUT /criteria/{id}/applicability. */
 export function useUpdateCriterionApplicability() {

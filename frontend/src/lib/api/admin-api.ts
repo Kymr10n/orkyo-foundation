@@ -92,8 +92,10 @@ export interface AdminTenantMember {
 // Tenant Management
 // ============================================================================
 
-export async function getAdminTenants(): Promise<{ tenants: AdminTenant[] }> {
-  return apiGet<{ tenants: AdminTenant[] }>(API_PATHS.ADMIN.TENANTS);
+export async function getAdminTenants(search?: string): Promise<{ tenants: AdminTenant[] }> {
+  const params: Record<string, string> = {};
+  if (search) params.search = search;
+  return apiGet<{ tenants: AdminTenant[] }>(API_PATHS.ADMIN.TENANTS, { params });
 }
 
 export async function createAdminTenant(data: { slug: string; displayName: string }): Promise<AdminTenant> {

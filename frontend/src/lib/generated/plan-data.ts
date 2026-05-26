@@ -124,39 +124,3 @@ export const PLAN_FEATURES: PlanFeature[] = [
     "enterprise": true
   }
 ];
-
-export interface PlanDisplay {
-  key: string;
-  displayName: string;
-  tagline: string;
-  priceLabel: string;
-  ctaText: string;
-  ctaHref: string;
-}
-
-export const PLAN_DISPLAY: PlanDisplay[] = [
-  {
-    "key": "free",
-    "displayName": "Free",
-    "tagline": "Get started for free",
-    "priceLabel": "CHF 0",
-    "ctaText": "Get Started",
-    "ctaHref": "/login?auto=1"
-  },
-  {
-    "key": "professional",
-    "displayName": "Professional",
-    "tagline": "For growing teams",
-    "priceLabel": "Contact Us",
-    "ctaText": "Contact Sales",
-    "ctaHref": "/contact.html"
-  },
-  {
-    "key": "enterprise",
-    "displayName": "Enterprise",
-    "tagline": "Custom deployment &amp; SLA",
-    "priceLabel": "Custom",
-    "ctaText": "Contact Sales",
-    "ctaHref": "/contact.html"
-  }
-];

@@ -66,12 +66,3 @@ export async function linkUserToPersonProfile(
 export async function unlinkUserFromPersonProfile(resourceId: string): Promise<void> {
   return apiDelete(API_PATHS.personProfileLink(resourceId));
 }
-
-export function usePersonProfilesApi() {
-  return {
-    getPersonProfile,
-    upsertPersonProfile,
-    linkUserToPersonProfile,
-    unlinkUserFromPersonProfile,
-  };
-}

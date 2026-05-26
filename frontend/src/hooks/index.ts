@@ -5,7 +5,6 @@ export {
   useCreateCriterion,
   useUpdateCriterion,
   useDeleteCriterion,
-  useFilteredCriteria,
   useUpdateCriterionApplicability,
 } from "./useCriteria";
 export { useExportHandler, useImportHandler } from "./useImportExport";
