@@ -68,7 +68,7 @@ describe('ResourceGroupList', () => {
   it('shows loading state initially', () => {
     vi.mocked(getResourceGroups).mockImplementation(() => new Promise(() => {}));
     renderList();
-    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
   it('renders group rows after loading', async () => {

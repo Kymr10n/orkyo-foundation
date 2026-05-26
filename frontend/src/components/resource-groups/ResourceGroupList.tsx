@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
-import { Plus, Pencil, Trash2, Users, Loader2 } from 'lucide-react';
+import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
@@ -47,6 +48,49 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group' }: Re
     handleClose();
   };
 
+  const columns: ColumnDef<ResourceGroupInfo>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
+    },
+    {
+      accessorKey: 'description',
+      header: 'Description',
+      cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string | null>() ?? '—'}</span>,
+    },
+    {
+      accessorKey: 'memberCount',
+      header: 'Members',
+    },
+    {
+      accessorKey: 'defaultAvailabilityPercent',
+      header: 'Default Availability',
+      cell: ({ getValue }) => `${getValue<number>()}%`,
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 120,
+      cell: ({ row }) => {
+        const group = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setManagingMembersFor(group)} aria-label={`Manage members of ${group.name}`} title="Manage members">
+              <Users className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(group)} aria-label={`Edit ${group.name}`}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(group.id)} disabled={deleteMutation.isPending} aria-label={`Delete ${group.name}`}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -56,69 +100,15 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group' }: Re
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : groups.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No {entityLabel.toLowerCase()}s yet. Click &quot;Add {entityLabel}&quot; to create one.
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="text-left p-4 font-medium">Name</th>
-                <th className="text-left p-4 font-medium">Description</th>
-                <th className="text-left p-4 font-medium">Members</th>
-                <th className="text-left p-4 font-medium">Default Availability</th>
-                <th className="text-right p-4 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((group) => (
-                <tr key={group.id} className="border-t hover:bg-muted/50">
-                  <td className="p-4 font-medium">{group.name}</td>
-                  <td className="p-4 text-muted-foreground">{group.description ?? '—'}</td>
-                  <td className="p-4">{group.memberCount}</td>
-                  <td className="p-4">{group.defaultAvailabilityPercent}%</td>
-                  <td className="p-4">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setManagingMembersFor(group)}
-                        aria-label={`Manage members of ${group.name}`}
-                        title="Manage members"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(group)}
-                        aria-label={`Edit ${group.name}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteMutation.mutate(group.id)}
-                        disabled={deleteMutation.isPending}
-                        aria-label={`Delete ${group.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <OrkyoDataTable
+        columns={columns}
+        data={groups}
+        isLoading={isLoading}
+        emptyMessage={`No ${entityLabel.toLowerCase()}s yet. Click "Add ${entityLabel}" to create one.`}
+        filterColumn="name"
+        filterPlaceholder={`Search ${entityLabel.toLowerCase()}s...`}
+        pageSize={25}
+      />
 
       <ResourceGroupEditDialog
         resourceTypeKey={resourceTypeKey}

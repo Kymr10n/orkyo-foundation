@@ -3,6 +3,7 @@ import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/rea
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
+import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Plus, Pencil, Trash2, Sliders, CalendarOff } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
@@ -88,8 +89,59 @@ export function PersonList() {
     handleDialogClose();
   };
 
-  if (isLoading) return <div>Loading people...</div>;
-  if (error) return <div>Error loading people</div>;
+  // profileByPersonId is rebuilt by useQueries on every resolve, so columns must
+  // also rebuild each render to close over the latest snapshot.
+  const columns: ColumnDef<ResourceInfo>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {profileByPersonId[row.original.id]?.email ?? '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'jobTitle',
+      header: 'Job Title',
+      cell: ({ row }) => profileByPersonId[row.original.id]?.jobTitleName ?? '-',
+    },
+    {
+      id: 'department',
+      header: 'Department',
+      cell: ({ row }) => profileByPersonId[row.original.id]?.departmentPath ?? '-',
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 160,
+      cell: ({ row }) => {
+        const person = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="sm" onClick={() => handleEdit(person)} aria-label={`Edit ${person.name}`} title="Edit Person">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSkillsPerson(person)} aria-label={`Manage skills for ${person.name}`} title="Manage Skills">
+              <Sliders className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setAbsencePerson(person)} aria-label={`Manage absences for ${person.name}`} title="Manage Absences">
+              <CalendarOff className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => handleDelete(person.id)} aria-label={`Deactivate ${person.name}`} title="Deactivate Person">
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const queryErrorMsg = error instanceof Error ? error.message : error ? String(error) : null;
 
   return (
     <div className="space-y-4">
@@ -100,76 +152,16 @@ export function PersonList() {
         </Button>
       </div>
 
-      {people?.data?.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          No people found. Add your first person to get started.
-        </div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted">
-              <tr>
-                <th className="text-left p-4 font-medium">Name</th>
-                <th className="text-left p-4 font-medium">Email</th>
-                <th className="text-left p-4 font-medium">Job Title</th>
-                <th className="text-left p-4 font-medium">Department</th>
-                <th className="text-right p-4 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {people?.data?.map((person: ResourceInfo) => {
-                const profile = profileByPersonId[person.id];
-                return (
-                <tr key={person.id} className="border-t hover:bg-accent/50">
-                  <td className="p-4">{person.name}</td>
-                  <td className="p-4 text-muted-foreground">{profile?.email ?? '-'}</td>
-                  <td className="p-4">{profile?.jobTitleName ?? '-'}</td>
-                  <td className="p-4">{profile?.departmentPath ?? '-'}</td>
-                  <td className="p-4 text-right space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(person)}
-                      aria-label={`Edit ${person.name}`}
-                      title="Edit Person"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSkillsPerson(person)}
-                      aria-label={`Manage skills for ${person.name}`}
-                      title="Manage Skills"
-                    >
-                      <Sliders className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setAbsencePerson(person)}
-                      aria-label={`Manage absences for ${person.name}`}
-                      title="Manage Absences"
-                    >
-                      <CalendarOff className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(person.id)}
-                      aria-label={`Deactivate ${person.name}`}
-                      title="Deactivate Person"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <OrkyoDataTable
+        columns={columns}
+        data={personRows}
+        isLoading={isLoading}
+        error={queryErrorMsg}
+        emptyMessage="No people found. Add your first person to get started."
+        filterColumn="name"
+        filterPlaceholder="Search people..."
+        pageSize={25}
+      />
 
       <PersonEditDialog
         person={editingPerson}

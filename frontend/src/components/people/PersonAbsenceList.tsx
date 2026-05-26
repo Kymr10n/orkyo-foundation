@@ -7,8 +7,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@foundation/src/components/ui/dialog';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
-import { getResourceAbsences, deleteResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
+import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
+import { Plus, Trash2 } from 'lucide-react';
+import { getResourceAbsences, deleteResourceAbsence, type ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
 import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
 import { format } from 'date-fns';
 
@@ -58,50 +59,48 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
             </Button>
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
-            {isLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : absences.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                No absences recorded.
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="text-left p-3 font-medium">Type</th>
-                    <th className="text-left p-3 font-medium">Start</th>
-                    <th className="text-left p-3 font-medium">End</th>
-                    <th className="text-left p-3 font-medium">Reason</th>
-                    <th className="p-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {absences.map((absence) => (
-                    <tr key={absence.id} className="border-t hover:bg-muted/50">
-                      <td className="p-3">{ABSENCE_TYPE_LABELS[absence.absenceType] ?? absence.absenceType}</td>
-                      <td className="p-3">{format(new Date(absence.startTs), 'PP')}</td>
-                      <td className="p-3">{format(new Date(absence.endTs), 'PP')}</td>
-                      <td className="p-3 text-muted-foreground">{absence.title}</td>
-                      <td className="p-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteMutation.mutate(absence.id)}
-                          disabled={deleteMutation.isPending}
-                          aria-label="Delete absence"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <OrkyoDataTable<ResourceAbsenceInfo>
+            columns={[
+              {
+                accessorKey: 'absenceType',
+                header: 'Type',
+                cell: ({ getValue }) => ABSENCE_TYPE_LABELS[getValue<string>()] ?? getValue<string>(),
+              },
+              {
+                accessorKey: 'startTs',
+                header: 'Start',
+                cell: ({ getValue }) => format(new Date(getValue<string>()), 'PP'),
+              },
+              {
+                accessorKey: 'endTs',
+                header: 'End',
+                cell: ({ getValue }) => format(new Date(getValue<string>()), 'PP'),
+              },
+              {
+                accessorKey: 'title',
+                header: 'Reason',
+                cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string>()}</span>,
+              },
+              {
+                id: 'actions',
+                header: () => null,
+                size: 56,
+                cell: ({ row }) => (
+                  <Button
+                    variant="ghost" size="icon"
+                    onClick={() => deleteMutation.mutate(row.original.id)}
+                    disabled={deleteMutation.isPending}
+                    aria-label="Delete absence"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                ),
+              },
+            ]}
+            data={absences}
+            isLoading={isLoading}
+            emptyMessage="No absences recorded."
+          />
         </div>
 
         <PersonAbsenceEditDialog

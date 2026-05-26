@@ -123,6 +123,10 @@ export {
 // Visually Hidden
 export { VisuallyHidden } from "./visually-hidden";
 
+// Data Table
+export { OrkyoDataTable } from "./OrkyoDataTable";
+export type { OrkyoDataTableProps, ColumnDef } from "./OrkyoDataTable";
+
 // Form utilities
 export { DialogFormFooter } from "./DialogFormFooter";
 export { ErrorAlert } from "./ErrorAlert";
