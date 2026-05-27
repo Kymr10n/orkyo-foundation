@@ -24,6 +24,9 @@ public class SupersetReportingEngineClientTests
             if (req.RequestUri!.PathAndQuery == "/api/v1/security/login")
                 return Json(new { access_token = AdminToken });
 
+            if (req.RequestUri.PathAndQuery == "/api/v1/security/csrf_token/")
+                return Json(new { result = "fake-csrf-token" });
+
             if (req.RequestUri.PathAndQuery == "/api/v1/security/guest_token/")
             {
                 req.Headers.Authorization!.Parameter.Should().Be(AdminToken);
@@ -92,6 +95,8 @@ public class SupersetReportingEngineClientTests
         {
             if (req.RequestUri!.PathAndQuery == "/api/v1/security/login")
                 return Json(new { access_token = AdminToken });
+            if (req.RequestUri.PathAndQuery == "/api/v1/security/csrf_token/")
+                return Json(new { result = "fake-csrf-token" });
             if (req.RequestUri.PathAndQuery == "/api/v1/database/")
             {
                 if (req.Method == HttpMethod.Get)
@@ -116,6 +121,8 @@ public class SupersetReportingEngineClientTests
         {
             if (req.RequestUri!.PathAndQuery == "/api/v1/security/login")
                 return Json(new { access_token = AdminToken });
+            if (req.RequestUri.PathAndQuery == "/api/v1/security/csrf_token/")
+                return Json(new { result = "fake-csrf-token" });
             if (req.RequestUri.PathAndQuery == "/api/v1/database/")
             {
                 if (req.Method == HttpMethod.Get)
