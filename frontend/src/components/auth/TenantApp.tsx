@@ -45,9 +45,10 @@ const ConflictsPage = lazy(() => import('@foundation/src/pages/ConflictsPage').t
 const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
+const ReportsPage = lazy(() => import('@foundation/src/pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings", "/reports"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -136,6 +137,8 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="floorplan" element={<FloorplanView />} />
             <Route path="groups" element={<ResourceGroupList resourceTypeKey="space" />} />
           </Route>
+
+          <Route path="reports/:reportKey?" element={<ReportsPage />} />
 
           {/* Backward-compatible redirects: resource-domain master data moved
               out of Settings into the owning resource page. */}

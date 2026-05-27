@@ -21,6 +21,8 @@ export default defineConfig(
       'contracts/**/*.js',
       'contracts/**/*.d.ts',
       'contracts/**/*.d.ts.map',
+      // Generated from openapi.json — do not lint.
+      'src/lib/api/generated/**',
     ],
   },
 

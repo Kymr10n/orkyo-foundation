@@ -195,4 +195,9 @@ export const API_PATHS = {
   RESOURCE_ASSIGNMENTS: '/api/resource-assignments',
   RESOURCE_ASSIGNMENTS_VALIDATE: '/api/resource-assignments/validate',
   resourceAssignment: (id: string) => `/api/resource-assignments/${id}`,
+
+  // Reports
+  REPORTS: '/api/reports',
+  reportEmbedToken: (reportKey: string) => `/api/reports/${reportKey}/embed-token`,
+  REPORTS_REPROVISION: '/api/admin/reports/reprovision',
 } as const;

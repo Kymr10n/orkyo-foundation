@@ -17,7 +17,7 @@ public sealed class AppExceptionHandler : IExceptionHandler
             Microsoft.AspNetCore.Http.BadHttpRequestException bhr
                 => ErrorResponses.BadRequest(bhr.Message),
             FeatureNotAvailableException fna
-                => ErrorResponses.Forbidden(message: fna.Message),
+                => ErrorResponses.ServiceUnavailable(fna.Message),
             NotFoundException nfe
                 => ErrorResponses.NotFound(nfe.ResourceType.Length > 0 ? nfe.ResourceType : nfe.Message, nfe.ResourceId),
             ConflictException ce

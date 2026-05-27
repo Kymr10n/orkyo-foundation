@@ -1,8 +1,10 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { cn } from "@foundation/src/lib/utils";
 import {
   AlertTriangle,
+  BarChart3,
   Box,
   ChevronLeft,
   ChevronRight,
@@ -12,13 +14,24 @@ import {
   Users,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 
-const navItems = [
+const ROLE_LEVEL: Record<string, number> = { none: 0, viewer: 1, editor: 2, admin: 3 };
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  minRole?: 'viewer' | 'editor' | 'admin';
+}
+
+const navItems: NavItem[] = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
   { to: "/spaces", label: "Spaces", icon: Box },
   { to: "/people", label: "People", icon: Users },
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/conflicts", label: "Conflicts", icon: AlertTriangle },
+  { to: "/reports", label: "Reports", icon: BarChart3, minRole: 'viewer' },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -26,6 +39,11 @@ export function SidebarNav() {
   const location = useLocation();
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);
+  const { membership } = useAuth();
+  const userRoleLevel = ROLE_LEVEL[membership?.role?.toLowerCase() ?? 'none'] ?? 0;
+  const visibleItems = navItems.filter(item =>
+    !item.minRole || userRoleLevel >= (ROLE_LEVEL[item.minRole] ?? 0)
+  );
 
   return (
     <nav
@@ -35,7 +53,7 @@ export function SidebarNav() {
       )}
     >
       <div className="flex-1 py-4">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.to;
 

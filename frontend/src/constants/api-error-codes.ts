@@ -13,6 +13,8 @@ export const API_ERROR_CODES = {
   BREAK_GLASS_HARD_CAP_REACHED: 'break_glass_hard_cap_reached',
   /** Generic permission denial — user is authenticated but not allowed. */
   FORBIDDEN: 'forbidden',
+  /** An optional integration (e.g. reporting) is not yet provisioned for this tenant. */
+  SERVICE_UNAVAILABLE: 'service_unavailable',
 } as const;
 
 /**

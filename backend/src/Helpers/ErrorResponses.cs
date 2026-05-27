@@ -67,6 +67,18 @@ public static class ErrorResponses
     }
 
     /// <summary>
+    /// Returns a 503 Service Unavailable response (e.g. an optional integration is not provisioned).
+    /// </summary>
+    public static IResult ServiceUnavailable(string? message = null)
+    {
+        return Results.Json(new ErrorResponse
+        {
+            Error = message ?? "Service unavailable",
+            Code = ApiErrorCodes.ServiceUnavailable,
+        }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    /// <summary>
     /// Returns a 409 Conflict response with a standard error format.
     /// </summary>
     /// <param name="message">The error message.</param>

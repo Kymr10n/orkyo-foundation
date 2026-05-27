@@ -56,6 +56,10 @@ public static class FoundationEndpointExtensions
         app.MapUserManagementEndpoints();
         app.MapUserPreferencesEndpoints();
         app.MapUtilizationEndpoints();
+        app.MapReportEndpoints();
+
+        // OpenAPI spec — dev/test only; production exposure is controlled per-product.
+        app.MapOpenApi("/openapi/v1.json");
 
         return app;
     }

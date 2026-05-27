@@ -1,5 +1,7 @@
 using Api.Helpers;
 using Api.Integrations.Keycloak;
+using Api.Integrations.Reporting;
+using Api.Reporting;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
@@ -35,6 +37,7 @@ public static class FoundationServiceExtensions
         services.AddExceptionHandler<AppExceptionHandler>();
         services.AddProblemDetails();
         services.AddEndpointsApiExplorer();
+        services.AddOpenApi();
         services.AddHttpContextAccessor();
         services.AddHttpClient();
         services.AddValidatorsFromAssemblyContaining<CreateCriterionRequestValidator>(ServiceLifetime.Scoped);
@@ -115,6 +118,14 @@ public static class FoundationServiceExtensions
         services.AddSingleton<ISchedulingSolver, OrToolsSchedulingSolver>();
         services.AddSingleton<ISchedulingSolver, GreedySchedulingSolver>();
         services.AddScoped<IAutoScheduleService, AutoScheduleService>();
+
+        // ── Reporting ─────────────────────────────────────────────────────────
+        services.Configure<ReportingOptions>(configuration.GetSection(ReportingOptions.SectionName));
+        services.AddHttpClient<IReportingEngineClient, SupersetReportingEngineClient>();
+        services.AddScoped<IReportBindingRepository, ReportBindingRepository>();
+        services.AddScoped<IReportCatalogService, ReportCatalogService>();
+        services.AddScoped<IReportEmbedService, ReportEmbedService>();
+        services.AddScoped<ITenantReportingProvisioner, TenantReportingProvisioner>();
 
         return services;
     }

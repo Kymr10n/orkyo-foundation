@@ -305,6 +305,25 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());
         builder.Services.AddScoped<IIdentityLinkService>(sp => Mock.Of<IIdentityLinkService>());
 
+        // ── Reporting ─────────────────────────────────────────────────────────
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Reporting:Enabled"] = "true",
+            ["Reporting:BaseUrl"] = "http://superset.test",
+            ["Reporting:EmbedTokenTtlSeconds"] = "300",
+            ["Reporting:ReaderCredentialMasterSecret"] = "test-master-secret",
+        });
+        builder.Services.Configure<Api.Reporting.ReportingOptions>(
+            builder.Configuration.GetSection(Api.Reporting.ReportingOptions.SectionName));
+        builder.Services.AddScoped<Api.Reporting.IReportBindingRepository, Api.Repositories.ReportBindingRepository>();
+        builder.Services.AddScoped<Api.Reporting.IReportCatalogService, Api.Reporting.ReportCatalogService>();
+        builder.Services.AddScoped<Api.Reporting.IReportEmbedService, Api.Reporting.ReportEmbedService>();
+        builder.Services.AddScoped<Api.Reporting.ITenantReportingProvisioner>(
+            sp => Mock.Of<Api.Reporting.ITenantReportingProvisioner>());
+        // Superset HTTP client → mock: tests never hit a real Superset
+        builder.Services.AddScoped<Api.Integrations.Reporting.IReportingEngineClient>(
+            sp => Mock.Of<Api.Integrations.Reporting.IReportingEngineClient>());
+
         // Validators — register all from the foundation assembly
         var foundationAssembly = typeof(SiteRequestValidator<>).Assembly;
         foreach (var type in foundationAssembly.GetTypes()
@@ -325,6 +344,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
         });
 
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddOpenApi();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddLogging();
         builder.Services.AddExceptionHandler<Api.Helpers.AppExceptionHandler>();
@@ -469,6 +490,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapSettingsAdminEndpoints();
         app.MapDiagnosticsAdminEndpoints();
         app.MapAuditEndpoints();
+        app.MapReportEndpoints();
+        app.MapOpenApi("/openapi/v1.json");
 
         return app;
     }

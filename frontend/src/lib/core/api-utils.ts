@@ -1,4 +1,19 @@
 /**
+ * Structured API error — carries HTTP status and backend error code so callers
+ * can react differently without parsing message strings.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string | undefined,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/**
  * Shared API utilities for making authenticated requests.
  *
  * BFF mode: authentication is carried by HttpOnly cookies (credentials: 'include').
@@ -141,15 +156,15 @@ export async function handleApiError(response: Response): Promise<never> {
       // Local dev / no apex — fall back to a same-origin nav.
       window.location.href = returnTo || "/admin";
     }
-    throw new Error(errorMessage || "Break-glass session has ended.");
+    throw new ApiError(response.status, code, errorMessage || "Break-glass session has ended.");
   }
 
   if (response.status === 401) {
     // Session expired or unauthenticated — clear state and redirect to login.
     clearTenantState();
     redirectToLogin();
-    throw new Error(errorMessage || "Your session has expired. Please log in again.");
+    throw new ApiError(401, code, errorMessage || "Your session has expired. Please log in again.");
   }
 
-  throw new Error(`API Error (${response.status}): ${errorMessage}`);
+  throw new ApiError(response.status, code, errorMessage || response.statusText);
 }
