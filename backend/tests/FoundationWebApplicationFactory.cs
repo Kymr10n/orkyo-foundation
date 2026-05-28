@@ -2,13 +2,16 @@ using System.Text.Json.Serialization;
 using Api.Configuration;
 using Api.Endpoints;
 using Api.Endpoints.Admin;
+using Api.Endpoints.Reporting;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
+using Api.Reporting.Auth;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using Api.Services.AutoSchedule;
 using Api.Services.BffSession;
+using Api.Services.Reporting;
 using Api.Validators;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -151,6 +154,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["BFF_ALLOWED_HOSTS"] = "demo.orkyo.com,localhost:5173,orkyo.com,*.orkyo.com",
             // ToS — current required version. Tests assert against "2026-02".
             ["ToS:RequiredVersion"] = "2026-02",
+            // Reporting token pepper — fixed for test repeatability.
+            ["REPORTING_TOKEN_PEPPER"] = "test-reporting-pepper-do-not-use-in-prod",
+            // Rate limiting disabled in tests to avoid spurious 429s.
+            ["DISABLE_RATE_LIMITING"] = "true",
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────
@@ -159,9 +166,35 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             options.DefaultAuthenticateScheme = "TestScheme";
             options.DefaultChallengeScheme = "TestScheme";
             options.DefaultScheme = "TestScheme";
-        }).AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("TestScheme", _ => { });
+        })
+        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("TestScheme", _ => { })
+        .AddScheme<AuthenticationSchemeOptions, ReportingTokenAuthHandler>(
+            ReportingTokenAuthHandler.SchemeName, _ => { });
 
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy("ReportingToken", policy =>
+            {
+                policy.AddAuthenticationSchemes(ReportingTokenAuthHandler.SchemeName);
+                policy.RequireAuthenticatedUser();
+            });
+        });
+
+        // Rate limiting — disabled by DISABLE_RATE_LIMITING config in tests
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("reporting-api", ctx =>
+                System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                    ctx.User?.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0,
+                    }));
+        });
 
         // ── Security context (real scoped impls populated by test middleware) ─
         builder.Services.AddScoped<CurrentPrincipal>();
@@ -293,6 +326,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IAssetStorageService, AssetStorageService>();
         builder.Services.AddScoped<UserLifecycleService>();
 
+        // ── Reporting services ────────────────────────────────────────────────
+        builder.Services.AddScoped<IReportingTokenService, ReportingTokenService>();
+        builder.Services.AddScoped<IReportingQueryService, ReportingQueryService>();
+
         // BFF auth — wires BffOptions binding, in-memory PKCE/session stores, DataProtection,
         // TenantMiddlewareOptions, and (when BFF_ENABLED=true) the cookie auth scheme.
         builder.Services.AddBffAuthentication(builder.Configuration);
@@ -337,13 +374,33 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.UseExceptionHandler();
         app.UseRouting();
         app.UseAuthentication();
+        if (!builder.Configuration.GetValue<bool>("DISABLE_RATE_LIMITING"))
+            app.UseRateLimiter();
 
         // Test context enrichment: populate security context for authenticated requests.
         // Mirrors saas tenant resolution: endpoints without [SkipTenantResolution] require
         // an X-Tenant-Slug header (or fall back to the shared test tenant); endpoints
         // marked skip-tenant are always allowed through with the default test context.
+        //
+        // Reporting tokens (orkyo_rpt_*) are authenticated by ReportingTokenAuthHandler
+        // during UseAuthorization(), NOT UseAuthentication(). That means context.User is
+        // not yet authenticated when this middleware runs. Pre-populate the TenantContext
+        // for those requests so the endpoint filter's HasTenant check passes.
         app.Use(async (context, next) =>
         {
+            var isReportingToken = context.Request.Headers.Authorization
+                .FirstOrDefault()?.StartsWith("Bearer orkyo_rpt_") == true;
+            if (isReportingToken && context.Request.Headers.ContainsKey("X-Tenant-Slug"))
+            {
+                var tenantCtx = context.RequestServices.GetRequiredService<TenantContext>();
+                var tenant = context.RequestServices.GetRequiredService<CurrentTenant>();
+                tenant.SetContext(tenantCtx);
+                context.Items["TenantContext"] = tenantCtx;
+                context.Items["OrgContext"] = context.RequestServices.GetRequiredService<OrgContext>();
+                await next(context);
+                return;
+            }
+
             if (context.User.Identity?.IsAuthenticated == true)
             {
                 var userId = new Guid("11111111-1111-1111-1111-111111111111");
@@ -463,6 +520,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapPersonProfileEndpoints();
         app.MapJobTitleEndpoints();
         app.MapDepartmentEndpoints();
+        // Reporting endpoints
+        app.MapReportingEndpoints();
+        app.MapReportingTokenEndpoints();
+
         // Admin endpoints
         app.MapFloorplanEndpoints();
         app.MapUserAdminEndpoints();

@@ -125,9 +125,10 @@ public class DatabaseFixture : IAsyncLifetime
         await seedConn.OpenAsync();
 
         await using var tenantSeedCmd = new NpgsqlCommand(
-            @"INSERT INTO tenants (slug, display_name, status, db_identifier, tier, created_at, updated_at)
-              VALUES (@slug, 'Test Organization', 'active', @db, 2, NOW(), NOW())
-              ON CONFLICT (slug) DO UPDATE SET tier = 2, db_identifier = @db", seedConn);
+            @"INSERT INTO tenants (id, slug, display_name, status, db_identifier, tier, created_at, updated_at)
+              VALUES (@id, @slug, 'Test Organization', 'active', @db, 2, NOW(), NOW())
+              ON CONFLICT (id) DO UPDATE SET slug = @slug, tier = 2, db_identifier = @db", seedConn);
+        tenantSeedCmd.Parameters.AddWithValue("id", new Guid("00000000-0000-0000-0000-000000000001"));
         tenantSeedCmd.Parameters.AddWithValue("slug", TestConstants.TenantSlug);
         tenantSeedCmd.Parameters.AddWithValue("db", TestConstants.TenantDatabase);
         await tenantSeedCmd.ExecuteNonQueryAsync();

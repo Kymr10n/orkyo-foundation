@@ -24,6 +24,7 @@ import { UserSettings } from '@foundation/src/components/settings/UserSettings';
 import { OrganizationSettings } from '@foundation/src/components/settings/OrganizationSettings';
 import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
 import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
+import { ReportingApiPage } from '@foundation/src/components/settings/ReportingApiPage';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
@@ -116,6 +117,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="organization" element={<OrganizationSettings />} />
             <Route path="scheduling" element={<SchedulingSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
+            <Route path="integrations" element={<ReportingApiPage />} />
           </Route>
 
           {/* People — nested sub-routes. Skills and absences are managed per-person

@@ -4,9 +4,11 @@ using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using Api.Services.AutoSchedule;
+using Api.Services.Reporting;
 using Api.Validators;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
 using Orkyo.Shared.Keycloak;
 
 namespace Api.Configuration;
@@ -108,6 +110,50 @@ public static class FoundationServiceExtensions
         services.AddScoped<ITenantUserService, TenantUserService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
+
+        // ── Reporting ─────────────────────────────────────────────────────────
+        services.AddScoped<IReportingTokenService, ReportingTokenService>();
+        services.AddScoped<IReportingQueryService, ReportingQueryService>();
+
+        // ── OpenAPI / Swagger ─────────────────────────────────────────────────
+        // Reporting-only document at /swagger/reporting-v1/swagger.json
+        services.AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("reporting-v1", new OpenApiInfo
+            {
+                Title = "Orkyo Reporting API",
+                Version = "v1",
+                Description = "Read-only, tenant-scoped reporting endpoints for Power BI, Excel, Metabase, Superset, and custom integrations. " +
+                              "Authenticate with an orkyo_rpt_* reporting token in the Authorization header. " +
+                              "Tenant isolation is enforced server-side — no tenantId parameter accepted.",
+            });
+
+            c.AddSecurityDefinition("ReportingToken", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "orkyo_rpt_<prefix>_<secret>",
+                In = ParameterLocation.Header,
+                Description = "Reporting API token in the format: Bearer orkyo_rpt_<prefix>_<secret>",
+            });
+
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ReportingToken" }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+
+            // Include only reporting endpoints (by path prefix)
+            c.DocInclusionPredicate((docName, apiDesc) =>
+                docName == "reporting-v1" &&
+                (apiDesc.RelativePath?.StartsWith("api/reporting", StringComparison.OrdinalIgnoreCase) ?? false));
+        });
 
         // ── Scheduling solver (singleton — stateless and thread-safe) ─────────
         services.AddScoped<SchedulingProblemBuilder>();

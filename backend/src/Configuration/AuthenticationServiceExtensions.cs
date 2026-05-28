@@ -1,5 +1,7 @@
 using Api.Endpoints;
+using Api.Reporting.Auth;
 using Api.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -126,7 +128,21 @@ public static class AuthenticationServiceExtensions
                 });
         }
 
-        services.AddAuthorization();
+        // Register the reporting token auth scheme as a standalone scheme.
+        // Reporting endpoints opt in via .RequireAuthorization("ReportingToken").
+        services.AddAuthentication()
+            .AddScheme<AuthenticationSchemeOptions, ReportingTokenAuthHandler>(
+                ReportingTokenAuthHandler.SchemeName, _ => { });
+
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("ReportingToken", policy =>
+            {
+                policy.AddAuthenticationSchemes(ReportingTokenAuthHandler.SchemeName);
+                policy.RequireAuthenticatedUser();
+            });
+        });
+
         return services;
     }
 }

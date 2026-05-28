@@ -23,6 +23,7 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
   organization: '/settings/organization',
   scheduling: '/settings/scheduling',
   configuration: '/settings/configuration',
+  integrations: '/settings/integrations',
 };
 
 export function SettingsPage() {
@@ -48,6 +49,7 @@ export function SettingsPage() {
       { value: 'organization', label: 'Organization' },
       { value: 'scheduling', label: 'Scheduling' },
       { value: 'configuration', label: 'Configuration' },
+      ...(isAdmin ? [{ value: 'integrations', label: 'Integrations' }] : []),
     ];
     return all;
   }, [showSites, isAdmin]);

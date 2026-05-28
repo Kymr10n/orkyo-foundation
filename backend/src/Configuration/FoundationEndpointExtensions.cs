@@ -1,5 +1,6 @@
 using Api.Endpoints;
 using Api.Endpoints.Admin;
+using Api.Endpoints.Reporting;
 using Microsoft.AspNetCore.Builder;
 
 namespace Api.Configuration;
@@ -56,6 +57,8 @@ public static class FoundationEndpointExtensions
         app.MapUserManagementEndpoints();
         app.MapUserPreferencesEndpoints();
         app.MapUtilizationEndpoints();
+        app.MapReportingEndpoints();
+        app.MapReportingTokenEndpoints();
 
         return app;
     }
