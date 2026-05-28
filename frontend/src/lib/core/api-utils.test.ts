@@ -172,7 +172,7 @@ describe('api-utils', () => {
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (500): Database connection failed'
+        'Database connection failed'
       );
     });
 
@@ -186,7 +186,7 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (404): Not Found'
+        'Not Found'
       );
     });
 
@@ -264,7 +264,7 @@ describe('api-utils', () => {
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (400): Validation failed'
+        'Validation failed'
       );
     });
 

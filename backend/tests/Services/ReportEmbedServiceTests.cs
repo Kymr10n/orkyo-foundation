@@ -14,7 +14,7 @@ public class ReportEmbedServiceTests
 {
     private static readonly Guid TenantId = Guid.NewGuid();
     private static readonly Guid DashboardUuid = Guid.NewGuid();
-    private const string ReportKey = "space-utilization";
+    private const string ReportKey = "space_utilization";
     private const string FakeToken = "superset-guest-token-abc";
 
     private static IAuthorizationContext ViewerContext()

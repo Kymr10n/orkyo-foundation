@@ -55,7 +55,7 @@ public sealed class ReportApiIsolationTests(DatabaseFixture fixture)
 
         var foreignTenantId = Guid.NewGuid();
         var response = await client.PostAsJsonAsync(
-            "/api/reports/request-pipeline/embed-token",
+            "/api/reports/request_pipeline/embed-token",
             new { tenantId = foreignTenantId });
 
         // 503 = FeatureNotAvailable (tenant not provisioned) — proves the session
@@ -73,7 +73,7 @@ public sealed class ReportApiIsolationTests(DatabaseFixture fixture)
         client.DefaultRequestHeaders.Add("X-Tenant-Slug", TestConstants.TenantSlug);
 
         var response = await client.PostAsJsonAsync(
-            "/api/reports/request-pipeline/embed-token", new { });
+            "/api/reports/request_pipeline/embed-token", new { });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

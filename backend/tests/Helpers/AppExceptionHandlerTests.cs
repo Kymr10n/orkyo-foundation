@@ -15,13 +15,13 @@ public class AppExceptionHandlerTests
     private static AppExceptionHandler Handler => new();
 
     [Fact]
-    public async Task FeatureNotAvailableException_Maps_To403()
+    public async Task FeatureNotAvailableException_Maps_To503()
     {
         var ctx = CreateHttpContext();
         var handled = await Handler.TryHandleAsync(ctx, new FeatureNotAvailableException("Auto-Schedule", "not enabled"), default);
 
         handled.Should().BeTrue();
-        ctx.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
         var body = await ReadJsonAsync(ctx);
         body.GetProperty("error").GetString().Should().Contain("Auto-Schedule");
     }

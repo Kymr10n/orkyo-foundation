@@ -51,7 +51,7 @@ public class ReportCatalogServiceTests
 
         reports.Should().HaveCount(ReportCatalogue.All.Count);
         reports.Select(r => r.Key).Should().BeEquivalentTo(
-            new[] { "space-utilization", "request-pipeline", "allocation-conflicts" });
+            new[] { "space_utilization", "request_pipeline", "allocation_conflicts" });
     }
 
     [Fact]

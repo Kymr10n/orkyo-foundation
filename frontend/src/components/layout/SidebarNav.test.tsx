@@ -12,6 +12,10 @@ vi.mock('@foundation/src/store/app-store', () => ({
   ),
 }));
 
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
+  useAuth: () => ({ membership: { role: 'Admin' } }),
+}));
+
 function renderSidebar(initialPath = '/') {
   return render(
     <MemoryRouter
