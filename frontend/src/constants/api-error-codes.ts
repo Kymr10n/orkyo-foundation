@@ -13,6 +13,8 @@ export const API_ERROR_CODES = {
   BREAK_GLASS_HARD_CAP_REACHED: 'break_glass_hard_cap_reached',
   /** Generic permission denial — user is authenticated but not allowed. */
   FORBIDDEN: 'forbidden',
+  /** Tier/plan quota for a resource (sites, spaces, seats) has been reached. */
+  QUOTA_EXCEEDED: 'quota_exceeded',
 } as const;
 
 /**
@@ -25,4 +27,8 @@ export interface ApiErrorBody {
   message?: string;
   code?: string;
   returnTo?: string;
+  /** Resource type the error refers to, e.g. "spaces" on a quota_exceeded response. */
+  resourceType?: string;
+  /** Numeric limit associated with the error, e.g. the tier max on quota_exceeded. */
+  limit?: number;
 }

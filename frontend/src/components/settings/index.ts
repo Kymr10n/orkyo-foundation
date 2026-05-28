@@ -23,7 +23,6 @@ export { SessionsSection } from "./SessionsSection";
 export { SettingRow } from "./SettingRow";
 export { SiteSettings } from "./SiteSettings";
 export { SchedulingSettings } from "./SchedulingSettings";
-export { OffTimeDialog } from "./OffTimeDialog";
 export { AvailabilityEventDialog } from "./AvailabilityEventDialog";
 export { TenantConfigSettings } from "./TenantConfigSettings";
 export { TemplateSettings } from "./TemplateSettings";

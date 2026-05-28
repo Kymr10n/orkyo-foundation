@@ -18,6 +18,8 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.BadRequest(bhr.Message),
             FeatureNotAvailableException fna
                 => ErrorResponses.Forbidden(message: fna.Message),
+            QuotaExceededException qee
+                => ErrorResponses.QuotaExceeded(qee.ResourceType, qee.Limit, qee.Message),
             NotFoundException nfe
                 => ErrorResponses.NotFound(nfe.ResourceType.Length > 0 ? nfe.ResourceType : nfe.Message, nfe.ResourceId),
             ConflictException ce

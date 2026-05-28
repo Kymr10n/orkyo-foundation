@@ -27,6 +27,20 @@ public class AppExceptionHandlerTests
     }
 
     [Fact]
+    public async Task QuotaExceededException_Maps_To403_WithStructuredPayload()
+    {
+        var ctx = CreateHttpContext();
+        var handled = await Handler.TryHandleAsync(ctx, new QuotaExceededException("spaces", 15), default);
+
+        handled.Should().BeTrue();
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        var body = await ReadJsonAsync(ctx);
+        body.GetProperty("code").GetString().Should().Be(Api.Constants.ApiErrorCodes.QuotaExceeded);
+        body.GetProperty("resourceType").GetString().Should().Be("spaces");
+        body.GetProperty("limit").GetInt32().Should().Be(15);
+    }
+
+    [Fact]
     public async Task NotFoundException_Maps_To404()
     {
         var ctx = CreateHttpContext();

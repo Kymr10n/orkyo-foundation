@@ -12,6 +12,7 @@ public static class ApiErrorCodes
     public const string BreakGlassHardCapReached = "break_glass_hard_cap_reached";
     public const string Forbidden = "forbidden";
     public const string TenantSuspended = "tenant_suspended";
+    public const string QuotaExceeded = "quota_exceeded";
 
     /// <summary>
     /// Error codes used by the bootstrap/auth flow.

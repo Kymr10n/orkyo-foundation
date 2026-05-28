@@ -78,6 +78,21 @@ public static class ErrorResponses
             Code = ErrorCodes.Conflict
         });
     }
+
+    /// <summary>
+    /// Returns a 403 Forbidden response for a quota-limit hit. The frontend uses the
+    /// resource type and limit to render "You've reached your X limit (limit/limit)."
+    /// </summary>
+    public static IResult QuotaExceeded(string resourceType, int limit, string message)
+    {
+        return Results.Json(new ErrorResponse
+        {
+            Error = message,
+            Code = ApiErrorCodes.QuotaExceeded,
+            ResourceType = resourceType,
+            Limit = limit,
+        }, statusCode: StatusCodes.Status403Forbidden);
+    }
 }
 
 /// <summary>
@@ -90,4 +105,6 @@ public record ErrorResponse
     public string? ResourceType { get; init; }
     /// <summary>Optional URL the frontend should navigate to after handling the error (e.g. "/admin" when a break-glass session ends).</summary>
     public string? ReturnTo { get; init; }
+    /// <summary>Numeric limit associated with the error, e.g. the tier max for a <c>quota_exceeded</c> response.</summary>
+    public int? Limit { get; init; }
 }
