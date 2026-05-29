@@ -35,6 +35,7 @@ import { Toaster } from '@foundation/src/components/ui/sonner';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
+import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle size
 const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m => ({ default: m.AboutPage })));
@@ -125,7 +126,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
           <Route path="people" element={<PeoplePage />}>
             <Route index element={<Navigate to="list" replace />} />
             <Route path="list" element={<PersonList />} />
-            <Route path="teams" element={<ResourceGroupList resourceTypeKey="person" entityLabel="Team" />} />
+            <Route path="teams" element={<ResourceGroupList resourceTypeKey={RESOURCE_TYPE_KEY.PERSON} entityLabel="Team" />} />
             <Route path="groups" element={<Navigate to="/people/teams" replace />} />
             <Route path="departments" element={<DepartmentSettings />} />
             <Route path="job-titles" element={<JobTitleSettings />} />
@@ -136,7 +137,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route index element={<Navigate to="floorplan" replace />} />
             <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
             <Route path="floorplan" element={<FloorplanView />} />
-            <Route path="groups" element={<ResourceGroupList resourceTypeKey="space" />} />
+            <Route path="groups" element={<ResourceGroupList resourceTypeKey={RESOURCE_TYPE_KEY.SPACE} />} />
           </Route>
 
           {/* Backward-compatible redirects: resource-domain master data moved

@@ -13,7 +13,7 @@ import type { FlatTreeEntry } from "@foundation/src/domain/request-tree";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
-import { getPlanningModeIcon } from "@foundation/src/constants";
+import { getPlanningModeIcon, REQUEST_STATUS, PLANNING_MODE } from "@foundation/src/constants";
 import React, { useState, useMemo, useCallback } from "react";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
@@ -130,9 +130,9 @@ const RequestCard = React.memo(function RequestCard({
               )}
               <Badge
               variant={
-                request.status === "done"
+                request.status === REQUEST_STATUS.DONE
                   ? "default"
-                  : request.status === "in_progress"
+                  : request.status === REQUEST_STATUS.IN_PROGRESS
                     ? "secondary"
                     : "outline"
               }
@@ -150,7 +150,7 @@ const RequestCard = React.memo(function RequestCard({
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
             {isScheduled ? (
               <span className="text-green-600">Scheduled</span>
-            ) : request.planningMode === "container" ? (
+            ) : request.planningMode === PLANNING_MODE.CONTAINER ? (
               <span className="text-muted-foreground/60">Container</span>
             ) : (
               <span>Unscheduled</span>
@@ -247,7 +247,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
 
       // Scheduled filter
       const isScheduled = !!request.isScheduled;
-      if (scheduledFilter === "scheduled" && !isScheduled && request.planningMode !== "container") {
+      if (scheduledFilter === "scheduled" && !isScheduled && request.planningMode !== PLANNING_MODE.CONTAINER) {
         continue;
       }
       if (scheduledFilter === "unscheduled" && isScheduled) {
@@ -303,9 +303,9 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="planned">Planned</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
+              <SelectItem value={REQUEST_STATUS.PLANNED}>Planned</SelectItem>
+              <SelectItem value={REQUEST_STATUS.IN_PROGRESS}>In Progress</SelectItem>
+              <SelectItem value={REQUEST_STATUS.DONE}>Done</SelectItem>
             </SelectContent>
           </Select>
 

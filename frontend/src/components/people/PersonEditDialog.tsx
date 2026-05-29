@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { Textarea } from '@foundation/src/components/ui/textarea';
+import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import { Loader2, Plus } from 'lucide-react';
 import {
   createResource,
@@ -66,7 +67,7 @@ interface FormState {
 const emptyForm: FormState = {
   name: '',
   description: '',
-  allocationMode: 'Exclusive',
+  allocationMode: ALLOCATION_MODE.EXCLUSIVE,
   baseAvailabilityPercent: 100,
   email: '',
   jobTitleId: '',
@@ -356,9 +357,9 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                   <SelectValue placeholder="Select allocation mode" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Exclusive">Exclusive</SelectItem>
-                  <SelectItem value="Fractional">Fractional</SelectItem>
-                  <SelectItem value="ConcurrentCapacity" disabled>
+                  <SelectItem value={ALLOCATION_MODE.EXCLUSIVE}>Exclusive</SelectItem>
+                  <SelectItem value={ALLOCATION_MODE.FRACTIONAL}>Fractional</SelectItem>
+                  <SelectItem value={ALLOCATION_MODE.CONCURRENT_CAPACITY} disabled>
                     Concurrent Capacity (not yet supported)
                   </SelectItem>
                 </SelectContent>

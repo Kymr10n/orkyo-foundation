@@ -6,6 +6,7 @@
  */
 
 import type { DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
+import { PLANNING_MODE } from "@foundation/src/constants/planning-mode";
 import {
   DURATION_TO_MINUTES,
   MS_PER_MINUTE,
@@ -183,14 +184,14 @@ export function getDirectChildren(
  * Determine if a request can accept children based on its planning mode.
  */
 export function canHaveChildren(planningMode: PlanningMode): boolean {
-  return planningMode === "summary" || planningMode === "container";
+  return planningMode === PLANNING_MODE.SUMMARY || planningMode === PLANNING_MODE.CONTAINER;
 }
 
 /**
  * Determine if a request can be scheduled (placed on the calendar).
  */
 export function canBeScheduled(planningMode: PlanningMode): boolean {
-  return planningMode === "leaf";
+  return planningMode === PLANNING_MODE.LEAF;
 }
 
 /**
@@ -346,7 +347,7 @@ export function validateNode(request: Request, requests: Request[]): ValidationI
   const id = request.id;
 
   // Leaf must not have children
-  if (request.planningMode === "leaf") {
+  if (request.planningMode === PLANNING_MODE.LEAF) {
     const children = getDirectChildren(id, requests);
     if (children.length > 0) {
       issues.push({
@@ -400,7 +401,7 @@ export function validateParentChild(
   const issues: ValidationIssue[] = [];
 
   // Container boundary enforcement
-  if (parent.planningMode === "container") {
+  if (parent.planningMode === PLANNING_MODE.CONTAINER) {
     if (parent.earliestStartTs && child.startTs && child.startTs < parent.earliestStartTs) {
       issues.push({
         code: ValidationCode.CHILD_BEFORE_CONTAINER_START,
