@@ -53,8 +53,8 @@ public static class RequestMapper
 
     public static RequestRequirementInfo MapRequirementWithCriterionFromReader(NpgsqlDataReader reader)
     {
-        // The JOIN query selects rr.* first, then c.*; resolve each alias by position
-        // to avoid ambiguous column names (both tables have id, created_at, etc.).
+        // The JOIN query selects rr.* first (cols 0-6), then c.* (cols 7-11).
+        // Resolved by position to avoid ambiguous column names (both tables have id, created_at).
         return new RequestRequirementInfo
         {
             Id = reader.GetGuid(0),
@@ -62,13 +62,15 @@ public static class RequestMapper
             CriterionId = reader.GetGuid(2),
             Value = JsonDocument.Parse(reader.GetString(3)).RootElement.Clone(),
             CreatedAt = reader.GetDateTime(4),
+            Operator = reader.IsDBNull(5) ? null : reader.GetString(5),
+            AllowedValues = reader.IsDBNull(6) ? null : JsonDocument.Parse(reader.GetString(6)).RootElement.Clone(),
             Criterion = new CriterionBasicInfo
             {
-                Id = reader.GetGuid(5),
-                Name = reader.GetString(6),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString(7)),
-                Unit = reader.IsDBNull(8) ? null : reader.GetString(8),
-                EnumValues = reader.IsDBNull(9) ? null : JsonSerializer.Deserialize<List<string>>(reader.GetString(9)),
+                Id = reader.GetGuid(7),
+                Name = reader.GetString(8),
+                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString(9)),
+                Unit = reader.IsDBNull(10) ? null : reader.GetString(10),
+                EnumValues = reader.IsDBNull(11) ? null : JsonSerializer.Deserialize<List<string>>(reader.GetString(11)),
             },
         };
     }

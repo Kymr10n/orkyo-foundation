@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formReducer, buildInitialState } from './useRequestForm';
-import type { RequestFormState } from './useRequestForm';
+import type { RequestFormState, RequirementEntry } from './useRequestForm';
 import type { Request } from '@foundation/src/types/requests';
 import type { Template } from '@foundation/src/types/templates';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
@@ -85,26 +85,29 @@ describe('formReducer', () => {
     it('adds a requirement and clears selectedCriterionId', () => {
       const state = makeState({ selectedCriterionId: 'crit-1' });
       const result = formReducer(state, { type: 'ADD_REQUIREMENT', criterionId: 'crit-1', value: true });
-      expect(result.requirements.get('crit-1')).toBe(true);
+      expect(result.requirements.get('crit-1')).toEqual({ value: true });
       expect(result.selectedCriterionId).toBe('');
     });
 
     it('preserves existing requirements', () => {
-      const existing = new Map([['crit-1', 'val1']]);
+      const existing = new Map<string, RequirementEntry>([['crit-1', { value: 'val1' }]]);
       const state = makeState({ requirements: existing });
       const result = formReducer(state, { type: 'ADD_REQUIREMENT', criterionId: 'crit-2', value: 'val2' });
       expect(result.requirements.size).toBe(2);
-      expect(result.requirements.get('crit-1')).toBe('val1');
+      expect(result.requirements.get('crit-1')).toEqual({ value: 'val1' });
     });
   });
 
   describe('REMOVE_REQUIREMENT', () => {
     it('removes a requirement by criterionId', () => {
-      const existing = new Map([['crit-1', 'val1'], ['crit-2', 'val2']]);
+      const existing = new Map<string, RequirementEntry>([
+        ['crit-1', { value: 'val1' }],
+        ['crit-2', { value: 'val2' }],
+      ]);
       const state = makeState({ requirements: existing });
       const result = formReducer(state, { type: 'REMOVE_REQUIREMENT', criterionId: 'crit-1' });
       expect(result.requirements.has('crit-1')).toBe(false);
-      expect(result.requirements.get('crit-2')).toBe('val2');
+      expect(result.requirements.get('crit-2')).toEqual({ value: 'val2' });
     });
 
     it('is a no-op for non-existent criterionId', () => {
@@ -115,11 +118,18 @@ describe('formReducer', () => {
   });
 
   describe('UPDATE_REQUIREMENT', () => {
-    it('updates an existing requirement value', () => {
-      const existing = new Map([['crit-1', 'old']]);
+    it('patches value without clearing operator', () => {
+      const existing = new Map<string, RequirementEntry>([['crit-1', { value: 'old', operator: '>=' }]]);
       const state = makeState({ requirements: existing });
-      const result = formReducer(state, { type: 'UPDATE_REQUIREMENT', criterionId: 'crit-1', value: 'new' });
-      expect(result.requirements.get('crit-1')).toBe('new');
+      const result = formReducer(state, { type: 'UPDATE_REQUIREMENT', criterionId: 'crit-1', patch: { value: 'new' } });
+      expect(result.requirements.get('crit-1')).toEqual({ value: 'new', operator: '>=' });
+    });
+
+    it('patches operator without clearing value', () => {
+      const existing = new Map<string, RequirementEntry>([['crit-1', { value: 42 }]]);
+      const state = makeState({ requirements: existing });
+      const result = formReducer(state, { type: 'UPDATE_REQUIREMENT', criterionId: 'crit-1', patch: { operator: '<=' } });
+      expect(result.requirements.get('crit-1')).toEqual({ value: 42, operator: '<=' });
     });
   });
 
@@ -141,8 +151,8 @@ describe('formReducer', () => {
       expect(result.durationValue).toBe(4);
       expect(result.durationUnit).toBe('hours');
       expect(result.requirements.size).toBe(2);
-      expect(result.requirements.get('c1')).toBe('true');
-      expect(result.requirements.get('c2')).toBe('high');
+      expect(result.requirements.get('c1')).toEqual({ value: 'true' });
+      expect(result.requirements.get('c2')).toEqual({ value: 'high' });
     });
 
     it('defaults duration when template has no duration', () => {
@@ -158,7 +168,7 @@ describe('formReducer', () => {
     });
 
     it('replaces existing requirements', () => {
-      const existing = new Map([['old-crit', 'old-val']]);
+      const existing = new Map<string, RequirementEntry>([['old-crit', { value: 'old-val' }]]);
       const template: Template = {
         id: 't1',
         name: 'T',
@@ -168,7 +178,7 @@ describe('formReducer', () => {
       const state = makeState({ requirements: existing });
       const result = formReducer(state, { type: 'APPLY_TEMPLATE', template });
       expect(result.requirements.has('old-crit')).toBe(false);
-      expect(result.requirements.get('new-crit')).toBe('new-val');
+      expect(result.requirements.get('new-crit')).toEqual({ value: 'new-val' });
     });
 
     it('preserves schedulingSettingsApply', () => {
@@ -276,7 +286,7 @@ describe('buildInitialState', () => {
     expect(state.durationValue).toBe(8);
     expect(state.durationUnit).toBe('hours');
     expect(state.schedulingSettingsApply).toBe(false);
-    expect(state.requirements.get('c1')).toBe('true');
+    expect(state.requirements.get('c1')).toEqual({ value: 'true', operator: undefined });
     expect(state.startDate).not.toBe('');
   });
 

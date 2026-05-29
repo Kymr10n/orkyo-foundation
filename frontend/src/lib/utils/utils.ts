@@ -150,7 +150,13 @@ export function buildUpdatePayload(data: RequestFormData): UpdateRequestRequest 
     minimalDurationValue: data.duration.value,
     minimalDurationUnit: data.duration.unit,
     schedulingSettingsApply: data.schedulingSettingsApply,
-    requirements: data.requirements,
+    requirements: data.requirements
+      .filter((req) => req.value !== null)
+      .map((req) => ({
+        criterionId: req.criterionId,
+        value: req.value!,
+        ...(req.operator !== undefined && { operator: req.operator }),
+      })),
   };
 }
 
@@ -172,10 +178,13 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
     minimalDurationValue: data.duration.value,
     minimalDurationUnit: data.duration.unit,
     schedulingSettingsApply: data.schedulingSettingsApply,
-    requirements: data.requirements.map((req) => ({
-      criterionId: req.criterionId,
-      value: req.value,
-    })),
+    requirements: data.requirements
+      .filter((req) => req.value !== null)
+      .map((req) => ({
+        criterionId: req.criterionId,
+        value: req.value!,
+        ...(req.operator !== undefined && { operator: req.operator }),
+      })),
   };
 }
 

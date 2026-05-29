@@ -3,8 +3,8 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import { getDataTypeColor } from "@foundation/src/lib/utils";
-import type { useRequestForm } from "@foundation/src/hooks/useRequestForm";
-import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
+import type { useRequestForm, RequirementEntry } from "@foundation/src/hooks/useRequestForm";
+import type { Criterion } from "@foundation/src/types/criterion";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { CriterionRequirementInput } from "./CriterionRequirementInput";
 
@@ -17,7 +17,7 @@ interface RequestRequirementsSectionProps {
   isLoading: boolean;
   onAddRequirement: () => void;
   onRemoveRequirement: (criterionId: string) => void;
-  onRequirementValueChange: (criterionId: string, value: CriterionValue | null) => void;
+  onRequirementChange: (criterionId: string, patch: Partial<RequirementEntry>) => void;
 }
 
 export function RequestRequirementsSection({
@@ -29,7 +29,7 @@ export function RequestRequirementsSection({
   isLoading,
   onAddRequirement,
   onRemoveRequirement,
-  onRequirementValueChange,
+  onRequirementChange,
 }: RequestRequirementsSectionProps) {
   const unusedCriteria = availableCriteria.filter(
     (c) => !state.requirements.has(c.id)
@@ -94,7 +94,7 @@ export function RequestRequirementsSection({
             </div>
           ) : (
             <div className="space-y-4 border rounded-lg p-4">
-              {Array.from(state.requirements.entries()).map(([criterionId, value]) => {
+              {Array.from(state.requirements.entries()).map(([criterionId, entry]) => {
                 const criterion = availableCriteria.find((c) => c.id === criterionId);
                 if (!criterion) return null;
 
@@ -103,10 +103,10 @@ export function RequestRequirementsSection({
                     <div className="flex-1">
                       <CriterionRequirementInput
                         criterion={criterion}
-                        value={value}
-                        onChange={(newValue) =>
-                          onRequirementValueChange(criterionId, newValue)
-                        }
+                        value={entry.value}
+                        operator={entry.operator}
+                        onChange={(newValue) => onRequirementChange(criterionId, { value: newValue })}
+                        onOperatorChange={(newOperator) => onRequirementChange(criterionId, { operator: newOperator })}
                       />
                     </div>
                     <Button

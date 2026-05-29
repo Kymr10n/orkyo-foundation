@@ -4,17 +4,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@foundation/src/components/ui/switch";
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 
+const NUMBER_OPERATORS = [
+  { value: ">=", label: "≥ at least" },
+  { value: "<=", label: "≤ at most" },
+  { value: "=",  label: "= exactly" },
+] as const;
+
 interface CriterionRequirementInputProps {
   criterion: Criterion;
   value: CriterionValue | null;
+  operator?: string;
   onChange: (value: CriterionValue | null) => void;
+  onOperatorChange?: (operator: string) => void;
   label?: string;
 }
 
 export function CriterionRequirementInput({
   criterion,
   value,
+  operator,
   onChange,
+  onOperatorChange,
   label,
 }: CriterionRequirementInputProps) {
   const renderInput = () => {
@@ -39,13 +49,27 @@ export function CriterionRequirementInput({
       case "Number":
         return (
           <div className="flex items-center gap-2">
+            <Select
+              value={operator ?? ">="}
+              onValueChange={(v) => onOperatorChange?.(v)}
+            >
+              <SelectTrigger className="w-32 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NUMBER_OPERATORS.map((op) => (
+                  <SelectItem key={op.value} value={op.value}>
+                    {op.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               type="text"
               inputMode="decimal"
               value={(value as string | number) ?? ""}
               onChange={(e) => {
                 const val = e.target.value;
-                // Allow digits, decimal point, and minus sign
                 const cleaned = val.replace(/[^0-9.-]/g, '');
                 onChange(cleaned === "" ? null : parseFloat(cleaned) || null);
               }}

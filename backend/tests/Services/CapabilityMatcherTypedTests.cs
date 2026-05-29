@@ -330,6 +330,47 @@ public class CapabilityMatcherTypedTests
     }
 
     [Fact]
+    public async Task NumberGreaterThanOrEqualOperator_ResourceBelowRequirement_ReturnsFalse()
+    {
+        var resourceId = Guid.NewGuid();
+        var criterionId = Guid.NewGuid();
+        var requirement = new RequestRequirementInfo
+        {
+            Id = Guid.NewGuid(),
+            RequestId = Guid.NewGuid(),
+            CriterionId = criterionId,
+            Value = JsonValue(2000.0), // 2 tonnes required
+            Operator = ">=",
+            AllowedValues = null,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _repoMock.Setup(r => r.GetByResourceAsync(resourceId))
+            .ReturnsAsync(new List<ResourceCapabilityInfo>
+            {
+                new ResourceCapabilityInfo
+                {
+                    Id = Guid.NewGuid(),
+                    ResourceId = resourceId,
+                    CriterionId = criterionId,
+                    Value = JsonValue(1000.0), // space has crane with 1 tonne
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    Criterion = new CriterionMetadata
+                    {
+                        Id = criterionId,
+                        Name = "Crane capacity",
+                        DataType = CriterionDataType.Number,
+                        Unit = "kg"
+                    }
+                }
+            });
+
+        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        Assert.False(result);
+    }
+
+    [Fact]
     public async Task NoOperatorOrAllowedValues_FallsBackToPresenceMatch_ReturnsTrue()
     {
         var resourceId = Guid.NewGuid();

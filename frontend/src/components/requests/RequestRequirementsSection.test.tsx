@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestRequirementsSection } from './RequestRequirementsSection';
 import type { Criterion } from '@foundation/src/types/criterion';
+import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import type { ReactNode } from 'react';
 
 vi.mock('@foundation/src/components/ui/collapsible', () => ({
@@ -59,7 +60,7 @@ const baseState = {
   durationValue: 0,
   durationUnit: 'hours' as const,
   schedulingSettingsApply: false,
-  requirements: new Map<string, boolean | number | string | null>(),
+  requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
   openSections: { basic: true, schedule: true, constraints: true, duration: true, requirements: true },
 };
@@ -74,7 +75,7 @@ describe('RequestRequirementsSection', () => {
     isLoading: false,
     onAddRequirement: vi.fn(),
     onRemoveRequirement: vi.fn(),
-    onRequirementValueChange: vi.fn(),
+    onRequirementChange: vi.fn(),
   };
 
   it('renders heading and badge', () => {
@@ -91,7 +92,7 @@ describe('RequestRequirementsSection', () => {
   it('renders active requirements with input', () => {
     const stateWithReqs = {
       ...baseState,
-      requirements: new Map([['c1', true]]),
+      requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
     };
     render(<RequestRequirementsSection {...defaultProps} state={stateWithReqs} />);
     expect(screen.getByText('1 active')).toBeInTheDocument();

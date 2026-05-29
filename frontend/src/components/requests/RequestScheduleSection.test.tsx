@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { RequestScheduleSection } from './RequestScheduleSection';
 import type { Space } from '@foundation/src/types/space';
+import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import type { ReactNode } from 'react';
 
 vi.mock('@foundation/src/components/ui/collapsible', () => ({
@@ -59,7 +60,7 @@ const baseState = {
   durationValue: 0,
   durationUnit: 'hours' as const,
   schedulingSettingsApply: false,
-  requirements: new Map<string, boolean | number | string | null>(),
+  requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
   openSections: { basic: true, schedule: true, constraints: true, duration: true, requirements: true },
 };

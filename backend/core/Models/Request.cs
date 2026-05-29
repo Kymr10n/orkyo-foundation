@@ -237,6 +237,8 @@ public record CreateRequestRequirementRequest
 {
     public required Guid CriterionId { get; init; }
     public required JsonElement Value { get; init; }
+    public string? Operator { get; init; }
+    public JsonElement? AllowedValues { get; init; }
 }
 
 /// <summary>

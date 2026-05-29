@@ -15,7 +15,8 @@ import { getSpaces } from "@foundation/src/lib/api/space-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG } from "@foundation/src/constants";
 import { combineDateTimeToISO } from "@foundation/src/lib/utils";
-import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
+import type { Criterion } from "@foundation/src/types/criterion";
+import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 import { ChevronDown, FileText, Layers } from "lucide-react";
@@ -53,7 +54,8 @@ export interface RequestFormData {
   schedulingSettingsApply: boolean;
   requirements: {
     criterionId: string;
-    value: CriterionValue;
+    value: RequirementEntry['value'];
+    operator?: string;
   }[];
 }
 
@@ -177,8 +179,8 @@ export function RequestFormDialog({
     removeRequirement(criterionId);
   };
 
-  const handleRequirementValueChange = (criterionId: string, value: CriterionValue | null) => {
-    updateRequirement(criterionId, value);
+  const handleRequirementChange = (criterionId: string, patch: Partial<RequirementEntry>) => {
+    updateRequirement(criterionId, patch);
   };
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -265,10 +267,11 @@ export function RequestFormDialog({
       },
       schedulingSettingsApply: state.schedulingSettingsApply,
       requirements: Array.from(state.requirements.entries())
-        .filter(([, value]) => value !== null)
-        .map(([criterionId, value]) => ({
+        .filter(([, entry]) => entry.value !== null)
+        .map(([criterionId, entry]) => ({
           criterionId,
-          value: value!,
+          value: entry.value!,
+          operator: entry.operator,
         })),
     };
 
@@ -568,7 +571,7 @@ export function RequestFormDialog({
                 isLoading={isLoading}
                 onAddRequirement={handleAddRequirement}
                 onRemoveRequirement={handleRemoveRequirement}
-                onRequirementValueChange={handleRequirementValueChange}
+                onRequirementChange={handleRequirementChange}
               />
 
               {/* People — only for leaf requests that have a saved ID */}

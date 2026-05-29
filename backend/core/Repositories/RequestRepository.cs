@@ -568,6 +568,7 @@ public class RequestRepository : IRequestRepository
         var requirements = new List<RequestRequirementInfo>();
         var cmd = new NpgsqlCommand(@"
             SELECT rr.id, rr.request_id, rr.criterion_id, rr.value, rr.created_at,
+                   rr.operator, rr.allowed_values,
                    c.id, c.name, c.data_type, c.unit, c.enum_values
             FROM request_requirements rr
             JOIN criteria c ON rr.criterion_id = c.id
@@ -588,6 +589,7 @@ public class RequestRepository : IRequestRepository
 
         var cmd = new NpgsqlCommand(@"
             SELECT rr.id, rr.request_id, rr.criterion_id, rr.value, rr.created_at,
+                   rr.operator, rr.allowed_values,
                    c.id, c.name, c.data_type, c.unit, c.enum_values
             FROM request_requirements rr
             JOIN criteria c ON rr.criterion_id = c.id
@@ -630,9 +632,12 @@ public class RequestRepository : IRequestRepository
 
         for (var i = 0; i < requirements.Count; i++)
         {
-            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, NULL, NULL)");
-            cmd.Parameters.AddWithValue($"criterion_id_{i}", requirements[i].CriterionId);
-            cmd.Parameters.AddWithValue($"value_{i}", requirements[i].Value.GetRawText());
+            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, @operator_{i}, @allowed_values_{i}::jsonb)");
+            var req = requirements[i];
+            cmd.Parameters.AddWithValue($"criterion_id_{i}", req.CriterionId);
+            cmd.Parameters.AddWithValue($"value_{i}", req.Value.GetRawText());
+            cmd.Parameters.AddWithValue($"operator_{i}", req.Operator is null ? (object)DBNull.Value : req.Operator);
+            cmd.Parameters.AddWithValue($"allowed_values_{i}", req.AllowedValues is null ? (object)DBNull.Value : req.AllowedValues.Value.GetRawText());
         }
 
         cmd.Parameters.AddWithValue("request_id", requestId);
