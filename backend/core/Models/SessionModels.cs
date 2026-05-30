@@ -1,6 +1,13 @@
 namespace Api.Models;
 
-// Session response models shared between SessionService and SessionEndpoints.
+// Session models shared between SessionService and SessionEndpoints.
+
+public record CreateAccountRequest
+{
+    public required string Email { get; init; }
+    public required string Password { get; init; }
+    public string? DisplayName { get; init; }
+}
 
 public record SessionBootstrapResponse
 {

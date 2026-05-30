@@ -46,7 +46,7 @@ public static class DepartmentEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var d = await repo.GetByIdAsync(id);
-                return d is null ? ErrorResponses.NotFound("Department", id) : Results.Ok(d);
+                return EndpointHelpers.OkOrNotFound(d, "Department", id);
             }, logger, "get department", new { id }))
             .WithName("GetDepartment");
 
@@ -72,7 +72,7 @@ public static class DepartmentEndpoints
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var d = await repo.UpdateAsync(id, request);
-                return d is null ? ErrorResponses.NotFound("Department", id) : Results.Ok(d);
+                return EndpointHelpers.OkOrNotFound(d, "Department", id);
             }, logger, "update department", new { id }))
             .RequireAdminAccess()
             .WithName("UpdateDepartment");

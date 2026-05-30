@@ -24,19 +24,9 @@ public class SiteRepository : ISiteRepository
     public async Task<List<SiteInfo>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM sites ORDER BY name LIMIT 200", conn);
-
-        var sitesList = new List<SiteInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            sitesList.Add(SiteMapper.MapFromReader(reader));
-        }
-
-        return sitesList;
+        return await conn.QueryListAsync(
+            $"SELECT {SelectColumns} FROM sites ORDER BY name LIMIT 200", null,
+            SiteMapper.MapFromReader, ct);
     }
 
     public async Task<PagedResult<SiteInfo>> GetAllAsync(PageRequest page, CancellationToken ct = default)
@@ -56,29 +46,17 @@ public class SiteRepository : ISiteRepository
     public async Task<SiteInfo?> GetByIdAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM sites WHERE id = @siteId", conn);
-        cmd.Parameters.AddWithValue("siteId", siteId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-        {
-            return null;
-        }
-
-        return SiteMapper.MapFromReader(reader);
+        return await conn.QuerySingleOrDefaultAsync(
+            $"SELECT {SelectColumns} FROM sites WHERE id = @siteId",
+            p => p.AddWithValue("siteId", siteId), SiteMapper.MapFromReader, ct);
     }
 
     public async Task<int> GetEstimatedCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'sites'", conn);
-        return (int)(long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
+        return (int)await conn.ExecuteScalarAsync<long>(
+            "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'sites'",
+            null, ct);
     }
 
     public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)
@@ -87,32 +65,20 @@ public class SiteRepository : ISiteRepository
         await conn.OpenAsync(ct);
 
         // Check if code already exists
-        await using var checkCmd = new NpgsqlCommand(
-            "SELECT COUNT(*) FROM sites WHERE code = @code", conn);
-        checkCmd.Parameters.AddWithValue("code", code);
-        var count = (long)(await checkCmd.ExecuteScalarAsync(ct) ?? 0L);
-
-        if (count > 0)
-        {
+        if (await conn.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM sites WHERE code = @code",
+                p => p.AddWithValue("code", code), ct) > 0)
             throw new ConflictException("Site with this code already exists");
-        }
 
-        // Create the site
-        var siteId = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
+        return (await conn.QuerySingleOrDefaultAsync(
             $"INSERT INTO sites (id, code, name, description, address, created_at, updated_at) VALUES (@id, @code, @name, @description, @address, NOW(), NOW()) RETURNING {SelectColumns}",
-            conn);
-
-        cmd.Parameters.AddWithValue("id", siteId);
-        cmd.Parameters.AddWithValue("code", code);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("address", (object?)address ?? DBNull.Value);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-
-        return SiteMapper.MapFromReader(reader);
+            p =>
+            {
+                p.AddWithValue("id", Guid.NewGuid());
+                p.AddWithValue("code", code);
+                p.AddWithValue("name", name);
+                p.AddNullable("description", description);
+                p.AddNullable("address", address);
+            }, SiteMapper.MapFromReader, ct))!;
     }
 
     public async Task<SiteInfo?> UpdateAsync(Guid siteId, string code, string name, string? description, string? address, CancellationToken ct = default)
@@ -121,34 +87,21 @@ public class SiteRepository : ISiteRepository
         await conn.OpenAsync(ct);
 
         // Check if another site has this code
-        await using var checkCmd = new NpgsqlCommand(
-            "SELECT COUNT(*) FROM sites WHERE code = @code AND id != @siteId", conn);
-        checkCmd.Parameters.AddWithValue("code", code);
-        checkCmd.Parameters.AddWithValue("siteId", siteId);
-        var count = (long)(await checkCmd.ExecuteScalarAsync(ct) ?? 0L);
-
-        if (count > 0)
-        {
+        if (await conn.ExecuteScalarAsync<long>(
+                "SELECT COUNT(*) FROM sites WHERE code = @code AND id != @siteId",
+                p => { p.AddWithValue("code", code); p.AddWithValue("siteId", siteId); }, ct) > 0)
             throw new ConflictException("Another site with this code already exists");
-        }
 
-        await using var cmd = new NpgsqlCommand(
+        return await conn.QuerySingleOrDefaultAsync(
             $"UPDATE sites SET code = @code, name = @name, description = @description, address = @address, updated_at = NOW() WHERE id = @siteId RETURNING {SelectColumns}",
-            conn);
-
-        cmd.Parameters.AddWithValue("siteId", siteId);
-        cmd.Parameters.AddWithValue("code", code);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("address", (object?)address ?? DBNull.Value);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-        {
-            return null;
-        }
-
-        return SiteMapper.MapFromReader(reader);
+            p =>
+            {
+                p.AddWithValue("siteId", siteId);
+                p.AddWithValue("code", code);
+                p.AddWithValue("name", name);
+                p.AddNullable("description", description);
+                p.AddNullable("address", address);
+            }, SiteMapper.MapFromReader, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid siteId, CancellationToken ct = default)

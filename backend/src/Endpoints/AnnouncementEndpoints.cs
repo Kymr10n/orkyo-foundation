@@ -54,7 +54,7 @@ public static class AnnouncementEndpoints
     private static async Task<IResult> GetById(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {
         var dto = await service.GetByIdAsync(id);
-        return dto is null ? ErrorResponses.NotFound("Announcement", id) : Results.Ok(dto);
+        return EndpointHelpers.OkOrNotFound(dto, "Announcement", id);
     }
 
     private static async Task<IResult> Create(

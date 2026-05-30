@@ -42,18 +42,10 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
     public async Task<List<AvailabilityEventInfo>> GetEnabledBySiteWithScopesAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {EventCols} FROM availability_events WHERE site_id = @siteId AND enabled = true ORDER BY start_ts", conn);
-        cmd.Parameters.AddWithValue("siteId", siteId);
-
-        var events = new List<AvailabilityEventInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            events.Add(SchedulingMapper.MapAvailabilityEventFromReader(reader));
-        reader.Close();
-
+        var events = await conn.QueryListAsync(
+            $"SELECT {EventCols} FROM availability_events WHERE site_id = @siteId AND enabled = true ORDER BY start_ts",
+            p => p.AddWithValue("siteId", siteId),
+            SchedulingMapper.MapAvailabilityEventFromReader, ct);
         await HydrateScopesAsync(conn, events, ct);
         return events;
     }

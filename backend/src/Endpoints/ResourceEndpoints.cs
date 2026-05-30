@@ -48,7 +48,7 @@ public static class ResourceEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var r = await service.GetByIdAsync(id);
-                return r is null ? ErrorResponses.NotFound("Resource", id) : Results.Ok(r);
+                return EndpointHelpers.OkOrNotFound(r, "Resource", id);
             }, logger, "get resource", new { id }))
             .WithName("GetResourceById")
             .WithSummary("Get a resource by ID");
@@ -74,7 +74,7 @@ public static class ResourceEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var r = await service.UpdateAsync(id, request);
-                return r is null ? ErrorResponses.NotFound("Resource", id) : Results.Ok(r);
+                return EndpointHelpers.OkOrNotFound(r, "Resource", id);
             }, logger, "update resource", new { id }))
             .RequireAdminAccess()
             .WithName("UpdateResource")
@@ -207,7 +207,7 @@ public static class ResourceEndpoints
                 if (existing is null || existing.ResourceId != id)
                     return ErrorResponses.NotFound("Absence", absenceId);
                 var updated = await absenceRepo.UpdateAsync(absenceId, request, ct);
-                return updated is null ? ErrorResponses.NotFound("Absence", absenceId) : Results.Ok(updated);
+                return EndpointHelpers.OkOrNotFound(updated, "Absence", absenceId);
             }, logger, "update resource absence", new { id, absenceId }))
             .RequireAdminAccess()
             .WithName("UpdateResourceAbsence")

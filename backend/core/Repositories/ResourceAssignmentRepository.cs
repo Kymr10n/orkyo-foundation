@@ -33,9 +33,8 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
     public async Task<ResourceAssignmentInfo> CreateAsync(CreateResourceAssignmentRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
+        return (await db.QuerySingleOrDefaultAsync(@"
             INSERT INTO resource_assignments
                 (request_id, resource_id, start_utc, end_utc,
                  allocation_percent, allocation_units)
@@ -45,147 +44,121 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
             RETURNING id, assignment_status, created_at, updated_at,
                       (SELECT rt.key FROM resources res
                        JOIN resource_types rt ON rt.id = res.resource_type_id
-                       WHERE res.id = resource_id) AS resource_type_key", db);
-
-        cmd.Parameters.AddWithValue("requestId", request.RequestId);
-        cmd.Parameters.AddWithValue("resourceId", request.ResourceId);
-        cmd.Parameters.AddWithValue("startUtc", request.StartUtc);
-        cmd.Parameters.AddWithValue("endUtc", request.EndUtc);
-        cmd.Parameters.AddWithValue("allocationPercent", (object?)request.AllocationPercent ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("allocationUnits", (object?)request.AllocationUnits ?? DBNull.Value);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-
-        return new ResourceAssignmentInfo
-        {
-            Id = reader.GetGuid(reader.GetOrdinal("id")),
-            RequestId = request.RequestId,
-            ResourceId = request.ResourceId,
-            ResourceTypeKey = reader.GetString(reader.GetOrdinal("resource_type_key")),
-            StartUtc = request.StartUtc,
-            EndUtc = request.EndUtc,
-            AllocationPercent = request.AllocationPercent,
-            AllocationUnits = request.AllocationUnits,
-            AssignmentStatus = reader.GetString(reader.GetOrdinal("assignment_status")),
-            CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
-            UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at")),
-        };
+                       WHERE res.id = resource_id) AS resource_type_key",
+            p =>
+            {
+                p.AddWithValue("requestId", request.RequestId);
+                p.AddWithValue("resourceId", request.ResourceId);
+                p.AddWithValue("startUtc", request.StartUtc);
+                p.AddWithValue("endUtc", request.EndUtc);
+                p.AddNullable("allocationPercent", request.AllocationPercent);
+                p.AddNullable("allocationUnits", request.AllocationUnits);
+            },
+            r => new ResourceAssignmentInfo
+            {
+                Id = r.GetGuid(r.GetOrdinal("id")),
+                RequestId = request.RequestId,
+                ResourceId = request.ResourceId,
+                ResourceTypeKey = r.GetString(r.GetOrdinal("resource_type_key")),
+                StartUtc = request.StartUtc,
+                EndUtc = request.EndUtc,
+                AllocationPercent = request.AllocationPercent,
+                AllocationUnits = request.AllocationUnits,
+                AssignmentStatus = r.GetString(r.GetOrdinal("assignment_status")),
+                CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
+                UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
+            }, ct))!;
     }
 
     public async Task<ResourceAssignmentInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} {FromJoin} WHERE ra.id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Map(reader) : null;
+        return await db.QuerySingleOrDefaultAsync(
+            $"SELECT {SelectColumns} {FromJoin} WHERE ra.id = @id",
+            p => p.AddWithValue("id", id), Map, ct);
     }
 
     public async Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} {FromJoin} " +
-            "WHERE ra.request_id = @requestId ORDER BY ra.start_utc", db);
-        cmd.Parameters.AddWithValue("requestId", requestId);
-
-        return await ReadAllAsync(cmd);
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} {FromJoin} WHERE ra.request_id = @requestId ORDER BY ra.start_utc",
+            p => p.AddWithValue("requestId", requestId), Map, ct);
     }
 
     public async Task<List<ResourceAssignmentInfo>> GetByResourceAsync(
         Guid resourceId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        return await db.QueryListAsync(
             $"SELECT {SelectColumns} {FromJoin} " +
             "WHERE ra.resource_id = @resourceId " +
             "  AND ra.assignment_status != @cancelled " +
             "  AND ra.start_utc < @toUtc AND ra.end_utc > @fromUtc " +
-            "ORDER BY ra.start_utc", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        cmd.Parameters.AddWithValue("fromUtc", fromUtc);
-        cmd.Parameters.AddWithValue("toUtc", toUtc);
-
-        return await ReadAllAsync(cmd);
+            "ORDER BY ra.start_utc",
+            p =>
+            {
+                p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                p.AddWithValue("fromUtc", fromUtc);
+                p.AddWithValue("toUtc", toUtc);
+            }, Map, ct);
     }
 
     public async Task<List<ResourceAssignmentInfo>> GetOverlappingActiveAsync(
         Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
         var excludeClause = excludeAssignmentId.HasValue ? "AND ra.id != @excludeId" : "";
-        await using var cmd = new NpgsqlCommand(
+        return await db.QueryListAsync(
             $"SELECT {SelectColumns} {FromJoin} " +
             "WHERE ra.resource_id = @resourceId " +
             $"  AND ra.assignment_status != @cancelled " +
             $"  AND ra.start_utc < @endUtc AND ra.end_utc > @startUtc " +
-            $"  {excludeClause}", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        cmd.Parameters.AddWithValue("startUtc", startUtc);
-        cmd.Parameters.AddWithValue("endUtc", endUtc);
-        if (excludeAssignmentId.HasValue)
-            cmd.Parameters.AddWithValue("excludeId", excludeAssignmentId.Value);
-
-        return await ReadAllAsync(cmd);
+            $"  {excludeClause}",
+            p =>
+            {
+                p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                p.AddWithValue("startUtc", startUtc);
+                p.AddWithValue("endUtc", endUtc);
+                if (excludeAssignmentId.HasValue) p.AddWithValue("excludeId", excludeAssignmentId.Value);
+            }, Map, ct);
     }
 
     public async Task<decimal> GetTotalAllocatedPercentAsync(
         Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
         var excludeClause = excludeAssignmentId.HasValue ? "AND id != @excludeId" : "";
-        await using var cmd = new NpgsqlCommand(
+        return await db.ExecuteScalarAsync<decimal>(
             "SELECT COALESCE(SUM(allocation_percent), 0) FROM resource_assignments " +
             "WHERE resource_id = @resourceId " +
             $"  AND assignment_status != @cancelled " +
             $"  AND start_utc < @endUtc AND end_utc > @startUtc " +
-            $"  {excludeClause}", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        cmd.Parameters.AddWithValue("startUtc", startUtc);
-        cmd.Parameters.AddWithValue("endUtc", endUtc);
-        if (excludeAssignmentId.HasValue)
-            cmd.Parameters.AddWithValue("excludeId", excludeAssignmentId.Value);
-
-        return (decimal)(await cmd.ExecuteScalarAsync(ct) ?? 0m);
+            $"  {excludeClause}",
+            p =>
+            {
+                p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                p.AddWithValue("startUtc", startUtc);
+                p.AddWithValue("endUtc", endUtc);
+                if (excludeAssignmentId.HasValue) p.AddWithValue("excludeId", excludeAssignmentId.Value);
+            }, ct);
     }
 
     public async Task<bool> CancelAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        return await db.ExecuteAsync(
             "UPDATE resource_assignments " +
             "SET assignment_status = @cancelled, updated_at = NOW() " +
-            "WHERE id = @id AND assignment_status != @cancelled", db);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
-    }
-
-    private static async Task<List<ResourceAssignmentInfo>> ReadAllAsync(NpgsqlCommand cmd, CancellationToken ct = default)
-    {
-        var result = new List<ResourceAssignmentInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            result.Add(Map(reader));
-        return result;
+            "WHERE id = @id AND assignment_status != @cancelled",
+            p =>
+            {
+                p.AddWithValue("id", id);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            }, ct) > 0;
     }
 
     private static ResourceAssignmentInfo Map(NpgsqlDataReader r) => new()

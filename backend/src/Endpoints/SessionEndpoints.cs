@@ -5,6 +5,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -229,64 +230,30 @@ public static class SessionEndpoints
         // POST /api/auth/create-account - Create account in Keycloak
         publicAuth.MapPost("/create-account", async (
             CreateAccountRequest request,
+            IValidator<CreateAccountRequest> validator,
             IKeycloakAdminService keycloakAdminService,
             CancellationToken ct, ILogger<Log> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () =>
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                logger.LogInformation("Creating account for {Email}", request.Email);
+
+                string? firstName = null;
+                string? lastName = null;
+                if (!string.IsNullOrWhiteSpace(request.DisplayName))
                 {
-                    // Validate request
-                    if (string.IsNullOrWhiteSpace(request.Email))
-                    {
-                        return Results.BadRequest(new { error = "Email is required" });
-                    }
+                    var parts = request.DisplayName.Trim().Split(' ', 2);
+                    firstName = parts[0];
+                    lastName = parts.Length > 1 ? parts[1] : null;
+                }
 
-                    if (string.IsNullOrWhiteSpace(request.Password))
-                    {
-                        return Results.BadRequest(new { error = "Password is required" });
-                    }
+                await keycloakAdminService.CreateUserAsync(
+                    request.Email, request.Password, firstName, lastName,
+                    emailVerified: false, ct: ct);
 
-                    if (request.Password.Length < TenantSettings.DefaultPasswordMinLength)
-                    {
-                        return Results.BadRequest(new { error = $"Password must be at least {TenantSettings.DefaultPasswordMinLength} characters" });
-                    }
-
-                    // Validate email format
-                    if (!IsValidEmail(request.Email))
-                    {
-                        return Results.BadRequest(new { error = "Invalid email format" });
-                    }
-
-                    logger.LogInformation("Creating account for {Email}", request.Email);
-
-                    // Split display name into first/last if provided
-                    string? firstName = null;
-                    string? lastName = null;
-                    if (!string.IsNullOrWhiteSpace(request.DisplayName))
-                    {
-                        var parts = request.DisplayName.Trim().Split(' ', 2);
-                        firstName = parts[0];
-                        lastName = parts.Length > 1 ? parts[1] : null;
-                    }
-
-                    await keycloakAdminService.CreateUserAsync(
-                        request.Email,
-                        request.Password,
-                        firstName,
-                        lastName,
-                        emailVerified: false,
-                        ct: ct);
-
-                    logger.LogInformation("Account created for {Email}", request.Email);
-                    return Results.Ok(new
-                    {
-                        message = "Account created. Please check your email to verify your account."
-                    });
-                },
-                logger,
-                "create account",
-                new { email = request.Email }
-            );
+                logger.LogInformation("Account created for {Email}", request.Email);
+                return Results.Ok(new { message = "Account created. Please check your email to verify your account." });
+            }, logger, "create account", new { email = request.Email });
         })
         .AllowAnonymous()
         .WithName("CreateAccount")
@@ -295,18 +262,6 @@ public static class SessionEndpoints
         .WithTags("Auth");
     }
 
-    private static bool IsValidEmail(string email)
-    {
-        try
-        {
-            var addr = new System.Net.Mail.MailAddress(email);
-            return addr.Address == email;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
 
 public record TosAcceptRequest
@@ -314,14 +269,7 @@ public record TosAcceptRequest
     public required string TosVersion { get; init; }
 }
 
-public record CreateAccountRequest
-{
-    public required string Email { get; init; }
-    public required string Password { get; init; }
-    public string? DisplayName { get; init; }
-}
-
-// SessionBootstrapResponse, UserInfo, TenantMembershipInfo live in Orkyo.Foundation.Core (Api.Models.SessionModels)
+// CreateAccountRequest, SessionBootstrapResponse, UserInfo, TenantMembershipInfo live in Orkyo.Foundation.Core (Api.Models)
 
 /// <summary>
 /// Flat response for GET /api/session/me — mirrors the frontend AppUser interface

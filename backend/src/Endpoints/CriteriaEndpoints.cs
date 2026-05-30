@@ -43,7 +43,7 @@ public static class CriteriaEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var criterion = await criteriaService.GetByIdAsync(id, ct);
-                return criterion == null ? ErrorResponses.NotFound("Criterion", id) : Results.Ok(criterion);
+                return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
             }, logger, "get criterion", new { id });
         })
         .WithName("GetCriterionById")
@@ -71,7 +71,7 @@ public static class CriteriaEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var criterion = await criteriaService.UpdateAsync(id, request.Description, request.EnumValues, request.Unit, ct);
-                return criterion == null ? ErrorResponses.NotFound("Criterion", id) : Results.Ok(criterion);
+                return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
             }, logger, "update criterion", new { id });
         })
         .WithName("UpdateCriterion")

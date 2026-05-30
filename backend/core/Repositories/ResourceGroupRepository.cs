@@ -16,57 +16,38 @@ public interface IResourceGroupRepository
 public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : IResourceGroupRepository
 {
+    private const string SelectWithCount =
+        "SELECT g.id, g.name, g.description, g.default_availability_percent, " +
+        "  COUNT(m.resource_id) AS member_count, g.created_at, g.updated_at, " +
+        "  rt.key AS resource_type_key, g.color, g.display_order " +
+        "FROM resource_groups g " +
+        "JOIN resource_types rt ON rt.id = g.resource_type_id " +
+        "LEFT JOIN resource_group_members m ON m.resource_group_id = g.id ";
+
+    private const string GroupBy =
+        "GROUP BY g.id, g.name, g.description, g.default_availability_percent, g.created_at, g.updated_at, rt.key, g.color, g.display_order ";
+
     public async Task<List<ResourceGroupInfo>> GetByTypeKeyAsync(string resourceTypeKey, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT g.id, g.name, g.description, g.default_availability_percent, " +
-            "  COUNT(m.resource_id) AS member_count, g.created_at, g.updated_at, " +
-            "  rt.key AS resource_type_key, g.color, g.display_order " +
-            "FROM resource_groups g " +
-            "JOIN resource_types rt ON rt.id = g.resource_type_id " +
-            "LEFT JOIN resource_group_members m ON m.resource_group_id = g.id " +
-            "WHERE rt.key = @resourceTypeKey " +
-            "GROUP BY g.id, g.name, g.description, g.default_availability_percent, g.created_at, g.updated_at, rt.key, g.color, g.display_order " +
-            "ORDER BY g.name", conn);
-        cmd.Parameters.AddWithValue("resourceTypeKey", resourceTypeKey);
-
-        var groups = new List<ResourceGroupInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            groups.Add(MapGroup(reader));
-        return groups;
+        return await conn.QueryListAsync(
+            SelectWithCount + "WHERE rt.key = @resourceTypeKey " + GroupBy + "ORDER BY g.name",
+            p => p.AddWithValue("resourceTypeKey", resourceTypeKey), MapGroup, ct);
     }
 
     public async Task<ResourceGroupInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT g.id, g.name, g.description, g.default_availability_percent, " +
-            "  COUNT(m.resource_id) AS member_count, g.created_at, g.updated_at, " +
-            "  rt.key AS resource_type_key, g.color, g.display_order " +
-            "FROM resource_groups g " +
-            "JOIN resource_types rt ON rt.id = g.resource_type_id " +
-            "LEFT JOIN resource_group_members m ON m.resource_group_id = g.id " +
-            "WHERE g.id = @id " +
-            "GROUP BY g.id, g.name, g.description, g.default_availability_percent, g.created_at, g.updated_at, rt.key, g.color, g.display_order",
-            conn);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? MapGroup(reader) : null;
+        return await conn.QuerySingleOrDefaultAsync(
+            SelectWithCount + "WHERE g.id = @id " + GroupBy,
+            p => p.AddWithValue("id", id), MapGroup, ct);
     }
 
     public async Task<ResourceGroupInfo> CreateAsync(string resourceTypeKey, string name, string? description, int defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(
+        var created = await conn.QuerySingleOrDefaultAsync(
             "WITH inserted AS ( " +
             "  INSERT INTO resource_groups (name, description, resource_type_id, default_availability_percent, color, display_order) " +
             "  SELECT @name, @description, id, @defaultAvailabilityPercent, @color, @displayOrder " +
@@ -78,61 +59,38 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
             "  rt.key AS resource_type_key, i.color, i.display_order " +
             "FROM inserted i " +
             "JOIN resource_types rt ON rt.id = i.resource_type_id",
-            conn);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("resourceTypeKey", resourceTypeKey);
-        cmd.Parameters.AddWithValue("defaultAvailabilityPercent", defaultAvailabilityPercent);
-        cmd.Parameters.AddWithValue("color", (object?)color ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("displayOrder", displayOrder ?? 0);
+            p =>
+            {
+                p.AddWithValue("name", name);
+                p.AddNullable("description", description);
+                p.AddWithValue("resourceTypeKey", resourceTypeKey);
+                p.AddWithValue("defaultAvailabilityPercent", defaultAvailabilityPercent);
+                p.AddNullable("color", color);
+                p.AddWithValue("displayOrder", displayOrder ?? 0);
+            }, MapGroup, ct);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-            throw new InvalidOperationException("Failed to create resource group: resource type not found");
-
-        return MapGroup(reader);
+        return created ?? throw new InvalidOperationException("Failed to create resource group: resource type not found");
     }
 
     public async Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
 
-        var updates = new List<string>();
-        var parameters = new List<NpgsqlParameter> { new("id", id) };
-
-        if (name != null)
-        {
-            updates.Add("name = @name");
-            parameters.Add(new NpgsqlParameter("name", name));
-        }
-        if (description != null)
-        {
-            updates.Add("description = @description");
-            parameters.Add(new NpgsqlParameter("description", description));
-        }
+        var update = new UpdateBuilder();
+        update.SetIfNotNull("name", name);
+        update.SetIfNotNull("description", description);
         if (defaultAvailabilityPercent.HasValue)
-        {
-            updates.Add("default_availability_percent = @defaultAvailabilityPercent");
-            parameters.Add(new NpgsqlParameter("defaultAvailabilityPercent", defaultAvailabilityPercent.Value));
-        }
-        if (color != null)
-        {
-            updates.Add("color = @color");
-            parameters.Add(new NpgsqlParameter("color", color));
-        }
+            update.Set("default_availability_percent", defaultAvailabilityPercent.Value);
+        update.SetIfNotNull("color", color);
         if (displayOrder.HasValue)
-        {
-            updates.Add("display_order = @displayOrder");
-            parameters.Add(new NpgsqlParameter("displayOrder", displayOrder.Value));
-        }
+            update.Set("display_order", displayOrder.Value);
 
-        if (updates.Count == 0)
-            return await GetByIdAsync(id);
+        if (update.IsEmpty)
+            return await GetByIdAsync(id, ct);
 
         var sql =
             "WITH updated AS ( " +
-            $"  UPDATE resource_groups SET {string.Join(", ", updates)} WHERE id = @id RETURNING * " +
+            $"  UPDATE resource_groups SET {update.SetClause} WHERE id = @id RETURNING * " +
             ") " +
             "SELECT u.id, u.name, u.description, u.default_availability_percent, " +
             "  (SELECT COUNT(*) FROM resource_group_members WHERE resource_group_id = u.id)::int AS member_count, " +
@@ -140,23 +98,18 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
             "FROM updated u " +
             "JOIN resource_types rt ON rt.id = u.resource_type_id";
 
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        foreach (var p in parameters)
-            cmd.Parameters.Add(p);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? MapGroup(reader) : null;
+        return await conn.QuerySingleOrDefaultAsync(sql, p =>
+        {
+            p.AddWithValue("id", id);
+            update.Apply(p);
+        }, MapGroup, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "DELETE FROM resource_groups WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM resource_groups WHERE id = @id",
+            p => p.AddWithValue("id", id), ct) > 0;
     }
 
     private static ResourceGroupInfo MapGroup(NpgsqlDataReader reader) => new()

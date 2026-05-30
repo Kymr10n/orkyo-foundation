@@ -27,7 +27,7 @@ public static class ResourceTypeEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var rt = await repo.GetByIdAsync(id);
-                return rt is null ? ErrorResponses.NotFound("ResourceType", id) : Results.Ok(rt);
+                return EndpointHelpers.OkOrNotFound(rt, "ResourceType", id);
             }, logger, "get resource type", new { id }))
             .WithName("GetResourceTypeById")
             .WithSummary("Get a resource type by ID");

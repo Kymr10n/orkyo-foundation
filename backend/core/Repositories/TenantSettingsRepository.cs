@@ -1,5 +1,4 @@
 using Api.Services;
-using Npgsql;
 
 namespace Api.Repositories;
 
@@ -15,66 +14,38 @@ public interface ITenantSettingsRepository
     Task<bool> DeleteAsync(string key, CancellationToken ct = default);
 }
 
-public class TenantSettingsRepository : ITenantSettingsRepository
+public class TenantSettingsRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
+    : ITenantSettingsRepository
 {
-    private readonly OrgContext _orgContext;
-    private readonly IOrgDbConnectionFactory _connectionFactory;
-
-    public TenantSettingsRepository(
-        OrgContext orgContext,
-        IOrgDbConnectionFactory connectionFactory)
-    {
-        _orgContext = orgContext;
-        _connectionFactory = connectionFactory;
-    }
-
     public async Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default)
     {
-        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT key, value FROM tenant_settings", conn);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var settings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        while (await reader.ReadAsync(ct))
-        {
-            settings[reader.GetString(0)] = reader.GetString(1);
-        }
-
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        var rows = await conn.QueryListAsync("SELECT key, value FROM tenant_settings", null,
+            r => (r.GetString(0), r.GetString(1)), ct);
+        var settings = new Dictionary<string, string>(rows.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var (k, v) in rows) settings[k] = v;
         return settings;
     }
 
     public async Task UpsertAsync(string key, string value, string category, CancellationToken ct = default)
     {
-        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.ExecuteAsync(@"
             INSERT INTO tenant_settings (key, value, category, updated_at)
             VALUES (@key, @value, @category, NOW())
-            ON CONFLICT (key) DO UPDATE SET
-                value = @value,
-                updated_at = NOW()", conn);
-
-        cmd.Parameters.AddWithValue("key", key);
-        cmd.Parameters.AddWithValue("value", value);
-        cmd.Parameters.AddWithValue("category", category);
-
-        await cmd.ExecuteNonQueryAsync(ct);
+            ON CONFLICT (key) DO UPDATE SET value = @value, updated_at = NOW()",
+            p =>
+            {
+                p.AddWithValue("key", key);
+                p.AddWithValue("value", value);
+                p.AddWithValue("category", category);
+            }, ct);
     }
 
     public async Task<bool> DeleteAsync(string key, CancellationToken ct = default)
     {
-        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "DELETE FROM tenant_settings WHERE key = @key", conn);
-        cmd.Parameters.AddWithValue("key", key);
-
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        return await conn.ExecuteAsync("DELETE FROM tenant_settings WHERE key = @key",
+            p => p.AddWithValue("key", key), ct) > 0;
     }
 }

@@ -72,7 +72,7 @@ public static class AvailabilityEventEndpoints
                 if (existing is null || existing.SiteId != siteId)
                     return ErrorResponses.NotFound("AvailabilityEvent", eventId);
                 var result = await repo.UpdateAsync(eventId, request, ct);
-                return result is null ? ErrorResponses.NotFound("AvailabilityEvent", eventId) : Results.Ok(result);
+                return EndpointHelpers.OkOrNotFound(result, "AvailabilityEvent", eventId);
             }, logger, "update availability event", new { siteId, eventId }))
             .RequireAdminAccess()
             .WithName("UpdateAvailabilityEvent")

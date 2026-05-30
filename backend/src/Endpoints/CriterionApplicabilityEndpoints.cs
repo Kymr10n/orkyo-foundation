@@ -26,7 +26,7 @@ public static class CriterionApplicabilityEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var info = await repo.GetByCriterionAsync(id);
-                return info is null ? ErrorResponses.NotFound("Criterion", id) : Results.Ok(info);
+                return EndpointHelpers.OkOrNotFound(info, "Criterion", id);
             }, logger, "get criterion applicability", new { id }))
             .WithName("GetCriterionApplicability")
             .WithSummary("Get applicability settings for a criterion");

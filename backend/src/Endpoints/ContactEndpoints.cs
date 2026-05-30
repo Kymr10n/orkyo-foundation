@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,8 +15,6 @@ namespace Api.Endpoints;
 
 public static class ContactEndpoints
 {
-    private static readonly HashSet<string> ValidSubjects = ["demo", "sales", "support", "security", "other"];
-
     public static void MapContactEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/contact")
@@ -23,23 +22,19 @@ public static class ContactEndpoints
             .WithMetadata(new SkipTenantResolutionAttribute())
             .WithTags("Contact");
 
-        group.MapPost("/", async ([FromBody] ContactRequest request, IDbConnectionFactory connectionFactory, IEmailService emailService, IConfiguration configuration, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/", async (
+            [FromBody] ContactRequest request,
+            IValidator<ContactRequest> validator,
+            IDbConnectionFactory connectionFactory,
+            IEmailService emailService,
+            IConfiguration configuration,
+            CancellationToken ct,
+            ILogger<EndpointLoggerCategory> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 200)
-                    return ErrorResponses.BadRequest("Name is required (max 200 characters)");
-                if (string.IsNullOrWhiteSpace(request.Email) || request.Email.Length > 320 || !System.Net.Mail.MailAddress.TryCreate(request.Email, out _))
-                    return ErrorResponses.BadRequest("A valid email address is required");
-                if (string.IsNullOrWhiteSpace(request.Subject) || !ValidSubjects.Contains(request.Subject))
-                    return ErrorResponses.BadRequest("Subject must be one of: demo, sales, support, security, other");
-                if (string.IsNullOrWhiteSpace(request.Message) || request.Message.Length > 5000)
-                    return ErrorResponses.BadRequest("Message is required (max 5000 characters)");
-                if (request.Company is { Length: > 200 })
-                    return ErrorResponses.BadRequest("Company name must be 200 characters or fewer");
-
                 await using var conn = connectionFactory.CreateControlPlaneConnection();
-                await conn.OpenAsync();
+                await conn.OpenAsync(ct);
 
                 await using var cmd = new NpgsqlCommand(@"
                     INSERT INTO contact_submissions (id, name, email, company, subject, message, created_at_utc)
@@ -51,7 +46,7 @@ public static class ContactEndpoints
                 cmd.Parameters.AddWithValue("subject", request.Subject);
                 cmd.Parameters.AddWithValue("message", request.Message.Trim());
                 cmd.Parameters.AddWithValue("createdAt", DateTime.UtcNow);
-                await cmd.ExecuteNonQueryAsync();
+                await cmd.ExecuteNonQueryAsync(ct);
 
                 logger.LogInformation("Contact form submitted: {Email}, subject={Subject}", request.Email, request.Subject);
 

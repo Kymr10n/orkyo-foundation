@@ -27,22 +27,14 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
     public async Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        var members = await db.QueryListAsync(
             $"SELECT {ResourceSelectColumns} " +
             "FROM resource_group_members m " +
             "JOIN resources r ON r.id = m.resource_id " +
             "JOIN resource_types rt ON rt.id = r.resource_type_id " +
-            "WHERE m.resource_group_id = @groupId " +
-            "ORDER BY r.name", db);
-        cmd.Parameters.AddWithValue("groupId", groupId);
-
-        var members = new List<ResourceInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            members.Add(MapResource(reader));
-
+            "WHERE m.resource_group_id = @groupId ORDER BY r.name",
+            p => p.AddWithValue("groupId", groupId),
+            MapResource, ct);
         return new ResourceGroupMembersResponse { GroupId = groupId, Members = members };
     }
 
@@ -112,17 +104,10 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
     public async Task<IReadOnlyList<Guid>> GetGroupIdsForResourceAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT resource_group_id FROM resource_group_members WHERE resource_id = @resourceId", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-
-        var ids = new List<Guid>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            ids.Add(reader.GetGuid(0));
-        return ids;
+        return await db.QueryListAsync(
+            "SELECT resource_group_id FROM resource_group_members WHERE resource_id = @resourceId",
+            p => p.AddWithValue("resourceId", resourceId),
+            r => r.GetGuid(0), ct);
     }
 
     public async Task<Dictionary<Guid, IReadOnlyList<Guid>>> GetGroupIdsForResourcesAsync(
@@ -131,26 +116,17 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         if (resourceIds.Count == 0) return [];
 
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT resource_id, resource_group_id FROM resource_group_members WHERE resource_id = ANY(@ids)", db);
-        cmd.Parameters.AddWithValue("ids", resourceIds.ToArray());
+        var rows = await db.QueryListAsync(
+            "SELECT resource_id, resource_group_id FROM resource_group_members WHERE resource_id = ANY(@ids)",
+            p => p.AddWithValue("ids", resourceIds.ToArray()),
+            r => (r.GetGuid(0), r.GetGuid(1)), ct);
 
         var map = new Dictionary<Guid, List<Guid>>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        foreach (var (rId, gId) in rows)
         {
-            var rId = reader.GetGuid(0);
-            var gId = reader.GetGuid(1);
-            if (!map.TryGetValue(rId, out var list))
-            {
-                list = [];
-                map[rId] = list;
-            }
+            if (!map.TryGetValue(rId, out var list)) { list = []; map[rId] = list; }
             list.Add(gId);
         }
-
         return map.ToDictionary(kvp => kvp.Key, kvp => (IReadOnlyList<Guid>)kvp.Value);
     }
 

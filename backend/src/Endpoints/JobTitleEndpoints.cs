@@ -36,7 +36,7 @@ public static class JobTitleEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var jt = await repo.GetByIdAsync(id);
-                return jt is null ? ErrorResponses.NotFound("JobTitle", id) : Results.Ok(jt);
+                return EndpointHelpers.OkOrNotFound(jt, "JobTitle", id);
             }, logger, "get job title", new { id }))
             .WithName("GetJobTitle");
 
@@ -62,7 +62,7 @@ public static class JobTitleEndpoints
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var jt = await repo.UpdateAsync(id, request);
-                return jt is null ? ErrorResponses.NotFound("JobTitle", id) : Results.Ok(jt);
+                return EndpointHelpers.OkOrNotFound(jt, "JobTitle", id);
             }, logger, "update job title", new { id }))
             .RequireAdminAccess()
             .WithName("UpdateJobTitle");

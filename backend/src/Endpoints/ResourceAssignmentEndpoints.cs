@@ -40,7 +40,7 @@ public static class ResourceAssignmentEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var a = await repo.GetByIdAsync(id);
-                return a is null ? ErrorResponses.NotFound("ResourceAssignment", id) : Results.Ok(a);
+                return EndpointHelpers.OkOrNotFound(a, "ResourceAssignment", id);
             }, logger, "get resource assignment", new { id }))
             .WithName("GetResourceAssignmentById")
             .WithSummary("Get a resource assignment by ID");
