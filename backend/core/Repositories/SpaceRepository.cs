@@ -36,15 +36,13 @@ public class SpaceRepository : ISpaceRepository
     public async Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        return await DbQueryHelper.ExecutePagedQueryAsync(
-            conn,
+        return await conn.QueryPagedAsync(
             page,
             countSql: "SELECT COUNT(*) FROM spaces WHERE site_id = @siteId",
             querySql: $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId ORDER BY s.code, r.name LIMIT @limit OFFSET @offset",
-            addParams: cmd => cmd.Parameters.AddWithValue("siteId", siteId),
-            mapper: SpaceMapper.MapFromReader);
+            bind: p => p.AddWithValue("siteId", siteId),
+            map: SpaceMapper.MapFromReader,
+            ct: ct);
     }
 
     public async Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)

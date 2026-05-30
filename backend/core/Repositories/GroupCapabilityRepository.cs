@@ -27,46 +27,27 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
     public async Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
 
         // Verify group exists
         if (!await conn.ExistsAsync("resource_groups", groupId, ct))
             throw new NotFoundException("Group", groupId);
 
-        // Get capabilities with criterion details
-        await using var cmd = new NpgsqlCommand(@"
+        return await conn.QueryListAsync(@"
             SELECT
-                gc.id,
-                gc.resource_group_id,
-                gc.criterion_id,
-                gc.value,
-                gc.created_at,
-                gc.updated_at,
-                c.name as criterion_name,
-                c.data_type as criterion_type,
-                c.unit as criterion_unit
+                gc.id, gc.resource_group_id, gc.criterion_id, gc.value,
+                gc.created_at, gc.updated_at,
+                c.name as criterion_name, c.data_type as criterion_type, c.unit as criterion_unit
             FROM resource_group_capabilities gc
             JOIN criteria c ON gc.criterion_id = c.id
             WHERE gc.resource_group_id = @groupId
             ORDER BY c.name",
-            conn);
-        cmd.Parameters.AddWithValue("groupId", groupId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var capabilities = new List<GroupCapabilityInfo>();
-
-        while (await reader.ReadAsync(ct))
-        {
-            capabilities.Add(MapFromReader(reader));
-        }
-
-        return capabilities;
+            p => p.AddWithValue("groupId", groupId),
+            r => MapFromReader(r), ct);
     }
 
     public async Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
 
         // Verify group and criterion exist
         if (!await conn.ExistsAsync("resource_groups", groupId, ct))
@@ -75,25 +56,20 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         if (!await conn.ExistsAsync("criteria", criterionId, ct))
             throw new NotFoundException("Criterion", criterionId);
 
-        // Insert capability
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO resource_group_capabilities (resource_group_id, criterion_id, value)
-            VALUES (@groupId, @criterionId, @value::jsonb)
-            RETURNING id, resource_group_id, criterion_id, value, created_at, updated_at",
-            conn);
-        cmd.Parameters.AddWithValue("groupId", groupId);
-        cmd.Parameters.AddWithValue("criterionId", criterionId);
-        cmd.Parameters.AddWithValue("value", JsonSerializer.Serialize(value));
-
         try
         {
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
-            {
-                throw new InvalidOperationException("Failed to create capability");
-            }
-
-            return MapFromReader(reader, includeCriterion: false);
+            return await conn.QuerySingleOrDefaultAsync(@"
+                INSERT INTO resource_group_capabilities (resource_group_id, criterion_id, value)
+                VALUES (@groupId, @criterionId, @value::jsonb)
+                RETURNING id, resource_group_id, criterion_id, value, created_at, updated_at",
+                p =>
+                {
+                    p.AddWithValue("groupId", groupId);
+                    p.AddWithValue("criterionId", criterionId);
+                    p.AddWithValue("value", JsonSerializer.Serialize(value));
+                },
+                r => MapFromReader(r, includeCriterion: false), ct)
+                ?? throw new InvalidOperationException("Failed to create capability");
         }
         catch (PostgresException ex) when (ex.SqlState == "23505") // Unique violation
         {
@@ -104,21 +80,14 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
     public async Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
 
         // Verify group exists
         if (!await conn.ExistsAsync("resource_groups", groupId, ct))
             throw new NotFoundException("Group", groupId);
 
-        // Delete capability
-        await using var cmd = new NpgsqlCommand(
+        return await conn.ExecuteAsync(
             "DELETE FROM resource_group_capabilities WHERE id = @id AND resource_group_id = @groupId",
-            conn);
-        cmd.Parameters.AddWithValue("id", capabilityId);
-        cmd.Parameters.AddWithValue("groupId", groupId);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
-        return rowsAffected > 0;
+            p => { p.AddWithValue("id", capabilityId); p.AddWithValue("groupId", groupId); }, ct) > 0;
     }
 
     private static GroupCapabilityInfo MapFromReader(NpgsqlDataReader reader, bool includeCriterion = true)

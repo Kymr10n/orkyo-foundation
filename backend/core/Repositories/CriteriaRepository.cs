@@ -34,46 +34,30 @@ public class CriteriaRepository : ICriteriaRepository
     public async Task<List<CriterionInfo>> GetAllAsync(CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
-
-        var criteria = new List<CriterionInfo>();
-        var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM criteria c ORDER BY c.name LIMIT 500", db);
-
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            criteria.Add(CriteriaMapper.MapFromReader(reader));
-        }
-
-        return criteria;
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} FROM criteria c ORDER BY c.name LIMIT 500",
+            null, CriteriaMapper.MapFromReader, ct);
     }
 
     public async Task<List<CriterionInfo>> GetByResourceTypeAsync(string resourceTypeKey, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
         // Strict rule (post-applicability-backfill): a criterion is included
         // only when explicitly tagged for this resource type. The previous
         // open-world fallback (criteria with no applicability rows treated as
         // universal) was removed in the same release that backfilled all
         // untagged criteria as 'space'.
-        var cmd = new NpgsqlCommand(
+        return await db.QueryListAsync(
             $@"SELECT {SelectColumns} FROM criteria c
                WHERE EXISTS (
                    SELECT 1 FROM criterion_resource_types crt
                    JOIN resource_types rt ON rt.id = crt.resource_type_id
                    WHERE crt.criterion_id = c.id AND rt.key = @key
                )
-               ORDER BY c.name LIMIT 500", db);
-        cmd.Parameters.AddWithValue("key", resourceTypeKey);
-
-        var criteria = new List<CriterionInfo>();
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            criteria.Add(CriteriaMapper.MapFromReader(reader));
-        return criteria;
+               ORDER BY c.name LIMIT 500",
+            p => p.AddWithValue("key", resourceTypeKey),
+            CriteriaMapper.MapFromReader, ct);
     }
 
     public async Task<PagedResult<CriterionInfo>> GetAllAsync(PageRequest page, CancellationToken ct = default)

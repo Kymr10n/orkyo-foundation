@@ -76,46 +76,40 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
         var insertedId = id ?? Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(@"
+
+        return (await db.QuerySingleOrDefaultAsync(@"
             INSERT INTO resources
                 (id, resource_type_id, name, description, external_reference,
                  allocation_mode, base_availability_percent)
             VALUES
                 (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent)
-            RETURNING id, created_at, updated_at", db);
-        cmd.Parameters.AddWithValue("id", insertedId);
-
-        cmd.Parameters.AddWithValue("resourceTypeId", resourceTypeId);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("externalReference", (object?)externalReference ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("allocationMode", allocationMode);
-        cmd.Parameters.AddWithValue("baseAvailabilityPercent", baseAvailabilityPercent);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-        var newId = reader.GetGuid(reader.GetOrdinal("id"));
-        var createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
-        var updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
-
-        return new ResourceInfo
-        {
-            Id = newId,
-            ResourceTypeId = resourceTypeId,
-            ResourceTypeKey = typeKey,
-            Name = name,
-            Description = description,
-            ExternalReference = externalReference,
-            AllocationMode = allocationMode,
-            BaseAvailabilityPercent = baseAvailabilityPercent,
-            IsActive = true,
-            CreatedAt = createdAt,
-            UpdatedAt = updatedAt,
-        };
+            RETURNING id, created_at, updated_at",
+            p =>
+            {
+                p.AddWithValue("id", insertedId);
+                p.AddWithValue("resourceTypeId", resourceTypeId);
+                p.AddWithValue("name", name);
+                p.AddNullable("description", description);
+                p.AddNullable("externalReference", externalReference);
+                p.AddWithValue("allocationMode", allocationMode);
+                p.AddWithValue("baseAvailabilityPercent", baseAvailabilityPercent);
+            },
+            r => new ResourceInfo
+            {
+                Id = r.GetGuid(r.GetOrdinal("id")),
+                ResourceTypeId = resourceTypeId,
+                ResourceTypeKey = typeKey,
+                Name = name,
+                Description = description,
+                ExternalReference = externalReference,
+                AllocationMode = allocationMode,
+                BaseAvailabilityPercent = baseAvailabilityPercent,
+                IsActive = true,
+                CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
+                UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
+            }, ct))!;
     }
 
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)

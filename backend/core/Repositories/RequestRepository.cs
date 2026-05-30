@@ -53,15 +53,14 @@ public class RequestRepository : IRequestRepository
     public async Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var result = await DbQueryHelper.ExecutePagedQueryAsync(
-            db,
+        var result = await db.QueryPagedAsync(
             page,
             countSql: "SELECT COUNT(*) FROM v_requests_with_assignments",
             querySql: $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset",
-            addParams: null,
-            mapper: RequestMapper.MapFromReader);
+            bind: null,
+            map: RequestMapper.MapFromReader,
+            ct: ct);
 
         if (includeRequirements && result.Items.Count > 0)
         {
@@ -239,27 +238,6 @@ public class RequestRepository : IRequestRepository
         }
     }
 
-    private static readonly (string Column, Func<UpdateRequestRequest, bool> HasValue, Func<UpdateRequestRequest, object> GetValue)[] UpdateFieldMap =
-    {
-        ("name",                      r => r.Name != null,                    r => r.Name!),
-        ("description",               r => r.Description != null,             r => r.Description!),
-        ("parent_request_id",         r => r.ParentRequestId.HasValue,        r => r.ParentRequestId!.Value),
-        ("planning_mode",             r => r.PlanningMode.HasValue,           r => EnumMapper.ToDbValue(r.PlanningMode!.Value)),
-        ("sort_order",                r => r.SortOrder.HasValue,              r => r.SortOrder!.Value),
-        ("request_item_id",           r => r.RequestItemId != null,           r => r.RequestItemId!),
-        ("icon",                      r => r.Icon != null,                    r => r.Icon!),
-        ("start_ts",                  r => r.StartTs.HasValue,                r => r.StartTs!.Value),
-        ("end_ts",                    r => r.EndTs.HasValue,                  r => r.EndTs!.Value),
-        ("earliest_start_ts",         r => r.EarliestStartTs.HasValue,        r => r.EarliestStartTs!.Value),
-        ("latest_end_ts",             r => r.LatestEndTs.HasValue,            r => r.LatestEndTs!.Value),
-        ("minimal_duration_value",    r => r.MinimalDurationValue.HasValue,   r => r.MinimalDurationValue!.Value),
-        ("minimal_duration_unit",     r => r.MinimalDurationUnit.HasValue,    r => EnumMapper.ToDbValue(r.MinimalDurationUnit!.Value)),
-        ("actual_duration_value",     r => r.ActualDurationValue.HasValue,    r => r.ActualDurationValue!.Value),
-        ("actual_duration_unit",      r => r.ActualDurationUnit.HasValue,     r => EnumMapper.ToDbValue(r.ActualDurationUnit!.Value)),
-        ("status",                    r => r.Status.HasValue,                 r => EnumMapper.ToDbValue(r.Status!.Value)),
-        ("scheduling_settings_apply", r => r.SchedulingSettingsApply.HasValue, r => r.SchedulingSettingsApply!.Value),
-    };
-
     public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
@@ -283,31 +261,40 @@ public class RequestRepository : IRequestRepository
         if (finalStartTs.HasValue && finalEndTs.HasValue && finalEndTs.Value <= finalStartTs.Value)
             throw new ArgumentException("End time must be after start time");
 
-        var setClauses = new List<string>();
-        var parameters = new List<(string Name, object Value)>();
-        foreach (var (column, hasValue, getValue) in UpdateFieldMap)
-        {
-            if (!hasValue(request)) continue;
-            setClauses.Add($"{column} = @{column}");
-            parameters.Add((column, getValue(request)));
-        }
+        var update = new UpdateBuilder();
+        update.SetIfNotNull("name", request.Name);
+        update.SetIfNotNull("description", request.Description);
+        if (request.ParentRequestId.HasValue) update.Set("parent_request_id", request.ParentRequestId.Value);
+        if (request.PlanningMode.HasValue) update.Set("planning_mode", EnumMapper.ToDbValue(request.PlanningMode.Value));
+        if (request.SortOrder.HasValue) update.Set("sort_order", request.SortOrder.Value);
+        update.SetIfNotNull("request_item_id", request.RequestItemId);
+        update.SetIfNotNull("icon", request.Icon);
+        if (request.StartTs.HasValue) update.Set("start_ts", request.StartTs.Value);
+        if (request.EndTs.HasValue) update.Set("end_ts", request.EndTs.Value);
+        if (request.EarliestStartTs.HasValue) update.Set("earliest_start_ts", request.EarliestStartTs.Value);
+        if (request.LatestEndTs.HasValue) update.Set("latest_end_ts", request.LatestEndTs.Value);
+        if (request.MinimalDurationValue.HasValue) update.Set("minimal_duration_value", request.MinimalDurationValue.Value);
+        if (request.MinimalDurationUnit.HasValue) update.Set("minimal_duration_unit", EnumMapper.ToDbValue(request.MinimalDurationUnit.Value));
+        if (request.ActualDurationValue.HasValue) update.Set("actual_duration_value", request.ActualDurationValue.Value);
+        if (request.ActualDurationUnit.HasValue) update.Set("actual_duration_unit", EnumMapper.ToDbValue(request.ActualDurationUnit.Value));
+        if (request.Status.HasValue) update.Set("status", EnumMapper.ToDbValue(request.Status.Value));
+        if (request.SchedulingSettingsApply.HasValue) update.Set("scheduling_settings_apply", request.SchedulingSettingsApply.Value);
 
-        if (setClauses.Count == 0 && request.Requirements == null && !request.ResourceId.HasValue)
+        if (update.IsEmpty && request.Requirements == null && !request.ResourceId.HasValue)
             throw new ArgumentException("No fields to update");
 
         await using var transaction = await db.BeginTransactionAsync();
 
-        if (setClauses.Count > 0)
+        if (!update.IsEmpty)
         {
             var cmd = new NpgsqlCommand
             {
                 Connection = db,
                 Transaction = transaction,
-                CommandText = $"UPDATE requests SET {string.Join(", ", setClauses)} WHERE id = @id",
+                CommandText = $"UPDATE requests SET {update.SetClause} WHERE id = @id",
             };
             cmd.Parameters.AddWithValue("id", id);
-            foreach (var (name, value) in parameters)
-                cmd.Parameters.AddWithValue(name, value);
+            update.Apply(cmd.Parameters);
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
@@ -358,7 +345,7 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
-        if (!await DbQueryHelper.ExistsAsync(db, "requests", id))
+        if (!await db.ExistsAsync("requests", id, ct))
             return null;
 
         if (request.ResourceId.HasValue
@@ -474,10 +461,10 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
-        if (!await DbQueryHelper.ExistsAsync(db, "requests", requestId))
+        if (!await db.ExistsAsync("requests", requestId, ct))
             throw new NotFoundException("Request", requestId);
 
-        if (!await DbQueryHelper.ExistsAsync(db, "criteria", requirement.CriterionId))
+        if (!await db.ExistsAsync("criteria", requirement.CriterionId, ct))
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");
 
         // Phase 3: Validate criterion is applicable to requests

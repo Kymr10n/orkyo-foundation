@@ -132,11 +132,8 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand("DELETE FROM availability_events WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM availability_events WHERE id = @id",
+            p => p.AddWithValue("id", id), ct) > 0;
     }
 
     // ── Scope mutations ──────────────────────────────────────────────────────
@@ -151,42 +148,26 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
     public async Task<bool> DeleteScopeAsync(Guid eventId, Guid scopeId, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "DELETE FROM availability_event_scopes WHERE id = @id AND availability_event_id = @eventId", conn);
-        cmd.Parameters.AddWithValue("id", scopeId);
-        cmd.Parameters.AddWithValue("eventId", eventId);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        return await conn.ExecuteAsync(
+            "DELETE FROM availability_event_scopes WHERE id = @id AND availability_event_id = @eventId",
+            p => { p.AddWithValue("id", scopeId); p.AddWithValue("eventId", eventId); }, ct) > 0;
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private async Task<List<AvailabilityEventInfo>> FetchEventsBySiteAsync(
+    private Task<List<AvailabilityEventInfo>> FetchEventsBySiteAsync(
         NpgsqlConnection conn, Guid siteId, CancellationToken ct)
-    {
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {EventCols} FROM availability_events WHERE site_id = @siteId ORDER BY start_ts", conn);
-        cmd.Parameters.AddWithValue("siteId", siteId);
+        => conn.QueryListAsync(
+            $"SELECT {EventCols} FROM availability_events WHERE site_id = @siteId ORDER BY start_ts",
+            p => p.AddWithValue("siteId", siteId),
+            SchedulingMapper.MapAvailabilityEventFromReader, ct);
 
-        var events = new List<AvailabilityEventInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            events.Add(SchedulingMapper.MapAvailabilityEventFromReader(reader));
-        return events;
-    }
-
-    private async Task<AvailabilityEventInfo?> FetchEventByIdCoreAsync(
+    private Task<AvailabilityEventInfo?> FetchEventByIdCoreAsync(
         NpgsqlConnection conn, Guid id, CancellationToken ct)
-    {
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {EventCols} FROM availability_events WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return SchedulingMapper.MapAvailabilityEventFromReader(reader);
-    }
+        => conn.QuerySingleOrDefaultAsync(
+            $"SELECT {EventCols} FROM availability_events WHERE id = @id",
+            p => p.AddWithValue("id", id),
+            SchedulingMapper.MapAvailabilityEventFromReader, ct);
 
     private async Task HydrateScopesAsync(
         NpgsqlConnection conn, List<AvailabilityEventInfo> events, CancellationToken ct)
@@ -204,15 +185,14 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
     private async Task<Dictionary<Guid, List<AvailabilityEventScopeInfo>>> FetchScopesByEventAsync(
         NpgsqlConnection conn, List<Guid> eventIds, CancellationToken ct)
     {
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {ScopeCols} FROM availability_event_scopes WHERE availability_event_id = ANY(@ids)", conn);
-        cmd.Parameters.AddWithValue("ids", eventIds.ToArray());
+        var scopes = await conn.QueryListAsync(
+            $"SELECT {ScopeCols} FROM availability_event_scopes WHERE availability_event_id = ANY(@ids)",
+            p => p.AddWithValue("ids", eventIds.ToArray()),
+            SchedulingMapper.MapScopeFromReader, ct);
 
         var map = new Dictionary<Guid, List<AvailabilityEventScopeInfo>>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        foreach (var scope in scopes)
         {
-            var scope = SchedulingMapper.MapScopeFromReader(reader);
             if (!map.TryGetValue(scope.AvailabilityEventId, out var list))
             {
                 list = [];

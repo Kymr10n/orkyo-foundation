@@ -27,15 +27,11 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
     public async Task<List<ResourceCapabilityInfo>> GetByResourceAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        return await db.QueryListAsync(
             $"SELECT {SelectColumns} FROM {TableName} rc " +
             "JOIN criteria c ON rc.criterion_id = c.id " +
-            "WHERE rc.resource_id = @resourceId ORDER BY c.name", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-
-        return await ReadAllAsync(cmd);
+            "WHERE rc.resource_id = @resourceId ORDER BY c.name",
+            p => p.AddWithValue("resourceId", resourceId), Map, ct);
     }
 
     public async Task<List<ResourceCapabilityInfo>> GetByResourceGroupAsync(Guid resourceGroupId, CancellationToken ct = default)
@@ -43,9 +39,7 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
         // Group capabilities live in resource_group_capabilities (renamed in Phase 2).
         // In Phase 2, groups are in resource_groups.
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
+        return await db.QueryListAsync(@"
             SELECT gc.id, sg.id as resource_id, gc.criterion_id, gc.value,
                    gc.created_at, gc.updated_at,
                    c.name as criterion_name, c.data_type as criterion_type, c.unit as criterion_unit
@@ -53,10 +47,8 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
             JOIN resource_groups sg ON sg.id = gc.resource_group_id
             JOIN criteria c ON gc.criterion_id = c.id
             WHERE gc.resource_group_id = @groupId
-            ORDER BY c.name", db);
-        cmd.Parameters.AddWithValue("groupId", resourceGroupId);
-
-        return await ReadAllAsync(cmd);
+            ORDER BY c.name",
+            p => p.AddWithValue("groupId", resourceGroupId), Map, ct);
     }
 
     public async Task<ResourceCapabilityInfo> UpsertAsync(Guid resourceId, Guid criterionId, JsonElement value, CancellationToken ct = default)
@@ -138,22 +130,9 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
     public async Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"DELETE FROM {TableName} WHERE resource_id = @resourceId AND id = @capabilityId", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("capabilityId", capabilityId);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
-    }
-
-    private static async Task<List<ResourceCapabilityInfo>> ReadAllAsync(NpgsqlCommand cmd, CancellationToken ct = default)
-    {
-        var result = new List<ResourceCapabilityInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            result.Add(Map(reader));
-        return result;
+        return await db.ExecuteAsync(
+            $"DELETE FROM {TableName} WHERE resource_id = @resourceId AND id = @capabilityId",
+            p => { p.AddWithValue("resourceId", resourceId); p.AddWithValue("capabilityId", capabilityId); }, ct) > 0;
     }
 
     private static ResourceCapabilityInfo Map(NpgsqlDataReader r)
