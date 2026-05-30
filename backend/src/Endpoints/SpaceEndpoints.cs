@@ -41,7 +41,7 @@ public static class SpaceEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var space = await spaceService.GetByIdAsync(siteId, resourceId, ct);
-                return space == null ? ErrorResponses.NotFound("Space", resourceId) : Results.Ok(space);
+                return EndpointHelpers.OkOrNotFound(space, "Space", resourceId);
             }, logger, "get space", new { siteId, resourceId });
         })
         .WithName("GetSpaceById")

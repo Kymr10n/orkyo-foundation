@@ -548,28 +548,20 @@ public class KeycloakAdminService : IKeycloakAdminService
     }
 
     /// <summary>
-    /// Create an HttpRequestMessage pre-configured with admin Bearer token.
-    /// When using an internal URL (e.g. http://keycloak:8080), sets X-Forwarded headers
-    /// so Keycloak's hostname validation accepts the request.
+    /// Create an HttpRequestMessage pre-configured with the admin Bearer token, and an optional
+    /// JSON <paramref name="body"/>. When using an internal URL (e.g. http://keycloak:8080), sets
+    /// X-Forwarded headers so Keycloak's hostname validation accepts the request.
     /// </summary>
-    private HttpRequestMessage CreateAdminRequest(HttpMethod method, string url, string token)
+    private HttpRequestMessage CreateAdminRequest(HttpMethod method, string url, string token, object? body = null)
     {
         var request = new HttpRequestMessage(method, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (body is not null)
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(body),
+                Encoding.UTF8,
+                "application/json");
         SetInternalProxyHeaders(request);
-        return request;
-    }
-
-    /// <summary>
-    /// Create an HttpRequestMessage with admin Bearer token and JSON body.
-    /// </summary>
-    private HttpRequestMessage CreateAdminRequest(HttpMethod method, string url, string token, object body)
-    {
-        var request = CreateAdminRequest(method, url, token);
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(body),
-            Encoding.UTF8,
-            "application/json");
         return request;
     }
 

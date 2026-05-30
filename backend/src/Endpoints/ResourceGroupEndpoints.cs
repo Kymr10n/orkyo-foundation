@@ -32,7 +32,7 @@ public static class ResourceGroupEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var result = await repo.GetByIdAsync(id);
-                return result == null ? ErrorResponses.NotFound("Resource group", id) : Results.Ok(result);
+                return EndpointHelpers.OkOrNotFound(result, "Resource group", id);
             }, logger, "get resource group", new { id });
         })
         .WithName("GetResourceGroup")
@@ -55,7 +55,7 @@ public static class ResourceGroupEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var result = await repo.UpdateAsync(id, request.Name, request.Description, request.DefaultAvailabilityPercent, request.Color, request.DisplayOrder);
-                return result == null ? ErrorResponses.NotFound("Resource group", id) : Results.Ok(result);
+                return EndpointHelpers.OkOrNotFound(result, "Resource group", id);
             }, logger, "update resource group", new { id });
         })
         .RequireAdminAccess()

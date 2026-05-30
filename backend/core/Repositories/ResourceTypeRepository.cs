@@ -20,42 +20,24 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
     public async Task<List<ResourceTypeInfo>> GetAllAsync(CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_types ORDER BY display_name", db);
-
-        var result = new List<ResourceTypeInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            result.Add(Map(reader));
-        return result;
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} FROM resource_types ORDER BY display_name", null, Map, ct);
     }
 
     public async Task<ResourceTypeInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_types WHERE id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Map(reader) : null;
+        return await db.QuerySingleOrDefaultAsync(
+            $"SELECT {SelectColumns} FROM resource_types WHERE id = @id",
+            p => p.AddWithValue("id", id), Map, ct);
     }
 
     public async Task<ResourceTypeInfo?> GetByKeyAsync(string key, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM resource_types WHERE key = @key", db);
-        cmd.Parameters.AddWithValue("key", key);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Map(reader) : null;
+        return await db.QuerySingleOrDefaultAsync(
+            $"SELECT {SelectColumns} FROM resource_types WHERE key = @key",
+            p => p.AddWithValue("key", key), Map, ct);
     }
 
     private static ResourceTypeInfo Map(NpgsqlDataReader r) => new()

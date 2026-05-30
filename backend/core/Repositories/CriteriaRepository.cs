@@ -93,19 +93,9 @@ public class CriteriaRepository : ICriteriaRepository
     public async Task<CriterionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
-
-        var cmd = new NpgsqlCommand(
-            $"SELECT {SelectColumns} FROM criteria c WHERE c.id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-        {
-            return null;
-        }
-
-        return CriteriaMapper.MapFromReader(reader);
+        return await db.QuerySingleOrDefaultAsync(
+            $"SELECT {SelectColumns} FROM criteria c WHERE c.id = @id",
+            p => p.AddWithValue("id", id), CriteriaMapper.MapFromReader, ct);
     }
 
     public async Task<CriterionInfo> CreateAsync(

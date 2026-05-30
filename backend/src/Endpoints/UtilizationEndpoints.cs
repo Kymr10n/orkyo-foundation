@@ -26,7 +26,7 @@ public static class UtilizationEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var result = await service.GetResourceUtilizationAsync(id, from, to, granularity);
-                return result is null ? ErrorResponses.NotFound("Resource", id) : Results.Ok(result);
+                return EndpointHelpers.OkOrNotFound(result, "Resource", id);
             }, logger, "get resource utilization", new { id, granularity }))
             .WithName("GetResourceUtilization")
             .WithSummary("Get utilization for a resource");
@@ -46,7 +46,7 @@ public static class UtilizationEndpoints
             await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var result = await service.GetGroupUtilizationAsync(id, from, to, granularity);
-                return result is null ? ErrorResponses.NotFound("Group", id) : Results.Ok(result);
+                return EndpointHelpers.OkOrNotFound(result, "Group", id);
             }, logger, "get group utilization", new { id, granularity }))
             .WithName("GetGroupUtilization")
             .WithSummary("Get utilization for a resource group");

@@ -38,7 +38,7 @@ public static class SiteEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var site = await siteService.GetByIdAsync(siteId, ct);
-                return site == null ? ErrorResponses.NotFound("Site", siteId) : Results.Ok(site);
+                return EndpointHelpers.OkOrNotFound(site, "Site", siteId);
             }, logger, "get site", new { siteId });
         })
         .WithName("GetSiteById")
@@ -65,7 +65,7 @@ public static class SiteEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var site = await siteService.UpdateAsync(siteId, request.Code, request.Name, request.Description, request.Address, ct);
-                return site == null ? ErrorResponses.NotFound("Site", siteId) : Results.Ok(site);
+                return EndpointHelpers.OkOrNotFound(site, "Site", siteId);
             }, logger, "update site", new { siteId });
         })
         .WithName("UpdateSite")

@@ -35,7 +35,7 @@ public static class RequestEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var request = await requestService.GetByIdAsync(id, includeRequirements, ct);
-                return request == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(request);
+                return EndpointHelpers.OkOrNotFound(request, "Request", id);
             }, logger, "get request", new { id });
         })
         .WithName("GetRequestById")
@@ -59,7 +59,7 @@ public static class RequestEndpoints
             {
                 var adjusted = await schedulingService.ApplySchedulingToUpdateAsync(id, request, ct);
                 var updated = await requestService.UpdateAsync(id, adjusted, ct);
-                return updated == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(updated);
+                return EndpointHelpers.OkOrNotFound(updated, "Request", id);
             }, logger, "update request", new { id });
         })
         .WithName("UpdateRequest")
@@ -82,7 +82,7 @@ public static class RequestEndpoints
             {
                 var adjusted = await schedulingService.ApplySchedulingToScheduleAsync(id, request, ct);
                 var updated = await requestService.UpdateScheduleAsync(id, adjusted, ct);
-                return updated == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(updated);
+                return EndpointHelpers.OkOrNotFound(updated, "Request", id);
             }, logger, "schedule request", new { id });
         })
         .WithName("ScheduleRequest")
@@ -126,7 +126,7 @@ public static class RequestEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var moved = await requestService.MoveAsync(id, request.NewParentRequestId, request.SortOrder, ct);
-                return moved == null ? ErrorResponses.NotFound("Request", id) : Results.Ok(moved);
+                return EndpointHelpers.OkOrNotFound(moved, "Request", id);
             }, logger, "move request", new { id });
         })
         .WithName("MoveRequest")

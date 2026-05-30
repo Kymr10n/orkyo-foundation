@@ -40,6 +40,14 @@ public static class EndpointHelpers
     }
 
     /// <summary>
+    /// Return <c>200 OK</c> with <paramref name="value"/>, or a standard <c>404 Not Found</c>
+    /// (via <see cref="ErrorResponses.NotFound(string, Guid?)"/>) when it is null. Replaces the
+    /// repeated <c>value is null ? ErrorResponses.NotFound(...) : Results.Ok(value)</c> ternary.
+    /// </summary>
+    public static IResult OkOrNotFound<T>(T? value, string resourceType, Guid? id = null) where T : class
+        => value is null ? ErrorResponses.NotFound(resourceType, id) : Results.Ok(value);
+
+    /// <summary>
     /// Validate request with FluentValidation and execute handler with standard error handling
     /// </summary>
     public static async Task<IResult> ExecuteAsync<TRequest>(

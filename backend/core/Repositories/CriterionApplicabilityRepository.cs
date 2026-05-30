@@ -20,32 +20,24 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
     public async Task<CriterionApplicabilityInfo?> GetByCriterionAsync(Guid criterionId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
 
-        // applicable_to_requests - now on main criteria table (Phase 3)
-        await using var reqCmd = new NpgsqlCommand(
-            "SELECT applicable_to_requests FROM criteria WHERE id = @id", db);
-        reqCmd.Parameters.AddWithValue("id", criterionId);
-        var scalar = await reqCmd.ExecuteScalarAsync(ct);
+        // applicable_to_requests lives on the main criteria table (Phase 3).
+        var scalar = await db.ExecuteScalarAsync<object>(
+            "SELECT applicable_to_requests FROM criteria WHERE id = @id",
+            p => p.AddWithValue("id", criterionId), ct);
         if (scalar is null) return null; // criterion does not exist
-        var applicableToRequests = (bool)scalar;
 
-        // resource type keys
-        await using var typeCmd = new NpgsqlCommand(
+        var keys = await db.QueryListAsync(
             "SELECT rt.key FROM criterion_resource_types crt " +
             "JOIN resource_types rt ON rt.id = crt.resource_type_id " +
-            "WHERE crt.criterion_id = @id", db);
-        typeCmd.Parameters.AddWithValue("id", criterionId);
-
-        var keys = new List<string>();
-        await using var reader = await typeCmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            keys.Add(reader.GetString(0));
+            "WHERE crt.criterion_id = @id",
+            p => p.AddWithValue("id", criterionId),
+            r => r.GetString(0), ct);
 
         return new CriterionApplicabilityInfo
         {
             CriterionId = criterionId,
-            ApplicableToRequests = applicableToRequests,
+            ApplicableToRequests = (bool)scalar,
             ResourceTypeKeys = keys,
         };
     }
@@ -53,42 +45,25 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
     public async Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT resource_type_id FROM criterion_resource_types WHERE criterion_id = @id", db);
-        cmd.Parameters.AddWithValue("id", criterionId);
-
-        var result = new List<Guid>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            result.Add(reader.GetGuid(0));
-        return result;
+        return await db.QueryListAsync(
+            "SELECT resource_type_id FROM criterion_resource_types WHERE criterion_id = @id",
+            p => p.AddWithValue("id", criterionId),
+            r => r.GetGuid(0), ct);
     }
 
     public async Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT 1 FROM criterion_resource_types " +
-            "WHERE criterion_id = @criterionId AND resource_type_id = @typeId", db);
-        cmd.Parameters.AddWithValue("criterionId", criterionId);
-        cmd.Parameters.AddWithValue("typeId", resourceTypeId);
-        return await cmd.ExecuteScalarAsync(ct) != null;
+        return await db.ExecuteScalarAsync<object>(
+            "SELECT 1 FROM criterion_resource_types WHERE criterion_id = @criterionId AND resource_type_id = @typeId",
+            p => { p.AddWithValue("criterionId", criterionId); p.AddWithValue("typeId", resourceTypeId); }, ct) is not null;
     }
 
     public async Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "UPDATE criteria SET applicable_to_requests = @val WHERE id = @id", db);
-        cmd.Parameters.AddWithValue("id", criterionId);
-        cmd.Parameters.AddWithValue("val", applicable);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await db.ExecuteAsync("UPDATE criteria SET applicable_to_requests = @val WHERE id = @id",
+            p => { p.AddWithValue("id", criterionId); p.AddWithValue("val", applicable); }, ct);
     }
 
     public async Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds, CancellationToken ct = default)

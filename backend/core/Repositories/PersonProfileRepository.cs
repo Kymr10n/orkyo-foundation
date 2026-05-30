@@ -54,60 +54,48 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
     public async Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"{SelectSqlBody} WHERE p.resource_id = @resourceId", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Map(reader) : null;
+        return await db.QuerySingleOrDefaultAsync(
+            $"{SelectSqlBody} WHERE p.resource_id = @resourceId",
+            p => p.AddWithValue("resourceId", resourceId), Map, ct);
     }
 
     public async Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"{SelectSqlBody} WHERE p.linked_user_id = @userId", db);
-        cmd.Parameters.AddWithValue("userId", userId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Map(reader) : null;
+        return await db.QuerySingleOrDefaultAsync(
+            $"{SelectSqlBody} WHERE p.linked_user_id = @userId",
+            p => p.AddWithValue("userId", userId), Map, ct);
     }
 
     public async Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
 
         // Single round-trip: INSERT, or UPDATE on conflict. Preserves linked_user_id
         // on update (link/unlink are managed through their own endpoints). FK
         // violations on job_title_id / department_id surface as PostgresException
         // 23503 → mapped to BadRequest by EndpointHelpers via ArgumentException.
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO person_profiles
-                (resource_id, email, job_title_id, department_id, notes, created_at, updated_at)
-            VALUES
-                (@resourceId, @email, @jobTitleId, @departmentId, @notes, NOW(), NOW())
-            ON CONFLICT (resource_id) DO UPDATE SET
-                email         = EXCLUDED.email,
-                job_title_id  = EXCLUDED.job_title_id,
-                department_id = EXCLUDED.department_id,
-                notes         = EXCLUDED.notes,
-                updated_at    = NOW()
-            RETURNING resource_id", db);
-
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("email", NullableParam(request.Email));
-        cmd.Parameters.AddWithValue("jobTitleId", NullableParam(request.JobTitleId));
-        cmd.Parameters.AddWithValue("departmentId", NullableParam(request.DepartmentId));
-        cmd.Parameters.AddWithValue("notes", NullableParam(request.Notes));
-
         try
         {
-            await cmd.ExecuteScalarAsync(ct);
+            await db.ExecuteAsync(@"
+                INSERT INTO person_profiles
+                    (resource_id, email, job_title_id, department_id, notes, created_at, updated_at)
+                VALUES
+                    (@resourceId, @email, @jobTitleId, @departmentId, @notes, NOW(), NOW())
+                ON CONFLICT (resource_id) DO UPDATE SET
+                    email         = EXCLUDED.email,
+                    job_title_id  = EXCLUDED.job_title_id,
+                    department_id = EXCLUDED.department_id,
+                    notes         = EXCLUDED.notes,
+                    updated_at    = NOW()",
+                p =>
+                {
+                    p.AddWithValue("resourceId", resourceId);
+                    p.AddNullable("email", request.Email);
+                    p.AddNullable("jobTitleId", request.JobTitleId);
+                    p.AddNullable("departmentId", request.DepartmentId);
+                    p.AddNullable("notes", request.Notes);
+                }, ct);
         }
         catch (PostgresException ex) when (ex.SqlState == "23503")
         {
@@ -116,69 +104,54 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
         }
 
         // Re-read with the JOIN to populate resolved names.
-        var saved = await GetByResourceIdAsync(resourceId);
+        var saved = await GetByResourceIdAsync(resourceId, ct);
         return saved ?? throw new InvalidOperationException("Upsert failed");
     }
 
     public async Task<bool> LinkUserAsync(Guid resourceId, Guid userId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
 
         // First check if the user is already linked to any profile in this tenant
-        var existingLink = await GetByLinkedUserIdAsync(userId);
+        var existingLink = await GetByLinkedUserIdAsync(userId, ct);
         if (existingLink is not null)
-        {
-            // User is already linked to a different person profile
             return false;
-        }
 
         // Upsert: if no profile row exists yet for this resource, create one with just the link.
-        // This makes "link a user" work as a single admin action without requiring a prior profile save.
-        await using var cmd = new NpgsqlCommand(@"
+        return await db.ExecuteAsync(@"
             INSERT INTO person_profiles (resource_id, linked_user_id, created_at, updated_at)
             VALUES (@resourceId, @userId, NOW(), NOW())
             ON CONFLICT (resource_id) DO UPDATE
                 SET linked_user_id = @userId, updated_at = NOW()
                 WHERE person_profiles.linked_user_id IS NULL
-                   OR person_profiles.linked_user_id = @userId", db);
-
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("userId", userId);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
-        return rowsAffected > 0;
+                   OR person_profiles.linked_user_id = @userId",
+            p =>
+            {
+                p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("userId", userId);
+            }, ct) > 0;
     }
 
     public async Task<bool> UnlinkUserAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
+        return await db.ExecuteAsync(@"
             UPDATE person_profiles SET linked_user_id = NULL, updated_at = NOW()
-            WHERE resource_id = @resourceId AND linked_user_id IS NOT NULL", db);
-
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
-        return rowsAffected > 0;
+            WHERE resource_id = @resourceId AND linked_user_id IS NOT NULL",
+            p => p.AddWithValue("resourceId", resourceId), ct) > 0;
     }
 
-    private static object NullableParam(object? value) => value ?? DBNull.Value;
-
-    private static PersonProfileInfo Map(NpgsqlDataReader reader) =>
-        new()
-        {
-            ResourceId = reader.GetGuid(0),
-            Email = reader.IsDBNull(1) ? null : reader.GetString(1),
-            JobTitleId = reader.IsDBNull(2) ? null : reader.GetGuid(2),
-            DepartmentId = reader.IsDBNull(3) ? null : reader.GetGuid(3),
-            LinkedUserId = reader.IsDBNull(4) ? null : reader.GetGuid(4),
-            Notes = reader.IsDBNull(5) ? null : reader.GetString(5),
-            CreatedAt = reader.GetDateTime(6),
-            UpdatedAt = reader.GetDateTime(7),
-            JobTitleName = reader.IsDBNull(8) ? null : reader.GetString(8),
-            DepartmentPath = reader.IsDBNull(9) ? null : reader.GetString(9),
-        };
+    private static PersonProfileInfo Map(NpgsqlDataReader reader) => new()
+    {
+        ResourceId = reader.GetGuid(0),
+        Email = reader.IsDBNull(1) ? null : reader.GetString(1),
+        JobTitleId = reader.IsDBNull(2) ? null : reader.GetGuid(2),
+        DepartmentId = reader.IsDBNull(3) ? null : reader.GetGuid(3),
+        LinkedUserId = reader.IsDBNull(4) ? null : reader.GetGuid(4),
+        Notes = reader.IsDBNull(5) ? null : reader.GetString(5),
+        CreatedAt = reader.GetDateTime(6),
+        UpdatedAt = reader.GetDateTime(7),
+        JobTitleName = reader.IsDBNull(8) ? null : reader.GetString(8),
+        DepartmentPath = reader.IsDBNull(9) ? null : reader.GetString(9),
+    };
 }

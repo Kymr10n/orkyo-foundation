@@ -28,7 +28,7 @@ public static class TemplateEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var template = await templateRepo.GetByIdAsync(id);
-                return template == null ? ErrorResponses.NotFound("Template", id) : Results.Ok(template);
+                return EndpointHelpers.OkOrNotFound(template, "Template", id);
             }, logger, "get template by id", new { id });
         });
 
@@ -55,7 +55,7 @@ public static class TemplateEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var template = await templateRepo.UpdateAsync(id, request);
-                return template == null ? ErrorResponses.NotFound("Template", id) : Results.Ok(template);
+                return EndpointHelpers.OkOrNotFound(template, "Template", id);
             }, logger, "update template", new { id, name = request.Name });
         });
 

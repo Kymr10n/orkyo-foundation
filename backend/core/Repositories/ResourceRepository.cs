@@ -64,16 +64,11 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     public async Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        return await db.QuerySingleOrDefaultAsync(
             $"SELECT {SelectColumns} FROM resources r " +
             "JOIN resource_types rt ON r.resource_type_id = rt.id " +
-            "WHERE r.id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Map(reader) : null;
+            "WHERE r.id = @id",
+            p => p.AddWithValue("id", id), Map, ct);
     }
 
     public async Task<ResourceInfo> CreateAsync(
@@ -126,60 +121,29 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
 
-        var sets = new List<string> { "updated_at = NOW()" };
-        var cmd = new NpgsqlCommand();
-        cmd.Connection = db;
-        cmd.Parameters.AddWithValue("id", id);
-
-        if (request.Name is not null)
-        {
-            sets.Add("name = @name");
-            cmd.Parameters.AddWithValue("name", request.Name);
-        }
-        if (request.Description is not null)
-        {
-            sets.Add("description = @description");
-            cmd.Parameters.AddWithValue("description", request.Description);
-        }
-        if (request.ExternalReference is not null)
-        {
-            sets.Add("external_reference = @externalReference");
-            cmd.Parameters.AddWithValue("externalReference", request.ExternalReference);
-        }
-        if (request.AllocationMode is not null)
-        {
-            sets.Add("allocation_mode = @allocationMode");
-            cmd.Parameters.AddWithValue("allocationMode", request.AllocationMode);
-        }
+        var update = new UpdateBuilder().Set("updated_at", "NOW()");
+        update.SetIfNotNull("name", request.Name);
+        update.SetIfNotNull("description", request.Description);
+        update.SetIfNotNull("external_reference", request.ExternalReference);
+        update.SetIfNotNull("allocation_mode", request.AllocationMode);
         if (request.BaseAvailabilityPercent.HasValue)
-        {
-            sets.Add("base_availability_percent = @basePct");
-            cmd.Parameters.AddWithValue("basePct", request.BaseAvailabilityPercent.Value);
-        }
+            update.Set("base_availability_percent", request.BaseAvailabilityPercent.Value);
         if (request.IsActive.HasValue)
-        {
-            sets.Add("is_active = @isActive");
-            cmd.Parameters.AddWithValue("isActive", request.IsActive.Value);
-        }
+            update.Set("is_active", request.IsActive.Value);
 
-        cmd.CommandText =
-            $"UPDATE resources SET {string.Join(", ", sets)} WHERE id = @id";
-        await cmd.ExecuteNonQueryAsync(ct);
+        await db.ExecuteAsync($"UPDATE resources SET {update.SetClause} WHERE id = @id",
+            p => { p.AddWithValue("id", id); update.Apply(p); }, ct);
 
-        return await GetByIdAsync(id);
+        return await GetByIdAsync(id, ct);
     }
 
     public async Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "UPDATE resources SET is_active = false, updated_at = NOW() WHERE id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        return await db.ExecuteAsync(
+            "UPDATE resources SET is_active = false, updated_at = NOW() WHERE id = @id",
+            p => p.AddWithValue("id", id), ct) > 0;
     }
 
     private static ResourceInfo Map(NpgsqlDataReader r) => new()

@@ -28,22 +28,9 @@ public class SpaceRepository : ISpaceRepository
     public async Task<List<SpaceInfo>> GetAllAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        return await conn.QueryListAsync(
             $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId ORDER BY s.code, r.name LIMIT 1000",
-            conn);
-        cmd.Parameters.AddWithValue("siteId", siteId);
-
-        var spacesList = new List<SpaceInfo>();
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            spacesList.Add(SpaceMapper.MapFromReader(reader));
-        }
-
-        return spacesList;
+            p => p.AddWithValue("siteId", siteId), SpaceMapper.MapFromReader, ct);
     }
 
     public async Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default)
@@ -63,31 +50,17 @@ public class SpaceRepository : ISpaceRepository
     public async Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        return await conn.QuerySingleOrDefaultAsync(
             $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId AND s.id = @resourceId",
-            conn);
-        cmd.Parameters.AddWithValue("siteId", siteId);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-        {
-            return null;
-        }
-
-        return SpaceMapper.MapFromReader(reader);
+            p => { p.AddWithValue("siteId", siteId); p.AddWithValue("resourceId", resourceId); },
+            SpaceMapper.MapFromReader, ct);
     }
 
     public async Task<int> GetEstimatedCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'spaces'", conn);
-        return (int)(long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
+        return (int)await conn.ExecuteScalarAsync<long>(
+            "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'spaces'", null, ct);
     }
 
     public async Task<SpaceInfo> CreateAsync(Guid resourceId, Guid siteId, string? code, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)

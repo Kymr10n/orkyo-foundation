@@ -50,6 +50,20 @@ public class EmailService : IEmailService
         }
     }
 
+    /// <summary>
+    /// Resolve the current branding once, build the template with it, and dispatch — the shared
+    /// shape of every branded transactional email.
+    /// </summary>
+    private async Task<bool> SendTemplatedAsync(
+        string toEmail,
+        string toName,
+        Func<EmailBranding, (string subject, string htmlBody, string textBody)> build,
+        CancellationToken ct)
+    {
+        var (subject, htmlBody, textBody) = build(await GetBrandingAsync());
+        return await SendEmailAsync(toEmail, toName, subject, htmlBody, textBody, ct);
+    }
+
     public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default)
     {
         try
@@ -116,51 +130,49 @@ public class EmailService : IEmailService
     public async Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken, CancellationToken ct = default)
     {
         var verificationLink = BuildTokenLink("verify-email", "token", verificationToken);
-        var (subject, htmlBody, textBody) = EmailTemplates.GetVerificationEmail(displayName, verificationLink, await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetVerificationEmail(displayName, verificationLink, b), ct);
     }
 
     public async Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken, CancellationToken ct = default)
     {
         var resetLink = BuildTokenLink("reset-password", "token", resetToken);
-        var (subject, htmlBody, textBody) = EmailTemplates.GetPasswordResetEmail(displayName, resetLink, await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetPasswordResetEmail(displayName, resetLink, b), ct);
     }
 
     public async Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
     {
-        var (subject, htmlBody, textBody) = EmailTemplates.GetWelcomeEmail(displayName, await GetBrandingAsync());
-
-        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetWelcomeEmail(displayName, b), ct);
     }
 
     public async Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default)
     {
         var signupLink = BuildTokenLink("signup", "invitation", token);
-        var (subject, htmlBody, textBody) = EmailTemplates.GetInvitationEmail(signupLink, expiresAt, await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, toEmail, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetInvitationEmail(signupLink, expiresAt, b), ct);
     }
 
     public async Task<bool> SendLifecycleWarningEmailAsync(
         string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default)
     {
         var confirmLink = BuildTokenLink("api/account/confirm-activity", "token", confirmToken);
-        var (subject, htmlBody, textBody) = EmailTemplates.GetLifecycleWarningEmail(
-            displayName, confirmLink, warningNumber, await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetLifecycleWarningEmail(displayName, confirmLink, warningNumber, b), ct);
     }
 
     public async Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
     {
-        var (subject, htmlBody, textBody) = EmailTemplates.GetDormancyNoticeEmail(displayName, await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetDormancyNoticeEmail(displayName, b), ct);
     }
 
     public async Task<bool> SendEmailChangeConfirmationAsync(string toEmail, string displayName, string confirmationToken, CancellationToken ct = default)
     {
         var confirmUrl = BuildTokenLink("api/account/confirm-email", "token", confirmationToken);
-        var (subject, htmlBody, textBody) = EmailTemplates.GetEmailChangeConfirmationEmail(displayName, confirmUrl, await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, displayName, subject, htmlBody, textBody);
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetEmailChangeConfirmationEmail(displayName, confirmUrl, b), ct);
     }
 
     public Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default) =>

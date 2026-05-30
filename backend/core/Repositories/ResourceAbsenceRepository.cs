@@ -15,79 +15,61 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
     public async Task<List<ResourceAbsenceInfo>> GetByResourceAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {Cols} FROM resource_absences WHERE resource_id = @resourceId ORDER BY start_ts", conn);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-
-        var list = new List<ResourceAbsenceInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            list.Add(SchedulingMapper.MapResourceAbsenceFromReader(reader));
-        return list;
+        return await conn.QueryListAsync(
+            $"SELECT {Cols} FROM resource_absences WHERE resource_id = @resourceId ORDER BY start_ts",
+            p => p.AddWithValue("resourceId", resourceId),
+            SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
     public async Task<ResourceAbsenceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
-            $"SELECT {Cols} FROM resource_absences WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return SchedulingMapper.MapResourceAbsenceFromReader(reader);
+        return await conn.QuerySingleOrDefaultAsync(
+            $"SELECT {Cols} FROM resource_absences WHERE id = @id",
+            p => p.AddWithValue("id", id),
+            SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
     public async Task<ResourceAbsenceInfo> CreateAsync(Guid resourceId, CreateResourceAbsenceRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand($@"
+        return (await conn.QuerySingleOrDefaultAsync($@"
             INSERT INTO resource_absences
                 (resource_id, absence_type, title, notes, start_ts, end_ts,
                  is_recurring, recurrence_rule, enabled)
             VALUES
                 (@resourceId, @absenceType, @title, @notes, @startTs, @endTs,
                  @isRecurring, @recurrenceRule, @enabled)
-            RETURNING {Cols}", conn);
-
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("absenceType", EnumMapper.ToDbValue(request.AbsenceType));
-        cmd.Parameters.AddWithValue("title", request.Title);
-        cmd.Parameters.AddWithValue("notes", (object?)request.Notes ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("startTs", request.StartTs);
-        cmd.Parameters.AddWithValue("endTs", request.EndTs);
-        cmd.Parameters.AddWithValue("isRecurring", request.IsRecurring);
-        cmd.Parameters.AddWithValue("recurrenceRule", (object?)request.RecurrenceRule ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("enabled", request.Enabled);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-        return SchedulingMapper.MapResourceAbsenceFromReader(reader);
+            RETURNING {Cols}",
+            p =>
+            {
+                p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("absenceType", EnumMapper.ToDbValue(request.AbsenceType));
+                p.AddWithValue("title", request.Title);
+                p.AddNullable("notes", request.Notes);
+                p.AddWithValue("startTs", request.StartTs);
+                p.AddWithValue("endTs", request.EndTs);
+                p.AddWithValue("isRecurring", request.IsRecurring);
+                p.AddNullable("recurrenceRule", request.RecurrenceRule);
+                p.AddWithValue("enabled", request.Enabled);
+            }, SchedulingMapper.MapResourceAbsenceFromReader, ct))!;
     }
 
     public async Task<ResourceAbsenceInfo?> UpdateAsync(Guid id, UpdateResourceAbsenceRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
 
-        await using var getCmd = new NpgsqlCommand(
-            $"SELECT {Cols} FROM resource_absences WHERE id = @id", conn);
-        getCmd.Parameters.AddWithValue("id", id);
-        await using var getReader = await getCmd.ExecuteReaderAsync(ct);
-        if (!await getReader.ReadAsync(ct)) return null;
-        var existing = SchedulingMapper.MapResourceAbsenceFromReader(getReader);
-        getReader.Close();
+        var existing = await conn.QuerySingleOrDefaultAsync(
+            $"SELECT {Cols} FROM resource_absences WHERE id = @id",
+            p => p.AddWithValue("id", id),
+            SchedulingMapper.MapResourceAbsenceFromReader, ct);
+        if (existing is null) return null;
 
         var isRecurring = request.IsRecurring ?? existing.IsRecurring;
         var recurrenceRule = isRecurring ? (request.RecurrenceRule ?? existing.RecurrenceRule) : null;
 
-        await using var cmd = new NpgsqlCommand($@"
+        return await conn.QuerySingleOrDefaultAsync($@"
             UPDATE resource_absences SET
                 absence_type    = @absenceType,
                 title           = @title,
@@ -98,31 +80,26 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
                 recurrence_rule = @recurrenceRule,
                 enabled         = @enabled
             WHERE id = @id
-            RETURNING {Cols}", conn);
-
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("absenceType", EnumMapper.ToDbValue(request.AbsenceType ?? existing.AbsenceType));
-        cmd.Parameters.AddWithValue("title", request.Title ?? existing.Title);
-        cmd.Parameters.AddWithValue("notes", (object?)(request.Notes ?? existing.Notes) ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("startTs", request.StartTs ?? existing.StartTs);
-        cmd.Parameters.AddWithValue("endTs", request.EndTs ?? existing.EndTs);
-        cmd.Parameters.AddWithValue("isRecurring", isRecurring);
-        cmd.Parameters.AddWithValue("recurrenceRule", (object?)recurrenceRule ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("enabled", request.Enabled ?? existing.Enabled);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return SchedulingMapper.MapResourceAbsenceFromReader(reader);
+            RETURNING {Cols}",
+            p =>
+            {
+                p.AddWithValue("id", id);
+                p.AddWithValue("absenceType", EnumMapper.ToDbValue(request.AbsenceType ?? existing.AbsenceType));
+                p.AddWithValue("title", request.Title ?? existing.Title);
+                p.AddNullable("notes", request.Notes ?? existing.Notes);
+                p.AddWithValue("startTs", request.StartTs ?? existing.StartTs);
+                p.AddWithValue("endTs", request.EndTs ?? existing.EndTs);
+                p.AddWithValue("isRecurring", isRecurring);
+                p.AddNullable("recurrenceRule", recurrenceRule);
+                p.AddWithValue("enabled", request.Enabled ?? existing.Enabled);
+            }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand("DELETE FROM resource_absences WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM resource_absences WHERE id = @id",
+            p => p.AddWithValue("id", id), ct) > 0;
     }
 
     public async Task<Dictionary<Guid, List<ResourceAbsenceInfo>>> GetEnabledByResourcesAsync(
@@ -131,18 +108,14 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
         if (resourceIds.Count == 0) return [];
 
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(
+        var absences = await conn.QueryListAsync(
             $"SELECT {Cols} FROM resource_absences WHERE resource_id = ANY(@ids) AND enabled = true ORDER BY start_ts",
-            conn);
-        cmd.Parameters.AddWithValue("ids", resourceIds.ToArray());
+            p => p.AddWithValue("ids", resourceIds.ToArray()),
+            SchedulingMapper.MapResourceAbsenceFromReader, ct);
 
         var map = new Dictionary<Guid, List<ResourceAbsenceInfo>>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        foreach (var absence in absences)
         {
-            var absence = SchedulingMapper.MapResourceAbsenceFromReader(reader);
             if (!map.TryGetValue(absence.ResourceId, out var list))
             {
                 list = [];
