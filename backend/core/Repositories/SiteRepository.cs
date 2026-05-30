@@ -32,15 +32,13 @@ public class SiteRepository : ISiteRepository
     public async Task<PagedResult<SiteInfo>> GetAllAsync(PageRequest page, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        return await DbQueryHelper.ExecutePagedQueryAsync(
-            conn,
+        return await conn.QueryPagedAsync(
             page,
             countSql: "SELECT COUNT(*) FROM sites",
             querySql: $"SELECT {SelectColumns} FROM sites ORDER BY name LIMIT @limit OFFSET @offset",
-            addParams: null,
-            mapper: SiteMapper.MapFromReader);
+            bind: null,
+            map: SiteMapper.MapFromReader,
+            ct: ct);
     }
 
     public async Task<SiteInfo?> GetByIdAsync(Guid siteId, CancellationToken ct = default)
@@ -107,8 +105,7 @@ public class SiteRepository : ISiteRepository
     public async Task<bool> DeleteAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-        var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(conn, "DELETE FROM sites WHERE id = @id", siteId);
-        return rowsAffected > 0;
+        return await conn.ExecuteAsync("DELETE FROM sites WHERE id = @id",
+            p => p.AddWithValue("id", siteId), ct) > 0;
     }
 }

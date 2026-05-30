@@ -30,7 +30,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         await conn.OpenAsync(ct);
 
         // Verify group exists
-        if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
+        if (!await conn.ExistsAsync("resource_groups", groupId, ct))
             throw new NotFoundException("Group", groupId);
 
         // Get capabilities with criterion details
@@ -69,10 +69,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         await conn.OpenAsync(ct);
 
         // Verify group and criterion exist
-        if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
+        if (!await conn.ExistsAsync("resource_groups", groupId, ct))
             throw new NotFoundException("Group", groupId);
 
-        if (!await DbQueryHelper.ExistsAsync(conn, "criteria", criterionId))
+        if (!await conn.ExistsAsync("criteria", criterionId, ct))
             throw new NotFoundException("Criterion", criterionId);
 
         // Insert capability
@@ -107,7 +107,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         await conn.OpenAsync(ct);
 
         // Verify group exists
-        if (!await DbQueryHelper.ExistsAsync(conn, "resource_groups", groupId))
+        if (!await conn.ExistsAsync("resource_groups", groupId, ct))
             throw new NotFoundException("Group", groupId);
 
         // Delete capability

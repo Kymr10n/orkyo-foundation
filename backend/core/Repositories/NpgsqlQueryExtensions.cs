@@ -1,4 +1,5 @@
 using System.Data;
+using Api.Models;
 using Npgsql;
 
 namespace Api.Repositories;
@@ -12,6 +13,16 @@ namespace Api.Repositories;
 /// </summary>
 internal static class NpgsqlQueryExtensions
 {
+    /// <summary>
+    /// Tables that may be passed to <see cref="ExistsAsync"/>. Prevents SQL injection via the
+    /// interpolated table name.
+    /// </summary>
+    private static readonly HashSet<string> AllowedExistsTables = new(StringComparer.Ordinal)
+    {
+        "sites", "spaces", "resource_groups", "resources", "criteria", "requests",
+        "users", "tenants", "announcements", "presets", "templates"
+    };
+
     private static async Task EnsureOpenAsync(NpgsqlConnection conn, CancellationToken ct)
     {
         if (conn.State != ConnectionState.Open)
@@ -78,6 +89,54 @@ internal static class NpgsqlQueryExtensions
         bind?.Invoke(cmd.Parameters);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is null or DBNull ? default! : (TScalar)result;
+    }
+
+    /// <summary>
+    /// Returns true when a row with <paramref name="id"/> exists in <paramref name="table"/>.
+    /// <paramref name="table"/> must be in the allow-list (it is interpolated into the SQL).
+    /// </summary>
+    public static async Task<bool> ExistsAsync(this NpgsqlConnection conn, string table, Guid id, CancellationToken ct = default)
+    {
+        if (!AllowedExistsTables.Contains(table))
+            throw new ArgumentException($"Table '{table}' is not in the allowed table list.", nameof(table));
+
+        return await conn.ExecuteScalarAsync<object>(
+            $"SELECT 1 FROM {table} WHERE id = @id LIMIT 1",
+            p => p.AddWithValue("id", id), ct) is not null;
+    }
+
+    /// <summary>
+    /// Run a COUNT query then the paged SELECT (which must contain <c>@limit</c> and
+    /// <c>@offset</c>), returning a <see cref="PagedResult{T}"/>. <paramref name="bind"/> adds
+    /// any filter params to the page query and, unless <paramref name="bindCount"/> is given,
+    /// to the count query too.
+    /// </summary>
+    public static async Task<PagedResult<T>> QueryPagedAsync<T>(
+        this NpgsqlConnection conn,
+        PageRequest page,
+        string countSql,
+        string querySql,
+        Action<NpgsqlParameterCollection>? bind,
+        Func<NpgsqlDataReader, T> map,
+        CancellationToken ct = default,
+        Action<NpgsqlParameterCollection>? bindCount = null)
+    {
+        await EnsureOpenAsync(conn, ct);
+        var p = page.Sanitize();
+
+        await using var countCmd = new NpgsqlCommand(countSql, conn);
+        (bindCount ?? bind)?.Invoke(countCmd.Parameters);
+        var totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
+
+        await using var cmd = new NpgsqlCommand(querySql, conn);
+        cmd.Parameters.AddWithValue("limit", p.PageSize);
+        cmd.Parameters.AddWithValue("offset", p.Offset);
+        bind?.Invoke(cmd.Parameters);
+
+        var items = new List<T>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) items.Add(map(reader));
+        return PagedResult<T>.Create(items, totalItems, p);
     }
 
     /// <summary>

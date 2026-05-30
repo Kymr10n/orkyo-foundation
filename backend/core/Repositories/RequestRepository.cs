@@ -146,7 +146,7 @@ public class RequestRepository : IRequestRepository
 
         // Validate resource_id if provided (resource must exist)
         if (request.ResourceId.HasValue
-            && !await DbQueryHelper.ExistsAsync(db, "resources", request.ResourceId.Value))
+            && !await db.ExistsAsync("resources", request.ResourceId.Value, ct))
         {
             throw new ArgumentException("Invalid resource_id: resource does not exist");
         }
@@ -341,7 +341,8 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
-        var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(db, "DELETE FROM requests WHERE id = @id", id);
+        var rowsAffected = await db.ExecuteAsync("DELETE FROM requests WHERE id = @id",
+            p => p.AddWithValue("id", id), ct);
         return rowsAffected > 0;
     }
 
@@ -349,7 +350,7 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
-        return await DbQueryHelper.ExistsAsync(db, "requests", id);
+        return await db.ExistsAsync("requests", id, ct);
     }
 
     public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default)
@@ -361,7 +362,7 @@ public class RequestRepository : IRequestRepository
             return null;
 
         if (request.ResourceId.HasValue
-            && !await DbQueryHelper.ExistsAsync(db, "resources", request.ResourceId.Value))
+            && !await db.ExistsAsync("resources", request.ResourceId.Value, ct))
         {
             throw new ArgumentException("Invalid resource_id: resource does not exist");
         }

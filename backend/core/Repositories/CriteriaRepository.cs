@@ -79,15 +79,13 @@ public class CriteriaRepository : ICriteriaRepository
     public async Task<PagedResult<CriterionInfo>> GetAllAsync(PageRequest page, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
-
-        return await DbQueryHelper.ExecutePagedQueryAsync(
-            db,
+        return await db.QueryPagedAsync(
             page,
             countSql: "SELECT COUNT(*) FROM criteria",
             querySql: $"SELECT {SelectColumns} FROM criteria c ORDER BY c.name LIMIT @limit OFFSET @offset",
-            addParams: null,
-            mapper: CriteriaMapper.MapFromReader);
+            bind: null,
+            map: CriteriaMapper.MapFromReader,
+            ct: ct);
     }
 
     public async Task<CriterionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -288,7 +286,8 @@ public class CriteriaRepository : ICriteriaRepository
                 "Remove these assignments first.");
         }
 
-        var rowsAffected = await DbQueryHelper.ExecuteDeleteAsync(db, "DELETE FROM criteria WHERE id = @id", id);
+        var rowsAffected = await db.ExecuteAsync("DELETE FROM criteria WHERE id = @id",
+            p => p.AddWithValue("id", id), ct);
         return rowsAffected > 0;
     }
 }
