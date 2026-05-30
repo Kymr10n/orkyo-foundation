@@ -106,6 +106,16 @@ internal sealed class UpdateBuilder
         return this;
     }
 
+    /// <summary>
+    /// Add a raw SQL expression to the SET clause without a parameter (e.g. <c>"updated_at = NOW()"</c>).
+    /// Use this for server-side expressions that cannot be passed as a typed parameter.
+    /// </summary>
+    public UpdateBuilder SetExpression(string sqlExpression)
+    {
+        _sets.Add(sqlExpression);
+        return this;
+    }
+
     /// <summary>Set <paramref name="column"/> only when <paramref name="value"/> is non-null (the common "patch" case).</summary>
     public UpdateBuilder SetIfNotNull(string column, object? value)
     {

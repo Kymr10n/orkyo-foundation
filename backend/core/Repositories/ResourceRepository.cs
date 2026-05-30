@@ -122,7 +122,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
 
-        var update = new UpdateBuilder().Set("updated_at", "NOW()");
+        var update = new UpdateBuilder().SetExpression("updated_at = NOW()");
         update.SetIfNotNull("name", request.Name);
         update.SetIfNotNull("description", request.Description);
         update.SetIfNotNull("external_reference", request.ExternalReference);

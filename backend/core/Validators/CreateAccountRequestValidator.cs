@@ -7,8 +7,11 @@ public class CreateAccountRequestValidator : AbstractValidator<CreateAccountRequ
 {
     public CreateAccountRequestValidator()
     {
-        RuleFor(x => x.Email).NotEmpty().EmailAddress().WithMessage("Invalid email format");
-        RuleFor(x => x.Password).NotEmpty()
+        RuleFor(x => x.Email)
+            .NotEmpty().WithMessage("Email is required")
+            .EmailAddress().WithMessage("Invalid email format");
+        RuleFor(x => x.Password)
+            .NotEmpty().WithMessage("Password is required")
             .MinimumLength(TenantSettings.DefaultPasswordMinLength)
             .WithMessage($"Password must be at least {TenantSettings.DefaultPasswordMinLength} characters");
     }
