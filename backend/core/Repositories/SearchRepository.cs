@@ -20,47 +20,42 @@ public class SearchRepository : ISearchRepository
 
     public async Task<List<SearchResult>> SearchAsync(string query, Guid? siteId, string[]? types, int limit = 20, CancellationToken ct = default)
     {
-        var results = new List<SearchResult>();
-        if (string.IsNullOrWhiteSpace(query)) return results;
-
-        await using var conn = _connectionFactory.CreateOrgConnection(_context);
-        await conn.OpenAsync(ct);
+        if (string.IsNullOrWhiteSpace(query)) return [];
 
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var isShortQuery = normalizedQuery.Length < SearchConstants.MinQueryLengthForFullSearch;
         var sql = isShortQuery ? BuildTrigramOnlySql(types, siteId) : BuildCombinedSearchSql(types, siteId);
-
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@query", normalizedQuery);
-        cmd.Parameters.AddWithValue("@limit", limit);
-
         var settings = await _settingsService.GetSettingsAsync();
-        cmd.Parameters.AddWithValue("@primaryThreshold", settings.Search_PrimarySimilarityThreshold);
-        cmd.Parameters.AddWithValue("@secondaryThreshold", settings.Search_SecondarySimilarityThreshold);
 
-        if (siteId.HasValue) cmd.Parameters.AddWithValue("@site_id", siteId.Value);
-        if (types != null && types.Length > 0) cmd.Parameters.AddWithValue("@types", types);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using var conn = _connectionFactory.CreateOrgConnection(_context);
+        return await conn.QueryListAsync(sql, p =>
         {
-            var entityType = reader.GetString(0);
-            var entityId = reader.GetGuid(1);
-            results.Add(new SearchResult
-            {
-                Type = entityType,
-                Id = entityId,
-                Title = reader.GetString(2),
-                Subtitle = reader.IsDBNull(3) ? null : reader.GetString(3),
-                SiteId = reader.IsDBNull(4) ? (Guid?)null : reader.GetGuid(4),
-                Score = reader.GetDouble(5),
-                UpdatedAt = reader.GetDateTime(6),
-                Open = GetOpenRoute(entityType, entityId, reader.IsDBNull(4) ? (Guid?)null : reader.GetGuid(4)),
-                Permissions = new SearchResultPermissions { CanRead = true, CanEdit = false }
-            });
-        }
+            p.AddWithValue("@query", normalizedQuery);
+            p.AddWithValue("@limit", limit);
+            p.AddWithValue("@primaryThreshold", settings.Search_PrimarySimilarityThreshold);
+            p.AddWithValue("@secondaryThreshold", settings.Search_SecondarySimilarityThreshold);
+            if (siteId.HasValue) p.AddWithValue("@site_id", siteId.Value);
+            if (types != null && types.Length > 0) p.AddWithValue("@types", types);
+        }, MapResult, ct);
+    }
 
-        return results;
+    private static SearchResult MapResult(NpgsqlDataReader reader)
+    {
+        var entityType = reader.GetString(0);
+        var entityId = reader.GetGuid(1);
+        var resultSiteId = reader.IsDBNull(4) ? (Guid?)null : reader.GetGuid(4);
+        return new SearchResult
+        {
+            Type = entityType,
+            Id = entityId,
+            Title = reader.GetString(2),
+            Subtitle = reader.IsDBNull(3) ? null : reader.GetString(3),
+            SiteId = resultSiteId,
+            Score = reader.GetDouble(5),
+            UpdatedAt = reader.GetDateTime(6),
+            Open = GetOpenRoute(entityType, entityId, resultSiteId),
+            Permissions = new SearchResultPermissions { CanRead = true, CanEdit = false }
+        };
     }
 
     private static string BuildCombinedSearchSql(string[]? types, Guid? siteId)

@@ -1,10 +1,12 @@
-using Api.Helpers;
 using Api.Models;
+using Api.Repositories;
 using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Helpers;
 
-public class DbQueryHelperTests
+// Tests now target the NpgsqlQueryExtensions methods that absorbed DbQueryHelper.
+
+public class NpgsqlQueryExtensionsAllowlistTests
 {
     [Theory]
     [InlineData("sites")]
@@ -19,13 +21,12 @@ public class DbQueryHelperTests
     [InlineData("templates")]
     public async Task ExistsAsync_AllowedTable_DoesNotThrow(string table)
     {
-        // Verify the allowlist check passes (NpgsqlConnection will be null,
-        // causing an InvalidOperationException after the check passes).
-        var ex = await Assert.ThrowsAnyAsync<InvalidOperationException>(
-            () => DbQueryHelper.ExistsAsync(null!, table, Guid.NewGuid()));
+        // The allowlist check passes; a null connection causes an infrastructure exception
+        // (not an ArgumentException about the table name).
+        var ex = await Assert.ThrowsAnyAsync<Exception>(
+            () => ((NpgsqlConnection)null!).ExistsAsync(table, Guid.NewGuid()));
 
-        // Error must be about the connection, NOT the allowlist
-        Assert.Contains("Connection", ex.Message);
+        Assert.IsNotType<ArgumentException>(ex);
     }
 
     [Theory]
@@ -37,18 +38,18 @@ public class DbQueryHelperTests
     public async Task ExistsAsync_DisallowedTable_ThrowsArgumentException(string table)
     {
         var ex = await Assert.ThrowsAsync<ArgumentException>(
-            () => DbQueryHelper.ExistsAsync(null!, table, Guid.NewGuid()));
+            () => ((NpgsqlConnection)null!).ExistsAsync(table, Guid.NewGuid()));
 
         Assert.Contains("not in the allowed table list", ex.Message);
     }
 }
 
 [Collection("Database collection")]
-public class DbQueryHelperIntegrationTests
+public class NpgsqlQueryExtensionsIntegrationTests
 {
     private readonly string _tenantCs;
 
-    public DbQueryHelperIntegrationTests(DatabaseFixture fixture)
+    public NpgsqlQueryExtensionsIntegrationTests(DatabaseFixture fixture)
     {
         _tenantCs =
             $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
@@ -61,7 +62,7 @@ public class DbQueryHelperIntegrationTests
         return conn;
     }
 
-    // --- ExistsAsync (real connection) ---
+    // --- ExistsAsync ---
 
     [Fact]
     public async Task ExistsAsync_ReturnsTrue_WhenRecordExists()
@@ -70,7 +71,7 @@ public class DbQueryHelperIntegrationTests
         await using var getCmd = new NpgsqlCommand("SELECT id FROM criteria LIMIT 1", conn);
         var id = (Guid)(await getCmd.ExecuteScalarAsync())!;
 
-        var result = await DbQueryHelper.ExistsAsync(conn, "criteria", id);
+        var result = await conn.ExistsAsync("criteria", id);
 
         result.Should().BeTrue();
     }
@@ -80,15 +81,15 @@ public class DbQueryHelperIntegrationTests
     {
         await using var conn = await OpenAsync();
 
-        var result = await DbQueryHelper.ExistsAsync(conn, "criteria", Guid.NewGuid());
+        var result = await conn.ExistsAsync("criteria", Guid.NewGuid());
 
         result.Should().BeFalse();
     }
 
-    // --- ExecuteDeleteAsync ---
+    // --- ExecuteAsync (replaces ExecuteDeleteAsync) ---
 
     [Fact]
-    public async Task ExecuteDeleteAsync_ReturnsOneAffectedRow_AfterInsert()
+    public async Task ExecuteAsync_ReturnsOneAffectedRow_AfterInsert()
     {
         await using var conn = await OpenAsync();
         var id = Guid.NewGuid();
@@ -100,35 +101,36 @@ public class DbQueryHelperIntegrationTests
         insertCmd.Parameters.AddWithValue("name", $"_del_test_{id:N}");
         await insertCmd.ExecuteNonQueryAsync();
 
-        var rows = await DbQueryHelper.ExecuteDeleteAsync(conn, "DELETE FROM criteria WHERE id = @id", id);
+        var rows = await conn.ExecuteAsync("DELETE FROM criteria WHERE id = @id",
+            p => p.AddWithValue("id", id));
 
         rows.Should().Be(1);
     }
 
     [Fact]
-    public async Task ExecuteDeleteAsync_ReturnsZero_WhenRecordNotFound()
+    public async Task ExecuteAsync_ReturnsZero_WhenRecordNotFound()
     {
         await using var conn = await OpenAsync();
 
-        var rows = await DbQueryHelper.ExecuteDeleteAsync(conn, "DELETE FROM criteria WHERE id = @id", Guid.NewGuid());
+        var rows = await conn.ExecuteAsync("DELETE FROM criteria WHERE id = @id",
+            p => p.AddWithValue("id", Guid.NewGuid()));
 
         rows.Should().Be(0);
     }
 
-    // --- ExecutePagedQueryAsync ---
+    // --- QueryPagedAsync ---
 
     [Fact]
-    public async Task ExecutePagedQueryAsync_ReturnsPaginatedSubset()
+    public async Task QueryPagedAsync_ReturnsPaginatedSubset()
     {
         await using var conn = await OpenAsync();
 
-        var result = await DbQueryHelper.ExecutePagedQueryAsync<string>(
-            conn,
+        var result = await conn.QueryPagedAsync(
             new PageRequest { Page = 1, PageSize = 2 },
             "SELECT COUNT(*) FROM criteria",
             "SELECT name FROM criteria ORDER BY name LIMIT @limit OFFSET @offset",
-            null,
-            r => r.GetString(0));
+            bind: null,
+            map: r => r.GetString(0));
 
         result.Items.Should().HaveCount(2);
         result.TotalItems.Should().BeGreaterThanOrEqualTo(4);
@@ -137,18 +139,17 @@ public class DbQueryHelperIntegrationTests
     }
 
     [Fact]
-    public async Task ExecutePagedQueryAsync_UsesAddCountParams_WhenProvided()
+    public async Task QueryPagedAsync_UsesBindCountParams_WhenProvided()
     {
         await using var conn = await OpenAsync();
 
-        var result = await DbQueryHelper.ExecutePagedQueryAsync<string>(
-            conn,
+        var result = await conn.QueryPagedAsync(
             new PageRequest { Page = 1, PageSize = 10 },
             "SELECT COUNT(*) FROM criteria WHERE data_type = @dt",
             "SELECT name FROM criteria WHERE data_type = @dt ORDER BY name LIMIT @limit OFFSET @offset",
-            cmd => cmd.Parameters.AddWithValue("dt", "Boolean"),
-            r => r.GetString(0),
-            cmd => cmd.Parameters.AddWithValue("dt", "Boolean"));
+            bind: p => p.AddWithValue("dt", "Boolean"),
+            map: r => r.GetString(0),
+            bindCount: p => p.AddWithValue("dt", "Boolean"));
 
         result.Items.Should().NotBeEmpty();
     }
