@@ -32,331 +32,176 @@ public class TemplateRepository : ITemplateRepository
         _connectionFactory = connectionFactory;
     }
 
-    private static Template MapTemplate(NpgsqlDataReader reader) => new()
+    private const string TemplateCols = @"
+        id, name, description, entity_type,
+        duration_value, duration_unit,
+        fixed_start, fixed_end, fixed_duration,
+        created_at, updated_at";
+
+    private static Template MapTemplate(NpgsqlDataReader r) => new()
     {
-        Id = reader.GetGuid(0),
-        Name = reader.GetString(1),
-        Description = reader.IsDBNull(2) ? null : reader.GetString(2),
-        EntityType = reader.GetString(3),
-        DurationValue = reader.IsDBNull(4) ? null : reader.GetInt32(4),
-        DurationUnit = reader.IsDBNull(5) ? null : reader.GetString(5),
-        FixedStart = reader.GetBoolean(6),
-        FixedEnd = reader.GetBoolean(7),
-        FixedDuration = reader.GetBoolean(8),
-        CreatedAt = reader.GetDateTime(9),
-        UpdatedAt = reader.GetDateTime(10)
+        Id = r.GetGuid(0),
+        Name = r.GetString(1),
+        Description = r.IsDBNull(2) ? null : r.GetString(2),
+        EntityType = r.GetString(3),
+        DurationValue = r.IsDBNull(4) ? null : r.GetInt32(4),
+        DurationUnit = r.IsDBNull(5) ? null : r.GetString(5),
+        FixedStart = r.GetBoolean(6),
+        FixedEnd = r.GetBoolean(7),
+        FixedDuration = r.GetBoolean(8),
+        CreatedAt = r.GetDateTime(9),
+        UpdatedAt = r.GetDateTime(10)
     };
 
     public async Task<List<Template>> GetAllAsync(string entityType, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT
-                id,
-                name,
-                description,
-                entity_type,
-                duration_value,
-                duration_unit,
-                fixed_start,
-                fixed_end,
-                fixed_duration,
-                created_at,
-                updated_at
-            FROM templates
-            WHERE entity_type = @EntityType
-            ORDER BY name
-            LIMIT 500", conn);
-
-        cmd.Parameters.AddWithValue("EntityType", entityType);
-
-        var templates = new List<Template>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-        while (await reader.ReadAsync(ct))
-        {
-            templates.Add(MapTemplate(reader));
-        }
-
-        return templates;
+        return await conn.QueryListAsync(
+            $"SELECT {TemplateCols} FROM templates WHERE entity_type = @EntityType ORDER BY name LIMIT 500",
+            p => p.AddWithValue("EntityType", entityType), MapTemplate, ct);
     }
 
     public async Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT
-                id,
-                name,
-                description,
-                entity_type,
-                duration_value,
-                duration_unit,
-                fixed_start,
-                fixed_end,
-                fixed_duration,
-                created_at,
-                updated_at
-            FROM templates
-            WHERE id = @Id", conn);
-
-        cmd.Parameters.AddWithValue("Id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-        if (!await reader.ReadAsync(ct))
-            return null;
-
-        return MapTemplate(reader);
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        return await conn.QuerySingleOrDefaultAsync(
+            $"SELECT {TemplateCols} FROM templates WHERE id = @Id",
+            p => p.AddWithValue("Id", id), MapTemplate, ct);
     }
 
     public async Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default)
     {
         if (!ValidEntityTypes.Contains(request.EntityType))
-        {
             throw new ArgumentException($"Invalid entity type: {request.EntityType}");
-        }
-
         if (string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("Name is required");
-
         if (request.Name.Length > 255)
             throw new ArgumentException("Name must be 255 characters or fewer");
-
         if (request.Description?.Length > 255)
             throw new ArgumentException("Description must be 255 characters or fewer");
 
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO templates (
-                name,
-                description,
-                entity_type,
-                duration_value,
-                duration_unit,
-                fixed_start,
-                fixed_end,
-                fixed_duration
-            ) VALUES (
-                @Name,
-                @Description,
-                @EntityType,
-                @DurationValue,
-                @DurationUnit,
-                @FixedStart,
-                @FixedEnd,
-                @FixedDuration
-            ) RETURNING
-                id,
-                name,
-                description,
-                entity_type,
-                duration_value,
-                duration_unit,
-                fixed_start,
-                fixed_end,
-                fixed_duration,
-                created_at,
-                updated_at", conn);
-
-        cmd.Parameters.AddWithValue("Name", request.Name);
-        cmd.Parameters.AddWithValue("Description", (object?)request.Description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("EntityType", request.EntityType);
-        cmd.Parameters.AddWithValue("DurationValue", (object?)request.DurationValue ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("DurationUnit", (object?)request.DurationUnit ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("FixedStart", request.FixedStart);
-        cmd.Parameters.AddWithValue("FixedEnd", request.FixedEnd);
-        cmd.Parameters.AddWithValue("FixedDuration", request.FixedDuration);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-
-        return MapTemplate(reader);
+        return (await conn.QuerySingleOrDefaultAsync($@"
+            INSERT INTO templates (name, description, entity_type, duration_value, duration_unit, fixed_start, fixed_end, fixed_duration)
+            VALUES (@Name, @Description, @EntityType, @DurationValue, @DurationUnit, @FixedStart, @FixedEnd, @FixedDuration)
+            RETURNING {TemplateCols}",
+            p =>
+            {
+                p.AddWithValue("Name", request.Name);
+                p.AddNullable("Description", request.Description);
+                p.AddWithValue("EntityType", request.EntityType);
+                p.AddNullable("DurationValue", request.DurationValue);
+                p.AddNullable("DurationUnit", request.DurationUnit);
+                p.AddWithValue("FixedStart", request.FixedStart);
+                p.AddWithValue("FixedEnd", request.FixedEnd);
+                p.AddWithValue("FixedDuration", request.FixedDuration);
+            }, MapTemplate, ct))!;
     }
 
     public async Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default)
     {
         if (!ValidEntityTypes.Contains(request.EntityType))
-        {
             throw new ArgumentException($"Invalid entity type: {request.EntityType}");
-        }
 
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        await using var cmd = new NpgsqlCommand(@"
+        return await conn.QuerySingleOrDefaultAsync($@"
             UPDATE templates SET
-                name = @Name,
-                description = @Description,
-                entity_type = @EntityType,
-                duration_value = @DurationValue,
-                duration_unit = @DurationUnit,
-                fixed_start = @FixedStart,
-                fixed_end = @FixedEnd,
-                fixed_duration = @FixedDuration,
+                name = @Name, description = @Description, entity_type = @EntityType,
+                duration_value = @DurationValue, duration_unit = @DurationUnit,
+                fixed_start = @FixedStart, fixed_end = @FixedEnd, fixed_duration = @FixedDuration,
                 updated_at = NOW()
             WHERE id = @Id
-            RETURNING
-                id,
-                name,
-                description,
-                entity_type,
-                duration_value,
-                duration_unit,
-                fixed_start,
-                fixed_end,
-                fixed_duration,
-                created_at,
-                updated_at", conn);
-
-        cmd.Parameters.AddWithValue("Id", id);
-        cmd.Parameters.AddWithValue("Name", request.Name);
-        cmd.Parameters.AddWithValue("Description", (object?)request.Description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("EntityType", request.EntityType);
-        cmd.Parameters.AddWithValue("DurationValue", (object?)request.DurationValue ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("DurationUnit", (object?)request.DurationUnit ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("FixedStart", request.FixedStart);
-        cmd.Parameters.AddWithValue("FixedEnd", request.FixedEnd);
-        cmd.Parameters.AddWithValue("FixedDuration", request.FixedDuration);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-        {
-            return null; // Template not found
-        }
-
-        return MapTemplate(reader);
+            RETURNING {TemplateCols}",
+            p =>
+            {
+                p.AddWithValue("Id", id);
+                p.AddWithValue("Name", request.Name);
+                p.AddNullable("Description", request.Description);
+                p.AddWithValue("EntityType", request.EntityType);
+                p.AddNullable("DurationValue", request.DurationValue);
+                p.AddNullable("DurationUnit", request.DurationUnit);
+                p.AddWithValue("FixedStart", request.FixedStart);
+                p.AddWithValue("FixedEnd", request.FixedEnd);
+                p.AddWithValue("FixedDuration", request.FixedDuration);
+            }, MapTemplate, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand("DELETE FROM templates WHERE id = @Id", conn);
-        cmd.Parameters.AddWithValue("Id", id);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
-        return rowsAffected > 0;
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        return await conn.ExecuteAsync("DELETE FROM templates WHERE id = @Id",
+            p => p.AddWithValue("Id", id), ct) > 0;
     }
 
-    // Template items methods
     public async Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId, CancellationToken ct = default)
     {
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT
-                ti.id,
-                ti.template_id,
-                ti.criterion_id,
-                ti.value,
-                ti.created_at,
-                ti.updated_at,
-                c.name as criterion_name,
-                c.data_type as criterion_data_type
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        return await conn.QueryListAsync(@"
+            SELECT ti.id, ti.template_id, ti.criterion_id, ti.value,
+                   ti.created_at, ti.updated_at,
+                   c.name AS criterion_name, c.data_type AS criterion_data_type
             FROM template_items ti
             INNER JOIN criteria c ON ti.criterion_id = c.id
             WHERE ti.template_id = @TemplateId
-            ORDER BY c.name", conn);
-
-        cmd.Parameters.AddWithValue("TemplateId", templateId);
-
-        var items = new List<TemplateItem>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-        while (await reader.ReadAsync(ct))
-        {
-            items.Add(new TemplateItem
+            ORDER BY c.name",
+            p => p.AddWithValue("TemplateId", templateId),
+            r => new TemplateItem
             {
-                Id = reader.GetGuid(0),
-                TemplateId = reader.GetGuid(1),
-                CriterionId = reader.GetGuid(2),
-                Value = reader.GetString(3),
-                CreatedAt = reader.GetDateTime(4),
-                UpdatedAt = reader.GetDateTime(5),
-                CriterionName = reader.GetString(6),
-                CriterionDataType = reader.GetString(7),
-                CriterionCategory = null // Category not available in current schema
-            });
-        }
-
-        return items;
+                Id = r.GetGuid(0),
+                TemplateId = r.GetGuid(1),
+                CriterionId = r.GetGuid(2),
+                Value = r.GetString(3),
+                CreatedAt = r.GetDateTime(4),
+                UpdatedAt = r.GetDateTime(5),
+                CriterionName = r.GetString(6),
+                CriterionDataType = r.GetString(7),
+                CriterionCategory = null
+            }, ct);
     }
 
     public async Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default)
     {
-        // Validate template exists
-        var template = await GetByIdAsync(item.TemplateId);
-        if (template == null)
-        {
+        var template = await GetByIdAsync(item.TemplateId, ct);
+        if (template is null)
             throw new ArgumentException($"Template not found: {item.TemplateId}");
-        }
-
         if (string.IsNullOrEmpty(item.Value))
             throw new ArgumentException("Value is required");
-
         try { JsonDocument.Parse(item.Value); }
         catch (JsonException) { throw new ArgumentException("Value must be valid JSON"); }
 
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // Validate criterion exists
-        await using var checkCmd = new NpgsqlCommand(
-            "SELECT EXISTS(SELECT 1 FROM criteria WHERE id = @CriterionId)", conn);
-        checkCmd.Parameters.AddWithValue("CriterionId", item.CriterionId);
-
-        var criterionExists = (bool?)await checkCmd.ExecuteScalarAsync(ct);
-        if (criterionExists != true)
-        {
+        var criterionExists = await conn.ExecuteScalarAsync<bool>(
+            "SELECT EXISTS(SELECT 1 FROM criteria WHERE id = @CriterionId)",
+            p => p.AddWithValue("CriterionId", item.CriterionId), ct);
+        if (!criterionExists)
             throw new ArgumentException($"Criterion not found: {item.CriterionId}");
-        }
 
         try
         {
-            await using var cmd = new NpgsqlCommand(@"
-                INSERT INTO template_items (
-                    template_id,
-                    criterion_id,
-                    value
-                ) VALUES (
-                    @TemplateId,
-                    @CriterionId,
-                    @Value::jsonb
-                ) RETURNING
-                    id,
-                    template_id,
-                    criterion_id,
-                    value,
-                    created_at,
-                    updated_at", conn);
-
-            cmd.Parameters.AddWithValue("TemplateId", item.TemplateId);
-            cmd.Parameters.AddWithValue("CriterionId", item.CriterionId);
-            cmd.Parameters.AddWithValue("Value", item.Value);
-
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            await reader.ReadAsync(ct);
-
-            return new TemplateItem
-            {
-                Id = reader.GetGuid(0),
-                TemplateId = reader.GetGuid(1),
-                CriterionId = reader.GetGuid(2),
-                Value = reader.GetString(3),
-                CreatedAt = reader.GetDateTime(4),
-                UpdatedAt = reader.GetDateTime(5)
-            };
+            return (await conn.QuerySingleOrDefaultAsync(@"
+                INSERT INTO template_items (template_id, criterion_id, value)
+                VALUES (@TemplateId, @CriterionId, @Value::jsonb)
+                RETURNING id, template_id, criterion_id, value, created_at, updated_at",
+                p =>
+                {
+                    p.AddWithValue("TemplateId", item.TemplateId);
+                    p.AddWithValue("CriterionId", item.CriterionId);
+                    p.AddWithValue("Value", item.Value);
+                },
+                r => new TemplateItem
+                {
+                    Id = r.GetGuid(0),
+                    TemplateId = r.GetGuid(1),
+                    CriterionId = r.GetGuid(2),
+                    Value = r.GetString(3),
+                    CreatedAt = r.GetDateTime(4),
+                    UpdatedAt = r.GetDateTime(5)
+                }, ct))!;
         }
-        catch (PostgresException ex) when (ex.SqlState == "23505") // unique violation
+        catch (PostgresException ex) when (ex.SqlState == "23505")
         {
             throw new ConflictException($"Template already has this criterion: {item.CriterionId}");
         }
@@ -364,11 +209,8 @@ public class TemplateRepository : ITemplateRepository
 
     public async Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default)
     {
-        using var conn = _connectionFactory.CreateOrgConnection(_orgContext); await conn.OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand("DELETE FROM template_items WHERE id = @Id", conn);
-        cmd.Parameters.AddWithValue("Id", id);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
-        return rowsAffected > 0;
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        return await conn.ExecuteAsync("DELETE FROM template_items WHERE id = @Id",
+            p => p.AddWithValue("Id", id), ct) > 0;
     }
 }
