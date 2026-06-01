@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Api.Constants;
 using Api.Models.Preset;
 using Npgsql;
 
@@ -299,11 +300,11 @@ public static class PresetApplier
         Dictionary<string, Guid> criterionIdMap,
         PresetApplicationStats stats)
     {
-        await ApplyTemplateListAsync(conn, tx, applicationId, "space",
+        await ApplyTemplateListAsync(conn, tx, applicationId, TemplateEntityTypes.Space,
             templates.Space, existingMappings, criterionIdMap, stats);
-        await ApplyTemplateListAsync(conn, tx, applicationId, "group",
+        await ApplyTemplateListAsync(conn, tx, applicationId, TemplateEntityTypes.Group,
             templates.Group, existingMappings, criterionIdMap, stats);
-        await ApplyTemplateListAsync(conn, tx, applicationId, "request",
+        await ApplyTemplateListAsync(conn, tx, applicationId, TemplateEntityTypes.Request,
             templates.Request, existingMappings, criterionIdMap, stats);
     }
 

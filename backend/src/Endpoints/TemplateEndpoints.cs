@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
@@ -18,7 +19,7 @@ public static class TemplateEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (string.IsNullOrEmpty(entityType)) return Results.BadRequest(new { error = "entityType query parameter is required" });
-                if (!new[] { "request", "space", "group" }.Contains(entityType)) return Results.BadRequest(new { error = $"Invalid entity type: {entityType}" });
+                if (!TemplateEntityTypes.IsKnown(entityType)) return Results.BadRequest(new { error = $"Invalid entity type: {entityType}" });
                 return Results.Ok(await templateRepo.GetAllAsync(entityType));
             }, logger, "get templates", new { entityType });
         });

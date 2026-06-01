@@ -210,9 +210,9 @@ public static partial class PresetValidator
     {
         var criteriaKeys = criteria.Select(c => c.Key).ToHashSet();
 
-        ValidateTemplateList(templates.Space, "space", criteriaKeys, errors);
-        ValidateTemplateList(templates.Group, "group", criteriaKeys, errors);
-        ValidateTemplateList(templates.Request, "request", criteriaKeys, errors);
+        ValidateTemplateList(templates.Space, TemplateEntityTypes.Space, criteriaKeys, errors);
+        ValidateTemplateList(templates.Group, TemplateEntityTypes.Group, criteriaKeys, errors);
+        ValidateTemplateList(templates.Request, TemplateEntityTypes.Request, criteriaKeys, errors);
     }
 
     private static void ValidateTemplateList(
@@ -257,7 +257,7 @@ public static partial class PresetValidator
                 errors.Add($"{prefix}: Description cannot exceed {DomainLimits.TemplateDescriptionMaxLength} characters");
             }
 
-            if (entityType == "request" && template.DurationUnit != null)
+            if (entityType == TemplateEntityTypes.Request && template.DurationUnit != null)
             {
                 var validUnits = new[] { "hours", "days", "weeks" };
                 if (!validUnits.Contains(template.DurationUnit.ToLowerInvariant()))

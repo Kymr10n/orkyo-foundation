@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Api.Constants;
 using Api.Models;
 using Api.Models.Export;
 using Api.Repositories;
@@ -55,7 +56,7 @@ public class ExportService : IExportService
         var criteria = await _criteriaRepo.GetAllAsync();
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => GenerateKey(c.Name));
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync("space");
+        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space);
         var groupIdToKey = groups.ToDictionary(g => g.Id, g => GenerateKey(g.Name));
 
         var allSites = await _siteRepo.GetAllAsync();
@@ -214,7 +215,7 @@ public class ExportService : IExportService
     private async Task<List<ExportTemplate>> BuildTemplatesAsync(Dictionary<Guid, string> criterionIdToKey)
     {
         var allTemplates = new List<ExportTemplate>();
-        foreach (var entityType in new[] { "space", "group", "request" })
+        foreach (var entityType in new[] { TemplateEntityTypes.Space, TemplateEntityTypes.Group, TemplateEntityTypes.Request })
         {
             var templates = await _templateRepo.GetAllAsync(entityType);
             foreach (var template in templates.OrderBy(t => t.Name, StringComparer.Ordinal))

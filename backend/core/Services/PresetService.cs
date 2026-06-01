@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Models.Preset;
@@ -85,7 +86,7 @@ public class PresetService : IPresetService
         var criterionKeyMap = presetCriteria.ToDictionary(c => c.Name, c => c.Key);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => criterionKeyMap[c.Name]);
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync("space");
+        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space);
         var presetGroups = groups.Select(g => new PresetSpaceGroup
         {
             Key = GenerateKey(g.Name),
@@ -97,9 +98,9 @@ public class PresetService : IPresetService
 
         var presetTemplates = new PresetTemplates
         {
-            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync("space"), criterionIdToKey),
-            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync("group"), criterionIdToKey),
-            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync("request"), criterionIdToKey)
+            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space), criterionIdToKey),
+            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group), criterionIdToKey),
+            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request), criterionIdToKey)
         };
 
         return new Preset

@@ -103,13 +103,13 @@ public class SearchRepository : ISearchRepository
     private static SearchResultOpen GetOpenRoute(string entityType, Guid entityId, Guid? siteId) =>
         entityType switch
         {
-            "space" => new SearchResultOpen { Route = "/spaces", Params = new Dictionary<string, string> { ["resourceId"] = entityId.ToString(), ["mode"] = "edit" } },
-            "request" => new SearchResultOpen { Route = "/requests", Params = new Dictionary<string, string> { ["requestId"] = entityId.ToString(), ["mode"] = "edit" } },
-            "group" => new SearchResultOpen { Route = "/settings/groups", Params = new Dictionary<string, string> { ["groupId"] = entityId.ToString(), ["mode"] = "edit" } },
-            "site" => new SearchResultOpen { Route = "/settings/sites", Params = new Dictionary<string, string> { ["siteId"] = entityId.ToString(), ["mode"] = "edit" } },
-            "template" => new SearchResultOpen { Route = "/settings/templates", Params = new Dictionary<string, string> { ["templateId"] = entityId.ToString(), ["mode"] = "edit" } },
-            "criterion" => new SearchResultOpen { Route = "/settings/criteria", Params = new Dictionary<string, string> { ["criterionId"] = entityId.ToString(), ["mode"] = "edit" } },
-            "person" => new SearchResultOpen { Route = "/people/list", Params = new Dictionary<string, string> { ["personId"] = entityId.ToString() } },
+            SearchEntityTypes.Space => new SearchResultOpen { Route = "/spaces", Params = new Dictionary<string, string> { ["resourceId"] = entityId.ToString(), ["mode"] = "edit" } },
+            SearchEntityTypes.Request => new SearchResultOpen { Route = "/requests", Params = new Dictionary<string, string> { ["requestId"] = entityId.ToString(), ["mode"] = "edit" } },
+            SearchEntityTypes.Group => new SearchResultOpen { Route = "/settings/groups", Params = new Dictionary<string, string> { ["groupId"] = entityId.ToString(), ["mode"] = "edit" } },
+            SearchEntityTypes.Site => new SearchResultOpen { Route = "/settings/sites", Params = new Dictionary<string, string> { ["siteId"] = entityId.ToString(), ["mode"] = "edit" } },
+            SearchEntityTypes.Template => new SearchResultOpen { Route = "/settings/templates", Params = new Dictionary<string, string> { ["templateId"] = entityId.ToString(), ["mode"] = "edit" } },
+            SearchEntityTypes.Criterion => new SearchResultOpen { Route = "/settings/criteria", Params = new Dictionary<string, string> { ["criterionId"] = entityId.ToString(), ["mode"] = "edit" } },
+            SearchEntityTypes.Person => new SearchResultOpen { Route = "/people/list", Params = new Dictionary<string, string> { ["personId"] = entityId.ToString() } },
             _ => new SearchResultOpen { Route = "/", Params = new Dictionary<string, string>() }
         };
 }

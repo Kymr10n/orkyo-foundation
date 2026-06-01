@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Services;
@@ -20,9 +21,6 @@ public interface ITemplateRepository
 
 public class TemplateRepository : ITemplateRepository
 {
-    private static readonly HashSet<string> ValidEntityTypes = new(StringComparer.Ordinal)
-        { "request", "space", "group" };
-
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
 
@@ -71,7 +69,7 @@ public class TemplateRepository : ITemplateRepository
 
     public async Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default)
     {
-        if (!ValidEntityTypes.Contains(request.EntityType))
+        if (!TemplateEntityTypes.IsKnown(request.EntityType))
             throw new ArgumentException($"Invalid entity type: {request.EntityType}");
         if (string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("Name is required");
@@ -101,7 +99,7 @@ public class TemplateRepository : ITemplateRepository
 
     public async Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default)
     {
-        if (!ValidEntityTypes.Contains(request.EntityType))
+        if (!TemplateEntityTypes.IsKnown(request.EntityType))
             throw new ArgumentException($"Invalid entity type: {request.EntityType}");
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
