@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestScheduleSection } from './RequestScheduleSection';
 import type { Space } from '@foundation/src/types/space';
 import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import type { ReactNode } from 'react';
 
 vi.mock('@foundation/src/components/ui/collapsible', () => ({
-  Collapsible: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div>{children}</div> : <div>{(children as ReactNode[])?.[0]}</div>,
+  Collapsible: ({ children, onOpenChange }: { children: ReactNode; open: boolean; onOpenChange?: () => void }) =>
+    <div onClick={onOpenChange}>{children}</div>,
   CollapsibleTrigger: ({ children }: { children: ReactNode }) => <button>{children}</button>,
   CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
@@ -25,17 +25,32 @@ vi.mock('@foundation/src/components/ui/label', () => ({
 }));
 
 vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
-  DateTimePicker: ({ placeholder, id }: { placeholder: string; id: string }) =>
-    <input data-testid={id} placeholder={placeholder} />,
+  DateTimePicker: ({
+    placeholder,
+    id,
+    onChange,
+  }: {
+    placeholder: string;
+    id: string;
+    value?: string;
+    onChange?: (v: string) => void;
+  }) => (
+    <input
+      data-testid={id}
+      placeholder={placeholder}
+      onChange={(e) => onChange?.(e.target.value)}
+    />
+  ),
 }));
 
 vi.mock('@foundation/src/constants', () => ({
   SPACE_NONE_PLACEHOLDER: '__none__',
 }));
 
+const mockSplitDateTimeFields = vi.fn();
 vi.mock('@foundation/src/lib/utils/picker-utils', () => ({
   combineDateTimeFields: (d: string, t: string) => d && t ? `${d}T${t}` : '',
-  splitDateTimeFields: vi.fn(),
+  splitDateTimeFields: (...args: unknown[]) => mockSplitDateTimeFields(...args),
 }));
 
 const mockSpaces: Space[] = [
@@ -92,5 +107,34 @@ describe('RequestScheduleSection', () => {
   it('shows help text about unscheduled requests', () => {
     render(<RequestScheduleSection {...defaultProps} />);
     expect(screen.getByText(/leave dates blank/i)).toBeInTheDocument();
+  });
+
+  it('calls toggleSection when trigger is clicked', () => {
+    const toggleSection = vi.fn();
+    render(<RequestScheduleSection {...defaultProps} toggleSection={toggleSection} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(toggleSection).toHaveBeenCalledWith('schedule');
+  });
+
+  it('calls splitDateTimeFields (and setField) when start date changes', () => {
+    render(<RequestScheduleSection {...defaultProps} />);
+    fireEvent.change(screen.getByTestId('startDateTime'), { target: { value: '2026-06-01T09:00' } });
+    expect(mockSplitDateTimeFields).toHaveBeenCalled();
+  });
+
+  it('calls splitDateTimeFields when end date changes', () => {
+    render(<RequestScheduleSection {...defaultProps} />);
+    fireEvent.change(screen.getByTestId('endDateTime'), { target: { value: '2026-06-01T17:00' } });
+    expect(mockSplitDateTimeFields).toHaveBeenCalled();
+  });
+
+  it('renders with no available spaces without crashing', () => {
+    render(<RequestScheduleSection {...defaultProps} availableSpaces={[]} />);
+    expect(screen.getByText(/schedule \(optional\)/i)).toBeInTheDocument();
+  });
+
+  it('shows "No space assigned" placeholder text', () => {
+    render(<RequestScheduleSection {...defaultProps} />);
+    expect(screen.getByText(/no space \(unscheduled\)/i)).toBeInTheDocument();
   });
 });

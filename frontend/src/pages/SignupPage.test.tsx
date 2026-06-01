@@ -102,6 +102,66 @@ describe('SignupPage', () => {
     });
   });
 
+  it('shows error when passwords do not match', async () => {
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ email: 'user@acme.com', expiresAt: '2099-06-01T00:00:00Z', tenantName: 'Acme' }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    renderSignup('?invitation=valid-token');
+    await waitFor(() => expect(screen.getByText('user@acme.com')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'different456' } });
+    fireEvent.submit(screen.getByLabelText(/^password$/i).closest('form')!);
+
+    expect(screen.getByText('Passwords do not match')).toBeInTheDocument();
+  });
+
+  it('shows error when password is too short', async () => {
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ email: 'user@acme.com', expiresAt: '2099-06-01T00:00:00Z', tenantName: 'Acme' }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    renderSignup('?invitation=valid-token');
+    await waitFor(() => expect(screen.getByText('user@acme.com')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'short' } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'short' } });
+    fireEvent.submit(screen.getByLabelText(/^password$/i).closest('form')!);
+
+    expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
+  });
+
+  it('uses email username as displayName when left blank', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ email: 'alice@acme.com', expiresAt: '2099-06-01T00:00:00Z', tenantName: 'Acme' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+    vi.stubGlobal('fetch', mockFetch);
+    renderSignup('?invitation=valid-token');
+    await waitFor(() => expect(screen.getByText('alice@acme.com')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'password123' } });
+    fireEvent.submit(screen.getByLabelText(/^password$/i).closest('form')!);
+
+    await waitFor(() => expect(screen.getByText(/account created/i)).toBeInTheDocument());
+    // Submitted without displayName → email username used as fallback
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('alice'),
+      }),
+    );
+  });
+
   it('submits account creation form', async () => {
     const mockFetch = vi.fn()
       .mockResolvedValueOnce({

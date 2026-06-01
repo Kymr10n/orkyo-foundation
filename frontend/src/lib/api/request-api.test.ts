@@ -4,6 +4,8 @@ import {
   createRequest,
   updateRequest,
   deleteRequest,
+  moveRequest,
+  deleteRequestSubtree,
 } from './request-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -94,6 +96,38 @@ describe('request-api', () => {
       await deleteRequest('req-123');
 
       expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.request('req-123'));
+    });
+  });
+
+  describe('moveRequest', () => {
+    it('calls apiPatch with correct endpoint and move data', async () => {
+      const moveData = { newParentRequestId: 'parent-1', sortOrder: 2 };
+      const mockRequest = { id: 'req-123', name: 'Moved Task' };
+      vi.mocked(apiClient.apiPatch).mockResolvedValue(mockRequest);
+
+      const result = await moveRequest('req-123', moveData);
+
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestMove('req-123'), moveData);
+      expect(result).toEqual(mockRequest);
+    });
+
+    it('supports moving to root (null parent)', async () => {
+      const moveData = { newParentRequestId: null, sortOrder: 0 };
+      vi.mocked(apiClient.apiPatch).mockResolvedValue({ id: 'req-123' });
+
+      await moveRequest('req-123', moveData);
+
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestMove('req-123'), moveData);
+    });
+  });
+
+  describe('deleteRequestSubtree', () => {
+    it('calls apiDelete on the subtree endpoint', async () => {
+      vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
+
+      await deleteRequestSubtree('req-123');
+
+      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.requestSubtree('req-123'));
     });
   });
 });

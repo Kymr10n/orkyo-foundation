@@ -14,6 +14,8 @@ import type { Space, SpaceGeometry } from '@foundation/src/types/space';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/space-api');
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+import { toast } from 'sonner';
 
 const mockSpace: Space = {
   id: 'space-1',
@@ -266,6 +268,52 @@ describe('useSpaces', () => {
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spaces', 'site-1'] });
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'] });
       });
+    });
+  });
+
+  describe('useDeleteSpace — error rollback', () => {
+    it('rolls back optimistic update when delete fails', async () => {
+      const existing = [mockSpace];
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      queryClient.setQueryData(['spaces', 'site-1'], existing);
+
+      vi.mocked(spaceApi.deleteSpace).mockRejectedValueOnce(new Error('Server error'));
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+
+      const { result } = renderHook(() => useDeleteSpace('site-1'), { wrapper });
+      await result.current.mutateAsync('space-1').catch(() => {});
+
+      await waitFor(() => {
+        const cached = queryClient.getQueryData<typeof existing>(['spaces', 'site-1']);
+        expect(cached).toEqual(existing);
+      });
+    });
+  });
+
+  describe('useMoveSpace — error handling', () => {
+    it('shows error toast when move fails', async () => {
+      vi.mocked(spaceApi.updateSpace).mockRejectedValueOnce(new Error('Move failed'));
+      const { result } = renderHook(() => useMoveSpace('site-1'), {
+        wrapper: createTestQueryWrapper(),
+      });
+
+      await result.current.mutateAsync({
+        resourceId: 'space-1',
+        space: mockSpace,
+        newGeometry: { type: 'rectangle' as const, coordinates: [{ x: 0, y: 0 }, { x: 100, y: 100 }] },
+      }).catch(() => {});
+
+      await waitFor(() =>
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+          'Failed to move space',
+          expect.objectContaining({ description: 'Move failed' }),
+        ),
+      );
     });
   });
 });

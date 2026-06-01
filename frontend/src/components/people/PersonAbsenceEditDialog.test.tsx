@@ -1,10 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
 
 vi.mock('@foundation/src/lib/api/resource-absences-api', () => ({
   createResourceAbsence: vi.fn(),
+}));
+
+// Mock Calendar so tests can select dates without real DOM date-picker interaction
+vi.mock('@foundation/src/components/ui/calendar', () => ({
+  Calendar: ({ onSelect }: { onSelect: (d: Date) => void; selected?: Date }) => (
+    <button type="button" data-testid="mock-calendar" onClick={() => onSelect(new Date('2026-06-01'))}>
+      Pick date
+    </button>
+  ),
+}));
+vi.mock('@foundation/src/components/ui/popover', () => ({
+  Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: { asChild?: boolean; children: ReactNode }) => <div>{children}</div>,
+  PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
@@ -81,5 +97,74 @@ describe('PersonAbsenceEditDialog', () => {
         createdAt: '', updatedAt: '',
       });
     });
+  });
+
+  it('does not render when isOpen is false', () => {
+    renderDialog({ isOpen: false });
+    expect(screen.queryByText('Add Absence')).not.toBeInTheDocument();
+  });
+
+  it('Save button becomes enabled after both dates are selected', async () => {
+    renderDialog();
+    const calendarBtns = screen.getAllByTestId('mock-calendar');
+    fireEvent.click(calendarBtns[0]); // set start date
+    fireEvent.click(calendarBtns[1]); // set end date
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled(),
+    );
+  });
+
+  it('calls createResourceAbsence and onSaved after successful save', async () => {
+    const onSaved = vi.fn();
+    renderDialog({ onSaved });
+    const calendarBtns = screen.getAllByTestId('mock-calendar');
+    fireEvent.click(calendarBtns[0]);
+    fireEvent.click(calendarBtns[1]);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(createResourceAbsence).toHaveBeenCalledWith(
+      'person-alice',
+      expect.objectContaining({ absenceType: 'vacation' }),
+    ));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it('submits title in payload when reason is filled', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.type(screen.getByPlaceholderText('Optional'), 'Annual leave');
+    const calendarBtns = screen.getAllByTestId('mock-calendar');
+    fireEvent.click(calendarBtns[0]);
+    fireEvent.click(calendarBtns[1]);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() =>
+      expect(createResourceAbsence).toHaveBeenCalledWith(
+        'person-alice',
+        expect.objectContaining({ title: 'Annual leave' }),
+      ),
+    );
+  });
+
+  it('uses absenceType as title when reason is empty', async () => {
+    renderDialog();
+    const calendarBtns = screen.getAllByTestId('mock-calendar');
+    fireEvent.click(calendarBtns[0]);
+    fireEvent.click(calendarBtns[1]);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() =>
+      expect(createResourceAbsence).toHaveBeenCalledWith(
+        'person-alice',
+        expect.objectContaining({ title: 'vacation' }),
+      ),
+    );
+  });
+
+  it('shows formatted date after start date is picked', async () => {
+    renderDialog();
+    fireEvent.click(screen.getAllByTestId('mock-calendar')[0]);
+    // date-fns PP: "Jun 1, 2026" (no leading zero for single-digit days)
+    await waitFor(() => expect(screen.getByText(/Jun 1, 2026/)).toBeInTheDocument());
   });
 });

@@ -1502,4 +1502,137 @@ public class RequestEndpointsTests
     }
 
     #endregion
+
+    #region GET /{id}/children, PATCH /{id}/move, DELETE /{id}/subtree, GET /{id}/descendants/count, PATCH /{id}/schedule
+
+    private async Task<RequestInfo> CreateSimpleRequestAsync(string name, Guid? parentId = null)
+    {
+        var req = new CreateRequestRequest
+        {
+            Name = name,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            ParentRequestId = parentId,
+        };
+        var response = await _client.PostAsJsonAsync("/api/requests", req);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<RequestInfo>())!;
+    }
+
+    private async Task<RequestInfo> CreateSummaryRequestAsync(string name)
+    {
+        // Summary planning mode can have children
+        var req = new CreateRequestRequest
+        {
+            Name = name,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            PlanningMode = PlanningMode.Summary,
+        };
+        var response = await _client.PostAsJsonAsync("/api/requests", req);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<RequestInfo>())!;
+    }
+
+    [Fact]
+    public async Task GetChildren_ValidParent_ReturnsChildList()
+    {
+        var parent = await CreateSummaryRequestAsync($"Parent-{Guid.NewGuid():N}"[..20]);
+        var child = await CreateSimpleRequestAsync($"Child-{Guid.NewGuid():N}"[..20], parent.Id);
+
+        var response = await _client.GetAsync($"/api/requests/{parent.Id}/children");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Array, body.ValueKind);
+        Assert.True(body.GetArrayLength() >= 1);
+    }
+
+    [Fact]
+    public async Task GetChildren_InvalidId_ReturnsNotFound()
+    {
+        var response = await _client.GetAsync($"/api/requests/{Guid.NewGuid()}/children");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetDescendantsCount_ValidId_ReturnsCount()
+    {
+        var parent = await CreateSummaryRequestAsync($"Desc-{Guid.NewGuid():N}"[..20]);
+        await CreateSimpleRequestAsync($"DescChild-{Guid.NewGuid():N}"[..20], parent.Id);
+
+        var response = await _client.GetAsync($"/api/requests/{parent.Id}/descendants/count");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.TryGetProperty("count", out var count));
+        Assert.True(count.GetInt32() >= 1);
+    }
+
+    [Fact]
+    public async Task GetDescendantsCount_InvalidId_ReturnsNotFound()
+    {
+        var response = await _client.GetAsync($"/api/requests/{Guid.NewGuid()}/descendants/count");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MoveRequest_ValidTarget_Returns200()
+    {
+        var parent = await CreateSummaryRequestAsync($"MoveParent-{Guid.NewGuid():N}"[..20]);
+        var child = await CreateSimpleRequestAsync($"MoveChild-{Guid.NewGuid():N}"[..20]);
+
+        var moveReq = new { newParentRequestId = parent.Id, sortOrder = 0 };
+        var response = await _client.PatchAsJsonAsync($"/api/requests/{child.Id}/move", moveReq);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MoveRequest_InvalidId_ReturnsNotFound()
+    {
+        var moveReq = new { newParentRequestId = (Guid?)null, sortOrder = 0 };
+        var response = await _client.PatchAsJsonAsync($"/api/requests/{Guid.NewGuid()}/move", moveReq);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteSubtree_ValidId_Returns200WithCount()
+    {
+        var parent = await CreateSummaryRequestAsync($"SubtreeRoot-{Guid.NewGuid():N}"[..20]);
+        await CreateSimpleRequestAsync($"SubtreeChild-{Guid.NewGuid():N}"[..20], parent.Id);
+
+        var response = await _client.DeleteAsync($"/api/requests/{parent.Id}/subtree");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.TryGetProperty("deletedCount", out var count));
+        Assert.True(count.GetInt32() >= 1);
+    }
+
+    [Fact]
+    public async Task DeleteSubtree_InvalidId_ReturnsNotFound()
+    {
+        var response = await _client.DeleteAsync($"/api/requests/{Guid.NewGuid()}/subtree");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ScheduleRequest_UnscheduleWithAllNulls_Returns200()
+    {
+        // To unschedule: pass all fields as null — this is always valid
+        var req = await CreateSimpleRequestAsync($"SchedReq-{Guid.NewGuid():N}"[..20]);
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/requests/{req.Id}/schedule",
+            new { resourceId = (Guid?)null, startTs = (DateTime?)null, endTs = (DateTime?)null });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ScheduleRequest_InvalidId_ReturnsNotFound()
+    {
+        // All-null body is valid; endpoint should still return 404 for unknown ID
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/requests/{Guid.NewGuid()}/schedule",
+            new { resourceId = (Guid?)null, startTs = (DateTime?)null, endTs = (DateTime?)null });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
 }

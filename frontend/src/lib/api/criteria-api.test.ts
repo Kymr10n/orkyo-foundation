@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ResourceTypeKey } from '@foundation/src/types/criterion';
-import { getCriteria, createCriterion, updateCriterion, deleteCriterion } from './criteria-api';
+import { getCriteria, createCriterion, updateCriterion, deleteCriterion, updateCriterionApplicability } from './criteria-api';
+import type { UpdateCriterionApplicabilityRequest } from '@foundation/src/types/criterion';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
@@ -79,6 +80,22 @@ describe('criteria-api', () => {
       await deleteCriterion('crit-123');
 
       expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.criterion('crit-123'));
+    });
+  });
+
+  describe('updateCriterionApplicability', () => {
+    it('calls apiPut with correct endpoint and applicability data', async () => {
+      const request: UpdateCriterionApplicabilityRequest = { resourceTypeKeys: ['person', 'space'] as ResourceTypeKey[] };
+      const mockResult = { criterionId: 'crit-123', resourceTypeKeys: ['person', 'space'] };
+      vi.mocked(apiClient.apiPut).mockResolvedValue(mockResult);
+
+      const result = await updateCriterionApplicability('crit-123', request);
+
+      expect(apiClient.apiPut).toHaveBeenCalledWith(
+        API_PATHS.criterionApplicability('crit-123'),
+        request,
+      );
+      expect(result).toEqual(mockResult);
     });
   });
 });

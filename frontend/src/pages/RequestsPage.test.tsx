@@ -660,4 +660,64 @@ describe('RequestsPage', () => {
       expect(moveRequest).toHaveBeenCalledWith('r-drag', expect.objectContaining({ newParentRequestId: 'r1' }));
     });
   });
+
+  // ── handleConfirmMoveTo ────────────────────────────────────────────────────
+
+  it('confirms move-to and calls moveRequest', async () => {
+    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
+    vi.mocked(moveRequest).mockResolvedValue(undefined as any);
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+
+    // Open move-to dialog then confirm
+    fireEvent.click(screen.getByTestId('move-to-r1'));
+    await waitFor(() => expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('confirm-move'));
+
+    await waitFor(() =>
+      expect(moveRequest).toHaveBeenCalledWith('r1', expect.objectContaining({ newParentRequestId: 'r-target' })),
+    );
+  });
+
+  it('shows error when handleConfirmMoveTo fails', async () => {
+    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
+    vi.mocked(moveRequest).mockRejectedValueOnce(new Error('Move error'));
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('move-to-r1'));
+    await waitFor(() => expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('confirm-move'));
+
+    await waitFor(() => expect(screen.getByText('Move error')).toBeInTheDocument());
+  });
+
+  // ── handleConfirmAddExisting ────────────────────────────────────────────────
+
+  it('confirms add-existing and calls moveRequest for each selected id', async () => {
+    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
+    vi.mocked(moveRequest).mockResolvedValue(undefined as any);
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('add-existing-r1'));
+    await waitFor(() => expect(screen.getByTestId('add-existing-dialog')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('confirm-add-existing'));
+
+    await waitFor(() =>
+      expect(moveRequest).toHaveBeenCalledWith('r-orphan', expect.objectContaining({ newParentRequestId: 'r1' })),
+    );
+  });
 });

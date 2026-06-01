@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
 import { formReducer, buildInitialState } from './useRequestForm';
 import type { RequestFormState, RequirementEntry } from './useRequestForm';
@@ -310,5 +311,44 @@ describe('buildInitialState', () => {
     expect(state.selectedResourceId).toBe('');
     expect(state.startDate).toBe('');
     expect(state.requirements.size).toBe(0);
+  });
+
+  it('sets parentRequestId when no request is provided', () => {
+    const state = buildInitialState(null, 'parent-123');
+    expect(state.parentRequestId).toBe('parent-123');
+    expect(state.name).toBe('');
+  });
+
+  it('applies defaultPlanningMode when no request or parent', () => {
+    const state = buildInitialState(null, undefined, 'summary');
+    expect(state.planningMode).toBe('summary');
+  });
+
+  it('applies defaultPlanningMode alongside parentRequestId', () => {
+    const state = buildInitialState(null, 'parent-123', 'container');
+    expect(state.parentRequestId).toBe('parent-123');
+    expect(state.planningMode).toBe('grouping');
+  });
+});
+
+describe('formReducer — UPDATE_REQUIREMENT for missing entry', () => {
+  it('defaults to { value: null } when criterionId not yet in map', () => {
+    const result = formReducer(
+      { requirements: new Map() } as any,
+      { type: 'UPDATE_REQUIREMENT', criterionId: 'c-new', patch: { operator: '>=' } },
+    );
+    expect(result.requirements.get('c-new')).toEqual({ value: null, operator: '>=' });
+  });
+});
+
+describe('formReducer — APPLY_TEMPLATE with no items', () => {
+  it('sets an empty requirements map when template has no items', () => {
+    const initial = { requirements: new Map([['c1', { value: true }]]) } as any;
+    const result = formReducer(initial, {
+      type: 'APPLY_TEMPLATE',
+      template: { durationValue: 2, durationUnit: 'hours' } as any,
+    });
+    expect(result.requirements.size).toBe(0);
+    expect(result.durationValue).toBe(2);
   });
 });

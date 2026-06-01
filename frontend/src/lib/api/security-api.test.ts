@@ -5,6 +5,12 @@ import {
   changePassword,
   revokeSession,
   logoutAllSessions,
+  getMfaStatus,
+  removeMfa,
+  enableMfa,
+  getUserProfile,
+  updateUserProfile,
+  requestEmailChange,
 } from './security-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -116,6 +122,62 @@ describe('security-api', () => {
 
       expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.ACCOUNT.LOGOUT_ALL, undefined);
       expect(result.message).toBe('All sessions terminated');
+    });
+  });
+
+  describe('getMfaStatus', () => {
+    it('calls apiGet with MFA_STATUS endpoint', async () => {
+      const mockStatus = { totpEnabled: true, recoveryCodesConfigured: false };
+      vi.mocked(apiClient.apiGet).mockResolvedValue(mockStatus);
+      const result = await getMfaStatus();
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA_STATUS);
+      expect(result).toEqual(mockStatus);
+    });
+  });
+
+  describe('removeMfa', () => {
+    it('calls apiDelete with MFA endpoint', async () => {
+      vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
+      await removeMfa();
+      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA);
+    });
+  });
+
+  describe('enableMfa', () => {
+    it('calls apiPost with MFA endpoint and returns message', async () => {
+      vi.mocked(apiClient.apiPost).mockResolvedValue({ message: 'MFA enrollment initiated' });
+      const result = await enableMfa();
+      expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA, undefined);
+      expect(result.message).toBe('MFA enrollment initiated');
+    });
+  });
+
+  describe('getUserProfile', () => {
+    it('calls apiGet with PROFILE endpoint', async () => {
+      const mockProfile = { email: 'user@example.com', firstName: 'Alice', lastName: 'Smith', emailVerified: true };
+      vi.mocked(apiClient.apiGet).mockResolvedValue(mockProfile);
+      const result = await getUserProfile();
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ACCOUNT.PROFILE);
+      expect(result).toEqual(mockProfile);
+    });
+  });
+
+  describe('updateUserProfile', () => {
+    it('calls apiPut with PROFILE endpoint and data', async () => {
+      const data = { firstName: 'Bob', lastName: 'Jones' };
+      vi.mocked(apiClient.apiPut).mockResolvedValue({ message: 'Profile updated', displayName: 'Bob Jones' });
+      const result = await updateUserProfile(data);
+      expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.ACCOUNT.PROFILE, data);
+      expect(result.displayName).toBe('Bob Jones');
+    });
+  });
+
+  describe('requestEmailChange', () => {
+    it('calls apiPost with EMAIL endpoint and new email', async () => {
+      vi.mocked(apiClient.apiPost).mockResolvedValue({ message: 'Confirmation sent' });
+      const result = await requestEmailChange('new@example.com');
+      expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.ACCOUNT.EMAIL, { newEmail: 'new@example.com' });
+      expect(result.message).toBe('Confirmation sent');
     });
   });
 });

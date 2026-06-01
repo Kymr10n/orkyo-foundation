@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConflictsPage } from '@foundation/src/pages/ConflictsPage';
+import { useConflicts } from '@foundation/src/hooks/useConflicts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 
@@ -285,6 +286,41 @@ describe('ConflictsPage', () => {
         expect(mockOpen).toHaveBeenCalledTimes(1);
         expect(mockOpen).toHaveBeenCalledWith(mockRequests[1]);
       });
+    });
+  });
+
+  describe('getConflictKindLabel — less-common kind labels', () => {
+    const kindCases: [string, string][] = [
+      ['below_min_duration', 'Below Minimum Duration'],
+      ['before_earliest_start', 'Before Earliest Start'],
+      ['after_latest_end', 'After Latest End'],
+      ['capacity_exceeded', 'Capacity Exceeded'],
+      ['unknown_xyz', 'unknown_xyz'],
+    ];
+
+    it.each(kindCases)('kind "%s" renders label "%s"', (kind, label) => {
+      vi.mocked(useConflicts).mockReturnValue({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        conflicts: new Map([['req-1', [{ id: 'c1', kind: kind as any, severity: 'error' as const, message: 'msg' }]]]) as any,
+        conflictingRequestIds: new Set(['req-1']),
+        schedulingValidation: new Map(),
+        spaceCapacities: new Map(),
+      });
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      expect(screen.getByText(label)).toBeInTheDocument();
+    });
+  });
+
+  describe('getSeverityIcon — default (info) case', () => {
+    it('renders content for unknown severity without crashing', () => {
+      vi.mocked(useConflicts).mockReturnValue({
+        conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'info' as unknown as 'error', message: 'info msg' }]]]),
+        conflictingRequestIds: new Set(['req-1']),
+        schedulingValidation: new Map(),
+        spaceCapacities: new Map(),
+      });
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+      expect(screen.getByText('info msg')).toBeInTheDocument();
     });
   });
 });

@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessagesPage } from './MessagesPage';
@@ -57,5 +57,12 @@ describe('MessagesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('No messages at this time.')).toBeInTheDocument();
     });
+  });
+
+  it('clicking Back calls navigate(-1)', async () => {
+    renderWithProviders(<MessagesPage />);
+    await waitFor(() => expect(screen.getByText('Back')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Back'));
+    expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 });

@@ -4,6 +4,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createCrudHooks } from "./useMutations";
 import { createTestQueryWrapper, createTestQueryClientWithSpy } from "@foundation/src/test-utils";
 
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+import { toast } from 'sonner';
+
 interface TestItem {
   id: string;
   name: string;
@@ -204,6 +209,90 @@ describe("createCrudHooks", () => {
         // Only 1 call — no additional keys
         expect(spy).toHaveBeenCalledTimes(1);
       });
+    });
+  });
+
+  describe('entityLabel toasts', () => {
+    const labeledHooks = createCrudHooks<TestItem, CreateTestItem, UpdateTestItem>({
+      queryKey: () => ['labeled-items'] as const,
+      queryFn: mockQueryFn,
+      createFn: mockCreateFn,
+      updateFn: mockUpdateFn,
+      deleteFn: mockDeleteFn,
+      entityLabel: 'Widget',
+    });
+
+    it('fires success toast on create', async () => {
+      const { result } = renderHook(() => labeledHooks.useCreate(), {
+        wrapper: createTestQueryWrapper(),
+      });
+      await result.current.mutateAsync({ name: 'New' });
+      await waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Widget created'));
+    });
+
+    it('fires error toast on create failure', async () => {
+      mockCreateFn.mockRejectedValueOnce(new Error('Conflict'));
+      const { result } = renderHook(() => labeledHooks.useCreate(), {
+        wrapper: createTestQueryWrapper(),
+      });
+      await result.current.mutateAsync({ name: 'Fail' }).catch(() => {});
+      await waitFor(() =>
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+          'Failed to create widget',
+          expect.objectContaining({ description: 'Conflict' }),
+        ),
+      );
+    });
+
+    it('fires success toast on update', async () => {
+      const { result } = renderHook(() => labeledHooks.useUpdate(), {
+        wrapper: createTestQueryWrapper(),
+      });
+      await result.current.mutateAsync({ id: '1', data: { name: 'Updated' } });
+      await waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Widget updated'));
+    });
+
+    it('fires success toast on delete', async () => {
+      const { result } = renderHook(() => labeledHooks.useDelete(), {
+        wrapper: createTestQueryWrapper(),
+      });
+      await result.current.mutateAsync('1');
+      await waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Widget deleted'));
+    });
+
+    it('fires error toast on delete failure', async () => {
+      mockDeleteFn.mockRejectedValueOnce(new Error('Not found'));
+      const { result } = renderHook(() => labeledHooks.useDelete(), {
+        wrapper: createTestQueryWrapper(),
+      });
+      await result.current.mutateAsync('bad-id').catch(() => {});
+      await waitFor(() =>
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+          'Failed to delete widget',
+          expect.objectContaining({ description: 'Not found' }),
+        ),
+      );
+    });
+  });
+
+  describe('errorMessage helper (non-Error values)', () => {
+    it('converts a string rejection to a toast description', async () => {
+      const labeledHooks = createCrudHooks<TestItem, CreateTestItem, UpdateTestItem>({
+        queryKey: () => ['str-err'] as const,
+        queryFn: mockQueryFn,
+        createFn: vi.fn().mockRejectedValue('plain string error'),
+        entityLabel: 'Thing',
+      });
+      const { result } = renderHook(() => labeledHooks.useCreate(), {
+        wrapper: createTestQueryWrapper(),
+      });
+      await result.current.mutateAsync({ name: 'x' }).catch(() => {});
+      await waitFor(() =>
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+          'Failed to create thing',
+          expect.objectContaining({ description: 'plain string error' }),
+        ),
+      );
     });
   });
 });

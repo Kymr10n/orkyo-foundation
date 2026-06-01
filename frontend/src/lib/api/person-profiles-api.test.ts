@@ -4,6 +4,7 @@ import {
   getPersonProfile,
   upsertPersonProfile,
   linkUserToPersonProfile,
+  unlinkUserFromPersonProfile,
   type PersonProfileInfo,
   type UpsertPersonProfileRequest,
   type LinkUserToPersonProfileRequest,
@@ -145,6 +146,19 @@ describe("person-profiles-api", () => {
           method: "POST",
           body: JSON.stringify(request),
         })
+      );
+    });
+  });
+
+  describe("unlinkUserFromPersonProfile", () => {
+    it("sends DELETE to the profile link endpoint", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(undefined) });
+
+      await unlinkUserFromPersonProfile("res-1");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://localhost:5000/api/person-profiles/res-1/link",
+        expect.objectContaining({ method: "DELETE" }),
       );
     });
   });

@@ -224,5 +224,64 @@ describe('api-paths', () => {
     it('has correct presets applications path', () => {
       expect(API_PATHS.ADMIN.PRESETS_APPLICATIONS).toBe('/api/admin/presets/applications');
     });
+
+    it('generates correct break-glass session path (URL-encodes slug)', () => {
+      expect(API_PATHS.ADMIN.breakGlassSession('acme-corp'))
+        .toBe('/api/admin/break-glass/session/acme-corp');
+      expect(API_PATHS.ADMIN.breakGlassSession('has space'))
+        .toBe('/api/admin/break-glass/session/has%20space');
+    });
+  });
+
+  describe('Request child / move / subtree paths', () => {
+    it('generates correct requestChildren path', () => {
+      expect(API_PATHS.requestChildren('req-1')).toBe('/api/requests/req-1/children');
+    });
+
+    it('generates correct requestMove path', () => {
+      expect(API_PATHS.requestMove('req-1')).toBe('/api/requests/req-1/move');
+    });
+
+    it('generates correct requestSubtree path', () => {
+      expect(API_PATHS.requestSubtree('req-1')).toBe('/api/requests/req-1/subtree');
+    });
+
+    it('generates correct requestDescendantsCount path', () => {
+      expect(API_PATHS.requestDescendantsCount('req-1'))
+        .toBe('/api/requests/req-1/descendants/count');
+    });
+  });
+
+  describe('Availability event paths', () => {
+    it('generates correct availabilityEvents collection path', () => {
+      expect(API_PATHS.availabilityEvents('site-1'))
+        .toBe('/api/sites/site-1/availability-events');
+    });
+
+    it('generates correct availabilityEvent path', () => {
+      expect(API_PATHS.availabilityEvent('site-1', 'evt-1'))
+        .toBe('/api/sites/site-1/availability-events/evt-1');
+    });
+
+    it('generates correct availabilityEventScopes path', () => {
+      expect(API_PATHS.availabilityEventScopes('site-1', 'evt-1'))
+        .toBe('/api/sites/site-1/availability-events/evt-1/scopes');
+    });
+
+    it('generates correct availabilityEventScope path', () => {
+      expect(API_PATHS.availabilityEventScope('site-1', 'evt-1', 'scope-1'))
+        .toBe('/api/sites/site-1/availability-events/evt-1/scopes/scope-1');
+    });
+  });
+
+  describe('Resource absence paths', () => {
+    it('generates correct resourceAbsences collection path', () => {
+      expect(API_PATHS.resourceAbsences('res-1')).toBe('/api/resources/res-1/absences');
+    });
+
+    it('generates correct resourceAbsence path', () => {
+      expect(API_PATHS.resourceAbsence('res-1', 'abs-1'))
+        .toBe('/api/resources/res-1/absences/abs-1');
+    });
   });
 });

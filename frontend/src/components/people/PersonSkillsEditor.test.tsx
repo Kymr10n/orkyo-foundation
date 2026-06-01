@@ -193,4 +193,32 @@ describe('PersonSkillsEditor', () => {
       expect(getCriteria).toHaveBeenCalledTimes(2);
     });
   });
+
+  it('displays capsError message when loading capabilities fails', async () => {
+    vi.mocked(getResourceCapabilities).mockRejectedValueOnce(new Error('DB unavailable'));
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
+    await waitFor(() =>
+      expect(screen.getByText('DB unavailable')).toBeInTheDocument(),
+    );
+  });
+
+  it('displays saveError when upsert fails during save', async () => {
+    vi.mocked(getResourceCapabilities).mockResolvedValue([EXISTING_ASSIGNMENT]);
+    vi.mocked(upsertResourceCapability).mockRejectedValueOnce(new Error('Save failed'));
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
+    await waitFor(() => expect(screen.getByText('1 active')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(screen.getByText('Save failed')).toBeInTheDocument());
+  });
+
+  it('shows empty message when no criteria are available', async () => {
+    vi.mocked(getCriteria).mockResolvedValue([]);
+    render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
+    await waitFor(() =>
+      expect(
+        screen.getByText(/all person-applicable criteria are already assigned, or none exist yet/i),
+      ).toBeInTheDocument(),
+    );
+  });
 });
