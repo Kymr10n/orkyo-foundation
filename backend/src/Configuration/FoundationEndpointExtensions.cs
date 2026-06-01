@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Api.Endpoints;
 using Api.Endpoints.Admin;
 using Api.Endpoints.Reporting;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 
 namespace Api.Configuration;
 
+[ExcludeFromCodeCoverage(Justification = "Pure endpoint registration glue — no logic to unit-test")]
 public static class FoundationEndpointExtensions
 {
     /// <summary>

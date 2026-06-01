@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Builder;
 using Serilog;
 using Serilog.Events;
@@ -17,6 +18,7 @@ namespace Orkyo.Foundation.Observability;
 ///  - Reads Serilog overrides from configuration (e.g. log levels per
 ///    namespace), so callers can tune verbosity without touching this helper.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Serilog/Loki bootstrap — external sink configuration, no testable logic")]
 public static class OrkyoObservability
 {
     /// <summary>

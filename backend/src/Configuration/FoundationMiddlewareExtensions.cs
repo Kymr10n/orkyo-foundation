@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using Api.Middleware;
 using Microsoft.AspNetCore.Builder;
 
 namespace Api.Configuration;
 
+[ExcludeFromCodeCoverage(Justification = "Pure middleware registration glue — no logic to unit-test")]
 public static class FoundationMiddlewareExtensions
 {
     /// <summary>
