@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
+import { getSites } from '@foundation/src/lib/api/site-api';
 
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -15,12 +16,22 @@ vi.mock('@foundation/src/lib/api/site-api', () => ({
   ),
 }));
 
+const mockAppUser = { isSuperAdmin: false, hasSeenTour: true };
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ appUser: { isSuperAdmin: false, hasSeenTour: true } }),
+  useAuth: () => ({ appUser: mockAppUser }),
 }));
 
+const mockOpenCommandPalette = vi.fn();
 vi.mock('@foundation/src/hooks/useCommandPalette', () => ({
-  useCommandPalette: () => ({ isOpen: false, setIsOpen: vi.fn(), open: vi.fn() }),
+  useCommandPalette: () => ({ isOpen: false, setIsOpen: vi.fn(), open: mockOpenCommandPalette }),
+}));
+
+// ui-actions-store: default to tick = 0; individual tests override via mockReturnValue
+const mockUiActionsStore = vi.fn((sel: (s: Record<string, unknown>) => unknown) =>
+  sel({ commandPaletteTick: 0, tourTick: 0 }),
+);
+vi.mock('@foundation/src/store/ui-actions-store', () => ({
+  useUiActionsStore: (sel: (s: Record<string, unknown>) => unknown) => mockUiActionsStore(sel),
 }));
 
 vi.mock('./CommandPalette', () => ({
@@ -40,7 +51,7 @@ vi.mock('./TopBar', () => ({
 }));
 
 vi.mock('@foundation/src/components/tour/TourDialog', () => ({
-  TourDialog: () => null,
+  TourDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="tour-dialog" /> : null),
 }));
 
 function renderLayout() {
@@ -70,5 +81,40 @@ describe('AppLayout', () => {
     await waitFor(() => {
       expect(screen.getByTestId('feedback')).toBeInTheDocument();
     });
+  });
+
+  it('still validates when getSites returns an empty array', async () => {
+    vi.mocked(getSites).mockResolvedValueOnce([]);
+    renderLayout();
+    await waitFor(() => {
+      expect(screen.getByTestId('topbar')).toBeInTheDocument();
+      expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    });
+  });
+
+  it('still validates when getSites throws', async () => {
+    vi.mocked(getSites).mockRejectedValueOnce(new Error('Network error'));
+    renderLayout();
+    await waitFor(() => {
+      expect(screen.getByTestId('topbar')).toBeInTheDocument();
+      expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    });
+  });
+
+  it('auto-shows tour for users who have not seen it', async () => {
+    // Override hasSeenTour to false for this test
+    (mockAppUser as Record<string, unknown>).hasSeenTour = false;
+    renderLayout();
+    await waitFor(() => {
+      expect(screen.getByTestId('tour-dialog')).toBeInTheDocument();
+    });
+    // Restore
+    (mockAppUser as Record<string, unknown>).hasSeenTour = true;
+  });
+
+  it('does not auto-show tour when user has already seen it', async () => {
+    renderLayout();
+    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
+    expect(screen.queryByTestId('tour-dialog')).not.toBeInTheDocument();
   });
 });
