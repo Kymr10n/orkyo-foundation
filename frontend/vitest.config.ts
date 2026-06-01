@@ -18,5 +18,15 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/test/setup.ts",
     include: ["contracts/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    coverage: {
+      exclude: [
+        // Pure type definitions — nothing to assert at runtime
+        "src/components/utilization/scheduler-types.ts",
+        // Canvas / SVG rendering — no DOM surface to test without a real browser
+        "src/components/requests/SpaceDrawingCanvas.tsx",
+        "src/components/requests/DrawingPreviewSvg.tsx",
+        "src/components/requests/SpaceShapeSvg.tsx",
+      ],
+    },
   },
 });
