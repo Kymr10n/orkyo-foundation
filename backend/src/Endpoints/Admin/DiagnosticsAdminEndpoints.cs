@@ -156,6 +156,7 @@ public static class DiagnosticsAdminEndpoints
             Version = deploymentConfig.Version ?? "unknown",
             Build = Environment.GetEnvironmentVariable("ORKYO_BUILD_SHA") ?? "unknown",
             DeploymentMode = "self-hosted",
+            LogLevel = deploymentConfig.LogLevel,
             Database = new DatabaseStatus
             {
                 Status = dbStatus,
@@ -194,6 +195,7 @@ public sealed class DiagnosticsResponse
     public required string Version { get; init; }
     public required string Build { get; init; }
     public required string DeploymentMode { get; init; }
+    public required string LogLevel { get; init; }
     public required DatabaseStatus Database { get; init; }
     public required SmtpStatus Smtp { get; init; }
     public required AuthStatus Auth { get; init; }

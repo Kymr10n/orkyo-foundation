@@ -112,6 +112,8 @@ export function DiagnosticsTab() {
           <InfoRow label="Build" value={<code className="text-xs">{data.build}</code>} />
           <Separator />
           <InfoRow label="Deployment Mode" value={data.deploymentMode} />
+          <Separator />
+          <InfoRow label="Log Level" value={data.logLevel} />
         </CardContent>
       </Card>
 

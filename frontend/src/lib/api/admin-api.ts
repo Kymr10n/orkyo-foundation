@@ -317,6 +317,7 @@ export interface DiagnosticsResponse {
   version: string;
   build: string;
   deploymentMode: string;
+  logLevel: string;
   database: {
     status: string;
     migrationsApplied: number;

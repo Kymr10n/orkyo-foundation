@@ -4,7 +4,6 @@ import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Button } from '@foundation/src/components/ui/button';
 import { Switch } from '@foundation/src/components/ui/switch';
-import { Badge } from '@foundation/src/components/ui/badge';
 import { Separator } from '@foundation/src/components/ui/separator';
 import {
   Select,
@@ -19,7 +18,7 @@ import {
   updateAdminSettings,
 } from '@foundation/src/lib/api/admin-api';
 import { logger } from '@foundation/src/lib/core/logger';
-import { CheckCircle2, Loader2, Lock, Save, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, Lock, Save } from 'lucide-react';
 
 // Common IANA timezones — use Intl API when available, fall back to curated list
 const TIMEZONES: string[] = (() => {
@@ -234,37 +233,6 @@ export function SettingsTab() {
         </CardContent>
       </Card>
 
-      {/* ── System Info ──────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Info</CardTitle>
-          <CardDescription>
-            Deployment-managed values — these cannot be changed in the UI.
-            <span className="block mt-1 text-xs">
-              To change these, update the environment configuration and restart.
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <InfoRow label="Version" value={data.systemInfo.version} />
-          <InfoRow
-            label="Database"
-            value={data.systemInfo.databaseStatus}
-            badge={data.systemInfo.databaseStatus === 'healthy' ? 'success' : 'destructive'}
-          />
-          <InfoRow
-            label="SMTP"
-            value={data.systemInfo.smtpConfigured ? `Configured (${data.deployment.smtpHost}:${data.deployment.smtpPort})` : 'Not configured'}
-            badge={data.systemInfo.smtpConfigured ? 'success' : 'warning'}
-          />
-          <InfoRow
-            label="Auth Provider"
-            value={`${data.systemInfo.authProvider} / ${data.systemInfo.authRealm}`}
-          />
-          <InfoRow label="Log Level" value={data.deployment.logLevel} />
-        </CardContent>
-      </Card>
-
       {/* ── Save bar ─────────────────────────────────────── */}
       {(isDirty || error || successMsg) && (
         <div className="sticky bottom-4 flex items-center gap-3 rounded-lg border bg-card p-4 shadow-lg">
@@ -298,40 +266,6 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
       </Label>
       <p className="text-sm font-mono bg-muted px-3 py-2 rounded-md">{value || '—'}</p>
       <p className="text-xs text-muted-foreground">Managed via environment configuration</p>
-    </div>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-  badge,
-}: {
-  label: string;
-  value: string;
-  badge?: 'success' | 'destructive' | 'warning';
-}) {
-  return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium flex items-center gap-2">
-        {value}
-        {badge === 'success' && (
-          <Badge variant="outline" className="text-green-600 border-green-300">
-            <CheckCircle2 className="h-3 w-3 mr-1" /> OK
-          </Badge>
-        )}
-        {badge === 'destructive' && (
-          <Badge variant="destructive">
-            <XCircle className="h-3 w-3 mr-1" /> Error
-          </Badge>
-        )}
-        {badge === 'warning' && (
-          <Badge variant="outline" className="text-amber-600 border-amber-300">
-            Warning
-          </Badge>
-        )}
-      </span>
     </div>
   );
 }
