@@ -61,6 +61,29 @@ function renderPage() {
   );
 }
 
+function addLocalDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function toDateOnly(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function expectedPresetExpiry(days: number): string {
+  return toDateOnly(addLocalDays(new Date(), days));
+}
+
+function expectedPresetLabel(days: number): string {
+  return addLocalDays(new Date(), days).toLocaleDateString(undefined, {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
+}
+
 describe('ReportingApiPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -145,6 +168,112 @@ describe('ReportingApiPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Create Reporting Token' })).toBeInTheDocument();
     });
+  });
+
+  it('shows the default expiration selector in the create token dialog', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+
+    expect(screen.getByText('Expiration')).toBeInTheDocument();
+    expect(screen.getAllByText(`7 days (${expectedPresetLabel(7)})`).length).toBeGreaterThan(0);
+    expect(screen.getByText('The token will expire on the selected date')).toBeInTheDocument();
+  });
+
+  it('shows all expiration menu options', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Expiration' }));
+
+    expect(screen.getByRole('option', { name: `7 days (${expectedPresetLabel(7)})` })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: `30 days (${expectedPresetLabel(30)})` })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: `60 days (${expectedPresetLabel(60)})` })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: `90 days (${expectedPresetLabel(90)})` })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'No expiration' })).toBeInTheDocument();
+  });
+
+  it('creates a token with the default 7-day expiry', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.type(screen.getByLabelText('Name'), 'Ops Dashboard');
+    await user.click(screen.getByRole('button', { name: 'Create token' }));
+
+    await waitFor(() => {
+      expect(createReportingToken).toHaveBeenCalledWith({
+        name: 'Ops Dashboard',
+        expiresAt: expectedPresetExpiry(7),
+      });
+    });
+  });
+
+  it('creates a token with the selected preset expiry', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.type(screen.getByLabelText('Name'), 'Ops Dashboard');
+    await user.click(screen.getByRole('combobox', { name: 'Expiration' }));
+    await user.click(screen.getByRole('option', { name: `30 days (${expectedPresetLabel(30)})` }));
+    await user.click(screen.getByRole('button', { name: 'Create token' }));
+
+    await waitFor(() => {
+      expect(createReportingToken).toHaveBeenCalledWith({
+        name: 'Ops Dashboard',
+        expiresAt: expectedPresetExpiry(30),
+      });
+    });
+  });
+
+  it('creates a token without expiresAt when No expiration is selected', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.type(screen.getByLabelText('Name'), 'Ops Dashboard');
+    await user.click(screen.getByRole('combobox', { name: 'Expiration' }));
+    await user.click(screen.getByRole('option', { name: 'No expiration' }));
+
+    expect(screen.getByText('The token will not expire automatically')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Create token' }));
+
+    await waitFor(() => {
+      expect(createReportingToken).toHaveBeenCalledWith({
+        name: 'Ops Dashboard',
+      });
+    });
+  });
+
+  it('reveals the required custom date picker when Custom is selected', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: 'Custom' }));
+
+    expect(screen.getByText('Select date *')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Select date *' })).toBeInTheDocument();
+    expect(screen.getByText('dd . mm . yyyy')).toBeInTheDocument();
+  });
+
+  it('blocks token creation when custom expiry has no selected date', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.type(screen.getByLabelText('Name'), 'Ops Dashboard');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: 'Custom' }));
+
+    expect(screen.getByRole('button', { name: 'Create token' })).toBeDisabled();
+    expect(createReportingToken).not.toHaveBeenCalled();
   });
 
   it('shows revoke button only for active tokens', async () => {

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Copy, Check, Key } from "lucide-react";
+import { CalendarIcon, Loader2, Plus, Trash2, Copy, Check, Key } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
 import {
@@ -25,6 +25,15 @@ import {
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Badge } from "@foundation/src/components/ui/badge";
+import { Calendar } from "@foundation/src/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@foundation/src/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@foundation/src/components/ui/select";
 import {
   Table,
   TableBody,
@@ -40,6 +49,46 @@ import {
   revokeReportingToken,
   type ReportingTokenSummary,
 } from "@foundation/src/lib/api/reporting-tokens-api";
+
+type ExpiryMode = "7" | "30" | "60" | "90" | "custom" | "none";
+
+const EXPIRY_PRESETS: { value: ExpiryMode; days: number; label: string }[] = [
+  { value: "7", days: 7, label: "7 days" },
+  { value: "30", days: 30, label: "30 days" },
+  { value: "60", days: 60, label: "60 days" },
+  { value: "90", days: 90, label: "90 days" },
+];
+
+function addLocalDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function toDateOnly(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function fromDateOnly(value: string): Date | undefined {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
+}
+
+function getPresetExpiry(days: number): string {
+  return toDateOnly(addLocalDays(new Date(), days));
+}
+
+function formatExpiryLabel(dateOnly: string): string {
+  const date = fromDateOnly(dateOnly);
+  if (!date) return "";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -84,16 +133,35 @@ interface CreateTokenDialogProps {
 function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogProps) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
+  const [expiryMode, setExpiryMode] = useState<ExpiryMode>("7");
+  const [customExpiresAt, setCustomExpiresAt] = useState("");
+  const selectedPreset = EXPIRY_PRESETS.find((preset) => preset.value === expiryMode);
+  const expiresAt = expiryMode === "custom"
+    ? customExpiresAt
+    : selectedPreset
+      ? getPresetExpiry(selectedPreset.days)
+      : "";
+  const selectedCustomDate = customExpiresAt ? fromDateOnly(customExpiresAt) : undefined;
+  const today = fromDateOnly(toDateOnly(new Date())) ?? new Date();
+
+  useEffect(() => {
+    if (!open) return;
+    setName("");
+    setExpiryMode("7");
+    setCustomExpiresAt("");
+  }, [open]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createReportingToken({ name, ...(expiresAt ? { expiresAt } : {}) }),
+    mutationFn: () => createReportingToken({
+      name,
+      ...(expiresAt ? { expiresAt } : {}),
+    }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["reporting-tokens"] });
       onOpenChange(false);
       setName("");
-      setExpiresAt("");
+      setExpiryMode("7");
+      setCustomExpiresAt("");
       onCreated(result.rawToken);
     },
     onError: () => {
@@ -103,7 +171,7 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
 
   function handleSubmit(e: React.SubmitEvent) {
     e.preventDefault();
-    if (name.trim()) mutation.mutate();
+    if (name.trim() && (expiryMode !== "custom" || expiresAt)) mutation.mutate();
   }
 
   return (
@@ -128,20 +196,67 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="token-expires">Expiry date (optional)</Label>
-            <Input
-              id="token-expires"
-              type="date"
-              value={expiresAt}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setExpiresAt(e.target.value)}
-            />
+            <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-start">
+              <div className="space-y-1.5">
+                <Label htmlFor="token-expiration">Expiration</Label>
+                <Select value={expiryMode} onValueChange={(value) => setExpiryMode(value as ExpiryMode)}>
+                  <SelectTrigger id="token-expiration" className="h-9 min-w-[220px]">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[220px]">
+                    {EXPIRY_PRESETS.map((preset) => (
+                      <SelectItem key={preset.value} value={preset.value}>
+                        {preset.label} ({formatExpiryLabel(getPresetExpiry(preset.days))})
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom">Custom</SelectItem>
+                    <SelectItem value="none">No expiration</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {expiryMode === "custom" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="token-custom-expires">Select date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="token-custom-expires"
+                        type="button"
+                        variant="outline"
+                        className="h-9 w-full justify-start text-left font-normal"
+                      >
+                        {customExpiresAt ? formatExpiryLabel(customExpiresAt) : "dd . mm . yyyy"}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-70" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedCustomDate}
+                        onSelect={(date) => setCustomExpiresAt(date ? toDateOnly(date) : "")}
+                        disabled={(date) => date < today}
+                        autoFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {expiryMode === "none"
+                ? "The token will not expire automatically"
+                : "The token will expire on the selected date"}
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || mutation.isPending}>
+            <Button
+              type="submit"
+              disabled={!name.trim() || (expiryMode === "custom" && !expiresAt) || mutation.isPending}
+            >
               {mutation.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
               Create token
             </Button>
