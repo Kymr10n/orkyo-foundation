@@ -327,7 +327,9 @@ describe('buildInitialState', () => {
   it('applies defaultPlanningMode alongside parentRequestId', () => {
     const state = buildInitialState(null, 'parent-123', 'container');
     expect(state.parentRequestId).toBe('parent-123');
-    expect(state.planningMode).toBe('grouping');
+    // defaultPlanningMode takes precedence; the caller is responsible for
+    // passing the correct mode when a parent is set.
+    expect(state.planningMode).toBe('container');
   });
 });
 
