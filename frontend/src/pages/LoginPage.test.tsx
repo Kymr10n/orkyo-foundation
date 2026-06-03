@@ -56,6 +56,8 @@ describe('LoginPage', () => {
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledTimes(1);
     });
+    // login() takes no arguments — the prompt/login_hint passthrough was removed.
+    expect(mockLogin).toHaveBeenCalledWith();
   });
 
   it('shows redirecting spinner while auto-redirect is pending', () => {

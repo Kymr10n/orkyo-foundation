@@ -36,6 +36,7 @@ import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGl
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
+import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle size
 const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m => ({ default: m.AboutPage })));
@@ -62,11 +63,13 @@ function FloatingThemeToggle() {
 }
 
 export interface TenantAppProps {
-  /** Renders plan comparison cards on the /account Plans tab. Provided by SaaS composition. */
-  renderPlanCards?: () => React.ReactNode;
+  /** Product-specific tabs for the shared account page. */
+  accountTabs?: AccountPageExtraTab[];
+  /** Optional redirect target when Reporting API is unavailable for the tenant. */
+  reportingApiUnavailableRedirectTo?: string;
 }
 
-export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
+export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: TenantAppProps = {}) {
   const { authStage, membership, send } = useAuth();
 
   // Session expiry on a tenant subdomain — trigger the BFF login redirect.
@@ -100,7 +103,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             and be returned to the same subdomain context. */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
-        <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage renderPlanCards={renderPlanCards} /></RequireAuth>} />
+        <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage accountTabs={accountTabs} /></RequireAuth>} />
         <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
@@ -118,7 +121,7 @@ export function TenantApp({ renderPlanCards }: TenantAppProps = {}) {
             <Route path="organization" element={<OrganizationSettings />} />
             <Route path="scheduling" element={<SchedulingSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
-            <Route path="integrations" element={<ReportingApiPage />} />
+            <Route path="integrations" element={<ReportingApiPage unavailableRedirectTo={reportingApiUnavailableRedirectTo} />} />
           </Route>
 
           {/* People — nested sub-routes. Skills and absences are managed per-person

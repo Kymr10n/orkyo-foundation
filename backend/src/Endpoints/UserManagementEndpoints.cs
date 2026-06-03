@@ -54,7 +54,7 @@ public static class UserManagementEndpoints
         // Public invitation endpoints (no auth, no tenant)
         app.MapGet("/api/invitations/validate", async ([FromServices] IInvitationService invitationService, [FromQuery] string? token, CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(token) || !Guid.TryParse(token, out _))
+            if (string.IsNullOrWhiteSpace(token))
                 return Results.BadRequest(new { error = "Invalid invitation token" });
 
             var (email, expiresAt, tenantName, error) = await invitationService.ValidateInvitationAsync(token, ct);
@@ -128,7 +128,8 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> UpdateUserRole(
         HttpContext context, IUserManagementService userManagementService,
-        ICurrentPrincipal currentPrincipal, Guid userId, UpdateUserRoleRequest request, IValidator<UpdateUserRoleRequest> validator,
+        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid userId,
+        UpdateUserRoleRequest request, IValidator<UpdateUserRoleRequest> validator,
         CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
@@ -137,10 +138,10 @@ public static class UserManagementEndpoints
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
                 var (success, error) = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
-                if (error != null) throw new InvalidOperationException(error);
+                if (error != null) return Results.BadRequest(new { error });
                 if (!success) throw new KeyNotFoundException("User not found");
-                return new { message = "User role updated successfully" };
-            });
+                return Results.Ok(new { message = "User role updated successfully" });
+            }, logger, "UpdateUserRole");
 
     private static async Task<IResult> DeleteUser(
         HttpContext context, IUserManagementService userManagementService,
@@ -153,7 +154,7 @@ public static class UserManagementEndpoints
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
                 var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
-                if (error != null) throw new InvalidOperationException(error);
+                if (error != null) return Results.BadRequest(new { error });
                 if (!success) throw new KeyNotFoundException("User not found");
                 return Results.Ok(new { message = "User deleted successfully" });
             }, logger, "DeleteUser");

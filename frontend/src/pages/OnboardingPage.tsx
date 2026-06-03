@@ -25,8 +25,8 @@ interface OnboardingPageProps {
   onComplete: () => Promise<void> | void;
   /** Called when the user signs out. */
   onCancel: () => void;
-  /** Optional plan comparison section rendered below the wizard (SaaS-injected). */
-  renderPlanCards?: () => React.ReactNode;
+  /** Optional product-specific content rendered below the wizard. */
+  renderExtraContent?: () => React.ReactNode;
 }
 
 type WizardStep = "form" | "template";
@@ -67,7 +67,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
   );
 }
 
-export function OnboardingPage({ onComplete, onCancel, renderPlanCards }: OnboardingPageProps) {
+export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: OnboardingPageProps) {
   const [canCreate, setCanCreate] = useState<boolean | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [slug, setSlug] = useState("");
@@ -211,7 +211,7 @@ export function OnboardingPage({ onComplete, onCancel, renderPlanCards }: Onboar
               ? "You don't have access to any organizations yet."
               : step === "template" && showCreateForm
                 ? "Choose how to set up your workspace."
-                : "Get started by creating your organization on the Free plan."}
+                : "Get started by creating your organization."}
           </CardDescription>
 
           {/* Step indicator — only shown inside the active wizard */}
@@ -417,11 +417,10 @@ export function OnboardingPage({ onComplete, onCancel, renderPlanCards }: Onboar
         </CardFooter>
       </Card>
 
-      {/* Plan comparison — only show before wizard starts to avoid distraction */}
-      {!wizardActive && renderPlanCards && (
+      {/* Product-specific content — only show before wizard starts to avoid distraction */}
+      {!wizardActive && renderExtraContent && (
         <div className="w-full max-w-4xl">
-          <h2 className="text-lg font-semibold text-center mb-4">Available Plans</h2>
-          {renderPlanCards()}
+          {renderExtraContent()}
         </div>
       )}
     </div>

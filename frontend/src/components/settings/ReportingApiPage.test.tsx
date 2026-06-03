@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ComponentProps } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -63,14 +64,14 @@ const revokedToken: ReportingTokenSummary = {
   revokedAtUtc: '2026-01-15T00:00:00Z',
 };
 
-function renderPage() {
+function renderPage(props?: ComponentProps<typeof ReportingApiPage>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <ReportingApiPage />
+        <ReportingApiPage {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -117,6 +118,34 @@ describe('ReportingApiPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Reporting API')).toBeInTheDocument();
     });
+  });
+
+  it('shows generic unavailable message for tenants without API access', async () => {
+    authState.membership = { tier: 'Free' };
+    renderPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Reporting API access is not available for this workspace.'),
+      ).toBeInTheDocument();
+    });
+    expect(listReportingTokens).not.toHaveBeenCalled();
+  });
+
+  it('uses injected unavailable redirect target when provided', async () => {
+    authState.membership = { tier: 'Free' };
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/settings/integrations']}>
+          <ReportingApiPage unavailableRedirectTo="/account?tab=upgrade" />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('Reporting API access is not available for this workspace.')).not.toBeInTheDocument();
+    });
+    expect(listReportingTokens).not.toHaveBeenCalled();
   });
 
   it('forwards Free-tier users (token UI never renders)', async () => {

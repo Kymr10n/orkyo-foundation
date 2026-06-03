@@ -42,12 +42,11 @@ import {
   AlertCircle,
   ChevronLeft,
   Shield,
-  Sparkles,
   User,
   Pencil,
   Check,
 } from "lucide-react";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useAuth, type AppUser, type TenantMembership as AuthTenantMembership } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
 import {
   getTenantMemberships,
@@ -112,11 +111,25 @@ function isEmailChangeStatus(status: string | null): status is EmailChangeStatus
 }
 
 interface AccountPageProps {
-  /** Optional plan comparison tab content (SaaS-injected). */
-  renderPlanCards?: () => React.ReactNode;
+  /** Optional account-page tabs supplied by product composition layers. */
+  accountTabs?: AccountPageExtraTab[];
 }
 
-export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
+export interface AccountPageExtraTabContext {
+  activeMembership: AuthTenantMembership | null;
+  isSiteAdmin: boolean;
+  appUser: AppUser | null;
+}
+
+export interface AccountPageExtraTab {
+  value: string;
+  label: string;
+  icon?: React.ReactNode;
+  render: (context: AccountPageExtraTabContext) => React.ReactNode;
+  isVisible?: (context: AccountPageExtraTabContext) => boolean;
+}
+
+export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -144,6 +157,14 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const handledEmailChangeStatusRef = useRef<string | null>(null);
+  const extraTabContext: AccountPageExtraTabContext = {
+    activeMembership,
+    isSiteAdmin,
+    appUser,
+  };
+  const visibleAccountTabs = accountTabs.filter((tab) =>
+    tab.isVisible ? tab.isVisible(extraTabContext) : true
+  );
 
   // Load user profile from Keycloak
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -399,12 +420,12 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
             <Shield className="h-4 w-4" />
             Security
           </TabsTrigger>
-          {activeMembership && !isSiteAdmin && renderPlanCards && (
-            <TabsTrigger value="plans" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Plans
+          {visibleAccountTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-2">
+              {tab.icon}
+              {tab.label}
             </TabsTrigger>
-          )}
+          ))}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
@@ -750,11 +771,11 @@ export function AccountPage({ renderPlanCards }: AccountPageProps = {}) {
           </Card>
         </TabsContent>
 
-        {activeMembership && !isSiteAdmin && renderPlanCards && (
-          <TabsContent value="plans" className="mt-6">
-            {renderPlanCards()}
+        {visibleAccountTabs.map((tab) => (
+          <TabsContent key={tab.value} value={tab.value} className="mt-6">
+            {tab.render(extraTabContext)}
           </TabsContent>
-        )}
+        ))}
       </Tabs>
 
       {/* Leave Confirmation Dialog */}

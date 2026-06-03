@@ -32,6 +32,9 @@ export function LoginPage() {
 
   // Redirect-only: if no error, immediately start the BFF OIDC flow.
   // If already authenticated, navigate to the app root instead.
+  // Note: the post-signup login (with email pre-fill) is handled in SignupPage
+  // by navigating directly to the BFF, since ApexGateway is state-driven and
+  // won't render LoginPage while authenticated.
   useEffect(() => {
     if (isLoading) return;
     if (isAuthenticated) {

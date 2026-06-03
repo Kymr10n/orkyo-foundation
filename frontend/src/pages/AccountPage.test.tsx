@@ -473,21 +473,28 @@ describe("AccountPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 
-  it("shows Plans tab when membership exists and renderPlanCards is provided", async () => {
+  it("shows injected account tab when its visibility allows it", async () => {
     const Wrapper = createWrapper();
 
     render(
       <Wrapper>
-        <AccountPage renderPlanCards={() => <div>Plans content</div>} />
+        <AccountPage
+          accountTabs={[{
+            value: "extra",
+            label: "Extra",
+            render: () => <div>Extra content</div>,
+            isVisible: ({ activeMembership, isSiteAdmin }) => !!activeMembership && !isSiteAdmin,
+          }]}
+        />
       </Wrapper>,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Plans")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /extra/i })).toBeInTheDocument();
     });
   });
 
-  it("hides Plans tab when renderPlanCards is not provided", async () => {
+  it("renders only base tabs when no account tabs are provided", async () => {
     const Wrapper = createWrapper();
 
     render(
@@ -500,16 +507,23 @@ describe("AccountPage", () => {
       expect(screen.getByRole("tab", { name: /profile/i })).toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Plans")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /extra/i })).not.toBeInTheDocument();
   });
 
-  it("hides Plans tab when no membership", async () => {
+  it("hides injected account tab when its visibility rejects the current context", async () => {
     mockMembership = null;
     const Wrapper = createWrapper();
 
     render(
       <Wrapper>
-        <AccountPage />
+        <AccountPage
+          accountTabs={[{
+            value: "extra",
+            label: "Extra",
+            render: () => <div>Extra content</div>,
+            isVisible: ({ activeMembership }) => !!activeMembership,
+          }]}
+        />
       </Wrapper>,
     );
 
@@ -520,17 +534,24 @@ describe("AccountPage", () => {
     });
     expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: /plans/i }),
+      screen.queryByRole("tab", { name: /extra/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("hides Plans tab for site admin even with membership", async () => {
+  it("hides injected account tab for site admin when configured that way", async () => {
     mockIsSiteAdmin = true;
     const Wrapper = createWrapper();
 
     render(
       <Wrapper>
-        <AccountPage />
+        <AccountPage
+          accountTabs={[{
+            value: "extra",
+            label: "Extra",
+            render: () => <div>Extra content</div>,
+            isVisible: ({ isSiteAdmin }) => !isSiteAdmin,
+          }]}
+        />
       </Wrapper>,
     );
 
@@ -541,7 +562,7 @@ describe("AccountPage", () => {
     });
     expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: /plans/i }),
+      screen.queryByRole("tab", { name: /extra/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -738,9 +759,9 @@ describe("AccountPage", () => {
     expect(screen.getByText(/initiate deletion of all organization data/i)).toBeInTheDocument();
   });
 
-  it("renders all four tab triggers when renderPlanCards is provided", async () => {
+  it("renders base tab triggers plus injected account tabs", async () => {
     const Wrapper = createWrapper();
-    render(<Wrapper><AccountPage renderPlanCards={() => <div>Plans</div>} /></Wrapper>);
+    render(<Wrapper><AccountPage accountTabs={[{ value: "extra", label: "Extra", render: () => <div>Extra</div> }]} /></Wrapper>);
 
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: /profile/i })).toBeInTheDocument();
@@ -748,10 +769,10 @@ describe("AccountPage", () => {
 
     expect(screen.getByRole("tab", { name: /organizations/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /plans/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /extra/i })).toBeInTheDocument();
   });
 
-  it("renders three tab triggers when renderPlanCards is not provided", async () => {
+  it("renders three tab triggers when no injected account tabs are provided", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><AccountPage /></Wrapper>);
 
@@ -761,7 +782,7 @@ describe("AccountPage", () => {
 
     expect(screen.getByRole("tab", { name: /organizations/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /security/i })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /plans/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /extra/i })).not.toBeInTheDocument();
   });
 
   // --- Leave tenant flow ---

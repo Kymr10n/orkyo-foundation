@@ -38,12 +38,19 @@
 import { setup, assign, fromPromise } from 'xstate';
 import { runtimeConfig } from '@foundation/src/config/runtime';
 import { STORAGE_KEYS } from '@foundation/src/constants/storage';
-import { AUTH_EVENTS, AUTH_MESSAGES, TENANT_STATUS } from '@foundation/src/constants/auth';
+import {
+  AUTH_EVENTS,
+  AUTH_MESSAGES,
+  AUTH_ERROR_MESSAGES,
+  TENANT_STATUS,
+  isPublicPath,
+} from '@foundation/src/constants/auth';
 import {
   getCurrentSubdomain,
   navigateToTenantSubdomain,
   consumeBreakGlassCookie,
   getApexOrigin,
+  buildBffLoginUrl,
 } from '@foundation/src/lib/utils/tenant-navigation';
 import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
 
@@ -87,10 +94,14 @@ function getSessionOutput(event: unknown): SessionFetchOutput {
   return (event as { output: SessionFetchOutput }).output;
 }
 
-/** Check for BFF error params in the URL (e.g. ?error=identity_link_failed). */
-function getUrlAuthError(): string | null {
+/** Check for BFF error params in the URL (e.g. ?error=identity_link_failed). Exported for testing. */
+export function getUrlAuthError(): string | null {
   const param = new URLSearchParams(window.location.search).get('error');
-  return param ? `Authentication error: ${param.replace(/_/g, ' ')}` : null;
+  if (!param) return null;
+  return (
+    (AUTH_ERROR_MESSAGES as Record<string, string>)[param] ??
+    AUTH_ERROR_MESSAGES.DEFAULT
+  );
 }
 
 async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
@@ -215,12 +226,25 @@ export const authMachine = setup({
       localStorage.removeItem(STORAGE_KEYS.TENANT_SLUG);
     },
 
-    // Redirect to BFF login endpoint (full-page, browser handles OIDC)
+    // Redirect to BFF login endpoint (full-page, browser handles OIDC).
+    // Public routes (invitation signup, request-access) must never be
+    // intercepted — they render without a session by design. If the machine
+    // fires performLogin while on one of these paths, silently skip it so
+    // the page can render normally.
     performLogin: ({ event }) => {
-      const returnTo = event.type === AUTH_EVENTS.LOGIN
-        ? ((event as { returnTo?: string }).returnTo ?? window.location.href)
-        : window.location.href;
-      window.location.href = `${runtimeConfig.apiBaseUrl}/api/auth/bff/login?returnTo=${encodeURIComponent(returnTo)}`;
+      if (isPublicPath(window.location.pathname)) return;
+
+      const loginEvent = event.type === AUTH_EVENTS.LOGIN
+        ? (event as { returnTo?: string })
+        : null;
+      // Avoid using "/" or marketing paths as returnTo — they resolve to the
+      // static marketing page (both in Vite dev and in production nginx), not
+      // the React SPA. Fall back to /login?auto=1 which always loads the SPA.
+      const isMarketingRoot = window.location.pathname === '/';
+      const returnTo =
+        loginEvent?.returnTo ??
+        (isMarketingRoot ? `${window.location.origin}/login?auto=1` : window.location.href);
+      window.location.href = buildBffLoginUrl({ returnTo });
     },
 
     // Full-page redirect to the tenant subdomain. In local dev, navigateToTenantSubdomain

@@ -37,7 +37,7 @@
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, type TenantMembership } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT } from '@foundation/src/constants/auth';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
 import { TosPage } from '@foundation/src/pages/TosPage';
 import { AccountPage } from '@foundation/src/pages/AccountPage';
@@ -47,6 +47,7 @@ import { SignupPage } from '@foundation/src/pages/SignupPage';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { AuthErrorScreen } from '@foundation/src/components/ui/AuthErrorScreen';
 import { Toaster } from '@foundation/src/components/ui/sonner';
+import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
 export interface TenantSelectPageRenderArgs {
   tenants: TenantMembership[];
@@ -60,8 +61,10 @@ export interface ApexGatewayProps {
   renderAdminPage?: () => ReactNode;
   /** Renders the tenant selection page. Provided by SaaS composition. */
   renderTenantSelectPage?: (args: TenantSelectPageRenderArgs) => ReactNode;
-  /** Renders plan comparison cards on OnboardingPage and AccountPage. Provided by SaaS composition. */
-  renderPlanCards?: () => ReactNode;
+  /** Product-specific tabs for the shared account page. */
+  accountTabs?: AccountPageExtraTab[];
+  /** Product-specific content rendered below the onboarding wizard. */
+  renderOnboardingExtraContent?: () => ReactNode;
 }
 
 export function ApexGateway(props: ApexGatewayProps = {}) {
@@ -76,17 +79,20 @@ export function ApexGateway(props: ApexGatewayProps = {}) {
 function ApexGatewayInner({
   renderAdminPage,
   renderTenantSelectPage,
-  renderPlanCards,
+  accountTabs,
+  renderOnboardingExtraContent,
 }: ApexGatewayProps = {}) {
   const { authStage, sessionData, send, canAccessAdminPage, canAccessAccountPage } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
   // Public routes — no auth required, render before the pipeline.
-  if (pathname === '/create-account') {
+  // Paths kept in sync with PUBLIC_PATHS (constants/auth.ts), which the auth
+  // machine uses to skip the BFF login redirect for these same routes.
+  if (pathname === ROUTE_CREATE_ACCOUNT) {
     return <RequestAccessPage />;
   }
-  if (pathname === '/signup') {
+  if (pathname === ROUTE_SIGNUP) {
     return <SignupPage />;
   }
 
@@ -100,7 +106,7 @@ function ApexGatewayInner({
   }
 
   if (isAccountRoute && canAccessAccountPage) {
-    return <AccountPage renderPlanCards={renderPlanCards} />;
+    return <AccountPage accountTabs={accountTabs} />;
   }
 
   switch (authStage) {
@@ -147,7 +153,7 @@ function ApexGatewayInner({
         <OnboardingPage
           onComplete={() => send({ type: AUTH_EVENTS.TENANT_CREATED })}
           onCancel={() => send({ type: AUTH_EVENTS.LOGOUT })}
-          renderPlanCards={renderPlanCards}
+          renderExtraContent={renderOnboardingExtraContent}
         />
       );
 

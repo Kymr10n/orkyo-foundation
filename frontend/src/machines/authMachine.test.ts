@@ -12,6 +12,12 @@ vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToTenantSubdomain: vi.fn(),
   consumeBreakGlassCookie: (...args: unknown[]) => mockConsumeBreakGlassCookie(...(args as [])),
   getApexOrigin: () => 'http://localhost:5173',
+  // Mirror the real implementation so performLogin URL assertions are faithful.
+  buildBffLoginUrl: ({ returnTo, loginHint }: { returnTo: string; loginHint?: string }) => {
+    let url = `http://localhost:5000/api/auth/bff/login?returnTo=${encodeURIComponent(returnTo)}`;
+    if (loginHint) url += `&login_hint=${encodeURIComponent(loginHint)}`;
+    return url;
+  },
 }));
 
 // Stub browser globals
@@ -21,9 +27,10 @@ vi.stubGlobal('localStorage', {
   removeItem: vi.fn(),
 });
 
-// Prevent full-page redirects
+// Prevent full-page redirects. Writable so individual tests can swap in a
+// location with a specific pathname/origin to exercise performLogin.
 Object.defineProperty(window, 'location', {
-  value: { href: 'http://localhost:5173', search: '' },
+  value: { href: 'http://localhost:5173', search: '', pathname: '/', origin: 'http://localhost:5173' },
   writable: true,
 });
 
@@ -55,6 +62,15 @@ vi.mock('@foundation/src/constants/auth', () => ({
   AUTH_MESSAGES: {
     NETWORK_ERROR_DETAIL: 'Network error',
   },
+  AUTH_ERROR_MESSAGES: {
+    identity_link_failed: 'identity link failed message',
+    auth_failed: 'auth failed message',
+    invalid_state: 'invalid state message',
+    DEFAULT: 'default sign-in failed message',
+  },
+  PUBLIC_PATHS: ['/signup', '/create-account'],
+  isPublicPath: (pathname: string) =>
+    ['/signup', '/create-account'].some((p) => pathname === p || pathname.startsWith(`${p}/`)),
   TENANT_STATUS: {
     ACTIVE: 'active',
     SUSPENDED: 'suspended',
@@ -65,7 +81,22 @@ vi.mock('@foundation/src/constants/auth', () => ({
 }));
 
 // Import after mocks are set up
-import { authMachine } from './authMachine';
+import { authMachine, getUrlAuthError } from './authMachine';
+
+/** Reset window.location to a known shape for a given path. */
+function setLocation(opts: { pathname?: string; href?: string; search?: string } = {}) {
+  const pathname = opts.pathname ?? '/';
+  Object.defineProperty(window, 'location', {
+    value: {
+      origin: 'http://localhost:5173',
+      href: opts.href ?? `http://localhost:5173${pathname}`,
+      search: opts.search ?? '',
+      pathname,
+    },
+    writable: true,
+    configurable: true,
+  });
+}
 
 const mockUser = { id: 'u1', email: 'test@test.com', displayName: 'Test', isSiteAdmin: false, hasSeenTour: true };
 const mockMembership = { tenantId: 't1', slug: 'acme', displayName: 'Acme', role: 'admin', state: 'active', isTenantAdmin: true };
@@ -546,5 +577,69 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
     expect(snapshot.value).toBe('no_tenants');
     expect(snapshot.context.membership).toBeNull();
     actor.stop();
+  });
+});
+
+describe('performLogin (redirecting_login entry)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('skips the BFF redirect on a public path (/signup)', async () => {
+    setLocation({ pathname: '/signup', href: 'http://localhost:5173/signup' });
+    const actor = createActor(machineWithOutput({ kind: 'empty' }));
+    actor.start();
+
+    await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
+    // href must be untouched — the page renders itself instead of redirecting.
+    expect(window.location.href).toBe('http://localhost:5173/signup');
+    actor.stop();
+  });
+
+  it('on the marketing root, returnTo falls back to /login?auto=1', async () => {
+    setLocation({ pathname: '/', href: 'http://localhost:5173/' });
+    const actor = createActor(machineWithOutput({ kind: 'empty' }));
+    actor.start();
+
+    await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
+    expect(window.location.href).toContain('/api/auth/bff/login?returnTo=');
+    expect(window.location.href).toContain(
+      encodeURIComponent('http://localhost:5173/login?auto=1'),
+    );
+    actor.stop();
+  });
+
+  it('on a non-root SPA path, returnTo is the current href', async () => {
+    setLocation({ pathname: '/account', href: 'http://localhost:5173/account' });
+    const actor = createActor(machineWithOutput({ kind: 'empty' }));
+    actor.start();
+
+    await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
+    expect(window.location.href).toContain(
+      encodeURIComponent('http://localhost:5173/account'),
+    );
+    actor.stop();
+  });
+});
+
+describe('getUrlAuthError', () => {
+  it('maps a known error code to its friendly message', () => {
+    setLocation({ search: '?error=invalid_state' });
+    expect(getUrlAuthError()).toBe('invalid state message');
+  });
+
+  it('maps identity_link_failed', () => {
+    setLocation({ search: '?error=identity_link_failed' });
+    expect(getUrlAuthError()).toBe('identity link failed message');
+  });
+
+  it('falls back to DEFAULT for an unrecognized code', () => {
+    setLocation({ search: '?error=something_weird' });
+    expect(getUrlAuthError()).toBe('default sign-in failed message');
+  });
+
+  it('returns null when there is no error param', () => {
+    setLocation({ search: '' });
+    expect(getUrlAuthError()).toBeNull();
   });
 });

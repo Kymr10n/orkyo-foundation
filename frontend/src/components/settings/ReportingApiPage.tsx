@@ -373,9 +373,12 @@ function PowerBiQuickStart() {
   );
 }
 
-export function ReportingApiPage() {
+interface ReportingApiPageProps {
+  unavailableRedirectTo?: string;
+}
+
+export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProps = {}) {
   // Paid-tier gate: reporting API keys require API access (Professional+).
-  // Free tenants are forwarded to the in-app Plans tab to upgrade.
   const { isLoading: authLoading } = useAuth();
   const apiAccessAllowed = useReportingApiAvailable();
 
@@ -398,7 +401,17 @@ export function ReportingApiPage() {
   }
 
   if (!apiAccessAllowed) {
-    return <Navigate to="/account?tab=plans" replace />;
+    if (unavailableRedirectTo) {
+      return <Navigate to={unavailableRedirectTo} replace />;
+    }
+
+    return (
+      <Alert>
+        <AlertDescription>
+          Reporting API access is not available for this workspace.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (isLoading) {

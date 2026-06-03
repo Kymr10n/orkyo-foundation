@@ -47,6 +47,32 @@ public class BffAuthEndpointsTests
     }
 
     [Fact]
+    public async Task Login_WithLoginHint_ForwardsLoginHintToKeycloak()
+    {
+        // The SPA sends the OIDC-standard `login_hint` query key; it must be bound
+        // (via [FromQuery(Name = "login_hint")]) and forwarded onto the Keycloak auth URL
+        // so the email is pre-filled after invite signup.
+        var response = await _client.GetAsync(
+            "/api/auth/bff/login?returnTo=http://localhost:5173/login?auto=1&login_hint=user%40acme.com");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var location = response.Headers.Location?.ToString();
+        location.Should().NotBeNull();
+        location.Should().Contain("login_hint=user@acme.com");
+    }
+
+    [Fact]
+    public async Task Login_WithoutLoginHint_OmitsLoginHintParam()
+    {
+        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=http://localhost:5173/");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var location = response.Headers.Location?.ToString();
+        location.Should().NotBeNull();
+        location.Should().NotContain("login_hint");
+    }
+
+    [Fact]
     public async Task Login_WithInvalidReturnTo_Returns400()
     {
         var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://evil.com/phish");
@@ -104,11 +130,16 @@ public class BffAuthEndpointsTests
     }
 
     [Fact]
-    public async Task Callback_WithInvalidState_Returns400()
+    public async Task Callback_WithInvalidState_RedirectsToLoginWithError()
     {
+        // An expired/replayed state can't be recovered. Rather than a blank 400, the callback
+        // redirects to the SPA login with a friendly error code so the user sees a clear message.
         var response = await _client.GetAsync("/api/auth/bff/callback?code=test-code&state=invalid-state");
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var location = response.Headers.Location?.ToString();
+        location.Should().NotBeNull();
+        location.Should().Contain("/login?error=invalid_state");
     }
 
     // ── GET /api/auth/bff/logout ─────────────────────────────────────────────

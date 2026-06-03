@@ -63,6 +63,19 @@ public class KeycloakAdminServiceTests
     private static KeycloakAdminService BuildSimple(string body) =>
         Build(new[] { ("", HttpStatusCode.OK, body) });
 
+    /// <summary>
+    /// Build a service whose responses are produced by <paramref name="responder"/> and whose
+    /// requests (and their bodies) are captured for assertion — used where header control or
+    /// call-sequence assertions are needed (e.g. the create-user + reset-password flow).
+    /// </summary>
+    private static (KeycloakAdminService svc, CapturingHandler handler) BuildCapturing(
+        Func<HttpRequestMessage, HttpResponseMessage> responder)
+    {
+        var handler = new CapturingHandler(responder);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
+        return (new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions), handler);
+    }
+
     // Token + user lookup preamble that every method needs.
     // Test-specific routes are added BEFORE the generic user-lookup fallback so
     // they take priority when both match the same URL fragment.
@@ -261,18 +274,69 @@ public class KeycloakAdminServiceTests
 
     // ── CreateUserAsync ────────────────────────────────────────────────────
 
+    /// <summary>Responder for the happy-path create-user flow: token → user-exists check →
+    /// POST /users (201 + Location) → PUT reset-password (204).</summary>
+    private static HttpResponseMessage CreateUserResponder(HttpRequestMessage req, string newUserId = "new-user-id")
+    {
+        var url = req.RequestUri!.ToString();
+        if (url.Contains("openid-connect/token"))
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(TokenJson()) };
+        if (url.Contains("/users?email="))
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(EmptyArrayJson()) };
+        if (req.Method == HttpMethod.Put && url.Contains("/reset-password"))
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        if (req.Method == HttpMethod.Post && url.EndsWith("/users"))
+        {
+            var resp = new HttpResponseMessage(HttpStatusCode.Created);
+            resp.Headers.Location = new Uri($"http://keycloak:8080/admin/realms/test-realm/users/{newUserId}");
+            return resp;
+        }
+        return new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent($"No route: {url}") };
+    }
+
     [Fact]
     public async Task CreateUserAsync_Succeeds_WhenUserDoesNotExist()
     {
-        var svc = Build(
-        [
-            ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
-            ("/users?email=", HttpStatusCode.OK, EmptyArrayJson()),      // UserExistsAsync → not exists
-            ("/users", HttpStatusCode.Created, "")                       // Create user
-        ]);
+        var (svc, _) = BuildCapturing(req => CreateUserResponder(req));
 
         var act = () => svc.CreateUserAsync("new@example.com", "pass123", emailVerified: true);
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_SetsPassword_ViaResetPasswordEndpoint()
+    {
+        var (svc, handler) = BuildCapturing(req => CreateUserResponder(req));
+
+        await svc.CreateUserAsync("new@example.com", "s3cret-pass", emailVerified: true);
+
+        // Keycloak 26 ignores inline credentials on creation, so the password must be set by a
+        // dedicated reset-password PUT for the newly created user, carrying a non-temporary credential.
+        var pwIndex = handler.Requests.FindIndex(r =>
+            r.Method == HttpMethod.Put &&
+            r.RequestUri!.ToString().Contains("/users/new-user-id/reset-password"));
+        pwIndex.Should().BeGreaterThanOrEqualTo(0, "the password must be set via reset-password");
+        handler.Bodies[pwIndex].Should().Contain("s3cret-pass");
+        handler.Bodies[pwIndex].Should().Contain("\"temporary\":false");
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_Throws_WhenLocationHeaderMissing()
+    {
+        // POST /users succeeds but returns no Location header → cannot resolve the new user id.
+        var (svc, _) = BuildCapturing(req =>
+        {
+            var url = req.RequestUri!.ToString();
+            if (url.Contains("openid-connect/token"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(TokenJson()) };
+            if (url.Contains("/users?email="))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(EmptyArrayJson()) };
+            // POST /users → 201 with NO Location header.
+            return new HttpResponseMessage(HttpStatusCode.Created);
+        });
+
+        var act = () => svc.CreateUserAsync("new@example.com", "pass123", emailVerified: true);
+        await act.Should().ThrowAsync<KeycloakAdminException>().WithMessage("*user ID*");
     }
 
     [Fact]
@@ -698,5 +762,27 @@ public class KeycloakAdminServiceTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromResult(_factory());
+    }
+
+    /// <summary>
+    /// Records every request (method, URI, and serialized body) and delegates the response
+    /// to a caller-supplied responder. Lets tests assert on call sequence and request bodies
+    /// and lets responders set headers (e.g. a Location header on user creation).
+    /// </summary>
+    private sealed class CapturingHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+        public CapturingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) => _responder = responder;
+
+        public List<HttpRequestMessage> Requests { get; } = [];
+        public List<string> Bodies { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Bodies.Add(request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
+            Requests.Add(request);
+            return _responder(request);
+        }
     }
 }

@@ -41,14 +41,25 @@ public class KeycloakAdminService : IKeycloakAdminService
 
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/reset-password";
-        var request = CreateAdminRequest(HttpMethod.Put, url, token,
-            new { type = "password", value = newPassword, temporary = false });
-
-        var response = await _httpClient.SendAsync(request);
-        await EnsureSuccessAsync(response, "Failed to update password");
+        await SetUserPasswordAsync(userId, token, newPassword, "Failed to update password");
 
         _logger.LogInformation("Password changed for user {Sub}", keycloakSub);
+    }
+
+    /// <summary>
+    /// Set (or reset) a Keycloak user's password via the admin reset-password endpoint.
+    /// Shared by <see cref="ChangePasswordAsync"/> and <see cref="CreateUserAsync"/> so the
+    /// non-temporary password-credential shape lives in one place.
+    /// </summary>
+    private async Task SetUserPasswordAsync(
+        string userId, string token, string password, string failureMessage)
+    {
+        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/reset-password";
+        var request = CreateAdminRequest(HttpMethod.Put, url, token,
+            new { type = "password", value = password, temporary = false });
+
+        var response = await _httpClient.SendAsync(request);
+        await EnsureSuccessAsync(response, failureMessage);
     }
 
     public async Task<List<KeycloakSession>> GetUserSessionsAsync(string keycloakSub, CancellationToken ct = default)
@@ -133,6 +144,9 @@ public class KeycloakAdminService : IKeycloakAdminService
             throw new KeycloakAdminException("An account with this email already exists", 409);
         }
 
+        // Keycloak 26+ ignores inline `credentials` on user creation in some configurations.
+        // Create the user without credentials first, then set the password explicitly via
+        // the reset-password endpoint — the same mechanism used by ChangePasswordAsync.
         var userPayload = new
         {
             username = email,
@@ -141,10 +155,6 @@ public class KeycloakAdminService : IKeycloakAdminService
             lastName = lastName ?? "",
             enabled = true,
             emailVerified,
-            credentials = new[]
-            {
-                new { type = "password", value = password, temporary = false }
-            },
             requiredActions = emailVerified ? Array.Empty<string>() : new[] { "VERIFY_EMAIL" }
         };
 
@@ -163,9 +173,15 @@ public class KeycloakAdminService : IKeycloakAdminService
             throw new KeycloakAdminException("Failed to create account");
         }
 
-        // Get user ID from Location header and send verification email if needed
+        // Extract the new user's ID from the Location header, then explicitly set the
+        // password via the dedicated reset-password endpoint.
         var userId = response.Headers.Location?.ToString().Split('/').LastOrDefault();
-        if (!string.IsNullOrEmpty(userId) && !emailVerified)
+        if (string.IsNullOrEmpty(userId))
+            throw new KeycloakAdminException("Failed to retrieve user ID after creation");
+
+        await SetUserPasswordAsync(userId, token, password, "Failed to set password for new user");
+
+        if (!emailVerified)
         {
             await SendVerificationEmailAsync(userId, token);
         }

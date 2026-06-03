@@ -94,6 +94,23 @@ export function getCurrentSubdomain(): string | null {
   return extractSlugFromHostname(window.location.hostname);
 }
 
+// ── BFF login URL (pure) ─────────────────────────────────────────────────────
+
+/**
+ * Build the BFF login endpoint URL. Single source of truth for the auth-machine
+ * redirect and the post-signup redirect so the query shape stays consistent.
+ *
+ * `returnTo` is where the BFF sends the browser after Keycloak completes — it
+ * must resolve to the React SPA (e.g. `/login?auto=1`), never the static
+ * marketing root. `loginHint` (optional) pre-fills the email on the Keycloak
+ * login form via the OIDC-standard `login_hint` param.
+ */
+export function buildBffLoginUrl(opts: { returnTo: string; loginHint?: string }): string {
+  let url = `${runtimeConfig.apiBaseUrl}/api/auth/bff/login?returnTo=${encodeURIComponent(opts.returnTo)}`;
+  if (opts.loginHint) url += `&login_hint=${encodeURIComponent(opts.loginHint)}`;
+  return url;
+}
+
 // ── Navigation (side-effects — redirect the browser) ─────────────────────────
 
 /**

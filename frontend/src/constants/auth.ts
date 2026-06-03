@@ -108,3 +108,35 @@ export const AUTH_MESSAGES = {
   NETWORK_ERROR_DETAIL: 'Please check your internet connection and try again.',
   AUTH_ERROR_TITLE: 'Sign-in failed',
 } as const;
+
+/**
+ * User-facing messages for BFF auth error codes returned via the `?error=` query
+ * param (e.g. `/login?error=invalid_state`). `DEFAULT` is the fallback for any
+ * unrecognized code. Consumed by `getUrlAuthError` in the auth machine.
+ */
+export const AUTH_ERROR_MESSAGES = {
+  identity_link_failed:
+    'We could not link your identity. Please try signing in again or contact support.',
+  auth_failed:
+    'Sign-in failed. Please try again. If the problem persists, contact support.',
+  invalid_state: 'Your sign-in session expired. Please try again.',
+  DEFAULT: 'Sign-in failed. Please try again.',
+} as const;
+
+// ── Routing ───────────────────────────────────────────────────────────────────
+
+/** Public route paths that render without an authenticated session. */
+export const ROUTE_SIGNUP = '/signup';
+export const ROUTE_CREATE_ACCOUNT = '/create-account';
+
+/**
+ * Paths that render without an authenticated session by design (invitation
+ * signup, request-access). The auth machine must never redirect these to the
+ * BFF login endpoint, and `ApexGateway` renders them ahead of the auth pipeline.
+ */
+export const PUBLIC_PATHS = [ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT] as const;
+
+/** True when `pathname` is one of {@link PUBLIC_PATHS} (or a sub-path of one). */
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}

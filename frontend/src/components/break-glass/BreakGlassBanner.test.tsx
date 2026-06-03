@@ -68,6 +68,11 @@ describe('BreakGlassBanner', () => {
     mockGetStatus.mockResolvedValue(sessionStatus());
     mockRenew.mockResolvedValue(sessionStatus({ expiresAt: '2026-04-18T14:00:00Z' }));
     mockExit.mockResolvedValue(undefined);
+    // Stub window.location so the hard-nav exit fallback is assertable.
+    Object.defineProperty(window, 'location', {
+      value: { href: '' },
+      writable: true,
+    });
   });
 
   it('renders nothing when membership is not break-glass', () => {
@@ -133,6 +138,21 @@ describe('BreakGlassBanner', () => {
 
     expect(mockClearMembership).toHaveBeenCalled();
     expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+  });
+
+  it('falls back to a hard navigation to /admin in local dev (no apex)', async () => {
+    // navigateToApex returns false when baseDomain is not configured (local dev).
+    mockNavigateToApex.mockReturnValue(false);
+    mockMembership = breakGlassMembership();
+    render(<BreakGlassBanner now={() => BASE_TIME} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('break-glass-exit'));
+
+    expect(window.location.href).toBe('/admin');
   });
 
   it('fires audit exit on Exit click', async () => {

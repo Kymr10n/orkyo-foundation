@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
@@ -79,6 +80,9 @@ public static class BffAuthEndpoints
 
     private static Task<IResult> HandleLogin(
         string? returnTo,
+        // The SPA sends the OIDC-standard `login_hint` query key; bind it explicitly
+        // since the parameter name (loginHint) would otherwise not match.
+        [FromQuery(Name = "login_hint")] string? loginHint,
         IOptions<BffOptions> bffOpts,
         KeycloakOptions keycloakOptions,
         IBffPkceStateStore pkceStore,
@@ -112,6 +116,11 @@ public static class BffAuthEndpoints
                 ["code_challenge"] = codeChallenge,
                 ["code_challenge_method"] = "S256",
             };
+            // Forward `login_hint` if provided — pre-fills the email in the
+            // Keycloak login form (used after invite signup so the user doesn't
+            // have to re-type the email they just registered).
+            if (!string.IsNullOrWhiteSpace(loginHint))
+                queryParams["login_hint"] = loginHint;
             var authUrl = QueryHelpers.AddQueryString(
                 $"{keycloakOptions.Authority}/protocol/openid-connect/auth", queryParams);
 
@@ -150,7 +159,10 @@ public static class BffAuthEndpoints
             if (pkceState is null)
             {
                 logger.LogWarning("BFF callback: state not found, expired, or already consumed");
-                return Results.BadRequest(new { error = "Invalid or expired state" });
+                // Redirect to /login with a user-friendly error code so the frontend
+                // can display a "session expired, please try again" message instead of a
+                // blank or broken page.
+                return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=invalid_state");
             }
 
             var tokenResponse = await ExchangeCodeForTokensAsync(

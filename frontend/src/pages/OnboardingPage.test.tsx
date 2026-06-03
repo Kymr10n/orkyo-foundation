@@ -53,6 +53,19 @@ describe('OnboardingPage', () => {
     });
   });
 
+  it('renders injected extra content before the wizard starts', async () => {
+    render(
+      <OnboardingPage
+        {...defaultProps}
+        renderExtraContent={() => <div>Product-specific onboarding content</div>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Product-specific onboarding content')).toBeInTheDocument();
+    });
+  });
+
   it('shows create button when user can create', async () => {
     render(<OnboardingPage {...defaultProps} />);
 

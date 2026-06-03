@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
+import { buildBffLoginUrl } from "@foundation/src/lib/utils/tenant-navigation";
 import {
   ArrowLeft,
   UserPlus,
@@ -96,8 +96,25 @@ export function SignupPage() {
     }
   };
 
-  const handleBackToLogin = () => {
-    if (!navigateToApex("/")) window.location.href = "/";
+  const handleBackToLogin = (withHint = false) => {
+    if (withHint) {
+      // After successful account creation: go directly to the BFF so Keycloak
+      // gets a fresh auth request, with the email pre-filled (login_hint).
+      // returnTo must NOT be "/" — in dev the Vite marketing middleware serves
+      // marketing/index.html for "/" (no React), and in prod nginx does the same.
+      // "/login?auto=1" bypasses both and loads the React SPA, which then lets
+      // the auth machine bootstrap the fresh session and route into the app.
+      window.location.href = buildBffLoginUrl({
+        returnTo: `${window.location.origin}/login?auto=1`,
+        loginHint: invitation?.email,
+      });
+    } else {
+      // Error cases ("Go to Sign In", "Already have an account?") — navigate
+      // to /login and let the auth machine handle things. If the user is already
+      // authenticated (e.g. admin testing same-browser) the app renders normally;
+      // if not, LoginPage triggers the BFF flow.
+      window.location.href = "/login?auto=1";
+    }
   };
 
   // Loading state while validating invitation
@@ -125,7 +142,7 @@ export function SignupPage() {
           </h1>
           <p className="text-muted-foreground">{validationError}</p>
           <Button
-            onClick={handleBackToLogin}
+            onClick={() => handleBackToLogin()}
             variant="outline"
             className="mt-4"
           >
@@ -152,7 +169,7 @@ export function SignupPage() {
             Your account has been created successfully. You can now sign in with
             your credentials.
           </p>
-          <Button onClick={handleBackToLogin} className="mt-4">
+          <Button onClick={() => handleBackToLogin(true)} className="mt-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Sign In
           </Button>
@@ -256,7 +273,7 @@ export function SignupPage() {
         </form>
 
         <div className="text-center">
-          <Button variant="link" onClick={handleBackToLogin}>
+          <Button variant="link" onClick={() => handleBackToLogin()}>
             Already have an account? Sign in
           </Button>
         </div>

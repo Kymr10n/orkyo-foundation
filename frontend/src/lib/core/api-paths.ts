@@ -113,9 +113,6 @@ export const API_PATHS = {
     transferOwnership: (tenantId: string) => `/api/tenants/${tenantId}/transfer-ownership`,
   },
 
-  // Interest Registration (anonymous)
-  INTEREST: '/api/interest',
-
   // Account Security (Keycloak Admin API backed)
   ACCOUNT: {
     PASSWORD: '/api/account/password',

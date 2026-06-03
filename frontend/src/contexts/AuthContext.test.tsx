@@ -42,6 +42,11 @@ vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
   redirectToLogin: vi.fn(),
   navigateToApex: vi.fn(() => false),
   getApexOrigin: vi.fn(() => "http://localhost:5173"),
+  buildBffLoginUrl: ({ returnTo, loginHint }: { returnTo: string; loginHint?: string }) => {
+    let url = `http://localhost:5000/api/auth/bff/login?returnTo=${encodeURIComponent(returnTo)}`;
+    if (loginHint) url += `&login_hint=${encodeURIComponent(loginHint)}`;
+    return url;
+  },
 }));
 
 const mockFetch = vi.fn();
@@ -256,7 +261,8 @@ describe("AuthContext BFF session", () => {
       const getAuth = renderAuthProvider();
 
       await waitFor(() => expect(getAuth().authStage).toBe(AUTH_STAGES.UNAUTHENTICATED));
-      expect(getAuth().error).toContain("identity link failed");
+      // identity_link_failed now maps to a friendly, actionable message (AUTH_ERROR_MESSAGES).
+      expect(getAuth().error).toContain("could not link your identity");
     });
   });
 

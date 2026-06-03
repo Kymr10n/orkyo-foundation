@@ -60,6 +60,11 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
   const handleExit = useCallback(() => {
     const id = sessionId;
     clearMembership();
+    // Always do a hard navigation so the app starts with a clean auth state.
+    // A client-side navigate('/admin') after clearMembership() leaves the auth
+    // machine in a transitional state that produces a blank screen. The flash
+    // prevention is handled by the inline theme script in index.html, so a
+    // full reload is now flash-free.
     if (!navigateToApex('/admin')) {
       window.location.href = '/admin';
     }
