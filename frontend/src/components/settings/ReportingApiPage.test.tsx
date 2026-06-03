@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReportingApiPage } from './ReportingApiPage';
 import type { ReportingTokenSummary } from '@foundation/src/lib/api/reporting-tokens-api';
@@ -13,6 +14,18 @@ vi.mock('@foundation/src/lib/api/reporting-tokens-api', () => ({
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+// Tier gate: ReportingApiPage requires API access (Professional+). Mock useAuth so
+// tests control the current tier; default to Professional so the page renders.
+const { authState } = vi.hoisted(() => ({
+  authState: {
+    membership: { tier: 'Professional' } as { tier: string } | null,
+    isLoading: false,
+  },
+}));
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
+  useAuth: () => ({ membership: authState.membership, isLoading: authState.isLoading }),
 }));
 
 import {
@@ -56,7 +69,9 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ReportingApiPage />
+      <MemoryRouter>
+        <ReportingApiPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -87,6 +102,8 @@ function expectedPresetLabel(days: number): string {
 describe('ReportingApiPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.membership = { tier: 'Professional' };
+    authState.isLoading = false;
     vi.mocked(listReportingTokens).mockResolvedValue([activeToken]);
     vi.mocked(createReportingToken).mockResolvedValue({
       summary: { ...activeToken, id: 'new-tok' },
@@ -96,6 +113,25 @@ describe('ReportingApiPage', () => {
   });
 
   it('renders page heading', async () => {
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Reporting API')).toBeInTheDocument();
+    });
+  });
+
+  it('forwards Free-tier users (token UI never renders)', async () => {
+    authState.membership = { tier: 'Free' };
+    renderPage();
+    await waitFor(() => {
+      expect(screen.queryByText('Reporting API')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /New token/i })).not.toBeInTheDocument();
+    });
+    // Free tier never hits the tokens API (query is gated/disabled)
+    expect(listReportingTokens).not.toHaveBeenCalled();
+  });
+
+  it('renders for Enterprise tier', async () => {
+    authState.membership = { tier: 'Enterprise' };
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Reporting API')).toBeInTheDocument();

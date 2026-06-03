@@ -57,6 +57,11 @@ public class ReportingEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    // NOTE: the Free-tier 402 path (CreateToken tier gate) is not integration-tested here.
+    // FoundationWebApplicationFactory pins a fixed TenantContext at ServiceTier.Enterprise in DI,
+    // so every request in this harness resolves as Enterprise and the gate never fires. The gate
+    // is exercised in real deployments where TenantContext is resolved from the tenant's DB tier.
+
     [Fact]
     public async Task ListTokens_AsAdmin_ReturnsList()
     {
@@ -351,6 +356,7 @@ public class ReportingEndpointsTests
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {rawToken}");
         return client;
     }
+
 
     /// <summary>
     /// Creates a viewer (non-admin) HTTP client using the test auth scheme.

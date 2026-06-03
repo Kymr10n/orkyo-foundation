@@ -1,5 +1,6 @@
 using Api.Helpers;
 using Api.Middleware;
+using Api.Models;
 using Api.Security;
 using Api.Services;
 using Api.Services.Reporting;
@@ -52,12 +53,20 @@ public static class ReportingTokenEndpoints
         ICurrentTenant tenant,
         ICurrentPrincipal principal,
         IAuthorizationContext authContext,
+        HttpContext httpContext,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct)
     {
         return await EndpointHelpers.ExecuteAsync(async () =>
         {
             authContext.RequireRole(TenantRole.Admin);
+
+            // Reporting API keys require API access (Professional+). Free tenants are
+            // gated; Community resolves tenants as Enterprise and is unaffected.
+            if (httpContext.GetTenantContext().Tier == ServiceTier.Free)
+                return Results.Json(
+                    new { error = "upgrade_required", message = "Reporting API access requires a paid plan." },
+                    statusCode: StatusCodes.Status402PaymentRequired);
 
             if (string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest(new { error = "validation_failed", message = "Token name is required." });

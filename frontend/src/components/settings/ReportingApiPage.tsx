@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
 import { CalendarIcon, Loader2, Plus, Trash2, Copy, Check, Key } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
@@ -371,6 +374,11 @@ function PowerBiQuickStart() {
 }
 
 export function ReportingApiPage() {
+  // Paid-tier gate: reporting API keys require API access (Professional+).
+  // Free tenants are forwarded to the in-app Plans tab to upgrade.
+  const { isLoading: authLoading } = useAuth();
+  const apiAccessAllowed = useReportingApiAvailable();
+
   const [createOpen, setCreateOpen] = useState(false);
   const [rawToken, setRawToken] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<ReportingTokenSummary | null>(null);
@@ -378,7 +386,20 @@ export function ReportingApiPage() {
   const { data: tokens = [], isLoading, error } = useQuery({
     queryKey: ["reporting-tokens"],
     queryFn: listReportingTokens,
+    enabled: apiAccessAllowed,
   });
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!apiAccessAllowed) {
+    return <Navigate to="/account?tab=plans" replace />;
+  }
 
   if (isLoading) {
     return (
