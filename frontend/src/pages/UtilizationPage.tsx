@@ -439,7 +439,7 @@ export function UtilizationPage() {
             (display:none), so the active one takes h-full of the wrapper. */}
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
           <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
-            <div className="h-full flex flex-col overflow-hidden">
+            <div className="h-full flex flex-col overflow-hidden gap-3 p-3">
               {/* Collapsible Floorplan */}
               <CollapsibleFloorplan
                 isCollapsed={isFloorplanCollapsed}
@@ -452,7 +452,7 @@ export function UtilizationPage() {
               />
 
               {/* Scheduler + Requests Panel */}
-              <div className="flex-1 flex overflow-hidden bg-background">
+              <div className="flex-1 flex overflow-hidden rounded-xl border bg-background">
                 <RequestsPanel
                   requests={requests}
                   isLoading={requestsLoading}

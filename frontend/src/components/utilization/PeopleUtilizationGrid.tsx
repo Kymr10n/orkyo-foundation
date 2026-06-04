@@ -227,7 +227,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
   const totalVisible = peopleByGroup.reduce((s, g) => s + g.people.length, 0);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-background" data-testid="people-utilization-grid">
+    <div className="h-full flex flex-col overflow-hidden rounded-xl border bg-background m-3" data-testid="people-utilization-grid">
       {/* Legend + Search strip */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">

@@ -138,7 +138,7 @@ export function CollapsibleFloorplan({
   const fetchError = floorplanError || spacesError;
 
   return (
-    <div className="border-b bg-card">
+    <div className="rounded-xl border bg-card overflow-hidden">
       {/* Header - Always visible */}
       <div className="h-10 px-4 flex items-center justify-between border-b">
         <div className="flex items-center gap-2">
