@@ -195,32 +195,34 @@ export function OrkyoDataTable<TData>({
       ) : table.getRowModel().rows.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">{emptyMessage}</div>
       ) : (
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id}>
-                {hg.headers.map((header) => (
-                  <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="border rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((header) => (
+                    <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       {pageSize && !isLoading && !error && table.getRowModel().rows.length > 0 && (
