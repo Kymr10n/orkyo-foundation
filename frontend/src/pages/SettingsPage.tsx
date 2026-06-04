@@ -63,7 +63,7 @@ export function SettingsPage() {
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`/settings/${v}`)}
+        onChange={(v) => navigate(`/settings/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>
