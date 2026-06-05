@@ -11,6 +11,7 @@ import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImp
 import { exportSites, importSites } from '@foundation/src/lib/utils/export-handlers';
 import { useSites, useDeleteSite, useCreateSite } from "@foundation/src/hooks/useSites";
 import { logger } from "@foundation/src/lib/core/logger";
+import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 
 export function SiteSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -71,6 +72,76 @@ export function SiteSettings() {
     }
   };
 
+  const columns: ColumnDef<Site>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-semibold">{row.original.name}</span>
+          <span className="text-xs text-muted-foreground font-mono">[{row.original.code}]</span>
+        </div>
+      ),
+    },
+    {
+      id: 'address',
+      header: 'Address',
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{row.original.address ?? '—'}</span>
+      ),
+    },
+    {
+      id: 'description',
+      header: 'Description',
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground truncate max-w-sm">
+          {row.original.description ?? '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 96,
+      cell: ({ row }) => {
+        const site = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); setEditingSite(site); }}
+              aria-label={`Edit ${site.name}`}
+              title="Edit site"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); handleDelete(site); }}
+              className="text-destructive hover:text-destructive"
+              aria-label={`Delete ${site.name}`}
+              title="Delete site"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -120,57 +191,13 @@ export function SiteSettings() {
           </Button>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {sites.map((site) => (
-            <Card key={site.id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <h3 className="font-semibold">{site.name}</h3>
-                    <span className="text-xs text-muted-foreground font-mono">
-                      [{site.code}]
-                    </span>
-                  </div>
-
-                  {site.description && (
-                    <p className="text-sm text-muted-foreground mb-2 ml-7">
-                      {site.description}
-                    </p>
-                  )}
-
-                  {site.address && (
-                    <p className="text-xs text-muted-foreground ml-7">
-                      📍 {site.address}
-                    </p>
-                  )}
-
-                  <p className="text-xs text-muted-foreground mt-2 ml-7">
-                    Created: {new Date(site.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 ml-4">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setEditingSite(site)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(site)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <OrkyoDataTable
+          columns={columns}
+          data={sites}
+          filterColumn="name"
+          filterPlaceholder="Search sites..."
+          onRowClick={(site) => setEditingSite(site)}
+        />
       )}
 
       {/* Dialogs */}

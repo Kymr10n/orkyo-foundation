@@ -110,7 +110,7 @@ describe('RequestListView', () => {
     expect(screen.getByText('Schedule')).toBeInTheDocument();
     expect(screen.getByText('Duration')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
-    expect(screen.getByText('Actions')).toBeInTheDocument();
+    // Actions column header renders null (icon-only column)
   });
 
   it('renders all requests', () => {
@@ -163,8 +163,8 @@ describe('RequestListView', () => {
 
   it('renders empty when no requests', () => {
     renderListView({ requests: [] });
-    expect(screen.getByText('Name')).toBeInTheDocument();
-    // No data rows
+    // OrkyoDataTable hides the table when empty — assert the empty message instead
+    expect(screen.getByText('No requests found.')).toBeInTheDocument();
     expect(screen.queryByText('Parent Group')).not.toBeInTheDocument();
   });
 

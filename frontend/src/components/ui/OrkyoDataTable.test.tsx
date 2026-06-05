@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { OrkyoDataTable, type ColumnDef } from './OrkyoDataTable';
 
@@ -312,5 +312,53 @@ describe('OrkyoDataTable', () => {
     );
     const [prev] = screen.getAllByRole('button');
     expect(prev).toBeDisabled();
+  });
+
+  // ── Row interaction (onRowClick) ─────────────────────────────────────────
+
+  it('calls onRowClick with the row data when a row is clicked', () => {
+    const onRowClick = vi.fn();
+    render(<OrkyoDataTable columns={columns} data={makeRows(3)} onRowClick={onRowClick} />);
+    fireEvent.click(screen.getByText('Item 2'));
+    expect(onRowClick).toHaveBeenCalledOnce();
+    expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1', name: 'Item 2' }));
+  });
+
+  it('marks rows as clickable only when onRowClick is provided', () => {
+    const { rerender } = render(<OrkyoDataTable columns={columns} data={makeRows(1)} />);
+    // Without onRowClick the data row carries no cursor-pointer affordance.
+    const plainRow = screen.getByText('Item 1').closest('tr');
+    expect(plainRow?.className).not.toContain('cursor-pointer');
+
+    rerender(<OrkyoDataTable columns={columns} data={makeRows(1)} onRowClick={vi.fn()} />);
+    const clickableRow = screen.getByText('Item 1').closest('tr');
+    expect(clickableRow?.className).toContain('cursor-pointer');
+  });
+
+  it('does not fire onRowClick when an action cell stops propagation', async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const onAction = vi.fn();
+    const cols: ColumnDef<Row>[] = [
+      { accessorKey: 'name', header: 'Name' },
+      {
+        id: 'actions',
+        header: () => null,
+        cell: () => (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction();
+            }}
+          >
+            Act
+          </button>
+        ),
+      },
+    ];
+    render(<OrkyoDataTable columns={cols} data={makeRows(1)} onRowClick={onRowClick} />);
+    await user.click(screen.getByRole('button', { name: 'Act' }));
+    expect(onAction).toHaveBeenCalledOnce();
+    expect(onRowClick).not.toHaveBeenCalled();
   });
 });

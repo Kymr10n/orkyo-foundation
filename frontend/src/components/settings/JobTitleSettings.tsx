@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
-import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
+import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { JobTitleEditDialog } from './JobTitleEditDialog';
 import {
@@ -33,9 +33,49 @@ export function JobTitleSettings() {
     deleteMutation.mutate(jt.id);
   };
 
-  if (isLoading) {
-    return <div className="text-muted-foreground">Loading job titles...</div>;
-  }
+  const columns: ColumnDef<JobTitleInfo>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.original.name}</span>
+          {!row.original.isActive && <Badge variant="outline">Inactive</Badge>}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'description',
+      header: 'Description',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-sm">
+          {row.original.description || '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 100,
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="icon" onClick={() => setEditing(row.original)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleDelete(row.original)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const errorMsg = error instanceof Error ? error.message : error ? 'Failed to load job titles' : null;
 
   return (
     <div className="space-y-6">
@@ -61,53 +101,15 @@ export function JobTitleSettings() {
         </label>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm text-destructive">
-            {error instanceof Error ? error.message : 'Failed to load job titles'}
-          </p>
-        </div>
-      )}
-
-      {jobTitles.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">No job titles defined yet</p>
-          <Button onClick={() => setCreateOpen(true)} variant="outline">
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first job title
-          </Button>
-        </Card>
-      ) : (
-        <div className="grid gap-2">
-          {jobTitles.map((jt) => (
-            <Card key={jt.id} className="p-4 flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">{jt.name}</h3>
-                  {!jt.isActive && <Badge variant="outline">Inactive</Badge>}
-                </div>
-                {jt.description && (
-                  <p className="text-sm text-muted-foreground mt-1">{jt.description}</p>
-                )}
-              </div>
-              <div className="flex gap-1 ml-4">
-                <Button variant="ghost" size="icon" onClick={() => setEditing(jt)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(jt)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+      <OrkyoDataTable
+        columns={columns}
+        data={jobTitles}
+        isLoading={isLoading}
+        error={errorMsg}
+        emptyMessage="No job titles defined yet."
+        filterColumn="name"
+        filterPlaceholder="Search job titles..."
+      />
 
       <JobTitleEditDialog
         jobTitle={null}

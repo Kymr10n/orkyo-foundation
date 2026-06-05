@@ -61,7 +61,8 @@ describe('JobTitleSettings', () => {
   it('shows loading state initially', () => {
     vi.mocked(getJobTitles).mockReturnValue(new Promise(() => {}));
     renderComponent();
-    expect(screen.getByText('Loading job titles...')).toBeInTheDocument();
+    // OrkyoDataTable renders a spinner (Loader2) during isLoading — no text to assert
+    expect(screen.queryByText('Senior Engineer')).not.toBeInTheDocument();
   });
 
   it('renders job titles after loading', async () => {
@@ -90,7 +91,7 @@ describe('JobTitleSettings', () => {
     vi.mocked(getJobTitles).mockResolvedValue([]);
     renderComponent();
     await waitFor(() => {
-      expect(screen.getByText('No job titles defined yet')).toBeInTheDocument();
+      expect(screen.getByText('No job titles defined yet.')).toBeInTheDocument();
     });
   });
 

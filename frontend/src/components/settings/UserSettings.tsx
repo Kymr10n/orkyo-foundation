@@ -7,7 +7,6 @@ import {
   AlertCircle,
   Mail,
   Shield,
-  Clock,
   X,
   RefreshCw,
 } from "lucide-react";
@@ -30,6 +29,7 @@ import { EditUserRoleDialog } from "./EditUserRoleDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
+import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 
 export function UserSettings() {
   const queryClient = useQueryClient();
@@ -183,6 +183,163 @@ export function UserSettings() {
     }
   };
 
+  const invitationColumns: ColumnDef<Invitation>[] = [
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-medium">{row.original.email}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      cell: ({ row }) => (
+        <Badge variant="outline" className={getRoleBadgeColor(row.original.role)}>
+          {row.original.role}
+        </Badge>
+      ),
+    },
+    {
+      id: 'sent',
+      header: 'Sent',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'expires',
+      header: 'Expires',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.expiresAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 96,
+      cell: ({ row }) => {
+        const invitation = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); handleResendInvitation(invitation); }}
+              disabled={resendMutation.isPending}
+              title="Resend invitation"
+              aria-label={`Resend invitation to ${invitation.email}`}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); handleCancelInvitation(invitation); }}
+              disabled={cancelMutation.isPending}
+              className="text-destructive hover:text-destructive"
+              title="Cancel invitation"
+              aria-label={`Cancel invitation for ${invitation.email}`}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const userColumns: ColumnDef<UserWithRole>[] = [
+    {
+      accessorKey: 'email',
+      header: 'User',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="font-semibold">{row.original.displayName}</p>
+            <p className="text-sm text-muted-foreground">{row.original.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      cell: ({ row }) => (
+        <Badge variant="outline" className={getRoleBadgeColor(row.original.role)}>
+          {row.original.role}
+        </Badge>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <Badge className={getStatusBadgeColor(row.original.status)}>
+          {row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'lastLogin',
+      header: 'Last Login',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.original.lastLoginAt ? new Date(row.original.lastLoginAt).toLocaleDateString() : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 96,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); setEditingUser(user); }}
+              title="Edit user role"
+              aria-label={`Edit ${user.displayName}`}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
+              disabled={deleteMutation.isPending}
+              className="text-destructive hover:text-destructive"
+              title="Remove user"
+              aria-label={`Remove ${user.displayName}`}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   const isLoading = usersLoading || invitationsLoading;
   const error = usersError || invitationsError;
 
@@ -235,59 +392,11 @@ export function UserSettings() {
             <Mail className="h-4 w-4" />
             Pending Invitations ({invitations.length})
           </h3>
-          <div className="grid gap-3">
-            {invitations.map((invitation) => (
-              <Card key={invitation.id} className="p-4 bg-muted/50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-medium">{invitation.email}</span>
-                      <Badge
-                        variant="outline"
-                        className={getRoleBadgeColor(invitation.role)}
-                      >
-                        {invitation.role}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground ml-7">
-                      <span>
-                        <Clock className="h-3 w-3 inline mr-1" />
-                        Expires:{" "}
-                        {new Date(invitation.expiresAt).toLocaleDateString()}
-                      </span>
-                      <span>
-                        Sent: {new Date(invitation.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleResendInvitation(invitation)}
-                      disabled={resendMutation.isPending}
-                      title="Resend invitation"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleCancelInvitation(invitation)}
-                      disabled={cancelMutation.isPending}
-                      className="text-destructive hover:text-destructive"
-                      title="Cancel invitation"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <OrkyoDataTable
+            columns={invitationColumns}
+            data={invitations}
+            emptyMessage="No pending invitations."
+          />
         </div>
       )}
 
@@ -302,67 +411,13 @@ export function UserSettings() {
             </Button>
           </Card>
         ) : (
-          <div className="grid gap-3">
-            {users.map((user) => (
-              <Card key={user.id} className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Shield className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <div>
-                        <h3 className="font-semibold">{user.displayName}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={getRoleBadgeColor(user.role)}
-                      >
-                        {user.role}
-                      </Badge>
-                      <Badge className={getStatusBadgeColor(user.status)}>
-                        {user.status}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground ml-7">
-                      <span>
-                        Created: {new Date(user.createdAt).toLocaleDateString()}
-                      </span>
-                      {user.lastLoginAt && (
-                        <span>
-                          Last login:{" "}
-                          {new Date(user.lastLoginAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEditingUser(user)}
-                      title="Edit user role"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteUser(user)}
-                      disabled={deleteMutation.isPending}
-                      className="text-destructive hover:text-destructive"
-                      title="Remove user"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <OrkyoDataTable
+            columns={userColumns}
+            data={users}
+            filterColumn="email"
+            filterPlaceholder="Search users..."
+            onRowClick={(user) => setEditingUser(user)}
+          />
         )}
       </div>
 

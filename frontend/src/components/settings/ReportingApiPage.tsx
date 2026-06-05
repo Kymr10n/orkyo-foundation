@@ -37,15 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@foundation/src/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@foundation/src/components/ui/table";
 import { SettingsPageHeader } from "./SettingsPageHeader";
+import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 import {
   listReportingTokens,
   createReportingToken,
@@ -392,6 +385,68 @@ export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProp
     enabled: apiAccessAllowed,
   });
 
+  const columns: ColumnDef<ReportingTokenSummary>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    },
+    {
+      id: 'prefix',
+      header: 'Prefix',
+      cell: ({ row }) => (
+        <span className="font-mono text-sm text-muted-foreground">{row.original.tokenPrefix}…</span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => <TokenStatusBadge token={row.original} />,
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAtUtc)}</span>
+      ),
+    },
+    {
+      id: 'lastUsed',
+      header: 'Last used',
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{formatDate(row.original.lastUsedAtUtc)}</span>
+      ),
+    },
+    {
+      id: 'expires',
+      header: 'Expires',
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{formatDate(row.original.expiresAtUtc)}</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 56,
+      cell: ({ row }) => {
+        const token = row.original;
+        return token.isActive ? (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={(e) => { e.stopPropagation(); setRevokeTarget(token); }}
+              aria-label={`Revoke ${token.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : null;
+      },
+    },
+  ];
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -447,54 +502,12 @@ export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProp
           No reporting tokens yet. Create one to connect a BI tool.
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Prefix</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last used</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tokens.map((token) => (
-              <TableRow key={token.id}>
-                <TableCell className="font-medium">{token.name}</TableCell>
-                <TableCell className="font-mono text-sm text-muted-foreground">
-                  {token.tokenPrefix}…
-                </TableCell>
-                <TableCell>
-                  <TokenStatusBadge token={token} />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(token.createdAtUtc)}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(token.lastUsedAtUtc)}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(token.expiresAtUtc)}
-                </TableCell>
-                <TableCell>
-                  {token.isActive && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => setRevokeTarget(token)}
-                      aria-label={`Revoke ${token.name}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <OrkyoDataTable
+          columns={columns}
+          data={tokens}
+          filterColumn="name"
+          filterPlaceholder="Search tokens..."
+        />
       )}
 
       <PowerBiQuickStart />

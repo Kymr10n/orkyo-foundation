@@ -5,6 +5,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
+import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 import { EditCriterionDialog } from './EditCriterionDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
@@ -90,6 +91,122 @@ export function CriteriaSettings() {
     ? criteria
     : criteria.filter((c) => c.resourceTypeKeys?.includes(activeFilter));
 
+  const columns: ColumnDef<Criterion>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <span className="font-mono text-sm font-semibold">{row.original.name}</span>
+      ),
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Badge className={getDataTypeColor(row.original.dataType)}>
+            {row.original.dataType}
+          </Badge>
+          {row.original.unit && (
+            <span className="text-xs text-muted-foreground">({row.original.unit})</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'appliesTo',
+      header: 'Applies To',
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.resourceTypeKeys?.map((key) => (
+            <Badge key={key} variant="outline" className="text-xs">
+              {RESOURCE_TYPE_LABELS[key]}
+            </Badge>
+          ))}
+        </div>
+      ),
+    },
+    {
+      id: 'description',
+      header: 'Description',
+      cell: ({ row }) => {
+        const { description, enumValues } = row.original;
+        if (!description && (!enumValues || enumValues.length === 0)) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="max-w-md">
+            {description && (
+              <p className="text-sm text-muted-foreground truncate">{description}</p>
+            )}
+            {enumValues && enumValues.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {enumValues.map((value) => (
+                  <Badge key={value} variant="outline" className="text-xs">
+                    {value}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 96,
+      cell: ({ row }) => {
+        const criterion = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingCriterion(criterion);
+              }}
+              aria-label={`Edit ${criterion.name}`}
+              title="Edit criterion"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(criterion);
+              }}
+              className="text-destructive hover:text-destructive"
+              aria-label={`Delete ${criterion.name}`}
+              title="Delete criterion"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  // Context-aware empty message for tabs that filter to zero rows. The truly-empty
+  // case (no criteria at all) is handled by the CTA card below, not the table.
+  const emptyMessage =
+    activeFilter === 'all'
+      ? 'No criteria match your search.'
+      : `No criteria defined for ${RESOURCE_TYPE_LABELS[activeFilter]} yet. Create a criterion and mark it as applicable to ${RESOURCE_TYPE_LABELS[activeFilter]}.`;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -134,86 +251,23 @@ export function CriteriaSettings() {
       </Tabs>
 
       {/* Criteria List */}
-      {filteredCriteria.length === 0 ? (
+      {criteria.length === 0 ? (
         <Card className="p-12 text-center">
-          {activeFilter === 'all' ? (
-            <>
-              <p className="text-muted-foreground mb-4">No criteria defined yet</p>
-              <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Create your first criterion
-              </Button>
-            </>
-          ) : (
-            <p className="text-muted-foreground">
-              No criteria defined for {RESOURCE_TYPE_LABELS[activeFilter as ResourceTypeKey]} yet.
-              Create a criterion and mark it as applicable to {RESOURCE_TYPE_LABELS[activeFilter as ResourceTypeKey]}.
-            </p>
-          )}
+          <p className="text-muted-foreground mb-4">No criteria defined yet</p>
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+            <Plus className="h-4 w-4 mr-2" />
+            Create your first criterion
+          </Button>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {filteredCriteria.map((criterion) => (
-            <Card key={criterion.id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold font-mono text-sm">{criterion.name}</h3>
-                    <Badge className={getDataTypeColor(criterion.dataType)}>
-                      {criterion.dataType}
-                    </Badge>
-                    {criterion.unit && (
-                      <span className="text-xs text-muted-foreground">({criterion.unit})</span>
-                    )}
-                    {criterion.resourceTypeKeys?.map((key) => (
-                      <Badge key={key} variant="outline" className="text-xs">
-                        {RESOURCE_TYPE_LABELS[key]}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  {criterion.description && (
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {criterion.description}
-                    </p>
-                  )}
-
-                  {criterion.enumValues && criterion.enumValues.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {criterion.enumValues.map((value) => (
-                        <Badge key={value} variant="outline" className="text-xs">
-                          {value}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Created: {new Date(criterion.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 ml-4">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setEditingCriterion(criterion)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(criterion)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <OrkyoDataTable
+          columns={columns}
+          data={filteredCriteria}
+          emptyMessage={emptyMessage}
+          filterColumn="name"
+          filterPlaceholder="Search criteria..."
+          onRowClick={(criterion) => setEditingCriterion(criterion)}
+        />
       )}
 
       {/* Dialogs */}
