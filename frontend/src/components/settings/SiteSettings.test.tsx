@@ -291,13 +291,13 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    // Find the card containing Building A
+    // Find the table row containing Building A
     const buildingAText = screen.getByText('Building A');
-    const buildingACard = buildingAText.closest('div[class*="shadow"]'); // Find closest div with shadow class
-    expect(buildingACard).toBeInTheDocument();
+    const buildingARow = buildingAText.closest('tr');
+    expect(buildingARow).toBeInTheDocument();
 
-    // Get all buttons in that card (Edit and Delete)
-    const buttons = within(buildingACard as HTMLElement).getAllByRole('button');
+    // Get all buttons in that row (Edit and Delete)
+    const buttons = within(buildingARow as HTMLElement).getAllByRole('button');
     await user.click(buttons[1]); // Edit is 0, Delete is 1
 
     await waitFor(() => {

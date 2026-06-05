@@ -211,7 +211,7 @@ export function CollapsibleFloorplan({
                   zoom={1}
                   fitMode="contain"
                   spaceColors={spaceColors}
-                  className="h-full w-full border border-border rounded-lg"
+                  className="h-full w-full"
                 />
 
                 {/* Space status legend */}

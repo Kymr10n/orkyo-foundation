@@ -253,10 +253,12 @@ describe('CriteriaSettings', () => {
       await waitFor(() => {
         expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
       });
-      // Use function matcher to find the empty-state paragraph across split text nodes
+      // Empty state is rendered in a leaf div (no child elements) by OrkyoDataTable
       expect(
         screen.getByText((_content, element) =>
-          element?.tagName === 'P' && (element?.textContent ?? '').includes('No criteria defined for'),
+          element?.tagName === 'DIV' &&
+          element.children.length === 0 &&
+          (element?.textContent ?? '').includes('No criteria defined for'),
         ),
       ).toBeInTheDocument();
     });

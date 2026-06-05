@@ -49,6 +49,10 @@ export interface OrkyoDataTableProps<TData> {
   totalCount?: number;
   page?: number;
   onPageChange?: (page: number) => void;
+
+  // Row interaction — when provided, rows become clickable (cursor + onClick).
+  // Action-button cells must call e.stopPropagation() to avoid triggering this.
+  onRowClick?: (row: TData) => void;
 }
 
 export function OrkyoDataTable<TData>({
@@ -66,6 +70,7 @@ export function OrkyoDataTable<TData>({
   totalCount,
   page: controlledPage,
   onPageChange,
+  onRowClick,
 }: OrkyoDataTableProps<TData>) {
   const isServerFilter = onFilterChange !== undefined;
   const isServerPagination = onPageChange !== undefined;
@@ -195,8 +200,8 @@ export function OrkyoDataTable<TData>({
       ) : table.getRowModel().rows.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">{emptyMessage}</div>
       ) : (
-        <div className="border rounded-md overflow-hidden">
-          <Table>
+        <div>
+          <Table className="border-separate border-spacing-y-1.5">
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
@@ -212,7 +217,14 @@ export function OrkyoDataTable<TData>({
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  className={
+                    'bg-card shadow-sm hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
+                    (onRowClick ? ' cursor-pointer' : '')
+                  }
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

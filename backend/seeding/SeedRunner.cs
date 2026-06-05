@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Seed;
 public sealed record SeedReport(
     int Sites, int Spaces, int JobTitles, int Departments, int People,
     int PersonGroups, int PersonGroupMembers,
+    int Criteria,
     int Requests, int Assignments, TimeSpan Duration);
 
 /// <summary>
@@ -61,6 +62,8 @@ public static class SeedRunner
         var personGroupMemberCount = await PeopleFactories.SeedPersonGroupMembersAsync(
             conn, tx, faker, people, personGroups, personTypeId);
 
+        var criteria = await CriteriaFactory.SeedCriteriaAsync(conn, tx, scale, faker);
+
         var requests = await WorkItemFactories.SeedRequestsAsync(
             conn, tx, profile, scale, faker, timing);
         var assignmentCount = await WorkItemFactories.SeedAssignmentsAsync(
@@ -77,6 +80,7 @@ public static class SeedRunner
             People: people.Count,
             PersonGroups: personGroups.Count,
             PersonGroupMembers: personGroupMemberCount,
+            Criteria: criteria.Count,
             Requests: requests.Count,
             Assignments: assignmentCount,
             Duration: sw.Elapsed);

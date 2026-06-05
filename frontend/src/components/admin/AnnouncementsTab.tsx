@@ -7,9 +7,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@foundation/src/components/ui/table';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
+import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -86,6 +86,99 @@ export function AnnouncementsTab() {
     }
   };
 
+  const columns: ColumnDef<Announcement>[] = [
+    {
+      accessorKey: 'title',
+      header: 'Title',
+      cell: ({ row }) => {
+        const a = row.original;
+        return (
+          <div className={`flex items-center gap-2 ${a.isExpired ? 'opacity-50' : ''}`}>
+            {a.isImportant && (
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+            )}
+            <span className="font-medium truncate max-w-[260px]">{a.title}</span>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const a = row.original;
+        return a.isExpired ? (
+          <Badge variant="secondary">Expired</Badge>
+        ) : a.isImportant ? (
+          <Badge variant="destructive">Important</Badge>
+        ) : (
+          <Badge>Active</Badge>
+        );
+      },
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      cell: ({ row }) => {
+        const a = row.original;
+        return (
+          <div className={`text-sm text-muted-foreground whitespace-nowrap ${a.isExpired ? 'opacity-50' : ''}`}>
+            <div>{new Date(a.createdAt).toLocaleDateString()}</div>
+            <div className="text-xs">{a.createdByEmail}</div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'expires',
+      header: 'Expires',
+      cell: ({ row }) => (
+        <span className={`text-sm text-muted-foreground whitespace-nowrap ${row.original.isExpired ? 'opacity-50' : ''}`}>
+          {new Date(row.original.expiresAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: 'revision',
+      header: 'Rev',
+      cell: ({ row }) => (
+        <span className={`text-sm text-muted-foreground ${row.original.isExpired ? 'opacity-50' : ''}`}>
+          {row.original.revision}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => null,
+      size: 96,
+      cell: ({ row }) => {
+        const a = row.original;
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={(e) => { e.stopPropagation(); setEditingAnnouncement(a); }}
+              aria-label={`Edit ${a.title}`}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              onClick={(e) => { e.stopPropagation(); setDeletingAnnouncement(a); }}
+              aria-label={`Delete ${a.title}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   if (loading) {
     return (
       <Card>
@@ -121,75 +214,13 @@ export function AnnouncementsTab() {
             </div>
           )}
 
-          {announcements.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No announcements yet. Create one to get started.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[300px]">Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Rev</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {announcements.map((a) => (
-                  <TableRow key={a.id} className={a.isExpired ? 'opacity-50' : ''}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {a.isImportant && (
-                          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                        )}
-                        <span className="font-medium truncate max-w-[260px]">{a.title}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {a.isExpired ? (
-                        <Badge variant="secondary">Expired</Badge>
-                      ) : a.isImportant ? (
-                        <Badge variant="destructive">Important</Badge>
-                      ) : (
-                        <Badge>Active</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      <div>{new Date(a.createdAt).toLocaleDateString()}</div>
-                      <div className="text-xs">{a.createdByEmail}</div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {new Date(a.expiresAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{a.revision}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setEditingAnnouncement(a)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => setDeletingAnnouncement(a)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <OrkyoDataTable
+            columns={columns}
+            data={announcements}
+            filterColumn="title"
+            filterPlaceholder="Search announcements..."
+            emptyMessage="No announcements yet. Create one to get started."
+          />
         </CardContent>
       </Card>
 
