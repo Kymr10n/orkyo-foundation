@@ -34,7 +34,7 @@ const ConflictItem = React.memo(function ConflictItem({
     <div
       role="button"
       tabIndex={0}
-      className={`border rounded-lg p-4 hover:bg-accent/50 transition-colors cursor-pointer ${
+      className={`border rounded-lg p-4 bg-card text-card-foreground shadow-sm hover:bg-accent/50 transition-colors cursor-pointer ${
         isHighlighted ? "ring-2 ring-destructive/60 bg-destructive/5" : ""
       }`}
       onClick={() => onOpen(item.request)}
