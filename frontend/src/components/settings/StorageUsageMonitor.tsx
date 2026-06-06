@@ -1,12 +1,6 @@
 import { cn } from "@foundation/src/lib/utils";
 import type { NumericQuota } from "@foundation/src/lib/api/quotas-api";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-}
+import { formatBytes } from "@foundation/src/lib/quotas/quota-display";
 
 interface StorageUsageMonitorProps {
   quota: NumericQuota;

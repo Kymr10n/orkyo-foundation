@@ -3,20 +3,7 @@ import { StorageUsageMonitor } from "./StorageUsageMonitor";
 import { Card, CardContent, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import type { NumericQuota, Entitlement } from "@foundation/src/lib/api/quotas-api";
-
-const QUOTA_LABELS: Record<string, string> = {
-  active_seats: "Members",
-  production_sites: "Sites",
-  spaces: "Spaces",
-  storage_bytes: "Storage",
-};
-
-const ENTITLEMENT_LABELS: Record<string, string> = {
-  api_access_enabled: "API Access",
-  audit_log_enabled: "Audit Log",
-  automated_backups_enabled: "Automated Backups",
-  data_export_enabled: "Data Export",
-};
+import { QUOTA_LABELS, ENTITLEMENT_LABELS } from "@foundation/src/lib/quotas/quota-display";
 
 function formatCount(value: number): string {
   return value.toLocaleString();
