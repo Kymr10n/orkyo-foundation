@@ -13,10 +13,4 @@ public class FeatureNotAvailableException : Exception
     {
         Feature = feature;
     }
-
-    public FeatureNotAvailableException(string feature, string currentTier, string requiredTier)
-        : base($"Feature '{feature}' requires {requiredTier} tier or above. Current tier: {currentTier}.")
-    {
-        Feature = feature;
-    }
 }

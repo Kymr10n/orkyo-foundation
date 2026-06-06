@@ -44,7 +44,7 @@ public class SiteService : ISiteService
     public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)
     {
         var currentCount = await _repository.GetEstimatedCountAsync();
-        _quotaEnforcer.EnforceLimit(QuotaResourceTypes.Sites, currentCount);
+        await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.ProductionSites, currentCount, 1, ct);
         return await _repository.CreateAsync(code, name, description, address);
     }
 

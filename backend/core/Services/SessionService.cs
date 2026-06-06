@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Models;
+using Api.Security.Features;
 using Npgsql;
 using Orkyo.Shared;
 
@@ -9,15 +10,18 @@ public class SessionService : ISessionService
 {
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IConfiguration _configuration;
+    private readonly ITenantPlanInfoProvider _planInfoProvider;
     private readonly ILogger<SessionService> _logger;
 
     public SessionService(
         IDbConnectionFactory connectionFactory,
         IConfiguration configuration,
+        ITenantPlanInfoProvider planInfoProvider,
         ILogger<SessionService> logger)
     {
         _connectionFactory = connectionFactory;
         _configuration = configuration;
+        _planInfoProvider = planInfoProvider;
         _logger = logger;
     }
 
@@ -300,7 +304,7 @@ public class SessionService : ISessionService
     {
         await using var cmd = new NpgsqlCommand(@"
             SELECT t.id, t.slug, t.display_name, tm.role, t.status,
-                   t.owner_user_id, t.tier
+                   t.owner_user_id
             FROM tenant_memberships tm
             JOIN tenants t ON t.id = tm.tenant_id
             WHERE tm.user_id = @userId AND tm.status = 'active'
@@ -308,29 +312,36 @@ public class SessionService : ISessionService
         ", db);
         cmd.Parameters.AddWithValue("userId", userId);
 
-        var memberships = new List<TenantMembershipInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        var rows = new List<(Guid TenantId, string Slug, string DisplayName, string Role, string State, bool IsOwner)>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            var ownerUserId = reader.IsDBNull(5) ? (Guid?)null : reader.GetGuid(5);
-            var status = reader.GetString(4);
-            var isOwner = ownerUserId == userId;
-            var role = reader.GetString(3);
-
-            memberships.Add(new TenantMembershipInfo
+            while (await reader.ReadAsync(ct))
             {
-                TenantId = reader.GetGuid(0),
-                Slug = reader.GetString(1),
-                DisplayName = reader.GetString(2),
-                Role = role,
-                State = status,
-                IsOwner = isOwner,
-                IsTenantAdmin = role == RoleConstants.Admin,
-                Tier = ((ServiceTier)reader.GetInt32(6)).ToString()
-            });
+                var ownerUserId = reader.IsDBNull(5) ? (Guid?)null : reader.GetGuid(5);
+                rows.Add((
+                    reader.GetGuid(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.GetString(3),
+                    reader.GetString(4),
+                    ownerUserId == userId));
+            }
         }
 
-        return memberships;
+        // Plan label is a commercial concept owned by the edition, not foundation.
+        var planInfo = await _planInfoProvider.GetPlanInfoAsync(rows.Select(r => r.TenantId).ToList(), ct);
+
+        return rows.Select(r => new TenantMembershipInfo
+        {
+            TenantId = r.TenantId,
+            Slug = r.Slug,
+            DisplayName = r.DisplayName,
+            Role = r.Role,
+            State = r.State,
+            IsOwner = r.IsOwner,
+            IsTenantAdmin = r.Role == RoleConstants.Admin,
+            Tier = planInfo.TryGetValue(r.TenantId, out var info) ? info.PlanLabel : SinglePlanInfoProvider.PlanLabel,
+        }).ToList();
     }
 
     private async Task<bool> HasAcceptedTosInternalAsync(NpgsqlConnection db, Guid userId, string requiredVersion, CancellationToken ct = default)

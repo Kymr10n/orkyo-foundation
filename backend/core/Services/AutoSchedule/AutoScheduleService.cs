@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
+using Api.Security.Features;
 
 namespace Api.Services.AutoSchedule;
 
@@ -12,7 +13,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
     private readonly SchedulingFeasibilityAnalyzer _feasibilityAnalyzer;
     private readonly IEnumerable<ISchedulingSolver> _solvers;
     private readonly IRequestRepository _requestRepository;
-    private readonly TenantContext _tenantContext;
+    private readonly IFeatureGate _featureGate;
     private readonly ITenantSettingsService _settingsService;
     private readonly ILogger<AutoScheduleService> _logger;
 
@@ -21,7 +22,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         SchedulingFeasibilityAnalyzer feasibilityAnalyzer,
         IEnumerable<ISchedulingSolver> solvers,
         IRequestRepository requestRepository,
-        TenantContext tenantContext,
+        IFeatureGate featureGate,
         ITenantSettingsService settingsService,
         ILogger<AutoScheduleService> logger)
     {
@@ -29,7 +30,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         _feasibilityAnalyzer = feasibilityAnalyzer;
         _solvers = solvers;
         _requestRepository = requestRepository;
-        _tenantContext = tenantContext;
+        _featureGate = featureGate;
         _settingsService = settingsService;
         _logger = logger;
     }
@@ -138,8 +139,8 @@ public sealed class AutoScheduleService : IAutoScheduleService
 
     private async Task EnsureAutoScheduleAvailableAsync()
     {
-        if (_tenantContext.Tier < ServiceTier.Professional)
-            throw new FeatureNotAvailableException("Auto-Schedule", _tenantContext.Tier.ToString(), ServiceTier.Professional.ToString());
+        // Commercial gating is delegated to the edition (SaaS: tier entitlement; Community: allow-all).
+        await _featureGate.EnsureEnabledAsync(FeatureKeys.AutoSchedule);
 
         var settings = await _settingsService.GetSettingsAsync();
         if (!settings.AutoSchedule_Enabled)

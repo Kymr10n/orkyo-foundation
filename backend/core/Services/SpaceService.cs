@@ -55,7 +55,7 @@ public class SpaceService : ISpaceService
         bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)
     {
         var currentCount = await _repository.GetEstimatedCountAsync();
-        _quotaEnforcer.EnforceLimit(QuotaResourceTypes.Spaces, currentCount);
+        await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.Spaces, currentCount, 1, ct);
 
         // Create the resources row first (spaces.id FK → resources.id).
         var spaceType = await _resourceTypeRepository.GetByKeyAsync(ResourceTypeKeys.Space)
