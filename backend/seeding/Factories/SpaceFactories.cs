@@ -16,6 +16,7 @@ public static class SpaceFactories
 {
     public sealed record SeededSite(Guid Id, string Name, string Code);
     public sealed record SeededSpace(Guid Id, Guid SiteId, string Name);
+    public sealed record SeededSpaceGroup(Guid Id, string Name);
 
     public static async Task<IReadOnlyList<SeededSite>> SeedSitesAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx,
@@ -131,6 +132,98 @@ public static class SpaceFactories
         }
 
         return seeded;
+    }
+
+    /// <summary>
+    /// Seeds space groups — <c>resource_groups</c> rows typed to the space resource
+    /// type. Mirrors <see cref="PeopleFactories.SeedPersonGroupsAsync"/>; the group
+    /// model is shared and discriminated by <c>resource_type_id</c>.
+    /// </summary>
+    public static async Task<IReadOnlyList<SeededSpaceGroup>> SeedSpaceGroupsAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx,
+        IProfile profile, IScale scale, Faker faker,
+        Guid spaceResourceTypeId)
+    {
+        var pool = profile.ResourceGroupPool;
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; names.Count < scale.ResourceGroups && i < scale.ResourceGroups * 5; i++)
+        {
+            var baseName = pool[i % pool.Count];
+            var candidate = i < pool.Count ? baseName : $"{baseName} {i / pool.Count + 1}";
+            if (seen.Add(candidate)) names.Add(candidate);
+        }
+
+        var seeded = new List<SeededSpaceGroup>(names.Count);
+        var now = DateTime.UtcNow;
+        _ = tx;
+        using var writer = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
+            "FROM STDIN (FORMAT BINARY)");
+
+        for (var i = 0; i < names.Count; i++)
+        {
+            var id = Guid.NewGuid();
+            await writer.StartRowAsync();
+            await writer.WriteAsync(id, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(names[i], NpgsqlDbType.Varchar);
+            await writer.WriteNullAsync();                               // description
+            await writer.WriteNullAsync();                               // color
+            await writer.WriteAsync(i, NpgsqlDbType.Integer);           // display_order
+            await writer.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            seeded.Add(new SeededSpaceGroup(id, names[i]));
+        }
+        await writer.CompleteAsync();
+        _ = faker;
+        return seeded;
+    }
+
+    /// <summary>
+    /// Assigns spaces to space groups. Each space gets one primary group
+    /// (round-robin); ~25 % also get a second distinct group. A space's
+    /// <see cref="SeededSpace.Id"/> is its resource id (spaces share the UUID).
+    /// </summary>
+    public static async Task<int> SeedSpaceGroupMembersAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx,
+        Faker faker,
+        IReadOnlyList<SeededSpace> spaces,
+        IReadOnlyList<SeededSpaceGroup> groups,
+        Guid spaceResourceTypeId)
+    {
+        if (groups.Count == 0 || spaces.Count == 0) return 0;
+
+        var memberships = new List<(Guid GroupId, Guid ResourceId)>(
+            (int)(spaces.Count * 1.25));
+
+        for (var i = 0; i < spaces.Count; i++)
+        {
+            var primaryGroup = groups[i % groups.Count];
+            memberships.Add((primaryGroup.Id, spaces[i].Id));
+
+            if (faker.Random.Bool(0.25f))
+            {
+                var secondaryGroup = groups[faker.Random.Int(0, groups.Count - 1)];
+                if (secondaryGroup.Id != primaryGroup.Id)
+                    memberships.Add((secondaryGroup.Id, spaces[i].Id));
+            }
+        }
+
+        _ = tx;
+        using var writer = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
+            "FROM STDIN (FORMAT BINARY)");
+
+        foreach (var (groupId, resourceId) in memberships)
+        {
+            await writer.StartRowAsync();
+            await writer.WriteAsync(groupId, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(resourceId, NpgsqlDbType.Uuid);
+            await writer.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
+        }
+        await writer.CompleteAsync();
+        return memberships.Count;
     }
 
     private static string Slug(string s)

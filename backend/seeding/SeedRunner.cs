@@ -8,7 +8,8 @@ using Orkyo.Foundation.Seed.Scales;
 namespace Orkyo.Foundation.Seed;
 
 public sealed record SeedReport(
-    int Sites, int Spaces, int JobTitles, int Departments, int People,
+    int Sites, int Spaces, int SpaceGroups, int SpaceGroupMembers,
+    int JobTitles, int Departments, int People,
     int PersonGroups, int PersonGroupMembers,
     int Criteria,
     int Requests, int Assignments, TimeSpan Duration);
@@ -51,6 +52,9 @@ public static class SeedRunner
         var sites = await SpaceFactories.SeedSitesAsync(conn, tx, profile, scale, faker);
         var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
         var spaces = await SpaceFactories.SeedSpacesAsync(conn, tx, profile, scale, faker, sites, spaceTypeId);
+        var spaceGroups = await SpaceFactories.SeedSpaceGroupsAsync(conn, tx, profile, scale, faker, spaceTypeId);
+        var spaceGroupMemberCount = await SpaceFactories.SeedSpaceGroupMembersAsync(
+            conn, tx, faker, spaces, spaceGroups, spaceTypeId);
 
         var jobTitles = await PeopleFactories.SeedJobTitlesAsync(conn, tx, profile, scale, faker);
         var departments = await PeopleFactories.SeedDepartmentsAsync(conn, tx, profile, scale, faker);
@@ -75,6 +79,8 @@ public static class SeedRunner
         return new SeedReport(
             Sites: sites.Count,
             Spaces: spaces.Count,
+            SpaceGroups: spaceGroups.Count,
+            SpaceGroupMembers: spaceGroupMemberCount,
             JobTitles: jobTitles.Count,
             Departments: departments.Count,
             People: people.Count,
