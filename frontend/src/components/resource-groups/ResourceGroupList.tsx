@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
-import { Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
@@ -10,9 +10,11 @@ import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
 interface ResourceGroupListProps {
   resourceTypeKey: string;
   entityLabel?: string;
+  /** Icon for the "manage members" action — reflects the member type (people, spaces, …). */
+  membersIcon?: LucideIcon;
 }
 
-export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group' }: ResourceGroupListProps) {
+export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', membersIcon: MembersIcon = Users }: ResourceGroupListProps) {
   const queryClient = useQueryClient();
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -77,7 +79,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group' }: Re
         return (
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="icon" onClick={() => setManagingMembersFor(group)} aria-label={`Manage members of ${group.name}`} title="Manage members">
-              <Users className="h-4 w-4" />
+              <MembersIcon className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" onClick={() => handleEdit(group)} aria-label={`Edit ${group.name}`}>
               <Pencil className="h-4 w-4" />

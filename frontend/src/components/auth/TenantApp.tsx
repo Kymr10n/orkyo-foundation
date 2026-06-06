@@ -12,6 +12,7 @@
 
 import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Box } from 'lucide-react';
 import { PersonList } from '@foundation/src/components/people/PersonList';
 import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
 import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
@@ -140,7 +141,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route index element={<Navigate to="floorplan" replace />} />
             <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
             <Route path="floorplan" element={<FloorplanView />} />
-            <Route path="groups" element={<ResourceGroupList resourceTypeKey={RESOURCE_TYPE_KEY.SPACE} />} />
+            <Route path="groups" element={<ResourceGroupList resourceTypeKey={RESOURCE_TYPE_KEY.SPACE} membersIcon={Box} />} />
           </Route>
 
           {/* Backward-compatible redirects: resource-domain master data moved
