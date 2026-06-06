@@ -630,9 +630,9 @@ export const RequestTreeView = React.memo(function RequestTreeView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden">
       {entries.length > 0 && (
-        <div className="px-3 py-2 border-b flex items-center justify-end gap-2">
+        <div className="px-3 h-14 shrink-0 border-b flex items-center justify-end gap-2">
           <span className="text-xs text-muted-foreground mr-auto">
             {expandedIds.size} expanded
           </span>

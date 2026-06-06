@@ -547,7 +547,7 @@ export function RequestsPage() {
       </div>
 
       {/* Body: View + Detail Panel */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
         {/* Main content area */}
         <div className={`flex-1 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
           {loading && requests.length === 0 ? (
