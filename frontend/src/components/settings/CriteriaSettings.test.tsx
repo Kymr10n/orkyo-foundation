@@ -196,12 +196,12 @@ describe('CriteriaSettings', () => {
   });
 
   describe('filter tabs', () => {
-    it('renders all four filter tabs', () => {
+    it('renders three filter tabs (tools hidden until tools feature ships)', () => {
       render(<CriteriaSettings />);
       expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Spaces' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'People' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Tools' })).toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument();
     });
 
     it('All tab shows all criteria by default', () => {
@@ -228,15 +228,6 @@ describe('CriteriaSettings', () => {
       expect(screen.getByText('PersonSkill')).toBeInTheDocument();
     });
 
-    it('Tools tab filters to tool criteria only', async () => {
-      const user = userEvent.setup();
-      render(<CriteriaSettings />);
-      await user.click(screen.getByRole('tab', { name: 'Tools' }));
-      // c2 (HasProjector) has ['space','tool'] so it appears; others do not
-      expect(screen.getByText('HasProjector')).toBeInTheDocument();
-      expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
-      expect(screen.queryByText('PersonSkill')).not.toBeInTheDocument();
-    });
 
     it('shows resource-specific empty state when no criteria match the active filter', async () => {
       mockCriteriaData = {
@@ -249,7 +240,7 @@ describe('CriteriaSettings', () => {
       };
       const user = userEvent.setup();
       render(<CriteriaSettings />);
-      await user.click(screen.getByRole('tab', { name: 'Tools' }));
+      await user.click(screen.getByRole('tab', { name: 'People' }));
       await waitFor(() => {
         expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
       });
@@ -267,11 +258,10 @@ describe('CriteriaSettings', () => {
   describe('applicability badges', () => {
     it('renders resourceTypeKey badges on each criterion card', () => {
       render(<CriteriaSettings />);
-      // 'Spaces' appears as tab label + badge(s); use getAllByText
-      const spacesBadges = screen.getAllByText('Spaces');
-      expect(spacesBadges.length).toBeGreaterThanOrEqual(2); // tab + at least one badge
-      expect(screen.getAllByText('Tools').length).toBeGreaterThanOrEqual(2); // tab + badge
+      // Each label appears as tab + badge; Tools appears only as a badge (no tab until tools ships)
+      expect(screen.getAllByText('Spaces').length).toBeGreaterThanOrEqual(2); // tab + at least one badge
       expect(screen.getAllByText('People').length).toBeGreaterThanOrEqual(2); // tab + badge
+      expect(screen.getAllByText('Tools').length).toBeGreaterThanOrEqual(1); // badge only (c2 has ['space','tool'])
     });
   });
 });

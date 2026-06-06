@@ -102,17 +102,16 @@ describe('EditCriterionDialog', () => {
     expect(screen.getByLabelText(/unit/i)).toHaveValue('seats');
   });
 
-  it('renders Applies to checkboxes for all resource types', () => {
+  it('renders Applies to checkboxes for Spaces and People', () => {
     render(<EditCriterionDialog {...defaultProps} />);
     expect(screen.getByLabelText('Spaces')).toBeInTheDocument();
     expect(screen.getByLabelText('People')).toBeInTheDocument();
-    expect(screen.getByLabelText('Tools')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tools')).not.toBeInTheDocument();
   });
 
   it('pre-checks the checkboxes matching criterion resourceTypeKeys', () => {
     render(<EditCriterionDialog {...defaultProps} />);
     expect(screen.getByLabelText('Spaces')).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByLabelText('People')).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByLabelText('Tools')).toHaveAttribute('aria-checked', 'false');
   });
 });

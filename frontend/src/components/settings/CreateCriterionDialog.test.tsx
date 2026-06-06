@@ -111,11 +111,11 @@ describe('CreateCriterionDialog', () => {
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('renders Applies to checkboxes for Spaces, People, and Tools', () => {
+  it('renders Applies to checkboxes for Spaces and People', () => {
     render(<CreateCriterionDialog {...defaultProps} />);
     expect(screen.getByLabelText('Spaces')).toBeInTheDocument();
     expect(screen.getByLabelText('People')).toBeInTheDocument();
-    expect(screen.getByLabelText('Tools')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tools')).not.toBeInTheDocument();
   });
 
   it('defaults Spaces checkbox to checked', () => {
