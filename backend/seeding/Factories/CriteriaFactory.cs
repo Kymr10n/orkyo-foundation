@@ -8,7 +8,7 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// <summary>
 /// Seeds criteria and their resource-type applicability rows.
 /// Criteria are domain-agnostic attribute definitions — no profile-specific pool required.
-/// Each criterion is randomly assigned to one or more resource types (space / person / tool).
+/// Each criterion is randomly assigned to one or more resource types (space / person).
 /// </summary>
 public static class CriteriaFactory
 {
@@ -37,23 +37,15 @@ public static class CriteriaFactory
         ("Driver's Licence",         "Boolean", null,       "Holds a valid driver's licence.",                                    ["person"]),
         ("Security Clearance",       "Enum",    null,       "Government security clearance level.",                               ["person"]),
         ("First Aid Certified",      "Boolean", null,       "Holds a current first-aid certificate.",                             ["person"]),
-        ("Max Payload (kg)",         "Number",  "kg",       "Maximum payload the tool can handle.",                               ["tool"]),
-        ("Power Source",             "Enum",    null,       "How the tool is powered.",                                           ["tool"]),
-        ("Requires Operator Cert",   "Boolean", null,       "Operator must hold a specific certification.",                       ["tool"]),
-        ("Noise Rating (dB)",        "Number",  "dB",       "Typical operational noise level.",                                   ["tool"]),
-        ("Indoor Use Only",          "Boolean", null,       "Approved for indoor use only.",                                      ["tool"]),
-        ("Calibration Due",          "Boolean", null,       "Calibration is currently due.",                                      ["tool"]),
-        ("Min Clearance Height (m)", "Number",  "m",        "Minimum overhead clearance required.",                               ["space", "tool"]),
-        ("Power Supply (kW)",        "Number",  "kW",       "Electrical power draw or requirement.",                              ["space", "tool"]),
-        ("Safety Rating",            "Enum",    null,       "Regulatory safety rating.",                                          ["tool", "person"]),
+        ("Min Clearance Height (m)", "Number",  "m",        "Minimum overhead clearance required.",                               ["space"]),
+        ("Power Supply (kW)",        "Number",  "kW",       "Electrical power draw or requirement.",                              ["space"]),
+        ("Safety Rating",            "Enum",    null,       "Regulatory safety rating.",                                          ["person"]),
         ("Project Lead Eligible",    "Boolean", null,       "May be assigned as project lead.",                                   ["person"]),
-        ("Asset Value (€)",          "Number",  "€",        "Replacement asset value.",                                           ["tool"]),
     ];
 
     private static readonly string[] NoiseEnumValues = ["quiet", "moderate", "loud"];
     private static readonly string[] CertLevelValues = ["associate", "professional", "expert"];
     private static readonly string[] ClearanceValues = ["none", "confidential", "secret", "top-secret"];
-    private static readonly string[] PowerSourceValues = ["battery", "electric", "pneumatic", "hydraulic", "manual"];
     private static readonly string[] SafetyRatingValues = ["low", "medium", "high", "critical"];
 
     public static async Task<IReadOnlyList<SeededCriterion>> SeedCriteriaAsync(
@@ -132,7 +124,7 @@ public static class CriteriaFactory
     {
         var result = new Dictionary<string, Guid>();
         await using var cmd = new NpgsqlCommand(
-            "SELECT key, id FROM public.resource_types WHERE key IN ('space', 'person', 'tool')",
+            "SELECT key, id FROM public.resource_types WHERE key IN ('space', 'person')",
             conn, tx);
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -145,7 +137,6 @@ public static class CriteriaFactory
         "Noise Level" => NoiseEnumValues,
         "Certification Level" => CertLevelValues,
         "Security Clearance" => ClearanceValues,
-        "Power Source" => PowerSourceValues,
         "Safety Rating" => SafetyRatingValues,
         _ => ["option_a", "option_b", "option_c"],
     };

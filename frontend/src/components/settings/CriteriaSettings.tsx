@@ -22,9 +22,10 @@ const FILTER_TABS: { value: FilterTab; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'space', label: 'Spaces' },
   { value: 'person', label: 'People' },
-  { value: 'tool', label: 'Tools' },
 ];
 
+// 'tool' is intentionally kept so existing tool criteria render a correct badge.
+// Remove once the tools feature is built and the filter tab is re-added.
 const RESOURCE_TYPE_LABELS: Record<ResourceTypeKey, string> = {
   space: 'Spaces',
   person: 'People',

@@ -4,7 +4,6 @@ import type { CriterionDataType, ResourceTypeKey } from '@foundation/src/types/c
 export const CRITERION_RESOURCE_TYPE_OPTIONS: { key: ResourceTypeKey; label: string }[] = [
   { key: 'space', label: 'Spaces' },
   { key: 'person', label: 'People' },
-  { key: 'tool', label: 'Tools' },
 ];
 
 export interface CriterionFormState {

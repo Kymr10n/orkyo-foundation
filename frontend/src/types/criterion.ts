@@ -3,7 +3,8 @@ export type CriterionDataType = 'Boolean' | 'Number' | 'String' | 'Enum';
 /** Runtime value for a criterion — depends on the criterion's dataType. */
 export type CriterionValue = boolean | number | string;
 
-/** Resource-type keys this criterion applies to. */
+/** Resource-type keys this criterion applies to. 'tool' exists in the DB schema but tools
+ *  management is not yet built — keep the key so stored data round-trips correctly. */
 export type ResourceTypeKey = 'space' | 'person' | 'tool';
 
 export interface Criterion {
