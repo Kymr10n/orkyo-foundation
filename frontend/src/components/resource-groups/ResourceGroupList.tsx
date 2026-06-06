@@ -82,7 +82,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group' }: Re
             <Button variant="ghost" size="icon" onClick={() => handleEdit(group)} aria-label={`Edit ${group.name}`}>
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(group.id)} disabled={deleteMutation.isPending} aria-label={`Delete ${group.name}`}>
+            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(group.id)} disabled={deleteMutation.isPending} aria-label={`Delete ${group.name}`}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
