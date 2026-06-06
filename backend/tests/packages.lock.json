@@ -75,6 +75,11 @@
         "resolved": "3.1.5",
         "contentHash": "tKi7dSTwP4m5m9eXPM2Ime4Kn7xNf4x4zT9sdLO/G4hZVnQCRiMTWoSZqI/pYTVeI27oPPqHBKYI/DjJ9GsYgA=="
       },
+      "Bogus": {
+        "type": "Transitive",
+        "resolved": "35.6.5",
+        "contentHash": "2FGZn+aAVHjmCgClgmGkTDBVZk0zkLvAKGaxEf5JL6b3i9JbHTE4wnuY4vHCuzlCmJdU6VZjgDfHwmYkQF8VAA=="
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.6.2",
@@ -84,6 +89,11 @@
         "type": "Transitive",
         "resolved": "5.1.1",
         "contentHash": "rpYtIczkzGpf+EkZgDr9CClTdemhsrwA/W5hMoPjLkRFnXzH44zDLoovXeKtmxb1ykXK9aJVODSpiJml8CTw2g=="
+      },
+      "CommandLineParser": {
+        "type": "Transitive",
+        "resolved": "2.9.1",
+        "contentHash": "OE0sl1/sQ37bjVsPKKtwQlWDgqaxWgtme3xZz7JssWUzg5JpMIyHgCTY9MVMxOg48fJ1AgGT3tgdH5m/kQ5xhA=="
       },
       "CsvHelper": {
         "type": "Transitive",
@@ -538,6 +548,14 @@
         "dependencies": {
           "Orkyo.Migration.Abstractions": "[0.1.0, )",
           "Orkyo.Migrator": "[0.1.0, )"
+        }
+      },
+      "orkyo.foundation.seed": {
+        "type": "Project",
+        "dependencies": {
+          "Bogus": "[35.*, )",
+          "CommandLineParser": "[2.9.*, )",
+          "Npgsql": "[9.0.2, )"
         }
       },
       "orkyo.foundation.web": {

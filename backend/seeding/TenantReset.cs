@@ -43,6 +43,7 @@ public static class TenantReset
         "search_documents",
         "preset_applications",
         "preset_mappings",
+        "assets",
     ];
 
     public static async Task TruncateAllAsync(NpgsqlConnection conn, NpgsqlTransaction tx)

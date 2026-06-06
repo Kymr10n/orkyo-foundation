@@ -33,6 +33,7 @@
   <ItemGroup>
     <ProjectReference Include="..\core\Orkyo.Foundation.Core.csproj" />
     <ProjectReference Include="..\src\Orkyo.Foundation.Web.csproj" />
+    <ProjectReference Include="..\seeding\Orkyo.Foundation.Seed.csproj" />
     <ProjectReference Include="..\migration-abstractions\Orkyo.Migration.Abstractions.csproj" />
     <ProjectReference Include="..\migrator-runtime\Orkyo.Migrator.csproj" />
     <ProjectReference Include="..\migrations-foundation\Orkyo.Foundation.Migrations.csproj" />
