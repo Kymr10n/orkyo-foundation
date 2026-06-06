@@ -61,7 +61,6 @@ public class ContextEnrichmentMiddlewareTests
             TenantId = tenantId ?? Guid.NewGuid(),
             TenantSlug = slug,
             TenantDbConnectionString = $"Host=localhost;Database=tenant_{slug}",
-            Tier = ServiceTier.Free,
             Status = "active"
         };
 

@@ -29,9 +29,9 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
 export function SettingsPage() {
   const { membership } = useAuth();
   const isAdmin = membership?.isTenantAdmin === true;
-  const tier = membership?.tier ?? 'Free';
+  const tier = membership?.tier ?? 'free';
   const { data: sites = [] } = useSites();
-  const showSites = tier !== 'Free' || sites.length > 1;
+  const showSites = tier !== 'free' || sites.length > 1;
 
   const active = useActiveTab('criteria');
   const navigate = useNavigate();
@@ -50,6 +50,7 @@ export function SettingsPage() {
       { value: 'scheduling', label: 'Scheduling' },
       { value: 'configuration', label: 'Configuration' },
       ...(isAdmin ? [{ value: 'integrations', label: 'Integrations' }] : []),
+      ...(isAdmin ? [{ value: 'usage-limits', label: 'Usage & Limits' }] : []),
     ];
     return all;
   }, [showSites, isAdmin]);

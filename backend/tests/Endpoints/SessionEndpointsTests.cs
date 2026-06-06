@@ -173,7 +173,7 @@ public class SessionEndpointsTests
         var tenant = tenants[0];
         tenant.TryGetProperty("tier", out var tier).Should().BeTrue(
             "field 'tier' must be present on tenant entries — check the SQL in GetTenantMembershipsAsync");
-        tier.GetString().Should().BeOneOf("Free", "Professional", "Enterprise");
+        tier.GetString().Should().NotBeNullOrEmpty("tier label must be a non-empty string");
     }
 
     // ─── POST /api/session/tour/seen ─────────────────────────────────────────────

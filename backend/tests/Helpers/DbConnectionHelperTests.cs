@@ -1,5 +1,4 @@
 using Api.Helpers;
-using Api.Models;
 using Api.Services;
 using Microsoft.AspNetCore.Http;
 
@@ -37,7 +36,6 @@ public class DbConnectionHelperIntegrationTests
             TenantId = Guid.NewGuid(),
             TenantSlug = TestConstants.TenantSlug,
             TenantDbConnectionString = _tenantCs,
-            Tier = ServiceTier.Enterprise,
             Status = "active"
         };
 

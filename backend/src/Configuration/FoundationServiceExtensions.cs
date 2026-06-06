@@ -3,6 +3,7 @@ using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Security;
 using Api.Security.Features;
+using Api.Security.Quotas;
 using Api.Services;
 using Api.Services.AutoSchedule;
 using Api.Services.Reporting;
@@ -56,6 +57,7 @@ public static class FoundationServiceExtensions
         // implementations; Community keeps these allow-all defaults.
         services.AddScoped<IFeatureGate, AllFeaturesEnabledGate>();
         services.AddScoped<ITenantPlanInfoProvider, SinglePlanInfoProvider>();
+        services.AddScoped<IQuotaUsageRollup, NoOpQuotaUsageRollup>();
 
         // ── Security context ──────────────────────────────────────────────────
         services.AddScoped<CurrentPrincipal>();

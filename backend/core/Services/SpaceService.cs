@@ -31,17 +31,20 @@ public class SpaceService : ISpaceService
     private readonly IResourceRepository _resourceRepository;
     private readonly IResourceTypeRepository _resourceTypeRepository;
     private readonly IQuotaEnforcer _quotaEnforcer;
+    private readonly IQuotaUsageRollup _rollup;
 
     public SpaceService(
         ISpaceRepository repository,
         IResourceRepository resourceRepository,
         IResourceTypeRepository resourceTypeRepository,
-        IQuotaEnforcer quotaEnforcer)
+        IQuotaEnforcer quotaEnforcer,
+        IQuotaUsageRollup rollup)
     {
         _repository = repository;
         _resourceRepository = resourceRepository;
         _resourceTypeRepository = resourceTypeRepository;
         _quotaEnforcer = quotaEnforcer;
+        _rollup = rollup;
     }
 
     public Task<List<SpaceInfo>> GetAllAsync(Guid siteId, CancellationToken ct = default) => _repository.GetAllAsync(siteId, ct);
@@ -66,7 +69,9 @@ public class SpaceService : ISpaceService
             spaceType.Id, spaceType.Key, name, description,
             externalReference: null, AllocationModes.Exclusive, 100, id: resourceId);
 
-        return await _repository.CreateAsync(resourceId, siteId, code, isPhysical, geometry, properties, capacity);
+        var space = await _repository.CreateAsync(resourceId, siteId, code, isPhysical, geometry, properties, capacity);
+        await _rollup.RecordDeltaAsync(QuotaResourceTypes.Spaces, 1, ct);
+        return space;
     }
 
     public async Task<SpaceInfo?> UpdateAsync(
@@ -90,7 +95,10 @@ public class SpaceService : ISpaceService
     {
         var deleted = await _repository.DeleteAsync(siteId, resourceId);
         if (deleted)
+        {
             await _resourceRepository.DeactivateAsync(resourceId);
+            await _rollup.RecordDeltaAsync(QuotaResourceTypes.Spaces, -1, ct);
+        }
         return deleted;
     }
 }

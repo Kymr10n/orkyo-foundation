@@ -152,7 +152,6 @@ public class SecurityContextImplTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "acme",
             TenantDbConnectionString = "Host=pg;Database=acme",
-            Tier = ServiceTier.Free,
             Status = "active"
         });
 
@@ -168,7 +167,6 @@ public class SecurityContextImplTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "my-org",
             TenantDbConnectionString = "Host=pg",
-            Tier = ServiceTier.Free,
             Status = "active"
         });
 

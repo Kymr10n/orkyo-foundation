@@ -160,6 +160,14 @@ export const API_PATHS = {
     userReactivate: (userId: string) => `/api/admin/users/${userId}/reactivate`,
     userPromoteSiteAdmin: (userId: string) => `/api/admin/users/${userId}/promote-site-admin`,
     userRevokeSiteAdmin: (userId: string) => `/api/admin/users/${userId}/revoke-site-admin`,
+    // Quotas
+    SUBSCRIPTION_TIERS: '/api/admin/subscription-tiers',
+    TENANTS_USAGE: '/api/admin/tenants/usage',
+    tenantQuotas: (tenantId: string) => `/api/admin/tenants/${tenantId}/quotas`,
+    tenantQuotaOverride: (tenantId: string, quotaKey: string) =>
+      `/api/admin/tenants/${tenantId}/quota-overrides/${quotaKey}`,
+    subscriptionTierQuota: (tierId: string, quotaKey: string) =>
+      `/api/admin/subscription-tiers/${tierId}/quotas/${quotaKey}`,
   },
 
   // Scheduling
@@ -172,6 +180,9 @@ export const API_PATHS = {
   // Tenant Settings (admin-configurable)
   SETTINGS: '/api/settings',
   setting: (key: string) => `/api/settings/${key}`,
+
+  // Quota & Usage (tenant read-only)
+  QUOTAS: '/api/settings/quotas',
 
   // Resource Groups (typed, e.g. people groups)
   RESOURCE_GROUPS: '/api/resource-groups',

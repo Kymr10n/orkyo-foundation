@@ -40,4 +40,10 @@ public interface IAssetRepository
         Guid ownerId,
         string assetType,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the sum of size_bytes for all assets belonging to the tenant.
+    /// Used for storage quota enforcement at upload time (live, not from rollup).
+    /// </summary>
+    Task<long> GetTotalSizeBytesAsync(Guid tenantId, CancellationToken ct = default);
 }

@@ -26,6 +26,7 @@ import { OrganizationSettings } from '@foundation/src/components/settings/Organi
 import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
 import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
 import { ReportingApiPage } from '@foundation/src/components/settings/ReportingApiPage';
+import { UsageLimitsSettings } from '@foundation/src/components/settings/UsageLimitsSettings';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
@@ -123,6 +124,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="scheduling" element={<SchedulingSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
             <Route path="integrations" element={<ReportingApiPage unavailableRedirectTo={reportingApiUnavailableRedirectTo} />} />
+            <Route path="usage-limits" element={<UsageLimitsSettings />} />
           </Route>
 
           {/* People — nested sub-routes. Skills and absences are managed per-person

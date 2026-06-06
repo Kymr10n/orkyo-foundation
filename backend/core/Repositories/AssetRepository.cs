@@ -152,6 +152,18 @@ public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
+    public async Task<long> GetTotalSizeBytesAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.OpenAsync(ct);
+
+        await using var cmd = new NpgsqlCommand(
+            "SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM assets WHERE tenant_id = @tenantId", conn);
+        cmd.Parameters.AddWithValue("tenantId", tenantId);
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return result is DBNull or null ? 0L : Convert.ToInt64(result);
+    }
+
     private static NpgsqlCommand BuildOwnerAssetCommand(
         string selectClause,
         NpgsqlConnection conn,

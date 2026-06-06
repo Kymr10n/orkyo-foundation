@@ -58,7 +58,7 @@ public class SpaceRepository : ISpaceRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return (int)await conn.ExecuteScalarAsync<long>(
-            "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'spaces'", null, ct);
+            "SELECT COUNT(*) FROM spaces", null, ct);
     }
 
     public async Task<SpaceInfo> CreateAsync(Guid resourceId, Guid siteId, string? code, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)

@@ -1,5 +1,4 @@
 using Api.Middleware;
-using Api.Models;
 using Api.Services;
 using Microsoft.AspNetCore.Http;
 
@@ -58,7 +57,6 @@ public class TenantContextAccessExtensionsTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "acme",
             TenantDbConnectionString = "Host=localhost;Database=acme",
-            Tier = ServiceTier.Free,
             Status = "active"
         };
         ctx.Items["TenantContext"] = tenantContext;

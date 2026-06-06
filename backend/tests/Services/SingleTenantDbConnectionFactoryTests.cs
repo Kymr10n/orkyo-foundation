@@ -1,4 +1,3 @@
-using Api.Models;
 using Api.Services;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -102,7 +101,6 @@ public class SingleTenantDbConnectionFactoryTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "community",
             TenantDbConnectionString = ValidCs,
-            Tier = ServiceTier.Free,
             Status = "active"
         };
 

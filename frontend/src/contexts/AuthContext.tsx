@@ -28,7 +28,7 @@ import { logger } from '@foundation/src/lib/core/logger';
 
 // ── Re-exported types (consumed by pages, components, api-utils) ──────────────
 
-export type ServiceTier = 'Free' | 'Professional' | 'Enterprise';
+export type ServiceTier = 'free' | 'professional' | 'enterprise';
 
 export interface TenantMembership {
   tenantId: string;

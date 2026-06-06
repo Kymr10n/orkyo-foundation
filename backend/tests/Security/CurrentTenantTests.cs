@@ -1,4 +1,3 @@
-using Api.Models;
 using Api.Security;
 using Api.Services;
 
@@ -35,7 +34,6 @@ public class CurrentTenantTests
             TenantId = tenantId,
             TenantSlug = "test-tenant",
             TenantDbConnectionString = "Host=localhost",
-            Tier = ServiceTier.Professional,
             Status = "active"
         });
 
@@ -51,7 +49,6 @@ public class CurrentTenantTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "acme",
             TenantDbConnectionString = "Host=localhost",
-            Tier = ServiceTier.Enterprise,
             Status = "active"
         });
 
@@ -67,7 +64,6 @@ public class CurrentTenantTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "acme",
             TenantDbConnectionString = "Host=localhost",
-            Tier = ServiceTier.Enterprise,
             Status = "active"
         };
         tenant.SetContext(ctx);

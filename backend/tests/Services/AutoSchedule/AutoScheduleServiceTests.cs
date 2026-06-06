@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
+using Api.Security.Features;
 using Api.Services;
 using Api.Services.AutoSchedule;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,21 +10,11 @@ namespace Orkyo.Foundation.Tests.Services.AutoSchedule;
 
 public class AutoScheduleServiceTests
 {
-    private static TenantContext MakeTenantContext(ServiceTier tier = ServiceTier.Professional)
-        => new()
-        {
-            TenantId = Guid.NewGuid(),
-            TenantSlug = "test",
-            TenantDbConnectionString = "",
-            Tier = tier,
-            Status = "active",
-        };
-
     private static TenantSettings MakeSettings(bool autoScheduleEnabled = true)
         => new() { AutoSchedule_Enabled = autoScheduleEnabled };
 
     private static AutoScheduleService CreateService(
-        TenantContext? tenantContext = null,
+        IFeatureGate? featureGate = null,
         TenantSettings? settings = null,
         IEnumerable<ISchedulingSolver>? solvers = null)
     {
@@ -54,12 +45,15 @@ public class AutoScheduleServiceTests
             .Setup(x => x.GetSettingsAsync())
             .ReturnsAsync(settings ?? MakeSettings());
 
+        // Default: all features enabled (mirrors Community / foundation standalone behaviour)
+        var gate = featureGate ?? new AllFeaturesEnabledGate();
+
         return new AutoScheduleService(
             mockProblemBuilder.Object,
             analyzer,
             resolvedSolvers,
             Mock.Of<IRequestRepository>(),
-            tenantContext ?? MakeTenantContext(),
+            gate,
             mockSettingsService.Object,
             NullLogger<AutoScheduleService>.Instance);
     }
@@ -77,9 +71,14 @@ public class AutoScheduleServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_ThrowsForFreeTier()
+    public async Task PreviewAsync_ThrowsWhenFeatureGateBlocks()
     {
-        var service = CreateService(tenantContext: MakeTenantContext(ServiceTier.Free));
+        var blockedGate = new Mock<IFeatureGate>();
+        blockedGate
+            .Setup(g => g.EnsureEnabledAsync(FeatureKeys.AutoSchedule, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new FeatureNotAvailableException(FeatureKeys.AutoSchedule, "not on this plan"));
+
+        var service = CreateService(featureGate: blockedGate.Object);
         var request = new AutoSchedulePreviewRequest(Guid.NewGuid(),
             new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14));
 

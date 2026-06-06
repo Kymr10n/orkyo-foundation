@@ -9,21 +9,23 @@ public class NoOpQuotaEnforcerTests
     [Theory]
     [InlineData(QuotaResourceTypes.ActiveSeats, 0)]
     [InlineData(QuotaResourceTypes.ActiveSeats, 1_000_000)]
-    [InlineData(QuotaResourceTypes.Sites, 99)]
+    [InlineData(QuotaResourceTypes.ProductionSites, 99)]
     [InlineData(QuotaResourceTypes.Spaces, 99)]
-    public void EnforceLimit_NeverThrows(string resourceType, int count)
+    [InlineData(QuotaResourceTypes.StorageBytes, 10_737_418_240)] // 10 GiB
+    public async Task EnsureWithinLimitAsync_NeverThrows(string resourceType, long count)
     {
-        var act = () => _enforcer.EnforceLimit(resourceType, count);
-        act.Should().NotThrow();
+        await _enforcer.Invoking(e => e.EnsureWithinLimitAsync(resourceType, count, 1)).Should().NotThrowAsync();
     }
 
     [Theory]
     [InlineData(QuotaResourceTypes.ActiveSeats)]
-    [InlineData(QuotaResourceTypes.Sites)]
+    [InlineData(QuotaResourceTypes.ProductionSites)]
     [InlineData(QuotaResourceTypes.Spaces)]
+    [InlineData(QuotaResourceTypes.StorageBytes)]
     [InlineData("unknown-resource")]
-    public void GetLimit_AlwaysReturnsUnlimited(string resourceType)
+    public async Task GetLimitAsync_AlwaysReturnsUnlimited(string resourceType)
     {
-        _enforcer.GetLimit(resourceType).Should().Be(-1);
+        var limit = await _enforcer.GetLimitAsync(resourceType);
+        limit.Should().Be(-1L);
     }
 }
