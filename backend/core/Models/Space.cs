@@ -115,6 +115,5 @@ public record UpdateSpaceRequest : ISpaceGeometryRequest
     public string? Description { get; init; }
     public SpaceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
-    public Guid? GroupId { get; init; }
     public int? Capacity { get; init; }
 }

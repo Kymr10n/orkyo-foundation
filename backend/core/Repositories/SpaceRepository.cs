@@ -9,10 +9,14 @@ namespace Api.Repositories;
 public class SpaceRepository : ISpaceRepository
 {
     // Reads name and description from resources (Phase 2: spaces.name/description moved to resources).
+    // group_id comes from resource_group_members (single source of truth for membership);
+    // the 1:1 space-group guard ensures the LEFT JOIN yields at most one row per space.
     private const string SelectColumns =
-        "s.id, s.site_id, r.name, s.code, r.description, s.is_physical, s.geometry, s.properties, s.capacity, s.group_id, s.created_at, s.updated_at";
+        "s.id, s.site_id, r.name, s.code, r.description, s.is_physical, s.geometry, s.properties, s.capacity, rgm.resource_group_id AS group_id, s.created_at, s.updated_at";
 
-    private const string FromJoin = "FROM spaces s JOIN resources r ON r.id = s.id";
+    private const string FromJoin =
+        "FROM spaces s JOIN resources r ON r.id = s.id " +
+        "LEFT JOIN resource_group_members rgm ON rgm.resource_id = s.id";
 
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
@@ -117,7 +121,7 @@ public class SpaceRepository : ISpaceRepository
         return SpaceMapper.MapFromReader(reader);
     }
 
-    public async Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? code, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default)
+    public async Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? code, SpaceGeometry? geometry, Dictionary<string, object>? properties, int? capacity = null, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
@@ -157,12 +161,6 @@ public class SpaceRepository : ISpaceRepository
             var propertiesJson = JsonSerializer.Serialize(properties);
             updates.Add("properties = @properties::jsonb");
             parameters.Add(("properties", propertiesJson));
-        }
-
-        if (groupId != null)
-        {
-            updates.Add("group_id = @groupId");
-            parameters.Add(("groupId", groupId));
         }
 
         if (capacity.HasValue)

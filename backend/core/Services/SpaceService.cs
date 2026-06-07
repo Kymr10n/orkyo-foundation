@@ -19,8 +19,9 @@ public interface ISpaceService
     Task<SpaceInfo?> GetByIdAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);
     /// <summary>Creates a space. Enforces space quota; throws <see cref="Helpers.ConflictException"/> on duplicate code.</summary>
     Task<SpaceInfo> CreateAsync(Guid siteId, string name, string? code, string? description, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default);
-    /// <summary>Updates a space. Returns <c>null</c> if not found.</summary>
-    Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? name, string? code, string? description, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default);
+    /// <summary>Updates a space. Returns <c>null</c> if not found. Group membership is managed
+    /// separately via the resource-group members editor, not here.</summary>
+    Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? name, string? code, string? description, SpaceGeometry? geometry, Dictionary<string, object>? properties, int? capacity = null, CancellationToken ct = default);
     /// <summary>Deletes a space and its underlying resource record. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);
 }
@@ -76,7 +77,7 @@ public class SpaceService : ISpaceService
 
     public async Task<SpaceInfo?> UpdateAsync(
         Guid siteId, Guid resourceId, string? name, string? code, string? description,
-        SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default)
+        SpaceGeometry? geometry, Dictionary<string, object>? properties, int? capacity = null, CancellationToken ct = default)
     {
         // Mirror name and description to resources.
         if (name != null || description != null)
@@ -88,7 +89,7 @@ public class SpaceService : ISpaceService
             });
         }
 
-        return await _repository.UpdateAsync(siteId, resourceId, code, geometry, properties, groupId, capacity);
+        return await _repository.UpdateAsync(siteId, resourceId, code, geometry, properties, capacity);
     }
 
     public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
