@@ -171,6 +171,12 @@ export function SchedulerGrid({
   const [edgeScrollDirection, setEdgeScrollDirection] = useState<'left' | 'right' | null>(null);
   const edgeScrollRef = useRef<number | null>(null);
   const lastMouseXRef = useRef(0);
+  // Stable refs for the edge-scroll rAF loop — avoids stale-closure stall when
+  // anchorTs/timeCursorTs change mid-scroll (the loop captures them at creation).
+  const anchorTsRef = useRef(anchorTs);
+  const timeCursorTsRef = useRef(timeCursorTs);
+  useEffect(() => { anchorTsRef.current = anchorTs; }, [anchorTs]);
+  useEffect(() => { timeCursorTsRef.current = timeCursorTs; }, [timeCursorTs]);
 
   const handleHeaderScroll = () => {
     if (headerScrollRef.current && bodyScrollRef.current) {
@@ -244,22 +250,22 @@ export function SchedulerGrid({
       setEdgeScrollDirection('left');
       const speedFactor = 1 + (1 - leftEdgeDistance / EDGE_THRESHOLD) * (MAX_SPEED_FACTOR - 1);
       const shiftMs = columnDurationMs * BASE_SCROLL_SPEED * speedFactor;
-      const newAnchor = new Date(anchorTs.getTime() - shiftMs);
+      const newAnchor = new Date(anchorTsRef.current.getTime() - shiftMs);
       onAnchorChange(newAnchor);
 
       // Also move the cursor to stay in sync
-      const newCursorTime = new Date(timeCursorTs.getTime() - shiftMs);
+      const newCursorTime = new Date(timeCursorTsRef.current.getTime() - shiftMs);
       onTimeCursorClick(newCursorTime);
     } else if (rightEdgeDistance < EDGE_THRESHOLD && rightEdgeDistance >= 0) {
       // Scrolling right (forward in time)
       setEdgeScrollDirection('right');
       const speedFactor = 1 + (1 - rightEdgeDistance / EDGE_THRESHOLD) * (MAX_SPEED_FACTOR - 1);
       const shiftMs = columnDurationMs * BASE_SCROLL_SPEED * speedFactor;
-      const newAnchor = new Date(anchorTs.getTime() + shiftMs);
+      const newAnchor = new Date(anchorTsRef.current.getTime() + shiftMs);
       onAnchorChange(newAnchor);
 
       // Also move the cursor to stay in sync
-      const newCursorTime = new Date(timeCursorTs.getTime() + shiftMs);
+      const newCursorTime = new Date(timeCursorTsRef.current.getTime() + shiftMs);
       onTimeCursorClick(newCursorTime);
     }
 
@@ -267,7 +273,7 @@ export function SchedulerGrid({
     edgeScrollRef.current = requestAnimationFrame(() => {
       setTimeout(() => edgeScrollLoop(), 50);
     });
-  }, [isDraggingCursor, onAnchorChange, columns, timeCursorTs, anchorTs, onTimeCursorClick, stopEdgeScroll]);
+  }, [isDraggingCursor, onAnchorChange, columns, onTimeCursorClick, stopEdgeScroll]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDraggingCursor || !timeColumnsRef.current) return;

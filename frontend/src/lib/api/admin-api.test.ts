@@ -71,7 +71,7 @@ const mockTenant = {
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-02T00:00:00Z",
   memberCount: 5,
-  tier: "Free",
+  tier: "free",
 };
 
 const mockUser = {
@@ -86,7 +86,7 @@ const mockUser = {
   identityCount: 1,
   isSiteAdmin: false,
   ownedTenantId: TENANT_ID,
-  ownedTenantTier: "Free",
+  ownedTenantTier: "free",
 };
 
 const mockMember = {
@@ -297,17 +297,17 @@ describe("admin-api — Tenant Management", () => {
     it("sends PATCH to /api/admin/tenants/{tenantId}/tier with body", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ message: "Tenant tier updated", tier: "Professional" }),
+        json: async () => ({ message: "Tenant tier updated", tier: "professional" }),
       });
 
-      await updateAdminTenantTier(TENANT_ID, "Professional");
+      await updateAdminTenantTier(TENANT_ID, "professional");
 
       expect(mockFetch).toHaveBeenCalledWith(
         `http://localhost:5000/api/admin/tenants/${TENANT_ID}/tier`,
         expect.objectContaining({
           method: "PATCH",
           credentials: "include",
-          body: JSON.stringify({ tier: "Professional" }),
+          body: JSON.stringify({ tier: "professional" }),
         }),
       );
     });
@@ -315,12 +315,12 @@ describe("admin-api — Tenant Management", () => {
     it("returns message and tier on success", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ message: "Tenant tier updated", tier: "Enterprise" }),
+        json: async () => ({ message: "Tenant tier updated", tier: "enterprise" }),
       });
 
-      const result = await updateAdminTenantTier(TENANT_ID, "Enterprise");
+      const result = await updateAdminTenantTier(TENANT_ID, "enterprise");
 
-      expect(result).toEqual({ message: "Tenant tier updated", tier: "Enterprise" });
+      expect(result).toEqual({ message: "Tenant tier updated", tier: "enterprise" });
     });
 
     it("throws when the request fails", async () => {
@@ -330,7 +330,7 @@ describe("admin-api — Tenant Management", () => {
         text: async () => "Cannot downgrade: tenant has 10 active members but Free tier allows 5",
       });
 
-      await expect(updateAdminTenantTier(TENANT_ID, "Free")).rejects.toThrow(
+      await expect(updateAdminTenantTier(TENANT_ID, "free")).rejects.toThrow(
         "Cannot downgrade",
       );
     });

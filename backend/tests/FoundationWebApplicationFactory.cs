@@ -220,7 +220,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             TenantId = tenantId,
             TenantSlug = TestConstants.TenantSlug,
             TenantDbConnectionString = tenantCs,
-            Tier = Api.Models.ServiceTier.Enterprise,
             Status = "active",
         });
 
@@ -260,6 +259,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
+        builder.Services.AddScoped<Api.Security.Quotas.IQuotaUsageRollup, Api.Security.Quotas.NoOpQuotaUsageRollup>();
+        builder.Services.AddScoped<Api.Security.Features.IFeatureGate, Api.Security.Features.AllFeaturesEnabledGate>();
+        builder.Services.AddScoped<Api.Security.Features.ITenantPlanInfoProvider, Api.Security.Features.SinglePlanInfoProvider>();
 
         // ── HTTP client factory (required by UserLifecycleService) ────────────
         builder.Services.AddHttpClient();

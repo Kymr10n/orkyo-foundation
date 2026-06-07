@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Security;
+using Api.Security.Features;
 using Api.Services;
 using Api.Services.Reporting;
 using Microsoft.AspNetCore.Builder;
@@ -53,7 +54,7 @@ public static class ReportingTokenEndpoints
         ICurrentTenant tenant,
         ICurrentPrincipal principal,
         IAuthorizationContext authContext,
-        HttpContext httpContext,
+        IFeatureGate featureGate,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct)
     {
@@ -61,9 +62,9 @@ public static class ReportingTokenEndpoints
         {
             authContext.RequireRole(TenantRole.Admin);
 
-            // Reporting API keys require API access (Professional+). Free tenants are
-            // gated; Community resolves tenants as Enterprise and is unaffected.
-            if (httpContext.GetTenantContext().Tier == ServiceTier.Free)
+            // Reporting API keys require the API-access entitlement. The edition decides:
+            // SaaS grants it on paid tiers; Community allows everything.
+            if (!await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct))
                 return Results.Json(
                     new { error = "upgrade_required", message = "Reporting API access requires a paid plan." },
                     statusCode: StatusCodes.Status402PaymentRequired);

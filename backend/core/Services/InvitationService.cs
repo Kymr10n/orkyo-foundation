@@ -48,7 +48,7 @@ public sealed class InvitationService : IInvitationService
             "SELECT COUNT(*) FROM tenant_memberships WHERE tenant_id = @tenantId AND status = 'active'", conn);
         countCmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
         var currentCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
-        _quotaEnforcer.EnforceLimit(QuotaResourceTypes.ActiveSeats, currentCount);
+        await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.ActiveSeats, currentCount, 1, ct);
 
         // Check if already a member
         await using var checkCmd = new NpgsqlCommand(@"

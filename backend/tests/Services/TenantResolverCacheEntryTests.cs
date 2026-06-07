@@ -31,7 +31,6 @@ public class TenantResolverCacheEntryTests
             TenantId = Guid.NewGuid(),
             TenantSlug = "acme",
             TenantDbConnectionString = "Host=localhost;Database=tenant_acme;Username=postgres;Password=postgres",
-            Tier = Api.Models.ServiceTier.Free,
             Status = TenantStatusConstants.Active
         };
         var expiresAtUtc = DateTime.UtcNow.AddMinutes(5);

@@ -20,7 +20,7 @@ export const API_ERROR_CODES = {
 /**
  * Body shape for 401/403/404/410 responses that carry a structured code.
  * The optional `returnTo` is a relative path the frontend should navigate to
- * after handling the error (e.g. "/admin" when a break-glass session ends).
+ * after handling the error (e.g. "/site-admin" when a break-glass session ends).
  */
 export interface ApiErrorBody {
   error?: string;

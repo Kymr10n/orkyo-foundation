@@ -28,11 +28,13 @@ public class SiteService : ISiteService
 {
     private readonly ISiteRepository _repository;
     private readonly IQuotaEnforcer _quotaEnforcer;
+    private readonly IQuotaUsageRollup _rollup;
 
-    public SiteService(ISiteRepository repository, IQuotaEnforcer quotaEnforcer)
+    public SiteService(ISiteRepository repository, IQuotaEnforcer quotaEnforcer, IQuotaUsageRollup rollup)
     {
         _repository = repository;
         _quotaEnforcer = quotaEnforcer;
+        _rollup = rollup;
     }
 
     public Task<List<SiteInfo>> GetAllAsync(CancellationToken ct = default) => _repository.GetAllAsync(ct);
@@ -44,12 +46,20 @@ public class SiteService : ISiteService
     public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)
     {
         var currentCount = await _repository.GetEstimatedCountAsync();
-        _quotaEnforcer.EnforceLimit(QuotaResourceTypes.Sites, currentCount);
-        return await _repository.CreateAsync(code, name, description, address);
+        await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.ProductionSites, currentCount, 1, ct);
+        var site = await _repository.CreateAsync(code, name, description, address);
+        await _rollup.RecordDeltaAsync(QuotaResourceTypes.ProductionSites, 1, ct);
+        return site;
     }
 
     public Task<SiteInfo?> UpdateAsync(Guid siteId, string code, string name, string? description, string? address, CancellationToken ct = default)
         => _repository.UpdateAsync(siteId, code, name, description, address, ct);
 
-    public Task<bool> DeleteAsync(Guid siteId, CancellationToken ct = default) => _repository.DeleteAsync(siteId, ct);
+    public async Task<bool> DeleteAsync(Guid siteId, CancellationToken ct = default)
+    {
+        var deleted = await _repository.DeleteAsync(siteId, ct);
+        if (deleted)
+            await _rollup.RecordDeltaAsync(QuotaResourceTypes.ProductionSites, -1, ct);
+        return deleted;
+    }
 }

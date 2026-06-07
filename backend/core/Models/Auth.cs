@@ -16,7 +16,6 @@ public class Tenant
     public required string DisplayName { get; set; }
     public TenantStatus Status { get; set; }
     public required string DbIdentifier { get; set; }
-    public ServiceTier Tier { get; set; } = ServiceTier.Free;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

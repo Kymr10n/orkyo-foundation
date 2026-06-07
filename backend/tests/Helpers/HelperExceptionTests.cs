@@ -16,12 +16,12 @@ public class HelperExceptionTests
     }
 
     [Fact]
-    public void FeatureNotAvailableException_WithTierRequirement_ShouldExposeFeatureAndFormattedMessage()
+    public void FeatureNotAvailableException_ReasonIsIncludedInMessage()
     {
-        var ex = new FeatureNotAvailableException("auto_schedule", "free", "professional");
+        var ex = new FeatureNotAvailableException("auto_schedule", "not available on current plan");
 
         ex.Feature.Should().Be("auto_schedule");
-        ex.Message.Should().Be("Feature 'auto_schedule' requires professional tier or above. Current tier: free.");
+        ex.Message.Should().Contain("not available on current plan");
     }
 
     [Fact]

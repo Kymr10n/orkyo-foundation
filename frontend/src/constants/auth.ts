@@ -130,6 +130,14 @@ export const ROUTE_SIGNUP = '/signup';
 export const ROUTE_CREATE_ACCOUNT = '/create-account';
 
 /**
+ * Platform-operator admin panel route (site-admins, `isSiteAdmin`). The page
+ * itself is SaaS-injected via `renderAdminPage`; foundation only owns the route
+ * string, navigation, and break-glass return target. Distinct from the tenant
+ * `/tenant-admin` Administration page (tenant `role === "admin"`).
+ */
+export const ROUTE_SITE_ADMIN = '/site-admin';
+
+/**
  * Paths that render without an authenticated session by design (invitation
  * signup, request-access). The auth machine must never redirect these to the
  * BFF login endpoint, and `ApexGateway` renders them ahead of the auth pipeline.

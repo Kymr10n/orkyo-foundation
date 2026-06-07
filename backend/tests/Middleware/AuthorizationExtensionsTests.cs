@@ -47,7 +47,7 @@ public class AuthorizationExtensionsTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.BreakGlassExpired);
-        payload.GetProperty("returnTo").GetString().Should().Be("/admin");
+        payload.GetProperty("returnTo").GetString().Should().Be("/site-admin");
     }
 
     [Fact]

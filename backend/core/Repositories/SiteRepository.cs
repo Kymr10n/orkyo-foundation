@@ -53,8 +53,7 @@ public class SiteRepository : ISiteRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return (int)await conn.ExecuteScalarAsync<long>(
-            "SELECT GREATEST(reltuples::bigint, 0) FROM pg_class WHERE relname = 'sites'",
-            null, ct);
+            "SELECT COUNT(*) FROM sites", null, ct);
     }
 
     public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)

@@ -21,7 +21,7 @@ vi.mock('sonner', () => ({
 // tests control the current tier; default to Professional so the page renders.
 const { authState } = vi.hoisted(() => ({
   authState: {
-    membership: { tier: 'Professional' } as { tier: string } | null,
+    membership: { tier: 'professional' } as { tier: string } | null,
     isLoading: false,
   },
 }));
@@ -103,7 +103,7 @@ function expectedPresetLabel(days: number): string {
 describe('ReportingApiPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    authState.membership = { tier: 'Professional' };
+    authState.membership = { tier: 'professional' };
     authState.isLoading = false;
     vi.mocked(listReportingTokens).mockResolvedValue([activeToken]);
     vi.mocked(createReportingToken).mockResolvedValue({
@@ -121,7 +121,7 @@ describe('ReportingApiPage', () => {
   });
 
   it('shows generic unavailable message for tenants without API access', async () => {
-    authState.membership = { tier: 'Free' };
+    authState.membership = { tier: 'free' };
     renderPage();
 
     await waitFor(() => {
@@ -133,7 +133,7 @@ describe('ReportingApiPage', () => {
   });
 
   it('uses injected unavailable redirect target when provided', async () => {
-    authState.membership = { tier: 'Free' };
+    authState.membership = { tier: 'free' };
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={['/settings/integrations']}>
@@ -149,7 +149,7 @@ describe('ReportingApiPage', () => {
   });
 
   it('forwards Free-tier users (token UI never renders)', async () => {
-    authState.membership = { tier: 'Free' };
+    authState.membership = { tier: 'free' };
     renderPage();
     await waitFor(() => {
       expect(screen.queryByText('Reporting API')).not.toBeInTheDocument();
@@ -160,7 +160,7 @@ describe('ReportingApiPage', () => {
   });
 
   it('renders for Enterprise tier', async () => {
-    authState.membership = { tier: 'Enterprise' };
+    authState.membership = { tier: 'enterprise' };
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Reporting API')).toBeInTheDocument();

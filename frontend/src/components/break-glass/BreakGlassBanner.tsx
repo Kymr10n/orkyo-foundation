@@ -4,7 +4,7 @@
  * Renders only when the current membership was opened via break-glass
  * (`membership.isBreakGlass`). Shows a live countdown to expiry, lets the
  * admin extend the session up to the absolute hard cap, and lets them exit
- * cleanly back to /admin.
+ * cleanly back to /site-admin.
  *
  * The banner reconciles with the backend on mount via
  * `getBreakGlassSessionStatus` so the absolute hard cap and createdAt are
@@ -15,6 +15,7 @@ import { Clock, RefreshCw, Shield, X } from 'lucide-react';
 
 import { Button } from '@foundation/src/components/ui/button';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { ROUTE_SITE_ADMIN } from '@foundation/src/constants/auth';
 import {
   type BreakGlassSessionStatus,
   auditBreakGlassExit,
@@ -61,12 +62,12 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
     const id = sessionId;
     clearMembership();
     // Always do a hard navigation so the app starts with a clean auth state.
-    // A client-side navigate('/admin') after clearMembership() leaves the auth
-    // machine in a transitional state that produces a blank screen. The flash
+    // A client-side navigate(ROUTE_SITE_ADMIN) after clearMembership() leaves the
+    // auth machine in a transitional state that produces a blank screen. The flash
     // prevention is handled by the inline theme script in index.html, so a
     // full reload is now flash-free.
-    if (!navigateToApex('/admin')) {
-      window.location.href = '/admin';
+    if (!navigateToApex(ROUTE_SITE_ADMIN)) {
+      window.location.href = ROUTE_SITE_ADMIN;
     }
     if (id) {
       auditBreakGlassExit(id).catch((err: unknown) => {

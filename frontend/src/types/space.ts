@@ -46,7 +46,6 @@ export interface UpdateSpaceRequest {
   isPhysical?: boolean;
   geometry?: SpaceGeometry;
   properties?: Record<string, unknown>;
-  groupId?: string | null;
   capacity?: number;
 }
 

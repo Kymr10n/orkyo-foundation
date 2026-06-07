@@ -3,6 +3,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Models.Admin;
 using Api.Security;
+using Api.Security.Features;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Npgsql;
@@ -62,6 +63,7 @@ public static class UserAdminEndpoints
     private static async Task<IResult> GetUsers(
         IDbConnectionFactory connectionFactory,
         IKeycloakAdminService keycloak,
+        ITenantPlanInfoProvider planInfoProvider,
         ILogger<EndpointLoggerCategory> logger,
         string? search = null,
         string? status = null,
@@ -93,8 +95,7 @@ public static class UserAdminEndpoints
                 (SELECT COUNT(*) FROM tenant_memberships tm WHERE tm.user_id = u.id AND tm.status = 'active') as membership_count,
                 (SELECT COUNT(*) FROM user_identities ui WHERE ui.user_id = u.id) as identity_count,
                 (SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'keycloak' LIMIT 1) as keycloak_sub,
-                ot.id as owned_tenant_id,
-                ot.tier as owned_tenant_tier
+                ot.id as owned_tenant_id
             FROM users u
             LEFT JOIN tenants ot ON ot.owner_user_id = u.id AND ot.status != 'deleting'
             {whereClause}
@@ -128,7 +129,7 @@ public static class UserAdminEndpoints
                 IdentityCount = reader.GetInt32(8),
                 IsSiteAdmin = false, // populated below
                 OwnedTenantId = reader.IsDBNull(10) ? null : reader.GetGuid(10),
-                OwnedTenantTier = reader.IsDBNull(11) ? null : ((ServiceTier)reader.GetInt32(11)).ToString()
+                OwnedTenantTier = null // resolved below via the edition's plan provider
             });
         }
 
@@ -147,6 +148,19 @@ public static class UserAdminEndpoints
             }
         }
 
+        // Owned-tenant plan label is a commercial concept resolved by the edition.
+        var ownedTenantIds = users.Where(u => u.OwnedTenantId.HasValue)
+            .Select(u => u.OwnedTenantId!.Value).Distinct().ToList();
+        if (ownedTenantIds.Count > 0)
+        {
+            var planInfo = await planInfoProvider.GetPlanInfoAsync(ownedTenantIds, ct);
+            for (var i = 0; i < users.Count; i++)
+            {
+                if (users[i].OwnedTenantId is Guid otid && planInfo.TryGetValue(otid, out var info))
+                    users[i] = users[i] with { OwnedTenantTier = info.PlanLabel };
+            }
+        }
+
         logger.LogInformation("Admin listed {Count} users", users.Count);
         return Results.Ok(new { users });
     }
@@ -155,6 +169,7 @@ public static class UserAdminEndpoints
         Guid userId,
         IDbConnectionFactory connectionFactory,
         IKeycloakAdminService keycloak,
+        ITenantPlanInfoProvider planInfoProvider,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
@@ -163,7 +178,7 @@ public static class UserAdminEndpoints
 
         await using var userCmd = new NpgsqlCommand(@"
             SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at,
-                   ot.id as owned_tenant_id, ot.tier as owned_tenant_tier
+                   ot.id as owned_tenant_id
             FROM users u
             LEFT JOIN tenants ot ON ot.owner_user_id = u.id AND ot.status != 'deleting'
             WHERE u.id = @userId",
@@ -186,12 +201,19 @@ public static class UserAdminEndpoints
             LastLoginAt = userReader.IsDBNull(6) ? null : userReader.GetDateTime(6),
             IsSiteAdmin = false,
             OwnedTenantId = userReader.IsDBNull(7) ? null : userReader.GetGuid(7),
-            OwnedTenantTier = userReader.IsDBNull(8) ? null : ((ServiceTier)userReader.GetInt32(8)).ToString(),
+            OwnedTenantTier = null, // resolved below via the edition's plan provider
             Identities = new List<AdminUserIdentity>(),
             Memberships = new List<AdminUserMembership>()
         };
 
         await userReader.CloseAsync();
+
+        if (user.OwnedTenantId is Guid ownedTenantId)
+        {
+            var planInfo = await planInfoProvider.GetPlanInfoAsync(new[] { ownedTenantId }, ct);
+            if (planInfo.TryGetValue(ownedTenantId, out var info))
+                user = user with { OwnedTenantTier = info.PlanLabel };
+        }
 
         // Check site-admin role via Keycloak (best-effort — failures shouldn't hide the user)
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);

@@ -28,7 +28,7 @@ public interface ISpaceRepository
     Task<SpaceInfo> CreateAsync(Guid resourceId, Guid siteId, string? code, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default);
 
     /// <summary>Updates a space. Returns <c>null</c> if not found.</summary>
-    Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? code, SpaceGeometry? geometry, Dictionary<string, object>? properties, Guid? groupId = null, int? capacity = null, CancellationToken ct = default);
+    Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? code, SpaceGeometry? geometry, Dictionary<string, object>? properties, int? capacity = null, CancellationToken ct = default);
 
     /// <summary>Deletes a space. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);

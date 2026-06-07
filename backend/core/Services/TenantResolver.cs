@@ -46,7 +46,7 @@ public class TenantResolver : ITenantResolver
         await using var conn = new NpgsqlConnection(_controlPlaneConnectionString);
         await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            $"SELECT id, slug, db_identifier, status, tier FROM tenants WHERE slug = @slug AND status != '{TenantStatusConstants.Deleting}'",
+            $"SELECT id, slug, db_identifier, status FROM tenants WHERE slug = @slug AND status != '{TenantStatusConstants.Deleting}'",
             conn);
         cmd.Parameters.AddWithValue("slug", tenantSlug);
         await using var reader = await cmd.ExecuteReaderAsync(ct);

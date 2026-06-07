@@ -1,4 +1,3 @@
-using Api.Models;
 using Api.Services;
 
 namespace Orkyo.Foundation.Tests.Services;
@@ -63,7 +62,6 @@ public class OrgContextTests
             TenantId = tenantId ?? Guid.NewGuid(),
             TenantSlug = slug,
             TenantDbConnectionString = connectionString,
-            Tier = ServiceTier.Free,
             Status = "active"
         };
 }

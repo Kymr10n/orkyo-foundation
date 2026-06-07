@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Api.Models;
 using Api.Repositories;
+using Api.Security.Quotas;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 
@@ -34,6 +35,8 @@ public interface IAssetStorageService
 public class AssetStorageService(
     IAssetRepository assetRepository,
     ITenantSettingsService settingsService,
+    IQuotaEnforcer quotaEnforcer,
+    IQuotaUsageRollup quotaUsageRollup,
     ILogger<AssetStorageService> logger) : IAssetStorageService
 {
     public async Task<FloorplanMetadataInfo?> GetSiteFloorplanMetadataAsync(
@@ -74,6 +77,18 @@ public class AssetStorageService(
         var settings = await settingsService.GetSettingsAsync();
         var validated = await ValidateFloorplanAsync(request, settings, ct);
 
+        // Storage quota: delta-aware (upsert may replace an existing asset).
+        // currentTotal - existingSize gives the baseline; requestedIncrement = new file size.
+        var existingAsset = await assetRepository.GetForOwnerAsync(
+            tenantId, AssetOwnerTypes.Site, siteId, AssetTypes.Floorplan, ct);
+        var existingBytes = existingAsset?.SizeBytes ?? 0L;
+        var currentTotal = await assetRepository.GetTotalSizeBytesAsync(tenantId, ct);
+        await quotaEnforcer.EnsureWithinLimitAsync(
+            QuotaResourceTypes.StorageBytes,
+            currentTotal - existingBytes,
+            validated.Data.LongLength,
+            ct);
+
         var asset = await assetRepository.UpsertPostgresAssetAsync(
             tenantId,
             AssetOwnerTypes.Site,
@@ -87,6 +102,8 @@ public class AssetStorageService(
             validated.HeightPx,
             userId,
             ct);
+
+        await quotaUsageRollup.RecordDeltaAsync(QuotaResourceTypes.StorageBytes, asset.SizeBytes - existingBytes, ct);
 
         logger.LogInformation(
             "Stored floorplan asset {AssetId} for site {SiteId}: {Size} bytes, {ContentType}, {Width}x{Height}",
@@ -103,8 +120,13 @@ public class AssetStorageService(
         if (!await assetRepository.OwnerExistsAsync(AssetOwnerTypes.Site, siteId, ct))
             throw new KeyNotFoundException($"Site {siteId} not found");
 
-        return await assetRepository.DeleteForOwnerAsync(
+        var existingAsset = await assetRepository.GetForOwnerAsync(
             tenantId, AssetOwnerTypes.Site, siteId, AssetTypes.Floorplan, ct);
+        var deleted = await assetRepository.DeleteForOwnerAsync(
+            tenantId, AssetOwnerTypes.Site, siteId, AssetTypes.Floorplan, ct);
+        if (deleted && existingAsset is not null)
+            await quotaUsageRollup.RecordDeltaAsync(QuotaResourceTypes.StorageBytes, -existingAsset.SizeBytes, ct);
+        return deleted;
     }
 
     private static async Task<ValidatedFloorplan> ValidateFloorplanAsync(

@@ -268,7 +268,7 @@ describe('api-utils', () => {
       );
     });
 
-    it('handles break_glass_expired by clearing state and navigating to /admin', async () => {
+    it('handles break_glass_expired by clearing state and navigating to /site-admin', async () => {
       localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
 
@@ -278,7 +278,7 @@ describe('api-utils', () => {
         json: async () => ({
           error: 'Break-glass session ended',
           code: 'break_glass_expired',
-          returnTo: '/admin',
+          returnTo: '/site-admin',
         }),
       } as unknown as Response;
 
@@ -288,11 +288,11 @@ describe('api-utils', () => {
 
       expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
-    it('handles break_glass_hard_cap_reached by navigating to /admin', async () => {
+    it('handles break_glass_hard_cap_reached by navigating to /site-admin', async () => {
       localStorage.setItem('active_membership', '{"tenantId":"test"}');
 
       const response = {
@@ -301,18 +301,18 @@ describe('api-utils', () => {
         json: async () => ({
           error: 'Hard cap reached',
           code: 'break_glass_hard_cap_reached',
-          returnTo: '/admin',
+          returnTo: '/site-admin',
         }),
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow('Hard cap reached');
 
       expect(localStorage.getItem('active_membership')).toBeNull();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
-    it('falls back to /admin when break-glass response has no returnTo', async () => {
+    it('falls back to /site-admin when break-glass response has no returnTo', async () => {
       const response = {
         status: 404,
         statusText: 'Not Found',
@@ -323,7 +323,7 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 });

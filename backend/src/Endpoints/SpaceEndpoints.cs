@@ -63,7 +63,7 @@ public static class SpaceEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var space = await spaceService.UpdateAsync(siteId, resourceId, request.Name, request.Code, request.Description, request.Geometry, request.Properties, request.GroupId, request.Capacity, ct);
+                var space = await spaceService.UpdateAsync(siteId, resourceId, request.Name, request.Code, request.Description, request.Geometry, request.Properties, request.Capacity, ct);
                 if (space == null) return ErrorResponses.NotFound("Space", resourceId);
                 logger.LogInformation("Updated space {ResourceId} for site {SiteId}", resourceId, siteId);
                 return Results.Ok(space);

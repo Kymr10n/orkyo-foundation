@@ -9,6 +9,15 @@ vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: (sel: any) => mockUseAppStore(sel),
 }));
 
+// Availability-event write actions are admin-gated; default to admin so the
+// existing add/edit/delete interaction tests still see those affordances.
+const authState: { membership: { isTenantAdmin?: boolean } | null } = {
+  membership: { isTenantAdmin: true },
+};
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
+  useAuth: () => ({ membership: authState.membership }),
+}));
+
 const mockSettings = {
   timeZone: 'Europe/Berlin',
   workingHoursEnabled: true,
@@ -79,6 +88,7 @@ const mockAvailabilityEvent = {
 
 function setup() {
   vi.clearAllMocks();
+  authState.membership = { isTenantAdmin: true };
   mockUseAppStore.mockImplementation((selector: any) =>
     selector({ selectedSiteId: 'site-1' }),
   );
@@ -120,6 +130,23 @@ describe('SchedulingSettings', () => {
     render(<SchedulingSettings />);
     expect(screen.getByText('Availability Events')).toBeInTheDocument();
     expect(screen.getByText('Add')).toBeInTheDocument();
+  });
+
+  it('hides the Add button for non-admin editors', () => {
+    authState.membership = { isTenantAdmin: false };
+    render(<SchedulingSettings />);
+    expect(screen.getByText('Availability Events')).toBeInTheDocument();
+    expect(screen.queryByText('Add')).not.toBeInTheDocument();
+  });
+
+  it('hides per-event edit/delete actions for non-admin editors', () => {
+    authState.membership = { isTenantAdmin: false };
+    mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
+    render(<SchedulingSettings />);
+    // The event is still listed (read-only) but carries no action buttons.
+    expect(screen.getByText('Christmas Closure')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Add$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
   });
 
   it('shows "Select a site" when no site selected', () => {

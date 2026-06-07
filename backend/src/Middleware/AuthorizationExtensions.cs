@@ -11,8 +11,10 @@ public static class AuthorizationExtensions
 {
     /// <summary>
     /// Path the frontend lands on after a break-glass session ends. Served from the apex domain.
+    /// This is the platform site-admin panel route (renamed from /admin to mirror the
+    /// isSiteAdmin role; distinct from the tenant /tenant-admin Administration page).
     /// </summary>
-    private const string AdminReturnPath = "/admin";
+    private const string AdminReturnPath = "/site-admin";
 
     /// <summary>
     /// Requires the user to be a site administrator (global admin role from Keycloak).

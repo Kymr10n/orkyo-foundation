@@ -35,6 +35,9 @@ public static class SpaceMapper
             Geometry = geometry,
             Properties = properties,
             Capacity = reader.GetInt32("capacity"),
+            // group_id is sourced from resource_group_members via a LEFT JOIN (the single
+            // source of truth); it is no longer a spaces column. The 1:1 guard ensures a
+            // space is in at most one group, so the join yields at most one row.
             GroupId = reader.GetNullableGuid("group_id"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),

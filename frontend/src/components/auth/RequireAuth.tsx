@@ -5,7 +5,7 @@
  *   requireMembership (default true) – when true the user must also
  *     have an active tenant membership (authStage === 'ready').
  *     Set to false for routes that only need a valid BFF session
- *     (e.g. /account, /admin).
+ *     (e.g. /account, /site-admin).
  *
  * Uses `authStage` as the single source of truth — no independent
  * re-derivation of auth state.

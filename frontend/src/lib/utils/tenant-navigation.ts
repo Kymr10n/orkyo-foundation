@@ -156,7 +156,7 @@ export function redirectToLogin(): void {
 
 /**
  * Navigate to the apex domain (e.g. orkyo.com, or staging.orkyo.com on staging).
- * Used when exiting a tenant subdomain (e.g. break-glass exit → back to /admin).
+ * Used when exiting a tenant subdomain (e.g. break-glass exit → back to /site-admin).
  */
 export function navigateToApex(path = "/"): boolean {
   const apex = getApexHostname();

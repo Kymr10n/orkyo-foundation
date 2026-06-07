@@ -67,7 +67,7 @@ const mockTenant: TenantMembership = {
   displayName: "Demo",
   role: "admin",
   state: "active",
-  tier: "Free",
+  tier: "free",
 };
 
 const mockBootstrapResponse = {

@@ -87,6 +87,22 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
 
         if (resourceIds.Count > 0)
         {
+            // 1:1 move semantics for spaces: a space may belong to at most one group, so
+            // remove each incoming space from any OTHER space-group before inserting here
+            // (delete-before-insert, same txn, satisfies the trg_space_single_group guard).
+            // No-op for people/other types — they have no space-group memberships.
+            await using var move = new NpgsqlCommand(
+                "DELETE FROM resource_group_members m " +
+                "USING resource_groups g " +
+                "WHERE m.resource_group_id = g.id " +
+                "  AND m.resource_id = ANY(@ids) " +
+                "  AND m.resource_group_id <> @groupId " +
+                "  AND g.resource_type_id = (SELECT id FROM resource_types WHERE key = 'space')",
+                db, tx);
+            move.Parameters.AddWithValue("groupId", groupId);
+            move.Parameters.AddWithValue("ids", resourceIds.ToArray());
+            await move.ExecuteNonQueryAsync(ct);
+
             await using var ins = new NpgsqlCommand(
                 "INSERT INTO resource_group_members (resource_group_id, resource_id, resource_type_id) " +
                 "SELECT @groupId, r.id, r.resource_type_id " +

@@ -7,16 +7,16 @@ namespace Api.Helpers;
 public class QuotaExceededException : Exception
 {
     public string ResourceType { get; }
-    public int Limit { get; }
+    public long Limit { get; }
 
-    public QuotaExceededException(string resourceType, int limit)
+    public QuotaExceededException(string resourceType, long limit)
         : base($"Quota exceeded for {resourceType}. Maximum allowed: {limit}")
     {
         ResourceType = resourceType;
         Limit = limit;
     }
 
-    public QuotaExceededException(string resourceType, int limit, string message)
+    public QuotaExceededException(string resourceType, long limit, string message)
         : base(message)
     {
         ResourceType = resourceType;
@@ -31,7 +31,7 @@ public class TierLimitExceededException : QuotaExceededException
 {
     public string TierName { get; }
 
-    public TierLimitExceededException(string tierName, string resourceType, int limit)
+    public TierLimitExceededException(string tierName, string resourceType, long limit)
         : base(resourceType, limit, $"Service tier '{tierName}' limit exceeded for {resourceType}. Maximum allowed: {limit}")
     {
         TierName = tierName;

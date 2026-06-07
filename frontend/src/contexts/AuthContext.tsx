@@ -28,7 +28,7 @@ import { logger } from '@foundation/src/lib/core/logger';
 
 // ── Re-exported types (consumed by pages, components, api-utils) ──────────────
 
-export type ServiceTier = 'Free' | 'Professional' | 'Enterprise';
+export type ServiceTier = 'free' | 'professional' | 'enterprise';
 
 export interface TenantMembership {
   tenantId: string;
@@ -80,7 +80,7 @@ interface AuthContextValue {
   tenantSlug: string | null;
   /** True when the user may access /account directly (any authenticated stage). */
   canAccessAccountPage: boolean;
-  /** True when the user may access /admin directly (site admin + any authenticated stage). */
+  /** True when the user may access /site-admin directly (site admin + any authenticated stage). */
   canAccessAdminPage: boolean;
 
   // Actions — wrap send() for backward compatibility

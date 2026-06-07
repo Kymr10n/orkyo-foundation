@@ -12,6 +12,7 @@ vi.mock("@foundation/src/lib/api/resources-api", () => ({
   getResources: vi.fn(),
 }));
 vi.mock("@foundation/src/lib/api/resource-groups-api", () => ({
+  getResourceGroups: vi.fn(),
   getResourceGroupMembers: vi.fn(),
   setResourceGroupMembers: vi.fn(),
 }));
@@ -21,6 +22,7 @@ vi.mock("@foundation/src/lib/core/logger", () => ({
 
 import { getResources } from "@foundation/src/lib/api/resources-api";
 import {
+  getResourceGroups,
   getResourceGroupMembers,
   setResourceGroupMembers,
 } from "@foundation/src/lib/api/resource-groups-api";
@@ -153,5 +155,58 @@ describe("ResourceGroupMembersEditor", () => {
     await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /Cancel/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  describe("space 1:1 move-with-confirm", () => {
+    const spaces = [makeResource("s-1", "Cell 1", "space")];
+
+    beforeEach(() => {
+      // Current group (g-1 = "Group A") is empty; the space already lives in g-2.
+      vi.mocked(getResources).mockResolvedValue(makeResourcesResponse(spaces));
+      vi.mocked(getResourceGroupMembers).mockImplementation((id: string) =>
+        Promise.resolve(
+          id === "g-2"
+            ? { groupId: "g-2", members: spaces }
+            : { groupId: id, members: [] },
+        ),
+      );
+      vi.mocked(getResourceGroups).mockResolvedValue([
+        { id: "g-1", name: "Group A", resourceTypeKey: "space", displayOrder: 0 },
+        { id: "g-2", name: "Group B", resourceTypeKey: "space", displayOrder: 1 },
+      ] as never);
+    });
+
+    it("confirms a move before saving, then commits on Move & Save", async () => {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      render(
+        <ResourceGroupMembersEditor
+          {...defaultProps}
+          resourceTypeKey="space"
+          groupId="g-1"
+          groupName="Group A"
+          onOpenChange={onOpenChange}
+        />,
+        { wrapper: createWrapper() },
+      );
+      await waitFor(() => expect(screen.getByText("Cell 1")).toBeInTheDocument());
+
+      // Select the space that is currently in Group B.
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[checkboxes.length - 1]);
+
+      // Saving surfaces the move confirmation instead of committing immediately.
+      await user.click(screen.getByRole("button", { name: /Save Changes/i }));
+      await waitFor(() =>
+        expect(screen.getByText(/move from .*Group B.* to .*Group A/i)).toBeInTheDocument(),
+      );
+      expect(setResourceGroupMembers).not.toHaveBeenCalled();
+
+      // Confirming performs the move.
+      await user.click(screen.getByRole("button", { name: /Move & Save/i }));
+      await waitFor(() =>
+        expect(setResourceGroupMembers).toHaveBeenCalledWith("g-1", ["s-1"]),
+      );
+    });
   });
 });

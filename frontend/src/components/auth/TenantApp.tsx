@@ -26,8 +26,10 @@ import { OrganizationSettings } from '@foundation/src/components/settings/Organi
 import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
 import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
 import { ReportingApiPage } from '@foundation/src/components/settings/ReportingApiPage';
+import { UsageLimitsSettings } from '@foundation/src/components/settings/UsageLimitsSettings';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
+import { RequireTenantAdmin } from '@foundation/src/components/auth/RequireTenantAdmin';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
@@ -48,10 +50,11 @@ const PeoplePage = lazy(() => import('@foundation/src/pages/PeoplePage').then(m 
 const ConflictsPage = lazy(() => import('@foundation/src/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
 const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const TenantAdminPage = lazy(() => import('@foundation/src/pages/TenantAdminPage').then(m => ({ default: m.TenantAdminPage })));
 const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings", "/tenant-admin"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -111,18 +114,27 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="requests" element={<RequestsPage />} />
           <Route path="conflicts" element={<ConflictsPage />} />
 
-          {/* Settings — nested sub-routes. Default = criteria. */}
+          {/* Settings — editor-open content. Nested sub-routes. Default = criteria. */}
           <Route path="settings" element={<SettingsPage />}>
             <Route index element={<Navigate to="criteria" replace />} />
             <Route path="criteria" element={<CriteriaSettings />} />
-            <Route path="sites" element={<SiteSettings />} />
             <Route path="templates" element={<TemplateSettings entityType="request" />} />
             <Route path="presets" element={<PresetSettings />} />
+            <Route path="scheduling" element={<SchedulingSettings />} />
+          </Route>
+
+          {/* Administration — tenant-admin-only governance. Default = sites. */}
+          <Route
+            path="tenant-admin"
+            element={<RequireTenantAdmin><TenantAdminPage /></RequireTenantAdmin>}
+          >
+            <Route index element={<Navigate to="sites" replace />} />
+            <Route path="sites" element={<SiteSettings />} />
             <Route path="users" element={<UserSettings />} />
             <Route path="organization" element={<OrganizationSettings />} />
-            <Route path="scheduling" element={<SchedulingSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
             <Route path="integrations" element={<ReportingApiPage unavailableRedirectTo={reportingApiUnavailableRedirectTo} />} />
+            <Route path="usage-limits" element={<UsageLimitsSettings />} />
           </Route>
 
           {/* People — nested sub-routes. Skills and absences are managed per-person
@@ -149,6 +161,15 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="settings/departments" element={<Navigate to="/people/departments" replace />} />
           <Route path="settings/job-titles"  element={<Navigate to="/people/job-titles" replace />} />
           <Route path="settings/groups"      element={<Navigate to="/spaces/groups" replace />} />
+
+          {/* Backward-compatible redirects: governance tabs moved out of Settings
+              into the tenant-admin Administration page. */}
+          <Route path="settings/sites"         element={<Navigate to="/tenant-admin/sites" replace />} />
+          <Route path="settings/users"         element={<Navigate to="/tenant-admin/users" replace />} />
+          <Route path="settings/organization"  element={<Navigate to="/tenant-admin/organization" replace />} />
+          <Route path="settings/configuration" element={<Navigate to="/tenant-admin/configuration" replace />} />
+          <Route path="settings/integrations"  element={<Navigate to="/tenant-admin/integrations" replace />} />
+          <Route path="settings/usage-limits"  element={<Navigate to="/tenant-admin/usage-limits" replace />} />
         </Route>
       </Routes>
       </Suspense>

@@ -32,9 +32,9 @@ export function useAutoScheduleAvailable(): boolean {
   const { membership } = useAuth();
   const { data } = useTenantSettings();
 
-  const tier = membership?.tier ?? "Free";
+  const tier = membership?.tier ?? "free";
   const isProfessionalOrAbove =
-    tier === "Professional" || tier === "Enterprise";
+    tier === "professional" || tier === "enterprise";
 
   const autoScheduleSetting = data?.settings.find(
     (s) => s.key === "scheduling.auto_schedule_enabled",

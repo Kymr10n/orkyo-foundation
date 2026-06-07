@@ -2,6 +2,8 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Security;
+using Api.Security.Features;
+using Api.Security.Quotas;
 using Api.Services;
 using Api.Services.AutoSchedule;
 using Api.Services.Reporting;
@@ -47,6 +49,15 @@ public static class FoundationServiceExtensions
         // ── Auth ──────────────────────────────────────────────────────────────
         services.AddOrkyoAuthentication(configuration);
         services.AddBffAuthentication(configuration);
+
+        // ── Commercial-neutrality defaults ────────────────────────────────────
+        // Foundation is edition-agnostic: it gates features and quotas through these
+        // abstractions. Defaults allow everything; products register overrides AFTER
+        // AddFoundationServices (last registration wins). SaaS swaps in tier-aware
+        // implementations; Community keeps these allow-all defaults.
+        services.AddScoped<IFeatureGate, AllFeaturesEnabledGate>();
+        services.AddScoped<ITenantPlanInfoProvider, SinglePlanInfoProvider>();
+        services.AddScoped<IQuotaUsageRollup, NoOpQuotaUsageRollup>();
 
         // ── Security context ──────────────────────────────────────────────────
         services.AddScoped<CurrentPrincipal>();

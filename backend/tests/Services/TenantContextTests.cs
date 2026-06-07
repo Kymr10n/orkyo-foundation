@@ -1,4 +1,3 @@
-using Api.Models;
 using Api.Services;
 using Orkyo.Shared;
 
@@ -11,7 +10,6 @@ public class TenantContextTests
         TenantId = Guid.NewGuid(),
         TenantSlug = "test-tenant",
         TenantDbConnectionString = "Host=localhost;Database=test;",
-        Tier = ServiceTier.Free,
         Status = status
     };
 

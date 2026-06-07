@@ -12,7 +12,7 @@ import { API_PATHS } from '../core/api-paths';
 // Types
 // ============================================================================
 
-export type ServiceTier = 'Free' | 'Professional' | 'Enterprise';
+export type ServiceTier = 'free' | 'professional' | 'enterprise';
 
 /** Mirrors backend TenantStatusConstants and the DB check constraint. */
 export type TenantStatus = 'active' | 'suspended' | 'deleting';
@@ -24,10 +24,16 @@ export const TENANT_STATUS = {
 } as const satisfies Record<string, TenantStatus>;
 
 export const SERVICE_TIER = {
-  FREE: 'Free',
-  PROFESSIONAL: 'Professional',
-  ENTERPRISE: 'Enterprise',
+  FREE: 'free',
+  PROFESSIONAL: 'professional',
+  ENTERPRISE: 'enterprise',
 } as const satisfies Record<string, ServiceTier>;
+
+export const TIER_DISPLAY_NAMES: Record<ServiceTier, string> = {
+  free: 'Free',
+  professional: 'Professional',
+  enterprise: 'Enterprise',
+};
 
 export interface AdminTenant {
   id: string;
@@ -344,4 +350,98 @@ export interface DiagnosticsResponse {
 
 export async function getAdminDiagnostics(): Promise<DiagnosticsResponse> {
   return apiGet<DiagnosticsResponse>(API_PATHS.ADMIN.DIAGNOSTICS);
+}
+
+// ── Quota management ─────────────────────────────────────────────────────────
+
+export interface TenantUsageRow {
+  id: string;
+  slug: string;
+  displayName: string;
+  tier: string;
+  usage: {
+    activeSeats: number;
+    productionSites: number;
+    spaces: number;
+    storageBytes: number;
+  };
+}
+
+export interface SubscriptionTierQuota {
+  quotaKey: string;
+  unit: string;
+  limitValue: number | null;
+  booleanValue: boolean | null;
+  enforcementMode: string;
+}
+
+export interface SubscriptionTier {
+  id: string;
+  code: string;
+  displayName: string;
+  isPublic: boolean;
+  sortOrder: number;
+  quotas: SubscriptionTierQuota[];
+}
+
+export interface AdminTenantQuotaDetail {
+  tenantId: string;
+  tier: { code: string; displayName: string };
+  numericLimits: Record<string, number>;
+  featureEntitlements: Record<string, boolean>;
+  activeOverrides: {
+    quotaKey: string;
+    unit: string;
+    limitValue: number | null;
+    booleanValue: boolean | null;
+    reason: string | null;
+    expiresAt: string | null;
+  }[];
+  liveUsage?: {
+    active_seats: number;
+    production_sites: number;
+    spaces: number;
+    storage_bytes: number;
+  };
+}
+
+export async function updateAdminSubscriptionTierQuota(
+  tierId: string,
+  quotaKey: string,
+  data: { limitValue?: number; booleanValue?: boolean; enforcementMode?: string },
+): Promise<{ message: string }> {
+  return apiPut<{ message: string }>(
+    API_PATHS.ADMIN.subscriptionTierQuota(tierId, quotaKey),
+    data,
+  );
+}
+
+export async function getAdminTenantsUsage(): Promise<{ tenants: TenantUsageRow[] }> {
+  return apiGet<{ tenants: TenantUsageRow[] }>(API_PATHS.ADMIN.TENANTS_USAGE);
+}
+
+export async function getAdminSubscriptionTiers(): Promise<{ tiers: SubscriptionTier[] }> {
+  return apiGet<{ tiers: SubscriptionTier[] }>(API_PATHS.ADMIN.SUBSCRIPTION_TIERS);
+}
+
+export async function getAdminTenantQuotas(tenantId: string): Promise<AdminTenantQuotaDetail> {
+  return apiGet<AdminTenantQuotaDetail>(API_PATHS.ADMIN.tenantQuotas(tenantId));
+}
+
+export async function upsertAdminQuotaOverride(
+  tenantId: string,
+  quotaKey: string,
+  data: { limitValue?: number; booleanValue?: boolean; reason?: string; expiresAt?: string },
+): Promise<{ message: string }> {
+  return apiPut<{ message: string }>(
+    API_PATHS.ADMIN.tenantQuotaOverride(tenantId, quotaKey),
+    data,
+  );
+}
+
+export async function deleteAdminQuotaOverride(
+  tenantId: string,
+  quotaKey: string,
+): Promise<void> {
+  await apiDelete(API_PATHS.ADMIN.tenantQuotaOverride(tenantId, quotaKey));
 }
