@@ -47,7 +47,7 @@ describe('request-api', () => {
 
       await getRequests(true);
 
-      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.REQUESTS);
+      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.REQUESTS}?includeRequirements=true`);
     });
 
     it('returns empty array when no requests exist', async () => {
