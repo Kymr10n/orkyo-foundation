@@ -31,6 +31,11 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Scratch assets inside requirements (source images, AI-generated PNGs, etc.)
+requirements/**/*.png
+requirements/**/*.jpg
+requirements/**/*.jpeg
+
 # TypeScript build artifacts
 frontend/.tsbuild/
 frontend/**/*.d.ts.map

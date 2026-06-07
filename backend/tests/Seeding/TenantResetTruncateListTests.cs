@@ -44,6 +44,9 @@ public class TenantResetTruncateListTests
     [InlineData("departments")]
     [InlineData("criteria")]
     [InlineData("templates")]
+    [InlineData("resource_capabilities")]   // skill/spec capabilities — narrative demo
+    [InlineData("availability_events")]     // holidays / shutdowns — narrative demo
+    [InlineData("resource_absences")]       // vacation / sickness / training — narrative demo
     public void TablesToTruncate_ContainsExpectedTable(string tableName)
     {
         TablesToTruncate.Should().Contain(tableName,

@@ -18,6 +18,11 @@
     <InternalsVisibleTo Include="Orkyo.Foundation.Seed.Tests" />
   </ItemGroup>
 
+  <!-- Floorplan demo images ship inside the assembly so they're present on every reset. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Floorplans/Assets/*.png" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Bogus" Version="35.*" />
     <PackageReference Include="CommandLineParser" Version="2.9.*" />

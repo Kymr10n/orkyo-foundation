@@ -11,6 +11,6 @@ public sealed class Medium : IScale
     public int ResourceGroups => 15;
     public int Criteria => 30;
     public int Templates => 10;
-    public int Requests => 2_000;
+    public int Requests => 4_000;
     public int TimeWindowDays => 270;
 }

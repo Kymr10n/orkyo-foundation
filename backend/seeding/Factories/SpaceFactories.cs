@@ -181,8 +181,8 @@ public static class SpaceFactories
     }
 
     /// <summary>
-    /// Assigns spaces to space groups. Each space gets one primary group
-    /// (round-robin); ~25 % also get a second distinct group. A space's
+    /// Assigns each space to exactly one space group (round-robin). A space may belong to at most
+    /// one group (enforce_space_single_group trigger, migration 1530). A space's
     /// <see cref="SeededSpace.Id"/> is its resource id (spaces share the UUID).
     /// </summary>
     public static async Task<int> SeedSpaceGroupMembersAsync(
@@ -194,23 +194,14 @@ public static class SpaceFactories
     {
         if (groups.Count == 0 || spaces.Count == 0) return 0;
 
-        var memberships = new List<(Guid GroupId, Guid ResourceId)>(
-            (int)(spaces.Count * 1.25));
-
+        // A space may belong to at most ONE group — enforced by the
+        // enforce_space_single_group() trigger (migration 1530). One round-robin group each.
+        var memberships = new List<(Guid GroupId, Guid ResourceId)>(spaces.Count);
         for (var i = 0; i < spaces.Count; i++)
-        {
-            var primaryGroup = groups[i % groups.Count];
-            memberships.Add((primaryGroup.Id, spaces[i].Id));
-
-            if (faker.Random.Bool(0.25f))
-            {
-                var secondaryGroup = groups[faker.Random.Int(0, groups.Count - 1)];
-                if (secondaryGroup.Id != primaryGroup.Id)
-                    memberships.Add((secondaryGroup.Id, spaces[i].Id));
-            }
-        }
+            memberships.Add((groups[i % groups.Count].Id, spaces[i].Id));
 
         _ = tx;
+        _ = faker;
         using var writer = await conn.BeginBinaryImportAsync(
             "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
             "FROM STDIN (FORMAT BINARY)");
