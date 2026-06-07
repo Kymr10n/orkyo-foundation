@@ -142,13 +142,14 @@ describe('selectRequestDisplayData - geometry', () => {
 // ---------------------------------------------------------------------------
 
 describe('selectRequestDisplayData - stacking', () => {
-  it('topPx = 4 for a non-overlapping entry (stackIndex 0)', () => {
+  it('topPx centers the bar within the row for a non-overlapping entry (stackIndex 0)', () => {
+    // Row = 52px, bar height = 36px → centered top = (52 - 36) / 2 = 8px
     const e = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
     const schedule = makeSchedule(e);
     const idx = buildIndex(schedule);
     const validation = evaluateSchedule(schedule);
     const data = selectRequestDisplayData(e, idx, validation, VIEW_START, VIEW_END);
-    expect(data.topPx).toBe(4); // BASE_TOP_PAD_PX
+    expect(data.topPx).toBe(8);
   });
 
   it('topPx is greater for the later of two overlapping entries', () => {

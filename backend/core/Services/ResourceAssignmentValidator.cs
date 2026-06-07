@@ -10,6 +10,14 @@ namespace Api.Services;
 public interface IResourceAssignmentValidator
 {
     Task<ValidationResult> ValidateAsync(ValidateResourceAssignmentRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validates many assignment pairings, returning one result per input item
+    /// (correlated by request/resource id). Lets the conflicts view evaluate the
+    /// whole schedule in a single round-trip instead of N calls.
+    /// </summary>
+    Task<List<AssignmentValidationBatchItem>> ValidateBatchAsync(
+        IReadOnlyList<ValidateResourceAssignmentRequest> requests, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -45,6 +53,23 @@ public class ResourceAssignmentValidator(
         await CheckAllocationAsync(request, resource, blockers);
 
         return Build(blockers, warnings);
+    }
+
+    public async Task<List<AssignmentValidationBatchItem>> ValidateBatchAsync(
+        IReadOnlyList<ValidateResourceAssignmentRequest> requests, CancellationToken ct = default)
+    {
+        var results = new List<AssignmentValidationBatchItem>(requests.Count);
+        foreach (var request in requests)
+        {
+            var result = await ValidateAsync(request, ct);
+            results.Add(new AssignmentValidationBatchItem
+            {
+                RequestId = request.RequestId,
+                ResourceId = request.ResourceId,
+                Result = result
+            });
+        }
+        return results;
     }
 
     /// <summary>
@@ -174,7 +199,7 @@ public class ResourceAssignmentValidator(
             }
 
             var overlapping = await assignmentRepository.GetOverlappingActiveAsync(
-                resource.Id, request.StartUtc, request.EndUtc);
+                resource.Id, request.StartUtc, request.EndUtc, request.ExcludeAssignmentId);
             foreach (var overlap in overlapping)
             {
                 blockers.Add(new ValidationIssue

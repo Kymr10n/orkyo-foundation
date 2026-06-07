@@ -42,7 +42,3 @@ export type {
   ValidationResult,
 } from "./schedule-model";
 export type { ScheduleIndex } from "./schedule-index";
-
-
-// Capability matcher (space ↔ request requirements)
-export { validateSpaceRequirements } from "./capability-matcher";

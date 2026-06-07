@@ -1,6 +1,3 @@
-// Re-export from canonical domain location for backwards compatibility.
-export { validateSpaceRequirements } from "@foundation/src/domain/scheduling/capability-matcher";
-
 /**
  * Returns true when `email` matches a valid email pattern.
  * Requires at least one non-whitespace/non-@ char before the @, a domain

@@ -26,13 +26,12 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { buildCreatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
-import { getSpaceCapabilities } from "@foundation/src/lib/api/space-capability-api";
-import { validateSpaceRequirements } from "@foundation/src/domain/scheduling/capability-matcher";
+import { validateAssignment, type ValidationIssue } from "@foundation/src/lib/api/resource-assignments-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
-import type { Conflict, Request } from "@foundation/src/types/requests";
+import type { Request } from "@foundation/src/types/requests";
 import { DndContext, type DragEndEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -150,7 +149,7 @@ export function UtilizationPage() {
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
   // Conflict detection (scheduling + capability) — extracted to hook
-  const { conflictingRequestIds } = useConflicts();
+  const { conflictingRequestIds, capabilityConflicts } = useConflicts();
 
   // Handle export from TopBar
   useExportHandler('utilization', async (exportFormat) => {
@@ -322,20 +321,32 @@ export function UtilizationPage() {
 
     // Validate space capabilities BEFORE mutating so an incompatible drop is
     // rejected with feedback instead of silently creating a conflict the user
-    // only discovers later on the Conflicts page.
-    const allConflicts: Conflict[] = [];
+    // only discovers later on the Conflicts page. The backend is the single
+    // source of truth: it reads the request's requirements and runs the
+    // capability matcher, so we no longer need requirements hydrated client-side.
+    let capabilityBlockers: ValidationIssue[] = [];
     try {
-      const capabilities = await getSpaceCapabilities(selectedSiteId!, resourceId);
-      allConflicts.push(...validateSpaceRequirements(draggedData, capabilities));
+      const result = await validateAssignment({
+        requestId: draggedData.id,
+        resourceId,
+        startUtc: startTs.toISOString(),
+        endUtc: endTs.toISOString(),
+      });
+      capabilityBlockers = result.blockers.filter(
+        (b) => b.code === "capability.missing" || b.code === "resource.type-mismatch",
+      );
     } catch (error) {
       logger.error("Failed to validate space requirements:", error);
     }
 
-    if (allConflicts.length > 0) {
+    if (capabilityBlockers.length > 0) {
       const targetSpace = spaces.find((s) => s.id === resourceId);
       const spaceName = targetSpace?.name ?? "this space";
-      const firstReason = allConflicts[0]?.message ?? "missing required capability";
-      const extra = allConflicts.length > 1 ? ` (+${allConflicts.length - 1} more)` : "";
+      const first = capabilityBlockers[0];
+      const firstReason = first.details
+        ? `does not satisfy: ${first.details}`
+        : "missing a required capability";
+      const extra = capabilityBlockers.length > 1 ? ` (+${capabilityBlockers.length - 1} more)` : "";
       toast.error(`Cannot schedule to ${spaceName}`, {
         description: `${firstReason}${extra}`,
       });
@@ -476,6 +487,7 @@ export function UtilizationPage() {
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
+                    capabilityConflicts={capabilityConflicts}
                     weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
                     workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
                     workingDayStart={schedulingSettings?.workingDayStart}

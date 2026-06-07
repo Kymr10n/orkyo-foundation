@@ -173,4 +173,43 @@ public class ResourceAssignmentEndpointTests
         var response = await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, requestId));
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
+
+    [Fact]
+    public async Task ValidateBatch_Returns200_WithCorrelatedResults()
+    {
+        var resource = await CreateExclusiveResource();
+        var requestId = await GetTestRequestIdAsync();
+        var start = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc);
+        var end = start.AddHours(4);
+
+        var body = new
+        {
+            items = new[]
+            {
+                new { requestId, resourceId = resource.Id, startUtc = start, endUtc = end },
+            },
+        };
+        var response = await _client.PostAsJsonAsync("/api/resource-assignments/validate-batch", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = await response.Content.ReadFromJsonAsync<List<System.Text.Json.JsonElement>>();
+        Assert.NotNull(results);
+        Assert.Single(results);
+        Assert.Equal(requestId, results![0].GetProperty("requestId").GetGuid());
+        Assert.Equal(resource.Id, results[0].GetProperty("resourceId").GetGuid());
+        // No capability requirements configured → clean result
+        Assert.Equal("ok", results[0].GetProperty("result").GetProperty("severity").GetString());
+    }
+
+    [Fact]
+    public async Task ValidateBatch_EmptyItems_Returns200_WithEmptyList()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-assignments/validate-batch",
+            new { items = Array.Empty<object>() });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var results = await response.Content.ReadFromJsonAsync<List<System.Text.Json.JsonElement>>();
+        Assert.NotNull(results);
+        Assert.Empty(results!);
+    }
 }

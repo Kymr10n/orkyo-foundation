@@ -40,7 +40,7 @@ vi.mock('@foundation/src/hooks/useConflicts', () => ({
     conflicts: mockConflicts,
     conflictingRequestIds: new Set(['req-1', 'req-2']),
     schedulingValidation: new Map(),
-    spaceCapacities: new Map(),
+    spaceCapacities: new Map(), capabilityConflicts: new Map(),
   })),
 }));
 
@@ -118,7 +118,7 @@ describe('ConflictsPage', () => {
         conflicts: new Map(),
         conflictingRequestIds: new Set(),
         schedulingValidation: new Map(),
-        spaceCapacities: new Map(),
+        spaceCapacities: new Map(), capabilityConflicts: new Map(),
       });
     };
 
@@ -148,7 +148,7 @@ describe('ConflictsPage', () => {
         conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded', severity: 'error', message: 'Single conflict' }]]]),
         conflictingRequestIds: new Set(['req-1']),
         schedulingValidation: new Map(),
-        spaceCapacities: new Map(),
+        spaceCapacities: new Map(), capabilityConflicts: new Map(),
       });
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText(/1 conflict found/i)).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe('ConflictsPage', () => {
         conflicts: mockConflicts,
         conflictingRequestIds: new Set(['req-1', 'req-2']),
         schedulingValidation: new Map(),
-        spaceCapacities: new Map(),
+        spaceCapacities: new Map(), capabilityConflicts: new Map(),
       });
     });
 
@@ -251,7 +251,7 @@ describe('ConflictsPage', () => {
           conflicts: overlapConflicts,
           conflictingRequestIds: new Set(['req-1']),
           schedulingValidation: new Map(),
-          spaceCapacities: new Map(),
+          spaceCapacities: new Map(), capabilityConflicts: new Map(),
         });
       });
 
@@ -268,7 +268,7 @@ describe('ConflictsPage', () => {
           conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'error' as const, message: 'Capacity exceeded' }]]]),
           conflictingRequestIds: new Set(['req-1']),
           schedulingValidation: new Map(),
-          spaceCapacities: new Map(),
+          spaceCapacities: new Map(), capabilityConflicts: new Map(),
         });
         render(<ConflictsPage />, { wrapper: createWrapper() });
         expect(screen.queryByText(/View other request/)).not.toBeInTheDocument();
@@ -304,7 +304,7 @@ describe('ConflictsPage', () => {
         conflicts: new Map([['req-1', [{ id: 'c1', kind: kind as any, severity: 'error' as const, message: 'msg' }]]]) as any,
         conflictingRequestIds: new Set(['req-1']),
         schedulingValidation: new Map(),
-        spaceCapacities: new Map(),
+        spaceCapacities: new Map(), capabilityConflicts: new Map(),
       });
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -317,7 +317,7 @@ describe('ConflictsPage', () => {
         conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'info' as unknown as 'error', message: 'info msg' }]]]),
         conflictingRequestIds: new Set(['req-1']),
         schedulingValidation: new Map(),
-        spaceCapacities: new Map(),
+        spaceCapacities: new Map(), capabilityConflicts: new Map(),
       });
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText('info msg')).toBeInTheDocument();

@@ -45,9 +45,10 @@ interface RequestDisplayData {
   isDraft: boolean;
 }
 
-const BASE_TOP_PAD_PX = 4;
+const BASE_ROW_HEIGHT_PX = 52; // matches SpaceRow BASE_ROW_HEIGHT
 const REQUEST_HEIGHT_PX = 44; // matches SchedulerGrid constant
 const REQUEST_INNER_HEIGHT_PX = REQUEST_HEIGHT_PX - 8;
+const BASE_TOP_PAD_PX = (BASE_ROW_HEIGHT_PX - REQUEST_INNER_HEIGHT_PX) / 2;
 
 /**
  * Compute everything needed to render a request block.

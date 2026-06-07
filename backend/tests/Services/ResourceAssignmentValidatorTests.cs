@@ -404,6 +404,77 @@ public class ResourceAssignmentValidatorTests
         Assert.Equal(ValidationReasonCode.InvalidAllocationPercent, result.Blockers[0].Code);
     }
 
+    [Fact]
+    public async Task ExcludeAssignmentId_IsForwardedToOverlapCheck()
+    {
+        // Re-validating a committed assignment must exclude itself from the overbook
+        // check, otherwise every scheduled request would conflict with its own row.
+        var resource = CreateResource(allocationMode: AllocationModes.Exclusive);
+        var selfAssignmentId = Guid.NewGuid();
+        var request = CreateValidationRequest(resourceId: resource.Id) with { ExcludeAssignmentId = selfAssignmentId };
+
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true)).ReturnsAsync((RequestInfo?)null);
+        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id)).ReturnsAsync((Guid?)null);
+
+        var result = await _validator.ValidateAsync(request);
+
+        Assert.Equal(ValidationSeverity.Ok, result.Severity);
+        _assignmentRepoMock.Verify(a => a.GetOverlappingActiveAsync(
+            resource.Id, request.StartUtc, request.EndUtc, selfAssignmentId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_ReturnsOneCorrelatedResultPerItem()
+    {
+        // One request requires a capability the resource lacks (→ blocker); the other
+        // is clean (→ ok). The batch must return both, correlated by request/resource id.
+        var failingResource = CreateResource();
+        var cleanResource = CreateResource();
+        var failingRequestId = Guid.NewGuid();
+        var cleanRequestId = Guid.NewGuid();
+
+        var failing = CreateValidationRequest(resourceId: failingResource.Id, requestId: failingRequestId);
+        var clean = CreateValidationRequest(resourceId: cleanResource.Id, requestId: cleanRequestId);
+
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(failingResource.Id)).ReturnsAsync(failingResource);
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(cleanResource.Id)).ReturnsAsync(cleanResource);
+        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(It.IsAny<Guid>())).ReturnsAsync((Guid?)null);
+
+        var failingInfo = new RequestInfo
+        {
+            Id = failingRequestId,
+            Name = "needs capability",
+            PlanningMode = PlanningMode.Leaf,
+            Status = RequestStatus.Planned,
+            SchedulingSettingsApply = false,
+            Requirements = new List<RequestRequirementInfo> { CreateRequirement() },
+            Assignments = new List<ResourceAssignmentInfo>(),
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _requestRepoMock.Setup(r => r.GetByIdAsync(failingRequestId, true)).ReturnsAsync(failingInfo);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(cleanRequestId, true))
+            .ReturnsAsync((RequestInfo?)null); // no requirements → clean
+        _capabilityMatcherMock.Setup(c => c.ResourceSatisfiesRequirementAsync(
+            failingResource.Id, It.IsAny<RequestRequirementInfo>())).ReturnsAsync(false);
+
+        var results = await _validator.ValidateBatchAsync(new[] { failing, clean });
+
+        Assert.Equal(2, results.Count);
+
+        var failingResult = Assert.Single(results, r => r.RequestId == failingRequestId);
+        Assert.Equal(failingResource.Id, failingResult.ResourceId);
+        Assert.Equal(ValidationSeverity.Blocker, failingResult.Result.Severity);
+        Assert.Contains(failingResult.Result.Blockers, b => b.Code == ValidationReasonCode.CapabilityMissing);
+
+        var cleanResult = Assert.Single(results, r => r.RequestId == cleanRequestId);
+        Assert.Equal(ValidationSeverity.Ok, cleanResult.Result.Severity);
+    }
+
     // ===== Integration Tests =====
 
     [Fact]

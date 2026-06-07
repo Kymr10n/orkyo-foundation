@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
+import type { Conflict } from '@foundation/src/types/requests';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
 import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
@@ -348,6 +349,60 @@ describe('SchedulerGrid', () => {
       );
       expect(dateTimeTooltips.length).toBeGreaterThan(0);
       await act(async () => {});
+    });
+  });
+
+  describe('capabilityConflicts prop', () => {
+    it('marks a request bar as conflicting when capabilityConflicts contains it', async () => {
+      const Wrapper = createWrapper();
+      const capConflicts = new Map<string, Conflict[]>([
+        ['req-1', [{ id: 'c1', kind: 'connector_mismatch', severity: 'error', message: 'Missing Crane' }]],
+      ]);
+
+      render(
+        <Wrapper>
+          <SchedulerGrid
+            spaces={mockSpaces}
+            requests={mockRequests}
+            scale="month"
+            anchorTs={new Date('2024-01-01')}
+            timeCursorTs={new Date()}
+            onRequestClick={vi.fn()}
+            onTimeCursorClick={vi.fn()}
+            capabilityConflicts={capConflicts}
+          />
+        </Wrapper>
+      );
+
+      // The overlay sets a `title` encoding the conflict count when hasConflict = true.
+      await waitFor(() => {
+        const bar = document.querySelector<HTMLElement>('[title*="conflict"]');
+        expect(bar).toBeInTheDocument();
+        expect(bar!.title).toContain('Test Request 1');
+      });
+      await act(async () => {});
+    });
+
+    it('does not mark a request bar as conflicting when capabilityConflicts is empty', async () => {
+      const Wrapper = createWrapper();
+
+      render(
+        <Wrapper>
+          <SchedulerGrid
+            spaces={mockSpaces}
+            requests={mockRequests}
+            scale="month"
+            anchorTs={new Date('2024-01-01')}
+            timeCursorTs={new Date()}
+            onRequestClick={vi.fn()}
+            onTimeCursorClick={vi.fn()}
+            capabilityConflicts={new Map()}
+          />
+        </Wrapper>
+      );
+
+      await act(async () => {});
+      expect(document.querySelector('[title*="conflict"]')).not.toBeInTheDocument();
     });
   });
 

@@ -42,6 +42,12 @@ export interface ValidateResourceAssignmentRequest {
   allocationPercent?: number;
   allocationUnits?: number;
   allocationMode?: string;
+  /**
+   * Optional id of an existing assignment to exclude from overbook checks.
+   * Set when re-validating an already-committed assignment (the conflicts view)
+   * so it does not overlap with itself.
+   */
+  excludeAssignmentId?: string;
 }
 
 export type ValidationSeverity = 'ok' | 'warning' | 'blocker';
@@ -86,6 +92,28 @@ export async function getAssignmentsByRequest(requestId: string): Promise<Resour
  */
 export async function validateAssignment(request: ValidateResourceAssignmentRequest): Promise<ValidationResult> {
   return apiPost<ValidationResult>(API_PATHS.RESOURCE_ASSIGNMENTS_VALIDATE, request);
+}
+
+/** One entry of a batch validation response; echoes ids for correlation. */
+export interface AssignmentValidationBatchItem {
+  requestId?: string;
+  resourceId: string;
+  result: ValidationResult;
+}
+
+/**
+ * Validate many assignment pairings in a single round-trip. Used by the conflicts
+ * view, which evaluates every scheduled request at once. Results are correlated
+ * back to inputs by `requestId`/`resourceId`, not by position.
+ */
+export async function validateAssignmentsBatch(
+  items: ValidateResourceAssignmentRequest[],
+): Promise<AssignmentValidationBatchItem[]> {
+  if (items.length === 0) return [];
+  return apiPost<AssignmentValidationBatchItem[]>(
+    API_PATHS.RESOURCE_ASSIGNMENTS_VALIDATE_BATCH,
+    { items },
+  );
 }
 
 /**

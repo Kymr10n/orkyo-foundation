@@ -82,5 +82,17 @@ public static class ResourceAssignmentEndpoints
             }, logger, "validate resource assignment"))
             .WithName("ValidateResourceAssignment")
             .WithSummary("Validate a resource assignment without creating it");
+
+        group.MapPost("/validate-batch", async (
+            [FromBody] ValidateResourceAssignmentBatchRequest request,
+            IResourceAssignmentValidator validator,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                var results = await validator.ValidateBatchAsync(request.Items, ct);
+                return Results.Ok(results);
+            }, logger, "validate resource assignments (batch)"))
+            .WithName("ValidateResourceAssignmentBatch")
+            .WithSummary("Validate many resource assignments without creating them");
     }
 }

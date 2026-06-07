@@ -19,6 +19,7 @@ import { GroupHeader } from "./GroupHeader";
 import { SpaceRow } from "./SpaceRow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import { generateTimeColumns, parseTimeToHour, type WorkingHoursConfig } from "./time-grid-utils";
+import type { Conflict } from "@foundation/src/types/requests";
 
 interface SchedulerGridProps {
   spaces: Space[];
@@ -32,6 +33,7 @@ interface SchedulerGridProps {
   onTimeCursorClick: (ts: Date) => void;
   onAnchorChange?: (ts: Date) => void;
   offTimeRanges?: readonly OffTimeRange[];
+  capabilityConflicts?: Map<string, Conflict[]>;
   weekendsEnabled?: boolean;
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
@@ -50,6 +52,7 @@ export function SchedulerGrid({
   onTimeCursorClick,
   onAnchorChange,
   offTimeRanges = [],
+  capabilityConflicts,
   weekendsEnabled = false,
   workingHoursEnabled = false,
   workingDayStart = "08:00",
@@ -84,10 +87,21 @@ export function SchedulerGrid({
     [previewSchedule]
   );
 
-  const validation = useMemo(
+  const schedulingValidation = useMemo(
     () => evaluateSchedule(previewSchedule),
     [previewSchedule]
   );
+
+  // Merge backend capability conflicts into the scheduling validation map so
+  // the overlay shows the red indicator + tooltip for both conflict kinds.
+  const validation = useMemo(() => {
+    if (!capabilityConflicts?.size) return schedulingValidation;
+    const merged = new Map(schedulingValidation);
+    for (const [requestId, capConflicts] of capabilityConflicts) {
+      merged.set(requestId, [...(merged.get(requestId) ?? []), ...capConflicts]);
+    }
+    return merged;
+  }, [schedulingValidation, capabilityConflicts]);
   // ---------------------------------------------------------------------------
 
   // Fetch groups

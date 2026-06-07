@@ -87,6 +87,35 @@ public record ValidateResourceAssignmentRequest
     public decimal? AllocationPercent { get; init; }
     public int? AllocationUnits { get; init; }
     public string? AllocationMode { get; init; }
+
+    /// <summary>
+    /// Optional id of an existing assignment to exclude from overbook checks.
+    /// Set this when re-validating an already-committed assignment (e.g. the
+    /// conflicts view) so the assignment does not overlap with itself. Null on
+    /// the creation path, where the assignment does not yet exist.
+    /// </summary>
+    public Guid? ExcludeAssignmentId { get; init; }
+}
+
+/// <summary>
+/// Batch validation request: validate many assignment pairings in one round-trip.
+/// Used by the conflicts view, which evaluates every scheduled request at once.
+/// </summary>
+public record ValidateResourceAssignmentBatchRequest
+{
+    public required List<ValidateResourceAssignmentRequest> Items { get; init; } = new();
+}
+
+/// <summary>
+/// One entry of a batch validation response. Echoes <see cref="RequestId"/> and
+/// <see cref="ResourceId"/> so the caller can correlate results back to inputs
+/// without relying on positional ordering.
+/// </summary>
+public record AssignmentValidationBatchItem
+{
+    public required Guid? RequestId { get; init; }
+    public required Guid ResourceId { get; init; }
+    public required ValidationResult Result { get; init; }
 }
 
 /// <summary>

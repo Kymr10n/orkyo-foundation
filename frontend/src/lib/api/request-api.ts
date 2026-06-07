@@ -12,12 +12,20 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from "../core/api-client
 import { API_PATHS } from "../core/api-paths";
 
 /**
- * Get all requests, optionally with requirements included
+ * Get all requests, optionally with their requirements hydrated.
+ *
+ * The list endpoint omits requirements by default for payload economy; pass
+ * `includeRequirements` to opt in (e.g. the Requests page, which renders them).
+ * Conflict detection no longer relies on this — capability checks are evaluated
+ * by the backend validator, not reconstructed client-side.
  */
 export async function getRequests(
-  _includeRequirements = false,
+  includeRequirements = false,
 ): Promise<Request[]> {
-  return apiGet<Request[]>(API_PATHS.REQUESTS);
+  const path = includeRequirements
+    ? `${API_PATHS.REQUESTS}?includeRequirements=true`
+    : API_PATHS.REQUESTS;
+  return apiGet<Request[]>(path);
 }
 
 /**

@@ -202,5 +202,6 @@ export const API_PATHS = {
   // Resource Assignments
   RESOURCE_ASSIGNMENTS: '/api/resource-assignments',
   RESOURCE_ASSIGNMENTS_VALIDATE: '/api/resource-assignments/validate',
+  RESOURCE_ASSIGNMENTS_VALIDATE_BATCH: '/api/resource-assignments/validate-batch',
   resourceAssignment: (id: string) => `/api/resource-assignments/${id}`,
 } as const;
