@@ -137,10 +137,10 @@ describe('BreakGlassBanner', () => {
     fireEvent.click(screen.getByTestId('break-glass-exit'));
 
     expect(mockClearMembership).toHaveBeenCalled();
-    expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+    expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
   });
 
-  it('falls back to a hard navigation to /admin in local dev (no apex)', async () => {
+  it('falls back to a hard navigation to /site-admin in local dev (no apex)', async () => {
     // navigateToApex returns false when baseDomain is not configured (local dev).
     mockNavigateToApex.mockReturnValue(false);
     mockMembership = breakGlassMembership();
@@ -152,7 +152,7 @@ describe('BreakGlassBanner', () => {
 
     fireEvent.click(screen.getByTestId('break-glass-exit'));
 
-    expect(window.location.href).toBe('/admin');
+    expect(window.location.href).toBe('/site-admin');
   });
 
   it('fires audit exit on Exit click', async () => {
@@ -205,7 +205,7 @@ describe('BreakGlassBanner', () => {
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 
@@ -216,7 +216,7 @@ describe('BreakGlassBanner', () => {
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/admin');
+      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 });

@@ -37,7 +37,7 @@
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, type TenantMembership } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT, ROUTE_SITE_ADMIN } from '@foundation/src/constants/auth';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
 import { TosPage } from '@foundation/src/pages/TosPage';
 import { AccountPage } from '@foundation/src/pages/AccountPage';
@@ -96,7 +96,7 @@ function ApexGatewayInner({
     return <SignupPage />;
   }
 
-  const isAdminRoute   = pathname === '/admin'   || pathname.startsWith('/admin/');
+  const isAdminRoute   = pathname === ROUTE_SITE_ADMIN || pathname.startsWith(`${ROUTE_SITE_ADMIN}/`);
   const isAccountRoute = pathname === '/account' || pathname.startsWith('/account/');
 
   // Direct URL access overrides the pipeline for authenticated users.
@@ -170,7 +170,7 @@ function ApexGatewayInner({
               send({ type: AUTH_EVENTS.TENANT_SELECTED, membership }),
             onCancel: () => send({ type: AUTH_EVENTS.LOGOUT }),
             onAdminPage: canAccessAdminPage && renderAdminPage
-              ? () => navigate('/admin')
+              ? () => navigate(ROUTE_SITE_ADMIN)
               : undefined,
           })}</>
         : <LoadingSpinner message={AUTH_MESSAGES.LOADING} />;

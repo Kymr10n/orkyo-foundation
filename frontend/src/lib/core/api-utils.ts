@@ -9,6 +9,7 @@ import { runtimeConfig } from "@foundation/src/config/runtime";
 import { API_ERROR_CODES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
 import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
+import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
 import { getTenantSlugSync } from "@foundation/src/contexts/AuthContext";
 import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -109,11 +110,11 @@ function clearTenantState(): void {
  * 401/403 as "session expired":
  *
  *   - `session_expired` (401)               → clear state, redirect to apex /login
- *   - `break_glass_expired` (403/404)       → clear tenant state, navigate to apex /admin
+ *   - `break_glass_expired` (403/404)       → clear tenant state, navigate to apex /site-admin
  *   - `break_glass_hard_cap_reached` (410)  → same as above + show toast
  *   - `forbidden` (403) or no code          → throw, let the caller surface a toast
  *
- * Returning to /admin instead of /login matters: a site-admin whose break-glass
+ * Returning to /site-admin instead of /login matters: a site-admin whose break-glass
  * just timed out should land back on the admin console, not be sent through the
  * login flow as if their identity itself was invalid.
  */
@@ -131,15 +132,15 @@ export async function handleApiError(response: Response): Promise<never> {
   const code = body?.code;
   const returnTo = body?.returnTo;
 
-  // Break-glass: route the admin back to /admin instead of /login.
+  // Break-glass: route the admin back to /site-admin instead of /login.
   if (
     code === API_ERROR_CODES.BREAK_GLASS_EXPIRED ||
     code === API_ERROR_CODES.BREAK_GLASS_HARD_CAP_REACHED
   ) {
     clearTenantState();
-    if (!navigateToApex(returnTo || "/admin")) {
+    if (!navigateToApex(returnTo || ROUTE_SITE_ADMIN)) {
       // Local dev / no apex — fall back to a same-origin nav.
-      window.location.href = returnTo || "/admin";
+      window.location.href = returnTo || ROUTE_SITE_ADMIN;
     }
     throw new Error(errorMessage || "Break-glass session has ended.");
   }

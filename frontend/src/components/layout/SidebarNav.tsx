@@ -1,5 +1,6 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { cn } from "@foundation/src/lib/utils";
 import {
   AlertTriangle,
@@ -9,11 +10,12 @@ import {
   LayoutDashboard,
   Package,
   Settings,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
-const navItems = [
+const baseNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
   { to: "/spaces", label: "Spaces", icon: Box },
   { to: "/people", label: "People", icon: Users },
@@ -22,8 +24,14 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+// Administration sits directly below Settings, visible to tenant admins only.
+const adminNavItem = { to: "/tenant-admin", label: "Administration", icon: ShieldCheck };
+
 export function SidebarNav() {
   const location = useLocation();
+  const { membership } = useAuth();
+  const isTenantAdmin = membership?.isTenantAdmin === true;
+  const navItems = isTenantAdmin ? [...baseNavItems, adminNavItem] : baseNavItems;
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);
 

@@ -12,6 +12,11 @@ vi.mock('@foundation/src/store/app-store', () => ({
   ),
 }));
 
+const authState: { membership: { isTenantAdmin?: boolean } | null } = { membership: null };
+vi.mock('@foundation/src/contexts/AuthContext', () => ({
+  useAuth: () => ({ membership: authState.membership }),
+}));
+
 function renderSidebar(initialPath = '/') {
   return render(
     <MemoryRouter
@@ -25,6 +30,7 @@ function renderSidebar(initialPath = '/') {
 describe('SidebarNav', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.membership = null;
   });
 
   it('renders all navigation links', () => {
@@ -50,5 +56,22 @@ describe('SidebarNav', () => {
     expect(hrefs).toContain('/requests');
     expect(hrefs).toContain('/conflicts');
     expect(hrefs).toContain('/settings');
+  });
+
+  it('hides the Administration item for non-admins', () => {
+    authState.membership = { isTenantAdmin: false };
+    renderSidebar();
+    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
+  });
+
+  it('shows the Administration item for tenant admins, below Settings', () => {
+    authState.membership = { isTenantAdmin: true };
+    renderSidebar();
+    expect(screen.getByText('Administration')).toBeInTheDocument();
+    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+    expect(hrefs).toContain('/tenant-admin');
+    // Administration is positioned directly after Settings.
+    const labels = screen.getAllByRole('link').map((l) => l.textContent);
+    expect(labels.indexOf('Administration')).toBe(labels.indexOf('Settings') + 1);
   });
 });

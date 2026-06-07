@@ -6,6 +6,7 @@ import {
 } from "@foundation/src/components/ui/popover";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
 import { getSites } from "@foundation/src/lib/api/site-api";
 import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -287,11 +288,11 @@ export function TopBar() {
                     className="w-full justify-start h-9"
                     data-testid="admin-panel-btn"
                     onClick={() => {
-                      if (!navigateToApex('/admin')) navigate('/admin');
+                      if (!navigateToApex(ROUTE_SITE_ADMIN)) navigate(ROUTE_SITE_ADMIN);
                     }}
                   >
                     <Shield className="h-4 w-4 mr-2" />
-                    Admin Panel
+                    Site Admin
                   </Button>
                 )}
 

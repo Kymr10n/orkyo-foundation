@@ -37,6 +37,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
 import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
@@ -143,6 +144,11 @@ function settingsFromApi(s: SchedulingSettingsType): SettingsFormState {
 
 export function SchedulingSettings() {
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
+  // Scheduling settings are editor-writable, but availability-event mutations are
+  // RequireAdminAccess on the backend — gate those write affordances on admin so
+  // editors browse them read-only instead of hitting a 403.
+  const { membership } = useAuth();
+  const isAdmin = membership?.isTenantAdmin === true;
 
   const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
   const { data: availabilityEvents = [], isLoading: eventsLoading } = useAvailabilityEvents(selectedSiteId ?? undefined);
@@ -476,10 +482,12 @@ export function SchedulingSettings() {
                 Define periods when no work should be scheduled (closures, maintenance, etc.).
               </CardDescription>
             </div>
-            <Button size="sm" onClick={handleCreateEvent}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
+            {isAdmin && (
+              <Button size="sm" onClick={handleCreateEvent}>
+                <Plus className="h-4 w-4 mr-1" />
+                Add
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -517,36 +525,38 @@ export function SchedulingSettings() {
                       {ev.scopes.length > 0 && ` · ${ev.scopes.length} override(s)`}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditEvent(ev)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete availability event</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Delete "{ev.title}"? This cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteEvent(ev.id)}>
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditEvent(ev)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete availability event</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Delete "{ev.title}"? This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteEvent(ev.id)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

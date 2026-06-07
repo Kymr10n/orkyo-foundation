@@ -27,10 +27,10 @@ describe("ApiErrorBody", () => {
       error: "session_expired",
       message: "Your session has expired",
       code: API_ERROR_CODES.SESSION_EXPIRED,
-      returnTo: "/admin",
+      returnTo: "/site-admin",
     };
     expect(body.code).toBe("session_expired");
-    expect(body.returnTo).toBe("/admin");
+    expect(body.returnTo).toBe("/site-admin");
   });
 
   it("accepts a minimal error body", () => {

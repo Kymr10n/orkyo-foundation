@@ -27,7 +27,7 @@ describe("ApexGateway — Router regression", () => {
     vi.clearAllMocks();
     Object.defineProperty(window, "location", {
       value: {
-        pathname: "/admin",
+        pathname: "/site-admin",
         hostname: "orkyo.com",
         protocol: "https:",
         href: "",

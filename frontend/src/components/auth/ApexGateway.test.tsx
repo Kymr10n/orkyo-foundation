@@ -229,32 +229,32 @@ describe('ApexGateway', () => {
     expect(screen.getByText(AUTH_MESSAGES.LOADING)).toBeInTheDocument();
   });
 
-  // ── /admin direct URL access ──────────────────────────────────────────────
+  // ── /site-admin direct URL access ──────────────────────────────────────────────
 
-  it('renders AdminPage at /admin when canAccessAdminPage is true', () => {
+  it('renders AdminPage at /site-admin when canAccessAdminPage is true', () => {
     mockUseAuth.mockReturnValue(authState({
       authStage: AUTH_STAGES.READY,
       canAccessAdminPage: true,
     }));
-    renderGateway('/admin');
+    renderGateway('/site-admin');
     expect(screen.getByTestId('admin-page')).toBeInTheDocument();
   });
 
-  it('does not render AdminPage at /admin when canAccessAdminPage is false', () => {
+  it('does not render AdminPage at /site-admin when canAccessAdminPage is false', () => {
     mockUseAuth.mockReturnValue(authState({
       authStage: AUTH_STAGES.UNAUTHENTICATED,
       canAccessAdminPage: false,
     }));
-    renderGateway('/admin');
+    renderGateway('/site-admin');
     expect(screen.getByTestId('login-page')).toBeInTheDocument();
   });
 
-  it('does not render AdminPage at /admin while initializing', () => {
+  it('does not render AdminPage at /site-admin while initializing', () => {
     mockUseAuth.mockReturnValue(authState({
       authStage: AUTH_STAGES.INITIALIZING,
       canAccessAdminPage: false,
     }));
-    renderGateway('/admin');
+    renderGateway('/site-admin');
     expect(screen.getByText(AUTH_MESSAGES.LOADING)).toBeInTheDocument();
   });
 
@@ -267,12 +267,12 @@ describe('ApexGateway', () => {
     expect(screen.getByTestId('account-page')).toBeInTheDocument();
   });
 
-  it('renders AdminPage at /admin/users when canAccessAdminPage is true', () => {
+  it('renders AdminPage at /site-admin/users when canAccessAdminPage is true', () => {
     mockUseAuth.mockReturnValue(authState({
       authStage: AUTH_STAGES.READY,
       canAccessAdminPage: true,
     }));
-    renderGateway('/admin/users');
+    renderGateway('/site-admin/users');
     expect(screen.getByTestId('admin-page')).toBeInTheDocument();
   });
 
