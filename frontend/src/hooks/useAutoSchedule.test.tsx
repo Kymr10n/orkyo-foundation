@@ -10,7 +10,7 @@ vi.mock('@foundation/src/lib/api/auto-schedule-api', () => ({
 }));
 
 const { mockUseAuth, mockUseTenantSettings } = vi.hoisted(() => ({
-  mockUseAuth: vi.fn(() => ({ membership: { tier: 'Professional' } })),
+  mockUseAuth: vi.fn(() => ({ membership: { tier: 'professional' } })),
   mockUseTenantSettings: vi.fn(() => ({
     data: { settings: [{ key: 'scheduling.auto_schedule_enabled', currentValue: 'True' }] },
   })),
@@ -46,7 +46,7 @@ describe('useAutoScheduleAvailable', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Restore defaults for each test
-    mockUseAuth.mockReturnValue({ membership: { tier: 'Professional' } });
+    mockUseAuth.mockReturnValue({ membership: { tier: 'professional' } });
     mockUseTenantSettings.mockReturnValue({
       data: { settings: [{ key: 'scheduling.auto_schedule_enabled', currentValue: 'True' }] },
     });
@@ -58,7 +58,7 @@ describe('useAutoScheduleAvailable', () => {
   });
 
   it('returns true for Enterprise tier with setting enabled', () => {
-    mockUseAuth.mockReturnValue({ membership: { tier: 'Enterprise' } });
+    mockUseAuth.mockReturnValue({ membership: { tier: 'enterprise' } });
     const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
     expect(result.current).toBe(true);
   });
