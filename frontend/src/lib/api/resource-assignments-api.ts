@@ -81,6 +81,21 @@ export interface ValidationResult {
 }
 
 /**
+ * List all non-cancelled assignments for a resource within a time window.
+ */
+export async function getAssignmentsByResource(
+  resourceId: string,
+  from: Date,
+  to: Date,
+): Promise<ResourceAssignmentInfo[]> {
+  const params = new URLSearchParams({
+    from: from.toISOString(),
+    to: to.toISOString(),
+  });
+  return apiGet<ResourceAssignmentInfo[]>(`${API_PATHS.resourceAssignments(resourceId)}?${params}`);
+}
+
+/**
  * List resource assignments for a request
  */
 export async function getAssignmentsByRequest(requestId: string): Promise<ResourceAssignmentInfo[]> {

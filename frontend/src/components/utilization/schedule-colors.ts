@@ -20,6 +20,16 @@ export const STATUS_BORDER_CLASS: Record<BucketStatus, string> = {
   'non-working': 'border-muted-foreground/30',
 };
 
+// Solid left-to-right meter fill, painted over STATUS_CELL_CLASS as the track.
+// Empty string = no fill (the track tint alone carries the meaning).
+export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
+  available:     '',
+  partial:       'bg-amber-400/70 dark:bg-amber-500/50',
+  assigned:      'bg-blue-400/70  dark:bg-blue-500/50',
+  overbooked:    'bg-red-500/80   dark:bg-red-500/60',
+  'non-working': '',
+};
+
 // Canvas/SVG fill + stroke — must stay in sync with the Tailwind tokens above.
 // available → emerald-500, occupied → blue-500 (= assigned), conflict → red-500 (= overbooked)
 export const SPACE_CANVAS_COLORS: Record<SpaceStatus, { fill: string; stroke: string }> = {

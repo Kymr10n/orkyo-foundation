@@ -549,6 +549,56 @@ public class RequestRepository : IRequestRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    // ── Candidate requests ────────────────────────────────────────────────────
+
+    public async Task<List<(RequestInfo Request, Guid? AssignmentId)>> GetCandidatesOverlappingAsync(Guid resourceId, DateTime start, DateTime end, CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+
+        var cmd = new NpgsqlCommand($@"
+            SELECT {SelectFromView},
+                   (SELECT ra.id FROM resource_assignments ra
+                    WHERE ra.request_id = v_requests_with_assignments.id
+                      AND ra.resource_id = @resourceId
+                      AND ra.assignment_status != @cancelled
+                    LIMIT 1) AS assignment_id
+            FROM v_requests_with_assignments
+            WHERE status IN ('planned', 'in_progress')
+              AND start_ts IS NOT NULL
+              AND end_ts IS NOT NULL
+              AND start_ts < @end
+              AND end_ts > @start
+            ORDER BY start_ts, name", db);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+        cmd.Parameters.AddWithValue("start", start);
+        cmd.Parameters.AddWithValue("end", end);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+
+        var rows = new List<(RequestInfo, Guid?)>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var req = RequestMapper.MapFromReader(reader);
+            var assignmentId = reader.IsDBNull(reader.GetOrdinal("assignment_id"))
+                ? (Guid?)null
+                : reader.GetGuid(reader.GetOrdinal("assignment_id"));
+            rows.Add((req, assignmentId));
+        }
+        await reader.CloseAsync();
+
+        if (rows.Count > 0)
+        {
+            var requests = rows.Select(r => r.Item1).ToList();
+            await LoadRequirementsForRequests(requests, db, ct);
+            // LoadRequirementsForRequests replaces RequestInfo instances via `with`; sync back.
+            for (var i = 0; i < rows.Count; i++)
+                rows[i] = (requests[i], rows[i].Item2);
+        }
+
+        return rows;
+    }
+
     // ── Requirements helpers ──────────────────────────────────────────────────
 
     private async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection db, CancellationToken ct = default)

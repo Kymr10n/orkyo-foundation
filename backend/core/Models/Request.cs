@@ -293,6 +293,25 @@ public record DeleteSubtreeResponse
 }
 
 /// <summary>
+/// One requirement on a candidate request annotated with whether this resource satisfies it.
+/// </summary>
+public record CandidateRequirementInfo(string Label, bool Satisfied);
+
+/// <summary>
+/// A request that overlaps a given period and is not yet assigned to the queried resource.
+/// Returned by <c>GET /api/resources/{id}/candidate-requests</c>.
+/// </summary>
+public record CandidateRequestInfo(
+    Guid RequestId,
+    string Name,
+    DateTime? StartTs,
+    DateTime? EndTs,
+    List<CandidateRequirementInfo> Requirements,
+    /// <summary>Non-null when this person already has a non-cancelled assignment on this request.</summary>
+    Guid? AssignmentId
+);
+
+/// <summary>
 /// Extension methods for RequestInfo.
 /// </summary>
 public static class RequestInfoExtensions

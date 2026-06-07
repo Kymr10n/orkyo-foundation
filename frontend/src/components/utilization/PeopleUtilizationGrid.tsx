@@ -12,15 +12,20 @@ import {
   getResourceGroupMembers,
   type ResourceGroupInfo,
 } from '@foundation/src/lib/api/resource-groups-api';
+import {
+  getAssignmentsByResource,
+  type ResourceAssignmentInfo,
+} from '@foundation/src/lib/api/resource-assignments-api';
 import { useAppStore } from '@foundation/src/store/app-store';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
+import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
 import { GroupHeader } from './GroupHeader';
-import { PersonRow } from './PersonRow';
+import { PersonTimelineRow } from './PersonTimelineRow';
+import { PersonAssignmentDialog } from './PersonAssignmentDialog';
 import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
 import type { PeopleByGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
-  formatTimeColumn,
   generateTimeColumns,
   overlapsOffTimeRange,
   utilizationGranularityForScale,
@@ -86,13 +91,24 @@ function LegendDot({ status, label }: { status: BucketStatus; label: string }) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+interface DialogState {
+  personId: string;
+  personName: string;
+  allocationMode: string;
+  start: string;
+  end: string;
+}
+
 export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: PeopleUtilizationGridProps) {
   const [search, setSearch] = useState('');
+  const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
   const columns = generateTimeColumns(scale, anchorTs);
   const from = columns[0].start;
   const to = columns[columns.length - 1].end;
   const granularity = utilizationGranularityForScale(scale);
+  const viewStartMs = from.getTime();
+  const viewEndMs = to.getTime();
 
   // Shared with the Spaces grid — same Zustand slice, session-scoped.
   const { collapsedGroupIds, toggleGroupCollapse } = useAppStore(
@@ -144,6 +160,15 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
       queryKey: ['person-profile', p.id],
       queryFn: () => getPersonProfile(p.id).catch(() => null),
       staleTime: 5 * 60_000,
+    })),
+  });
+
+  // 6. Per-person assignments in the view window — drives the per-segment count badge.
+  const assignmentQueries = useQueries({
+    queries: people.map((p) => ({
+      queryKey: ['resource-assignments', p.id, from.toISOString(), to.toISOString()],
+      queryFn: () => getAssignmentsByResource(p.id, from, to).catch(() => [] as ResourceAssignmentInfo[]),
+      staleTime: 60_000,
     })),
   });
 
@@ -232,7 +257,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <LegendDot status="available"    label="Available" />
-          <LegendDot status="partial"      label="Partial" />
+          <LegendDot status="partial"      label="Booked" />
           <LegendDot status="assigned"     label="Assigned" />
           <LegendDot status="overbooked"   label="Overbooked" />
           <LegendDot status="non-working"  label="Off" />
@@ -293,17 +318,28 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
                       : null);
                     const overallPct = overallPercent(buckets, person.id, offTimes);
 
+                    const assignments = (pIdx >= 0 ? (assignmentQueries[pIdx]?.data ?? []) : []) as ResourceAssignmentInfo[];
+                    const segments = mergeBucketsToSegments(buckets, person.id, offTimes);
                     return (
-                      <PersonRow
+                      <PersonTimelineRow
                         key={`${group.groupId}-${person.id}`}
                         person={person}
                         jobTitle={profile?.jobTitleName}
-                        buckets={buckets}
+                        segments={segments}
                         isLoadingRow={isLoadingRow}
-                        columnCount={columns.length}
                         overallPct={overallPct}
-                        offTimeRanges={offTimes}
-                        columnLabel={(d) => formatTimeColumn(d, granularity)}
+                        viewStartMs={viewStartMs}
+                        viewEndMs={viewEndMs}
+                        assignments={assignments}
+                        onSegmentClick={(p, seg) =>
+                          setDialogState({
+                            personId: p.id,
+                            personName: p.name,
+                            allocationMode: p.allocationMode,
+                            start: seg.start,
+                            end: seg.end,
+                          })
+                        }
                       />
                     );
                   })}
@@ -312,6 +348,18 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
           })
         )}
       </div>
+
+      {dialogState && (
+        <PersonAssignmentDialog
+          open
+          onOpenChange={(open) => { if (!open) setDialogState(null); }}
+          personId={dialogState.personId}
+          personName={dialogState.personName}
+          allocationMode={dialogState.allocationMode}
+          start={dialogState.start}
+          end={dialogState.end}
+        />
+      )}
     </div>
   );
 }

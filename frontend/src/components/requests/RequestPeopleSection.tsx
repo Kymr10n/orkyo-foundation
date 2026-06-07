@@ -12,10 +12,9 @@ import {
   validateAssignment,
   type ResourceAssignmentInfo,
   type ValidationResult,
-  type ValidationIssue,
-  type ValidationReasonCode,
 } from "@foundation/src/lib/api/resource-assignments-api";
-import { ChevronDown, Plus, Trash2, AlertTriangle, XCircle } from "lucide-react";
+import { ValidationIssueList } from "./ValidationIssueList";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 interface RequestPeopleSectionProps {
@@ -43,41 +42,6 @@ interface PendingRow {
   validationResult: ValidationResult | null;
   saving: boolean;
   error: string | null;
-}
-
-const REASON_LABELS: Record<ValidationReasonCode, string> = {
-  'resource.not-found': 'Resource not found',
-  'resource.inactive': 'Resource is inactive',
-  'resource.type-mismatch': 'Resource type mismatch',
-  'capability.missing': 'Required capability missing',
-  'offtime.overlap': 'Overlaps with off-time',
-  'assignment.overbooked': 'Resource is overbooked',
-  'nonworking.weekend': 'Overlaps with a non-working weekend',
-  'nonworking.holiday': 'Overlaps with a holiday',
-  'allocation-mode.invalid': 'Invalid allocation mode',
-  'allocation-percent.invalid': 'Invalid allocation percent',
-};
-
-function IssueList({ issues, variant }: { issues: ValidationIssue[]; variant: 'blocker' | 'warning' }) {
-  if (issues.length === 0) return null;
-  const Icon = variant === 'blocker' ? XCircle : AlertTriangle;
-  const className = variant === 'blocker' ? 'text-destructive' : 'text-amber-600';
-  return (
-    <ul className="space-y-0.5 mt-1">
-      {issues.map((issue) => (
-        // Composite key from the issue's identifying fields. A single validation
-        // result never contains duplicates of (code + linked-entity ids), so this
-        // is stable across re-renders even when issues are added/removed mid-typing.
-        <li
-          key={`${issue.code}:${issue.criterionId ?? ''}:${issue.conflictingAssignmentId ?? ''}:${issue.conflictingOffTimeId ?? ''}`}
-          className={`flex items-start gap-1 text-xs ${className}`}
-        >
-          <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>{REASON_LABELS[issue.code] ?? issue.code}: {issue.message}</span>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export function RequestPeopleSection({
@@ -343,8 +307,8 @@ export function RequestPeopleSection({
 
               {row.validationResult && (
                 <div data-testid="validation-feedback">
-                  <IssueList issues={row.validationResult.blockers} variant="blocker" />
-                  <IssueList issues={row.validationResult.warnings} variant="warning" />
+                  <ValidationIssueList issues={row.validationResult.blockers} variant="blocker" />
+                  <ValidationIssueList issues={row.validationResult.warnings} variant="warning" />
                   {row.validationResult.severity === 'ok' && row.validationResult.blockers.length === 0 && row.validationResult.warnings.length === 0 && (
                     <p className="text-xs text-green-600" data-testid="validation-ok">No issues found</p>
                   )}

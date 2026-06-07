@@ -108,6 +108,38 @@ public static class ResourceEndpoints
             .WithName("GetResourceAssignments")
             .WithSummary("Get assignments for a resource");
 
+        group.MapGet("/{id:guid}/candidate-requests", async (
+            Guid id,
+            IRequestRepository requestRepository,
+            IResourceService resourceService,
+            ICapabilityMatcher capabilityMatcher,
+            DateTime start,
+            DateTime end,
+            ILogger<EndpointLoggerCategory> logger,
+            CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+            {
+                if (await resourceService.GetByIdAsync(id) is null)
+                    return ErrorResponses.NotFound("Resource", id);
+
+                var candidates = await requestRepository.GetCandidatesOverlappingAsync(id, start, end, ct);
+
+                var result = new List<CandidateRequestInfo>(candidates.Count);
+                foreach (var (req, assignmentId) in candidates)
+                {
+                    var requirements = new List<CandidateRequirementInfo>(req.Requirements?.Count ?? 0);
+                    foreach (var r in req.Requirements ?? [])
+                    {
+                        var satisfied = await capabilityMatcher.ResourceSatisfiesRequirementAsync(id, r, ct);
+                        requirements.Add(new CandidateRequirementInfo(r.Criterion?.Name ?? r.CriterionId.ToString(), satisfied));
+                    }
+                    result.Add(new CandidateRequestInfo(req.Id, req.Name, req.StartTs, req.EndTs, requirements, assignmentId));
+                }
+                return Results.Ok(result);
+            }, logger, "get candidate requests", new { id }))
+            .WithName("GetResourceCandidateRequests")
+            .WithSummary("Get active requests overlapping a period that are not yet assigned to this resource");
+
         // ── Capabilities ──────────────────────────────────────────────
 
         group.MapGet("/{id:guid}/capabilities", async (

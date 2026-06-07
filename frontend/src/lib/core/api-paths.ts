@@ -58,6 +58,8 @@ export const API_PATHS = {
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
   resourceUtilization: (resourceId: string) => `/api/resources/${resourceId}/utilization`,
+  resourceCandidateRequests: (resourceId: string) => `/api/resources/${resourceId}/candidate-requests`,
+  resourceAssignments: (resourceId: string) => `/api/resources/${resourceId}/assignments`,
   resourceCapabilities: (resourceId: string) => `/api/resources/${resourceId}/capabilities`,
   resourceCapability: (resourceId: string, capabilityId: string) =>
     `/api/resources/${resourceId}/capabilities/${capabilityId}`,

@@ -78,4 +78,11 @@ public interface IRequestRepository
 
     /// <summary>Deletes the request and all its descendants in a single transaction. Returns the number of deleted rows.</summary>
     Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns all active requests whose scheduled window overlaps [<paramref name="start"/>, <paramref name="end"/>).
+    /// Each tuple carries the <see cref="RequestInfo"/> and the ID of the resource's non-cancelled assignment
+    /// on that request (null when not yet assigned). Requirements are populated for capability-match computation.
+    /// </summary>
+    Task<List<(RequestInfo Request, Guid? AssignmentId)>> GetCandidatesOverlappingAsync(Guid resourceId, DateTime start, DateTime end, CancellationToken ct = default);
 }

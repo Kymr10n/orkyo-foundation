@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PeopleUtilizationGrid } from './PeopleUtilizationGrid';
 import { useAppStore } from '@foundation/src/store/app-store';
@@ -18,6 +19,14 @@ vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn().mockResolvedValue([]),
   getResourceGroupMembers: vi.fn().mockResolvedValue({ groupId: '', members: [] }),
+}));
+vi.mock('@foundation/src/lib/api/person-candidate-requests-api', () => ({
+  getPersonAssignmentOptions: vi.fn().mockResolvedValue([]),
+  mismatchCount: vi.fn().mockReturnValue(0),
+  matchesAllRequirements: vi.fn().mockReturnValue(true),
+}));
+vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
+  getAssignmentsByResource: vi.fn().mockResolvedValue([]),
 }));
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
@@ -93,10 +102,6 @@ function renderGrid(props?: Partial<React.ComponentProps<typeof PeopleUtilizatio
       <PeopleUtilizationGrid anchorTs={ANCHOR} scale="month" {...props} />
     </QueryClientProvider>,
   );
-}
-
-function cellsWithStatus(container: HTMLElement, status: string): HTMLElement[] {
-  return Array.from(container.querySelectorAll(`[data-status="${status}"]`)) as HTMLElement[];
 }
 
 describe('PeopleUtilizationGrid', () => {
@@ -179,41 +184,15 @@ describe('PeopleUtilizationGrid', () => {
     );
   });
 
-  it('renders bucket cells with correct status for available buckets', async () => {
-    const { container } = renderGrid();
+  it('renders segment bars after utilization data loads', async () => {
+    renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     await waitFor(() =>
-      expect(cellsWithStatus(container, 'available').length).toBeGreaterThan(0),
+      expect(screen.getAllByTestId('person-segment-bar').length).toBeGreaterThan(0),
     );
   });
 
-  it('marks overbooked bucket with overbooked status', async () => {
-    const overbookedUtil: ResourceUtilizationResponse = {
-      ...availableUtil,
-      buckets: makeBuckets(31, { allocatedPercent: 120, effectiveAvailabilityPercent: 100 }),
-    };
-    vi.mocked(getResourceUtilization).mockResolvedValue(overbookedUtil);
-    const { container } = renderGrid();
-    await waitFor(() => screen.getByText('Alice Smith'));
-    await waitFor(() =>
-      expect(cellsWithStatus(container, 'overbooked').length).toBeGreaterThan(0),
-    );
-  });
-
-  it('marks non-working bucket with non-working status', async () => {
-    const nonWorkingUtil: ResourceUtilizationResponse = {
-      ...availableUtil,
-      buckets: makeBuckets(31, { effectiveAvailabilityPercent: 0, allocatedPercent: 0 }),
-    };
-    vi.mocked(getResourceUtilization).mockResolvedValue(nonWorkingUtil);
-    const { container } = renderGrid();
-    await waitFor(() => screen.getByText('Alice Smith'));
-    await waitFor(() =>
-      expect(cellsWithStatus(container, 'non-working').length).toBeGreaterThan(0),
-    );
-  });
-
-  it('shows percentage label inside allocated cells', async () => {
+  it('shows overall utilization % in the label cell', async () => {
     const partialUtil: ResourceUtilizationResponse = {
       ...availableUtil,
       buckets: makeBuckets(31, { allocatedPercent: 60, effectiveAvailabilityPercent: 100 }),
@@ -221,8 +200,22 @@ describe('PeopleUtilizationGrid', () => {
     vi.mocked(getResourceUtilization).mockResolvedValue(partialUtil);
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
-    const labels = screen.getAllByText('60%');
-    expect(labels.length).toBeGreaterThan(0);
+    // overallPercent averages the working-hour buckets → 60%
+    await waitFor(() => expect(screen.getAllByText('60%').length).toBeGreaterThan(0));
+  });
+
+  it('clicking a segment opens the person assignment dialog', async () => {
+    renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Alice Smith'));
+    // Wait for at least one segment bar to appear
+    await waitFor(() => expect(screen.getAllByTestId('person-segment-bar').length).toBeGreaterThan(0));
+    const bar = screen.getAllByTestId('person-segment-bar')[0];
+    await userEvent.click(bar);
+    await waitFor(() =>
+      expect(screen.getByTestId('person-assignment-dialog')).toBeInTheDocument(),
+    );
+    // Dialog title names the person
+    expect(screen.getByText(/Assignments — Alice Smith/)).toBeInTheDocument();
   });
 
   it('filters people by search input', async () => {
@@ -254,10 +247,11 @@ describe('PeopleUtilizationGrid', () => {
   it('renders the legend strip', async () => {
     renderGrid();
     await waitFor(() => screen.getByTestId('people-utilization-grid'));
-    expect(screen.getByText('Available')).toBeInTheDocument();
-    expect(screen.getByText('Partial')).toBeInTheDocument();
-    expect(screen.getByText('Assigned')).toBeInTheDocument();
-    expect(screen.getByText('Overbooked')).toBeInTheDocument();
+    // getAllByText because segment bars may also render the same status text
+    expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Booked').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Assigned').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Overbooked').length).toBeGreaterThan(0);
   });
 
   it('uses EEE dd column header format for day granularity (week scale)', async () => {
@@ -352,60 +346,41 @@ describe('PeopleUtilizationGrid', () => {
   });
 
   // ── Legend color-consistency tests ──────────────────────────────────────────
+  // Segment bar color correctness is covered in PersonSegmentBar.test.tsx.
+  // Here we only verify the legend dots use the expected Tailwind color classes.
 
+  // LegendDot renders <span class="flex items-center gap-1"><span class="inline-block ..."/>{label}</span>.
+  // The dot is the first-child span. Segment bars may also render the same label text, so we
+  // locate the legend span by its unique gap-1 + items-center structure (first child = dot).
   function getLegendDot(label: string): HTMLElement {
-    return screen.getByText(label).firstElementChild as HTMLElement;
+    const candidates = screen.getAllByText(label);
+    const legendSpan = candidates.find(
+      (el) => el.tagName === 'SPAN' && el.firstElementChild?.tagName === 'SPAN',
+    );
+    return legendSpan!.firstElementChild as HTMLElement;
   }
 
-  it('legend dot for "Available" has the same background class as an available cell', async () => {
-    const { container } = renderGrid();
-    await waitFor(() => screen.getByText('Available'));
-
+  it('legend dot for "Available" uses the emerald palette', async () => {
+    renderGrid();
+    await waitFor(() => expect(screen.getAllByText('Available').length).toBeGreaterThan(0));
     const dot = getLegendDot('Available');
     expect(dot.className).toMatch(/bg-emerald-100/);
     expect(dot.className).toMatch(/dark:bg-emerald-950/);
-
-    await waitFor(() => expect(cellsWithStatus(container, 'available').length).toBeGreaterThan(0));
-    const availableCell = cellsWithStatus(container, 'available')[0];
-    expect(availableCell.className).toMatch(/bg-emerald-100/);
-    expect(availableCell.className).toMatch(/dark:bg-emerald-950/);
   });
 
-  it('legend dot for "Assigned" has the same background class as an assigned cell', async () => {
-    const assignedUtil: ResourceUtilizationResponse = {
-      ...availableUtil,
-      buckets: makeBuckets(31, { isExclusiveOccupied: true, effectiveAvailabilityPercent: 100 }),
-    };
-    vi.mocked(getResourceUtilization).mockResolvedValue(assignedUtil);
-    const { container } = renderGrid();
-    await waitFor(() => screen.getByText('Alice Smith'));
-
+  it('legend dot for "Assigned" uses the blue palette', async () => {
+    renderGrid();
+    await waitFor(() => screen.getByText('Assigned'));
     const dot = getLegendDot('Assigned');
     expect(dot.className).toMatch(/bg-blue-100/);
     expect(dot.className).toMatch(/dark:bg-blue-950/);
-
-    await waitFor(() => expect(cellsWithStatus(container, 'assigned').length).toBeGreaterThan(0));
-    const assignedCell = cellsWithStatus(container, 'assigned')[0];
-    expect(assignedCell.className).toMatch(/bg-blue-100/);
-    expect(assignedCell.className).toMatch(/dark:bg-blue-950/);
   });
 
-  it('legend dot for "Overbooked" has the same background class as an overbooked cell', async () => {
-    const overbookedUtil: ResourceUtilizationResponse = {
-      ...availableUtil,
-      buckets: makeBuckets(31, { allocatedPercent: 120, effectiveAvailabilityPercent: 100 }),
-    };
-    vi.mocked(getResourceUtilization).mockResolvedValue(overbookedUtil);
-    const { container } = renderGrid();
-    await waitFor(() => screen.getByText('Alice Smith'));
-
+  it('legend dot for "Overbooked" uses the red palette', async () => {
+    renderGrid();
+    await waitFor(() => screen.getByText('Overbooked'));
     const dot = getLegendDot('Overbooked');
     expect(dot.className).toMatch(/bg-red-100/);
     expect(dot.className).toMatch(/dark:bg-red-950/);
-
-    await waitFor(() => expect(cellsWithStatus(container, 'overbooked').length).toBeGreaterThan(0));
-    const overbookedCell = cellsWithStatus(container, 'overbooked')[0];
-    expect(overbookedCell.className).toMatch(/bg-red-100/);
-    expect(overbookedCell.className).toMatch(/dark:bg-red-950/);
   });
 });
