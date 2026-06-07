@@ -59,6 +59,9 @@ public static class ConfigKeys
     // ── Security / Challenge ────────────────────────────────────────────────
     public const string TurnstileSecretKey = "TURNSTILE_SECRET_KEY";
 
+    /// <summary>Base64-encoded 32-byte AES-256 master key for application-level field/blob encryption.</summary>
+    public const string MasterEncryptionKey = "ORKYO_MASTER_ENCRYPTION_KEY";
+
     // ── Observability ───────────────────────────────────────────────────────
     public const string OtelExporterOtlpEndpoint = "OTEL_EXPORTER_OTLP_ENDPOINT";
     public const string LokiUrl = "LOKI_URL";

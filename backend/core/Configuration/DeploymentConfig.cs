@@ -37,6 +37,10 @@ public sealed record DeploymentConfig
     // ── Database ─────────────────────────────────────────────────────────
     public required string PostgresConnectionString { get; init; }
 
+    // ── Encryption ───────────────────────────────────────────────────────
+    /// <summary>Base64-encoded 32-byte AES-256 master key for at-rest field/blob encryption.</summary>
+    public required string MasterEncryptionKey { get; init; }
+
     // ── Logging ──────────────────────────────────────────────────────────
     public string LogLevel { get; init; } = "Information";
 
@@ -68,6 +72,9 @@ public sealed record DeploymentConfig
 
         // Database
         "ConnectionStrings:Postgres",
+
+        // Encryption
+        ConfigKeys.MasterEncryptionKey,
 
         // URLs
         ConfigKeys.AppBaseUrl,
@@ -117,6 +124,8 @@ public sealed record DeploymentConfig
 
             PostgresConnectionString = Require("ConnectionStrings:Postgres"),
 
+            MasterEncryptionKey = Require(ConfigKeys.MasterEncryptionKey),
+
             LogLevel = configuration["Logging:LogLevel:Default"] ?? "Information",
             Version = configuration["ORKYO_VERSION"],
         };
@@ -130,7 +139,31 @@ public sealed record DeploymentConfig
         nameof(SmtpUsername),
         nameof(KeycloakBackendClientSecret),
         nameof(PostgresConnectionString),
+        nameof(MasterEncryptionKey),
     };
+
+    /// <summary>
+    /// Decodes and validates the master encryption key (base64 → 32 bytes).
+    /// Throws <see cref="InvalidOperationException"/> on a malformed or wrong-length key
+    /// so a misconfigured deployment fails fast at startup rather than at first encrypt.
+    /// </summary>
+    public byte[] DecodeMasterEncryptionKey()
+    {
+        byte[] key;
+        try
+        {
+            key = Convert.FromBase64String(MasterEncryptionKey);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException(
+                $"{ConfigKeys.MasterEncryptionKey} is not valid base64.", ex);
+        }
+        if (key.Length != 32)
+            throw new InvalidOperationException(
+                $"{ConfigKeys.MasterEncryptionKey} must decode to exactly 32 bytes (got {key.Length}).");
+        return key;
+    }
 
     /// <summary>
     /// Returns a dictionary of all properties with secrets masked as "***".

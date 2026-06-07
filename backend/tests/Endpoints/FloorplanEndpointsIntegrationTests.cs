@@ -1,6 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
-using Microsoft.AspNetCore.Mvc.Testing;
+using Api.Repositories;
+using Api.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -147,6 +152,89 @@ public class FloorplanEndpointsIntegrationTests
         var response = await client.DeleteAsync($"/api/sites/{siteId}/floorplan");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region Audit logging
+
+    // A real PNG ImageSharp can decode (the upload validates the image).
+    private static byte[] TestPng()
+    {
+        using var image = new Image<Rgba32>(10, 10);
+        using var ms = new MemoryStream();
+        image.SaveAsPng(ms);
+        return ms.ToArray();
+    }
+
+    private (IOrgDbConnectionFactory conn, OrgContext org) DbScope()
+    {
+        var scope = _databaseFixture.Factory.Services.CreateScope();
+        return (
+            scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>(),
+            scope.ServiceProvider.GetRequiredService<OrgContext>());
+    }
+
+    private async Task<Guid> SeedSiteAsync()
+    {
+        var (connFactory, org) = DbScope();
+        await using var conn = connFactory.CreateOrgConnection(org);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO sites (name, code) VALUES (@n, @c) RETURNING id", conn);
+        cmd.Parameters.AddWithValue("n", $"Site {Guid.NewGuid():N}"[..20]);
+        cmd.Parameters.AddWithValue("c", $"S{Guid.NewGuid():N}"[..12]);
+        return (Guid)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    private async Task<int> AuditCountAsync(string action, Guid siteId)
+    {
+        var (connFactory, org) = DbScope();
+        await using var conn = connFactory.CreateOrgConnection(org);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM audit_events WHERE action = @a AND target_type = 'site' AND target_id = @t", conn);
+        cmd.Parameters.AddWithValue("a", action);
+        cmd.Parameters.AddWithValue("t", siteId.ToString());
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    private HttpClient AuthedClient()
+    {
+        var client = _databaseFixture.Factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        return client;
+    }
+
+    [Fact]
+    public async Task UploadAndDownloadAndDelete_AreAuditLogged()
+    {
+        var siteId = await SeedSiteAsync();
+        var client = AuthedClient();
+        var png = TestPng();
+
+        // Upload
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(png);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(fileContent, "file", "plan.png");
+        var upload = await client.PostAsync($"/api/sites/{siteId}/floorplan", content);
+        Assert.True(upload.StatusCode == HttpStatusCode.OK,
+            $"upload failed: {upload.StatusCode} — {await upload.Content.ReadAsStringAsync()}");
+        Assert.True(await AuditCountAsync("floorplan.upload", siteId) >= 1);
+
+        // Download
+        var download = await client.GetAsync($"/api/sites/{siteId}/floorplan");
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        // Returned bytes are the decrypted original PNG (encrypted at rest, transparent on read).
+        Assert.Equal(png, await download.Content.ReadAsByteArrayAsync());
+        Assert.True(await AuditCountAsync("floorplan.download", siteId) >= 1);
+
+        // Delete
+        var delete = await client.DeleteAsync($"/api/sites/{siteId}/floorplan");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        Assert.True(await AuditCountAsync("floorplan.delete", siteId) >= 1);
     }
 
     #endregion

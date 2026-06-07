@@ -1,10 +1,14 @@
 using Api.Models;
+using Api.Security.Encryption;
 using Api.Services;
 using Npgsql;
 
 namespace Api.Repositories;
 
-public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
+public class AssetRepository(
+    OrgContext orgContext,
+    IOrgDbConnectionFactory connectionFactory,
+    IEncryptionService encryption)
     : IAssetRepository
 {
     private const string AssetCols =
@@ -52,17 +56,23 @@ public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
         await conn.OpenAsync(ct);
 
         await using var cmd = BuildOwnerAssetCommand(
-            $"SELECT {AssetCols}, data FROM assets", conn, tenantId, ownerType, ownerId, assetType);
+            $"SELECT {AssetCols}, data, enc_algorithm FROM assets", conn, tenantId, ownerType, ownerId, assetType);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
 
         var dataOrdinal = reader.GetOrdinal("data");
         if (reader.IsDBNull(dataOrdinal)) return null;
 
+        var stored = (byte[])reader.GetValue(dataOrdinal);
+        // Encrypted rows (enc_algorithm set) are decrypted; legacy plaintext rows
+        // (NULL) are returned as-is until the backfill encrypts them.
+        var encrypted = !reader.IsDBNull(reader.GetOrdinal("enc_algorithm"));
+        var data = encrypted ? encryption.UnprotectBytes(stored, tenantId) : stored;
+
         return new AssetDownloadInfo
         {
             Metadata = MapAsset(reader),
-            Data = (byte[])reader.GetValue(dataOrdinal),
+            Data = data,
         };
     }
 
@@ -83,15 +93,22 @@ public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
 
+        // Encrypt the blob at rest. size_bytes / checksum stay over PLAINTEXT (user-facing
+        // size + ETag/integrity); the stored bytes are the Orkyo binary envelope.
+        var plaintextLength = (long)data.Length;
+        var encryptedData = encryption.ProtectBytes(data, tenantId);
+
         await using var cmd = new NpgsqlCommand($@"
             INSERT INTO assets (
                 tenant_id, owner_type, owner_id, asset_type, file_name, content_type,
                 size_bytes, checksum_sha256, width_px, height_px, storage_kind, data,
+                enc_algorithm, enc_key_version,
                 external_uri, created_by_user_id, updated_by_user_id
             )
             VALUES (
                 @tenantId, @ownerType, @ownerId, @assetType, @fileName, @contentType,
                 @sizeBytes, @checksumSha256, @widthPx, @heightPx, @storageKind, @data,
+                @encAlgorithm, @encKeyVersion,
                 NULL, @userId, @userId
             )
             ON CONFLICT (tenant_id, owner_type, owner_id, asset_type)
@@ -105,6 +122,8 @@ public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
                 height_px = EXCLUDED.height_px,
                 storage_kind = EXCLUDED.storage_kind,
                 data = EXCLUDED.data,
+                enc_algorithm = EXCLUDED.enc_algorithm,
+                enc_key_version = EXCLUDED.enc_key_version,
                 external_uri = NULL,
                 updated_by_user_id = EXCLUDED.updated_by_user_id,
                 updated_at = NOW()
@@ -116,12 +135,14 @@ public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
         cmd.Parameters.AddWithValue("assetType", assetType);
         cmd.Parameters.AddWithValue("fileName", fileName);
         cmd.Parameters.AddWithValue("contentType", contentType);
-        cmd.Parameters.AddWithValue("sizeBytes", (long)data.Length);
+        cmd.Parameters.AddWithValue("sizeBytes", plaintextLength);
         cmd.Parameters.AddWithValue("checksumSha256", checksumSha256);
         cmd.Parameters.AddWithValue("widthPx", (object?)widthPx ?? DBNull.Value);
         cmd.Parameters.AddWithValue("heightPx", (object?)heightPx ?? DBNull.Value);
         cmd.Parameters.AddWithValue("storageKind", AssetStorageKinds.Postgres);
-        cmd.Parameters.AddWithValue("data", data);
+        cmd.Parameters.AddWithValue("data", encryptedData);
+        cmd.Parameters.AddWithValue("encAlgorithm", encryption.Algorithm);
+        cmd.Parameters.AddWithValue("encKeyVersion", encryption.KeyVersion);
         cmd.Parameters.AddWithValue("userId", (object?)userId ?? DBNull.Value);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -162,6 +183,38 @@ public class AssetRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
         cmd.Parameters.AddWithValue("tenantId", tenantId);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is DBNull or null ? 0L : Convert.ToInt64(result);
+    }
+
+    public async Task<int> EncryptUnencryptedBlobsAsync(CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.OpenAsync(ct);
+
+        // Read legacy plaintext rows.
+        var rows = new List<(Guid id, Guid tenantId, byte[] data)>();
+        await using (var select = new NpgsqlCommand(
+            "SELECT id, tenant_id, data FROM assets WHERE enc_algorithm IS NULL AND data IS NOT NULL", conn))
+        await using (var reader = await select.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+                rows.Add((reader.GetGuid(0), reader.GetGuid(1), (byte[])reader.GetValue(2)));
+        }
+
+        var count = 0;
+        foreach (var (id, tenantId, data) in rows)
+        {
+            var encrypted = encryption.ProtectBytes(data, tenantId);
+            await using var update = new NpgsqlCommand(
+                @"UPDATE assets
+                  SET data = @data, enc_algorithm = @encAlgorithm, enc_key_version = @encKeyVersion
+                  WHERE id = @id AND enc_algorithm IS NULL", conn);
+            update.Parameters.AddWithValue("data", encrypted);
+            update.Parameters.AddWithValue("encAlgorithm", encryption.Algorithm);
+            update.Parameters.AddWithValue("encKeyVersion", encryption.KeyVersion);
+            update.Parameters.AddWithValue("id", id);
+            count += await update.ExecuteNonQueryAsync(ct);
+        }
+        return count;
     }
 
     private static NpgsqlCommand BuildOwnerAssetCommand(

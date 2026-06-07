@@ -293,7 +293,13 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             KeycloakBackendClientId = "test-backend",
             KeycloakBackendClientSecret = "test-secret",
             PostgresConnectionString = controlPlaneCs,
+            MasterEncryptionKey = TestConstants.MasterEncryptionKey,
         });
+
+        // ── Encryption (mirrors FoundationServiceExtensions registration) ──
+        builder.Services.AddSingleton<Api.Security.Encryption.IEncryptionService>(sp =>
+            new Api.Security.Encryption.AesGcmEncryptionService(
+                sp.GetRequiredService<Api.Configuration.DeploymentConfig>().DecodeMasterEncryptionKey()));
 
         // ── Services ──────────────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Services.AutoSchedule.SchedulingProblemBuilder>();

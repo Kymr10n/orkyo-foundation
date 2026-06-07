@@ -46,4 +46,11 @@ public interface IAssetRepository
     /// Used for storage quota enforcement at upload time (live, not from rollup).
     /// </summary>
     Task<long> GetTotalSizeBytesAsync(Guid tenantId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Encrypts any legacy plaintext blobs (enc_algorithm IS NULL) in the current tenant
+    /// database, in place. Idempotent — a second run finds nothing. Returns the number of
+    /// rows encrypted. Reused for key rotation (decrypt-old → encrypt-new) later.
+    /// </summary>
+    Task<int> EncryptUnencryptedBlobsAsync(CancellationToken ct = default);
 }

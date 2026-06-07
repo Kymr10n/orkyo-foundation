@@ -22,6 +22,7 @@ public static class FloorplanEndpoints
             HttpContext ctx,
             ICurrentPrincipal principal,
             IAssetStorageService assetStorage,
+            ITenantUserService tenantAudit,
             CancellationToken ct,
             ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -43,6 +44,10 @@ public static class FloorplanEndpoints
                         ContentLength = file.Length
                     },
                     userId, ct);
+
+                await tenantAudit.RecordAuditEventAsync(
+                    ctx.GetOrgContext(), "floorplan.upload", userId, "site", siteId.ToString(),
+                    new { metadata.FileName, metadata.MimeType, metadata.FileSizeBytes }, ct);
 
                 return Results.Ok(new { success = true, metadata });
             }
@@ -70,7 +75,9 @@ public static class FloorplanEndpoints
         floorplan.MapGet("/", async (
             Guid siteId,
             HttpContext ctx,
+            ICurrentPrincipal principal,
             IAssetStorageService assetStorage,
+            ITenantUserService tenantAudit,
             CancellationToken ct) =>
         {
             var tenant = ctx.GetTenantContext();
@@ -92,6 +99,12 @@ public static class FloorplanEndpoints
                 if (ctx.Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
                     && ifNoneMatch.Any(v => string.Equals(v, eTag, StringComparison.Ordinal)))
                     return Results.StatusCode(StatusCodes.Status304NotModified);
+
+                // Audit actual content delivery (304 cache hits above are skipped to avoid noise).
+                var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
+                await tenantAudit.RecordAuditEventAsync(
+                    ctx.GetOrgContext(), "floorplan.download", userId, "site", siteId.ToString(),
+                    new { asset.FileName, asset.SizeBytes }, ct);
 
                 return Results.Bytes(download.Data, asset.ContentType, asset.FileName);
             }
@@ -130,7 +143,9 @@ public static class FloorplanEndpoints
         floorplan.MapDelete("/", async (
             Guid siteId,
             HttpContext ctx,
+            ICurrentPrincipal principal,
             IAssetStorageService assetStorage,
+            ITenantUserService tenantAudit,
             CancellationToken ct,
             ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -142,6 +157,10 @@ public static class FloorplanEndpoints
                     tenant.TenantId, siteId, ct);
                 if (!deleted)
                     return Results.NotFound(new { error = "No floorplan found for this site" });
+
+                var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
+                await tenantAudit.RecordAuditEventAsync(
+                    ctx.GetOrgContext(), "floorplan.delete", userId, "site", siteId.ToString(), null, ct);
 
                 logger.LogInformation("Deleted floorplan asset for site {SiteId}", siteId);
                 return Results.NoContent();

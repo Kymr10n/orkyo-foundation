@@ -49,5 +49,6 @@ public class EffectiveConfigTests
         KeycloakBackendClientId = "orkyo-backend",
         KeycloakBackendClientSecret = "test-secret",
         PostgresConnectionString = "Host=localhost;Database=test;Username=test;Password=test",
+        MasterEncryptionKey = TestConstants.MasterEncryptionKey,
     };
 }

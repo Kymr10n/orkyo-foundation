@@ -1,4 +1,5 @@
 using Api.Models;
+using Api.Security.Encryption;
 using Api.Services;
 using Npgsql;
 
@@ -13,9 +14,19 @@ public interface IPersonProfileRepository
     Task<bool> UnlinkUserAsync(Guid resourceId, CancellationToken ct = default);
 }
 
-public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
+public class PersonProfileRepository(
+    OrgContext orgContext,
+    IOrgDbConnectionFactory connectionFactory,
+    IEncryptionService encryption)
     : IPersonProfileRepository
 {
+    // person_profiles.notes is confidential free-text → encrypted at rest. email
+    // stays plaintext (lookup/display field; encrypting needs a blind index — deferred).
+    private PersonProfileInfo Dec(PersonProfileInfo p) => p with
+    {
+        Notes = encryption.UnprotectString(p.Notes, orgContext.OrgId),
+    };
+
     // SELECT for both single-row and linked-user lookups. Builds two derived
     // display-only fields:
     //   - job_title_name: simple LEFT JOIN to job_titles
@@ -54,17 +65,19 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
     public async Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QuerySingleOrDefaultAsync(
+        var profile = await db.QuerySingleOrDefaultAsync(
             $"{SelectSqlBody} WHERE p.resource_id = @resourceId",
             p => p.AddWithValue("resourceId", resourceId), Map, ct);
+        return profile is null ? null : Dec(profile);
     }
 
     public async Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QuerySingleOrDefaultAsync(
+        var profile = await db.QuerySingleOrDefaultAsync(
             $"{SelectSqlBody} WHERE p.linked_user_id = @userId",
             p => p.AddWithValue("userId", userId), Map, ct);
+        return profile is null ? null : Dec(profile);
     }
 
     public async Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request, CancellationToken ct = default)
@@ -94,7 +107,7 @@ public class PersonProfileRepository(OrgContext orgContext, IOrgDbConnectionFact
                     p.AddNullable("email", request.Email);
                     p.AddNullable("jobTitleId", request.JobTitleId);
                     p.AddNullable("departmentId", request.DepartmentId);
-                    p.AddNullable("notes", request.Notes);
+                    p.AddNullable("notes", encryption.ProtectString(request.Notes, orgContext.OrgId));
                 }, ct);
         }
         catch (PostgresException ex) when (ex.SqlState == "23503")

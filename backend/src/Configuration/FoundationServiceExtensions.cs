@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Security;
+using Api.Security.Encryption;
 using Api.Security.Features;
 using Api.Security.Quotas;
 using Api.Services;
@@ -58,6 +59,13 @@ public static class FoundationServiceExtensions
         services.AddScoped<IFeatureGate, AllFeaturesEnabledGate>();
         services.AddScoped<ITenantPlanInfoProvider, SinglePlanInfoProvider>();
         services.AddScoped<IQuotaUsageRollup, NoOpQuotaUsageRollup>();
+
+        // ── Encryption (at-rest field/blob protection) ───────────────────────
+        // Singleton, stateless. Reuses DeploymentConfig's validated master key so the
+        // base64/length check lives in one place; resolved lazily on first use.
+        services.AddSingleton<IEncryptionService>(sp =>
+            new AesGcmEncryptionService(
+                sp.GetRequiredService<DeploymentConfig>().DecodeMasterEncryptionKey()));
 
         // ── Security context ──────────────────────────────────────────────────
         services.AddScoped<CurrentPrincipal>();

@@ -33,6 +33,7 @@ public class DeploymentConfigTests
             [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
             ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
+            [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey,
             [ConfigKeys.SmtpHost] = "localhost",
             [ConfigKeys.SmtpPort] = "1025",
             [ConfigKeys.SmtpUseSsl] = "false",
@@ -100,6 +101,7 @@ public class DeploymentConfigTests
             KeycloakBackendClientId = "id",
             KeycloakBackendClientSecret = "s",
             PostgresConnectionString = "cs",
+            MasterEncryptionKey = TestConstants.MasterEncryptionKey,
         };
 
         var withoutInternal = withInternal with { OidcInternalAuthority = null };
@@ -129,7 +131,8 @@ public class DeploymentConfigTests
             [ConfigKeys.SmtpFromEmail] = "noreply@example.com",
             [ConfigKeys.SmtpFromName] = "Orkyo",
             [ConfigKeys.SmtpUsername] = "smtp-user",
-            [ConfigKeys.SmtpPassword] = "smtp-password"
+            [ConfigKeys.SmtpPassword] = "smtp-password",
+            [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey
         });
 
         var result = DeploymentConfig.FromConfiguration(config).Redacted();
@@ -138,7 +141,29 @@ public class DeploymentConfigTests
         result[nameof(DeploymentConfig.PostgresConnectionString)].Should().Be("***");
         result[nameof(DeploymentConfig.SmtpPassword)].Should().Be("***");
         result[nameof(DeploymentConfig.SmtpUsername)].Should().Be("***");
+        result[nameof(DeploymentConfig.MasterEncryptionKey)].Should().Be("***");
         result[nameof(DeploymentConfig.AppBaseUrl)].Should().Be("http://localhost:8080");
+    }
+
+    [Fact]
+    public void DecodeMasterEncryptionKey_ReturnsThirtyTwoBytes_ForValidKey()
+    {
+        var config = DeploymentConfig.FromConfiguration(BuildConfig(RequiredValues()));
+        config.DecodeMasterEncryptionKey().Should().HaveCount(32);
+    }
+
+    [Theory]
+    [InlineData("not valid base64 !!!")]            // not base64
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA==")]          // valid base64, but only 16 bytes
+    public void DecodeMasterEncryptionKey_Throws_ForInvalidKey(string badKey)
+    {
+        var config = DeploymentConfig.FromConfiguration(
+            BuildConfig(RequiredValues(new Dictionary<string, string?>
+            {
+                [ConfigKeys.MasterEncryptionKey] = badKey,
+            })));
+        var act = () => config.DecodeMasterEncryptionKey();
+        act.Should().Throw<InvalidOperationException>();
     }
 
     private static IConfiguration BuildConfig(Dictionary<string, string?> values)
@@ -160,6 +185,7 @@ public class DeploymentConfigTests
             [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
             ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
+            [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey,
             [ConfigKeys.SmtpHost] = "localhost",
             [ConfigKeys.SmtpPort] = "1025",
             [ConfigKeys.SmtpUseSsl] = "false",

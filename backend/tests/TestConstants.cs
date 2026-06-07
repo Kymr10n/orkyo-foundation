@@ -11,6 +11,9 @@ public static class TestConstants
     /// <summary>Name of the tenant-scoped PostgreSQL database created by <see cref="DatabaseFixture"/>.</summary>
     public const string TenantDatabase = "tenant_test";
 
+    /// <summary>Base64-encoded 32-byte AES-256 master key for tests (deterministic, non-secret).</summary>
+    public static string MasterEncryptionKey { get; } = Convert.ToBase64String(new byte[32]);
+
     /// <summary>
     /// Pre-encoded Bearer token for integration tests.
     /// Decoded by <see cref="TestAuthHandler"/> — no real JWT required.

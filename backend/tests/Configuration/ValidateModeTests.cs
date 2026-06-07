@@ -25,6 +25,7 @@ public class ValidateModeTests
         ["KEYCLOAK_BACKEND_CLIENT_ID"] = "orkyo-backend",
         ["KEYCLOAK_BACKEND_CLIENT_SECRET"] = "test-secret",
         ["ConnectionStrings:Postgres"] = "Host=localhost;Database=test;Username=test;Password=test",
+        ["ORKYO_MASTER_ENCRYPTION_KEY"] = TestConstants.MasterEncryptionKey,
     };
 
     [Fact]

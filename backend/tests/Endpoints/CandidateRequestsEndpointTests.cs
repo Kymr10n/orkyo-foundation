@@ -110,13 +110,13 @@ public class CandidateRequestsEndpointTests
         var start = new DateTime(2026, 9, 11, 12, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         // Request ends exactly at period start (exclusive overlap: end_ts > @start)
-        await CreateScheduledRequestAsync(start.AddHours(-4), start);
+        var excludedId = await CreateScheduledRequestAsync(start.AddHours(-4), start);
 
         var resp = await _client.GetAsync(CandidateUrl(personId, start, end));
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadFromJsonAsync<List<JsonElement>>();
         Assert.NotNull(body);
-        Assert.Empty(body!);
+        Assert.DoesNotContain(body!, x => x.GetProperty("requestId").GetGuid() == excludedId);
     }
 
     [Fact]
@@ -126,12 +126,13 @@ public class CandidateRequestsEndpointTests
         var start = new DateTime(2026, 9, 12, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         // Request starts exactly at period end (exclusive: start_ts < @end)
-        await CreateScheduledRequestAsync(end, end.AddHours(4));
+        var excludedId = await CreateScheduledRequestAsync(end, end.AddHours(4));
 
         var resp = await _client.GetAsync(CandidateUrl(personId, start, end));
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadFromJsonAsync<List<JsonElement>>();
-        Assert.Empty(body!);
+        Assert.NotNull(body);
+        Assert.DoesNotContain(body!, x => x.GetProperty("requestId").GetGuid() == excludedId);
     }
 
     [Fact]

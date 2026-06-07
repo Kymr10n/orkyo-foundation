@@ -171,5 +171,6 @@ public class ConfigurationValidatorTests
         [ConfigKeys.SmtpUseSsl] = "false",
         [ConfigKeys.SmtpFromEmail] = "noreply@example.com",
         [ConfigKeys.SmtpFromName] = "Orkyo",
+        [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey,
     };
 }
