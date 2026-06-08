@@ -1,14 +1,13 @@
 import React, { useMemo } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { selectSpaceOverlapCount } from "@foundation/src/domain/scheduling/schedule-selectors";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
-import type { PreviewSchedule, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
+import type { ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 import { TimeCell } from "./TimeCell";
 import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
+import { TimelineRow } from "./TimelineRow";
 import type { TimeColumn } from "./scheduler-types";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import { overlapsOffTimeRange } from "./time-grid-utils";
@@ -21,7 +20,6 @@ export const SpaceRow = React.memo(function SpaceRow({
   space,
   columns,
   requests,
-  previewSchedule: _previewSchedule,
   scheduleIndex,
   validation,
   timeCursorTs,
@@ -33,7 +31,6 @@ export const SpaceRow = React.memo(function SpaceRow({
   space: Space;
   columns: TimeColumn[];
   requests: Request[];
-  previewSchedule: PreviewSchedule;
   scheduleIndex: ScheduleIndex;
   validation: ValidationResult;
   timeCursorTs: Date;
@@ -61,74 +58,53 @@ export const SpaceRow = React.memo(function SpaceRow({
   const maxOverlaps = selectSpaceOverlapCount(scheduleIndex, space.id);
   const rowHeight = BASE_ROW_HEIGHT + (maxOverlaps - 1) * REQUEST_HEIGHT;
 
-  // Sortable setup — drag affordance lives on the whole row now (no handle icon).
-  // We keep the underlying logic so reorder can be re-surfaced later via a
-  // row context menu without touching this file.
-  const {
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: space.id,
-    data: { type: 'space-row' }
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   return (
-    <div ref={setNodeRef} style={style} className="flex border-b hover:bg-accent/30 transition-colors">
-      {/* Space label */}
-      <div className="w-52 flex-shrink-0 px-3 py-2 border-r flex items-center gap-2">
+    <TimelineRow
+      rowId={space.id}
+      columns={columns}
+      sortable
+      sortableData={{ type: "space-row" }}
+      minHeight={rowHeight}
+      label={
         <div className="min-w-0 flex-1">
           <div className="font-medium text-sm truncate">{space.code}</div>
-          <div className="text-xs text-muted-foreground truncate">
-            {space.name}
-          </div>
+          <div className="text-xs text-muted-foreground truncate">{space.name}</div>
         </div>
-      </div>
-
-      {/* Time cells */}
-      <div className="flex-1 flex relative" style={{ minHeight: `${rowHeight}px` }}>
-        {columns.map((col) => (
-          <TimeCell
-            key={col.start.getTime()}
-            column={col}
-            space={space}
-            timeCursorTs={timeCursorTs}
-            requests={spaceRequests}
+      }
+      renderColumnCell={(col) => (
+        <TimeCell
+          column={col}
+          space={space}
+          timeCursorTs={timeCursorTs}
+          requests={spaceRequests}
+          onRequestClick={onRequestClick}
+          isOffTime={overlapsOffTimeRange(
+            space.id,
+            col.start.getTime(),
+            col.end.getTime(),
+            offTimeRanges,
+          )}
+        />
+      )}
+    >
+      {/* Scheduled requests from preview (reflects draft bounds) */}
+      {spacePreviewEntries.map((entry) => {
+        const request = requestsById.get(entry.requestId);
+        if (!request) return null;
+        return (
+          <ScheduledRequestOverlay
+            key={entry.requestId}
+            request={request}
+            entry={entry}
+            columns={columns}
+            scheduleIndex={scheduleIndex}
+            validation={validation}
             onRequestClick={onRequestClick}
-            isOffTime={overlapsOffTimeRange(
-              space.id,
-              col.start.getTime(),
-              col.end.getTime(),
-              offTimeRanges,
-            )}
+            onRequestDoubleClick={onRequestDoubleClick}
+            onRequestResize={onRequestResize}
           />
-        ))}
-        {/* Render scheduled requests from preview (reflects draft bounds) */}
-        {spacePreviewEntries.map((entry) => {
-          const request = requestsById.get(entry.requestId);
-          if (!request) return null;
-          return (
-            <ScheduledRequestOverlay
-              key={entry.requestId}
-              request={request}
-              entry={entry}
-              columns={columns}
-              scheduleIndex={scheduleIndex}
-              validation={validation}
-              onRequestClick={onRequestClick}
-              onRequestDoubleClick={onRequestDoubleClick}
-              onRequestResize={onRequestResize}
-            />
-          );
-        })}
-      </div>
-    </div>
+        );
+      })}
+    </TimelineRow>
   );
 });

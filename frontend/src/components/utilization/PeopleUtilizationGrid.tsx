@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { useShallow } from 'zustand/react/shallow';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import {
   getResourceUtilization,
@@ -16,12 +15,11 @@ import {
   getAssignmentsByResource,
   type ResourceAssignmentInfo,
 } from '@foundation/src/lib/api/resource-assignments-api';
-import { useAppStore } from '@foundation/src/store/app-store';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
-import { GroupHeader } from './GroupHeader';
 import { PersonTimelineRow } from './PersonTimelineRow';
 import { PersonAssignmentDialog } from './PersonAssignmentDialog';
+import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
 import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
 import type { PeopleByGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
@@ -30,6 +28,7 @@ import {
   overlapsOffTimeRange,
   utilizationGranularityForScale,
 } from './time-grid-utils';
+import { enrichColumnsWithOffTime } from './time-grid-offtime';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,30 +104,15 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   const [search, setSearch] = useState('');
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
-  const columns = useMemo(() => {
-    const cols = generateTimeColumns(scale, anchorTs, weekendsEnabled);
-    const siteWide = offTimeRanges.filter(r => r.resourceIds === null);
-    if (siteWide.length === 0) return cols;
-    return cols.map(col => {
-      const colStartMs = col.start.getTime();
-      const colEndMs   = col.end.getTime();
-      const isGlobalOffTime = siteWide.some(r => r.startMs <= colStartMs && r.endMs >= colEndMs);
-      return isGlobalOffTime ? { ...col, isGlobalOffTime: true } : col;
-    });
-  }, [scale, anchorTs, weekendsEnabled, offTimeRanges]);
+  const columns = useMemo(
+    () => enrichColumnsWithOffTime(generateTimeColumns(scale, anchorTs, weekendsEnabled), offTimeRanges),
+    [scale, anchorTs, weekendsEnabled, offTimeRanges],
+  );
   const from = columns[0].start;
   const to = columns[columns.length - 1].end;
   const granularity = utilizationGranularityForScale(scale);
   const viewStartMs = from.getTime();
   const viewEndMs = to.getTime();
-
-  // Shared with the Spaces grid — same Zustand slice, session-scoped.
-  const { collapsedGroupIds, toggleGroupCollapse } = useAppStore(
-    useShallow((s) => ({
-      collapsedGroupIds: s.collapsedGroupIds,
-      toggleGroupCollapse: s.toggleGroupCollapse,
-    })),
-  );
 
   const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
@@ -261,110 +245,80 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     );
   }
 
-  const totalVisible = peopleByGroup.reduce((s, g) => s + g.people.length, 0);
+  const shellGroups: ShellGroup<ResourceInfo>[] = peopleByGroup.map((g) => ({
+    id: g.groupId,
+    name: g.groupName,
+    color: g.groupColor,
+    rows: g.people,
+  }));
+
+  const toolbar = (
+    <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <LegendDot status="available"    label="Available" />
+        <LegendDot status="partial"      label="Booked" />
+        <LegendDot status="assigned"     label="Assigned" />
+        <LegendDot status="overbooked"   label="Overbooked" />
+        <LegendDot status="non-working"  label="Off" />
+      </div>
+      <input
+        type="search"
+        placeholder="Search people…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-8 w-48 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
+      />
+    </div>
+  );
 
   return (
-    <div className="h-full flex flex-col overflow-hidden rounded-xl border bg-background m-3" data-testid="people-utilization-grid">
-      {/* Legend + Search strip */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <LegendDot status="available"    label="Available" />
-          <LegendDot status="partial"      label="Booked" />
-          <LegendDot status="assigned"     label="Assigned" />
-          <LegendDot status="overbooked"   label="Overbooked" />
-          <LegendDot status="non-working"  label="Off" />
-        </div>
-        <input
-          type="search"
-          placeholder="Search people…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-8 w-48 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-        />
-      </div>
-
-      {/* Header row — same shape as SchedulerGrid */}
-      <div className="flex border-b bg-muted/50 overflow-hidden">
-        <div className="w-52 flex-shrink-0 px-3 py-2 border-r text-xs font-medium text-muted-foreground">
-          Person
-        </div>
-        <div className="flex-1 flex">
-          {columns.map((column, i) => (
-            <div
-              key={i}
-              className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium ${
-                column.isWeekend || column.isGlobalOffTime
-                  ? 'bg-destructive/10 text-destructive'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              {column.label}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-auto" data-testid="people-grid-body">
-        {totalVisible === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            No people match your search.
-          </div>
-        ) : (
-          peopleByGroup.map((group) => {
-            const collapseId = `people:${group.groupId}`;
-            const isCollapsed = collapsedGroupIds.includes(collapseId);
-            return (
-              <div key={group.groupId}>
-                <GroupHeader
-                  groupName={group.groupName}
-                  groupColor={group.groupColor}
-                  count={group.people.length}
-                  isCollapsed={isCollapsed}
-                  onToggle={() => toggleGroupCollapse(collapseId)}
-                />
-                {!isCollapsed &&
-                  group.people.map((person) => {
-                    const pIdx = personIndex.get(person.id) ?? -1;
-                    const q = pIdx >= 0 ? utilQueries[pIdx] : undefined;
-                    const buckets = q?.data?.buckets ?? [];
-                    const isLoadingRow = !!q?.isLoading;
-                    const profile = (pIdx >= 0
-                      ? (profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined)
-                      : null);
-                    const overallPct = overallPercent(buckets, person.id, offTimes);
-
-                    const assignments = (pIdx >= 0 ? (assignmentQueries[pIdx]?.data ?? []) : []) as ResourceAssignmentInfo[];
-                    const segments = mergeBucketsToSegments(buckets, person.id, offTimes);
-                    return (
-                      <PersonTimelineRow
-                        key={`${group.groupId}-${person.id}`}
-                        person={person}
-                        jobTitle={profile?.jobTitleName}
-                        segments={segments}
-                        isLoadingRow={isLoadingRow}
-                        overallPct={overallPct}
-                        viewStartMs={viewStartMs}
-                        viewEndMs={viewEndMs}
-                        columns={columns}
-                        assignments={assignments}
-                        onSegmentClick={(p, seg) =>
-                          setDialogState({
-                            personId: p.id,
-                            personName: p.name,
-                            allocationMode: p.allocationMode,
-                            start: seg.start,
-                            end: seg.end,
-                          })
-                        }
-                      />
-                    );
-                  })}
-              </div>
-            );
-          })
-        )}
-      </div>
+    <>
+      <TimelineGridShell<ResourceInfo>
+        labelHeader="Person"
+        columns={columns}
+        scale={scale}
+        groups={shellGroups}
+        collapseIdPrefix="people"
+        getRowId={(p) => p.id}
+        emptyMessage="No people match your search."
+        toolbar={toolbar}
+        className="h-full flex flex-col overflow-hidden rounded-xl border bg-background m-3"
+        testId="people-utilization-grid"
+        renderRow={(person) => {
+          const pIdx = personIndex.get(person.id) ?? -1;
+          const q = pIdx >= 0 ? utilQueries[pIdx] : undefined;
+          const buckets = q?.data?.buckets ?? [];
+          const isLoadingRow = !!q?.isLoading;
+          const profile = (pIdx >= 0
+            ? (profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined)
+            : null);
+          const overallPct = overallPercent(buckets, person.id, offTimes);
+          const assignments = (pIdx >= 0 ? (assignmentQueries[pIdx]?.data ?? []) : []) as ResourceAssignmentInfo[];
+          const segments = mergeBucketsToSegments(buckets, person.id, offTimes);
+          return (
+            <PersonTimelineRow
+              person={person}
+              jobTitle={profile?.jobTitleName}
+              segments={segments}
+              isLoadingRow={isLoadingRow}
+              overallPct={overallPct}
+              viewStartMs={viewStartMs}
+              viewEndMs={viewEndMs}
+              columns={columns}
+              assignments={assignments}
+              onSegmentClick={(p, seg) =>
+                setDialogState({
+                  personId: p.id,
+                  personName: p.name,
+                  allocationMode: p.allocationMode,
+                  start: seg.start,
+                  end: seg.end,
+                })
+              }
+            />
+          );
+        }}
+      />
 
       {dialogState && (
         <PersonAssignmentDialog
@@ -377,6 +331,6 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
           end={dialogState.end}
         />
       )}
-    </div>
+    </>
   );
 }

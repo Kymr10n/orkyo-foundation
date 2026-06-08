@@ -36,6 +36,7 @@ function renderRow(props: Partial<React.ComponentProps<typeof PersonTimelineRow>
       overallPct={60}
       viewStartMs={VIEW_START}
       viewEndMs={VIEW_END}
+      columns={[]}
       onSegmentClick={onSegmentClick}
       {...props}
     />,

@@ -3,7 +3,7 @@ import { render, fireEvent } from '@testing-library/react';
 import type { Space } from '@foundation/src/types/space';
 import type { Request } from '@foundation/src/types/requests';
 import type { TimeColumn } from './scheduler-types';
-import type { PreviewEntry, PreviewSchedule, ValidationResult } from '@foundation/src/domain/scheduling/schedule-model';
+import type { PreviewEntry, ValidationResult } from '@foundation/src/domain/scheduling/schedule-model';
 import type { ScheduleIndex } from '@foundation/src/domain/scheduling/schedule-index';
 
 // ---- Mocks for hooks and shared selectors ----
@@ -115,7 +115,6 @@ function buildIndex(entries: PreviewEntry[]): ScheduleIndex {
 }
 
 const emptyValidation: ValidationResult = new Map();
-const emptyPreview: PreviewSchedule = new Map();
 
 interface OffTimeRangeFixture {
   id: string;
@@ -157,7 +156,6 @@ function renderRow({
       space={baseSpace}
       columns={columns ?? [makeColumn('08'), makeColumn('09'), makeColumn('10')]}
       requests={requests}
-      previewSchedule={emptyPreview}
       scheduleIndex={buildIndex(previewEntries)}
       validation={emptyValidation}
       timeCursorTs={new Date('2026-01-01T08:30:00Z')}

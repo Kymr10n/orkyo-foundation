@@ -7,18 +7,20 @@ import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useAppStore } from "@foundation/src/store/app-store";
-import { useShallow } from "zustand/react/shallow";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { format } from "date-fns";
 import type { TimeScale } from "./ScaleSelect";
 import type { SpacesByGroup } from "./scheduler-types";
-import { GroupHeader } from "./GroupHeader";
 import { SpaceRow } from "./SpaceRow";
+import { TimelineGridShell, type ShellGroup } from "./TimelineGridShell";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
-import { generateTimeColumns, parseTimeToHour, type WorkingHoursConfig } from "./time-grid-utils";
+import {
+  generateTimeColumns,
+  parseTimeToHour,
+  type WorkingHoursConfig,
+} from "./time-grid-utils";
+import { enrichColumnsWithOffTime } from "./time-grid-offtime";
 import type { Conflict } from "@foundation/src/types/requests";
 
 interface SchedulerGridProps {
@@ -61,14 +63,17 @@ export function SchedulerGrid({
   const workingHours: WorkingHoursConfig | null = workingHoursEnabled
     ? { enabled: true, start: parseTimeToHour(workingDayStart), end: parseTimeToHour(workingDayEnd) }
     : null;
-  const columns = generateTimeColumns(scale, anchorTs, weekendsEnabled, workingHours);
-  const { spaceOrder, collapsedGroupIds, toggleGroupCollapse } = useAppStore(
-    useShallow((state) => ({
-      spaceOrder: state.spaceOrder,
-      collapsedGroupIds: state.collapsedGroupIds,
-      toggleGroupCollapse: state.toggleGroupCollapse,
-    }))
+  const columns = useMemo(
+    () =>
+      enrichColumnsWithOffTime(
+        generateTimeColumns(scale, anchorTs, weekendsEnabled, workingHours),
+        offTimeRanges,
+      ),
+    // workingHours is derived from the two string props + the flag.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges],
   );
+  const spaceOrder = useAppStore((s) => s.spaceOrder);
   const [groups, setGroups] = useState<ResourceGroupInfo[]>([]);
 
   // ---------------------------------------------------------------------------
@@ -171,15 +176,21 @@ export function SchedulerGrid({
     return result;
   }, [spaces, spaceOrder, groups]);
 
-  // Flat sorted list derived from grouped result (for SortableContext)
-  const sortedSpaces = useMemo(
-    () => groupedSpaces.flatMap((g) => g.spaces),
-    [groupedSpaces]
+  // Adapt to the shell's generic group shape.
+  const shellGroups = useMemo<ShellGroup<Space>[]>(
+    () =>
+      groupedSpaces.map((g) => ({
+        id: g.groupId || "ungrouped",
+        name: g.groupName,
+        color: g.groupColor,
+        rows: g.spaces,
+      })),
+    [groupedSpaces],
   );
 
-  const headerScrollRef = useRef<HTMLDivElement>(null);
-  const bodyScrollRef = useRef<HTMLDivElement>(null);
-  const _gridRef = useRef<HTMLDivElement>(null);
+  // ---------------------------------------------------------------------------
+  // Draggable time cursor + edge-scroll (Spaces-only). Rendered as bodyOverlay.
+  // ---------------------------------------------------------------------------
   const timeColumnsRef = useRef<HTMLDivElement>(null);
   const [isDraggingCursor, setIsDraggingCursor] = useState(false);
   const [edgeScrollDirection, setEdgeScrollDirection] = useState<'left' | 'right' | null>(null);
@@ -191,18 +202,6 @@ export function SchedulerGrid({
   const timeCursorTsRef = useRef(timeCursorTs);
   useEffect(() => { anchorTsRef.current = anchorTs; }, [anchorTs]);
   useEffect(() => { timeCursorTsRef.current = timeCursorTs; }, [timeCursorTs]);
-
-  const handleHeaderScroll = () => {
-    if (headerScrollRef.current && bodyScrollRef.current) {
-      bodyScrollRef.current.scrollLeft = headerScrollRef.current.scrollLeft;
-    }
-  };
-
-  const handleBodyScroll = () => {
-    if (headerScrollRef.current && bodyScrollRef.current) {
-      headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
-    }
-  };
 
   // Calculate time cursor position as percentage
   const calculateCursorPosition = (): number => {
@@ -340,134 +339,79 @@ export function SchedulerGrid({
 
   const cursorPosition = calculateCursorPosition();
 
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-background">
-      {/* Header Row - scrolls with content */}
-      <div className="flex border-b bg-muted/50 overflow-hidden">
-        <div className="w-52 flex-shrink-0 px-3 py-2 border-r text-xs font-medium text-muted-foreground">
-          Space
-        </div>
-        <div
-          ref={headerScrollRef}
-          className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide"
-          onScroll={handleHeaderScroll}
-        >
-          <div className="flex">
-            {columns.map((col) => (
-              <div
-                key={col.start.getTime()}
-                className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-accent/50 ${col.isWeekend ? 'bg-destructive/10 text-destructive' : col.isOutsideWorkingHours ? 'bg-muted/80' : ''}`}
-                title={format(col.start, scale === "day" || scale === "hour" ? "EEEE, MMMM d, yyyy HH:mm" : "EEEE, MMMM d, yyyy")}
-                onClick={() => onTimeCursorClick(col.start)}
-              >
-                {col.label}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+  const cursorOverlay = (
+    <>
+      {/* Edge scroll indicators */}
+      {isDraggingCursor && (
+        <>
+          <div
+            className={`absolute top-0 bottom-0 left-52 w-[60px] pointer-events-none transition-opacity duration-150 ${
+              edgeScrollDirection === 'left' ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ background: 'linear-gradient(to right, rgba(59, 130, 246, 0.3), transparent)' }}
+          />
+          <div
+            className={`absolute top-0 bottom-0 right-0 w-[60px] pointer-events-none transition-opacity duration-150 ${
+              edgeScrollDirection === 'right' ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ background: 'linear-gradient(to left, rgba(59, 130, 246, 0.3), transparent)' }}
+          />
+        </>
+      )}
 
-      {/* Rows */}
+      {/* Draggable time cursor line — positioned after the space column */}
       <div
-        ref={bodyScrollRef}
-        className="flex-1 overflow-y-auto overflow-x-auto"
-        onScroll={handleBodyScroll}
+        ref={timeColumnsRef}
+        className="absolute top-0 bottom-0 left-52 right-0 pointer-events-none"
       >
-        {sortedSpaces.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            No spaces available
-          </div>
-        ) : (
-          <div className="relative">
-            <SortableContext items={sortedSpaces.map(s => s.id)} strategy={verticalListSortingStrategy}>
-              {groupedSpaces.map((group) => {
-                const groupId = group.groupId || "ungrouped";
-                const collapseId = `spaces:${groupId}`;
-                const isCollapsed = collapsedGroupIds.includes(collapseId);
-
-                return (
-                  <div key={group.groupId || 'ungrouped'}>
-                    <GroupHeader
-                      groupName={group.groupName}
-                      groupColor={group.groupColor}
-                      count={group.spaces.length}
-                      isCollapsed={isCollapsed}
-                      onToggle={() => toggleGroupCollapse(collapseId)}
-                    />
-                    {!isCollapsed && group.spaces.map((space) => (
-                      <SpaceRow
-                        key={space.id}
-                        space={space}
-                        columns={columns}
-                        requests={requests}
-                        previewSchedule={previewSchedule}
-                        scheduleIndex={scheduleIndex}
-                        validation={validation}
-                        timeCursorTs={timeCursorTs}
-                        onRequestClick={onRequestClick}
-                        onRequestDoubleClick={onRequestDoubleClick}
-                        onRequestResize={onRequestResize}
-                        offTimeRanges={offTimeRanges}
-                      />
-                    ))}
-                  </div>
-                );
-              })}
-            </SortableContext>
-
-            {/* Edge scroll indicators */}
-            {isDraggingCursor && (
-              <>
-                {/* Left edge indicator */}
-                <div
-                  className={`absolute top-0 bottom-0 left-52 w-[60px] pointer-events-none transition-opacity duration-150 ${
-                    edgeScrollDirection === 'left' ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  style={{
-                    background: 'linear-gradient(to right, rgba(59, 130, 246, 0.3), transparent)'
-                  }}
-                />
-                {/* Right edge indicator */}
-                <div
-                  className={`absolute top-0 bottom-0 right-0 w-[60px] pointer-events-none transition-opacity duration-150 ${
-                    edgeScrollDirection === 'right' ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  style={{
-                    background: 'linear-gradient(to left, rgba(59, 130, 246, 0.3), transparent)'
-                  }}
-                />
-              </>
-            )}
-
-            {/* Draggable Time Cursor Line - positioned after space column */}
-            <div
-              ref={timeColumnsRef}
-              className="absolute top-0 bottom-0 left-52 right-0 pointer-events-none"
-            >
-              <div
-                className={`absolute top-0 bottom-0 w-0.5 z-20 transition-colors ${
-                  edgeScrollDirection ? 'bg-blue-400 animate-pulse' : 'bg-blue-500'
-                }`}
-                style={{ left: `${cursorPosition}%` }}
-              >
-                {/* Drag handle */}
-                <div
-                  className={`absolute top-0 left-1/2 -translate-x-1/2 w-4 h-full cursor-ew-resize pointer-events-auto ${
-                    isDraggingCursor ? 'w-6' : ''
-                  }`}
-                  onMouseDown={handleCursorMouseDown}
-                />
-                {/* Visual handle indicator at top */}
-                <div
-                  className={`absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-blue-500 pointer-events-none ${
-                    isDraggingCursor ? 'bg-blue-500 scale-125' : 'bg-background'
-                  } transition-all`}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        <div
+          className={`absolute top-0 bottom-0 w-0.5 z-20 transition-colors ${
+            edgeScrollDirection ? 'bg-blue-400 animate-pulse' : 'bg-blue-500'
+          }`}
+          style={{ left: `${cursorPosition}%` }}
+        >
+          <div
+            className={`absolute top-0 left-1/2 -translate-x-1/2 w-4 h-full cursor-ew-resize pointer-events-auto ${
+              isDraggingCursor ? 'w-6' : ''
+            }`}
+            onMouseDown={handleCursorMouseDown}
+          />
+          <div
+            className={`absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-blue-500 pointer-events-none ${
+              isDraggingCursor ? 'bg-blue-500 scale-125' : 'bg-background'
+            } transition-all`}
+          />
+        </div>
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <TimelineGridShell<Space>
+      labelHeader="Space"
+      columns={columns}
+      scale={scale}
+      groups={shellGroups}
+      collapseIdPrefix="spaces"
+      getRowId={(s) => s.id}
+      emptyMessage="No spaces available"
+      onColumnHeaderClick={(col) => onTimeCursorClick(col.start)}
+      sortable
+      bodyOverlay={cursorOverlay}
+      renderRow={(space) => (
+        <SpaceRow
+          space={space}
+          columns={columns}
+          requests={requests}
+          scheduleIndex={scheduleIndex}
+          validation={validation}
+          timeCursorTs={timeCursorTs}
+          onRequestClick={onRequestClick}
+          onRequestDoubleClick={onRequestDoubleClick}
+          onRequestResize={onRequestResize}
+          offTimeRanges={offTimeRanges}
+        />
+      )}
+    />
   );
 }
