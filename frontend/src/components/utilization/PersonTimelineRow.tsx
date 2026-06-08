@@ -91,11 +91,7 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
           const span = viewEndMs - viewStartMs;
           const left  = Math.max(0, (colStart - viewStartMs) / span * 100);
           const right = Math.max(0, (viewEndMs - colEnd)   / span * 100);
-          const bg = col.isWeekend
-            ? 'bg-destructive/5'
-            : col.isGlobalOffTime
-            ? 'bg-muted/40'
-            : '';
+          const bg = col.isWeekend || col.isGlobalOffTime ? 'bg-destructive/15' : '';
           return (
             <div
               key={i}

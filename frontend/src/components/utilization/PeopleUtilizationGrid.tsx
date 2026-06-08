@@ -293,10 +293,8 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
             <div
               key={i}
               className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium ${
-                column.isWeekend
+                column.isWeekend || column.isGlobalOffTime
                   ? 'bg-destructive/10 text-destructive'
-                  : column.isGlobalOffTime
-                  ? 'bg-muted/60 text-muted-foreground'
                   : 'text-muted-foreground'
               }`}
             >
