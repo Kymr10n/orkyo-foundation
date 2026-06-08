@@ -44,6 +44,8 @@ export interface PeopleUtilizationGridProps {
    * those person resources are affected.
    */
   offTimeRanges?: readonly OffTimeRange[];
+  /** When true, weekend columns are highlighted to match the Spaces grid. */
+  weekendsEnabled?: boolean;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -99,11 +101,21 @@ interface DialogState {
   end: string;
 }
 
-export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: PeopleUtilizationGridProps) {
+export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], weekendsEnabled }: PeopleUtilizationGridProps) {
   const [search, setSearch] = useState('');
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
-  const columns = generateTimeColumns(scale, anchorTs);
+  const columns = useMemo(() => {
+    const cols = generateTimeColumns(scale, anchorTs, weekendsEnabled);
+    const siteWide = offTimeRanges.filter(r => r.resourceIds === null);
+    if (siteWide.length === 0) return cols;
+    return cols.map(col => {
+      const colStartMs = col.start.getTime();
+      const colEndMs   = col.end.getTime();
+      const isGlobalOffTime = siteWide.some(r => r.startMs <= colStartMs && r.endMs >= colEndMs);
+      return isGlobalOffTime ? { ...col, isGlobalOffTime: true } : col;
+    });
+  }, [scale, anchorTs, weekendsEnabled, offTimeRanges]);
   const from = columns[0].start;
   const to = columns[columns.length - 1].end;
   const granularity = utilizationGranularityForScale(scale);
@@ -280,7 +292,13 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
           {columns.map((column, i) => (
             <div
               key={i}
-              className="flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground"
+              className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium ${
+                column.isWeekend
+                  ? 'bg-destructive/10 text-destructive'
+                  : column.isGlobalOffTime
+                  ? 'bg-muted/60 text-muted-foreground'
+                  : 'text-muted-foreground'
+              }`}
             >
               {column.label}
             </div>
@@ -330,6 +348,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [] }: P
                         overallPct={overallPct}
                         viewStartMs={viewStartMs}
                         viewEndMs={viewEndMs}
+                        columns={columns}
                         assignments={assignments}
                         onSegmentClick={(p, seg) =>
                           setDialogState({

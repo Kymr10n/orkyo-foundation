@@ -7,6 +7,8 @@ export interface TimeColumn {
   label: string;
   isWeekend?: boolean;
   isOutsideWorkingHours?: boolean;
+  /** True when a site-wide off-time range (holiday / closure) covers this column. */
+  isGlobalOffTime?: boolean;
 }
 
 export interface SpacesByGroup {

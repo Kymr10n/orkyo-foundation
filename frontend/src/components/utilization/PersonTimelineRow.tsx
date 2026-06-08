@@ -2,6 +2,7 @@ import React from "react";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { ResourceAssignmentInfo } from "@foundation/src/lib/api/resource-assignments-api";
 import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
+import type { TimeColumn } from "./scheduler-types";
 import { PersonSegmentBar } from "./PersonSegmentBar";
 
 function countOverlapping(
@@ -33,6 +34,7 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   overallPct,
   viewStartMs,
   viewEndMs,
+  columns,
   assignments = [],
   onSegmentClick,
 }: {
@@ -43,6 +45,8 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   overallPct: number;
   viewStartMs: number;
   viewEndMs: number;
+  /** Time columns from PeopleUtilizationGrid — used for gridlines and off-day tints. */
+  columns?: readonly TimeColumn[];
   /** Non-cancelled assignments for this person in the view period, used for per-segment count badges. */
   assignments?: ResourceAssignmentInfo[];
   onSegmentClick: (person: ResourceInfo, segment: PersonUtilizationSegment) => void;
@@ -80,6 +84,26 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
       {/* Timeline track — relative container for absolutely-positioned segments.
           Matches the Spaces row rhythm (52px row, 36px bars centred with 8px gaps). */}
       <div className="flex-1 relative" style={{ minHeight: "52px" }}>
+        {/* Column gridlines + off-day tints — rendered behind segment bars */}
+        {columns?.map((col, i) => {
+          const colStart = col.start.getTime();
+          const colEnd   = col.end.getTime();
+          const span = viewEndMs - viewStartMs;
+          const left  = Math.max(0, (colStart - viewStartMs) / span * 100);
+          const right = Math.max(0, (viewEndMs - colEnd)   / span * 100);
+          const bg = col.isWeekend
+            ? 'bg-destructive/5'
+            : col.isGlobalOffTime
+            ? 'bg-muted/40'
+            : '';
+          return (
+            <div
+              key={i}
+              className={`absolute inset-y-0 border-r pointer-events-none ${bg}`}
+              style={{ left: `${left}%`, right: `${right}%` }}
+            />
+          );
+        })}
         {isLoadingRow ? (
           <div className="px-3 py-2 text-xs text-muted-foreground italic">Loading…</div>
         ) : segments.length === 0 ? (

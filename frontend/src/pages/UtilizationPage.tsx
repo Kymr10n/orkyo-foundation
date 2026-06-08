@@ -501,7 +501,12 @@ export function UtilizationPage() {
 
         {/* People tab */}
         <TabsContent value="people" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <PeopleUtilizationGrid anchorTs={anchorTs} scale={scale} offTimeRanges={offTimeRanges} />
+          <PeopleUtilizationGrid
+            anchorTs={anchorTs}
+            scale={scale}
+            offTimeRanges={offTimeRanges}
+            weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+          />
         </TabsContent>
       </PageTabs>
 
