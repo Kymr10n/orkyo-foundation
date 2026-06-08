@@ -94,9 +94,8 @@ public class SettingsEndpointsTests
     }
 
     [Fact]
-    public async Task GetSettings_NonAdmin_ReturnsForbidden()
+    public async Task GetSettings_Viewer_ReturnsForbidden()
     {
-        // Create a viewer (non-admin) user and token
         var email = $"settings_viewer_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Viewer", TenantSlug, "viewer", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -120,6 +119,34 @@ public class SettingsEndpointsTests
 
         var response = await _client.SendAsync(msg);
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetSettings_Editor_ReturnsOk()
+    {
+        var email = $"settings_editor_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor", TenantSlug, "editor", active: true);
+        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+        var tokenData = new
+        {
+            UserId = userId.ToString(),
+            Email = email,
+            DisplayName = "Settings Editor",
+            TenantId = tenantId.ToString(),
+            TenantSlug = TenantSlug,
+            IsTenantAdmin = false,
+            Role = "editor"
+        };
+
+        var json = JsonSerializer.Serialize(tokenData);
+        var editorToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+
+        var msg = new HttpRequestMessage(HttpMethod.Get, "/api/settings");
+        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", editorToken);
+
+        var response = await _client.SendAsync(msg);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

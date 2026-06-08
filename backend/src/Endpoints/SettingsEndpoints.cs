@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -39,7 +40,7 @@ public static class SettingsEndpoints
                 return Results.Ok(new { settings = result });
             }, logger, "GetSettings");
         })
-        .RequireAdminAccess()
+        .RequireRole(TenantRole.Editor, TenantRole.Admin)
         .WithName("GetSettings")
         .WithDescription("Get all tenant settings with current values and metadata");
 
