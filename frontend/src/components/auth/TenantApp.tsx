@@ -32,6 +32,7 @@ import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireTenantAdmin } from '@foundation/src/components/auth/RequireTenantAdmin';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
+import { TosPage } from '@foundation/src/pages/TosPage';
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 import { Toaster } from '@foundation/src/components/ui/sonner';
@@ -74,7 +75,7 @@ export interface TenantAppProps {
 }
 
 export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: TenantAppProps = {}) {
-  const { authStage, membership, send } = useAuth();
+  const { authStage, membership, sessionData, send } = useAuth();
 
   // Session expiry on a tenant subdomain — trigger the BFF login redirect.
   // The machine's LOGIN event fires performLogin which navigates to the BFF.
@@ -83,6 +84,21 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
       send({ type: AUTH_EVENTS.LOGIN });
     }
   }, [authStage, send]);
+
+  // ToS required on a tenant subdomain — show TosPage directly.
+  // Without this guard, RequireAuth redirects to /login → login() → BFF login → loop.
+  if (authStage === AUTH_STAGES.TOS_REQUIRED) {
+    return (
+      <>
+        <ThemeToggle variant="floating" />
+        <TosPage
+          tosVersion={sessionData?.requiredTosVersion ?? '2026-02'}
+          onAccept={() => send({ type: AUTH_EVENTS.TOS_ACCEPTED })}
+          onCancel={() => send({ type: AUTH_EVENTS.LOGOUT })}
+        />
+      </>
+    );
+  }
 
   // Suspended tenant on its own subdomain — show the suspension page directly.
   // The same-origin POST to /api/tenant/reactivate works here because the
