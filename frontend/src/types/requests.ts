@@ -14,6 +14,8 @@ export interface ResourceAssignment {
   assignmentStatus: AssignmentStatus;
   createdAt: string;
   updatedAt: string;
+  /** True for client-side optimistic assignments that have not yet been confirmed by the server. */
+  isOptimistic?: boolean;
 }
 
 export type DurationUnit =

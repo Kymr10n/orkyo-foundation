@@ -56,7 +56,9 @@ export function useConflicts() {
         resourceId: assignment.resourceId,
         startUtc: assignment.startUtc,
         endUtc: assignment.endUtc,
-        excludeAssignmentId: assignment.id,
+        // Optimistic assignments don't exist in the DB yet — omit excludeAssignmentId
+        // so the backend doesn't receive an unconfirmed id where it expects a committed Guid.
+        ...(assignment.isOptimistic ? {} : { excludeAssignmentId: assignment.id }),
       }];
     });
   }, [requests]);
