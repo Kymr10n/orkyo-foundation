@@ -34,6 +34,20 @@ public class SchedulingRepository : ISchedulingRepository
         return result is Guid siteId ? siteId : null;
     }
 
+    public async Task<Dictionary<Guid, Guid>> GetSiteIdsForResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        var rows = await conn.QueryListAsync(
+            "SELECT id, site_id FROM spaces WHERE id = ANY(@ids)",
+            p => p.AddWithValue("ids", resourceIds.ToArray()),
+            r => (r.GetGuid(0), r.GetGuid(1)), ct);
+
+        return rows.ToDictionary(t => t.Item1, t => t.Item2);
+    }
+
     public async Task<Dictionary<Guid, Guid>> GetResourceTypeIdsAsync(
         IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
     {

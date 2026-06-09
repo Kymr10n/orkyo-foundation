@@ -131,7 +131,8 @@ describe('useConflicts', () => {
   it('validates each scheduled request against its assigned space (with self-exclusion)', async () => {
     vi.mocked(useRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
     renderHook(() => useConflicts(), { wrapper: makeWrapper() });
-    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalledTimes(1));
+    // Batch validation is deferred ~1.5s after mount (off the load path).
+    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalledTimes(1), { timeout: 2500 });
     expect(validateAssignmentsBatch).toHaveBeenCalledWith([
       expect.objectContaining({
         requestId: 'r1',
@@ -150,7 +151,7 @@ describe('useConflicts', () => {
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([capabilityBlocker('r1')] as any);
 
     const { result } = renderHook(() => useConflicts(), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.conflicts.has('r1')).toBe(true));
+    await waitFor(() => expect(result.current.conflicts.has('r1')).toBe(true), { timeout: 2500 });
 
     const conflicts = result.current.conflicts.get('r1')!;
     expect(conflicts).toHaveLength(1);
@@ -167,7 +168,7 @@ describe('useConflicts', () => {
     ] as any);
 
     const { result } = renderHook(() => useConflicts(), { wrapper: makeWrapper() });
-    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalled());
+    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalled(), { timeout: 2500 });
     expect(result.current.conflicts.has('r1')).toBe(false);
   });
 

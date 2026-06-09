@@ -20,6 +20,9 @@ public interface ISchedulingRepository
     /// <summary>Returns the site ID that owns the given resource, or <c>null</c> if the resource is not site-bound (e.g. a person).</summary>
     Task<Guid?> GetSiteIdForResourceAsync(Guid resourceId, CancellationToken ct = default);
 
+    /// <summary>Bulk resource→site map (spaces only) in one query — for batch validation.</summary>
+    Task<Dictionary<Guid, Guid>> GetSiteIdsForResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
+
     /// <summary>Returns resource type IDs keyed by resource ID.</summary>
     Task<Dictionary<Guid, Guid>> GetResourceTypeIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 }

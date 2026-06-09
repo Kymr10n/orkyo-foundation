@@ -9,6 +9,8 @@ namespace Api.Repositories;
 public interface IResourceCapabilityRepository
 {
     Task<List<ResourceCapabilityInfo>> GetByResourceAsync(Guid resourceId, CancellationToken ct = default);
+    /// <summary>Bulk fetch capabilities for many resources in one query — for batch validation.</summary>
+    Task<List<ResourceCapabilityInfo>> GetByResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
     Task<List<ResourceCapabilityInfo>> GetByResourceGroupAsync(Guid resourceGroupId, CancellationToken ct = default);
     Task<ResourceCapabilityInfo> UpsertAsync(Guid resourceId, Guid criterionId, JsonElement value, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId, CancellationToken ct = default);
@@ -32,6 +34,17 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
             "JOIN criteria c ON rc.criterion_id = c.id " +
             "WHERE rc.resource_id = @resourceId ORDER BY c.name",
             p => p.AddWithValue("resourceId", resourceId), Map, ct);
+    }
+
+    public async Task<List<ResourceCapabilityInfo>> GetByResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} FROM {TableName} rc " +
+            "JOIN criteria c ON rc.criterion_id = c.id " +
+            "WHERE rc.resource_id = ANY(@ids) ORDER BY rc.resource_id, c.name",
+            p => p.AddWithValue("ids", resourceIds.ToArray()), Map, ct);
     }
 
     public async Task<List<ResourceCapabilityInfo>> GetByResourceGroupAsync(Guid resourceGroupId, CancellationToken ct = default)

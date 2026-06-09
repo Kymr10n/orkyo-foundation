@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useShallow } from "zustand/react/shallow";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
@@ -205,8 +206,8 @@ export function TimelineGridShell<R>({
         onScroll={handleBodyScroll}
       >
         {isLoading ? (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            Loading...
+          <div className="h-32">
+            <LoadingSpinner fullScreen={false} message="Loading..." />
           </div>
         ) : totalRows === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">

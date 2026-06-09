@@ -126,6 +126,31 @@ public class RequestRepository : IRequestRepository
         return request;
     }
 
+    public async Task<List<RequestInfo>> GetByIdsAsync(
+        IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return [];
+
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+
+        var requests = new List<RequestInfo>();
+        var cmd = new NpgsqlCommand(
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = ANY(@ids)", db);
+        cmd.Parameters.AddWithValue("ids", ids.ToArray());
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+                requests.Add(RequestMapper.MapFromReader(reader));
+        }
+
+        if (includeRequirements && requests.Count > 0)
+            await LoadRequirementsForRequests(requests, db, ct);
+
+        return requests;
+    }
+
     private async Task<RequestInfo> ReadByIdAsync(NpgsqlConnection db, Guid id, CancellationToken ct = default)
     {
         var cmd = new NpgsqlCommand(

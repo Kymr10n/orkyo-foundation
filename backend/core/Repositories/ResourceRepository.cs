@@ -10,6 +10,7 @@ public interface IResourceRepository
 {
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
     Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<List<ResourceInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default);
     Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? id = null, CancellationToken ct = default);
     Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
     Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
@@ -69,6 +70,17 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             "JOIN resource_types rt ON r.resource_type_id = rt.id " +
             "WHERE r.id = @id",
             p => p.AddWithValue("id", id), Map, ct);
+    }
+
+    public async Task<List<ResourceInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} FROM resources r " +
+            "JOIN resource_types rt ON r.resource_type_id = rt.id " +
+            "WHERE r.id = ANY(@ids)",
+            p => p.AddWithValue("ids", ids.ToArray()), Map, ct);
     }
 
     public async Task<ResourceInfo> CreateAsync(

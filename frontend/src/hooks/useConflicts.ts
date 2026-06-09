@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -11,6 +11,12 @@ import {
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { getSpaceAssignment } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Conflict } from "@foundation/src/types/requests";
+
+// Defer the backend capability validation until shortly after first paint so it
+// doesn't compete with the initial spaces/requests/floorplan fetches. Validation
+// is decorative on load — conflict badges can appear a moment later. Mirrors the
+// People grid's CONFLICT_CHECK_DELAY_MS.
+const CONFLICT_CHECK_DELAY_MS = 1500;
 
 /**
  * Computes scheduling and capability conflicts for the current site.
@@ -71,6 +77,15 @@ export function useConflicts() {
     [validationItems],
   );
 
+  // Gate the batch behind a one-shot timer so the initial validation runs after
+  // first paint, not during the load burst. Set once and never reset — later
+  // re-validations (after scheduling changes) still fire promptly.
+  const [conflictCheckReady, setConflictCheckReady] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setConflictCheckReady(true), CONFLICT_CHECK_DELAY_MS);
+    return () => clearTimeout(id);
+  }, []);
+
   // Async capability validation — backend authoritative; React Query caches it.
   const { data: capabilityConflicts } = useQuery({
     queryKey: ["assignment-capability-validation", selectedSiteId, validationKey],
@@ -85,7 +100,7 @@ export function useConflicts() {
       }
       return map;
     },
-    enabled: validationItems.length > 0,
+    enabled: conflictCheckReady && validationItems.length > 0,
     staleTime: 500,
     placeholderData: keepPreviousData,
   });

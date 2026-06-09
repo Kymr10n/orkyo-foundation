@@ -18,6 +18,9 @@ public interface IRequestRepository
     /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
     Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
 
+    /// <summary>Bulk fetch by ids (one query; requirements hydrated in one more) — for batch validation.</summary>
+    Task<List<RequestInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default);
+
     /// <summary>Creates a new request.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
 
