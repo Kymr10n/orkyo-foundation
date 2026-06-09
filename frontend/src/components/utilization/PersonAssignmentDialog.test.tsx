@@ -71,6 +71,19 @@ const WARNING_RESULT: ValidationResult = {
   blockers: [],
   warnings: [{ code: "assignment.overbooked", message: "May be overbooked" }],
 };
+const CAPABILITY_MISSING_RESULT: ValidationResult = {
+  severity: "blocker",
+  blockers: [{ code: "capability.missing", message: "Resource does not satisfy requirement" }],
+  warnings: [],
+};
+const MIXED_BLOCKER_RESULT: ValidationResult = {
+  severity: "blocker",
+  blockers: [
+    { code: "capability.missing", message: "Resource does not satisfy requirement" },
+    { code: "offtime.overlap", message: "Overlaps with off-time" },
+  ],
+  warnings: [],
+};
 
 const CREATED_ASSIGNMENT: ResourceAssignmentInfo = {
   id: "asgn-new",
@@ -263,6 +276,81 @@ describe("PersonAssignmentDialog", () => {
     vi.mocked(getPersonAssignmentOptions).mockRejectedValue(new Error("Network error"));
     renderDialog();
     await waitFor(() => expect(screen.getByText("Network error")).toBeInTheDocument());
+  });
+
+  it("add: capability.missing blocker creates the assignment (soft override)", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(CAPABILITY_MISSING_RESULT);
+    vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() => expect(createAssignment).toHaveBeenCalled());
+  });
+
+  it("add: capability.missing blocker shows warning feedback after creation", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(CAPABILITY_MISSING_RESULT);
+    vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() =>
+      expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Resource does not satisfy requirement/)).toBeInTheDocument();
+  });
+
+  it("add: hard blocker (non-capability) still blocks the assignment", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(BLOCKER_RESULT);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() =>
+      expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
+    );
+    expect(createAssignment).not.toHaveBeenCalled();
+    expect(screen.getByText(/Overlaps with off-time/)).toBeInTheDocument();
+  });
+
+  it("add: capability.missing mixed with hard blocker still blocks", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(MIXED_BLOCKER_RESULT);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() =>
+      expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
+    );
+    expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it("add: successful create invalidates resource-assignments query", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
+    vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    render(
+      <QueryClientProvider client={qc}>
+        <PersonAssignmentDialog
+          open
+          onOpenChange={vi.fn()}
+          personId="person-1"
+          personName="Alice"
+          allocationMode="Exclusive"
+          start={START}
+          end={END}
+        />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() => expect(createAssignment).toHaveBeenCalled());
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["resource-assignments", "person-1"] }),
+    );
   });
 
   it("filters the list by search input", async () => {

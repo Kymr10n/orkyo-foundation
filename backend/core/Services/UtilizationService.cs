@@ -201,16 +201,18 @@ public class UtilizationService(
             };
         }
 
-        // Fractional: time-weighted sum of overlapping allocation percentages
+        // Fractional: time-weighted sum of overlapping allocation percentages.
+        // Treat a null allocation_percent as 100 — a fully-allocated assignment
+        // that was created without an explicit percent should not silently vanish.
         var totalAllocated = 0m;
         foreach (var a in overlapping)
         {
-            if (!a.AllocationPercent.HasValue) continue;
+            var allocPct = a.AllocationPercent ?? 100m;
             var overlapStart = a.StartUtc > bucketStart ? a.StartUtc : bucketStart;
             var overlapEnd = a.EndUtc < bucketEnd ? a.EndUtc : bucketEnd;
             var overlapMinutes = (overlapEnd - overlapStart).TotalMinutes;
             var weight = bucketSpan > 0 ? (decimal)(overlapMinutes / bucketSpan) : 1m;
-            totalAllocated += a.AllocationPercent.Value * weight;
+            totalAllocated += allocPct * weight;
         }
 
         return new UtilizationBucket

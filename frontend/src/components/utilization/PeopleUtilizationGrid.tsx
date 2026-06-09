@@ -13,7 +13,9 @@ import {
 } from '@foundation/src/lib/api/resource-groups-api';
 import {
   getAssignmentsByResource,
+  validateAssignmentsBatch,
   type ResourceAssignmentInfo,
+  type ValidateResourceAssignmentRequest,
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
@@ -168,6 +170,39 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     })),
   });
 
+  // 7. Batch-validate all assignments to surface capability conflicts on bars.
+  const assignmentsAllLoaded = assignmentQueries.every((q) => !q.isLoading);
+  const allAssignmentsFlat = useMemo((): ResourceAssignmentInfo[] => {
+    if (!assignmentsAllLoaded) return [];
+    return people.flatMap((_, i) => (assignmentQueries[i]?.data ?? []) as ResourceAssignmentInfo[]);
+  }, [assignmentsAllLoaded, people, assignmentQueries]);
+
+  const { data: conflictedAssignmentIds = new Set<string>() } = useQuery({
+    queryKey: ['assignment-capability-conflicts', allAssignmentsFlat.map((a) => a.id)],
+    queryFn: async (): Promise<Set<string>> => {
+      const items: ValidateResourceAssignmentRequest[] = allAssignmentsFlat.map((a) => ({
+        requestId: a.requestId,
+        resourceId: a.resourceId,
+        startUtc: a.startUtc,
+        endUtc: a.endUtc,
+        allocationPercent: a.allocationPercent,
+        excludeAssignmentId: a.id,
+      }));
+      const results = await validateAssignmentsBatch(items);
+      const conflicted = new Set<string>();
+      for (const item of results) {
+        if (item.result.blockers.some((b) => b.code === 'capability.missing')) {
+          allAssignmentsFlat
+            .filter((a) => a.requestId === item.requestId && a.resourceId === item.resourceId)
+            .forEach((a) => conflicted.add(a.id));
+        }
+      }
+      return conflicted;
+    },
+    enabled: assignmentsAllLoaded && allAssignmentsFlat.length > 0,
+    staleTime: 60_000,
+  });
+
   // Build a personId → utilization-query-index lookup once.
   const personIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -306,6 +341,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
               viewEndMs={viewEndMs}
               columns={columns}
               assignments={assignments}
+              conflictedAssignmentIds={conflictedAssignmentIds}
               onSegmentClick={(p, seg) =>
                 setDialogState({
                   personId: p.id,

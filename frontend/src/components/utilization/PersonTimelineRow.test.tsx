@@ -120,4 +120,64 @@ describe('PersonTimelineRow', () => {
     });
     expect(screen.queryByTestId('assignment-count-badge')).not.toBeInTheDocument();
   });
+
+  // ── capability-conflict badge ─────────────────────────────────────────────
+
+  it('shows the conflict badge on a segment whose overlapping assignment is conflicted', () => {
+    const conflictedAssignment: ResourceAssignmentInfo = {
+      id: 'conflict-a1',
+      requestId: 'req-conflict',
+      resourceId: person.id,
+      resourceTypeKey: 'person',
+      startUtc: '2026-01-06T08:30:00Z',
+      endUtc: '2026-01-06T09:30:00Z', // overlaps both segments
+      assignmentStatus: 'active',
+      createdAt: '2026-01-06T08:00:00Z',
+      updatedAt: '2026-01-06T08:00:00Z',
+    };
+    renderRow({
+      assignments: [conflictedAssignment],
+      conflictedAssignmentIds: new Set(['conflict-a1']),
+    });
+    const bars = screen.getAllByTestId('person-segment-bar');
+    expect(within(bars[0]).getByTestId('capability-conflict-badge')).toBeInTheDocument();
+  });
+
+  it('does not show the conflict badge when conflictedAssignmentIds is empty', () => {
+    const assignment: ResourceAssignmentInfo = {
+      id: 'a-no-conflict',
+      requestId: 'req-1',
+      resourceId: person.id,
+      resourceTypeKey: 'person',
+      startUtc: '2026-01-06T08:00:00Z',
+      endUtc: '2026-01-06T09:00:00Z',
+      assignmentStatus: 'active',
+      createdAt: '2026-01-06T08:00:00Z',
+      updatedAt: '2026-01-06T08:00:00Z',
+    };
+    renderRow({
+      assignments: [assignment],
+      conflictedAssignmentIds: new Set(),
+    });
+    expect(screen.queryByTestId('capability-conflict-badge')).not.toBeInTheDocument();
+  });
+
+  it('does not show the conflict badge when the conflicted assignment does not overlap the segment', () => {
+    const farAssignment: ResourceAssignmentInfo = {
+      id: 'far-a1',
+      requestId: 'req-far',
+      resourceId: person.id,
+      resourceTypeKey: 'person',
+      startUtc: '2026-01-06T20:00:00Z', // well outside the view window
+      endUtc: '2026-01-06T21:00:00Z',
+      assignmentStatus: 'active',
+      createdAt: '2026-01-06T08:00:00Z',
+      updatedAt: '2026-01-06T08:00:00Z',
+    };
+    renderRow({
+      assignments: [farAssignment],
+      conflictedAssignmentIds: new Set(['far-a1']),
+    });
+    expect(screen.queryByTestId('capability-conflict-badge')).not.toBeInTheDocument();
+  });
 });

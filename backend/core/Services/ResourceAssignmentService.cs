@@ -56,8 +56,14 @@ public class ResourceAssignmentService(
 
         var result = await validator.ValidateAsync(validationRequest);
 
-        if (result.Severity == ValidationSeverity.Blocker && result.Blockers.Count > 0)
-            return (null, ToConflict(result.Blockers[0], request.ResourceId));
+        // capability.missing is a soft constraint — planners may assign despite it.
+        // Only hard-block on resource-level or allocation issues.
+        var hardBlockers = result.Blockers
+            .Where(b => b.Code != ValidationReasonCode.CapabilityMissing)
+            .ToList();
+
+        if (hardBlockers.Count > 0)
+            return (null, ToConflict(hardBlockers[0], request.ResourceId));
 
         var assignment = await assignmentRepository.CreateAsync(request);
         return (assignment, null);

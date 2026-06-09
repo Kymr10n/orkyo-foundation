@@ -158,6 +158,27 @@ public class UtilizationServiceTests
         Assert.Equal(50m, result.Buckets[0].AllocatedPercent);
     }
 
+    [Fact]
+    public async Task Fractional_NullAllocationPercent_TreatedAsFullAllocation()
+    {
+        // An assignment created without an explicit allocationPercent (e.g. via
+        // auto-schedule or a legacy code path) must not silently vanish from the
+        // utilization calculation. Null is treated as 100%.
+        var resource = MakeResource(AllocationModes.Fractional);
+        var from = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = from.AddDays(1);
+        var assignments = new List<ResourceAssignmentInfo>
+        {
+            MakeAssignment(ResourceId, from, to, pct: null), // no explicit percent
+        };
+        var service = BuildService(resource, assignments);
+
+        var result = await service.GetResourceUtilizationAsync(ResourceId, from, to, "day");
+
+        Assert.Single(result!.Buckets);
+        Assert.Equal(100m, result.Buckets[0].AllocatedPercent);
+    }
+
     [Theory]
     [InlineData("hour", 24, 60)]
     [InlineData("minute", 96, 15)]
