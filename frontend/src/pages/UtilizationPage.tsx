@@ -26,7 +26,6 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { buildCreatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
-import { validateAssignment, type ValidationIssue } from "@foundation/src/lib/api/resource-assignments-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
@@ -319,40 +318,6 @@ export function UtilizationPage() {
     }
     const endTs = new Date(startTs.getTime() + durationMs);
 
-    // Validate space capabilities BEFORE mutating so an incompatible drop is
-    // rejected with feedback instead of silently creating a conflict the user
-    // only discovers later on the Conflicts page. The backend is the single
-    // source of truth: it reads the request's requirements and runs the
-    // capability matcher, so we no longer need requirements hydrated client-side.
-    let capabilityBlockers: ValidationIssue[] = [];
-    try {
-      const result = await validateAssignment({
-        requestId: draggedData.id,
-        resourceId,
-        startUtc: startTs.toISOString(),
-        endUtc: endTs.toISOString(),
-      });
-      capabilityBlockers = result.blockers.filter(
-        (b) => b.code === "capability.missing" || b.code === "resource.type-mismatch",
-      );
-    } catch (error) {
-      logger.error("Failed to validate space requirements:", error);
-    }
-
-    if (capabilityBlockers.length > 0) {
-      const targetSpace = spaces.find((s) => s.id === resourceId);
-      const spaceName = targetSpace?.name ?? "this space";
-      const first = capabilityBlockers[0];
-      const firstReason = first.details
-        ? `does not satisfy: ${first.details}`
-        : "missing a required capability";
-      const extra = capabilityBlockers.length > 1 ? ` (+${capabilityBlockers.length - 1} more)` : "";
-      toast.error(`Cannot schedule to ${spaceName}`, {
-        description: `${firstReason}${extra}`,
-      });
-      return;
-    }
-
     await scheduleMutation.mutateAsync({
       requestId: draggedData.id,
       data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
@@ -361,7 +326,7 @@ export function UtilizationPage() {
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space "${resourceId}"`);
 
     setSelectedRequestId(draggedData.id);
-  }, [scheduleMutation, spaces, setSelectedRequestId]);
+  }, [scheduleMutation, setSelectedRequestId]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;

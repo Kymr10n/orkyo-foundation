@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
@@ -85,6 +85,7 @@ export function useConflicts() {
     },
     enabled: validationItems.length > 0,
     staleTime: 500,
+    placeholderData: keepPreviousData,
   });
 
   // Merge scheduling + capability conflicts into a single map
