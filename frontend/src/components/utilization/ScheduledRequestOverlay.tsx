@@ -14,6 +14,7 @@ import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/sche
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
+import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS } from "./schedule-colors";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverlay({
@@ -136,9 +137,10 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     zIndex: displayData.zIndex,
   };
 
-  const bgClass = displayData.hasConflict
-    ? 'bg-red-500/80 hover:bg-red-600/90'
-    : 'bg-primary/80 hover:bg-primary/90';
+  // Match the People grid: status-tinted track + colored border (outline) + translucent fill,
+  // all from the shared schedule-colors tokens. A scheduled request reads as a fully "occupied"
+  // block (→ assigned palette); conflicts use the overbooked palette.
+  const status = displayData.hasConflict ? 'overbooked' : 'assigned';
 
   const requestConflicts = validation.get(request.id) ?? [];
   const grossLabel = request.actualDurationValue != null && request.actualDurationValue > 0
@@ -152,7 +154,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     <div
       ref={combinedRef}
       style={style}
-      className={`absolute ${bgClass} rounded text-xs text-primary-foreground p-1 overflow-hidden group ${
+      className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition hover:brightness-95 ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
         isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing'
       }`}
       onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) onRequestClick(request.id); }}
@@ -161,21 +163,26 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       {...attributes}
       {...listeners}
     >
+      {/* Translucent fill over the tinted track — gives the bar the same weight as a fully
+          allocated People segment. */}
+      {STATUS_FILL_CLASS[status] && (
+        <div className={`absolute inset-y-0 left-0 w-full ${STATUS_FILL_CLASS[status]}`} aria-hidden="true" />
+      )}
       {/* Left resize handle — only needs onPointerDown; move/up go to document */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-white/20 transition-opacity rounded-l z-20"
+        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity rounded-l z-20"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handleResizePointerDown(e, 'left')}
         onDoubleClick={(e) => e.stopPropagation()}
       />
       {/* Right resize handle — only needs onPointerDown; move/up go to document */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-white/20 transition-opacity rounded-r z-20"
+        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity rounded-r z-20"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handleResizePointerDown(e, 'right')}
         onDoubleClick={(e) => e.stopPropagation()}
       />
-      <div className="flex items-center gap-1">
+      <div className="relative z-10 flex items-center gap-1">
         {displayData.hasConflict && (
           <AlertCircle className="w-3 h-3 flex-shrink-0" />
         )}
