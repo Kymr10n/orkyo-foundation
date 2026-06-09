@@ -62,8 +62,8 @@ public static class SeedRunner
             var fixtures = Floorplans.FloorplanCatalog.ForProfile(profile.Slug);
             if (fixtures.Count == 0)
                 throw new InvalidOperationException(
-                    $"--floorplans requested but profile '{profile.Slug}' has no floorplan set. " +
-                    "Use --profile manufacturing, or drop --floorplans.");
+                    $"Profile '{profile.Slug}' has no floorplan set. " +
+                    "Use --profile manufacturing, or pass --floorplans false to seed without floorplans.");
             if (opts.TenantId == Guid.Empty)
                 throw new InvalidOperationException(
                     "--floorplans requires a tenant id (assets.tenant_id). The seed CLI resolves it from control_plane.tenants.");
