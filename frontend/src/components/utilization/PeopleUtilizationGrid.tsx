@@ -331,7 +331,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
         getRowId={(p) => p.id}
         emptyMessage="No people match your search."
         toolbar={toolbar}
-        className="h-full flex flex-col overflow-hidden rounded-xl border bg-background m-3"
+        className="h-full flex flex-col overflow-hidden rounded-xl border bg-background"
         testId="people-utilization-grid"
         renderRow={(person) => {
           const pIdx = personIndex.get(person.id) ?? -1;
