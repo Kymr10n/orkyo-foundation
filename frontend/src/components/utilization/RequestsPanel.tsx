@@ -1,5 +1,6 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Input } from "@foundation/src/components/ui/input";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import {
     Select,
     SelectContent,
@@ -345,9 +346,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
       {/* Request List */}
       <div ref={listScrollRef} className="flex-1 overflow-y-auto px-4 py-2">
         {isLoading ? (
-          <div className="text-center text-muted-foreground text-sm py-8">
-            Loading requests...
-          </div>
+          <LoadingSpinner fullScreen={false} message="Loading requests..." />
         ) : visibleEntries.length === 0 ? (
           <div className="text-center text-muted-foreground text-sm py-8">
             No requests found

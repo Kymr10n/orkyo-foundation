@@ -294,7 +294,7 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByText("Loading requests...")).toBeInTheDocument();
     expect(screen.queryByTestId("scheduler-grid")).not.toBeInTheDocument();
   });
 
@@ -303,7 +303,8 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    // Both the requests panel and the grid body show the loader while requests load.
+    expect(screen.getAllByText("Loading requests...").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("scheduler-grid")).not.toBeInTheDocument();
   });
 

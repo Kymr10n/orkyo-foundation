@@ -18,6 +18,7 @@ import {
     AlertDialogTitle,
 } from "@foundation/src/components/ui/alert-dialog";
 import { Button } from "@foundation/src/components/ui/button";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Input } from "@foundation/src/components/ui/input";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import { toast } from "sonner";
@@ -551,10 +552,7 @@ export function RequestsPage() {
         {/* Main content area */}
         <div className={`flex-1 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
           {loading && requests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-12 text-center">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-4" />
-              <p className="text-muted-foreground">Loading requests...</p>
-            </div>
+            <LoadingSpinner fullScreen={false} message="Loading requests..." />
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">
               <div className="text-destructive mb-4">⚠️</div>

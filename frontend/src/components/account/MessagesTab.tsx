@@ -21,6 +21,7 @@ import {
   Circle,
   AlertTriangle,
 } from 'lucide-react';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import {
   type UserAnnouncement,
   getActiveAnnouncements,
@@ -83,9 +84,8 @@ export function MessagesTab() {
 
   if (isLoading) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-        Loading messages...
+      <div className="py-12">
+        <LoadingSpinner fullScreen={false} message="Loading messages..." />
       </div>
     );
   }

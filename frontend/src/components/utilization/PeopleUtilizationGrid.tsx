@@ -19,6 +19,7 @@ import {
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { PersonTimelineRow } from './PersonTimelineRow';
 import { PersonAssignmentDialog } from './PersonAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
@@ -288,11 +289,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   }, [people, groups, memberQueries, search]);
 
   if (peopleLoading) {
-    return (
-      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-        Loading people…
-      </div>
-    );
+    return <LoadingSpinner fullScreen={false} message="Loading people…" />;
   }
 
   if (people.length === 0) {

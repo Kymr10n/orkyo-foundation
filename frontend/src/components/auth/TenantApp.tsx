@@ -36,6 +36,7 @@ import { TosPage } from '@foundation/src/pages/TosPage';
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 import { Toaster } from '@foundation/src/components/ui/sonner';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
@@ -116,7 +117,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
     <>
       <FloatingThemeToggle />
       <BreakGlassBanner />
-      <Suspense fallback={<div className="flex-1 flex items-center justify-center h-screen"><div className="text-muted-foreground">Loading...</div></div>}>
+      <Suspense fallback={<LoadingSpinner message="Loading..." />}>
       <Routes>
         {/* /login is intentionally kept for direct navigation recovery when a
             session expires on a tenant subdomain — the user can sign back in

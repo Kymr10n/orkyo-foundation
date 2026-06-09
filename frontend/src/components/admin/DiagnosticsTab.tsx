@@ -13,13 +13,13 @@ import {
   CheckCircle2,
   Database,
   Globe,
-  Loader2,
   Mail,
   RefreshCw,
   Server,
   Shield,
   XCircle,
 } from 'lucide-react';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 
 function StatusBadgeIcon({ status }: { status: string }) {
   const isGood = ['healthy', 'connected', 'configured', 'running'].includes(status);
@@ -64,8 +64,8 @@ export function DiagnosticsTab() {
 
   if (loading && !data) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="py-12">
+        <LoadingSpinner fullScreen={false} />
       </div>
     );
   }

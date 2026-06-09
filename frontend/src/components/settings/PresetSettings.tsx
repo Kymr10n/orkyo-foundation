@@ -36,6 +36,7 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useRef, useState } from "react";
 
 export function PresetSettings() {
@@ -200,8 +201,8 @@ export function PresetSettings() {
         </CardHeader>
         <CardContent>
           {loadingHistory ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="py-8">
+              <LoadingSpinner fullScreen={false} />
             </div>
           ) : applications.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">

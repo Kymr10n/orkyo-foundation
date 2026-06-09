@@ -34,6 +34,7 @@ import type { Request } from "@foundation/src/types/requests";
 import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
 import { DropColumnIndicator } from "@foundation/src/components/utilization/DropColumnIndicator";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format } from "date-fns";
@@ -481,8 +482,8 @@ export function UtilizationPage() {
                 />
 
                 {spacesLoading || requestsLoading ? (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-muted-foreground">Loading...</div>
+                  <div className="flex-1">
+                    <LoadingSpinner fullScreen={false} message="Loading requests..." />
                   </div>
                 ) : (
                   <SchedulerGrid
