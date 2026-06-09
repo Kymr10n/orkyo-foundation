@@ -250,12 +250,15 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
       p.name.toLowerCase().includes(search.toLowerCase());
 
     const result: PeopleByGroup[] = [];
+    const addedPersonIds = new Set<string>();
     for (const g of sortedGroups) {
       const ids = groupIdToMemberIds.get(g.id) ?? new Set();
       const members = Array.from(ids)
         .map((id) => peopleById.get(id))
         .filter((p): p is ResourceInfo => Boolean(p))
+        .filter((p) => !addedPersonIds.has(p.id))
         .filter(filterFn);
+      members.forEach((p) => addedPersonIds.add(p.id));
       // Show empty groups too, so users see their structure — match Spaces grid.
       result.push({
         groupId: g.id,
