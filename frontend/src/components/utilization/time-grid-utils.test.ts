@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   generateTimeColumns,
+  getFetchWindow,
   overlapsOffTimeRange,
   parseTimeToHour,
   resolveColumnStartMs,
@@ -127,5 +128,27 @@ describe("time-grid-utils", () => {
   it("falls back to the first column start for a degenerate track", () => {
     expect(resolveColumnStartMs(50, 0, 0, [1000, 2000])).toBe(1000);
     expect(resolveColumnStartMs(50, 0, 100, [])).toBe(0);
+  });
+
+  it("buffers the fetch window per scale and snaps to the unit start", () => {
+    const anchor = new Date(2026, 4, 13, 10, 0, 0); // Wed 13 May 2026
+
+    const week = getFetchWindow("week", anchor);
+    // Snapped to Monday and buffered ±4 weeks → spans 9 weeks, covers the anchor.
+    expect(week.from.getTime()).toBeLessThan(anchor.getTime());
+    expect(week.to.getTime()).toBeGreaterThan(anchor.getTime());
+    expect(Math.round((week.to.getTime() - week.from.getTime()) / (7 * 86400_000))).toBe(9);
+
+    // Navigating within the same week keeps an identical (snapped) window → stable query key.
+    const sameWeek = getFetchWindow("week", new Date(2026, 4, 15, 18, 0, 0)); // Fri same week
+    expect(sameWeek.from.getTime()).toBe(week.from.getTime());
+    expect(sameWeek.to.getTime()).toBe(week.to.getTime());
+
+    // Month window is wider than week; year wider than month.
+    const month = getFetchWindow("month", anchor);
+    const year = getFetchWindow("year", anchor);
+    const span = (w: { from: Date; to: Date }) => w.to.getTime() - w.from.getTime();
+    expect(span(month)).toBeGreaterThan(span(week));
+    expect(span(year)).toBeGreaterThan(span(month));
   });
 });

@@ -103,6 +103,96 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
+    public async Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+
+        // All scheduled requests with a (non-cancelled) space assignment, tenant-wide. No
+        // scheduling_settings_apply filter — the conflicts registry mirrors what the grid surfaces
+        // for every scheduled bar.
+        var requests = new List<RequestInfo>();
+        var cmd = new NpgsqlCommand($@"
+            SELECT {SelectFromView}
+            FROM v_requests_with_assignments
+            WHERE start_ts IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM resource_assignments ra
+                JOIN resources res ON res.id = ra.resource_id
+                JOIN resource_types rt ON rt.id = res.resource_type_id
+                WHERE ra.request_id = v_requests_with_assignments.id
+                  AND rt.key = @spaceKey
+                  AND ra.assignment_status != @cancelled
+              )", db);
+        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct))
+                requests.Add(RequestMapper.MapFromReader(reader));
+
+        if (requests.Count > 0)
+            await LoadRequirementsForRequests(requests, db, ct);
+
+        return requests;
+    }
+
+    public async Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(
+        Guid siteId, DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+
+        // Site-scoped scheduled requests whose bar overlaps [from,to]: start_ts <= to AND end_ts >= from.
+        var requests = new List<RequestInfo>();
+        var cmd = new NpgsqlCommand($@"
+            SELECT {SelectFromView}
+            FROM v_requests_with_assignments
+            WHERE start_ts IS NOT NULL
+              AND start_ts <= @to AND end_ts >= @from
+              AND EXISTS (
+                SELECT 1 FROM resource_assignments ra
+                JOIN resources res ON res.id = ra.resource_id
+                JOIN resource_types rt ON rt.id = res.resource_type_id
+                JOIN spaces s ON s.id = res.id
+                WHERE ra.request_id = v_requests_with_assignments.id
+                  AND rt.key = @spaceKey
+                  AND ra.assignment_status != @cancelled
+                  AND s.site_id = @siteId
+              )", db);
+        cmd.Parameters.AddWithValue("siteId", siteId);
+        cmd.Parameters.AddWithValue("from", from);
+        cmd.Parameters.AddWithValue("to", to);
+        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct))
+                requests.Add(RequestMapper.MapFromReader(reader));
+
+        if (requests.Count > 0)
+            await LoadRequirementsForRequests(requests, db, ct);
+
+        return requests;
+    }
+
+    public async Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+
+        var requests = new List<RequestInfo>();
+        var cmd = new NpgsqlCommand(
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE start_ts IS NULL " +
+            "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC", db);
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct))
+                requests.Add(RequestMapper.MapFromReader(reader));
+
+        return requests;
+    }
+
     public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);

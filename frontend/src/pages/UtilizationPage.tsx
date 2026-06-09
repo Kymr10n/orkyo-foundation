@@ -8,7 +8,8 @@ import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
-import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
+import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
+import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
@@ -125,9 +126,15 @@ export function UtilizationPage() {
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
 
-  // Fetch data from API
+  // Fetch data from API — scoped to the selected site + a buffered window for the grid bars, plus
+  // the tenant-wide unscheduled backlog (drag source). The panel/lookups use the union; the grid
+  // bars come from the scoped scheduled set.
   const { data: spaces = [], isLoading: spacesLoading } = useSpaces(selectedSiteId);
-  const { data: requests = [], isLoading: requestsLoading } = useRequests();
+  const fetchWindow = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
+  const { data: scheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
+  const { data: backlog = [] } = useBacklogRequests();
+  const requests = useMemo(() => [...scheduled, ...backlog], [scheduled, backlog]);
+  const requestsLoading = scheduledLoading;
   const scheduleMutation = useScheduleRequest();
   const { data: preferences } = usePreferences();
   const updatePreferencesMutation = useUpdatePreferences();
@@ -488,7 +495,7 @@ export function UtilizationPage() {
                 ) : (
                   <SchedulerGrid
                     spaces={spaces}
-                    requests={requests}
+                    requests={scheduled}
                     scale={scale}
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}

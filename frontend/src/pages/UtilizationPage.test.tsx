@@ -112,7 +112,9 @@ vi.mock("@foundation/src/hooks/useAutoSchedule", () => ({
 }));
 
 vi.mock("@foundation/src/hooks/useUtilization", () => ({
-  useRequests: (arg?: any) => mockUseRequests(arg),
+  // The grid's bar feed; reuse the existing mock driver so test cases that set request data work.
+  useScheduledRequests: (..._args: any[]) => mockUseRequests(),
+  useBacklogRequests: () => ({ data: [], isLoading: false }),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
   useSpaces: (arg?: any) => mockUseSpaces(arg),

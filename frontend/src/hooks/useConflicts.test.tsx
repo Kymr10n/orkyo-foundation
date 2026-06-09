@@ -8,13 +8,13 @@ import { useConflicts } from './useConflicts';
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock('@foundation/src/hooks/useUtilization', () => ({
-  useRequests: vi.fn(() => ({ data: [] })),
+  useScheduledRequests: vi.fn(() => ({ data: [] })),
   useSpaces: vi.fn(() => ({ data: [] })),
 }));
 
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((sel: (s: Record<string, unknown>) => unknown) =>
-    sel({ selectedSiteId: 'site-1' }),
+    sel({ selectedSiteId: 'site-1', scale: 'week', anchorTs: new Date('2026-01-15T00:00:00Z') }),
   ),
 }));
 
@@ -33,7 +33,7 @@ vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
   validateAssignmentsBatch: vi.fn(() => Promise.resolve([])),
 }));
 
-import { useRequests, useSpaces } from '@foundation/src/hooks/useUtilization';
+import { useScheduledRequests, useSpaces } from '@foundation/src/hooks/useUtilization';
 import { evaluateSchedule } from '@foundation/src/domain/scheduling/schedule-validator';
 import { validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
 
@@ -83,7 +83,7 @@ function makeWrapper() {
 describe('useConflicts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useRequests).mockReturnValue({ data: [] } as any);
+    vi.mocked(useScheduledRequests).mockReturnValue({ data: [] } as any);
     vi.mocked(useSpaces).mockReturnValue({ data: [] } as any);
     vi.mocked(evaluateSchedule).mockReturnValue(new Map());
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);
@@ -121,7 +121,7 @@ describe('useConflicts', () => {
   });
 
   it('does not call the backend validator when no request has a space assignment', () => {
-    vi.mocked(useRequests).mockReturnValue({
+    vi.mocked(useScheduledRequests).mockReturnValue({
       data: [{ id: 'r1', assignments: [] } as any],
     } as any);
     renderHook(() => useConflicts(), { wrapper: makeWrapper() });
@@ -129,7 +129,7 @@ describe('useConflicts', () => {
   });
 
   it('validates each scheduled request against its assigned space (with self-exclusion)', async () => {
-    vi.mocked(useRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
+    vi.mocked(useScheduledRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
     renderHook(() => useConflicts(), { wrapper: makeWrapper() });
     // Batch validation is deferred ~1.5s after mount (off the load path).
     await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalledTimes(1), { timeout: 2500 });
@@ -147,7 +147,7 @@ describe('useConflicts', () => {
   // convergence fixes — capability was previously never evaluated because the
   // client list omitted requirements.
   it('surfaces a capability conflict when the space fails a requirement', async () => {
-    vi.mocked(useRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
+    vi.mocked(useScheduledRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([capabilityBlocker('r1')] as any);
 
     const { result } = renderHook(() => useConflicts(), { wrapper: makeWrapper() });
@@ -162,7 +162,7 @@ describe('useConflicts', () => {
   });
 
   it('does not surface a conflict when the backend reports no blockers', async () => {
-    vi.mocked(useRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
+    vi.mocked(useScheduledRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([
       { requestId: 'r1', resourceId: 'space-1', result: { severity: 'ok', blockers: [], warnings: [] } },
     ] as any);
@@ -173,7 +173,7 @@ describe('useConflicts', () => {
   });
 
   it('handles backend validation failure gracefully', async () => {
-    vi.mocked(useRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
+    vi.mocked(useScheduledRequests).mockReturnValue({ data: [scheduledRequest('r1')] } as any);
     vi.mocked(validateAssignmentsBatch).mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useConflicts(), { wrapper: makeWrapper() });

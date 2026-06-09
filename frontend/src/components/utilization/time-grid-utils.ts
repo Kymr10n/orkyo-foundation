@@ -21,6 +21,34 @@ export interface WorkingHoursConfig {
   end: number;
 }
 
+/**
+ * The buffered [from,to] window the grid fetches for a given scale + anchor. Wider than the
+ * visible range so panning within the buffer needs no refetch; snapped to the start of the scale's
+ * natural unit so navigating within that unit keeps a stable React-Query key.
+ *   day ±7d · week ±4w · month ±2mo · year ±1yr (hour reuses the day window).
+ */
+export function getFetchWindow(scale: TimeScale, anchorTs: Date): { from: Date; to: Date } {
+  switch (scale) {
+    case "hour":
+    case "day": {
+      const base = startOfDay(anchorTs);
+      return { from: addDays(base, -7), to: addDays(base, 8) };
+    }
+    case "week": {
+      const base = startOfWeek(anchorTs, { weekStartsOn: 1 });
+      return { from: addWeeks(base, -4), to: addWeeks(base, 5) };
+    }
+    case "month": {
+      const base = startOfMonth(anchorTs);
+      return { from: addMonths(base, -2), to: addMonths(base, 3) };
+    }
+    case "year": {
+      const base = startOfMonth(anchorTs); // year view = 12 months from the anchor's month
+      return { from: addMonths(base, -12), to: addMonths(base, 24) };
+    }
+  }
+}
+
 export function parseTimeToHour(time: string): number {
   const [hour] = time.split(":").map(Number);
   return hour;

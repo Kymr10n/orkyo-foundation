@@ -17,6 +17,12 @@ public interface IRequestService
     Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
     /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
     Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
+    /// <summary>Bulk fetch by ids (used by the conflicted-requests filter).</summary>
+    Task<List<RequestInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default);
+    /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
+    Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);
+    /// <summary>Unscheduled backlog (tenant-wide) — drag-to-schedule source for the panel.</summary>
+    Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default);
     /// <summary>Creates a request. Validates parent mode and throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on violations.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
     /// <summary>Updates a request. Throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on tree violations. Returns <c>null</c> if not found.</summary>
@@ -64,6 +70,15 @@ public class RequestService : IRequestService
 
     public Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
         => _repository.GetByIdAsync(id, includeRequirements, ct);
+
+    public Task<List<RequestInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default)
+        => _repository.GetByIdsAsync(ids, includeRequirements, ct);
+
+    public Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default)
+        => _repository.GetScheduledBySiteWindowAsync(siteId, from, to, ct);
+
+    public Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default)
+        => _repository.GetUnscheduledAsync(ct);
 
     public async Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {

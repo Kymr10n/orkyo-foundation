@@ -35,7 +35,7 @@ import {
     moveRequest,
     updateRequest,
 } from "@foundation/src/lib/api/request-api";
-import { useConflicts } from "@foundation/src/hooks/useConflicts";
+import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import type {
     CreateRequestRequest,
     PlanningMode,
@@ -424,7 +424,7 @@ export function RequestsPage() {
   );
 
   // Build conflict count map for tree view (own + descendant conflicts)
-  const { conflicts: storeConflicts } = useConflicts();
+  const { conflictsByRequest: storeConflicts } = useConflictRegistry();
 
   const handleOpenConflicts = useCallback(
     (requestId: string) => {

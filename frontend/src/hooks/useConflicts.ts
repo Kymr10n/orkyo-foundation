@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { useRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
+import { useScheduledRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { capabilityConflictsFromValidation } from "@foundation/src/domain/scheduling/assignment-conflicts";
@@ -35,7 +36,11 @@ const CONFLICT_CHECK_DELAY_MS = 1500;
  */
 export function useConflicts() {
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
-  const { data: requests = [] } = useRequests();
+  const scale = useAppStore((s) => s.scale);
+  const anchorTs = useAppStore((s) => s.anchorTs);
+  // Validate only the grid's scoped, buffered window (deduped with UtilizationPage's fetch).
+  const { from, to } = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
+  const { data: requests = [] } = useScheduledRequests(selectedSiteId, from, to);
   const { data: spaces = [] } = useSpaces(selectedSiteId);
 
   const spaceCapacities = useMemo(

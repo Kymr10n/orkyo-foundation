@@ -1,12 +1,12 @@
-import { useConflicts } from "@foundation/src/hooks/useConflicts";
-import { useRequests } from "@foundation/src/hooks/useUtilization";
+import { useConflictRegistry, useConflictedRequests } from "@foundation/src/hooks/useConflictRegistry";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportConflicts } from "@foundation/src/lib/utils/export-handlers";
 import type { Conflict, Request } from "@foundation/src/types/requests";
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { logger } from "@foundation/src/lib/core/logger";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 
@@ -94,9 +94,9 @@ const ConflictItem = React.memo(function ConflictItem({
 
 export function ConflictsPage() {
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
-  const { conflicts } = useConflicts();
-  // useRequests is deduped by React Query (same key as inside useConflicts)
-  const { data: requests = [] } = useRequests();
+  // Tenant-wide authoritative registry + just the conflicted requests (not the whole tenant).
+  const { conflictsByRequest: conflicts } = useConflictRegistry();
+  const { data: requests = [] } = useConflictedRequests();
 
   const searchParams = useMemo(
     () =>
@@ -185,6 +185,17 @@ export function ConflictsPage() {
     }
   };
 
+  // Virtualize the (potentially large) conflict list — render only the visible rows. Heights vary
+  // (peer link, multi-line messages), so measureElement handles dynamic sizing.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: visibleConflictItems.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 104,
+    overscan: 8,
+    getItemKey: (i) => visibleConflictItems[i].id,
+  });
+
   const description = visibleConflictItems.length === 0
     ? "No conflicts detected. All scheduled requests meet their requirements."
     : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`;
@@ -206,19 +217,33 @@ export function ConflictsPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          {visibleConflictItems.map((item) => (
-            <ConflictItem
-              key={item.id}
-              item={item}
-              isHighlighted={targetConflictId === item.id}
-              onOpen={openRequestEditor}
-              peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
-              getSeverityIcon={getSeverityIcon}
-              getSeverityBadgeClass={getSeverityBadgeClass}
-              getConflictKindLabel={getConflictKindLabel}
-            />
-          ))}
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+            {virtualizer.getVirtualItems().map((vItem) => {
+              const item = visibleConflictItems[vItem.index];
+              return (
+                <div
+                  key={vItem.key}
+                  data-index={vItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vItem.start}px)` }}
+                >
+                  {/* pb-4 reproduces the previous space-y-4 gap (measured into the row height). */}
+                  <div className="pb-4">
+                    <ConflictItem
+                      item={item}
+                      isHighlighted={targetConflictId === item.id}
+                      onOpen={openRequestEditor}
+                      peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
+                      getSeverityIcon={getSeverityIcon}
+                      getSeverityBadgeClass={getSeverityBadgeClass}
+                      getConflictKindLabel={getConflictKindLabel}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
       {requestEditorDialogs}
