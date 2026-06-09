@@ -79,19 +79,32 @@ public static class SeedRunner
             spaces = await SpaceFactories.SeedSpacesAsync(conn, tx, profile, scale, faker, sites, spaceTypeId);
         }
 
-        var spaceGroups = await SpaceFactories.SeedSpaceGroupsAsync(conn, tx, profile, scale, faker, spaceTypeId);
-        var spaceGroupMemberCount = await SpaceFactories.SeedSpaceGroupMembersAsync(
-            conn, tx, faker, spaces, spaceGroups, spaceTypeId);
+        // Space groups: the curated floorplan path groups by functional area (CNC/QC/storage/…);
+        // the generic generator has no functional codes, so it keeps round-robin assignment.
+        IReadOnlyList<SpaceFactories.SeededSpaceGroup> spaceGroups;
+        int spaceGroupMemberCount;
+        if (opts.UseFloorplans)
+        {
+            (spaceGroups, spaceGroupMemberCount) =
+                await SpaceFactories.SeedFunctionalSpaceGroupsAsync(conn, spaces, spaceTypeId);
+        }
+        else
+        {
+            spaceGroups = await SpaceFactories.SeedSpaceGroupsAsync(conn, tx, profile, scale, faker, spaceTypeId);
+            spaceGroupMemberCount = await SpaceFactories.SeedSpaceGroupMembersAsync(
+                conn, tx, faker, spaces, spaceGroups, spaceTypeId);
+        }
 
         var jobTitles = await PeopleFactories.SeedJobTitlesAsync(conn, tx, profile, scale, faker);
         var departments = await PeopleFactories.SeedDepartmentsAsync(conn, tx, profile, scale, faker);
         var personTypeId = await PeopleFactories.ResolvePersonResourceTypeIdAsync(conn, tx);
         var people = await PeopleFactories.SeedPeopleAsync(
             conn, tx, profile, scale, faker, personTypeId, jobTitles, departments);
-        var personGroups = await PeopleFactories.SeedPersonGroupsAsync(
-            conn, tx, profile, scale, faker, personTypeId);
-        var personGroupMemberCount = await PeopleFactories.SeedPersonGroupMembersAsync(
-            conn, tx, faker, people, personGroups, personTypeId);
+
+        // Person groups: the floorplan path groups by team/role (derived from the skills assigned
+        // below in the narrative block); the generic path keeps round-robin. Assigned per-branch.
+        IReadOnlyList<PeopleFactories.SeededPersonGroup> personGroups = [];
+        var personGroupMemberCount = 0;
 
         int criteriaCount, requestCount, assignmentCount;
         int tools = 0, capabilities = 0, requirements = 0, events = 0, absences = 0, templates = 0, conflicts = 0;
@@ -104,6 +117,11 @@ public static class SeedRunner
             var skillCriteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
             var cohorts = Narrative.Cohorts.Build(facilities, sites, spaces, people, seededTools);
             var caps = await CapabilityFactory.AssignAsync(conn, skillCriteria, cohorts, faker);
+
+            // Person groups by team/role, derived from the skills just assigned.
+            (personGroups, personGroupMemberCount) = await PeopleFactories.SeedRoleGroupsAndMembersAsync(
+                conn, people, caps.PersonSkills, skillCriteria, personTypeId);
+
             var calendar = new Narrative.YearCalendar(opts.ReferenceDate);
             var avail = await AvailabilityFactory.SeedAsync(conn, calendar, sites, people, faker);
             templates = await TemplateFactory.SeedAsync(conn, skillCriteria);
@@ -122,6 +140,11 @@ public static class SeedRunner
         }
         else
         {
+            personGroups = await PeopleFactories.SeedPersonGroupsAsync(
+                conn, tx, profile, scale, faker, personTypeId);
+            personGroupMemberCount = await PeopleFactories.SeedPersonGroupMembersAsync(
+                conn, tx, faker, people, personGroups, personTypeId);
+
             var criteria = await CriteriaFactory.SeedCriteriaAsync(conn, tx, scale, faker);
             var requests = await WorkItemFactories.SeedRequestsAsync(conn, tx, profile, scale, faker, timing);
             assignmentCount = await WorkItemFactories.SeedAssignmentsAsync(conn, tx, faker, requests, people, spaces);

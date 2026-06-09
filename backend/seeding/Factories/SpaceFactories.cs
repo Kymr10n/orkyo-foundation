@@ -15,7 +15,9 @@ namespace Orkyo.Foundation.Seed.Factories;
 public static class SpaceFactories
 {
     public sealed record SeededSite(Guid Id, string Name, string Code);
-    public sealed record SeededSpace(Guid Id, Guid SiteId, string Name);
+    /// <summary><c>Code</c> is the floorplan room code (CNC, WELD, QC, …) when seeded from a
+    /// curated floorplan; null for the generic generator (which has no functional codes).</summary>
+    public sealed record SeededSpace(Guid Id, Guid SiteId, string Name, string? Code = null);
     public sealed record SeededSpaceGroup(Guid Id, string Name);
 
     public static async Task<IReadOnlyList<SeededSite>> SeedSitesAsync(
@@ -215,6 +217,90 @@ public static class SpaceFactories
         }
         await writer.CompleteAsync();
         return memberships.Count;
+    }
+
+    /// <summary>Functional-area order for display + the catch-all bucket (last).</summary>
+    private static readonly string[] FunctionalAreaOrder =
+    [
+        "Production", "Quality", "Storage & Logistics", "Maintenance & Tooling", "Facilities & Admin",
+    ];
+
+    /// <summary>
+    /// Maps a floorplan room code to a coarse functional area so seeded spaces form a few
+    /// meaningful groups instead of round-robin noise. Unknown/null codes fall back to the
+    /// "Facilities & Admin" catch-all.
+    /// </summary>
+    public static string FunctionalArea(string? code) => (code ?? string.Empty).ToUpperInvariant() switch
+    {
+        "CNC" or "ASSY" or "FAB" or "WELD" or "PAINT" or "GRIND" or "PROD" or "PKG" => "Production",
+        "QC" => "Quality",
+        "RAW" or "FIN" or "MAT" or "WHSE" => "Storage & Logistics",
+        "MAINT" or "TOOL" or "ELEC" or "JAN" => "Maintenance & Tooling",
+        _ => "Facilities & Admin",
+    };
+
+    /// <summary>
+    /// Seeds space groups + memberships by functional area (curated-floorplan path). One group
+    /// per area that has at least one space; each space joins exactly one group (single-group is
+    /// enforced by migration 1530). Replaces the round-robin assignment for the demo.
+    /// </summary>
+    public static async Task<(IReadOnlyList<SeededSpaceGroup> Groups, int MemberCount)> SeedFunctionalSpaceGroupsAsync(
+        NpgsqlConnection conn,
+        IReadOnlyList<SeededSpace> spaces,
+        Guid spaceResourceTypeId)
+    {
+        if (spaces.Count == 0) return ([], 0);
+
+        // Group spaces by area, preserving the fixed display order; drop empty areas.
+        var areaToSpaces = spaces
+            .GroupBy(sp => FunctionalArea(sp.Code))
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var presentAreas = FunctionalAreaOrder.Where(areaToSpaces.ContainsKey).ToList();
+
+        var seeded = new List<SeededSpaceGroup>(presentAreas.Count);
+        var areaToGroupId = new Dictionary<string, Guid>(presentAreas.Count);
+        var now = DateTime.UtcNow;
+
+        using (var groupWriter = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
+            "FROM STDIN (FORMAT BINARY)"))
+        {
+            for (var i = 0; i < presentAreas.Count; i++)
+            {
+                var id = Guid.NewGuid();
+                areaToGroupId[presentAreas[i]] = id;
+                await groupWriter.StartRowAsync();
+                await groupWriter.WriteAsync(id, NpgsqlDbType.Uuid);
+                await groupWriter.WriteAsync(presentAreas[i], NpgsqlDbType.Varchar);
+                await groupWriter.WriteNullAsync();                          // description
+                await groupWriter.WriteNullAsync();                          // color
+                await groupWriter.WriteAsync(i, NpgsqlDbType.Integer);       // display_order
+                await groupWriter.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
+                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                seeded.Add(new SeededSpaceGroup(id, presentAreas[i]));
+            }
+            await groupWriter.CompleteAsync();
+        }
+
+        var memberCount = 0;
+        using (var memberWriter = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
+            "FROM STDIN (FORMAT BINARY)"))
+        {
+            foreach (var area in presentAreas)
+                foreach (var space in areaToSpaces[area])
+                {
+                    await memberWriter.StartRowAsync();
+                    await memberWriter.WriteAsync(areaToGroupId[area], NpgsqlDbType.Uuid);
+                    await memberWriter.WriteAsync(space.Id, NpgsqlDbType.Uuid);
+                    await memberWriter.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
+                    memberCount++;
+                }
+            await memberWriter.CompleteAsync();
+        }
+
+        return (seeded, memberCount);
     }
 
     private static string Slug(string s)

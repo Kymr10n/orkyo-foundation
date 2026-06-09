@@ -103,7 +103,7 @@ public static class FloorplanFactory
                     await resourceWriter.WriteAsync(true, NpgsqlDbType.Boolean);
                     await resourceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
                     await resourceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                    spaces.Add(new SpaceFactories.SeededSpace(id, sites[s].Id, room.Name));
+                    spaces.Add(new SpaceFactories.SeededSpace(id, sites[s].Id, room.Name, room.Code));
                 }
             }
             await resourceWriter.CompleteAsync();
