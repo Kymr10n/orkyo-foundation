@@ -549,8 +549,9 @@ export function RequestsPage() {
 
       {/* Body: View + Detail Panel */}
       <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
-        {/* Main content area */}
-        <div className={`flex-1 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
+        {/* Main content area. Tree view manages its own internal scroll (overflow-hidden);
+            the list view's data table grows naturally, so its column must scroll itself. */}
+        <div className={`flex-1 ${selectedRequest ? 'min-w-0' : ''} ${viewMode === 'tree' ? 'overflow-hidden' : 'min-h-0 overflow-y-auto'}`}>
           {loading && requests.length === 0 ? (
             <LoadingSpinner fullScreen={false} message="Loading requests..." />
           ) : error ? (
