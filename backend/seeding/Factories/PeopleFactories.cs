@@ -1,6 +1,7 @@
 using Bogus;
 using Npgsql;
 using NpgsqlTypes;
+using Orkyo.Foundation.Seed.Narrative;
 using Orkyo.Foundation.Seed.Profiles;
 using Orkyo.Foundation.Seed.Scales;
 
@@ -298,6 +299,103 @@ public static class PeopleFactories
         }
         await writer.CompleteAsync();
         return memberships.Count;
+    }
+
+    /// <summary>Team display order; the catch-all "Production Crew" comes first.</summary>
+    private static readonly string[] TeamOrder =
+    [
+        "Production Crew", "Quality Team", "Maintenance Team", "Logistics Team",
+    ];
+
+    /// <summary>
+    /// Maps a person's skill set to a single team, by precedence: specialist skills
+    /// (Quality → Maintenance → Logistics) win over the general "Production Crew", which is also
+    /// the fallback for anyone without a mapped skill.
+    /// </summary>
+    public static string TeamForSkills(IEnumerable<string> skillKeys)
+    {
+        var keys = skillKeys as IReadOnlySet<string> ?? skillKeys.ToHashSet();
+        if (keys.Contains(SkillCatalog.QaInspection)) return "Quality Team";
+        if (keys.Contains(SkillCatalog.Maintenance)) return "Maintenance Team";
+        if (keys.Contains(SkillCatalog.ForkliftLicense) || keys.Contains(SkillCatalog.CraneOperation))
+            return "Logistics Team";
+        return "Production Crew";
+    }
+
+    /// <summary>
+    /// Seeds person groups + memberships by team/role (curated-floorplan path), derived from the
+    /// skills assigned by <see cref="CapabilityFactory"/>. One group per team that has at least one
+    /// member; each person joins exactly one team. Replaces the round-robin assignment for the demo.
+    /// </summary>
+    public static async Task<(IReadOnlyList<SeededPersonGroup> Groups, int MemberCount)> SeedRoleGroupsAndMembersAsync(
+        NpgsqlConnection conn,
+        IReadOnlyList<SeededPerson> people,
+        IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills,
+        IReadOnlyDictionary<string, Guid> criteriaByKey,
+        Guid personResourceTypeId)
+    {
+        if (people.Count == 0) return ([], 0);
+
+        // Invert skillKey→criterionId so we can name each person's skills.
+        var keyByCriterion = criteriaByKey.ToDictionary(kv => kv.Value, kv => kv.Key);
+
+        string TeamFor(SeededPerson p)
+        {
+            var keys = personSkills.TryGetValue(p.ResourceId, out var crit)
+                ? crit.Select(c => keyByCriterion.TryGetValue(c, out var k) ? k : null).OfType<string>()
+                : [];
+            return TeamForSkills(keys);
+        }
+
+        var teamToPeople = people
+            .GroupBy(TeamFor)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var presentTeams = TeamOrder.Where(teamToPeople.ContainsKey).ToList();
+
+        var seeded = new List<SeededPersonGroup>(presentTeams.Count);
+        var teamToGroupId = new Dictionary<string, Guid>(presentTeams.Count);
+        var now = DateTime.UtcNow;
+
+        using (var groupWriter = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
+            "FROM STDIN (FORMAT BINARY)"))
+        {
+            for (var i = 0; i < presentTeams.Count; i++)
+            {
+                var id = Guid.NewGuid();
+                teamToGroupId[presentTeams[i]] = id;
+                await groupWriter.StartRowAsync();
+                await groupWriter.WriteAsync(id, NpgsqlDbType.Uuid);
+                await groupWriter.WriteAsync(presentTeams[i], NpgsqlDbType.Varchar);
+                await groupWriter.WriteNullAsync();                          // description
+                await groupWriter.WriteNullAsync();                          // color
+                await groupWriter.WriteAsync(i, NpgsqlDbType.Integer);       // display_order
+                await groupWriter.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
+                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                seeded.Add(new SeededPersonGroup(id, presentTeams[i]));
+            }
+            await groupWriter.CompleteAsync();
+        }
+
+        var memberCount = 0;
+        using (var memberWriter = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
+            "FROM STDIN (FORMAT BINARY)"))
+        {
+            foreach (var team in presentTeams)
+                foreach (var person in teamToPeople[team])
+                {
+                    await memberWriter.StartRowAsync();
+                    await memberWriter.WriteAsync(teamToGroupId[team], NpgsqlDbType.Uuid);
+                    await memberWriter.WriteAsync(person.ResourceId, NpgsqlDbType.Uuid);
+                    await memberWriter.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
+                    memberCount++;
+                }
+            await memberWriter.CompleteAsync();
+        }
+
+        return (seeded, memberCount);
     }
 
     private static string Slugify(string s)

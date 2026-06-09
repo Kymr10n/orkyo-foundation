@@ -1,6 +1,7 @@
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
 import { SPACE_CANVAS_COLORS, SPACE_LEGEND_CELL_CLASS, SPACE_LEGEND_BORDER_CLASS, type SpaceStatus } from "@foundation/src/components/utilization/schedule-colors";
 import { Button } from "@foundation/src/components/ui/button";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
 import { useSpaces } from "@foundation/src/hooks/useSpaces";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -170,9 +171,7 @@ export function CollapsibleFloorplan({
         <>
           <div style={{ height: `${height}px` }} className="p-4 bg-card overflow-hidden">
             {isLoadingFloorplan ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                Loading floorplan...
-              </div>
+              <LoadingSpinner fullScreen={false} message="Loading floorplan..." />
             ) : fetchError ? (
               <div className="h-full flex items-center justify-center text-destructive text-sm">
                 Failed to load floorplan. Please try refreshing.

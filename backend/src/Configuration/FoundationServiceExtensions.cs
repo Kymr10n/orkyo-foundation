@@ -117,6 +117,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IRequestService, RequestService>();
         services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
+        services.AddScoped<IConflictService, ConflictService>();
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<ISessionService, SessionService>();

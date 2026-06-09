@@ -38,6 +38,7 @@ export function applySpaceAssignmentOptimistic(
     assignmentStatus: 'Planned',
     createdAt: now,
     updatedAt: now,
+    isOptimistic: true,
   };
   return {
     ...r,

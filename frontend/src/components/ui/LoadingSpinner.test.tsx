@@ -18,4 +18,17 @@ describe('LoadingSpinner', () => {
     expect(container.querySelector('p')).not.toBeInTheDocument();
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
   });
+
+  it('defaults to a full-screen layout', () => {
+    const { container } = render(<LoadingSpinner />);
+    expect(container.querySelector('.min-h-screen')).toBeInTheDocument();
+  });
+
+  it('fills its container (not full-screen) when fullScreen is false', () => {
+    const { container } = render(<LoadingSpinner fullScreen={false} />);
+    expect(container.querySelector('.min-h-screen')).not.toBeInTheDocument();
+    const root = container.firstChild as HTMLElement;
+    expect(root.className).toMatch(/h-full/);
+    expect(root.className).toMatch(/w-full/);
+  });
 });

@@ -8,7 +8,8 @@ import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
-import { useRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
+import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
+import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflicts } from "@foundation/src/hooks/useConflicts";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
@@ -26,13 +27,15 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { buildCreatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
-import { validateAssignment, type ValidationIssue } from "@foundation/src/lib/api/resource-assignments-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
-import { DndContext, type DragEndEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
+import { DropColumnIndicator } from "@foundation/src/components/utilization/DropColumnIndicator";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format } from "date-fns";
@@ -68,6 +71,31 @@ export function UtilizationPage() {
   });
   const sensors = useSensors(pointerSensor);
 
+  // Scope collision detection to the active drag's intent so a single set of
+  // droppables can serve two modes unambiguously: dragging a space-row only
+  // considers other space-row sortables (reorder); dragging a request considers
+  // everything else (the per-row time tracks, the unschedule zone, tree-reparent
+  // targets). Without this, the row-level track droppable and the row sortable
+  // overlap and `over` would be non-deterministic.
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const activeType = args.active.data.current?.type;
+    const containers = args.droppableContainers.filter((c) => {
+      const t = c.data.current?.type;
+      return activeType === "space-row" ? t === "space-row" : t !== "space-row";
+    });
+    return pointerWithin({ ...args, droppableContainers: containers });
+  }, []);
+
+  // Label of the request currently being dragged — drives the <DragOverlay> so
+  // dnd-kit moves a lightweight clone instead of transforming/reconciling the
+  // original node (and its subtree) on every pointer move. Row-reorder drags
+  // (type "space-row") don't get an overlay.
+  const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active.data.current as { type?: string; name?: string } | undefined;
+    setActiveDragLabel(data && data.type !== "space-row" ? data.name ?? null : null);
+  }, []);
+
   // Tab state — persisted in URL so the view is bookmarkable
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') ?? 'space') as 'space' | 'people';
@@ -98,9 +126,15 @@ export function UtilizationPage() {
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
 
-  // Fetch data from API
+  // Fetch data from API — scoped to the selected site + a buffered window for the grid bars, plus
+  // the tenant-wide unscheduled backlog (drag source). The panel/lookups use the union; the grid
+  // bars come from the scoped scheduled set.
   const { data: spaces = [], isLoading: spacesLoading } = useSpaces(selectedSiteId);
-  const { data: requests = [], isLoading: requestsLoading } = useRequests();
+  const fetchWindow = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
+  const { data: scheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
+  const { data: backlog = [] } = useBacklogRequests();
+  const requests = useMemo(() => [...scheduled, ...backlog], [scheduled, backlog]);
+  const requestsLoading = scheduledLoading;
   const scheduleMutation = useScheduleRequest();
   const { data: preferences } = usePreferences();
   const updatePreferencesMutation = useUpdatePreferences();
@@ -319,40 +353,6 @@ export function UtilizationPage() {
     }
     const endTs = new Date(startTs.getTime() + durationMs);
 
-    // Validate space capabilities BEFORE mutating so an incompatible drop is
-    // rejected with feedback instead of silently creating a conflict the user
-    // only discovers later on the Conflicts page. The backend is the single
-    // source of truth: it reads the request's requirements and runs the
-    // capability matcher, so we no longer need requirements hydrated client-side.
-    let capabilityBlockers: ValidationIssue[] = [];
-    try {
-      const result = await validateAssignment({
-        requestId: draggedData.id,
-        resourceId,
-        startUtc: startTs.toISOString(),
-        endUtc: endTs.toISOString(),
-      });
-      capabilityBlockers = result.blockers.filter(
-        (b) => b.code === "capability.missing" || b.code === "resource.type-mismatch",
-      );
-    } catch (error) {
-      logger.error("Failed to validate space requirements:", error);
-    }
-
-    if (capabilityBlockers.length > 0) {
-      const targetSpace = spaces.find((s) => s.id === resourceId);
-      const spaceName = targetSpace?.name ?? "this space";
-      const first = capabilityBlockers[0];
-      const firstReason = first.details
-        ? `does not satisfy: ${first.details}`
-        : "missing a required capability";
-      const extra = capabilityBlockers.length > 1 ? ` (+${capabilityBlockers.length - 1} more)` : "";
-      toast.error(`Cannot schedule to ${spaceName}`, {
-        description: `${firstReason}${extra}`,
-      });
-      return;
-    }
-
     await scheduleMutation.mutateAsync({
       requestId: draggedData.id,
       data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
@@ -361,14 +361,15 @@ export function UtilizationPage() {
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space "${resourceId}"`);
 
     setSelectedRequestId(draggedData.id);
-  }, [scheduleMutation, selectedSiteId, spaces, setSelectedRequestId]);
+  }, [scheduleMutation, setSelectedRequestId]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragLabel(null);
     const { active, over } = event;
     if (!over) return;
 
     const draggedData = active.data.current as Request & { isScheduled?: boolean; type?: string };
-    const dropData = over.data.current as { resourceId?: string; startTs?: Date; type?: string; parentRequestId?: string };
+    const dropData = over.data.current as { resourceId?: string; type?: string; parentRequestId?: string; columnStartsMs?: number[] };
 
     if (draggedData?.type === "space-row") {
       if (active.id !== over.id) handleSpaceReorder(active.id, over.id);
@@ -384,8 +385,19 @@ export function UtilizationPage() {
       await handleTreeReparent(draggedData.id, dropData.parentRequestId);
       return;
     }
-    if (dropData?.resourceId && dropData?.startTs && selectedSiteId) {
-      await handleScheduleToGrid(draggedData, dropData.resourceId, dropData.startTs);
+    if (dropData?.type === "space-track" && dropData.resourceId && dropData.columnStartsMs && selectedSiteId) {
+      // The whole row is one droppable; resolve the exact column from where the
+      // pointer ended (activator position + accumulated drag delta) relative to
+      // the track's measured rect.
+      const activator = event.activatorEvent as PointerEvent;
+      const pointerX = activator.clientX + event.delta.x;
+      const startMs = resolveColumnStartMs(
+        pointerX,
+        over.rect.left,
+        over.rect.width,
+        dropData.columnStartsMs,
+      );
+      await handleScheduleToGrid(draggedData, dropData.resourceId, new Date(startMs));
     }
   }, [selectedSiteId, handleSpaceReorder, handleUnschedule, handleTreeReparent, handleScheduleToGrid]);
 
@@ -449,8 +461,14 @@ export function UtilizationPage() {
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
-            <div className="h-full flex flex-col overflow-hidden gap-3 p-3">
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => setActiveDragLabel(null)}
+            collisionDetection={collisionDetection}
+          >
+            <div className="h-full flex flex-col overflow-hidden gap-3">
               {/* Collapsible Floorplan */}
               <CollapsibleFloorplan
                 isCollapsed={isFloorplanCollapsed}
@@ -471,13 +489,13 @@ export function UtilizationPage() {
                 />
 
                 {spacesLoading || requestsLoading ? (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-muted-foreground">Loading...</div>
+                  <div className="flex-1">
+                    <LoadingSpinner fullScreen={false} message="Loading requests..." />
                   </div>
                 ) : (
                   <SchedulerGrid
                     spaces={spaces}
-                    requests={requests}
+                    requests={scheduled}
                     scale={scale}
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
@@ -496,6 +514,18 @@ export function UtilizationPage() {
                 )}
               </div>
             </div>
+
+            {/* Live drop-location hint (isolated; does not re-render the grid). */}
+            <DropColumnIndicator />
+
+            {/* Lightweight drag clone — avoids transforming the original node. */}
+            <DragOverlay dropAnimation={null}>
+              {activeDragLabel ? (
+                <div className="rounded bg-primary/90 px-2 py-1 text-xs font-medium text-primary-foreground shadow-lg">
+                  {activeDragLabel}
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </TabsContent>
 

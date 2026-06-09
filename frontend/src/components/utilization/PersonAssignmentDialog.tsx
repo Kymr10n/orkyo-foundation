@@ -159,8 +159,18 @@ export function PersonAssignmentDialog({
         return;
       }
 
-      if (result.blockers.length > 0) {
-        patchStatus(option.requestId, { kind: "feedback", result, isBlocker: true });
+      // capability.missing is a soft blocker — allow the planner to assign
+      // despite the mismatch; it will surface as a warning badge on the bar.
+      const hardBlockers = result.blockers.filter((b) => b.code !== "capability.missing");
+      const capabilityWarnings = result.blockers.filter((b) => b.code === "capability.missing");
+      const effectiveResult: ValidationResult = {
+        ...result,
+        blockers: hardBlockers,
+        warnings: [...result.warnings, ...capabilityWarnings],
+      };
+
+      if (hardBlockers.length > 0) {
+        patchStatus(option.requestId, { kind: "feedback", result: effectiveResult, isBlocker: true });
         return;
       }
 
@@ -179,9 +189,10 @@ export function PersonAssignmentDialog({
           ),
         );
         queryClient.invalidateQueries({ queryKey: ["resource-utilization", personId] });
-        // Surface any warnings so the planner is aware, but the assignment was created.
-        if (result.warnings.length > 0) {
-          patchStatus(option.requestId, { kind: "feedback", result, isBlocker: false });
+        queryClient.invalidateQueries({ queryKey: ["resource-assignments", personId] });
+        // Surface any warnings (including capability mismatches) so the planner is aware.
+        if (effectiveResult.warnings.length > 0) {
+          patchStatus(option.requestId, { kind: "feedback", result: effectiveResult, isBlocker: false });
         } else {
           patchStatus(option.requestId, { kind: "idle" });
         }

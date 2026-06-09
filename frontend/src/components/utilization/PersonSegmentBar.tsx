@@ -1,5 +1,5 @@
 import React from "react";
-import { Briefcase } from "lucide-react";
+import { AlertTriangle, Briefcase } from "lucide-react";
 import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
 import { segmentDisplayData } from "@foundation/src/domain/scheduling/utilization-segments";
 import type { BucketStatus } from "./schedule-colors";
@@ -58,6 +58,7 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
   viewStartMs,
   viewEndMs,
   assignmentCount = 0,
+  hasConflict = false,
   onClick,
 }: {
   segment: PersonUtilizationSegment;
@@ -65,6 +66,8 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
   viewStartMs: number;
   viewEndMs: number;
   assignmentCount?: number;
+  /** True when one or more assignments in this segment have a capability mismatch. */
+  hasConflict?: boolean;
   onClick: (segment: PersonUtilizationSegment) => void;
 }) {
   const { leftPercent, widthPercent } = segmentDisplayData(segment, viewStartMs, viewEndMs);
@@ -78,7 +81,7 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
   const fill = fillPercent(segment);
   const fillClass = STATUS_FILL_CLASS[segment.status];
   const period = `${new Date(segment.start).toLocaleString()} – ${new Date(segment.end).toLocaleString()}`;
-  const tooltip = `${personName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""} · ${period}`;
+  const tooltip = `${personName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""}${hasConflict ? " · ⚠ capability conflict" : ""} · ${period}`;
   const ariaLabel = `${personName}, ${label}, ${period}. Open assignment dialog.`;
 
   const activate = () => onClick(segment);
@@ -111,13 +114,25 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
         />
       )}
       {showLabel && <span className="relative z-10 truncate">{label}</span>}
-      {showCount && showLabel && (
-        <span
-          className="relative z-10 ml-auto flex shrink-0 items-center gap-1 rounded-sm bg-foreground/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums"
-          data-testid="assignment-count-badge"
-        >
-          <Briefcase className="h-3 w-3 opacity-70" />
-          {assignmentCount}
+      {showLabel && (showCount || hasConflict) && (
+        <span className="relative z-10 ml-auto flex shrink-0 items-center gap-1">
+          {showCount && (
+            <span
+              className="flex items-center gap-1 rounded-sm bg-foreground/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums"
+              data-testid="assignment-count-badge"
+            >
+              <Briefcase className="h-3 w-3 opacity-70" />
+              {assignmentCount}
+            </span>
+          )}
+          {hasConflict && (
+            <span
+              className="flex items-center rounded-sm bg-amber-500/20 px-1 py-0.5 text-amber-600 dark:text-amber-400"
+              data-testid="capability-conflict-badge"
+            >
+              <AlertTriangle className="h-3 w-3" />
+            </span>
+          )}
         </span>
       )}
     </div>

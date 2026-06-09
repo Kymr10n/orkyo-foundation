@@ -11,6 +11,7 @@ import {
   type RowData,
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { Input } from '@foundation/src/components/ui/input';
 import { Button } from '@foundation/src/components/ui/button';
 import {
@@ -194,7 +195,9 @@ export function OrkyoDataTable<TData>({
       )}
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+        <div className="py-8">
+          <LoadingSpinner fullScreen={false} message="Loading..." />
+        </div>
       ) : error ? (
         <div className="text-center py-8 text-destructive">{error}</div>
       ) : table.getRowModel().rows.length === 0 ? (

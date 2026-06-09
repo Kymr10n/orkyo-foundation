@@ -14,6 +14,12 @@ public interface ICapabilityMatcher
     Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,
         RequestRequirementInfo requirement, CancellationToken ct = default);
+
+    /// <summary>
+    /// Pure typed-operator match against an already-loaded capability set — no I/O. Lets callers
+    /// that have preloaded capabilities (e.g. batch validation) match in memory.
+    /// </summary>
+    bool Satisfies(IReadOnlyList<ResourceCapabilityInfo> capabilities, RequestRequirementInfo requirement);
 }
 
 public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepository) : ICapabilityMatcher
@@ -38,6 +44,11 @@ public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepositor
         RequestRequirementInfo requirement, CancellationToken ct = default)
     {
         var capabilities = await capabilityRepository.GetByResourceAsync(resourceId);
+        return Satisfies(capabilities, requirement);
+    }
+
+    public bool Satisfies(IReadOnlyList<ResourceCapabilityInfo> capabilities, RequestRequirementInfo requirement)
+    {
         var capability = capabilities.FirstOrDefault(c => c.CriterionId == requirement.CriterionId);
 
         if (capability is null)

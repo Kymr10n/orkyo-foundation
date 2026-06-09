@@ -6,6 +6,7 @@ import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useCommandPalette } from "@foundation/src/hooks/useCommandPalette";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TourDialog } from "@foundation/src/components/tour/TourDialog";
@@ -77,8 +78,8 @@ export function AppLayout() {
     return (
       <div className="h-screen flex flex-col">
         <TopBar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-muted-foreground">Loading...</div>
+        <div className="flex-1">
+          <LoadingSpinner fullScreen={false} message="Loading..." />
         </div>
       </div>
     );

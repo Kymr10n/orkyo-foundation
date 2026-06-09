@@ -7,7 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@foundation/src/components/ui/dropdown-menu";
-import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -662,7 +661,10 @@ export const RequestTreeView = React.memo(function RequestTreeView({
           </Button>
         </div>
       )}
-      <ScrollArea className="h-full" ref={parentRef}>
+      {/* Plain overflow container is the virtualizer's scroll element. (A Radix ScrollArea
+          forwards its ref to the non-scrolling Root, not the inner Viewport, which mis-wires
+          react-virtual and breaks scrolling once the list overflows.) */}
+      <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
         <div
           role="tree"
           tabIndex={0}
@@ -711,7 +713,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
     <DragOverlay dropAnimation={null}>
       {activeEntry && (

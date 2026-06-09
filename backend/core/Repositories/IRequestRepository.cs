@@ -18,6 +18,9 @@ public interface IRequestRepository
     /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
     Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
 
+    /// <summary>Bulk fetch by ids (one query; requirements hydrated in one more) — for batch validation.</summary>
+    Task<List<RequestInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default);
+
     /// <summary>Creates a new request.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
 
@@ -34,6 +37,16 @@ public interface IRequestRepository
 
     /// <summary>Returns all scheduled (assigned to a space) requests for the given site.</summary>
     Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default);
+
+    /// <summary>All scheduled requests tenant-wide (have a space assignment + start_ts), requirements
+    /// hydrated — the authoritative input for the conflicts registry.</summary>
+    Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default);
+
+    /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
+    Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);
+
+    /// <summary>Unscheduled requests (no start_ts) tenant-wide — the drag-to-schedule backlog for the panel.</summary>
+    Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default);
 
     /// <summary>Updates the schedule (space, start, end) of a request. Returns <c>null</c> if not found.</summary>
     Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);

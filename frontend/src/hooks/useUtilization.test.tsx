@@ -265,7 +265,7 @@ describe("useScheduleRequest", () => {
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(updatedRequest);
 
     const { queryClient, wrapper } = createClientAndWrapper();
-    queryClient.setQueryData<Request[]>(["requests"], [mockRequest]);
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
@@ -301,7 +301,7 @@ describe("useScheduleRequest", () => {
     const { queryClient, wrapper } = createClientAndWrapper();
 
     // Seed the cache with the original request
-    queryClient.setQueryData<Request[]>(["requests"], [mockRequest]);
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
@@ -319,7 +319,7 @@ describe("useScheduleRequest", () => {
 
     // Wait for the optimistic update to be applied
     await waitFor(() => {
-      const cached = queryClient.getQueryData<Request[]>(["requests"]);
+      const cached = queryClient.getQueryData<Request[]>(["requests", "scheduled"]);
       const optimistic = cached?.find((r) => r.id === "req-001");
       expect(optimistic?.assignments).toEqual(
         expect.arrayContaining([expect.objectContaining({ resourceId: 'space-B', resourceTypeKey: 'space' })])
@@ -329,7 +329,7 @@ describe("useScheduleRequest", () => {
     });
 
     // Fields not included in the mutation should be preserved
-    const cached = queryClient.getQueryData<Request[]>(["requests"]);
+    const cached = queryClient.getQueryData<Request[]>(["requests", "scheduled"]);
     const optimistic = cached?.find((r) => r.id === "req-001");
     expect(optimistic?.name).toBe("Deep-Sea Survey");
     expect(optimistic?.status).toBe("planned");
@@ -353,7 +353,7 @@ describe("useScheduleRequest", () => {
     const { queryClient, wrapper } = createClientAndWrapper();
 
     // Seed the cache
-    queryClient.setQueryData<Request[]>(["requests"], [mockRequest]);
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
@@ -371,7 +371,7 @@ describe("useScheduleRequest", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     // Cache should be rolled back to the original snapshot
-    const cached = queryClient.getQueryData<Request[]>(["requests"]);
+    const cached = queryClient.getQueryData<Request[]>(["requests", "scheduled"]);
     const restored = cached?.find((r) => r.id === "req-001");
     expect(restored?.assignments).toEqual(mockRequest.assignments); // original value (same object reference)
     expect(restored?.startTs).toBe("2026-04-01T08:00:00Z"); // original value
@@ -391,7 +391,7 @@ describe("useScheduleRequest", () => {
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(serverResponse);
 
     const { queryClient, wrapper } = createClientAndWrapper();
-    queryClient.setQueryData<Request[]>(["requests"], [mockRequest, mockRequest2]);
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest, mockRequest2]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
@@ -408,7 +408,7 @@ describe("useScheduleRequest", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    const cached = queryClient.getQueryData<Request[]>(["requests"]);
+    const cached = queryClient.getQueryData<Request[]>(["requests", "scheduled"]);
 
     // Updated entry should have server-confirmed values
     const updated = cached?.find((r) => r.id === "req-001");
@@ -435,7 +435,7 @@ describe("useScheduleRequest", () => {
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(serverResponse);
 
     const { queryClient, wrapper } = createClientAndWrapper();
-    queryClient.setQueryData<Request[]>(["requests"], [mockRequest2]);
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest2]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
@@ -452,7 +452,7 @@ describe("useScheduleRequest", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    const cached = queryClient.getQueryData<Request[]>(["requests"]);
+    const cached = queryClient.getQueryData<Request[]>(["requests", "scheduled"]);
     const updated = cached?.find((r) => r.id === "req-002");
     expect(updated?.assignments).toEqual(
       expect.arrayContaining([expect.objectContaining({ resourceId: 'space-A', resourceTypeKey: 'space' })])

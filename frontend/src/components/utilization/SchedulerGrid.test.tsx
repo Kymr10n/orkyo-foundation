@@ -4,7 +4,6 @@ import type { Conflict } from '@foundation/src/types/requests';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
 import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
-import { TimeCell } from '@foundation/src/components/utilization/TimeCell';
 import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/ScheduledRequestOverlay';
 import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
 import type { Request } from '@foundation/src/types/requests';
@@ -134,8 +133,8 @@ describe('SchedulerGrid', () => {
       </Wrapper>
     );
 
-    expect(screen.getByText('Room A101')).toBeInTheDocument();
     await act(async () => {});
+    expect(screen.getByText('Room A101')).toBeInTheDocument();
   });
 
   it('renders memoized SpaceRow components', async () => {
@@ -156,6 +155,7 @@ describe('SchedulerGrid', () => {
     );
 
     // Verify initial render
+    await act(async () => {});
     expect(screen.getByText('Room A101')).toBeInTheDocument();
     expect(screen.getByText('Room A102')).toBeInTheDocument();
 
@@ -176,7 +176,6 @@ describe('SchedulerGrid', () => {
 
     // Still renders correctly
     expect(screen.getByText('Room A101')).toBeInTheDocument();
-    await act(async () => {});
   });
 
   it('renders scheduled requests', async () => {
@@ -196,8 +195,8 @@ describe('SchedulerGrid', () => {
       </Wrapper>
     );
 
-    expect(screen.getByText('Test Request 1')).toBeInTheDocument();
     await act(async () => {});
+    expect(screen.getByText('Test Request 1')).toBeInTheDocument();
   });
 
   it('handles empty spaces array', async () => {
@@ -253,9 +252,9 @@ describe('SchedulerGrid', () => {
     );
 
     // Should render grouped spaces
+    await act(async () => {});
     expect(screen.getByText('Room A101')).toBeInTheDocument();
     expect(screen.getByText('Room A102')).toBeInTheDocument();
-    await act(async () => {});
   });
 
   it('uses a spaces-scoped collapse id so people groups do not collapse spaces', async () => {
@@ -276,20 +275,19 @@ describe('SchedulerGrid', () => {
       </Wrapper>
     );
 
+    await act(async () => {});
     expect(screen.getByText('Room A101')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Ungrouped'));
 
     expect(appStoreMock.toggleGroupCollapse).toHaveBeenCalledWith('spaces:ungrouped');
     expect(appStoreMock.toggleGroupCollapse).not.toHaveBeenCalledWith('ungrouped');
-    await act(async () => {});
   });
 
   it('verifies all sub-components are defined', () => {
     expect(SchedulerGrid).toBeDefined();
     expect(typeof SchedulerGrid).toBe('function');
     expect(SpaceRow).toBeDefined();
-    expect(TimeCell).toBeDefined();
     expect(ScheduledRequestOverlay).toBeDefined();
     expect(GroupHeader).toBeDefined();
   });
@@ -426,8 +424,8 @@ describe('SchedulerGrid', () => {
         </Wrapper>
       );
 
-      expect(screen.getByText('Room A101')).toBeInTheDocument();
       await act(async () => {});
+      expect(screen.getByText('Room A101')).toBeInTheDocument();
     });
 
     it('renders time cursor that can be dragged', async () => {
@@ -450,8 +448,8 @@ describe('SchedulerGrid', () => {
 
       // The time cursor area exists (pointer-events-none container with draggable child)
       // Just verify component renders without errors
-      expect(screen.getByText('Room A101')).toBeInTheDocument();
       await act(async () => {});
+      expect(screen.getByText('Room A101')).toBeInTheDocument();
     });
 
     it('works without onAnchorChange (edge scroll disabled)', async () => {
@@ -473,8 +471,8 @@ describe('SchedulerGrid', () => {
         </Wrapper>
       );
 
-      expect(screen.getByText('Room A101')).toBeInTheDocument();
       await act(async () => {});
+      expect(screen.getByText('Room A101')).toBeInTheDocument();
     });
 
     it('supports all time scales for edge scrolling', () => {

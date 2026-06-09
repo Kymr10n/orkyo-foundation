@@ -107,6 +107,18 @@ public static class CapabilityFactory
                 rows.Add((qc.Id, criteria[SkillCatalog.CleanRoom], "true"));
             if (cohort.SpaceByRoomCode.TryGetValue("PAINT", out var paint))
                 rows.Add((paint.Id, criteria[SkillCatalog.Ventilated], "true"));
+
+            // Rooms inherit the required-skill capabilities of the archetypes that use them so
+            // that correctly-routed space assignments satisfy their jobs' requirements.
+            foreach (var arch in cohort.Facility.Archetypes)
+            {
+                if (!cohort.SpaceByRoomCode.TryGetValue(arch.RoomCode, out var room)) continue;
+                foreach (var skillKey in arch.RequiredSkills)
+                {
+                    if (rows.Any(r => r.ResourceId == room.Id && r.CriterionId == criteria[skillKey])) continue;
+                    rows.Add((room.Id, criteria[skillKey], ValueFor(skillKey, faker)));
+                }
+            }
         }
 
         using var writer = await conn.BeginBinaryImportAsync(

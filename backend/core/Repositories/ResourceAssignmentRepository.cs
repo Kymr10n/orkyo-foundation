@@ -11,6 +11,9 @@ public interface IResourceAssignmentRepository
     Task<ResourceAssignmentInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default);
     Task<List<ResourceAssignmentInfo>> GetByResourceAsync(Guid resourceId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    Task<List<ResourceAssignmentInfo>> GetByResourceTypeAsync(string resourceTypeKey, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    /// <summary>Active (non-cancelled) assignments for many resources overlapping the window — for batch validation.</summary>
+    Task<List<ResourceAssignmentInfo>> GetActiveByResourcesAsync(IReadOnlyList<Guid> resourceIds, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     Task<List<ResourceAssignmentInfo>> GetOverlappingActiveAsync(Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default);
     Task<decimal> GetTotalAllocatedPercentAsync(Guid resourceId, DateTime startUtc, DateTime endUtc, Guid? excludeAssignmentId = null, CancellationToken ct = default);
     Task<bool> CancelAsync(Guid id, CancellationToken ct = default);
@@ -99,6 +102,45 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
             p =>
             {
                 p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                p.AddWithValue("fromUtc", fromUtc);
+                p.AddWithValue("toUtc", toUtc);
+            }, Map, ct);
+    }
+
+    public async Task<List<ResourceAssignmentInfo>> GetByResourceTypeAsync(
+        string resourceTypeKey, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} {FromJoin} " +
+            "WHERE rt.key = @typeKey " +
+            "  AND ra.assignment_status != @cancelled " +
+            "  AND ra.start_utc < @toUtc AND ra.end_utc > @fromUtc " +
+            "ORDER BY ra.resource_id, ra.start_utc",
+            p =>
+            {
+                p.AddWithValue("typeKey", resourceTypeKey);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                p.AddWithValue("fromUtc", fromUtc);
+                p.AddWithValue("toUtc", toUtc);
+            }, Map, ct);
+    }
+
+    public async Task<List<ResourceAssignmentInfo>> GetActiveByResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        return await db.QueryListAsync(
+            $"SELECT {SelectColumns} {FromJoin} " +
+            "WHERE ra.resource_id = ANY(@ids) " +
+            "  AND ra.assignment_status != @cancelled " +
+            "  AND ra.start_utc < @toUtc AND ra.end_utc > @fromUtc " +
+            "ORDER BY ra.resource_id, ra.start_utc",
+            p =>
+            {
+                p.AddWithValue("ids", resourceIds.ToArray());
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
                 p.AddWithValue("fromUtc", fromUtc);
                 p.AddWithValue("toUtc", toUtc);

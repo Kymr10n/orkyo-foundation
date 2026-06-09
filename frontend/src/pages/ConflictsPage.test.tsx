@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConflictsPage } from '@foundation/src/pages/ConflictsPage';
-import { useConflicts } from '@foundation/src/hooks/useConflicts';
+import { useConflictRegistry } from '@foundation/src/hooks/useConflictRegistry';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 
@@ -34,21 +34,16 @@ const mockConflicts = new Map<string, Conflict[]>([
   ]],
 ]);
 
-// Mock useConflicts — the new source of conflict data
-vi.mock('@foundation/src/hooks/useConflicts', () => ({
-  useConflicts: vi.fn(() => ({
-    conflicts: mockConflicts,
-    conflictingRequestIds: new Set(['req-1', 'req-2']),
-    schedulingValidation: new Map(),
-    spaceCapacities: new Map(), capabilityConflicts: new Map(),
-  })),
+// Mock the tenant-wide conflicts registry — ConflictsPage's source of conflicts + rows.
+vi.mock('@foundation/src/hooks/useConflictRegistry', () => ({
+  useConflictRegistry: vi.fn(() => ({ conflictsByRequest: mockConflicts })),
+  useConflictedRequests: vi.fn(() => ({ data: mockRequests, isLoading: false })),
 }));
 
-// Mock useRequests — still called directly in ConflictsPage for request details
-vi.mock('@foundation/src/hooks/useUtilization', () => ({
-  useRequests: vi.fn(() => ({ data: mockRequests, isLoading: false })),
-  useSpaces: vi.fn(() => ({ data: [], isLoading: false })),
-}));
+// Only `conflictsByRequest` is consumed by ConflictsPage; cast past the full UseQueryResult shape.
+const mockRegistry = (conflictsByRequest: Map<string, Conflict[]>) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.mocked(useConflictRegistry).mockReturnValue({ conflictsByRequest } as any);
 
 const mockOpen = vi.fn();
 vi.mock('@foundation/src/components/requests/useRequestEditor', () => ({
@@ -65,6 +60,7 @@ const createWrapper = () => {
 describe('ConflictsPage', () => {
   beforeEach(() => {
     mockOpen.mockClear();
+    mockRegistry(mockConflicts);
   });
 
   describe('with conflicts', () => {
@@ -112,44 +108,27 @@ describe('ConflictsPage', () => {
   });
 
   describe('without conflicts', () => {
-    const setupEmpty = async () => {
-      const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
-      vi.mocked(useConflicts).mockReturnValue({
-        conflicts: new Map(),
-        conflictingRequestIds: new Set(),
-        schedulingValidation: new Map(),
-        spaceCapacities: new Map(), capabilityConflicts: new Map(),
-      });
-    };
+    beforeEach(() => mockRegistry(new Map()));
 
-    it('should display empty state message', async () => {
-      await setupEmpty();
+    it('should display empty state message', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText('No conflicts to display')).toBeInTheDocument();
     });
 
-    it('should display success message in description', async () => {
-      await setupEmpty();
+    it('should display success message in description', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText(/No conflicts detected. All scheduled requests meet their requirements./i)).toBeInTheDocument();
     });
 
-    it('should not render any conflict items', async () => {
-      await setupEmpty();
+    it('should not render any conflict items', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.queryByText('Conference Room Request')).not.toBeInTheDocument();
     });
   });
 
   describe('partial conflicts', () => {
-    it('should use singular form for single conflict', async () => {
-      const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
-      vi.mocked(useConflicts).mockReturnValue({
-        conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded', severity: 'error', message: 'Single conflict' }]]]),
-        conflictingRequestIds: new Set(['req-1']),
-        schedulingValidation: new Map(),
-        spaceCapacities: new Map(), capabilityConflicts: new Map(),
-      });
+    it('should use singular form for single conflict', () => {
+      mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded', severity: 'error', message: 'Single conflict' }]]]));
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText(/1 conflict found/i)).toBeInTheDocument();
     });
@@ -180,16 +159,6 @@ describe('ConflictsPage', () => {
   });
 
   describe('interaction', () => {
-    beforeEach(async () => {
-      const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
-      vi.mocked(useConflicts).mockReturnValue({
-        conflicts: mockConflicts,
-        conflictingRequestIds: new Set(['req-1', 'req-2']),
-        schedulingValidation: new Map(),
-        spaceCapacities: new Map(), capabilityConflicts: new Map(),
-      });
-    });
-
     it('conflict rows have role="button"', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
       const buttons = screen.getAllByRole('button');
@@ -245,15 +214,7 @@ describe('ConflictsPage', () => {
         }]],
       ]);
 
-      beforeEach(async () => {
-        const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
-        vi.mocked(useConflicts).mockReturnValue({
-          conflicts: overlapConflicts,
-          conflictingRequestIds: new Set(['req-1']),
-          schedulingValidation: new Map(),
-          spaceCapacities: new Map(), capabilityConflicts: new Map(),
-        });
-      });
+      beforeEach(() => mockRegistry(overlapConflicts));
 
       it('renders "View other request" link when peerRequestId is set', () => {
         render(<ConflictsPage />, { wrapper: createWrapper() });
@@ -262,14 +223,8 @@ describe('ConflictsPage', () => {
         ).toBeInTheDocument();
       });
 
-      it('does not render a peer link for non-overlap conflicts', async () => {
-        const { useConflicts } = await import('@foundation/src/hooks/useConflicts');
-        vi.mocked(useConflicts).mockReturnValue({
-          conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'error' as const, message: 'Capacity exceeded' }]]]),
-          conflictingRequestIds: new Set(['req-1']),
-          schedulingValidation: new Map(),
-          spaceCapacities: new Map(), capabilityConflicts: new Map(),
-        });
+      it('does not render a peer link for non-overlap conflicts', () => {
+        mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'error' as const, message: 'Capacity exceeded' }]]]));
         render(<ConflictsPage />, { wrapper: createWrapper() });
         expect(screen.queryByText(/View other request/)).not.toBeInTheDocument();
       });
@@ -299,13 +254,8 @@ describe('ConflictsPage', () => {
     ];
 
     it.each(kindCases)('kind "%s" renders label "%s"', (kind, label) => {
-      vi.mocked(useConflicts).mockReturnValue({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        conflicts: new Map([['req-1', [{ id: 'c1', kind: kind as any, severity: 'error' as const, message: 'msg' }]]]) as any,
-        conflictingRequestIds: new Set(['req-1']),
-        schedulingValidation: new Map(),
-        spaceCapacities: new Map(), capabilityConflicts: new Map(),
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockRegistry(new Map([['req-1', [{ id: 'c1', kind: kind as any, severity: 'error' as const, message: 'msg' }]]]));
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText(label)).toBeInTheDocument();
     });
@@ -313,12 +263,7 @@ describe('ConflictsPage', () => {
 
   describe('getSeverityIcon — default (info) case', () => {
     it('renders content for unknown severity without crashing', () => {
-      vi.mocked(useConflicts).mockReturnValue({
-        conflicts: new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'info' as unknown as 'error', message: 'info msg' }]]]),
-        conflictingRequestIds: new Set(['req-1']),
-        schedulingValidation: new Map(),
-        spaceCapacities: new Map(), capabilityConflicts: new Map(),
-      });
+      mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'info' as unknown as 'error', message: 'info msg' }]]]));
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.getByText('info msg')).toBeInTheDocument();
     });

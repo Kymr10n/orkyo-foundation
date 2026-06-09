@@ -27,6 +27,7 @@ export const API_PATHS = {
 
   // Spaces
   spaces: (siteId: string) => `/api/sites/${siteId}/spaces`,
+  siteRequests: (siteId: string) => `/api/sites/${siteId}/requests`,
   space: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}`,
   spaceCapabilities: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}/capabilities`,
   spaceCapability: (siteId: string, resourceId: string, capabilityId: string) =>
@@ -41,6 +42,7 @@ export const API_PATHS = {
 
   // Requests
   REQUESTS: '/api/requests',
+  CONFLICTS: '/api/conflicts',
   request: (requestId: string) => `/api/requests/${requestId}`,
   requestSchedule: (requestId: string) => `/api/requests/${requestId}/schedule`,
   requestRequirements: (requestId: string) => `/api/requests/${requestId}/requirements`,
@@ -58,6 +60,7 @@ export const API_PATHS = {
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
   resourceUtilization: (resourceId: string) => `/api/resources/${resourceId}/utilization`,
+  UTILIZATION_BY_RESOURCE: '/api/utilization/by-resource',
   resourceCandidateRequests: (resourceId: string) => `/api/resources/${resourceId}/candidate-requests`,
   resourceAssignments: (resourceId: string) => `/api/resources/${resourceId}/assignments`,
   resourceCapabilities: (resourceId: string) => `/api/resources/${resourceId}/capabilities`,

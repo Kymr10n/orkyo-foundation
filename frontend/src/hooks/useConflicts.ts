@@ -1,7 +1,8 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useScheduledRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { getFetchWindow, CONFLICT_CHECK_DELAY_MS } from "@foundation/src/components/utilization/time-grid-utils";
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { capabilityConflictsFromValidation } from "@foundation/src/domain/scheduling/assignment-conflicts";
@@ -29,7 +30,11 @@ import type { Conflict } from "@foundation/src/types/requests";
  */
 export function useConflicts() {
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
-  const { data: requests = [] } = useRequests();
+  const scale = useAppStore((s) => s.scale);
+  const anchorTs = useAppStore((s) => s.anchorTs);
+  // Validate only the grid's scoped, buffered window (deduped with UtilizationPage's fetch).
+  const { from, to } = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
+  const { data: requests = [] } = useScheduledRequests(selectedSiteId, from, to);
   const { data: spaces = [] } = useSpaces(selectedSiteId);
 
   const spaceCapacities = useMemo(
@@ -56,7 +61,9 @@ export function useConflicts() {
         resourceId: assignment.resourceId,
         startUtc: assignment.startUtc,
         endUtc: assignment.endUtc,
-        excludeAssignmentId: assignment.id,
+        // Optimistic assignments don't exist in the DB yet — omit excludeAssignmentId
+        // so the backend doesn't receive an unconfirmed id where it expects a committed Guid.
+        ...(assignment.isOptimistic ? {} : { excludeAssignmentId: assignment.id }),
       }];
     });
   }, [requests]);
@@ -68,6 +75,15 @@ export function useConflicts() {
       .sort(),
     [validationItems],
   );
+
+  // Gate the batch behind a one-shot timer so the initial validation runs after
+  // first paint, not during the load burst. Set once and never reset — later
+  // re-validations (after scheduling changes) still fire promptly.
+  const [conflictCheckReady, setConflictCheckReady] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setConflictCheckReady(true), CONFLICT_CHECK_DELAY_MS);
+    return () => clearTimeout(id);
+  }, []);
 
   // Async capability validation — backend authoritative; React Query caches it.
   const { data: capabilityConflicts } = useQuery({
@@ -83,8 +99,9 @@ export function useConflicts() {
       }
       return map;
     },
-    enabled: validationItems.length > 0,
+    enabled: conflictCheckReady && validationItems.length > 0,
     staleTime: 500,
+    placeholderData: keepPreviousData,
   });
 
   // Merge scheduling + capability conflicts into a single map

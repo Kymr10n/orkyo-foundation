@@ -12,6 +12,11 @@ vi.mock('@dnd-kit/sortable', () => ({
   useSortable: (args: unknown) => mockUseSortable(args),
 }));
 
+const mockUseDroppable = vi.fn();
+vi.mock('@dnd-kit/core', () => ({
+  useDroppable: (args: unknown) => mockUseDroppable(args),
+}));
+
 vi.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => 'translate3d(0,0,0)' } },
 }));
@@ -19,19 +24,12 @@ vi.mock('@dnd-kit/utilities', () => ({
 const mockSelectSpaceOverlapCount = vi.fn();
 vi.mock('@foundation/src/domain/scheduling/schedule-selectors', () => ({
   selectSpaceOverlapCount: (...args: unknown[]) => mockSelectSpaceOverlapCount(...args),
+  // Real implementation — SpaceRow uses it to window overlays to the view.
+  isOutsideView: (entry: { startMs: number; endMs: number }, vs: number, ve: number) =>
+    entry.endMs <= vs || entry.startMs >= ve,
 }));
 
 // ---- Stub child components so this test stays bounded to SpaceRow's own behavior ----
-vi.mock('./TimeCell', () => ({
-  TimeCell: ({ column, isOffTime }: { column: TimeColumn; isOffTime?: boolean }) => (
-    <div
-      data-testid="time-cell"
-      data-label={column.label}
-      data-off-time={isOffTime ? 'true' : 'false'}
-    />
-  ),
-}));
-
 vi.mock('./ScheduledRequestOverlay', () => ({
   ScheduledRequestOverlay: ({
     request,
@@ -125,7 +123,7 @@ interface OffTimeRangeFixture {
 }
 
 function renderRow({
-  requests = [],
+  spaceRequests = [],
   previewEntries = [],
   overlapCount = 1,
   isDragging = false,
@@ -133,7 +131,7 @@ function renderRow({
   columns,
   onRequestClick = vi.fn(),
 }: {
-  requests?: Request[];
+  spaceRequests?: Request[];
   previewEntries?: PreviewEntry[];
   overlapCount?: number;
   isDragging?: boolean;
@@ -155,10 +153,9 @@ function renderRow({
     <SpaceRow
       space={baseSpace}
       columns={columns ?? [makeColumn('08'), makeColumn('09'), makeColumn('10')]}
-      requests={requests}
+      spaceRequests={spaceRequests}
       scheduleIndex={buildIndex(previewEntries)}
       validation={emptyValidation}
-      timeCursorTs={new Date('2026-01-01T08:30:00Z')}
       onRequestClick={onRequestClick}
       offTimeRanges={offTimeRanges as never}
     />,
@@ -166,10 +163,19 @@ function renderRow({
   return { ...result, onRequestClick };
 }
 
+// Cells are plain presentational divs (`min-w-[60px]`) rendered by TimelineRow.
+function getCells(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>('[class*="min-w-[60px]"]'),
+  );
+}
+
 describe('SpaceRow', () => {
   beforeEach(() => {
     mockUseSortable.mockReset();
     mockSelectSpaceOverlapCount.mockReset();
+    mockUseDroppable.mockReset();
+    mockUseDroppable.mockReturnValue({ setNodeRef: vi.fn(), isOver: false });
   });
 
   it('registers a sortable for the space row', () => {
@@ -181,38 +187,69 @@ describe('SpaceRow', () => {
     });
   });
 
+  it('registers a single row-level droppable carrying the column start times', () => {
+    renderRow({ columns: [makeColumn('08'), makeColumn('09'), makeColumn('10')] });
+    expect(mockUseDroppable).toHaveBeenCalledTimes(1);
+    expect(mockUseDroppable).toHaveBeenCalledWith({
+      id: 'track-space-1',
+      data: {
+        type: 'space-track',
+        resourceId: 'space-1',
+        columnStartsMs: [
+          makeColumn('08').start.getTime(),
+          makeColumn('09').start.getTime(),
+          makeColumn('10').start.getTime(),
+        ],
+      },
+    });
+  });
+
   it('renders space code and name in the label column', () => {
     const { getByText } = renderRow();
     expect(getByText('CRA')).toBeInTheDocument();
     expect(getByText('Conference Room A')).toBeInTheDocument();
   });
 
-  it('renders one TimeCell per column', () => {
-    const { getAllByTestId } = renderRow();
-    expect(getAllByTestId('time-cell')).toHaveLength(3);
+  it('renders one cell per column', () => {
+    const { container } = renderRow();
+    expect(getCells(container)).toHaveLength(3);
   });
 
-  it('renders ScheduledRequestOverlay only for preview entries whose request belongs to this space', () => {
+  it('renders ScheduledRequestOverlay for preview entries whose request is in spaceRequests', () => {
     const requestInSpace = makeRequest({ id: 'req-1', name: 'Mine' });
-    const requestOther = makeRequest({ id: 'req-other', name: 'Other', assignments: [spaceAssignment('space-2')] });
     const previewEntries = [
       makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' }),
-      // entry whose request is missing from the requests array → skipped
+      // entry whose request is absent from spaceRequests → skipped
       makePreviewEntry({ requestId: 'req-missing', resourceId: 'space-1' }),
     ];
     const { queryByTestId } = renderRow({
-      requests: [requestInSpace, requestOther],
+      spaceRequests: [requestInSpace],
       previewEntries,
     });
     expect(queryByTestId('overlay-req-1')).toBeInTheDocument();
     expect(queryByTestId('overlay-req-missing')).not.toBeInTheDocument();
-    expect(queryByTestId('overlay-req-other')).not.toBeInTheDocument();
+  });
+
+  it('does not render overlays for entries outside the visible time window', () => {
+    // Default columns span [08:00, 10:00); this entry sits at 11:00–12:00.
+    const { queryByTestId } = renderRow({
+      spaceRequests: [makeRequest({ id: 'req-1' })],
+      previewEntries: [
+        makePreviewEntry({
+          requestId: 'req-1',
+          resourceId: 'space-1',
+          startMs: Date.parse('2026-01-01T11:00:00Z'),
+          endMs: Date.parse('2026-01-01T12:00:00Z'),
+        }),
+      ],
+    });
+    expect(queryByTestId('overlay-req-1')).not.toBeInTheDocument();
   });
 
   it('forwards request clicks from overlays to onRequestClick', () => {
     const onRequestClick = vi.fn();
     const { getByTestId } = renderRow({
-      requests: [makeRequest({ id: 'req-1' })],
+      spaceRequests: [makeRequest({ id: 'req-1' })],
       previewEntries: [makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' })],
       onRequestClick,
     });
@@ -239,13 +276,13 @@ describe('SpaceRow', () => {
     expect(root.style.opacity).toBe('0.5');
   });
 
-  it('marks TimeCells whose column overlaps an off-time range as off-time', () => {
+  it('tints cells whose column overlaps an off-time range as off-time', () => {
     const cols: TimeColumn[] = [
       { start: new Date('2026-01-01T08:00:00Z'), end: new Date('2026-01-01T09:00:00Z'), label: '08' },
       { start: new Date('2026-01-01T09:00:00Z'), end: new Date('2026-01-01T10:00:00Z'), label: '09' },
       { start: new Date('2026-01-01T10:00:00Z'), end: new Date('2026-01-01T11:00:00Z'), label: '10' },
     ];
-    const { getAllByTestId } = renderRow({
+    const { container } = renderRow({
       columns: cols,
       offTimeRanges: [
         {
@@ -257,17 +294,17 @@ describe('SpaceRow', () => {
         },
       ],
     });
-    const cells = getAllByTestId('time-cell');
-    expect(cells[0].getAttribute('data-off-time')).toBe('false');
-    expect(cells[1].getAttribute('data-off-time')).toBe('true');
-    expect(cells[2].getAttribute('data-off-time')).toBe('false');
+    const cells = getCells(container);
+    expect(cells[0].className).not.toMatch(/bg-destructive\/15/);
+    expect(cells[1].className).toMatch(/bg-destructive\/15/);
+    expect(cells[2].className).not.toMatch(/bg-destructive\/15/);
   });
 
-  it('does not mark TimeCells as off-time when the range applies to a different resource', () => {
+  it('does not tint cells as off-time when the range applies to a different resource', () => {
     const cols: TimeColumn[] = [
       { start: new Date('2026-01-01T09:00:00Z'), end: new Date('2026-01-01T10:00:00Z'), label: '09' },
     ];
-    const { getAllByTestId } = renderRow({
+    const { container } = renderRow({
       columns: cols,
       offTimeRanges: [
         {
@@ -279,6 +316,6 @@ describe('SpaceRow', () => {
         },
       ],
     });
-    expect(getAllByTestId('time-cell')[0].getAttribute('data-off-time')).toBe('false');
+    expect(getCells(container)[0].className).not.toMatch(/bg-destructive\/15/);
   });
 });

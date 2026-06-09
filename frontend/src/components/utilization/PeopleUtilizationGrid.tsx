@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import {
-  getResourceUtilization,
+  getUtilizationByResource,
   type ResourceUtilizationBucket,
 } from '@foundation/src/lib/api/resource-utilization-api';
 import { getPersonProfile, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
@@ -12,11 +12,14 @@ import {
   type ResourceGroupInfo,
 } from '@foundation/src/lib/api/resource-groups-api';
 import {
-  getAssignmentsByResource,
+  getAssignmentsByResourceType,
+  validateAssignmentsBatch,
   type ResourceAssignmentInfo,
+  type ValidateResourceAssignmentRequest,
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { PersonTimelineRow } from './PersonTimelineRow';
 import { PersonAssignmentDialog } from './PersonAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
@@ -24,6 +27,7 @@ import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './sch
 import type { PeopleByGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
+  CONFLICT_CHECK_DELAY_MS,
   generateTimeColumns,
   overlapsOffTimeRange,
   utilizationGranularityForScale,
@@ -140,15 +144,19 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     })),
   });
 
-  // 4. Per-person utilization
-  const utilQueries = useQueries({
-    queries: people.map((p) => ({
-      queryKey: ['resource-utilization', p.id, from.toISOString(), to.toISOString(), granularity],
-      queryFn: () => getResourceUtilization(p.id, from, to, granularity),
-      staleTime: 60_000,
-      placeholderData: (prev: typeof p | undefined) => prev,
-    })),
+  // 4. Utilization for every person in a single request (replaces the old
+  //    one-query-per-person fan-out). Grouped into a resourceId→buckets map.
+  const { data: utilizationByResource = [], isLoading: utilizationLoading } = useQuery({
+    queryKey: ['utilization-by-resource', 'person', from.toISOString(), to.toISOString(), granularity],
+    queryFn: () => getUtilizationByResource(from, to, granularity, 'person'),
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
   });
+  const bucketsByResource = useMemo(() => {
+    const map = new Map<string, ResourceUtilizationBucket[]>();
+    for (const r of utilizationByResource) map.set(r.resourceId, r.buckets);
+    return map;
+  }, [utilizationByResource]);
 
   // 5. Per-person profile (for job title in the label cell)
   const profileQueries = useQueries({
@@ -159,13 +167,60 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     })),
   });
 
-  // 6. Per-person assignments in the view window — drives the per-segment count badge.
-  const assignmentQueries = useQueries({
-    queries: people.map((p) => ({
-      queryKey: ['resource-assignments', p.id, from.toISOString(), to.toISOString()],
-      queryFn: () => getAssignmentsByResource(p.id, from, to).catch(() => [] as ResourceAssignmentInfo[]),
-      staleTime: 60_000,
-    })),
+  // 6. Assignments for every person in the window, in one request — drives the
+  //    per-segment count badge. Grouped into a resourceId→assignments map.
+  const { data: allAssignmentsFlat = [] } = useQuery({
+    queryKey: ['resource-assignments-by-type', 'person', from.toISOString(), to.toISOString()],
+    queryFn: () => getAssignmentsByResourceType('person', from, to),
+    staleTime: 60_000,
+  });
+  const assignmentsByResource = useMemo(() => {
+    const map = new Map<string, ResourceAssignmentInfo[]>();
+    for (const a of allAssignmentsFlat) {
+      const list = map.get(a.resourceId) ?? [];
+      list.push(a);
+      map.set(a.resourceId, list);
+    }
+    return map;
+  }, [allAssignmentsFlat]);
+
+  // 7. Batch-validate all assignments to surface capability conflicts on bars.
+  //    Deferred by CONFLICT_CHECK_DELAY_MS so the grid renders immediately and
+  //    conflict badges appear in the background — this call is decorative only.
+  const [conflictCheckReady, setConflictCheckReady] = useState(false);
+  useEffect(() => {
+    if (allAssignmentsFlat.length === 0) {
+      setConflictCheckReady(false);
+      return;
+    }
+    const id = setTimeout(() => setConflictCheckReady(true), CONFLICT_CHECK_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [allAssignmentsFlat.length]);
+
+  const { data: conflictedAssignmentIds = new Set<string>() } = useQuery({
+    queryKey: ['assignment-capability-conflicts', allAssignmentsFlat.map((a) => a.id)],
+    queryFn: async (): Promise<Set<string>> => {
+      const items: ValidateResourceAssignmentRequest[] = allAssignmentsFlat.map((a) => ({
+        requestId: a.requestId,
+        resourceId: a.resourceId,
+        startUtc: a.startUtc,
+        endUtc: a.endUtc,
+        allocationPercent: a.allocationPercent,
+        excludeAssignmentId: a.id,
+      }));
+      const results = await validateAssignmentsBatch(items);
+      const conflicted = new Set<string>();
+      for (const item of results) {
+        if (item.result.blockers.some((b) => b.code === 'capability.missing')) {
+          allAssignmentsFlat
+            .filter((a) => a.requestId === item.requestId && a.resourceId === item.resourceId)
+            .forEach((a) => conflicted.add(a.id));
+        }
+      }
+      return conflicted;
+    },
+    enabled: conflictCheckReady,
+    staleTime: 60_000,
   });
 
   // Build a personId → utilization-query-index lookup once.
@@ -201,12 +256,15 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
       p.name.toLowerCase().includes(search.toLowerCase());
 
     const result: PeopleByGroup[] = [];
+    const addedPersonIds = new Set<string>();
     for (const g of sortedGroups) {
       const ids = groupIdToMemberIds.get(g.id) ?? new Set();
       const members = Array.from(ids)
         .map((id) => peopleById.get(id))
         .filter((p): p is ResourceInfo => Boolean(p))
+        .filter((p) => !addedPersonIds.has(p.id))
         .filter(filterFn);
+      members.forEach((p) => addedPersonIds.add(p.id));
       // Show empty groups too, so users see their structure — match Spaces grid.
       result.push({
         groupId: g.id,
@@ -230,11 +288,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   }, [people, groups, memberQueries, search]);
 
   if (peopleLoading) {
-    return (
-      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-        Loading people…
-      </div>
-    );
+    return <LoadingSpinner fullScreen={false} message="Loading people…" />;
   }
 
   if (people.length === 0) {
@@ -282,18 +336,17 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
         getRowId={(p) => p.id}
         emptyMessage="No people match your search."
         toolbar={toolbar}
-        className="h-full flex flex-col overflow-hidden rounded-xl border bg-background m-3"
+        className="h-full flex flex-col overflow-hidden rounded-xl border bg-background"
         testId="people-utilization-grid"
         renderRow={(person) => {
           const pIdx = personIndex.get(person.id) ?? -1;
-          const q = pIdx >= 0 ? utilQueries[pIdx] : undefined;
-          const buckets = q?.data?.buckets ?? [];
-          const isLoadingRow = !!q?.isLoading;
+          const buckets = bucketsByResource.get(person.id) ?? [];
+          const isLoadingRow = utilizationLoading;
           const profile = (pIdx >= 0
             ? (profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined)
             : null);
           const overallPct = overallPercent(buckets, person.id, offTimes);
-          const assignments = (pIdx >= 0 ? (assignmentQueries[pIdx]?.data ?? []) : []) as ResourceAssignmentInfo[];
+          const assignments = assignmentsByResource.get(person.id) ?? [];
           const segments = mergeBucketsToSegments(buckets, person.id, offTimes);
           return (
             <PersonTimelineRow
@@ -306,6 +359,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
               viewEndMs={viewEndMs}
               columns={columns}
               assignments={assignments}
+              conflictedAssignmentIds={conflictedAssignmentIds}
               onSegmentClick={(p, seg) =>
                 setDialogState({
                   personId: p.id,

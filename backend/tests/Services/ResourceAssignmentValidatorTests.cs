@@ -13,6 +13,7 @@ public class ResourceAssignmentValidatorTests
     private readonly Mock<IResourceRepository> _resourceRepoMock = new();
     private readonly Mock<IResourceAssignmentRepository> _assignmentRepoMock = new();
     private readonly Mock<ICapabilityMatcher> _capabilityMatcherMock = new();
+    private readonly Mock<IResourceCapabilityRepository> _capabilityRepoMock = new();
     private readonly Mock<IAvailabilityResolver> _availabilityResolverMock = new();
     private readonly Mock<IRequestRepository> _requestRepoMock = new();
     private readonly Mock<ISchedulingRepository> _schedulingRepoMock = new();
@@ -30,10 +31,29 @@ public class ResourceAssignmentValidatorTests
             .Setup(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<BlockedPeriod>());
 
+        // Safe empty defaults for the bulk methods the batch path uses, so batch tests only
+        // override what they care about (and single-item tests never hit them).
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceInfo>());
+        _requestRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RequestInfo>());
+        _capabilityRepoMock
+            .Setup(r => r.GetByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceCapabilityInfo>());
+        _assignmentRepoMock
+            .Setup(r => r.GetActiveByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceAssignmentInfo>());
+        _schedulingRepoMock
+            .Setup(s => s.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, Guid>());
+
         _validator = new ResourceAssignmentValidator(
             _resourceRepoMock.Object,
             _assignmentRepoMock.Object,
             _capabilityMatcherMock.Object,
+            _capabilityRepoMock.Object,
             _availabilityResolverMock.Object,
             _requestRepoMock.Object,
             _schedulingRepoMock.Object);
@@ -426,6 +446,34 @@ public class ResourceAssignmentValidatorTests
     }
 
     [Fact]
+    public async Task ValidateBatchAsync_PreloadsInBulk_NotPerItem()
+    {
+        // The batch must NOT fan out per-item single-row queries (the old N+1) — it preloads
+        // each category once via the bulk repo methods.
+        const int itemCount = 5;
+        var resources = Enumerable.Range(0, itemCount).Select(_ => CreateResource()).ToList();
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resources);
+
+        var requests = resources.Select(r => CreateValidationRequest(resourceId: r.Id)).ToList();
+
+        var results = await _validator.ValidateBatchAsync(requests);
+
+        Assert.Equal(itemCount, results.Count);
+        // No per-item single-row fetches.
+        _resourceRepoMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>()), Times.Never);
+        _assignmentRepoMock.Verify(
+            a => a.GetOverlappingActiveAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<Guid?>()),
+            Times.Never);
+        // One bulk fetch per category instead.
+        _resourceRepoMock.Verify(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()), Times.Once);
+        _assignmentRepoMock.Verify(
+            a => a.GetActiveByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task ValidateBatchAsync_ReturnsOneCorrelatedResultPerItem()
     {
         // One request requires a capability the resource lacks (→ blocker); the other
@@ -438,10 +486,12 @@ public class ResourceAssignmentValidatorTests
         var failing = CreateValidationRequest(resourceId: failingResource.Id, requestId: failingRequestId);
         var clean = CreateValidationRequest(resourceId: cleanResource.Id, requestId: cleanRequestId);
 
-        _resourceRepoMock.Setup(r => r.GetByIdAsync(failingResource.Id)).ReturnsAsync(failingResource);
-        _resourceRepoMock.Setup(r => r.GetByIdAsync(cleanResource.Id)).ReturnsAsync(cleanResource);
-        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(It.IsAny<Guid>())).ReturnsAsync((Guid?)null);
+        // Batch preloads via the bulk methods.
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceInfo> { failingResource, cleanResource });
 
+        var requirement = CreateRequirement();
         var failingInfo = new RequestInfo
         {
             Id = failingRequestId,
@@ -449,18 +499,21 @@ public class ResourceAssignmentValidatorTests
             PlanningMode = PlanningMode.Leaf,
             Status = RequestStatus.Planned,
             SchedulingSettingsApply = false,
-            Requirements = new List<RequestRequirementInfo> { CreateRequirement() },
+            Requirements = new List<RequestRequirementInfo> { requirement },
             Assignments = new List<ResourceAssignmentInfo>(),
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Hours,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        _requestRepoMock.Setup(r => r.GetByIdAsync(failingRequestId, true)).ReturnsAsync(failingInfo);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(cleanRequestId, true))
-            .ReturnsAsync((RequestInfo?)null); // no requirements → clean
-        _capabilityMatcherMock.Setup(c => c.ResourceSatisfiesRequirementAsync(
-            failingResource.Id, It.IsAny<RequestRequirementInfo>())).ReturnsAsync(false);
+        // Only the failing request has requirements; the clean one is absent from the bulk result.
+        _requestRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RequestInfo> { failingInfo });
+        // The failing resource's preloaded capabilities do not satisfy the requirement.
+        _capabilityMatcherMock
+            .Setup(c => c.Satisfies(It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), requirement))
+            .Returns(false);
 
         var results = await _validator.ValidateBatchAsync(new[] { failing, clean });
 

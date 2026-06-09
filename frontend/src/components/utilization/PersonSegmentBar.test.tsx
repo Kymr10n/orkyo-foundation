@@ -21,6 +21,7 @@ function renderBar(
   segment: PersonUtilizationSegment,
   onClick = vi.fn(),
   assignmentCount?: number,
+  hasConflict?: boolean,
 ) {
   render(
     <PersonSegmentBar
@@ -29,6 +30,7 @@ function renderBar(
       viewStartMs={VIEW_START}
       viewEndMs={VIEW_END}
       assignmentCount={assignmentCount}
+      hasConflict={hasConflict}
       onClick={onClick}
     />,
   );
@@ -101,14 +103,14 @@ describe('PersonSegmentBar', () => {
     renderBar(seg({ status: 'partial', utilizationPercent: 65 }));
     const fill = screen.getByTestId('segment-fill');
     expect(fill).toHaveStyle({ width: '65%' });
-    expect(fill.className).toMatch(/bg-amber-400/);
+    expect(fill.className).toMatch(/bg-amber-500/);
   });
 
   it('fills the meter fully and red for an overbooked segment', () => {
     renderBar(seg({ status: 'overbooked', utilizationPercent: 120 }));
     const fill = screen.getByTestId('segment-fill');
     expect(fill).toHaveStyle({ width: '100%' });
-    expect(fill.className).toMatch(/bg-red-500/);
+    expect(fill.className).toMatch(/bg-red-600/);
   });
 
   it('fills the meter fully for an assigned (exclusive) segment', () => {
@@ -153,5 +155,43 @@ describe('PersonSegmentBar', () => {
     expect(screen.getByTestId('person-segment-bar').getAttribute('title')).toContain(
       '2 assignments',
     );
+  });
+
+  it('shows the capability-conflict badge when hasConflict is true', () => {
+    renderBar(seg(), vi.fn(), 0, true);
+    expect(screen.getByTestId('capability-conflict-badge')).toBeInTheDocument();
+  });
+
+  it('does not show the capability-conflict badge by default', () => {
+    renderBar(seg());
+    expect(screen.queryByTestId('capability-conflict-badge')).not.toBeInTheDocument();
+  });
+
+  it('does not show the capability-conflict badge when hasConflict is false', () => {
+    renderBar(seg(), vi.fn(), 1, false);
+    expect(screen.queryByTestId('capability-conflict-badge')).not.toBeInTheDocument();
+  });
+
+  it('includes "capability conflict" in the tooltip when hasConflict is true', () => {
+    renderBar(seg(), vi.fn(), 0, true);
+    const title = screen.getByTestId('person-segment-bar').getAttribute('title');
+    expect(title).toContain('capability conflict');
+  });
+
+  it('shows both the assignment count badge and conflict badge together', () => {
+    renderBar(seg(), vi.fn(), 2, true);
+    expect(screen.getByTestId('assignment-count-badge')).toHaveTextContent('2');
+    expect(screen.getByTestId('capability-conflict-badge')).toBeInTheDocument();
+  });
+
+  it('hides the conflict badge on a narrow segment (below label threshold)', () => {
+    // 6-minute segment in a 3-hour window → ~3.3% width, below the label threshold.
+    renderBar(
+      seg({ start: '2026-01-06T08:00:00Z', end: '2026-01-06T08:06:00Z' }),
+      vi.fn(),
+      0,
+      true,
+    );
+    expect(screen.queryByTestId('capability-conflict-badge')).not.toBeInTheDocument();
   });
 });

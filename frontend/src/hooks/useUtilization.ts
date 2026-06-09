@@ -1,5 +1,7 @@
 import {
     fetchRequests,
+    fetchScheduledRequests,
+    fetchBacklogRequests,
     fetchSpaces,
     scheduleRequest,
     type ScheduleRequestData,
@@ -9,12 +11,34 @@ import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Fetch all requests
+// Fetch all requests (tenant-wide). Kept for non-grid callers; the utilization grid uses the
+// scoped hooks below so it never pulls the whole tenant.
 export function useRequests() {
   return useQuery({
     queryKey: ["requests"],
     queryFn: fetchRequests,
     staleTime: 5 * 60 * 1000, // 5 minutes — mutations update cache directly via onSuccess
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Scheduled requests for the selected site within a buffered window — the grid's bar feed.
+export function useScheduledRequests(siteId: string | null, from: Date, to: Date) {
+  return useQuery({
+    queryKey: ["requests", "scheduled", siteId, from.toISOString(), to.toISOString()],
+    queryFn: () => fetchScheduledRequests(siteId!, from, to),
+    enabled: !!siteId,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Unscheduled backlog (tenant-wide) — drag-to-schedule source for the panel.
+export function useBacklogRequests() {
+  return useQuery({
+    queryKey: ["requests", "backlog"],
+    queryFn: fetchBacklogRequests,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }
@@ -43,13 +67,14 @@ export function useScheduleRequest() {
       data: ScheduleRequestData;
     }) => scheduleRequest(requestId, data),
 
-    // Optimistically update the cache so the bar moves immediately on release.
+    // Optimistically update every cached scheduled-window so the bar moves immediately on
+    // release. Requests now live under scoped keys (["requests","scheduled",site,from,to]), so we
+    // update them all via setQueriesData rather than a single ["requests"] cache.
     onMutate: async ({ requestId, data }) => {
-      // Snapshot first, then apply optimistic update synchronously (within the
-      // microtask) so the very next render already has new values.
-      const previous = queryClient.getQueryData<Request[]>(["requests"]);
+      await queryClient.cancelQueries({ queryKey: ["requests"] });
+      const previous = queryClient.getQueriesData<Request[]>({ queryKey: ["requests", "scheduled"] });
 
-      queryClient.setQueryData<Request[]>(["requests"], (old) =>
+      queryClient.setQueriesData<Request[]>({ queryKey: ["requests", "scheduled"] }, (old) =>
         old?.map((r) =>
           r.id === requestId
             ? (data.resourceId && data.startTs && data.endTs
@@ -58,46 +83,36 @@ export function useScheduleRequest() {
                     ? clearSpaceAssignmentOptimistic(r)
                     : { ...r, startTs: data.startTs ?? r.startTs, endTs: data.endTs ?? r.endTs }))
             : r
-        ) ?? []
+        ) ?? old
       );
-
-      // Cancel in-flight refetches AFTER the optimistic write so no stale GET
-      // can overwrite it. cancelQueries is awaited to guarantee completion.
-      await queryClient.cancelQueries({ queryKey: ["requests"] });
 
       return { previous };
     },
 
-    // Merge the server-confirmed values into the cached entry.
-    // We spread existing `r` first so fields not returned by the schedule
-    // endpoint (e.g. requirements) are preserved, then overlay the server
-    // response so scheduling fields (startTs, endTs, actualDuration, …) are
-    // authoritative. This avoids a follow-up GET that could race and bring
-    // back stale timestamps before the DB write is visible.
+    // Merge the server-confirmed values into the cached entries (spread `r` first so fields not
+    // returned by the schedule endpoint — e.g. requirements — survive).
     onSuccess: (updatedRequest) => {
-      queryClient.setQueryData<Request[]>(["requests"], (old) =>
-        old?.map((r) =>
-          r.id === updatedRequest.id ? { ...r, ...updatedRequest } : r
-        ) ?? []
+      queryClient.setQueriesData<Request[]>({ queryKey: ["requests", "scheduled"] }, (old) =>
+        old?.map((r) => (r.id === updatedRequest.id ? { ...r, ...updatedRequest } : r)) ?? old
       );
     },
 
     onError: (err, _vars, context) => {
-      // Roll back to the snapshot if the mutation fails
-      if (context?.previous) {
-        queryClient.setQueryData(["requests"], context.previous);
+      // Roll back every snapshotted scheduled-window cache.
+      for (const [key, snapshot] of context?.previous ?? []) {
+        queryClient.setQueryData(key, snapshot);
       }
       toast.error("Failed to schedule request", {
         description: err instanceof Error ? err.message : String(err),
       });
     },
 
-    onSettled: (_data, error) => {
-      // On success the cache is already authoritative from onSuccess — no
-      // immediate refetch needed. On failure, sync to confirm the rollback.
-      if (error) {
-        queryClient.invalidateQueries({ queryKey: ["requests"] });
-      }
+    // Always sync after settling: a schedule/unschedule moves a request between the scoped
+    // scheduled windows and the backlog, and changes conflicts — refresh both (prefix match
+    // covers every ["requests",…] key).
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      queryClient.invalidateQueries({ queryKey: ["conflicts"] });
     },
   });
 }

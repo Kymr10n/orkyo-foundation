@@ -19,6 +19,24 @@ function countOverlapping(
   ).length;
 }
 
+function hasConflictInSegment(
+  assignments: ResourceAssignmentInfo[],
+  segment: PersonUtilizationSegment,
+  conflictedIds: ReadonlySet<string>,
+): boolean {
+  if (conflictedIds.size === 0) return false;
+  const segStart = new Date(segment.start).getTime();
+  const segEnd = new Date(segment.end).getTime();
+  return assignments.some(
+    (a) =>
+      conflictedIds.has(a.id) &&
+      new Date(a.startUtc).getTime() < segEnd &&
+      new Date(a.endUtc).getTime() > segStart,
+  );
+}
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
 /**
  * One person's row in the People utilization timeline.
  *
@@ -36,6 +54,7 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   viewEndMs,
   columns,
   assignments = [],
+  conflictedAssignmentIds = EMPTY_SET,
   onSegmentClick,
 }: {
   person: ResourceInfo;
@@ -48,6 +67,8 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   columns: readonly TimeColumn[];
   /** Non-cancelled assignments for this person in the view period, used for per-segment count badges. */
   assignments?: ResourceAssignmentInfo[];
+  /** Assignment IDs that have a capability mismatch — drives the warning badge. */
+  conflictedAssignmentIds?: ReadonlySet<string>;
   onSegmentClick: (person: ResourceInfo, segment: PersonUtilizationSegment) => void;
 }) {
   const overallClass =
@@ -100,6 +121,7 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
             viewStartMs={viewStartMs}
             viewEndMs={viewEndMs}
             assignmentCount={countOverlapping(assignments, segment)}
+            hasConflict={hasConflictInSegment(assignments, segment, conflictedAssignmentIds)}
             onClick={(s) => onSegmentClick(person, s)}
           />
         ))

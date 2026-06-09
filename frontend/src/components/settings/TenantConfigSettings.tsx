@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Check,
 } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Button } from "@foundation/src/components/ui/button";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Separator } from "@foundation/src/components/ui/separator";
@@ -160,8 +161,8 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="py-12">
+        <LoadingSpinner fullScreen={false} />
       </div>
     );
   }

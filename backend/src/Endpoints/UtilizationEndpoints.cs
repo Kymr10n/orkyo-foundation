@@ -68,5 +68,18 @@ public static class UtilizationEndpoints
             logger, "get tenant utilization", new { resourceTypeKey, granularity }))
             .WithName("GetTenantUtilization")
             .WithSummary("Get aggregate utilization across all resources");
+
+        tenant.MapGet("/by-resource", async (
+            IUtilizationService service,
+            ILogger<EndpointLoggerCategory> logger,
+            DateTime from,
+            DateTime to,
+            string? resourceTypeKey,
+            string granularity = "day") =>
+            await EndpointHelpers.ExecuteAsync(async () =>
+                Results.Ok(await service.GetUtilizationByResourceAsync(resourceTypeKey, from, to, granularity)),
+            logger, "get utilization by resource", new { resourceTypeKey, granularity }))
+            .WithName("GetUtilizationByResource")
+            .WithSummary("Get per-resource utilization in one response (bulk)");
     }
 }

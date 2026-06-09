@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
 import { CalendarIcon, Loader2, Plus, Trash2, Copy, Check, Key } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
 import {
@@ -449,8 +450,8 @@ export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProp
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="py-12">
+        <LoadingSpinner fullScreen={false} />
       </div>
     );
   }
@@ -471,8 +472,8 @@ export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProp
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="py-12">
+        <LoadingSpinner fullScreen={false} />
       </div>
     );
   }

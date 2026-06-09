@@ -18,6 +18,7 @@ import {
     AlertDialogTitle,
 } from "@foundation/src/components/ui/alert-dialog";
 import { Button } from "@foundation/src/components/ui/button";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Input } from "@foundation/src/components/ui/input";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import { toast } from "sonner";
@@ -34,7 +35,7 @@ import {
     moveRequest,
     updateRequest,
 } from "@foundation/src/lib/api/request-api";
-import { useConflicts } from "@foundation/src/hooks/useConflicts";
+import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import type {
     CreateRequestRequest,
     PlanningMode,
@@ -423,7 +424,7 @@ export function RequestsPage() {
   );
 
   // Build conflict count map for tree view (own + descendant conflicts)
-  const { conflicts: storeConflicts } = useConflicts();
+  const { conflictsByRequest: storeConflicts } = useConflictRegistry();
 
   const handleOpenConflicts = useCallback(
     (requestId: string) => {
@@ -548,13 +549,11 @@ export function RequestsPage() {
 
       {/* Body: View + Detail Panel */}
       <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
-        {/* Main content area */}
-        <div className={`flex-1 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
+        {/* Main content area. Tree view manages its own internal scroll (overflow-hidden);
+            the list view's data table grows naturally, so its column must scroll itself. */}
+        <div className={`flex-1 ${selectedRequest ? 'min-w-0' : ''} ${viewMode === 'tree' ? 'overflow-hidden' : 'min-h-0 overflow-y-auto'}`}>
           {loading && requests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-12 text-center">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-4" />
-              <p className="text-muted-foreground">Loading requests...</p>
-            </div>
+            <LoadingSpinner fullScreen={false} message="Loading requests..." />
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">
               <div className="text-destructive mb-4">⚠️</div>

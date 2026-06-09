@@ -14,6 +14,9 @@ public interface IUtilizationService
 
     Task<UtilizationResponse> GetTenantUtilizationAsync(
         string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
+
+    Task<List<ResourceUtilizationResponse>> GetUtilizationByResourceAsync(
+        string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
 }
 
 public class UtilizationService(
@@ -28,10 +31,7 @@ public class UtilizationService(
         var resource = await resourceRepository.GetByIdAsync(resourceId);
         if (resource is null) return null;
 
-        var assignments = await assignmentRepository.GetByResourceAsync(resourceId, from, to);
-        var blockedPeriods = await resolver.GetBlockedPeriodsAsync(resourceId, ct);
-
-        var buckets = ComputeBuckets(resource, assignments, blockedPeriods, from, to, granularity);
+        var buckets = await ComputeResourceBucketsAsync(resource, from, to, granularity, ct);
         return new UtilizationResponse
         {
             From = from,
@@ -39,6 +39,19 @@ public class UtilizationService(
             Granularity = granularity,
             Buckets = buckets,
         };
+    }
+
+    /// <summary>
+    /// Compute one resource's buckets given the resource itself (no extra
+    /// lookup). Shared by the single-resource, tenant-aggregate and bulk
+    /// by-resource paths so the per-bucket math lives in exactly one place.
+    /// </summary>
+    private async Task<List<UtilizationBucket>> ComputeResourceBucketsAsync(
+        ResourceInfo resource, DateTime from, DateTime to, string granularity, CancellationToken ct)
+    {
+        var assignments = await assignmentRepository.GetByResourceAsync(resource.Id, from, to, ct);
+        var blockedPeriods = await resolver.GetBlockedPeriodsAsync(resource.Id, ct);
+        return ComputeBuckets(resource, assignments, blockedPeriods, from, to, granularity);
     }
 
     public async Task<UtilizationResponse?> GetGroupUtilizationAsync(
@@ -128,11 +141,7 @@ public class UtilizationService(
 
         var allBuckets = new List<List<UtilizationBucket>>();
         foreach (var resource in resources)
-        {
-            var util = await GetResourceUtilizationAsync(resource.Id, from, to, granularity);
-            if (util is not null)
-                allBuckets.Add(util.Buckets);
-        }
+            allBuckets.Add(await ComputeResourceBucketsAsync(resource, from, to, granularity, ct));
 
         var shells = BuildBucketShells(from, to, granularity);
         var averaged = shells.Select((shell, i) =>
@@ -158,6 +167,23 @@ public class UtilizationService(
         }).ToList();
 
         return new UtilizationResponse { From = from, To = to, Granularity = granularity, Buckets = averaged };
+    }
+
+    public async Task<List<ResourceUtilizationResponse>> GetUtilizationByResourceAsync(
+        string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
+    {
+        var filter = new ResourceListFilter { IsActive = true, ResourceTypeKey = resourceTypeKey };
+        var resources = await resourceRepository.GetAllAsync(filter);
+
+        var result = new List<ResourceUtilizationResponse>(resources.Count);
+        foreach (var resource in resources)
+            result.Add(new ResourceUtilizationResponse
+            {
+                ResourceId = resource.Id,
+                Buckets = await ComputeResourceBucketsAsync(resource, from, to, granularity, ct),
+            });
+
+        return result;
     }
 
     // ── Core computation ────────────────────────────────────────────────────
@@ -201,16 +227,18 @@ public class UtilizationService(
             };
         }
 
-        // Fractional: time-weighted sum of overlapping allocation percentages
+        // Fractional: time-weighted sum of overlapping allocation percentages.
+        // Treat a null allocation_percent as 100 — a fully-allocated assignment
+        // that was created without an explicit percent should not silently vanish.
         var totalAllocated = 0m;
         foreach (var a in overlapping)
         {
-            if (!a.AllocationPercent.HasValue) continue;
+            var allocPct = a.AllocationPercent ?? 100m;
             var overlapStart = a.StartUtc > bucketStart ? a.StartUtc : bucketStart;
             var overlapEnd = a.EndUtc < bucketEnd ? a.EndUtc : bucketEnd;
             var overlapMinutes = (overlapEnd - overlapStart).TotalMinutes;
             var weight = bucketSpan > 0 ? (decimal)(overlapMinutes / bucketSpan) : 1m;
-            totalAllocated += a.AllocationPercent.Value * weight;
+            totalAllocated += allocPct * weight;
         }
 
         return new UtilizationBucket

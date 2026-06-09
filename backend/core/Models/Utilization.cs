@@ -23,3 +23,13 @@ public record UtilizationResponse
     public required string Granularity { get; init; }
     public required List<UtilizationBucket> Buckets { get; init; }
 }
+
+/// <summary>
+/// One resource's utilization buckets, used by the bulk by-resource endpoint so
+/// the People grid can load every row in a single request instead of one per person.
+/// </summary>
+public record ResourceUtilizationResponse
+{
+    public required Guid ResourceId { get; init; }
+    public required List<UtilizationBucket> Buckets { get; init; }
+}

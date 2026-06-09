@@ -5,11 +5,11 @@ export type BucketStatus = 'available' | 'partial' | 'assigned' | 'overbooked' |
 export type SpaceStatus  = 'available' | 'occupied' | 'conflict';
 
 export const STATUS_CELL_CLASS: Record<BucketStatus, string> = {
-  available:     'bg-emerald-100/60 dark:bg-emerald-950/40',
-  partial:       'bg-amber-100/60   dark:bg-amber-950/40',
-  assigned:      'bg-blue-100/60    dark:bg-blue-950/40',
-  overbooked:    'bg-red-100/60     dark:bg-red-950/40',
-  'non-working': 'bg-muted/40',
+  available:     'bg-emerald-100 dark:bg-emerald-950',
+  partial:       'bg-amber-100   dark:bg-amber-950',
+  assigned:      'bg-blue-100    dark:bg-blue-950',
+  overbooked:    'bg-red-100     dark:bg-red-950',
+  'non-working': 'bg-muted',
 };
 
 export const STATUS_BORDER_CLASS: Record<BucketStatus, string> = {
@@ -24,9 +24,9 @@ export const STATUS_BORDER_CLASS: Record<BucketStatus, string> = {
 // Empty string = no fill (the track tint alone carries the meaning).
 export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
   available:     '',
-  partial:       'bg-amber-400/70 dark:bg-amber-500/50',
-  assigned:      'bg-blue-400/70  dark:bg-blue-500/50',
-  overbooked:    'bg-red-500/80   dark:bg-red-500/60',
+  partial:       'bg-amber-500/50 dark:bg-amber-500/40',
+  assigned:      'bg-blue-500/50  dark:bg-blue-500/40',
+  overbooked:    'bg-red-600/60   dark:bg-red-600/50',
   'non-working': '',
 };
 
