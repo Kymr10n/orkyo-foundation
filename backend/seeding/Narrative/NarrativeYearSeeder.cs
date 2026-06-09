@@ -44,6 +44,7 @@ public static class NarrativeYearSeeder
 
         foreach (var cohort in cohorts)
         {
+            var cohortStart = jobs.Count; // snapshot before this cohort adds jobs
             var ctx = new AssignContext(cohort, personSkills, faker);
             var campaignWin = cal.CampaignWindow(cohort.Facility.SiteCode);
 
@@ -95,11 +96,46 @@ public static class NarrativeYearSeeder
                 monthIdx++;
             }
 
-            // Intentional conflicts: clone a few tool-bearing jobs onto the same Exclusive tool+lead+slot.
-            var toolJobs = jobs.Where(j => j.SpaceId is not null
+            // Scope conflict injection to this cohort's jobs only — avoids cross-facility
+            // space swaps and keeps the budget proportional to this cohort's volume.
+            var cohortJobs = jobs.GetRange(cohortStart, jobs.Count - cohortStart);
+
+            // Intentional capability conflicts: ~5 % of this cohort's jobs are misrouted to a
+            // room that does not cover their required skills, producing a capability blocker.
+            var roomSkills = cohort.Facility.Archetypes
+                .GroupBy(a => a.RoomCode)
+                .ToDictionary(g => g.Key, g => g.SelectMany(a => a.RequiredSkills).ToHashSet());
+
+            var capBudget = Math.Max(1, cohortJobs.Count / 20);
+            var capPool = cohortJobs
+                .Where(j => j.SpaceId is not null && j.RequiredCriteria.Count > 0)
+                .OrderBy(_ => faker.Random.Int())
+                .Take(capBudget)
+                .ToList();
+
+            foreach (var job in capPool)
+            {
+                var jobSkillKeys = job.Archetype.RequiredSkills.ToHashSet();
+                var incompatible = cohort.SpaceByRoomCode
+                    .Where(kv => kv.Key != job.Archetype.RoomCode
+                        && !(roomSkills.TryGetValue(kv.Key, out var rs) && jobSkillKeys.All(rs.Contains)))
+                    .Select(kv => kv.Value)
+                    .ToList();
+                if (incompatible.Count == 0) continue;
+
+                var wrongSpace = faker.PickRandom(incompatible);
+                var newAssignees = job.Assignees
+                    .Where(a => a.ResId != job.SpaceId)
+                    .Append((wrongSpace.Id, 100m))
+                    .ToList();
+                jobs[cohortStart + cohortJobs.IndexOf(job)] = job with { SpaceId = wrongSpace.Id, Assignees = newAssignees };
+            }
+
+            // Intentional scheduling conflicts: clone a few tool-bearing jobs onto the same Exclusive tool+lead+slot.
+            var toolJobs = cohortJobs.Where(j => j.SpaceId is not null
                 && j.Assignees.Count > 0
                 && ctx.ExclusiveToolIds.Overlaps(j.Assignees.Select(a => a.ResId))).ToList();
-            var conflictBudget = Math.Max(1, jobs.Count / 100); // ~1%
+            var conflictBudget = Math.Max(1, cohortJobs.Count / 20); // ~5%
             for (var i = 0; i < conflictBudget && toolJobs.Count > 0; i++)
             {
                 var src = faker.PickRandom(toolJobs);
