@@ -4,7 +4,6 @@ import type { Conflict } from '@foundation/src/types/requests';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
 import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
-import { TimeCell } from '@foundation/src/components/utilization/TimeCell';
 import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/ScheduledRequestOverlay';
 import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
 import type { Request } from '@foundation/src/types/requests';
@@ -289,7 +288,6 @@ describe('SchedulerGrid', () => {
     expect(SchedulerGrid).toBeDefined();
     expect(typeof SchedulerGrid).toBe('function');
     expect(SpaceRow).toBeDefined();
-    expect(TimeCell).toBeDefined();
     expect(ScheduledRequestOverlay).toBeDefined();
     expect(GroupHeader).toBeDefined();
   });

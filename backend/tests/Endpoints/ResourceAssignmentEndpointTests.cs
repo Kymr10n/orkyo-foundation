@@ -202,6 +202,43 @@ public class ResourceAssignmentEndpointTests
     }
 
     [Fact]
+    public async Task ListByResourceType_WithWindow_ReturnsOnlyMatchingAssignments()
+    {
+        // A person assignment inside the window should be returned by the bulk
+        // by-type query; a tool assignment in the same window should not.
+        var person = await CreateFractionalResource(100);
+        var tool = await CreateExclusiveResource();
+        var start = new DateTime(2027, 3, 1, 9, 0, 0, DateTimeKind.Utc);
+        var end = start.AddHours(2);
+
+        var personReq = await GetTestRequestIdAsync();
+        var toolReq = await GetTestRequestIdAsync();
+        (await _client.PostAsJsonAsync("/api/resource-assignments",
+            MakeRequest(person.Id, personReq, start, end, pct: 50))).EnsureSuccessStatusCode();
+        (await _client.PostAsJsonAsync("/api/resource-assignments",
+            MakeRequest(tool.Id, toolReq, start, end))).EnsureSuccessStatusCode();
+
+        var from = Uri.EscapeDataString(start.AddHours(-1).ToString("o"));
+        var to = Uri.EscapeDataString(end.AddHours(1).ToString("o"));
+        var response = await _client.GetAsync(
+            $"/api/resource-assignments?resourceTypeKey=person&from={from}&to={to}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var assignments = await response.Content.ReadFromJsonAsync<List<ResourceAssignmentInfo>>();
+        Assert.NotNull(assignments);
+        Assert.Contains(assignments!, a => a.ResourceId == person.Id);
+        Assert.DoesNotContain(assignments!, a => a.ResourceId == tool.Id);
+        Assert.All(assignments!, a => Assert.Equal("person", a.ResourceTypeKey));
+    }
+
+    [Fact]
+    public async Task ListByResourceType_MissingWindow_Returns400()
+    {
+        var response = await _client.GetAsync("/api/resource-assignments?resourceTypeKey=person");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task ValidateBatch_EmptyItems_Returns200_WithEmptyList()
     {
         var response = await _client.PostAsJsonAsync("/api/resource-assignments/validate-batch",

@@ -11,9 +11,10 @@ import type { TimeColumn } from "./scheduler-types";
  * (`ScheduledRequestOverlay` for Spaces, `PersonSegmentBar` for People) are
  * passed as `children` and rendered absolutely on top of the column cells.
  *
- * This centralises the gridline/tint layer that previously lived in two
- * places (`TimeCell` for Spaces, inline in `PersonTimelineRow` for People) and
- * guarantees the body columns line up with the shared header.
+ * This centralises the gridline/tint layer for both grids and guarantees the
+ * body columns line up with the shared header. Cells are plain presentational
+ * divs — the drop target is a single row-level droppable (Spaces attaches it
+ * via `trackRef`), not one droppable per cell.
  */
 
 /** Tailwind tint for a column cell — single source for both grids. */
@@ -33,11 +34,12 @@ interface TimelineRowProps {
   children?: React.ReactNode;
   /** Track min-height in px (Spaces grows this for stacked overlaps). Default 52. */
   minHeight?: number;
-  /**
-   * Override the per-column cell (Spaces supplies a droppable `TimeCell`).
-   * Default renders a plain gridline + off-day tint div.
-   */
-  renderColumnCell?: (col: TimeColumn) => React.ReactNode;
+  /** Per-column off-time predicate (Spaces tints resource-specific off-time). */
+  isOffTime?: (col: TimeColumn) => boolean;
+  /** Ref attached to the time-track element (Spaces uses it as the row droppable). */
+  trackRef?: (node: HTMLElement | null) => void;
+  /** Extra classes on the time-track (Spaces tints it on drag-over). */
+  trackClassName?: string;
   /** When true, the row is draggable for reordering (Spaces). */
   sortable?: boolean;
   /** dnd-kit `data` payload for the sortable (consumed by the page's onDragEnd). */
@@ -45,15 +47,26 @@ interface TimelineRowProps {
   testId?: string;
 }
 
-function DefaultColumnCells({ columns }: { columns: readonly TimeColumn[] }) {
+function DefaultColumnCells({
+  columns,
+  isOffTime,
+}: {
+  columns: readonly TimeColumn[];
+  isOffTime?: (col: TimeColumn) => boolean;
+}) {
   return (
     <>
-      {columns.map((col) => (
-        <div
-          key={col.start.getTime()}
-          className={`flex-1 min-w-[60px] border-r ${columnTintClass(col)}`}
-        />
-      ))}
+      {columns.map((col) => {
+        // Resource-specific off-time gets the same destructive tint as weekends/
+        // global off-time; otherwise fall back to the shared column tint.
+        const tint = isOffTime?.(col) ? "bg-destructive/15" : columnTintClass(col);
+        return (
+          <div
+            key={col.start.getTime()}
+            className={`flex-1 min-w-[60px] border-r ${tint}`}
+          />
+        );
+      })}
     </>
   );
 }
@@ -63,7 +76,9 @@ function RowInner({
   label,
   children,
   minHeight = 52,
-  renderColumnCell,
+  isOffTime,
+  trackRef,
+  trackClassName,
   testId,
   dragRef,
   dragStyle,
@@ -81,16 +96,12 @@ function RowInner({
       <div className="w-52 flex-shrink-0 px-3 py-2 border-r flex items-center gap-2">
         {label}
       </div>
-      <div className="flex-1 flex relative" style={{ minHeight: `${minHeight}px` }}>
-        {renderColumnCell ? (
-          columns.map((col) => (
-            <React.Fragment key={col.start.getTime()}>
-              {renderColumnCell(col)}
-            </React.Fragment>
-          ))
-        ) : (
-          <DefaultColumnCells columns={columns} />
-        )}
+      <div
+        ref={trackRef}
+        className={`flex-1 flex relative ${trackClassName ?? ""}`}
+        style={{ minHeight: `${minHeight}px` }}
+      >
+        <DefaultColumnCells columns={columns} isOffTime={isOffTime} />
         {children}
       </div>
     </div>

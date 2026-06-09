@@ -170,6 +170,8 @@ vi.mock("@dnd-kit/core", () => ({
     capturedOnDragEnd = onDragEnd;
     return <div data-testid="dnd-context">{children}</div>;
   },
+  DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
+  useDndMonitor: vi.fn(),
   PointerSensor: vi.fn(),
   pointerWithin: vi.fn(),
   useSensor: vi.fn(() => ({})),
@@ -757,9 +759,17 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
+    // The whole row is one droppable; the column is resolved from the pointer
+    // x-position within the track's rect. One column → always lands on it.
     capturedOnDragEnd!({
       active: { id: "r1", data: { current: { id: "r1", name: "Task 1", durationMin: 60 } } },
-      over: { id: "grid-cell", data: { current: { resourceId: "s1", startTs: new Date("2024-01-20T09:00:00Z") } } },
+      over: {
+        id: "track-s1",
+        rect: { left: 0, width: 100 },
+        data: { current: { type: "space-track", resourceId: "s1", columnStartsMs: [new Date("2024-01-20T09:00:00Z").getTime()] } },
+      },
+      activatorEvent: { clientX: 50 },
+      delta: { x: 0, y: 0 },
     });
 
     await waitFor(() => {
@@ -834,7 +844,13 @@ describe("UtilizationPage", () => {
           },
         },
       },
-      over: { id: "grid-cell", data: { current: { resourceId: "s2", startTs: new Date("2024-01-20T10:00:00Z") } } },
+      over: {
+        id: "track-s2",
+        rect: { left: 0, width: 100 },
+        data: { current: { type: "space-track", resourceId: "s2", columnStartsMs: [new Date("2024-01-20T10:00:00Z").getTime()] } },
+      },
+      activatorEvent: { clientX: 50 },
+      delta: { x: 0, y: 0 },
     });
 
     await waitFor(() => {

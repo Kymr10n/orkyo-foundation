@@ -26,6 +26,39 @@ export function parseTimeToHour(time: string): number {
   return hour;
 }
 
+/**
+ * Resolve which column index the pointer is over, given the row-track's measured
+ * rect. Columns are equal-width within the track, so the index is the offset
+ * divided by the column width, clamped to the valid range. Shared by the drop
+ * handler (→ start timestamp) and the live drop-location indicator (→ position).
+ */
+export function resolveColumnIndex(
+  pointerX: number,
+  trackLeft: number,
+  trackWidth: number,
+  columnCount: number,
+): number {
+  if (columnCount === 0 || trackWidth <= 0) return 0;
+  const columnWidth = trackWidth / columnCount;
+  const idx = Math.floor((pointerX - trackLeft) / columnWidth);
+  return Math.min(columnCount - 1, Math.max(0, idx));
+}
+
+/**
+ * Resolve the start timestamp (ms) of the column the pointer landed on. Replaces
+ * the old per-cell droppable: the single row droppable carries `columnStartsMs`
+ * and we compute the column here at drop time.
+ */
+export function resolveColumnStartMs(
+  pointerX: number,
+  trackLeft: number,
+  trackWidth: number,
+  columnStartsMs: readonly number[],
+): number {
+  if (columnStartsMs.length === 0) return 0;
+  return columnStartsMs[resolveColumnIndex(pointerX, trackLeft, trackWidth, columnStartsMs.length)];
+}
+
 function isHourOutsideWorkingHours(hour: number, workingHours: WorkingHoursConfig | null): boolean {
   if (!workingHours?.enabled) return false;
   return hour < workingHours.start || hour >= workingHours.end;

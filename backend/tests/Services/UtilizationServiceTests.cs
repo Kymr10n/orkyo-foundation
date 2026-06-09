@@ -228,6 +228,31 @@ public class UtilizationServiceTests
         Assert.Equal(100m, result.Buckets[1].EffectiveAvailabilityPercent); // normal day
     }
 
+    // ── Bulk by-resource tests ────────────────────────────────────────────
+
+    [Fact]
+    public async Task ByResource_ReturnsOneEntryPerResource_WithSamePerBucketMath()
+    {
+        var resource = MakeResource(AllocationModes.Exclusive);
+        var from = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = from.AddDays(3);
+        var assignments = new List<ResourceAssignmentInfo>
+        {
+            MakeAssignment(ResourceId, from.AddDays(1), from.AddDays(2)),
+        };
+        var service = BuildService(resource, assignments);
+
+        var result = await service.GetUtilizationByResourceAsync("tool", from, to, "day");
+
+        Assert.Single(result);
+        Assert.Equal(ResourceId, result[0].ResourceId);
+        Assert.Equal(3, result[0].Buckets.Count);
+        // Same occupancy result as the single-resource path (day 2 occupied).
+        Assert.False(result[0].Buckets[0].IsExclusiveOccupied);
+        Assert.True(result[0].Buckets[1].IsExclusiveOccupied);
+        Assert.False(result[0].Buckets[2].IsExclusiveOccupied);
+    }
+
     // ── Group utilization tests ──────────────────────────────────────────
 
     [Fact]

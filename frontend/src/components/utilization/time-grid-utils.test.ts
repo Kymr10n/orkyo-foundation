@@ -3,6 +3,7 @@ import {
   generateTimeColumns,
   overlapsOffTimeRange,
   parseTimeToHour,
+  resolveColumnStartMs,
   utilizationGranularityForScale,
 } from "./time-grid-utils";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
@@ -107,5 +108,24 @@ describe("time-grid-utils", () => {
         offTimeRanges,
       ),
     ).toBe(true);
+  });
+
+  it("resolves the dropped column from pointer x within the track rect", () => {
+    // Three equal 100px columns spanning a 300px-wide track starting at x=200.
+    const starts = [1000, 2000, 3000];
+    const left = 200;
+    const width = 300;
+
+    expect(resolveColumnStartMs(250, left, width, starts)).toBe(1000); // first column
+    expect(resolveColumnStartMs(350, left, width, starts)).toBe(2000); // middle column
+    expect(resolveColumnStartMs(550, left, width, starts)).toBe(3000); // last column
+    // Pointer left of / past the track clamps to the first / last column.
+    expect(resolveColumnStartMs(0, left, width, starts)).toBe(1000);
+    expect(resolveColumnStartMs(9999, left, width, starts)).toBe(3000);
+  });
+
+  it("falls back to the first column start for a degenerate track", () => {
+    expect(resolveColumnStartMs(50, 0, 0, [1000, 2000])).toBe(1000);
+    expect(resolveColumnStartMs(50, 0, 100, [])).toBe(0);
   });
 });

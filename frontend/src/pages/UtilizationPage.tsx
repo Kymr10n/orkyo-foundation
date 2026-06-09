@@ -31,7 +31,9 @@ import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
-import { DndContext, type DragEndEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
+import { DropColumnIndicator } from "@foundation/src/components/utilization/DropColumnIndicator";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format } from "date-fns";
@@ -66,6 +68,31 @@ export function UtilizationPage() {
     activationConstraint: { distance: 8 },
   });
   const sensors = useSensors(pointerSensor);
+
+  // Scope collision detection to the active drag's intent so a single set of
+  // droppables can serve two modes unambiguously: dragging a space-row only
+  // considers other space-row sortables (reorder); dragging a request considers
+  // everything else (the per-row time tracks, the unschedule zone, tree-reparent
+  // targets). Without this, the row-level track droppable and the row sortable
+  // overlap and `over` would be non-deterministic.
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const activeType = args.active.data.current?.type;
+    const containers = args.droppableContainers.filter((c) => {
+      const t = c.data.current?.type;
+      return activeType === "space-row" ? t === "space-row" : t !== "space-row";
+    });
+    return pointerWithin({ ...args, droppableContainers: containers });
+  }, []);
+
+  // Label of the request currently being dragged — drives the <DragOverlay> so
+  // dnd-kit moves a lightweight clone instead of transforming/reconciling the
+  // original node (and its subtree) on every pointer move. Row-reorder drags
+  // (type "space-row") don't get an overlay.
+  const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active.data.current as { type?: string; name?: string } | undefined;
+    setActiveDragLabel(data && data.type !== "space-row" ? data.name ?? null : null);
+  }, []);
 
   // Tab state — persisted in URL so the view is bookmarkable
   const [searchParams, setSearchParams] = useSearchParams();
@@ -329,11 +356,12 @@ export function UtilizationPage() {
   }, [scheduleMutation, setSelectedRequestId]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragLabel(null);
     const { active, over } = event;
     if (!over) return;
 
     const draggedData = active.data.current as Request & { isScheduled?: boolean; type?: string };
-    const dropData = over.data.current as { resourceId?: string; startTs?: Date; type?: string; parentRequestId?: string };
+    const dropData = over.data.current as { resourceId?: string; type?: string; parentRequestId?: string; columnStartsMs?: number[] };
 
     if (draggedData?.type === "space-row") {
       if (active.id !== over.id) handleSpaceReorder(active.id, over.id);
@@ -349,8 +377,19 @@ export function UtilizationPage() {
       await handleTreeReparent(draggedData.id, dropData.parentRequestId);
       return;
     }
-    if (dropData?.resourceId && dropData?.startTs && selectedSiteId) {
-      await handleScheduleToGrid(draggedData, dropData.resourceId, dropData.startTs);
+    if (dropData?.type === "space-track" && dropData.resourceId && dropData.columnStartsMs && selectedSiteId) {
+      // The whole row is one droppable; resolve the exact column from where the
+      // pointer ended (activator position + accumulated drag delta) relative to
+      // the track's measured rect.
+      const activator = event.activatorEvent as PointerEvent;
+      const pointerX = activator.clientX + event.delta.x;
+      const startMs = resolveColumnStartMs(
+        pointerX,
+        over.rect.left,
+        over.rect.width,
+        dropData.columnStartsMs,
+      );
+      await handleScheduleToGrid(draggedData, dropData.resourceId, new Date(startMs));
     }
   }, [selectedSiteId, handleSpaceReorder, handleUnschedule, handleTreeReparent, handleScheduleToGrid]);
 
@@ -414,7 +453,13 @@ export function UtilizationPage() {
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => setActiveDragLabel(null)}
+            collisionDetection={collisionDetection}
+          >
             <div className="h-full flex flex-col overflow-hidden gap-3">
               {/* Collapsible Floorplan */}
               <CollapsibleFloorplan
@@ -461,6 +506,18 @@ export function UtilizationPage() {
                 )}
               </div>
             </div>
+
+            {/* Live drop-location hint (isolated; does not re-render the grid). */}
+            <DropColumnIndicator />
+
+            {/* Lightweight drag clone — avoids transforming the original node. */}
+            <DragOverlay dropAnimation={null}>
+              {activeDragLabel ? (
+                <div className="rounded bg-primary/90 px-2 py-1 text-xs font-medium text-primary-foreground shadow-lg">
+                  {activeDragLabel}
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </TabsContent>
 

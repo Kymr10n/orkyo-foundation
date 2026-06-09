@@ -11,7 +11,7 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
 }));
 vi.mock('@foundation/src/lib/api/resource-utilization-api', () => ({
-  getResourceUtilization: vi.fn(),
+  getUtilizationByResource: vi.fn(),
 }));
 vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
   getPersonProfile: vi.fn().mockResolvedValue(null),
@@ -26,15 +26,15 @@ vi.mock('@foundation/src/lib/api/person-candidate-requests-api', () => ({
   matchesAllRequirements: vi.fn().mockReturnValue(true),
 }));
 vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
-  getAssignmentsByResource: vi.fn().mockResolvedValue([]),
+  getAssignmentsByResourceType: vi.fn().mockResolvedValue([]),
   validateAssignmentsBatch: vi.fn().mockResolvedValue([]),
 }));
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
-import { getResourceUtilization } from '@foundation/src/lib/api/resource-utilization-api';
+import { getUtilizationByResource } from '@foundation/src/lib/api/resource-utilization-api';
 import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getResourceGroups, getResourceGroupMembers } from '@foundation/src/lib/api/resource-groups-api';
-import { getAssignmentsByResource, validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
+import { getAssignmentsByResourceType, validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
 import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
 
 const ANCHOR = new Date('2026-05-01T00:00:00Z');
@@ -96,6 +96,12 @@ const availableUtil: ResourceUtilizationResponse = {
   buckets: makeBuckets(31),
 };
 
+// The bulk endpoint returns one entry per person; mirror the same buckets for
+// every person in the fixture set.
+function bulkUtil(buckets: ResourceUtilizationResponse['buckets']) {
+  return twoPeople.data.map((p) => ({ resourceId: p.id, buckets }));
+}
+
 function renderGrid(props?: Partial<React.ComponentProps<typeof PeopleUtilizationGrid>>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -112,7 +118,7 @@ describe('PeopleUtilizationGrid', () => {
     vi.clearAllMocks();
     useAppStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
-    vi.mocked(getResourceUtilization).mockResolvedValue(availableUtil);
+    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableUtil.buckets));
     vi.mocked(getPersonProfile).mockResolvedValue(null as never);
     vi.mocked(getResourceGroups).mockResolvedValue([]);
     vi.mocked(getResourceGroupMembers).mockResolvedValue({ groupId: '', members: [] });
@@ -174,16 +180,16 @@ describe('PeopleUtilizationGrid', () => {
     expect(getResources).toHaveBeenCalledWith({ resourceTypeKey: 'person', isActive: true });
   });
 
-  it('calls getResourceUtilization for each person', async () => {
+  it('fetches utilization for all people in a single bulk request', async () => {
     renderGrid();
     await waitFor(() =>
-      expect(getResourceUtilization).toHaveBeenCalledTimes(2),
+      expect(getUtilizationByResource).toHaveBeenCalledTimes(1),
     );
-    expect(getResourceUtilization).toHaveBeenCalledWith(
-      'p-alice',
+    expect(getUtilizationByResource).toHaveBeenCalledWith(
       expect.any(Date),
       expect.any(Date),
       expect.any(String),
+      'person',
     );
   });
 
@@ -196,11 +202,8 @@ describe('PeopleUtilizationGrid', () => {
   });
 
   it('shows overall utilization % in the label cell', async () => {
-    const partialUtil: ResourceUtilizationResponse = {
-      ...availableUtil,
-      buckets: makeBuckets(31, { allocatedPercent: 60, effectiveAvailabilityPercent: 100 }),
-    };
-    vi.mocked(getResourceUtilization).mockResolvedValue(partialUtil);
+    const partialBuckets = makeBuckets(31, { allocatedPercent: 60, effectiveAvailabilityPercent: 100 });
+    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(partialBuckets));
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     // overallPercent averages the working-hour buckets → 60%
@@ -264,7 +267,7 @@ describe('PeopleUtilizationGrid', () => {
   });
 
   it('renders column headers while utilization data is still loading', async () => {
-    vi.mocked(getResourceUtilization).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getUtilizationByResource).mockReturnValue(new Promise(() => {}));
 
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
 
@@ -301,11 +304,11 @@ describe('PeopleUtilizationGrid', () => {
     expect(screen.getByText('10:30')).toBeInTheDocument();
     expect(screen.getByText('10:45')).toBeInTheDocument();
     expect(screen.getByText('11:00')).toBeInTheDocument();
-    expect(getResourceUtilization).toHaveBeenCalledWith(
-      'p-alice',
+    expect(getUtilizationByResource).toHaveBeenCalledWith(
       expect.any(Date),
       expect.any(Date),
       'minute',
+      'person',
     );
   });
 
@@ -405,7 +408,7 @@ describe('PeopleUtilizationGrid', () => {
     // The conflict-check query is deferred by CONFLICT_CHECK_DELAY_MS so the grid
     // renders immediately. In a fast test the timer never fires, confirming the call
     // is not part of the initial render path.
-    vi.mocked(getAssignmentsByResource).mockResolvedValue([oneAssignment]);
+    vi.mocked(getAssignmentsByResourceType).mockResolvedValue([oneAssignment]);
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     expect(validateAssignmentsBatch).not.toHaveBeenCalled();

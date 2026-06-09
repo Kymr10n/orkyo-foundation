@@ -132,4 +132,32 @@ public class UtilizationEndpointsTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    // ── GET /api/utilization/by-resource ─────────────────────────────────────
+
+    [Fact]
+    public async Task GetUtilizationByResource_Returns200WithPerResourceArray()
+    {
+        // Ensure at least one person resource exists so the array is non-trivial.
+        var createReq = new CreateResourceRequest
+        {
+            ResourceTypeKey = "person",
+            Name = $"BulkPerson-{Guid.NewGuid():N}"[..20],
+            AllocationMode = "Fractional",
+        };
+        (await _client.PostAsJsonAsync("/api/resources", createReq)).EnsureSuccessStatusCode();
+
+        var (from, to) = DateRange();
+        var response = await _client.GetAsync(
+            $"/api/utilization/by-resource?from={from}&to={to}&resourceTypeKey=person&granularity=day");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Array, body.ValueKind);
+        Assert.True(body.GetArrayLength() > 0);
+        // Each entry exposes a resourceId and its own buckets array.
+        var first = body[0];
+        Assert.True(first.TryGetProperty("resourceId", out _));
+        Assert.Equal(JsonValueKind.Array, first.GetProperty("buckets").ValueKind);
+    }
 }

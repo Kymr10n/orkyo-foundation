@@ -21,17 +21,29 @@ public static class ResourceAssignmentEndpoints
 
         group.MapGet("/", async (
             [FromQuery] Guid? requestId,
+            [FromQuery] string? resourceTypeKey,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
             IResourceAssignmentRepository repo,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(async () =>
             {
+                // Bulk window query (drives the People grid in one request) takes
+                // precedence over the per-request lookup.
+                if (resourceTypeKey is not null)
+                {
+                    if (from is null || to is null)
+                        return ErrorResponses.BadRequest("from and to query parameters are required with resourceTypeKey");
+                    var byType = await repo.GetByResourceTypeAsync(resourceTypeKey, from.Value, to.Value, ct);
+                    return Results.Ok(byType);
+                }
                 if (requestId is null)
                     return ErrorResponses.BadRequest("requestId query parameter is required");
                 var assignments = await repo.GetByRequestAsync(requestId.Value);
                 return Results.Ok(assignments);
-            }, logger, "list resource assignments by request", new { requestId }))
+            }, logger, "list resource assignments", new { requestId, resourceTypeKey }))
             .WithName("ListResourceAssignmentsByRequest")
-            .WithSummary("List resource assignments for a request");
+            .WithSummary("List resource assignments for a request, or in bulk by resource type + window");
 
         group.MapGet("/{id:guid}", async (
             Guid id,

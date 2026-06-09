@@ -10,7 +10,7 @@ import {
 import type { Request, RequestStatus } from "@foundation/src/types/requests";
 import { buildRequestTree, flattenTree, canBeScheduled, canHaveChildren } from "@foundation/src/domain/request-tree";
 import type { FlatTreeEntry } from "@foundation/src/domain/request-tree";
-import { useDraggable, useDroppable, useDndContext } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
 import { getPlanningModeIcon, REQUEST_STATUS, PLANNING_MODE } from "@foundation/src/constants";
@@ -48,8 +48,6 @@ const RequestCard = React.memo(function RequestCard({
   const isDraggable = canBeScheduled(request.planningMode);
   const isDropTarget = canHaveChildren(request.planningMode);
 
-  const { active } = useDndContext();
-
   const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } =
     useDraggable({
       id: request.id,
@@ -57,10 +55,14 @@ const RequestCard = React.memo(function RequestCard({
       disabled: !isDraggable,
     });
 
+  // Note: deliberately NOT reading useDndContext() here. A droppable is only a
+  // collision candidate while a drag is active, so gating on `active === null`
+  // bought nothing — but it forced every visible card to re-render on every
+  // pointer move (useDndContext subscribes to the whole drag state).
   const { isOver, setNodeRef: setDropTargetRef } = useDroppable({
     id: `tree-drop-${request.id}`,
     data: { type: "tree-reparent", parentRequestId: request.id },
-    disabled: !isDropTarget || active === null,
+    disabled: !isDropTarget,
   });
 
   const combinedRef = useCallback((el: HTMLDivElement | null) => {

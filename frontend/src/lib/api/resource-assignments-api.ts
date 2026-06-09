@@ -96,6 +96,24 @@ export async function getAssignmentsByResource(
 }
 
 /**
+ * List all non-cancelled assignments for every resource of a type within a time
+ * window, in one request. Replaces the per-person assignment fan-out in the
+ * People grid. Callers group the flat result by `resourceId` client-side.
+ */
+export async function getAssignmentsByResourceType(
+  resourceTypeKey: string,
+  from: Date,
+  to: Date,
+): Promise<ResourceAssignmentInfo[]> {
+  const params = new URLSearchParams({
+    resourceTypeKey,
+    from: from.toISOString(),
+    to: to.toISOString(),
+  });
+  return apiGet<ResourceAssignmentInfo[]>(`${API_PATHS.RESOURCE_ASSIGNMENTS}?${params}`);
+}
+
+/**
  * List resource assignments for a request
  */
 export async function getAssignmentsByRequest(requestId: string): Promise<ResourceAssignmentInfo[]> {

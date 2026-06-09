@@ -414,14 +414,13 @@ export function SchedulerGrid({
         spaceRequests={requestsBySpaceId.get(space.id) ?? EMPTY_REQUESTS}
         scheduleIndex={scheduleIndex}
         validation={validation}
-        timeCursorTs={timeCursorTs}
         onRequestClick={onRequestClick}
         onRequestDoubleClick={onRequestDoubleClick}
         onRequestResize={onRequestResize}
         offTimeRanges={offTimeRanges}
       />
     ),
-    [columns, requestsBySpaceId, scheduleIndex, validation, timeCursorTs, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges],
+    [columns, requestsBySpaceId, scheduleIndex, validation, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges],
   );
 
   return (
