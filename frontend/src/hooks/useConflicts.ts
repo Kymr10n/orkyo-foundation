@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useScheduledRequests, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { useAppStore } from "@foundation/src/store/app-store";
-import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
+import { getFetchWindow, CONFLICT_CHECK_DELAY_MS } from "@foundation/src/components/utilization/time-grid-utils";
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { capabilityConflictsFromValidation } from "@foundation/src/domain/scheduling/assignment-conflicts";
@@ -12,12 +12,6 @@ import {
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { getSpaceAssignment } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Conflict } from "@foundation/src/types/requests";
-
-// Defer the backend capability validation until shortly after first paint so it
-// doesn't compete with the initial spaces/requests/floorplan fetches. Validation
-// is decorative on load — conflict badges can appear a moment later. Mirrors the
-// People grid's CONFLICT_CHECK_DELAY_MS.
-const CONFLICT_CHECK_DELAY_MS = 1500;
 
 /**
  * Computes scheduling and capability conflicts for the current site.

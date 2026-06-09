@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PeopleUtilizationGrid } from './PeopleUtilizationGrid';
 import { useAppStore } from '@foundation/src/store/app-store';
 import type { ResourcesResponse } from '@foundation/src/lib/api/resources-api';
-import type { ResourceUtilizationResponse } from '@foundation/src/lib/api/resource-utilization-api';
+import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
@@ -78,7 +78,7 @@ function makeBuckets(
     effectiveAvailabilityPercent: number;
     isExclusiveOccupied: boolean;
   }> = {},
-): ResourceUtilizationResponse['buckets'] {
+): ResourceUtilizationBucket[] {
   return Array.from({ length: count }, (_, i) => ({
     start: new Date(ANCHOR.getTime() + i * 86400_000).toISOString(),
     end: new Date(ANCHOR.getTime() + (i + 1) * 86400_000).toISOString(),
@@ -89,16 +89,11 @@ function makeBuckets(
   }));
 }
 
-const availableUtil: ResourceUtilizationResponse = {
-  from: ANCHOR.toISOString(),
-  to: new Date(ANCHOR.getFullYear(), ANCHOR.getMonth() + 1, 1).toISOString(),
-  granularity: 'day',
-  buckets: makeBuckets(31),
-};
+const availableBuckets: ResourceUtilizationBucket[] = makeBuckets(31);
 
 // The bulk endpoint returns one entry per person; mirror the same buckets for
 // every person in the fixture set.
-function bulkUtil(buckets: ResourceUtilizationResponse['buckets']) {
+function bulkUtil(buckets: ResourceUtilizationBucket[]) {
   return twoPeople.data.map((p) => ({ resourceId: p.id, buckets }));
 }
 
@@ -118,7 +113,7 @@ describe('PeopleUtilizationGrid', () => {
     vi.clearAllMocks();
     useAppStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
-    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableUtil.buckets));
+    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableBuckets));
     vi.mocked(getPersonProfile).mockResolvedValue(null as never);
     vi.mocked(getResourceGroups).mockResolvedValue([]);
     vi.mocked(getResourceGroupMembers).mockResolvedValue({ groupId: '', members: [] });

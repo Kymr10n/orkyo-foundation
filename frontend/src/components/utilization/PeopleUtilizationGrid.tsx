@@ -27,13 +27,12 @@ import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './sch
 import type { PeopleByGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
+  CONFLICT_CHECK_DELAY_MS,
   generateTimeColumns,
   overlapsOffTimeRange,
   utilizationGranularityForScale,
 } from './time-grid-utils';
 import { enrichColumnsWithOffTime } from './time-grid-offtime';
-
-const CONFLICT_CHECK_DELAY_MS = 1500;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

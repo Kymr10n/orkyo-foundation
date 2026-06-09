@@ -32,12 +32,8 @@ export async function getRequests(
  * Get only requests that currently have ≥1 conflict (tenant-wide). Backs the Conflicts page so it
  * loads just the conflicted rows rather than the whole tenant.
  */
-export async function getConflictedRequests(
-  includeRequirements = false,
-): Promise<Request[]> {
-  const params = new URLSearchParams({ conflicted: "true" });
-  if (includeRequirements) params.set("includeRequirements", "true");
-  return apiGet<Request[]>(`${API_PATHS.REQUESTS}?${params}`);
+export async function getConflictedRequests(): Promise<Request[]> {
+  return apiGet<Request[]>(`${API_PATHS.REQUESTS}?conflicted=true`);
 }
 
 /**

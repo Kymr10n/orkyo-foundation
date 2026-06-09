@@ -16,29 +16,6 @@ export interface ResourceUtilizationBucket {
   isExclusiveOccupied: boolean;
 }
 
-export interface ResourceUtilizationResponse {
-  from: string;
-  to: string;
-  granularity: string;
-  buckets: ResourceUtilizationBucket[];
-}
-
-export async function getResourceUtilization(
-  resourceId: string,
-  from: Date,
-  to: Date,
-  granularity: string,
-): Promise<ResourceUtilizationResponse> {
-  const params = new URLSearchParams({
-    from: from.toISOString(),
-    to: to.toISOString(),
-    granularity,
-  });
-  return apiGet<ResourceUtilizationResponse>(
-    `${API_PATHS.resourceUtilization(resourceId)}?${params}`,
-  );
-}
-
 /** One resource's utilization buckets, as returned by the bulk endpoint. */
 export interface ResourceUtilizationByResource {
   resourceId: string;

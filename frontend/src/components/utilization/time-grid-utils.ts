@@ -15,6 +15,13 @@ import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 
+/**
+ * Defer the backend capability validation until shortly after first paint so it doesn't compete
+ * with the initial spaces/requests/floorplan fetches — conflict badges are decorative on load and
+ * can appear a moment later. Shared by the Spaces (`useConflicts`) and People grids.
+ */
+export const CONFLICT_CHECK_DELAY_MS = 1500;
+
 export interface WorkingHoursConfig {
   enabled: boolean;
   start: number;

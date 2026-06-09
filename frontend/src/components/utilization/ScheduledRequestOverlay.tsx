@@ -166,7 +166,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       {/* Translucent fill over the tinted track — gives the bar the same weight as a fully
           allocated People segment. */}
       {STATUS_FILL_CLASS[status] && (
-        <div className={`absolute inset-y-0 left-0 w-full ${STATUS_FILL_CLASS[status]}`} aria-hidden="true" />
+        <div className={`absolute inset-0 ${STATUS_FILL_CLASS[status]}`} aria-hidden="true" />
       )}
       {/* Left resize handle — only needs onPointerDown; move/up go to document */}
       <div
