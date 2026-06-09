@@ -10,11 +10,12 @@ import {
 import type { Request, RequestStatus } from "@foundation/src/types/requests";
 import { buildRequestTree, flattenTree, canBeScheduled, canHaveChildren } from "@foundation/src/domain/request-tree";
 import type { FlatTreeEntry } from "@foundation/src/domain/request-tree";
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable, useDndContext } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
 import { getPlanningModeIcon, REQUEST_STATUS, PLANNING_MODE } from "@foundation/src/constants";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 interface RequestsPanelProps {
@@ -47,6 +48,8 @@ const RequestCard = React.memo(function RequestCard({
   const isDraggable = canBeScheduled(request.planningMode);
   const isDropTarget = canHaveChildren(request.planningMode);
 
+  const { active } = useDndContext();
+
   const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } =
     useDraggable({
       id: request.id,
@@ -57,7 +60,7 @@ const RequestCard = React.memo(function RequestCard({
   const { isOver, setNodeRef: setDropTargetRef } = useDroppable({
     id: `tree-drop-${request.id}`,
     data: { type: "tree-reparent", parentRequestId: request.id },
-    disabled: !isDropTarget,
+    disabled: !isDropTarget || active === null,
   });
 
   const combinedRef = useCallback((el: HTMLDivElement | null) => {
@@ -201,6 +204,8 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
     onCreateChild?.(parentId);
   }, [onCreateChild]);
 
+  const listScrollRef = useRef<HTMLDivElement>(null);
+
   // Make the panel droppable for unscheduling
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: "unschedule-zone",
@@ -265,6 +270,14 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
     return result;
   }, [flatEntries, searchQuery, statusFilter, scheduledFilter, collapsedIds]);
 
+  const virtualizer = useVirtualizer({
+    count: visibleEntries.length,
+    getScrollElement: () => listScrollRef.current,
+    estimateSize: () => 72,
+    getItemKey: (i) => visibleEntries[i]?.request.id ?? String(i),
+    overscan: 5,
+  });
+
   return (
     <div
       ref={setDropRef}
@@ -328,7 +341,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
       </div>
 
       {/* Request List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
+      <div ref={listScrollRef} className="flex-1 overflow-y-auto px-4 py-2">
         {isLoading ? (
           <div className="text-center text-muted-foreground text-sm py-8">
             Loading requests...
@@ -338,18 +351,36 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
             No requests found
           </div>
         ) : (
-          visibleEntries.map((entry) => (
-            <RequestCard
-              key={entry.request.id}
-              request={entry.request}
-              requestId={entry.request.id}
-              depth={entry.depth}
-              hasChildren={entry.hasChildren}
-              isExpanded={!collapsedIds.has(entry.request.id)}
-              onToggle={toggleCollapse}
-              onCreateChild={onCreateChild ? handleCreateChild : undefined}
-            />
-          ))
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {virtualizer.getVirtualItems().map((vItem) => {
+              const entry = visibleEntries[vItem.index];
+              if (!entry) return null;
+              return (
+                <div
+                  key={vItem.key}
+                  data-index={vItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    width: '100%',
+                    transform: `translateY(${vItem.start}px)`,
+                    paddingBottom: '6px',
+                  }}
+                >
+                  <RequestCard
+                    request={entry.request}
+                    requestId={entry.request.id}
+                    depth={entry.depth}
+                    hasChildren={entry.hasChildren}
+                    isExpanded={!collapsedIds.has(entry.request.id)}
+                    onToggle={toggleCollapse}
+                    onCreateChild={onCreateChild ? handleCreateChild : undefined}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

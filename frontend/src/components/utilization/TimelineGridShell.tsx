@@ -1,6 +1,7 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, useMemo, type ReactNode } from "react";
 import { format } from "date-fns";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useShallow } from "zustand/react/shallow";
 import type { TimeScale } from "./ScaleSelect";
@@ -46,6 +47,8 @@ interface TimelineGridShellProps<R> {
   bodyOverlay?: ReactNode;
   /** Strip rendered above the header (People: legend + search). */
   toolbar?: ReactNode;
+  /** Show a loading indicator in the body instead of emptyMessage / rows. */
+  isLoading?: boolean;
   /** Outer container className override. Defaults to the Spaces grid styling. */
   className?: string;
   testId?: string;
@@ -64,6 +67,7 @@ export function TimelineGridShell<R>({
   sortable = false,
   bodyOverlay,
   toolbar,
+  isLoading = false,
   className = "flex-1 flex flex-col overflow-hidden bg-background",
   testId,
 }: TimelineGridShellProps<R>) {
@@ -93,26 +97,62 @@ export function TimelineGridShell<R>({
     ? groups.flatMap((g) => g.rows.map(getRowId))
     : [];
 
-  const renderGroups = () =>
-    groups.map((group) => {
+  // Flat, collapse-aware item list for the virtualizer (group headers + rows).
+  const flatItems = useMemo(() => {
+    const items: ({ kind: 'header'; group: ShellGroup<R> } | { kind: 'row'; row: R })[] = [];
+    for (const group of groups) {
+      items.push({ kind: 'header', group });
       const collapseId = `${collapseIdPrefix}:${group.id}`;
-      const isCollapsed = collapsedGroupIds.includes(collapseId);
-      return (
-        <div key={group.id}>
+      if (!collapsedGroupIds.includes(collapseId)) {
+        for (const row of group.rows) {
+          items.push({ kind: 'row', row });
+        }
+      }
+    }
+    return items;
+  }, [groups, collapseIdPrefix, collapsedGroupIds]);
+
+  const virtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => bodyScrollRef.current,
+    estimateSize: (i) => (flatItems[i]?.kind === 'header' ? 36 : 60),
+    getItemKey: (i) => {
+      const item = flatItems[i];
+      if (!item) return String(i);
+      return item.kind === 'header' ? `h:${item.group.id}` : getRowId(item.row);
+    },
+    overscan: 5,
+  });
+
+  const vItems = virtualizer.getVirtualItems().map((vItem) => {
+    const item = flatItems[vItem.index];
+    if (!item) return null;
+    return (
+      <div
+        key={vItem.key}
+        data-index={vItem.index}
+        ref={virtualizer.measureElement}
+        style={{
+          position: 'absolute',
+          top: 0,
+          width: '100%',
+          transform: `translateY(${vItem.start}px)`,
+        }}
+      >
+        {item.kind === 'header' ? (
           <GroupHeader
-            groupName={group.name}
-            groupColor={group.color}
-            count={group.rows.length}
-            isCollapsed={isCollapsed}
-            onToggle={() => toggleGroupCollapse(collapseId)}
+            groupName={item.group.name}
+            groupColor={item.group.color}
+            count={item.group.rows.length}
+            isCollapsed={collapsedGroupIds.includes(`${collapseIdPrefix}:${item.group.id}`)}
+            onToggle={() => toggleGroupCollapse(`${collapseIdPrefix}:${item.group.id}`)}
           />
-          {!isCollapsed &&
-            group.rows.map((row) => (
-              <div key={getRowId(row)}>{renderRow(row)}</div>
-            ))}
-        </div>
-      );
-    });
+        ) : (
+          renderRow(item.row)
+        )}
+      </div>
+    );
+  });
 
   return (
     <div className={className} data-testid={testId}>
@@ -164,19 +204,21 @@ export function TimelineGridShell<R>({
         className="flex-1 overflow-y-auto overflow-x-auto"
         onScroll={handleBodyScroll}
       >
-        {totalRows === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+            Loading...
+          </div>
+        ) : totalRows === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
             {emptyMessage}
           </div>
         ) : (
-          <div className="relative">
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
             {sortable ? (
               <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-                {renderGroups()}
+                {vItems}
               </SortableContext>
-            ) : (
-              renderGroups()
-            )}
+            ) : vItems}
             {bodyOverlay}
           </div>
         )}

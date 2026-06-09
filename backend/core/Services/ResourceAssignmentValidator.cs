@@ -33,6 +33,8 @@ public class ResourceAssignmentValidator(
     IRequestRepository requestRepository,
     ISchedulingRepository schedulingRepository) : IResourceAssignmentValidator
 {
+    // Cap batch parallelism to avoid saturating the connection pool.
+    private readonly SemaphoreSlim _batchSemaphore = new(10, 10);
     public async Task<ValidationResult> ValidateAsync(ValidateResourceAssignmentRequest request, CancellationToken ct = default)
     {
         var blockers = new List<ValidationIssue>();
@@ -58,18 +60,25 @@ public class ResourceAssignmentValidator(
     public async Task<List<AssignmentValidationBatchItem>> ValidateBatchAsync(
         IReadOnlyList<ValidateResourceAssignmentRequest> requests, CancellationToken ct = default)
     {
-        var results = new List<AssignmentValidationBatchItem>(requests.Count);
-        foreach (var request in requests)
+        var tasks = requests.Select(async request =>
         {
-            var result = await ValidateAsync(request, ct);
-            results.Add(new AssignmentValidationBatchItem
+            await _batchSemaphore.WaitAsync(ct);
+            try
             {
-                RequestId = request.RequestId,
-                ResourceId = request.ResourceId,
-                Result = result
-            });
-        }
-        return results;
+                var result = await ValidateAsync(request, ct);
+                return new AssignmentValidationBatchItem
+                {
+                    RequestId = request.RequestId,
+                    ResourceId = request.ResourceId,
+                    Result = result,
+                };
+            }
+            finally
+            {
+                _batchSemaphore.Release();
+            }
+        });
+        return [.. await Task.WhenAll(tasks)];
     }
 
     /// <summary>

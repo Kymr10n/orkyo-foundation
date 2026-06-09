@@ -27,12 +27,15 @@ vi.mock('@foundation/src/lib/api/person-candidate-requests-api', () => ({
 }));
 vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
   getAssignmentsByResource: vi.fn().mockResolvedValue([]),
+  validateAssignmentsBatch: vi.fn().mockResolvedValue([]),
 }));
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
 import { getResourceUtilization } from '@foundation/src/lib/api/resource-utilization-api';
 import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getResourceGroups, getResourceGroupMembers } from '@foundation/src/lib/api/resource-groups-api';
+import { getAssignmentsByResource, validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
+import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
 
 const ANCHOR = new Date('2026-05-01T00:00:00Z');
 
@@ -382,5 +385,29 @@ describe('PeopleUtilizationGrid', () => {
     const dot = getLegendDot('Overbooked');
     expect(dot.className).toMatch(/bg-red-100/);
     expect(dot.className).toMatch(/dark:bg-red-950/);
+  });
+
+  // ── Conflict-check deferral tests ───────────────────────────────────────────
+
+  const oneAssignment: ResourceAssignmentInfo = {
+    id: 'asgn-1',
+    requestId: 'req-1',
+    resourceId: 'p-alice',
+    resourceTypeKey: 'person',
+    startUtc: '2026-05-01T08:00:00Z',
+    endUtc: '2026-05-01T17:00:00Z',
+    assignmentStatus: 'active',
+    createdAt: '2026-05-01T00:00:00Z',
+    updatedAt: '2026-05-01T00:00:00Z',
+  };
+
+  it('does not call validateAssignmentsBatch immediately when assignments load', async () => {
+    // The conflict-check query is deferred by CONFLICT_CHECK_DELAY_MS so the grid
+    // renders immediately. In a fast test the timer never fires, confirming the call
+    // is not part of the initial render path.
+    vi.mocked(getAssignmentsByResource).mockResolvedValue([oneAssignment]);
+    renderGrid();
+    await waitFor(() => screen.getByText('Alice Smith'));
+    expect(validateAssignmentsBatch).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { evaluateSchedule, hasConflicts, getAllConflicts } from './schedule-validator';
 import type { PreviewEntry, PreviewSchedule } from './schedule-model';
+import * as scheduleIndex from './schedule-index';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -202,6 +203,29 @@ describe('evaluateSchedule', () => {
     const aConflicts = result.get('a')!;
     expect(aConflicts.some((c) => c.kind === 'below_min_duration')).toBe(true);
     expect(aConflicts.some((c) => c.kind === 'overlap')).toBe(true);
+  });
+
+  // --- existingIndex ---
+
+  it('produces identical results whether or not an existingIndex is supplied', () => {
+    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
+    const b = makeEntry('b', 's1', '2024-01-01T09:00Z', '2024-01-01T11:00Z');
+    const schedule = makeSchedule(a, b);
+    const prebuilt = scheduleIndex.buildIndex(schedule);
+    const withoutIndex = evaluateSchedule(schedule);
+    const withIndex = evaluateSchedule(schedule, undefined, prebuilt);
+    expect(withIndex).toEqual(withoutIndex);
+  });
+
+  it('skips the internal buildIndex call when existingIndex is supplied', () => {
+    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
+    const b = makeEntry('b', 's1', '2024-01-01T09:00Z', '2024-01-01T11:00Z');
+    const schedule = makeSchedule(a, b);
+    const prebuilt = scheduleIndex.buildIndex(schedule);
+    const buildIndexSpy = vi.spyOn(scheduleIndex, 'buildIndex');
+    evaluateSchedule(schedule, undefined, prebuilt);
+    expect(buildIndexSpy).not.toHaveBeenCalled();
+    buildIndexSpy.mockRestore();
   });
 
   it('conflict ids are unique per entry', () => {

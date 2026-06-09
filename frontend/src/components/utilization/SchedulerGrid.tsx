@@ -5,10 +5,13 @@ import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
 import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
+import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useAppStore } from "@foundation/src/store/app-store";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
+
+const EMPTY_REQUESTS: Request[] = [];
 import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import type { TimeScale } from "./ScaleSelect";
 import type { SpacesByGroup } from "./scheduler-types";
@@ -75,6 +78,7 @@ export function SchedulerGrid({
   );
   const spaceOrder = useAppStore((s) => s.spaceOrder);
   const [groups, setGroups] = useState<ResourceGroupInfo[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
 
   // ---------------------------------------------------------------------------
   // Scheduling validation pipeline (steps 3–4 of interaction flow)
@@ -93,8 +97,8 @@ export function SchedulerGrid({
   );
 
   const schedulingValidation = useMemo(
-    () => evaluateSchedule(previewSchedule),
-    [previewSchedule]
+    () => evaluateSchedule(previewSchedule, undefined, scheduleIndex),
+    [previewSchedule, scheduleIndex]
   );
 
   // Merge backend capability conflicts into the scheduling validation map so
@@ -109,9 +113,25 @@ export function SchedulerGrid({
   }, [schedulingValidation, capabilityConflicts]);
   // ---------------------------------------------------------------------------
 
+  // Pre-group requests by space to avoid O(n×m) filtering inside each SpaceRow.
+  const requestsBySpaceId = useMemo(() => {
+    const map = new Map<string, Request[]>();
+    for (const r of requests) {
+      const spaceId = getSpaceResourceId(r);
+      if (!spaceId) continue;
+      const list = map.get(spaceId) ?? [];
+      list.push(r);
+      map.set(spaceId, list);
+    }
+    return map;
+  }, [requests]);
+
   // Fetch groups
   useEffect(() => {
-    getResourceGroups('space').then(setGroups);
+    getResourceGroups('space').then((g) => {
+      setGroups(g);
+      setGroupsLoading(false);
+    });
   }, []);
 
   // Memoize sorting + grouping — expensive with 50+ spaces (#5)
@@ -386,6 +406,24 @@ export function SchedulerGrid({
     </>
   );
 
+  const renderRow = useCallback(
+    (space: Space) => (
+      <SpaceRow
+        space={space}
+        columns={columns}
+        spaceRequests={requestsBySpaceId.get(space.id) ?? EMPTY_REQUESTS}
+        scheduleIndex={scheduleIndex}
+        validation={validation}
+        timeCursorTs={timeCursorTs}
+        onRequestClick={onRequestClick}
+        onRequestDoubleClick={onRequestDoubleClick}
+        onRequestResize={onRequestResize}
+        offTimeRanges={offTimeRanges}
+      />
+    ),
+    [columns, requestsBySpaceId, scheduleIndex, validation, timeCursorTs, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges],
+  );
+
   return (
     <TimelineGridShell<Space>
       labelHeader="Space"
@@ -395,23 +433,11 @@ export function SchedulerGrid({
       collapseIdPrefix="spaces"
       getRowId={(s) => s.id}
       emptyMessage="No spaces available"
+      isLoading={groupsLoading}
       onColumnHeaderClick={(col) => onTimeCursorClick(col.start)}
       sortable
       bodyOverlay={cursorOverlay}
-      renderRow={(space) => (
-        <SpaceRow
-          space={space}
-          columns={columns}
-          requests={requests}
-          scheduleIndex={scheduleIndex}
-          validation={validation}
-          timeCursorTs={timeCursorTs}
-          onRequestClick={onRequestClick}
-          onRequestDoubleClick={onRequestDoubleClick}
-          onRequestResize={onRequestResize}
-          offTimeRanges={offTimeRanges}
-        />
-      )}
+      renderRow={renderRow}
     />
   );
 }

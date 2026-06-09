@@ -426,6 +426,53 @@ public class ResourceAssignmentValidatorTests
     }
 
     [Fact]
+    public async Task ValidateBatchAsync_ProcessesItemsConcurrently()
+    {
+        // 5 items each take 100 ms (simulated by a slow repo call).
+        // Sequential execution would take ~500 ms; parallel (cap=10) takes ~100 ms.
+        // We assert elapsed < 400 ms — 4 items worth of sequential time — so the
+        // test passes even under heavy CI load while still catching a regression to
+        // a plain foreach.
+        const int itemCount = 5;
+        const int delayMs = 100;
+
+        var resources = Enumerable.Range(0, itemCount)
+            .Select(_ => CreateResource())
+            .ToList();
+
+        foreach (var resource in resources)
+        {
+            _resourceRepoMock
+                .Setup(r => r.GetByIdAsync(resource.Id))
+                .Returns(async () =>
+                {
+                    await Task.Delay(delayMs);
+                    return resource;
+                });
+            _schedulingRepoMock
+                .Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
+                .ReturnsAsync((Guid?)null);
+        }
+        _requestRepoMock
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<bool>()))
+            .ReturnsAsync((RequestInfo?)null);
+
+        var requests = resources
+            .Select(r => CreateValidationRequest(resourceId: r.Id))
+            .ToList();
+
+        var before = DateTimeOffset.UtcNow;
+        var results = await _validator.ValidateBatchAsync(requests);
+        var elapsed = (DateTimeOffset.UtcNow - before).TotalMilliseconds;
+
+        Assert.Equal(itemCount, results.Count);
+        Assert.True(
+            elapsed < (itemCount - 1) * delayMs,
+            $"Expected parallel execution (~{delayMs}ms), got {elapsed:0}ms. " +
+            $"Sequential would take ~{itemCount * delayMs}ms.");
+    }
+
+    [Fact]
     public async Task ValidateBatchAsync_ReturnsOneCorrelatedResultPerItem()
     {
         // One request requires a capability the resource lacks (→ blocker); the other

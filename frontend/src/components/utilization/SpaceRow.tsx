@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { selectSpaceOverlapCount } from "@foundation/src/domain/scheduling/schedule-selectors";
-import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
@@ -19,7 +18,7 @@ const REQUEST_HEIGHT = 44; // Height of each request block
 export const SpaceRow = React.memo(function SpaceRow({
   space,
   columns,
-  requests,
+  spaceRequests,
   scheduleIndex,
   validation,
   timeCursorTs,
@@ -30,7 +29,7 @@ export const SpaceRow = React.memo(function SpaceRow({
 }: {
   space: Space;
   columns: TimeColumn[];
-  requests: Request[];
+  spaceRequests: Request[];
   scheduleIndex: ScheduleIndex;
   validation: ValidationResult;
   timeCursorTs: Date;
@@ -39,16 +38,10 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   offTimeRanges?: readonly OffTimeRange[];
 }) {
-  // Pre-filter requests for this space (stable reference for TimeCell memoization)
-  const spaceRequests = useMemo(
-    () => requests.filter((r) => getSpaceResourceId(r) === space.id),
-    [requests, space.id]
-  );
-
   // Build a requestId→Request map for O(1) lookup from preview entries
   const requestsById = useMemo(
-    () => new Map(requests.map((r) => [r.id, r])),
-    [requests]
+    () => new Map(spaceRequests.map((r) => [r.id, r])),
+    [spaceRequests]
   );
 
   // Preview entries for this space (sorted by startMs via the index)

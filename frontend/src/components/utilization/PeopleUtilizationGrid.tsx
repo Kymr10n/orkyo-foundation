@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import {
@@ -31,6 +31,8 @@ import {
   utilizationGranularityForScale,
 } from './time-grid-utils';
 import { enrichColumnsWithOffTime } from './time-grid-offtime';
+
+const CONFLICT_CHECK_DELAY_MS = 1500;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,11 +173,23 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   });
 
   // 7. Batch-validate all assignments to surface capability conflicts on bars.
+  //    Deferred by CONFLICT_CHECK_DELAY_MS so the grid renders immediately and
+  //    conflict badges appear in the background — this call is decorative only.
   const assignmentsAllLoaded = assignmentQueries.every((q) => !q.isLoading);
   const allAssignmentsFlat = useMemo((): ResourceAssignmentInfo[] => {
     if (!assignmentsAllLoaded) return [];
     return people.flatMap((_, i) => (assignmentQueries[i]?.data ?? []) as ResourceAssignmentInfo[]);
   }, [assignmentsAllLoaded, people, assignmentQueries]);
+
+  const [conflictCheckReady, setConflictCheckReady] = useState(false);
+  useEffect(() => {
+    if (!assignmentsAllLoaded || allAssignmentsFlat.length === 0) {
+      setConflictCheckReady(false);
+      return;
+    }
+    const id = setTimeout(() => setConflictCheckReady(true), CONFLICT_CHECK_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [assignmentsAllLoaded, allAssignmentsFlat.length]);
 
   const { data: conflictedAssignmentIds = new Set<string>() } = useQuery({
     queryKey: ['assignment-capability-conflicts', allAssignmentsFlat.map((a) => a.id)],
@@ -199,7 +213,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
       }
       return conflicted;
     },
-    enabled: assignmentsAllLoaded && allAssignmentsFlat.length > 0,
+    enabled: conflictCheckReady,
     staleTime: 60_000,
   });
 

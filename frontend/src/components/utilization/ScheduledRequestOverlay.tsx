@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, Layers } from "lucide-react";
@@ -107,25 +107,22 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     beginGesture(e, edge, geometry);
   }, [request.startTs, request.endTs, columns, beginGesture]);
 
-  // --- Early return after all hooks ---
+  // --- All hooks must be called before any conditional return ---
 
   const viewStartMs = columns[0].start.getTime();
   const viewEndMs = columns[columns.length - 1].end.getTime();
+
+  // All rendering derived from the domain pipeline
+  const displayData = useMemo(
+    () => selectRequestDisplayData(entry, scheduleIndex, validation, viewStartMs, viewEndMs),
+    [entry, scheduleIndex, validation, viewStartMs, viewEndMs],
+  );
 
   // Draft stays alive during "committing" phase — no snap-back.
   // buildPreviewSchedule still sees the draft bounds until finalizeDraft clears it.
   if (isOutsideView(entry, viewStartMs, viewEndMs)) {
     return null;
   }
-
-  // All rendering derived from the domain pipeline
-  const displayData = selectRequestDisplayData(
-    entry,
-    scheduleIndex,
-    validation,
-    viewStartMs,
-    viewEndMs
-  );
 
   const isResizing = entry.isDraft; // true while store has an active or committing draft for us
 

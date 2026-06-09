@@ -7,6 +7,7 @@ import type { TimeColumn } from './scheduler-types';
 const mockUseDroppable = vi.fn();
 vi.mock('@dnd-kit/core', () => ({
   useDroppable: (args: unknown) => mockUseDroppable(args),
+  useDndContext: () => ({ active: null }),
 }));
 
 // Import AFTER the mock so the component picks up our mocked hook
@@ -60,6 +61,7 @@ describe('TimeCell', () => {
     expect(mockUseDroppable).toHaveBeenCalledWith({
       id: `space-1-${column.start.getTime()}`,
       data: { resourceId: 'space-1', startTs: column.start },
+      disabled: true,
     });
   });
 

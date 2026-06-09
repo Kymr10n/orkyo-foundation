@@ -1,5 +1,5 @@
 import React from "react";
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable, useDndContext } from "@dnd-kit/core";
 import type { Space } from "@foundation/src/types/space";
 import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
@@ -19,9 +19,11 @@ export const TimeCell = React.memo(function TimeCell({
   onRequestClick: (requestId: string) => void;
   isOffTime?: boolean;
 }) {
+  const { active } = useDndContext();
   const { isOver, setNodeRef } = useDroppable({
     id: `${space.id}-${column.start.getTime()}`,
     data: { resourceId: space.id, startTs: column.start },
+    disabled: active === null,
   });
 
   // Tint priority: drag-over hint wins, then resource-specific off-time

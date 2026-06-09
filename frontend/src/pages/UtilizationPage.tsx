@@ -361,7 +361,7 @@ export function UtilizationPage() {
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to space "${resourceId}"`);
 
     setSelectedRequestId(draggedData.id);
-  }, [scheduleMutation, selectedSiteId, spaces, setSelectedRequestId]);
+  }, [scheduleMutation, spaces, setSelectedRequestId]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;

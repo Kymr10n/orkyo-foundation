@@ -125,7 +125,7 @@ interface OffTimeRangeFixture {
 }
 
 function renderRow({
-  requests = [],
+  spaceRequests = [],
   previewEntries = [],
   overlapCount = 1,
   isDragging = false,
@@ -133,7 +133,7 @@ function renderRow({
   columns,
   onRequestClick = vi.fn(),
 }: {
-  requests?: Request[];
+  spaceRequests?: Request[];
   previewEntries?: PreviewEntry[];
   overlapCount?: number;
   isDragging?: boolean;
@@ -155,7 +155,7 @@ function renderRow({
     <SpaceRow
       space={baseSpace}
       columns={columns ?? [makeColumn('08'), makeColumn('09'), makeColumn('10')]}
-      requests={requests}
+      spaceRequests={spaceRequests}
       scheduleIndex={buildIndex(previewEntries)}
       validation={emptyValidation}
       timeCursorTs={new Date('2026-01-01T08:30:00Z')}
@@ -192,27 +192,25 @@ describe('SpaceRow', () => {
     expect(getAllByTestId('time-cell')).toHaveLength(3);
   });
 
-  it('renders ScheduledRequestOverlay only for preview entries whose request belongs to this space', () => {
+  it('renders ScheduledRequestOverlay for preview entries whose request is in spaceRequests', () => {
     const requestInSpace = makeRequest({ id: 'req-1', name: 'Mine' });
-    const requestOther = makeRequest({ id: 'req-other', name: 'Other', assignments: [spaceAssignment('space-2')] });
     const previewEntries = [
       makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' }),
-      // entry whose request is missing from the requests array → skipped
+      // entry whose request is absent from spaceRequests → skipped
       makePreviewEntry({ requestId: 'req-missing', resourceId: 'space-1' }),
     ];
     const { queryByTestId } = renderRow({
-      requests: [requestInSpace, requestOther],
+      spaceRequests: [requestInSpace],
       previewEntries,
     });
     expect(queryByTestId('overlay-req-1')).toBeInTheDocument();
     expect(queryByTestId('overlay-req-missing')).not.toBeInTheDocument();
-    expect(queryByTestId('overlay-req-other')).not.toBeInTheDocument();
   });
 
   it('forwards request clicks from overlays to onRequestClick', () => {
     const onRequestClick = vi.fn();
     const { getByTestId } = renderRow({
-      requests: [makeRequest({ id: 'req-1' })],
+      spaceRequests: [makeRequest({ id: 'req-1' })],
       previewEntries: [makePreviewEntry({ requestId: 'req-1', resourceId: 'space-1' })],
       onRequestClick,
     });
