@@ -42,18 +42,22 @@ describe('AboutPage', () => {
     expect(screen.queryByText('Commit')).not.toBeInTheDocument();
   });
 
-  it('shows the deployed label', () => {
+  it('shows version or fallback dash (no Deployed label)', () => {
     renderAboutPage();
-    // __BUILD_TIME__ is inlined by vite define — check the label is rendered
-    expect(screen.getByText('Deployed')).toBeInTheDocument();
+    // "Deployed" label removed — only a version string or "—" fallback is shown.
+    expect(screen.queryByText('Deployed')).not.toBeInTheDocument();
+    // __APP_VERSION__ is undefined in tests → fallback "—" is rendered.
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 
-  it('displays features list', () => {
+  it('displays current features list', () => {
     renderAboutPage();
-    expect(screen.getByText(/Visual utilization timeline/)).toBeInTheDocument();
-    expect(screen.getByText(/Space management/)).toBeInTheDocument();
-    expect(screen.getByText(/Request workflow/)).toBeInTheDocument();
-    expect(screen.getByText(/Multi-tenant/)).toBeInTheDocument();
+    expect(screen.getByText(/Spaces —/)).toBeInTheDocument();
+    expect(screen.getByText(/Utilization —/)).toBeInTheDocument();
+    expect(screen.getByText(/Requests —/)).toBeInTheDocument();
+    expect(screen.getByText(/Conflict detection —/)).toBeInTheDocument();
+    expect(screen.getByText(/People —/)).toBeInTheDocument();
+    expect(screen.getByText(/Reporting —/)).toBeInTheDocument();
   });
 
   it('shows support link', () => {
@@ -88,14 +92,9 @@ describe('AboutPage', () => {
     expect(screen.getByText(new RegExp(`© ${currentYear}`))).toBeInTheDocument();
   });
 
-  it('shows a build time value in the deployed section', () => {
+  it('shows privacy note in footer', () => {
     renderAboutPage();
-    // __BUILD_TIME__ is injected at vite build time. In tests it may be undefined,
-    // in which case AboutPage renders the "—" fallback. Verify either a real value
-    // or the fallback is rendered (i.e. the slot is present).
-    const deployedLabel = screen.getByText('Deployed');
-    const text = deployedLabel.closest('div')?.textContent ?? '';
-    expect(text.length).toBeGreaterThan('Deployed'.length);
+    expect(screen.getByText(/not shared with third parties/)).toBeInTheDocument();
   });
 });
 
