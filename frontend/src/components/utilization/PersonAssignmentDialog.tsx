@@ -59,6 +59,19 @@ function formatPeriod(start: string, end: string): string {
   return `${fmt.format(new Date(start))} – ${fmt.format(new Date(end))}`;
 }
 
+/** Compact duration between two ISO datetimes, e.g. "45m", "5h", "1h 30m". */
+function formatSpan(start: string, end: string): string {
+  const totalMinutes = Math.round(
+    (new Date(end).getTime() - new Date(start).getTime()) / 60_000,
+  );
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
 export function PersonAssignmentDialog({
   open,
   onOpenChange,
@@ -79,6 +92,16 @@ export function PersonAssignmentDialog({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
+
+  // Refresh the utilization grid after an assignment changes. The grid keys its
+  // data by window + granularity (see PeopleUtilizationGrid); a prefix-match
+  // invalidation catches every active variant so the availability % and segment
+  // badges refetch. The capability-conflicts query keys off the assignments and
+  // refetches transitively.
+  const invalidateGridQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["utilization-by-resource"] });
+    queryClient.invalidateQueries({ queryKey: ["resource-assignments-by-type"] });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -137,7 +160,7 @@ export function PersonAssignmentDialog({
             o.requestId === option.requestId ? { ...o, assignmentId: null } : o,
           ),
         );
-        queryClient.invalidateQueries({ queryKey: ["resource-utilization", personId] });
+        invalidateGridQueries();
       } catch {
         // Silently reset — assignment may already be cancelled
       }
@@ -188,8 +211,7 @@ export function PersonAssignmentDialog({
             o.requestId === option.requestId ? { ...o, assignmentId: created.id } : o,
           ),
         );
-        queryClient.invalidateQueries({ queryKey: ["resource-utilization", personId] });
-        queryClient.invalidateQueries({ queryKey: ["resource-assignments", personId] });
+        invalidateGridQueries();
         // Surface any warnings (including capability mismatches) so the planner is aware.
         if (effectiveResult.warnings.length > 0) {
           patchStatus(option.requestId, { kind: "feedback", result: effectiveResult, isBlocker: false });
@@ -268,7 +290,17 @@ export function PersonAssignmentDialog({
                             data-testid="assignment-checkbox"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{option.name}</p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-sm font-medium truncate">{option.name}</p>
+                              {option.startTs && option.endTs && (
+                                <span
+                                  className="text-xs text-muted-foreground shrink-0 tabular-nums"
+                                  data-testid="request-duration"
+                                >
+                                  {formatSpan(option.startTs, option.endTs)}
+                                </span>
+                              )}
+                            </div>
                             {(option.startTs || option.endTs) && (
                               <p className="text-xs text-muted-foreground truncate">
                                 {formatPeriod(option.startTs ?? "", option.endTs ?? "")}

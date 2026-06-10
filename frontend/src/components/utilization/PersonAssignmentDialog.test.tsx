@@ -185,7 +185,7 @@ describe("PersonAssignmentDialog", () => {
     expect(cancelAssignment).toHaveBeenCalledWith("asgn-1");
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: ["resource-utilization", "person-1"] }),
+        expect.objectContaining({ queryKey: ["utilization-by-resource"] }),
       ),
     );
   });
@@ -326,7 +326,7 @@ describe("PersonAssignmentDialog", () => {
     expect(createAssignment).not.toHaveBeenCalled();
   });
 
-  it("add: successful create invalidates resource-assignments query", async () => {
+  it("add: successful create invalidates the utilization grid queries", async () => {
     vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
@@ -349,7 +349,10 @@ describe("PersonAssignmentDialog", () => {
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());
     expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["resource-assignments", "person-1"] }),
+      expect.objectContaining({ queryKey: ["resource-assignments-by-type"] }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["utilization-by-resource"] }),
     );
   });
 
@@ -364,5 +367,18 @@ describe("PersonAssignmentDialog", () => {
     await userEvent.type(filter, "alpha");
     expect(screen.getByText("Request Alpha")).toBeInTheDocument();
     expect(screen.queryByText("Request Beta")).not.toBeInTheDocument();
+  });
+
+  it("shows the request duration when the option has a window, and omits it otherwise", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+      ASSIGNED_OPTION, // 08:00–10:00 → 2h
+      CLEAN_CANDIDATE, // null window → no duration
+    ]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Alpha")).toBeInTheDocument());
+
+    const durations = screen.getAllByTestId("request-duration");
+    expect(durations).toHaveLength(1);
+    expect(durations[0]).toHaveTextContent("2h");
   });
 });
