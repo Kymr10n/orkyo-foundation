@@ -27,3 +27,24 @@ export function formatBytes(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
+
+export type QuotaSeverity = "neutral" | "warning" | "exceeded";
+
+/**
+ * Severity of a quota's current usage, used to colour usage indicators consistently
+ * across the storage bar and the count-quota rows.
+ *
+ * - `exceeded` (red): usage is strictly *over* the limit (`used > limit`) — a violation,
+ *   e.g. 2/1 after a tier downgrade. Being exactly at the limit (1/1, 100%) is valid,
+ *   full usage and is NOT exceeded.
+ * - `warning` (amber): at or near capacity (80%–100%, inclusive of full).
+ * - `neutral`: below 80%, or unlimited.
+ */
+export function quotaSeverity(
+  q: { unlimited: boolean; used: number; limit: number; percentUsed: number },
+): QuotaSeverity {
+  if (q.unlimited) return "neutral";
+  if (q.used > q.limit) return "exceeded";
+  if (q.percentUsed >= 80) return "warning";
+  return "neutral";
+}

@@ -1,6 +1,6 @@
 import { cn } from "@foundation/src/lib/utils";
 import type { NumericQuota } from "@foundation/src/lib/api/quotas-api";
-import { formatBytes } from "@foundation/src/lib/quotas/quota-display";
+import { formatBytes, quotaSeverity } from "@foundation/src/lib/quotas/quota-display";
 
 interface StorageUsageMonitorProps {
   quota: NumericQuota;
@@ -15,8 +15,9 @@ export function StorageUsageMonitor({ quota, className }: StorageUsageMonitorPro
   const { used, limit, unlimited, percentUsed } = quota;
 
   const pct = Math.min(percentUsed, 100);
-  const isWarning = !unlimited && percentUsed >= 80 && percentUsed < 100;
-  const isExceeded = !unlimited && percentUsed >= 100;
+  const severity = quotaSeverity(quota);
+  // Full but not over (used === limit): valid, at-capacity state — amber, not red.
+  const atCapacity = severity === "warning" && used >= limit;
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -24,8 +25,8 @@ export function StorageUsageMonitor({ quota, className }: StorageUsageMonitorPro
         <span className="text-muted-foreground">Storage used</span>
         <span className={cn(
           "font-medium tabular-nums",
-          isExceeded && "text-destructive",
-          isWarning && "text-amber-600",
+          severity === "exceeded" && "text-destructive",
+          severity === "warning" && "text-amber-600",
         )}>
           {formatBytes(used)}
           {!unlimited && <span className="text-muted-foreground font-normal"> / {formatBytes(limit)}</span>}
@@ -39,7 +40,7 @@ export function StorageUsageMonitor({ quota, className }: StorageUsageMonitorPro
           <div
             className={cn(
               "h-full rounded-full transition-all",
-              isExceeded ? "bg-destructive" : isWarning ? "bg-amber-500" : "bg-primary",
+              severity === "exceeded" ? "bg-destructive" : severity === "warning" ? "bg-amber-500" : "bg-primary",
             )}
             style={{ width: `${pct}%` }}
           />
@@ -48,13 +49,15 @@ export function StorageUsageMonitor({ quota, className }: StorageUsageMonitorPro
       {!unlimited && (
         <p className={cn(
           "text-xs",
-          isExceeded ? "text-destructive" : isWarning ? "text-amber-600" : "text-muted-foreground",
+          severity === "exceeded" ? "text-destructive" : severity === "warning" ? "text-amber-600" : "text-muted-foreground",
         )}>
-          {isExceeded
-            ? "Storage limit reached — uploads are blocked until usage is reduced"
-            : isWarning
-              ? `${pct.toFixed(0)}% used — approaching limit`
-              : `${pct.toFixed(0)}% of ${formatBytes(limit)} used`}
+          {severity === "exceeded"
+            ? "Storage over limit — uploads are blocked until usage is reduced"
+            : atCapacity
+              ? `At capacity — ${formatBytes(limit)} used`
+              : severity === "warning"
+                ? `${pct.toFixed(0)}% used — approaching limit`
+                : `${pct.toFixed(0)}% of ${formatBytes(limit)} used`}
         </p>
       )}
     </div>

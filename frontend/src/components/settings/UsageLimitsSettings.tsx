@@ -3,7 +3,7 @@ import { StorageUsageMonitor } from "./StorageUsageMonitor";
 import { Card, CardContent, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import type { NumericQuota, Entitlement } from "@foundation/src/lib/api/quotas-api";
-import { QUOTA_LABELS, ENTITLEMENT_LABELS } from "@foundation/src/lib/quotas/quota-display";
+import { QUOTA_LABELS, ENTITLEMENT_LABELS, quotaSeverity } from "@foundation/src/lib/quotas/quota-display";
 
 function formatCount(value: number): string {
   return value.toLocaleString();
@@ -14,17 +14,14 @@ function NumericQuotaRow({ quota }: { quota: NumericQuota }) {
     return <StorageUsageMonitor quota={quota} />;
   }
 
-  const { unlimited, used, limit, percentUsed } = quota;
-  // A quota is only *violated* when usage exceeds the limit; being exactly at the
-  // limit (e.g. 1/1) is valid, full usage — not a violation.
-  const isExceeded = !unlimited && used > limit;
-  const isWarning = !unlimited && !isExceeded && percentUsed >= 80;
+  const { unlimited, used, limit } = quota;
+  const severity = quotaSeverity(quota);
 
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-muted-foreground">{QUOTA_LABELS[quota.key] ?? quota.key}</span>
       <span className="text-sm font-medium tabular-nums">
-        <span className={isExceeded ? "text-destructive" : isWarning ? "text-amber-600" : undefined}>
+        <span className={severity === "exceeded" ? "text-destructive" : severity === "warning" ? "text-amber-600" : undefined}>
           {formatCount(used)}
         </span>
         {!unlimited && (
