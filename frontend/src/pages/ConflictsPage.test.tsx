@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConflictsPage } from '@foundation/src/pages/ConflictsPage';
-import { useConflictRegistry } from '@foundation/src/hooks/useConflictRegistry';
+import { useConflictRegistry, useConflictedRequests } from '@foundation/src/hooks/useConflictRegistry';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 
@@ -123,6 +123,47 @@ describe('ConflictsPage', () => {
     it('should not render any conflict items', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
       expect(screen.queryByText('Conference Room Request')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('loading and error states', () => {
+    // Restore the settled default so later tests aren't left in a pending/error state.
+    afterEach(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(useConflictedRequests).mockReturnValue({ data: mockRequests, isLoading: false } as any);
+    });
+
+    it('shows a loading indicator (not the empty state) while either query is pending', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(useConflictRegistry).mockReturnValue({ conflictsByRequest: new Map(), isPending: true, isError: false, refetch: vi.fn() } as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(useConflictedRequests).mockReturnValue({ data: [], isPending: true, isError: false, refetch: vi.fn() } as any);
+
+      const { container } = render(<ConflictsPage />, { wrapper: createWrapper() });
+
+      expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+      // Must NOT show the misleading "all good" empty state while loading.
+      expect(screen.queryByText('No conflicts to display')).not.toBeInTheDocument();
+      expect(screen.queryByText(/No conflicts detected/i)).not.toBeInTheDocument();
+    });
+
+    it('shows an error state with a working retry (not the empty state) on failure', () => {
+      const refetchConflicts = vi.fn();
+      const refetchRequests = vi.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(useConflictRegistry).mockReturnValue({ conflictsByRequest: new Map(), isPending: false, isError: true, refetch: refetchConflicts } as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vi.mocked(useConflictedRequests).mockReturnValue({ data: [], isPending: false, isError: true, refetch: refetchRequests } as any);
+
+      render(<ConflictsPage />, { wrapper: createWrapper() });
+
+      // Shown in both the header subtitle and the error card body.
+      expect(screen.getAllByText(/Couldn't load conflicts/i).length).toBeGreaterThan(0);
+      expect(screen.queryByText('No conflicts to display')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+      expect(refetchConflicts).toHaveBeenCalledTimes(1);
+      expect(refetchRequests).toHaveBeenCalledTimes(1);
     });
   });
 

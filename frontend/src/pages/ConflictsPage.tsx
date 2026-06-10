@@ -9,6 +9,8 @@ import React, { useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { logger } from "@foundation/src/lib/core/logger";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { Button } from "@foundation/src/components/ui/button";
 
 type ConflictWithRequest = Conflict & { request: Request };
 
@@ -95,8 +97,24 @@ const ConflictItem = React.memo(function ConflictItem({
 export function ConflictsPage() {
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   // Tenant-wide authoritative registry + just the conflicted requests (not the whole tenant).
-  const { conflictsByRequest: conflicts } = useConflictRegistry();
-  const { data: requests = [] } = useConflictedRequests();
+  const {
+    conflictsByRequest: conflicts,
+    isPending: conflictsPending,
+    isError: conflictsError,
+    refetch: refetchConflicts,
+  } = useConflictRegistry();
+  const {
+    data: requests = [],
+    isPending: requestsPending,
+    isError: requestsError,
+    refetch: refetchRequests,
+  } = useConflictedRequests();
+
+  // The page joins both queries, so it is only "ready" once both have settled.
+  // Until then we must not show the empty ("no conflicts") state — that would be a
+  // misleading false-negative while data is still loading.
+  const isLoading = conflictsPending || requestsPending;
+  const isError = conflictsError || requestsError;
 
   const searchParams = useMemo(
     () =>
@@ -196,9 +214,13 @@ export function ConflictsPage() {
     getItemKey: (i) => visibleConflictItems[i].id,
   });
 
-  const description = visibleConflictItems.length === 0
-    ? "No conflicts detected. All scheduled requests meet their requirements."
-    : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`;
+  const description = isLoading
+    ? "Checking scheduled requests for conflicts…"
+    : isError
+      ? "Couldn't load conflicts."
+      : visibleConflictItems.length === 0
+        ? "No conflicts detected. All scheduled requests meet their requirements."
+        : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`;
 
   return (
     <PageLayout>
@@ -209,7 +231,25 @@ export function ConflictsPage() {
         </p>
       )}
 
-      {visibleConflictItems.length === 0 ? (
+      {isLoading ? (
+        <div className="py-12">
+          <LoadingSpinner fullScreen={false} message="Checking for conflicts…" />
+        </div>
+      ) : isError ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 mx-auto mb-3 text-destructive opacity-70" />
+            <p className="mb-3">Couldn't load conflicts.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { refetchConflicts(); refetchRequests(); }}
+            >
+              Try again
+            </Button>
+          </div>
+        </div>
+      ) : visibleConflictItems.length === 0 ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <div className="text-center">
             <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
