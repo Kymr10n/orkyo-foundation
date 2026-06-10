@@ -23,6 +23,8 @@ import {
   X,
 } from "lucide-react";
 import { markTourSeen } from "@foundation/src/lib/api/session-api";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { logger } from "@foundation/src/lib/core/logger";
 
 interface TourStep {
   icon: React.ComponentType<{ className?: string }>;
@@ -99,16 +101,25 @@ interface TourDialogProps {
 export function TourDialog({ open, onClose }: TourDialogProps) {
   const [step, setStep] = useState(0);
   const navigate = useNavigate();
+  const { appUser, setAppUser } = useAuth();
 
   const current = STEPS[step];
   const Icon = current.icon;
   const isLast = step === STEPS.length - 1;
 
   const handleClose = async () => {
+    // Reflect completion in local auth state so the dismissal survives AppLayout
+    // remounts (e.g. after visiting the Account page, which lives on a route outside
+    // AppLayout). Without this, AppLayout's auto-show effect re-opens the tour on
+    // every remount because appUser.hasSeenTour is still false in memory.
+    if (appUser && !appUser.hasSeenTour) {
+      setAppUser({ ...appUser, hasSeenTour: true });
+    }
     try {
       await markTourSeen();
-    } catch {
-      // Non-fatal — the flag will be set on next interaction
+    } catch (err) {
+      // Non-fatal for this session (local state already updated); log for visibility.
+      logger.error("Failed to persist tour-seen", err);
     }
     onClose();
   };

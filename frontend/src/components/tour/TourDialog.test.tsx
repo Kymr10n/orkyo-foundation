@@ -12,6 +12,15 @@ vi.mock("@foundation/src/lib/api/session-api", () => ({
   markTourSeen: () => mockMarkTourSeen(),
 }));
 
+// Control the auth context so we can assert the tour reflects completion locally.
+const { authState, mockSetAppUser } = vi.hoisted(() => ({
+  authState: { appUser: { hasSeenTour: false } as { hasSeenTour: boolean } | null },
+  mockSetAppUser: vi.fn(),
+}));
+vi.mock("@foundation/src/contexts/AuthContext", () => ({
+  useAuth: () => ({ appUser: authState.appUser, setAppUser: mockSetAppUser }),
+}));
+
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
   const actual =
@@ -42,6 +51,7 @@ const TOTAL_STEPS = 7;
 describe("TourDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.appUser = { hasSeenTour: false };
   });
 
   // ── visibility ───────────────────────────────────────────────────────────────
@@ -125,6 +135,34 @@ describe("TourDialog", () => {
       expect(mockMarkTourSeen).toHaveBeenCalledTimes(1);
       expect(onClose).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("closing the tour reflects completion in local auth state (survives remounts)", async () => {
+    renderTour();
+
+    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
+      fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /done/i }));
+
+    await waitFor(() => {
+      expect(mockSetAppUser).toHaveBeenCalledWith(
+        expect.objectContaining({ hasSeenTour: true }),
+      );
+    });
+  });
+
+  it("does not re-update auth state when the tour was already seen", async () => {
+    authState.appUser = { hasSeenTour: true };
+    renderTour();
+
+    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
+      fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: /done/i }));
+
+    await waitFor(() => expect(mockMarkTourSeen).toHaveBeenCalled());
+    expect(mockSetAppUser).not.toHaveBeenCalled();
   });
 
   it("markTourSeen is called even if it throws (non-fatal)", async () => {
