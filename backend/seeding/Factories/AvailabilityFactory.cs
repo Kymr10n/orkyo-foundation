@@ -7,9 +7,10 @@ namespace Orkyo.Foundation.Seed.Factories;
 
 /// <summary>
 /// Seeds the availability model: site-scoped <c>availability_events</c> (public holidays, summer/winter
-/// shutdowns, plus one tool-type-scoped maintenance window to exercise <c>availability_event_scopes</c>),
-/// and per-person <c>resource_absences</c> (vacation for everyone, occasional sickness, periodic
-/// training). Makes utilization and availability views look like a real operation.
+/// shutdowns, plus — when tools are seeded — one tool-type-scoped maintenance window to exercise
+/// <c>availability_event_scopes</c>), and per-person <c>resource_absences</c> (vacation for everyone,
+/// occasional sickness, periodic training). Makes utilization and availability views look like a real
+/// operation.
 /// </summary>
 public static class AvailabilityFactory
 {
@@ -20,11 +21,13 @@ public static class AvailabilityFactory
         YearCalendar cal,
         IReadOnlyList<Factories.SpaceFactories.SeededSite> sites,
         IReadOnlyList<Factories.PeopleFactories.SeededPerson> people,
-        Faker faker)
+        Faker faker,
+        bool includeTools)
     {
-        Guid toolTypeId;
-        await using (var cmd = new NpgsqlCommand("SELECT id FROM public.resource_types WHERE key='tool' LIMIT 1", conn))
-            toolTypeId = (Guid)(await cmd.ExecuteScalarAsync())!;
+        Guid toolTypeId = Guid.Empty;
+        if (includeTools)
+            await using (var cmd = new NpgsqlCommand("SELECT id FROM public.resource_types WHERE key='tool' LIMIT 1", conn))
+                toolTypeId = (Guid)(await cmd.ExecuteScalarAsync())!;
 
         var now = DateTime.UtcNow;
         var events = 0;
@@ -47,11 +50,14 @@ public static class AvailabilityFactory
                     events += await WriteEvent(w, site.Id, title, "shutdown", s, e, now);
                 }
                 // One tool-scoped maintenance window mid-window (exercises availability_event_scopes).
-                var mStart = cal.Start.AddMonths(4);
-                var eventId = Guid.NewGuid();
-                await WriteEvent(w, site.Id, "Equipment Maintenance Window", "maintenance", mStart, mStart.AddDays(1), now, eventId);
-                events++;
-                scopeRows.Add((eventId, toolTypeId));
+                if (includeTools)
+                {
+                    var mStart = cal.Start.AddMonths(4);
+                    var eventId = Guid.NewGuid();
+                    await WriteEvent(w, site.Id, "Equipment Maintenance Window", "maintenance", mStart, mStart.AddDays(1), now, eventId);
+                    events++;
+                    scopeRows.Add((eventId, toolTypeId));
+                }
             }
             await w.CompleteAsync();
         }

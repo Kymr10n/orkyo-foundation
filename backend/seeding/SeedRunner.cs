@@ -112,9 +112,11 @@ public static class SeedRunner
         if (opts.UseFloorplans)
         {
             // ── The relatable year: coherent per-facility operations exercising every aspect ──
+            var includeTools = opts.ResourceTypes.HasFlag(SeedResourceTypes.Tools);
             var facilities = Narrative.FacilityModel.All;
-            var seededTools = await ToolFactory.SeedAsync(conn, facilities);
-            var skillCriteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
+            IReadOnlyList<ToolFactory.SeededTool> seededTools =
+                includeTools ? await ToolFactory.SeedAsync(conn, facilities) : [];
+            var skillCriteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools);
             var cohorts = Narrative.Cohorts.Build(facilities, sites, spaces, people, seededTools);
             var caps = await CapabilityFactory.AssignAsync(conn, skillCriteria, cohorts, faker);
 
@@ -123,7 +125,7 @@ public static class SeedRunner
                 conn, people, caps.PersonSkills, skillCriteria, personTypeId);
 
             var calendar = new Narrative.YearCalendar(opts.ReferenceDate);
-            var avail = await AvailabilityFactory.SeedAsync(conn, calendar, sites, people, faker);
+            var avail = await AvailabilityFactory.SeedAsync(conn, calendar, sites, people, faker, includeTools);
             templates = await TemplateFactory.SeedAsync(conn, skillCriteria);
             var year = await Narrative.NarrativeYearSeeder.SeedAsync(
                 conn, cohorts, skillCriteria, caps.PersonSkills, calendar, scale, faker);

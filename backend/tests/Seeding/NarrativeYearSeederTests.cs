@@ -69,11 +69,11 @@ public class NarrativeYearSeederTests
 
         var facilities = FacilityModel.All;
         var tools = await ToolFactory.SeedAsync(conn, facilities);
-        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
+        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools: true);
         var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools);
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
         var cal = new YearCalendar(DateTime.UtcNow);
-        var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
+        var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker, includeTools: true);
         var year = await NarrativeYearSeeder.SeedAsync(conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker);
 
         year.Requests.Should().BeGreaterThan(0);
@@ -141,6 +141,76 @@ public class NarrativeYearSeederTests
             "Exclusive machines must not accidentally double-book beyond the injected conflicts");
 
         await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task PeopleAndSpacesOnly_SeedsNoToolCriteriaTagsOrScopes()
+    {
+        await using var conn = _connFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        var faker = new Faker { Random = new Randomizer(1337) };
+
+        var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
+        var spaceTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='space' LIMIT 1");
+
+        var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
+
+        var people = new List<PeopleFactories.SeededPerson>();
+        var now = DateTime.UtcNow;
+        using (var w = await conn.BeginBinaryImportAsync(
+            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) FROM STDIN (FORMAT BINARY)"))
+        {
+            for (var i = 0; i < 30; i++)
+            {
+                var id = Guid.NewGuid();
+                await w.StartRowAsync();
+                await w.WriteAsync(id, NpgsqlDbType.Uuid);
+                await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
+                await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
+                await w.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
+                await w.WriteAsync(100, NpgsqlDbType.Integer);
+                await w.WriteAsync(true, NpgsqlDbType.Boolean);
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                people.Add(new PeopleFactories.SeededPerson(id, $"Person {i}"));
+            }
+            await w.CompleteAsync();
+        }
+
+        // Baselines: the shared fixture commits demo data, so assert this seed's *delta* is zero.
+        const string toolTagSql = @"SELECT count(*) FROM criterion_resource_types crt
+            JOIN resource_types rt ON rt.id=crt.resource_type_id AND rt.key='tool'";
+        const string maxLoadSql = "SELECT count(*) FROM criteria WHERE name='Max Load'";
+        const string scopeSql = "SELECT count(*) FROM availability_event_scopes";
+        var (toolTags0, maxLoad0, scopes0) =
+            (await ScalarLong(conn, tx, toolTagSql), await ScalarLong(conn, tx, maxLoadSql), await ScalarLong(conn, tx, scopeSql));
+
+        var facilities = FacilityModel.All;
+        // People + spaces only: no tools seeded, includeTools=false everywhere.
+        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools: false);
+        var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, []);
+        await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
+        var cal = new YearCalendar(DateTime.UtcNow);
+        await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker, includeTools: false);
+
+        // No new criterion is tagged to the tool resource type.
+        (await ScalarLong(conn, tx, toolTagSql)).Should().Be(toolTags0,
+            "no criterion should be tagged for the tool resource type when tools are off");
+        // The tool-only Max Load criterion is not seeded.
+        (await ScalarLong(conn, tx, maxLoadSql)).Should().Be(maxLoad0,
+            "tool-only specs must not be seeded when tools are off");
+        // No tool-scoped maintenance window / availability scopes.
+        (await ScalarLong(conn, tx, scopeSql)).Should().Be(scopes0,
+            "the tool-scoped maintenance window is skipped when tools are off");
+
+        await tx.RollbackAsync();
+    }
+
+    private static async Task<long> ScalarLong(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        return (long)(await cmd.ExecuteScalarAsync())!;
     }
 
     private static async Task<Guid> ScalarGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
