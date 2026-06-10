@@ -18,6 +18,7 @@ import {
   createAssignment,
   cancelAssignment,
   validateAssignment,
+  validateAssignmentsBatch,
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import {
@@ -50,6 +51,35 @@ const SOFT_BLOCKER_CODES: ReadonlySet<string> = new Set([
   "capability.missing",
   "assignment.overbooked",
 ]);
+
+/**
+ * The window an assignment should occupy: the request's own scheduled window when it
+ * has one, else the clicked grid segment. Using the segment window for a scheduled
+ * request over-allocates the resource (a 4h request would span the whole visible slice,
+ * inflating its time-weighted utilization), so the request window is preferred.
+ */
+function assignmentWindow(
+  option: PersonAssignmentOption,
+  segmentStart: string,
+  segmentEnd: string,
+): { startUtc: string; endUtc: string } {
+  return option.startTs && option.endTs
+    ? { startUtc: option.startTs, endUtc: option.endTs }
+    : { startUtc: segmentStart, endUtc: segmentEnd };
+}
+
+/**
+ * Reduce a validation result to the conflict issues we surface on an assigned row —
+ * capability mismatch and overbook (soft blockers) plus any warnings. Returns null when
+ * the assignment is clean, so callers can treat the map entry as "has conflicts".
+ */
+function conflictIssuesOf(result: ValidationResult): ValidationResult | null {
+  const issues = [
+    ...result.blockers.filter((b) => SOFT_BLOCKER_CODES.has(b.code)),
+    ...result.warnings.filter((w) => SOFT_BLOCKER_CODES.has(w.code)),
+  ];
+  return issues.length > 0 ? { severity: "warning", blockers: [], warnings: issues } : null;
+}
 
 type ItemStatus =
   | { kind: "idle" }
@@ -98,6 +128,9 @@ export function PersonAssignmentDialog({
     allocationMode === ALLOCATION_MODE.EXCLUSIVE ? undefined : 100;
   const [options, setOptions] = useState<PersonAssignmentOption[]>([]);
   const [itemStatus, setItemStatus] = useState<Map<string, ItemStatus>>(new Map());
+  // requestId → conflict issues for an already-assigned row (capability / overbook),
+  // computed on load so conflicts persist across reopens, not just after toggling.
+  const [conflicts, setConflicts] = useState<Map<string, ValidationResult>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -118,6 +151,7 @@ export function PersonAssignmentDialog({
     let cancelled = false;
     setSearch("");
     setItemStatus(new Map());
+    setConflicts(new Map());
     setLoadError(null);
     setIsLoading(true);
     getPersonAssignmentOptions(personId, start, end)
@@ -131,6 +165,9 @@ export function PersonAssignmentDialog({
             return a.name.localeCompare(b.name);
           }),
         );
+        // Surface existing conflicts on the already-assigned rows. Decorative — runs
+        // in the background; each assignment is excluded from its own overbook check.
+        void loadConflicts(opts, cancelled);
       })
       .catch((err: unknown) => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load");
@@ -141,7 +178,40 @@ export function PersonAssignmentDialog({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, personId, start, end]);
+
+  const loadConflicts = async (opts: PersonAssignmentOption[], cancelled: boolean) => {
+    const assigned = opts.filter(
+      (o) => o.assignmentId !== null && o.startTs && o.endTs,
+    );
+    if (assigned.length === 0) return;
+    try {
+      const results = await validateAssignmentsBatch(
+        assigned.map((o) => {
+          const win = assignmentWindow(o, start, end);
+          return {
+            requestId: o.requestId,
+            resourceId: personId,
+            startUtc: win.startUtc,
+            endUtc: win.endUtc,
+            allocationPercent,
+            excludeAssignmentId: o.assignmentId ?? undefined,
+          };
+        }),
+      );
+      if (cancelled) return;
+      const map = new Map<string, ValidationResult>();
+      for (const item of results) {
+        if (!item.requestId) continue;
+        const conflict = conflictIssuesOf(item.result);
+        if (conflict) map.set(item.requestId, conflict);
+      }
+      setConflicts(map);
+    } catch {
+      // Conflict badges are decorative — ignore validation failures.
+    }
+  };
 
   const filteredOptions = useMemo(() => {
     if (!search.trim()) return options;
@@ -153,6 +223,20 @@ export function PersonAssignmentDialog({
     () => options.filter((o) => o.assignmentId !== null).length,
     [options],
   );
+
+  // Header summary: how many assigned requests are currently conflicted.
+  const conflictCount = useMemo(
+    () => options.filter((o) => o.assignmentId !== null && conflicts.has(o.requestId)).length,
+    [options, conflicts],
+  );
+
+  const patchConflict = (requestId: string, conflict: ValidationResult | null) =>
+    setConflicts((prev) => {
+      const next = new Map(prev);
+      if (conflict) next.set(requestId, conflict);
+      else next.delete(requestId);
+      return next;
+    });
 
   const patchStatus = (requestId: string, status: ItemStatus) =>
     setItemStatus((prev) => new Map(prev).set(requestId, status));
@@ -170,21 +254,23 @@ export function PersonAssignmentDialog({
             o.requestId === option.requestId ? { ...o, assignmentId: null } : o,
           ),
         );
+        patchConflict(option.requestId, null);
         invalidateGridQueries();
       } catch {
         // Silently reset — assignment may already be cancelled
       }
       patchStatus(option.requestId, { kind: "idle" });
     } else {
-      // Validate first, then assign.
+      // Validate first, then assign — over the request's own window (see assignmentWindow).
+      const win = assignmentWindow(option, start, end);
       patchStatus(option.requestId, { kind: "validating" });
       let result: ValidationResult;
       try {
         result = await validateAssignment({
           requestId: option.requestId,
           resourceId: personId,
-          startUtc: start,
-          endUtc: end,
+          startUtc: win.startUtc,
+          endUtc: win.endUtc,
           allocationPercent,
         });
       } catch {
@@ -213,8 +299,8 @@ export function PersonAssignmentDialog({
         const created = await createAssignment({
           requestId: option.requestId,
           resourceId: personId,
-          startUtc: start,
-          endUtc: end,
+          startUtc: win.startUtc,
+          endUtc: win.endUtc,
           allocationPercent,
         });
         setOptions((prev) =>
@@ -223,12 +309,10 @@ export function PersonAssignmentDialog({
           ),
         );
         invalidateGridQueries();
-        // Surface any warnings (including capability mismatches) so the planner is aware.
-        if (effectiveResult.warnings.length > 0) {
-          patchStatus(option.requestId, { kind: "feedback", result: effectiveResult, isBlocker: false });
-        } else {
-          patchStatus(option.requestId, { kind: "idle" });
-        }
+        // Persist any conflict (capability / overbook) on the now-assigned row so the
+        // badge + reasons survive — one source of truth with the on-load conflicts map.
+        patchConflict(option.requestId, conflictIssuesOf(effectiveResult));
+        patchStatus(option.requestId, { kind: "idle" });
       } catch {
         patchStatus(option.requestId, { kind: "idle" });
       }
@@ -271,9 +355,21 @@ export function PersonAssignmentDialog({
               <>
                 <div className="flex items-center justify-between pb-2 border-b">
                   <span className="text-sm font-medium">Requests</span>
-                  <Badge variant="outline" className="text-xs">
-                    {assignedCount} assigned
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {conflictCount > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs text-amber-600 border-amber-300 gap-1"
+                        data-testid="conflict-summary-badge"
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        {conflictCount} conflicted
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {assignedCount} assigned
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -286,6 +382,8 @@ export function PersonAssignmentDialog({
                       status.kind === "removing";
                     const mismatches = mismatchCount(option);
                     const hasFeedback = status.kind === "feedback";
+                    const conflict = conflicts.get(option.requestId);
+                    const showConflict = isChecked && !hasFeedback && conflict != null;
 
                     return (
                       <div key={option.requestId} data-testid="assignment-option-row">
@@ -337,6 +435,16 @@ export function PersonAssignmentDialog({
                               {mismatches}
                             </Badge>
                           )}
+                          {!isInFlight && showConflict && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs text-amber-600 border-amber-300 shrink-0 gap-1"
+                              data-testid="conflict-badge"
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {conflict.warnings.length}
+                            </Badge>
+                          )}
                         </div>
                         {hasFeedback && (
                           <div
@@ -351,6 +459,14 @@ export function PersonAssignmentDialog({
                               issues={status.result.warnings}
                               variant="warning"
                             />
+                          </div>
+                        )}
+                        {showConflict && (
+                          <div
+                            className="ml-9 pb-1 pr-2 space-y-0.5"
+                            data-testid="item-conflict-feedback"
+                          >
+                            <ValidationIssueList issues={conflict.warnings} variant="warning" />
                           </div>
                         )}
                       </div>

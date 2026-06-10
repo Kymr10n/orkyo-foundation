@@ -21,6 +21,7 @@ vi.mock("@foundation/src/lib/api/resource-assignments-api", () => ({
   createAssignment: vi.fn(),
   cancelAssignment: vi.fn(),
   validateAssignment: vi.fn(),
+  validateAssignmentsBatch: vi.fn(),
 }));
 
 import { getPersonAssignmentOptions } from "@foundation/src/lib/api/person-candidate-requests-api";
@@ -28,6 +29,7 @@ import {
   createAssignment,
   cancelAssignment,
   validateAssignment,
+  validateAssignmentsBatch,
 } from "@foundation/src/lib/api/resource-assignments-api";
 
 const START = "2026-01-06T08:00:00Z";
@@ -134,6 +136,9 @@ function renderDialog(
 describe("PersonAssignmentDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: assigned rows have no conflicts on load. Tests that assert the conflict
+    // indicator override this with a non-empty batch result.
+    vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);
   });
 
   it("shows loading then renders assigned and candidate rows", async () => {
@@ -306,7 +311,7 @@ describe("PersonAssignmentDialog", () => {
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() =>
-      expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
+      expect(screen.getByTestId("item-conflict-feedback")).toBeInTheDocument(),
     );
     expect(screen.getByText(/Resource does not satisfy requirement/)).toBeInTheDocument();
   });
@@ -320,7 +325,7 @@ describe("PersonAssignmentDialog", () => {
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());
     await waitFor(() =>
-      expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
+      expect(screen.getByTestId("item-conflict-feedback")).toBeInTheDocument(),
     );
     expect(screen.getByText(/exceeds available capacity/)).toBeInTheDocument();
   });
@@ -404,5 +409,67 @@ describe("PersonAssignmentDialog", () => {
     const durations = screen.getAllByTestId("request-duration");
     expect(durations).toHaveLength(1);
     expect(durations[0]).toHaveTextContent("2h");
+  });
+
+  it("add: assigns over the request's own window, not the clicked segment", async () => {
+    // CANDIDATE_OPTION is scheduled 09:00–11:00; the dialog segment is 08:00–10:00.
+    // The assignment must use the request window so it doesn't over-allocate the slice.
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
+    vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Beta")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() => expect(createAssignment).toHaveBeenCalled());
+    expect(createAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startUtc: "2026-01-06T09:00:00Z",
+        endUtc: "2026-01-06T11:00:00Z",
+      }),
+    );
+    expect(validateAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startUtc: "2026-01-06T09:00:00Z",
+        endUtc: "2026-01-06T11:00:00Z",
+      }),
+    );
+  });
+
+  it("shows a conflict indicator on an assigned row that validates as overbooked", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
+    vi.mocked(validateAssignmentsBatch).mockResolvedValue([
+      {
+        requestId: "req-1",
+        resourceId: "person-1",
+        result: {
+          severity: "blocker",
+          blockers: [
+            {
+              code: "assignment.overbooked",
+              message: "Total allocation (200%) exceeds available capacity (100%)",
+            },
+          ],
+          warnings: [],
+        },
+      },
+    ]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Alpha")).toBeInTheDocument());
+
+    await waitFor(() => expect(screen.getByTestId("conflict-badge")).toBeInTheDocument());
+    expect(screen.getByTestId("conflict-summary-badge")).toHaveTextContent("1 conflicted");
+    expect(screen.getByTestId("item-conflict-feedback")).toBeInTheDocument();
+    expect(screen.getByText(/exceeds available capacity/)).toBeInTheDocument();
+  });
+
+  it("shows no conflict indicator when the assigned row validates clean", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
+    vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Alpha")).toBeInTheDocument());
+    // Let any pending conflict validation settle.
+    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalled());
+    expect(screen.queryByTestId("conflict-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("conflict-summary-badge")).not.toBeInTheDocument();
   });
 });
