@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
 import { CalendarIcon, Loader2, Plus, Trash2, Copy, Check, Key } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
 import {
@@ -368,10 +368,11 @@ function PowerBiQuickStart() {
 }
 
 interface ReportingApiPageProps {
-  unavailableRedirectTo?: string;
+  /** When set, the locked state shows a CTA linking here (e.g. the plans page). */
+  upgradeHref?: string;
 }
 
-export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProps = {}) {
+export function ReportingApiPage({ upgradeHref }: ReportingApiPageProps = {}) {
   // Paid-tier gate: reporting API keys require API access (Professional+).
   const { isLoading: authLoading } = useAuth();
   const apiAccessAllowed = useReportingApiAvailable();
@@ -457,8 +458,23 @@ export function ReportingApiPage({ unavailableRedirectTo }: ReportingApiPageProp
   }
 
   if (!apiAccessAllowed) {
-    if (unavailableRedirectTo) {
-      return <Navigate to={unavailableRedirectTo} replace />;
+    // Paid-tier gate. Rather than silently redirecting, keep the user on the page and
+    // explain the feature + upgrade path. When no upgrade target is provided (e.g.
+    // Community, which has no plans), fall back to a plain unavailable notice.
+    if (upgradeHref) {
+      return (
+        <FeatureUpsell
+          title="Reporting API"
+          description="Available on Professional and Enterprise plans. Connect BI tools to your workspace data with read-only API tokens."
+          upgradeHref={upgradeHref}
+        >
+          <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
+            <li>Connect Power BI, Excel, or Metabase to your workspace data</li>
+            <li>Read-only, scoped API tokens you can revoke anytime</li>
+            <li>Incremental refresh via <code className="text-xs bg-muted px-1 rounded">updatedSince</code></li>
+          </ul>
+        </FeatureUpsell>
+      );
     }
 
     return (

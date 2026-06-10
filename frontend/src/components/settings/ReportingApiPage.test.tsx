@@ -132,19 +132,31 @@ describe('ReportingApiPage', () => {
     expect(listReportingTokens).not.toHaveBeenCalled();
   });
 
-  it('uses injected unavailable redirect target when provided', async () => {
+  it('shows an upsell with a plans link (no redirect) when an upgrade href is provided', async () => {
     authState.membership = { tier: 'free' };
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={['/settings/integrations']}>
-          <ReportingApiPage unavailableRedirectTo="/account?tab=upgrade" />
+          <ReportingApiPage upgradeHref="/account?tab=upgrade" />
         </MemoryRouter>
       </QueryClientProvider>,
     );
 
+    // Upsell renders in place — the user is not silently redirected, and the generic
+    // "not available" notice is not used when an upgrade path exists.
     await waitFor(() => {
-      expect(screen.queryByText('Reporting API access is not available for this workspace.')).not.toBeInTheDocument();
+      expect(screen.getByText(/Available on Professional and Enterprise plans/i)).toBeInTheDocument();
     });
+    expect(
+      screen.queryByText('Reporting API access is not available for this workspace.'),
+    ).not.toBeInTheDocument();
+
+    // CTA is a link to the provided href; navigation happens only on click.
+    expect(screen.getByRole('link', { name: /view plans/i })).toHaveAttribute(
+      'href',
+      '/account?tab=upgrade',
+    );
+
     expect(listReportingTokens).not.toHaveBeenCalled();
   });
 

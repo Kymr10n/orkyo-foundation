@@ -71,7 +71,11 @@ function FloatingThemeToggle() {
 export interface TenantAppProps {
   /** Product-specific tabs for the shared account page. */
   accountTabs?: AccountPageExtraTab[];
-  /** Optional redirect target when Reporting API is unavailable for the tenant. */
+  /**
+   * Optional plans/upgrade link. When the Reporting API is tier-gated for the tenant, its
+   * page shows an upsell whose CTA links here (instead of silently redirecting). Name kept
+   * stable as it is the public prop consumed by product apps via the published package.
+   */
   reportingApiUnavailableRedirectTo?: string;
 }
 
@@ -150,7 +154,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="users" element={<UserSettings />} />
             <Route path="organization" element={<OrganizationSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
-            <Route path="integrations" element={<ReportingApiPage unavailableRedirectTo={reportingApiUnavailableRedirectTo} />} />
+            <Route path="integrations" element={<ReportingApiPage upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="usage-limits" element={<UsageLimitsSettings />} />
           </Route>
 
