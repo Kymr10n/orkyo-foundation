@@ -112,6 +112,31 @@ function formatSpan(start: string, end: string): string {
   return `${hours}h ${minutes}m`;
 }
 
+/**
+ * Where a request sits within the dialog's window, as left/width percentages for a mini
+ * timeline bar. Clamps to [0, 100] so requests that start before / end after the scope
+ * still render at the edges, and floors the width so a near-instant request stays visible.
+ * Returns null for an invalid/zero-length window.
+ */
+function timelineExtent(
+  winStart: string,
+  winEnd: string,
+  reqStart: string,
+  reqEnd: string,
+): { leftPct: number; widthPct: number } | null {
+  const w0 = new Date(winStart).getTime();
+  const w1 = new Date(winEnd).getTime();
+  const span = w1 - w0;
+  if (!Number.isFinite(span) || span <= 0) return null;
+
+  const clamp = (n: number) => Math.min(100, Math.max(0, n));
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  const left = clamp(((new Date(reqStart).getTime() - w0) / span) * 100);
+  const right = clamp(((new Date(reqEnd).getTime() - w0) / span) * 100);
+  return { leftPct: round(left), widthPct: round(Math.max(right - left, 2)) };
+}
+
 export function PersonAssignmentDialog({
   open,
   onOpenChange,
@@ -415,6 +440,31 @@ export function PersonAssignmentDialog({
                                 {formatPeriod(option.startTs ?? "", option.endTs ?? "")}
                               </p>
                             )}
+                            {option.startTs && option.endTs && (() => {
+                              const extent = timelineExtent(
+                                start,
+                                end,
+                                option.startTs,
+                                option.endTs,
+                              );
+                              if (!extent) return null;
+                              return (
+                                <div
+                                  className="mt-1 h-1 rounded bg-muted"
+                                  data-testid="request-timeline"
+                                  title={`When this request happens within ${formatPeriod(start, end)}`}
+                                >
+                                  <div
+                                    className="h-full rounded bg-primary/70"
+                                    style={{
+                                      marginLeft: `${extent.leftPct}%`,
+                                      width: `${extent.widthPct}%`,
+                                    }}
+                                    data-testid="request-timeline-fill"
+                                  />
+                                </div>
+                              );
+                            })()}
                           </div>
                           {isInFlight && (
                             <span className="text-xs text-muted-foreground shrink-0">

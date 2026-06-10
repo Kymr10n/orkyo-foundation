@@ -411,6 +411,38 @@ describe("PersonAssignmentDialog", () => {
     expect(durations[0]).toHaveTextContent("2h");
   });
 
+  it("renders a timeline bar positioned within the dialog window", async () => {
+    // Window 08:00–10:00 (2h); request 09:00–11:00 → starts at 50%, extends past the end
+    // so the fill is clamped to a 50% width.
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Beta")).toBeInTheDocument());
+    const fill = screen.getByTestId("request-timeline-fill");
+    expect(fill).toHaveStyle({ marginLeft: "50%", width: "50%" });
+  });
+
+  it("clamps a request that starts before the window to the left edge", async () => {
+    const early: PersonAssignmentOption = {
+      requestId: "req-early",
+      name: "Starts Before Window",
+      startTs: "2026-01-06T07:00:00Z", // before window start (08:00)
+      endTs: "2026-01-06T09:00:00Z",
+      requirements: [],
+      assignmentId: null,
+    };
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([early]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Starts Before Window")).toBeInTheDocument());
+    expect(screen.getByTestId("request-timeline-fill")).toHaveStyle({ marginLeft: "0%" });
+  });
+
+  it("renders no timeline bar for an option without a window", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    expect(screen.queryByTestId("request-timeline")).not.toBeInTheDocument();
+  });
+
   it("add: assigns over the request's own window, not the clicked segment", async () => {
     // CANDIDATE_OPTION is scheduled 09:00–11:00; the dialog segment is 08:00–10:00.
     // The assignment must use the request window so it doesn't over-allocate the slice.
