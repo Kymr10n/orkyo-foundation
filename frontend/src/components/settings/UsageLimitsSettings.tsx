@@ -15,8 +15,10 @@ function NumericQuotaRow({ quota }: { quota: NumericQuota }) {
   }
 
   const { unlimited, used, limit, percentUsed } = quota;
-  const isWarning = !unlimited && percentUsed >= 80 && percentUsed < 100;
-  const isExceeded = !unlimited && percentUsed >= 100;
+  // A quota is only *violated* when usage exceeds the limit; being exactly at the
+  // limit (e.g. 1/1) is valid, full usage — not a violation.
+  const isExceeded = !unlimited && used > limit;
+  const isWarning = !unlimited && !isExceeded && percentUsed >= 80;
 
   return (
     <div className="flex items-center justify-between py-1">
