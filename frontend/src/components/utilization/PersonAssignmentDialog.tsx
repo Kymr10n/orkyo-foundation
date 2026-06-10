@@ -41,6 +41,16 @@ export interface PersonAssignmentDialogProps {
   end: string;
 }
 
+/**
+ * Validation codes that are surfaced as warnings rather than hard blockers in the
+ * quick-assign flow — the planner may assign despite them. Mirrors the backend's
+ * soft-constraint set in ResourceAssignmentService.
+ */
+const SOFT_BLOCKER_CODES: ReadonlySet<string> = new Set([
+  "capability.missing",
+  "assignment.overbooked",
+]);
+
 type ItemStatus =
   | { kind: "idle" }
   | { kind: "validating" }
@@ -182,14 +192,15 @@ export function PersonAssignmentDialog({
         return;
       }
 
-      // capability.missing is a soft blocker — allow the planner to assign
-      // despite the mismatch; it will surface as a warning badge on the bar.
-      const hardBlockers = result.blockers.filter((b) => b.code !== "capability.missing");
-      const capabilityWarnings = result.blockers.filter((b) => b.code === "capability.missing");
+      // Soft blockers don't stop the planner: capability.missing (assign despite a skill
+      // mismatch) and assignment.overbooked (overbooking is a deliberate, surfaced state).
+      // They are demoted to warnings and shown on the row / bar after assigning.
+      const hardBlockers = result.blockers.filter((b) => !SOFT_BLOCKER_CODES.has(b.code));
+      const softWarnings = result.blockers.filter((b) => SOFT_BLOCKER_CODES.has(b.code));
       const effectiveResult: ValidationResult = {
         ...result,
         blockers: hardBlockers,
-        warnings: [...result.warnings, ...capabilityWarnings],
+        warnings: [...result.warnings, ...softWarnings],
       };
 
       if (hardBlockers.length > 0) {

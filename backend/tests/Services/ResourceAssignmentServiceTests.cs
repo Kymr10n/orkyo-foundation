@@ -108,6 +108,23 @@ public class ResourceAssignmentServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_OverbookedOnly_AssignmentCreated()
+    {
+        // assignment.overbooked is a soft blocker — overbooking is a deliberate state,
+        // so the create succeeds and the conflict is surfaced elsewhere.
+        var created = MakeCreatedAssignment();
+        var service = BuildService(
+            BlockerResult(ValidationReasonCode.AssignmentOverbooked,
+                "Total allocation (200%) exceeds available capacity (100%)"),
+            created);
+
+        var (assignment, conflict) = await service.CreateAsync(MakeRequest());
+
+        Assert.NotNull(assignment);
+        Assert.Null(conflict);
+    }
+
+    [Fact]
     public async Task CreateAsync_HardBlockerPresent_ReturnsConflictNoAssignment()
     {
         var service = BuildService(

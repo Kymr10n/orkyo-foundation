@@ -76,6 +76,16 @@ const CAPABILITY_MISSING_RESULT: ValidationResult = {
   blockers: [{ code: "capability.missing", message: "Resource does not satisfy requirement" }],
   warnings: [],
 };
+const OVERBOOKED_BLOCKER_RESULT: ValidationResult = {
+  severity: "blocker",
+  blockers: [
+    {
+      code: "assignment.overbooked",
+      message: "Total allocation (200%) exceeds available capacity (100%)",
+    },
+  ],
+  warnings: [],
+};
 const MIXED_BLOCKER_RESULT: ValidationResult = {
   severity: "blocker",
   blockers: [
@@ -299,6 +309,20 @@ describe("PersonAssignmentDialog", () => {
       expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
     );
     expect(screen.getByText(/Resource does not satisfy requirement/)).toBeInTheDocument();
+  });
+
+  it("add: assignment.overbooked blocker creates the assignment and warns (soft override)", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(OVERBOOKED_BLOCKER_RESULT);
+    vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId("assignment-checkbox"));
+    await waitFor(() => expect(createAssignment).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByTestId("item-validation-feedback")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/exceeds available capacity/)).toBeInTheDocument();
   });
 
   it("add: hard blocker (non-capability) still blocks the assignment", async () => {

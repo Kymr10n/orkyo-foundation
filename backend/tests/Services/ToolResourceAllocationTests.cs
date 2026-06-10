@@ -64,7 +64,7 @@ public class ToolResourceAllocationTests
     }
 
     [Fact]
-    public async Task ExclusiveTool_OverlappingAssignment_Returns409()
+    public async Task ExclusiveTool_OverlappingAssignment_IsAllowedAsOverbook()
     {
         var tool = await CreateToolAsync($"Tool-B-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.AddDays(5);
@@ -73,8 +73,9 @@ public class ToolResourceAllocationTests
         var r1 = await AssignAsync(tool.Id, await CreateRequestIdAsync(), start, end);
         Assert.Equal(HttpStatusCode.Created, r1.StatusCode);
 
+        // Overlapping an Exclusive tool is an overbook — allowed (201), surfaced as a conflict.
         var r2 = await AssignAsync(tool.Id, await CreateRequestIdAsync(), start.AddDays(2), end.AddDays(2));
-        Assert.Equal(HttpStatusCode.Conflict, r2.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, r2.StatusCode);
     }
 
     [Fact]

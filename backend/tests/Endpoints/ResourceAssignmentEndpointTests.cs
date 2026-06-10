@@ -80,15 +80,17 @@ public class ResourceAssignmentEndpointTests
     }
 
     [Fact]
-    public async Task CreateAssignment_Exclusive_OverlapReturns409()
+    public async Task CreateAssignment_Exclusive_Overlap_IsAllowedAsOverbook()
     {
+        // Overbooking is a deliberate, surfaced state — overlapping an Exclusive resource
+        // creates the assignment (the conflict is reported elsewhere), not a 409.
         var resource = await CreateExclusiveResource();
         var requestId1 = await GetTestRequestIdAsync();
         var requestId2 = await GetTestRequestIdAsync();
         await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, requestId1));
 
-        var conflictResp = await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, requestId2));
-        Assert.Equal(HttpStatusCode.Conflict, conflictResp.StatusCode);
+        var overlapResp = await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, requestId2));
+        Assert.Equal(HttpStatusCode.Created, overlapResp.StatusCode);
     }
 
     [Fact]
@@ -124,27 +126,29 @@ public class ResourceAssignmentEndpointTests
     }
 
     [Fact]
-    public async Task CreateAssignment_Fractional_ExceedsCapacity_Returns409()
+    public async Task CreateAssignment_Fractional_ExceedsCapacity_IsAllowedAsOverbook()
     {
+        // 60% + 50% = 110% > 100% capacity — allowed as an overbook (201), not blocked.
         var resource = await CreateFractionalResource(100);
         var req1 = await GetTestRequestIdAsync();
         var req2 = await GetTestRequestIdAsync();
         await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, req1, pct: 60));
         var over = await _client.PostAsJsonAsync("/api/resource-assignments",
             MakeRequest(resource.Id, req2, pct: 50));
-        Assert.Equal(HttpStatusCode.Conflict, over.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, over.StatusCode);
     }
 
     [Fact]
-    public async Task CreateAssignment_Fractional_ReducedBase_ExceedsCapacity_Returns409()
+    public async Task CreateAssignment_Fractional_ReducedBase_ExceedsCapacity_IsAllowedAsOverbook()
     {
+        // 30% + 60% = 90% > 80% reduced capacity — allowed as an overbook (201).
         var resource = await CreateFractionalResource(80);
         var req1 = await GetTestRequestIdAsync();
         var req2 = await GetTestRequestIdAsync();
         await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, req1, pct: 30));
         var over = await _client.PostAsJsonAsync("/api/resource-assignments",
             MakeRequest(resource.Id, req2, pct: 60));
-        Assert.Equal(HttpStatusCode.Conflict, over.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, over.StatusCode);
     }
 
     [Fact]

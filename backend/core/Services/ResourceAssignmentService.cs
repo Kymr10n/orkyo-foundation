@@ -27,6 +27,17 @@ public class ResourceAssignmentService(
     // Adding a new ValidationReasonCode requires adding a row here (compile-time guard
     // via the explicit dictionary keys; unknown codes throw rather than silently mapping
     // to a wrong default like the old switch did).
+    // Soft constraints — surfaced to the planner but never block a manual assignment.
+    // capability.missing: a resource may be assigned despite lacking a required skill.
+    // assignment.overbooked: overbooking is a deliberate, first-class state (the grid,
+    // conflict registry, and reporting all surface it), so the planner may create it.
+    // The validator still emits these as blockers for the solver/conflict-detection paths.
+    private static readonly HashSet<ValidationReasonCode> SoftBlockerCodes =
+    [
+        ValidationReasonCode.CapabilityMissing,
+        ValidationReasonCode.AssignmentOverbooked,
+    ];
+
     private static readonly Dictionary<ValidationReasonCode, ResourceConflictType> ConflictTypeByCode = new()
     {
         [ValidationReasonCode.ResourceNotFound] = ResourceConflictType.ResourceNotFound,
@@ -56,10 +67,10 @@ public class ResourceAssignmentService(
 
         var result = await validator.ValidateAsync(validationRequest);
 
-        // capability.missing is a soft constraint — planners may assign despite it.
-        // Only hard-block on resource-level or allocation issues.
+        // Soft constraints (see SoftBlockerCodes) are surfaced but never block a manual
+        // assignment. Only hard-block on genuine resource/allocation errors.
         var hardBlockers = result.Blockers
-            .Where(b => b.Code != ValidationReasonCode.CapabilityMissing)
+            .Where(b => !SoftBlockerCodes.Contains(b.Code))
             .ToList();
 
         if (hardBlockers.Count > 0)

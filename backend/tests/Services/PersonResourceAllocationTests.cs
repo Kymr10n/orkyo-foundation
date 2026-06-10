@@ -69,7 +69,7 @@ public class PersonResourceAllocationTests
     }
 
     [Fact]
-    public async Task FractionalPerson_ExceedsCapacity_Returns409()
+    public async Task FractionalPerson_ExceedsCapacity_IsAllowedAsOverbook()
     {
         var person = await CreatePersonAsync($"PCap-{Guid.NewGuid():N}"[..20], availabilityPct: 100);
         var start = DateTime.UtcNow.AddDays(10);
@@ -78,9 +78,10 @@ public class PersonResourceAllocationTests
         await AssignAsync(person.Id, await CreateRequestIdAsync(), 60m, start, end);
         await AssignAsync(person.Id, await CreateRequestIdAsync(), 30m, start, end);
 
-        // 60 + 30 = 90 already used; 20 more → exceeds 100
+        // 60 + 30 = 90 already used; 20 more → 110% > 100%. Overbooking is allowed (201);
+        // the conflict is surfaced elsewhere, not blocked at create.
         var r = await AssignAsync(person.Id, await CreateRequestIdAsync(), 20m, start, end);
-        Assert.Equal(HttpStatusCode.Conflict, r.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, r.StatusCode);
     }
 
     [Fact]
