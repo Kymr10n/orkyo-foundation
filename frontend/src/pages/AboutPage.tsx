@@ -1,12 +1,11 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { Separator } from "@foundation/src/components/ui/separator";
-import { formatBuildTime } from "@foundation/src/lib/utils/formatBuildTime";
 import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 // Build-time metadata injected by vite.config.ts
-const BUILD_TIME = (typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : null) ?? null;
+const APP_VERSION = (typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : null) ?? null;
 
 export function AboutPage() {
   const navigate = useNavigate();
@@ -46,9 +45,8 @@ export function AboutPage() {
 
           <CardContent className="space-y-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Deployed</p>
-              <p className="text-sm">
-                {BUILD_TIME ? formatBuildTime(BUILD_TIME) : "—"}
+              <p className="text-sm text-muted-foreground">
+                {APP_VERSION ? `v${APP_VERSION}` : "—"}
               </p>
             </div>
 
