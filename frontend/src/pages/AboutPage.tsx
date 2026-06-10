@@ -55,9 +55,9 @@ export function AboutPage() {
             <div className="space-y-4">
               <h3 className="font-medium">About</h3>
               <p className="text-sm text-muted-foreground">
-                Orkyo is a modern space and resource utilization platform designed to help
-                organizations efficiently manage their physical spaces, handle utilization
-                requests, and resolve scheduling conflicts.
+                Orkyo helps organizations manage their physical spaces, people, and scheduling.
+                Track space availability, handle booking requests, detect conflicts in real time,
+                and analyse utilization — all from one place.
               </p>
             </div>
 
@@ -66,12 +66,12 @@ export function AboutPage() {
             <div className="space-y-4">
               <h3 className="font-medium">Features</h3>
               <ul className="text-sm text-muted-foreground space-y-2">
-                <li>• Visual utilization timeline with drag-and-drop</li>
-                <li>• Space management with custom criteria</li>
-                <li>• Request workflow with templates</li>
-                <li>• Multi-tenant organization support</li>
-                <li>• Conflict detection and resolution</li>
-                <li>• Import/Export capabilities</li>
+                <li>• Spaces — manage rooms and areas with custom criteria, templates, and floorplans</li>
+                <li>• Utilization — visual drag-and-drop timeline for scheduling across all spaces</li>
+                <li>• Requests — structured booking workflows with approval and template support</li>
+                <li>• Conflict detection — real-time overlap and constraint validation</li>
+                <li>• People — employee directory with teams, departments, and job titles</li>
+                <li>• Reporting — usage analytics and capacity-vs-demand insights</li>
               </ul>
             </div>
 
@@ -97,7 +97,7 @@ export function AboutPage() {
             <div className="text-center text-sm text-muted-foreground">
               <p>© {currentYear} Orkyo. All rights reserved.</p>
               <p className="mt-1">
-                Built with React, TypeScript, and Tailwind CSS
+                Version and telemetry data are not shared with third parties.
               </p>
             </div>
           </CardContent>
