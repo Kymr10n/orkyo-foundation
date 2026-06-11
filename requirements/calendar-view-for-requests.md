@@ -302,6 +302,59 @@ on top via `useConflicts()`.
 
 ---
 
+## Testing & coverage
+
+Tests live where the code lives (foundation), using the existing stacks — **Vitest +
+React Testing Library** (`frontend/vitest.config.ts`, `@vitest/coverage-v8`) on the
+frontend and **xUnit + Testcontainers** (`backend/tests/`) on the backend. Because
+this feature is almost entirely a new view over existing services, most coverage is
+frontend; the backend is exercised by reusing endpoints that already have tests.
+
+### Frontend (required)
+
+Co-locate `*.test.tsx` / `*.test.ts` next to the new code, matching the existing
+pattern (e.g. `RequestCalendar.test.tsx` beside `RequestCalendar.tsx`).
+
+- **Event mapping** — pure `RequestInfo → EventInput` mapper unit-tested: title uses
+  `name`; only `isScheduled` requests map; `start`/`end` from `startTs`/`endTs`.
+- **Color derivation** — base from `getStatusColor(status)`; conflict overlay applied
+  when the id is in `useConflicts()`'s error (red) / warning (amber) set; no overlay
+  otherwise. Unit-test the class-resolution helper, not FullCalendar internals.
+- **Tab integration** — `UtilizationPage` renders the `calendar` tab, persists
+  `?tab=calendar`, and gates create/move/resize on `userCanEdit` (assert viewers get a
+  read-only calendar). Extend the existing `UtilizationPage` test rather than adding a
+  parallel harness.
+- **Interaction handlers** (mock FullCalendar's callbacks — don't drive its DOM):
+  - `eventDrop` / `eventResize` call `useScheduleRequest` with the **current**
+    `resourceId` (assert `getSpaceResourceId` is preserved) and the new times only.
+    This is the regression guard for "assignments never change."
+  - empty-slot `select` opens the chooser; "create new" opens `RequestFormDialog`
+    prefilled with the slot's `startTs`/`endTs`; "schedule existing" lists backlog
+    items and schedules with the selected range.
+  - `eventClick` opens `useRequestEditor().open(request)`.
+- **Loading/window** — changing view updates `scale`/`anchorTs` so `getFetchWindow`
+  recomputes the query key (assert the cache key changes / refetch occurs); only
+  scheduled requests render.
+
+### Backend (mostly existing)
+
+No new endpoints, so no new endpoint tests are required — `PATCH
+/api/requests/{id}/schedule` and `GET /api/sites/{siteId}/requests` already have
+coverage under `backend/tests/Endpoints/`. If a request-shape or contract changes,
+update `frontend/contracts/*.test.ts` (contract-alignment) accordingly.
+
+### Coverage bar & gates
+
+- New frontend modules (calendar component, mapper, color helper, handlers) should
+  meet or exceed the project's existing `@vitest/coverage-v8` threshold; no net
+  decrease in coverage.
+- `dotnet format` must pass (pre-push hook). Run `npm test` (Vitest) green.
+- Because this touches no service signatures or `Map*Endpoints()` functions,
+  `./scripts/test-downstream.sh` is **not** required for this feature; run it only if
+  the implementation ends up altering a foundation public-API surface.
+
+---
+
 ## Out of scope / non-goals
 
 - No resource-row scheduling (that's the Spaces/People tabs).
