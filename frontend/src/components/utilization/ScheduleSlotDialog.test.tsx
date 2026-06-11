@@ -52,6 +52,20 @@ describe("ScheduleSlotDialog", () => {
     expect(scheduleBtn).toBeDisabled();
   });
 
+  it("schedules the chosen backlog request into the selected slot", async () => {
+    const request = makeRequest({ name: "Pending task" });
+    const { onScheduleExisting } = renderDialog({ backlog: [request] });
+
+    // Open the Radix select and pick the request.
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "Pending task" }));
+
+    const scheduleBtn = screen.getByRole("button", { name: /^schedule$/i });
+    expect(scheduleBtn).toBeEnabled();
+    await userEvent.click(scheduleBtn);
+    expect(onScheduleExisting).toHaveBeenCalledWith(request);
+  });
+
   it("closes via Cancel", async () => {
     const { onOpenChange } = renderDialog();
     await userEvent.click(screen.getByRole("button", { name: /cancel/i }));

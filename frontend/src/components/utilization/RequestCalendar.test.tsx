@@ -100,6 +100,14 @@ describe("RequestCalendar", () => {
     expect(onEventResize).toHaveBeenCalledWith("r1", start, end);
   });
 
+  it("reverts a resize that loses its end bound", () => {
+    const { onEventResize } = renderCalendar();
+    const revert = vi.fn();
+    capturedProps.eventResize({ event: { id: "r1", start: new Date(), end: null }, revert });
+    expect(onEventResize).not.toHaveBeenCalled();
+    expect(revert).toHaveBeenCalledTimes(1);
+  });
+
   it("maps an empty-slot selection to onSlotSelect", () => {
     const { onSlotSelect } = renderCalendar();
     const start = new Date("2026-04-17T13:00:00Z");
