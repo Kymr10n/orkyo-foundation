@@ -251,7 +251,11 @@ vi.mock("@foundation/src/components/requests/RequestDetailsDialog", () => ({
   RequestDetailsDialog: ({ open }: any) => open ? <div data-testid="details-dialog" /> : null,
 }));
 
-const createWrapper = () => {
+vi.mock("@foundation/src/components/utilization/RequestCalendar", () => ({
+  RequestCalendar: () => <div data-testid="request-calendar" />,
+}));
+
+const createWrapper = (initialTab = "space") => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -260,7 +264,7 @@ const createWrapper = () => {
   });
 
   return ({ children }: { children: React.ReactNode }) => (
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[`/?tab=${initialTab}`]}>
       <QueryClientProvider client={queryClient}>
         {children}
       </QueryClientProvider>
