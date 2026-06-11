@@ -56,6 +56,17 @@
   outline-offset: 2px;
 }
 
+/* Non-business hours (outside working hours) — time-grid views only */
+.orkyo-calendar .fc-non-business {
+  background-color: hsl(var(--muted) / 0.8);
+}
+
+/* Off-time background events (weekends + holidays/closures) */
+.orkyo-calendar .fc-bg-event {
+  background-color: hsl(var(--destructive) / 0.15);
+  opacity: 1; /* FullCalendar defaults to 0.3 — override to match grid shading */
+}
+
 /* Event block layout — colours come from the utility classNames on the node. */
 .orkyo-calendar .orkyo-cal-event {
   border-radius: calc(var(--radius) - 0.625rem);

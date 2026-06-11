@@ -101,7 +101,7 @@ export function UtilizationPage() {
 
   // Tab state — persisted in URL so the view is bookmarkable
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') ?? 'space') as 'space' | 'people' | 'calendar';
+  const activeTab = (searchParams.get('tab') ?? 'calendar') as 'space' | 'people' | 'calendar';
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', tab);
@@ -512,9 +512,9 @@ export function UtilizationPage() {
   }, [setScale, setAnchorTs]);
 
   const tabs: PageTab[] = [
+    { value: 'calendar', label: 'Calendar' },
     { value: 'space', label: 'Spaces' },
     { value: 'people', label: 'People' },
-    { value: 'calendar', label: 'Calendar' },
   ];
 
   return (
@@ -551,6 +551,30 @@ export function UtilizationPage() {
       <PageTabs tabs={tabs} value={activeTab} onChange={handleTabChange}>
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
+
+        {/* Calendar tab — Outlook-style time view of scheduled requests */}
+        <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
+          <div className="h-full rounded-xl border bg-background p-3">
+            <RequestCalendar
+              events={calendarEvents}
+              offTimeRanges={offTimeRanges}
+              workingHours={schedulingSettings ? {
+                enabled: schedulingSettings.workingHoursEnabled,
+                start: schedulingSettings.workingDayStart,
+                end: schedulingSettings.workingDayEnd,
+              } : undefined}
+              editable={userCanEdit}
+              initialView={scaleToCalendarView(scale)}
+              initialDate={anchorTs}
+              onEventClick={handleCalendarEventClick}
+              onEventMove={handleCalendarReschedule}
+              onEventResize={handleCalendarReschedule}
+              onSlotSelect={handleSlotSelect}
+              onDatesSet={handleCalendarDatesSet}
+            />
+          </div>
+        </TabsContent>
+
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
           <DndContext
             sensors={sensors}
@@ -630,22 +654,6 @@ export function UtilizationPage() {
           />
         </TabsContent>
 
-        {/* Calendar tab — Outlook-style time view of scheduled requests */}
-        <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <div className="h-full rounded-xl border bg-background p-3">
-            <RequestCalendar
-              events={calendarEvents}
-              editable={userCanEdit}
-              initialView={scaleToCalendarView(scale)}
-              initialDate={anchorTs}
-              onEventClick={handleCalendarEventClick}
-              onEventMove={handleCalendarReschedule}
-              onEventResize={handleCalendarReschedule}
-              onSlotSelect={handleSlotSelect}
-              onDatesSet={handleCalendarDatesSet}
-            />
-          </div>
-        </TabsContent>
       </PageTabs>
 
       {/* Dialogs — rendered outside tabs; they portal to document.body */}

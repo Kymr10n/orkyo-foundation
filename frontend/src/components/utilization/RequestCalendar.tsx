@@ -3,14 +3,27 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
-import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput } from "@fullcalendar/core";
+import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
 import type { CalendarEvent, CalendarView } from "./request-calendar-events";
 import { calendarViewToScale } from "./request-calendar-events";
+import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import "./request-calendar.css";
+
+interface WorkingHours {
+  enabled: boolean;
+  /** "HH:mm" */
+  start: string;
+  /** "HH:mm" */
+  end: string;
+}
 
 interface RequestCalendarProps {
   /** Scheduled-request events (see request-calendar-events.ts). */
   events: CalendarEvent[];
+  /** Off-time ranges (weekends + holidays/closures) rendered as background shading. */
+  offTimeRanges?: readonly OffTimeRange[];
+  /** When set, non-working slots are shaded in time-grid views. */
+  workingHours?: WorkingHours;
   /** Admin/editor → interactive; viewers get a read-only calendar. */
   editable: boolean;
   initialView: CalendarView;
@@ -34,6 +47,8 @@ interface RequestCalendarProps {
  */
 export function RequestCalendar({
   events,
+  offTimeRanges,
+  workingHours,
   editable,
   initialView,
   initialDate,
@@ -44,6 +59,21 @@ export function RequestCalendar({
   onDatesSet,
 }: RequestCalendarProps) {
   const plugins = useMemo(() => [dayGridPlugin, timeGridPlugin, interactionPlugin], []);
+
+  const businessHoursConfig = useMemo<BusinessHoursInput | false>(() => {
+    if (!workingHours?.enabled) return false;
+    return { startTime: workingHours.start, endTime: workingHours.end };
+  }, [workingHours]);
+
+  const allEvents = useMemo<EventInput[]>(() => {
+    const bgEvents: EventInput[] = (offTimeRanges ?? []).map((r) => ({
+      id: `offtime-${r.id}`,
+      start: new Date(r.startMs),
+      end: new Date(r.endMs),
+      display: "background",
+    }));
+    return [...(events as EventInput[]), ...bgEvents];
+  }, [events, offTimeRanges]);
 
   const handleEventClick = (arg: EventClickArg) => {
     onEventClick(arg.event.id);
@@ -92,13 +122,14 @@ export function RequestCalendar({
         expandRows
         nowIndicator
         firstDay={1}
+        businessHours={businessHoursConfig}
         editable={editable}
         eventStartEditable={editable}
         eventDurationEditable={editable}
         selectable={editable}
         selectMirror
         dayMaxEvents
-        events={events as EventInput[]}
+        events={allEvents}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}
         eventResize={handleEventResize}
