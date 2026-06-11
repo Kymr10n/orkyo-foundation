@@ -153,15 +153,35 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
   }
 }
 
+/** Optional start/end to seed the schedule fields (e.g. a calendar slot selection). */
+export interface DefaultSchedule {
+  startTs?: string | null;
+  endTs?: string | null;
+}
+
+/** Overlay a default schedule onto a built state, overriding the start/end fields. */
+function applyDefaultSchedule(state: RequestFormState, schedule?: DefaultSchedule): RequestFormState {
+  if (!schedule?.startTs || !schedule?.endTs) return state;
+  const start = new Date(schedule.startTs);
+  const end = new Date(schedule.endTs);
+  return {
+    ...state,
+    startDate: formatDateForInput(start),
+    startTime: formatTimeForInput(start),
+    endDate: formatDateForInput(end),
+    endTime: formatTimeForInput(end),
+  };
+}
+
 /** @internal Exported for unit testing */
-export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode): RequestFormState {
+export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule): RequestFormState {
   if (request) {
     const reqMap = new Map<string, RequirementEntry>();
     request.requirements?.forEach((r) => {
       reqMap.set(r.criterionId, { value: r.value, operator: r.operator });
     });
 
-    return {
+    return applyDefaultSchedule({
       name: request.name,
       description: request.description || '',
       icon: request.icon ?? null,
@@ -188,18 +208,18 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
         duration: true,
         requirements: true,
       },
-    };
+    }, defaultSchedule);
   }
 
   if (parentRequestId) {
-    return { ...initialState, parentRequestId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) };
+    return applyDefaultSchedule({ ...initialState, parentRequestId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule);
   }
 
-  return defaultPlanningMode ? { ...initialState, planningMode: defaultPlanningMode } : initialState;
+  return applyDefaultSchedule(defaultPlanningMode ? { ...initialState, planningMode: defaultPlanningMode } : initialState, defaultSchedule);
 }
 
-export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode) {
-  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode));
+export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule) {
+  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule));
 
   return {
     state,

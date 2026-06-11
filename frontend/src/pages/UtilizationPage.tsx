@@ -19,12 +19,15 @@ import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule 
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
+import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
+import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
+import { requestsToCalendarEvents, scaleToCalendarView } from "@foundation/src/components/utilization/request-calendar-events";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
-import { createRequest, moveRequest } from "@foundation/src/lib/api/request-api";
+import { createRequest, moveRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { wouldCreateCycle, getNextSortOrder } from "@foundation/src/domain/request-tree";
 import { logger } from "@foundation/src/lib/core/logger";
-import { buildCreatePayload } from "@foundation/src/lib/utils/utils";
+import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -98,7 +101,7 @@ export function UtilizationPage() {
 
   // Tab state — persisted in URL so the view is bookmarkable
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') ?? 'space') as 'space' | 'people';
+  const activeTab = (searchParams.get('tab') ?? 'calendar') as 'space' | 'people' | 'calendar';
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', tab);
@@ -183,7 +186,21 @@ export function UtilizationPage() {
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
   // Conflict detection (scheduling + capability) — extracted to hook
-  const { conflictingRequestIds, capabilityConflicts } = useConflicts();
+  const { conflictingRequestIds, capabilityConflicts, conflicts } = useConflicts();
+
+  // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
+  // status + conflict severity. Reuses the same scoped `scheduled` set as the grid.
+  const calendarEvents = useMemo(
+    () => requestsToCalendarEvents(scheduled, conflicts, userCanEdit),
+    [scheduled, conflicts, userCanEdit],
+  );
+
+  // Calendar empty-slot scheduling flow.
+  const [slotSelection, setSlotSelection] = useState<{ start: Date; end: Date } | null>(null);
+  const [isSlotChooserOpen, setIsSlotChooserOpen] = useState(false);
+  const [calendarForm, setCalendarForm] = useState<
+    { mode: "create" | "edit"; request: Request | null; startTs: string; endTs: string } | null
+  >(null);
 
   // Handle export from TopBar
   useExportHandler('utilization', async (exportFormat) => {
@@ -426,7 +443,76 @@ export function UtilizationPage() {
     );
   }, [requests, scheduleMutation]);
 
+  // --- Calendar tab handlers ---
+
+  // Move/resize: re-send the request's CURRENT space resourceId with the new
+  // times, so drag/resize never alters resource assignments (same mechanism as
+  // handleResizeRequest above). Validation/conflicts refresh via the mutation.
+  const handleCalendarReschedule = useCallback((requestId: string, start: Date, end: Date) => {
+    const request = requests.find((r) => r.id === requestId);
+    if (!request) return;
+    const spaceResourceId = getSpaceResourceId(request);
+    if (!spaceResourceId) return;
+    scheduleMutation.mutate({
+      requestId,
+      data: { resourceId: spaceResourceId, startTs: start.toISOString(), endTs: end.toISOString() },
+    });
+  }, [requests, scheduleMutation]);
+
+  const handleCalendarEventClick = useCallback((requestId: string) => {
+    const request = requests.find((r) => r.id === requestId);
+    if (request) openRequestEditor(request);
+  }, [requests, openRequestEditor]);
+
+  const handleSlotSelect = useCallback((start: Date, end: Date) => {
+    setSlotSelection({ start, end });
+    setIsSlotChooserOpen(true);
+  }, []);
+
+  const handleChooserCreateNew = useCallback(() => {
+    if (!slotSelection) return;
+    setIsSlotChooserOpen(false);
+    setCalendarForm({
+      mode: "create",
+      request: null,
+      startTs: slotSelection.start.toISOString(),
+      endTs: slotSelection.end.toISOString(),
+    });
+  }, [slotSelection]);
+
+  const handleChooserScheduleExisting = useCallback((request: Request) => {
+    if (!slotSelection) return;
+    setIsSlotChooserOpen(false);
+    setCalendarForm({
+      mode: "edit",
+      request,
+      startTs: slotSelection.start.toISOString(),
+      endTs: slotSelection.end.toISOString(),
+    });
+  }, [slotSelection]);
+
+  // Both chooser paths reuse RequestFormDialog (space picker + validation) and
+  // persist via the existing create/update request APIs.
+  const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
+    if (!calendarForm) return;
+    if (calendarForm.mode === "edit" && calendarForm.request) {
+      await updateRequest(calendarForm.request.id, buildUpdatePayload(data));
+    } else {
+      await createRequest(buildCreatePayload(data));
+    }
+    queryClient.invalidateQueries({ queryKey: ["requests"] });
+    setCalendarForm(null);
+  }, [calendarForm, queryClient]);
+
+  // Keep the shared store window (scale + anchor) aligned with the calendar's
+  // current view so useScheduledRequests/useConflicts fetch the right range.
+  const handleCalendarDatesSet = useCallback((nextScale: "day" | "week" | "month", activeStart: Date) => {
+    setScale(nextScale);
+    setAnchorTs(activeStart);
+  }, [setScale, setAnchorTs]);
+
   const tabs: PageTab[] = [
+    { value: 'calendar', label: 'Calendar' },
     { value: 'space', label: 'Spaces' },
     { value: 'people', label: 'People' },
   ];
@@ -445,21 +531,50 @@ export function UtilizationPage() {
                 disabled={!selectedSiteId}
               />
             )}
-            <ScaleSelect value={scale} onChange={setScale} />
-            <TimeNavigator
-              scale={scale}
-              anchorTs={anchorTs}
-              onAnchorChange={setAnchorTs}
-              onPrevious={handlePrevious}
-              onNext={handleNext}
-              onToday={handleToday}
-            />
+            {/* The Calendar tab uses FullCalendar's own Outlook-style toolbar. */}
+            {activeTab !== 'calendar' && (
+              <>
+                <ScaleSelect value={scale} onChange={setScale} />
+                <TimeNavigator
+                  scale={scale}
+                  anchorTs={anchorTs}
+                  onAnchorChange={setAnchorTs}
+                  onPrevious={handlePrevious}
+                  onNext={handleNext}
+                  onToday={handleToday}
+                />
+              </>
+            )}
           </>
         }
       />
       <PageTabs tabs={tabs} value={activeTab} onChange={handleTabChange}>
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
+
+        {/* Calendar tab — Outlook-style time view of scheduled requests */}
+        <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
+          <div className="h-full rounded-xl border bg-background p-3">
+            <RequestCalendar
+              events={calendarEvents}
+              offTimeRanges={offTimeRanges}
+              workingHours={schedulingSettings ? {
+                enabled: schedulingSettings.workingHoursEnabled,
+                start: schedulingSettings.workingDayStart,
+                end: schedulingSettings.workingDayEnd,
+              } : undefined}
+              editable={userCanEdit}
+              initialView={scaleToCalendarView(scale)}
+              initialDate={anchorTs}
+              onEventClick={handleCalendarEventClick}
+              onEventMove={handleCalendarReschedule}
+              onEventResize={handleCalendarReschedule}
+              onSlotSelect={handleSlotSelect}
+              onDatesSet={handleCalendarDatesSet}
+            />
+          </div>
+        </TabsContent>
+
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
           <DndContext
             sensors={sensors}
@@ -538,6 +653,7 @@ export function UtilizationPage() {
             weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
           />
         </TabsContent>
+
       </PageTabs>
 
       {/* Dialogs — rendered outside tabs; they portal to document.body */}
@@ -552,6 +668,26 @@ export function UtilizationPage() {
         }}
         parentRequest={createChildParent}
         onSave={handleSaveChildRequest}
+      />
+
+      {/* Calendar: empty-slot scheduling chooser */}
+      <ScheduleSlotDialog
+        open={isSlotChooserOpen}
+        onOpenChange={setIsSlotChooserOpen}
+        selection={slotSelection}
+        backlog={backlog}
+        onCreateNew={handleChooserCreateNew}
+        onScheduleExisting={handleChooserScheduleExisting}
+      />
+
+      {/* Calendar: create-new / schedule-existing form, prefilled with the slot */}
+      <RequestFormDialog
+        key={`calendar-${calendarForm?.request?.id ?? 'new'}-${calendarForm?.startTs ?? ''}`}
+        open={!!calendarForm}
+        onOpenChange={(open) => { if (!open) setCalendarForm(null); }}
+        request={calendarForm?.request ?? undefined}
+        defaultSchedule={calendarForm ? { startTs: calendarForm.startTs, endTs: calendarForm.endTs } : undefined}
+        onSave={handleCalendarFormSave}
       />
 
       <AutoSchedulePreviewDialog
