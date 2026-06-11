@@ -61,9 +61,13 @@ Implementation notes (reuse, don't reinvent):
 
 - Extend the `tabs: PageTab[]` array and the `activeTab` union
   (`'space' | 'people'` → `'space' | 'people' | 'calendar'`) in `UtilizationPage.tsx`.
-- Reuse the existing `ScaleSelect` + `TimeNavigator` header controls. The calendar's
-  Day/Week/Month maps to the existing `scale` model (`day` / `week` / `month`); keep
-  `anchorTs` as the single source of truth and reuse `navigateTime` for prev/next/today.
+- The calendar uses FullCalendar's own Outlook-style toolbar (prev/next/today +
+  Day/Week/Month) rather than the shared `ScaleSelect`/`TimeNavigator` — those expose
+  `year`/`hour` scales that have no calendar analogue, and a native toolbar is more
+  familiar. The shared header controls are hidden on the Calendar tab. To keep the
+  shared data window aligned, FullCalendar's `datesSet` writes the current view's
+  scale (`day`/`week`/`month`) and start date back into the store (`scale`/`anchorTs`),
+  which is what `useScheduledRequests` and `useConflicts` read.
 - Gate create/move/resize affordances on the existing
   `userCanEdit = membership?.role === "admin" || "editor"` check. Viewers get a
   read-only calendar, matching the rest of the page.

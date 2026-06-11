@@ -354,3 +354,48 @@ describe('formReducer — APPLY_TEMPLATE with no items', () => {
     expect(result.durationValue).toBe(2);
   });
 });
+
+describe('buildInitialState — defaultSchedule (calendar slot prefill)', () => {
+  it('seeds the schedule fields in create mode', () => {
+    const state = buildInitialState(null, undefined, undefined, {
+      startTs: '2026-04-17T09:00:00Z',
+      endTs: '2026-04-17T17:00:00Z',
+    });
+    expect(state.startDate).toBe('2026-04-17');
+    expect(state.endDate).toBe('2026-04-17');
+    expect(state.startTime).toMatch(/^\d{2}:\d{2}$/);
+    expect(state.endTime).toMatch(/^\d{2}:\d{2}$/);
+    expect(state.name).toBe('');
+  });
+
+  it("overrides an existing (unscheduled) request's empty schedule", () => {
+    const request: Request = {
+      id: 'r1',
+      name: 'Backlog item',
+      planningMode: 'leaf',
+      sortOrder: 0,
+      minimalDurationValue: 4,
+      minimalDurationUnit: 'hours',
+      schedulingSettingsApply: true,
+      status: 'planned',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      assignments: [],
+    };
+    const state = buildInitialState(request, undefined, undefined, {
+      startTs: '2026-05-01T08:00:00Z',
+      endTs: '2026-05-01T12:00:00Z',
+    });
+    expect(state.name).toBe('Backlog item');
+    expect(state.startDate).toBe('2026-05-01');
+    expect(state.endDate).toBe('2026-05-01');
+  });
+
+  it('ignores a partial default schedule (start without end)', () => {
+    const state = buildInitialState(null, undefined, undefined, {
+      startTs: '2026-04-17T09:00:00Z',
+    });
+    expect(state.startDate).toBe('');
+    expect(state.endDate).toBe('');
+  });
+});

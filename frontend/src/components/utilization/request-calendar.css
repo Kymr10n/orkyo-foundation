@@ -1,0 +1,75 @@
+/*
+ * FullCalendar theming layer — maps FullCalendar's CSS variables onto the
+ * shadcn/Tailwind design tokens (see frontend/src/index.css) so the calendar
+ * inherits light/dark automatically and matches the Spaces/People grids.
+ * No hard-coded hex values: everything resolves through hsl(var(--token)).
+ */
+
+.orkyo-calendar {
+  height: 100%;
+
+  /* Chrome */
+  --fc-border-color: hsl(var(--border));
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: hsl(var(--muted));
+  --fc-neutral-text-color: hsl(var(--muted-foreground));
+  --fc-today-bg-color: hsl(var(--muted) / 0.4);
+  --fc-now-indicator-color: hsl(var(--primary));
+
+  /* Events render their own colour via Tailwind utility classNames
+     (getStatusColor + conflict ring), so neutralise FC's defaults. */
+  --fc-event-bg-color: transparent;
+  --fc-event-border-color: transparent;
+  --fc-event-text-color: inherit;
+
+  /* Toolbar buttons → primary tokens */
+  --fc-button-text-color: hsl(var(--primary-foreground));
+  --fc-button-bg-color: hsl(var(--primary));
+  --fc-button-border-color: hsl(var(--primary));
+  --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
+  --fc-button-hover-border-color: hsl(var(--primary) / 0.9);
+  --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
+  --fc-button-active-border-color: hsl(var(--primary) / 0.8);
+
+  color: hsl(var(--foreground));
+}
+
+.orkyo-calendar .fc {
+  height: 100%;
+}
+
+.orkyo-calendar .fc .fc-toolbar-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.orkyo-calendar .fc .fc-button {
+  border-radius: calc(var(--radius) - 0.5rem);
+  text-transform: capitalize;
+  box-shadow: none;
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.orkyo-calendar .fc .fc-button:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Event block layout — colours come from the utility classNames on the node. */
+.orkyo-calendar .orkyo-cal-event {
+  border-radius: calc(var(--radius) - 0.625rem);
+  padding: 1px 4px;
+  font-size: 0.75rem;
+  line-height: 1.1rem;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid hsl(var(--border));
+}
+
+.orkyo-calendar .orkyo-cal-event .fc-event-title,
+.orkyo-calendar .orkyo-cal-event .fc-event-time {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}

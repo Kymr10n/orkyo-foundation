@@ -21,7 +21,7 @@ import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/
 import type { Space } from "@foundation/src/types/space";
 import { ChevronDown, FileText, Layers } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useRequestForm } from "@foundation/src/hooks/useRequestForm";
+import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
@@ -36,6 +36,8 @@ interface RequestFormDialogProps {
   request?: Request | null;
   parentRequest?: Request | null;
   defaultPlanningMode?: PlanningMode;
+  /** Seed start/end (e.g. a calendar slot selection). Overrides any schedule on `request`. */
+  defaultSchedule?: DefaultSchedule;
   onSave: (data: RequestFormData) => void | Promise<void>;
 }
 
@@ -65,6 +67,7 @@ export function RequestFormDialog({
   request,
   parentRequest,
   defaultPlanningMode,
+  defaultSchedule,
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
@@ -80,7 +83,7 @@ export function RequestFormDialog({
     removeRequirement,
     updateRequirement,
     applyTemplate,
-  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode);
+  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule);
 
   // Additional state not managed by the form hook
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
