@@ -58,14 +58,11 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Height-bounded flex column so tall forms scroll their body (pinned
-          header + footer) instead of growing past the viewport. `dvh` keeps the
-          dialog clear of mobile browser chrome. */}
+      {/* DialogContent is height-bounded + flex-col by default; just collapse the
+          default gap so the body's ScrollableDialogBody owns the spacing, and set
+          the form width. Tall forms scroll their body with header/footer pinned. */}
       <DialogContent
-        className={cn(
-          'flex max-h-[85dvh] flex-col gap-0 sm:max-w-[500px]',
-          contentClassName,
-        )}
+        className={cn('gap-0 sm:max-w-[500px]', contentClassName)}
       >
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
