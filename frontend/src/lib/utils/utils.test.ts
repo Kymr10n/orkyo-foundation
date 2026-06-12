@@ -2,10 +2,18 @@ import { describe, it, expect } from 'vitest';
 import {
   buildCreatePayload,
   buildUpdatePayload,
+  cn,
   combineDateTimeToISO,
+  formatDateDisplay,
   formatDateForInput,
+  formatDuration,
+  formatMinutesHuman,
+  formatStatusLabel,
   formatTimeForInput,
   getDataTypeColor,
+  getStatusColor,
+  getStatusDotColor,
+  isValidSlug,
 } from './utils';
 import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
 
@@ -142,6 +150,23 @@ describe('Request payload builders — icon plumbing', () => {
     expect(out.icon).toBeUndefined();
   });
 
+  it('payload builders drop requirements with a null value and keep the rest', () => {
+    const withReqs: RequestFormData = {
+      ...base,
+      requirements: [
+        { criterionId: 'c1', value: 'x', operator: 'eq' },
+        { criterionId: 'c2', value: null },
+        { criterionId: 'c3', value: 42 },
+      ],
+    };
+    for (const out of [buildCreatePayload(withReqs), buildUpdatePayload(withReqs)]) {
+      expect(out.requirements).toEqual([
+        { criterionId: 'c1', value: 'x', operator: 'eq' },
+        { criterionId: 'c3', value: 42 },
+      ]);
+    }
+  });
+
   it('buildUpdatePayload forwards a chosen icon', () => {
     const out = buildUpdatePayload({ ...base, icon: 'hammer' });
     expect(out.icon).toBe('hammer');
@@ -150,5 +175,90 @@ describe('Request payload builders — icon plumbing', () => {
   it('buildUpdatePayload forwards null when the form cleared the icon', () => {
     const out = buildUpdatePayload({ ...base, icon: null });
     expect(out.icon).toBeNull();
+  });
+});
+
+describe('cn', () => {
+  it('merges class names and dedupes conflicting tailwind utilities', () => {
+    expect(cn('px-2', 'px-4')).toBe('px-4');
+    expect(cn('text-sm', false && 'hidden', 'font-bold')).toBe('text-sm font-bold');
+  });
+});
+
+describe('isValidSlug', () => {
+  it('accepts alphanumerics, underscores and hyphens', () => {
+    expect(isValidSlug('site_01-A')).toBe(true);
+  });
+  it('rejects spaces and other punctuation', () => {
+    expect(isValidSlug('has space')).toBe(false);
+    expect(isValidSlug('with.dot')).toBe(false);
+    expect(isValidSlug('')).toBe(false);
+  });
+});
+
+describe('formatDuration', () => {
+  it('singularizes the unit when value is 1', () => {
+    expect(formatDuration(1, 'days')).toBe('1 day');
+    expect(formatDuration(1, 'hours')).toBe('1 hour');
+  });
+  it('keeps the plural unit otherwise', () => {
+    expect(formatDuration(2, 'hours')).toBe('2 hours');
+    expect(formatDuration(0, 'minutes')).toBe('0 minutes');
+  });
+});
+
+describe('formatDateDisplay', () => {
+  it('returns a dash for null/undefined/empty input', () => {
+    expect(formatDateDisplay(null)).toBe('-');
+    expect(formatDateDisplay(undefined)).toBe('-');
+    expect(formatDateDisplay('')).toBe('-');
+  });
+  it('renders a locale date for a valid ISO string', () => {
+    expect(formatDateDisplay('2026-04-02T10:30:00Z')).toBe(
+      new Date('2026-04-02T10:30:00Z').toLocaleDateString(),
+    );
+  });
+});
+
+describe('status helpers', () => {
+  it('getStatusColor covers every known status plus the default', () => {
+    expect(getStatusColor('planned')).toContain('blue');
+    expect(getStatusColor('in_progress')).toContain('yellow');
+    expect(getStatusColor('done')).toContain('green');
+    expect(getStatusColor('cancelled')).toContain('line-through');
+    expect(getStatusColor('???')).toBe('bg-muted text-muted-foreground');
+  });
+  it('getStatusDotColor covers every known status plus the default', () => {
+    expect(getStatusDotColor('planned')).toBe('bg-blue-500');
+    expect(getStatusDotColor('in_progress')).toBe('bg-yellow-500');
+    expect(getStatusDotColor('done')).toBe('bg-green-500');
+    expect(getStatusDotColor('cancelled')).toBe('bg-gray-400');
+    expect(getStatusDotColor('???')).toBe('bg-gray-400');
+  });
+  it('formatStatusLabel humanizes known statuses and echoes unknown ones', () => {
+    expect(formatStatusLabel('planned')).toBe('Planned');
+    expect(formatStatusLabel('in_progress')).toBe('In Progress');
+    expect(formatStatusLabel('done')).toBe('Done');
+    expect(formatStatusLabel('cancelled')).toBe('Cancelled');
+    expect(formatStatusLabel('custom')).toBe('custom');
+  });
+});
+
+describe('formatMinutesHuman', () => {
+  it('formats minutes-only durations', () => {
+    expect(formatMinutesHuman(5)).toBe('5m');
+    expect(formatMinutesHuman(59)).toBe('59m');
+  });
+  it('formats hours, with and without trailing minutes', () => {
+    expect(formatMinutesHuman(60)).toBe('1h');
+    expect(formatMinutesHuman(90)).toBe('1h 30m');
+  });
+  it('formats days, with and without trailing hours', () => {
+    expect(formatMinutesHuman(1440)).toBe('1d');
+    expect(formatMinutesHuman(1440 + 120)).toBe('1d 2h');
+  });
+  it('formats weeks, with and without trailing days', () => {
+    expect(formatMinutesHuman(10080)).toBe('1w');
+    expect(formatMinutesHuman(10080 + 1440)).toBe('1w 1d');
   });
 });

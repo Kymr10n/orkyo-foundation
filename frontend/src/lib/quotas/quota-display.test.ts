@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { quotaSeverity } from './quota-display';
+import { formatBytes, quotaSeverity } from './quota-display';
+
+describe('formatBytes', () => {
+  it('renders 0 as "0 B"', () => {
+    expect(formatBytes(0)).toBe('0 B');
+  });
+  it('renders whole bytes without decimals', () => {
+    expect(formatBytes(512)).toBe('512 B');
+  });
+  it('scales to KB/MB/GB with one decimal', () => {
+    expect(formatBytes(1024)).toBe('1.0 KB');
+    expect(formatBytes(1536)).toBe('1.5 KB');
+    expect(formatBytes(1024 * 1024)).toBe('1.0 MB');
+    expect(formatBytes(5 * 1024 * 1024 * 1024)).toBe('5.0 GB');
+  });
+});
 
 /** Build a quota fixture; percentUsed defaults to used/limit unless overridden. */
 function quota(used: number, limit: number, opts?: { unlimited?: boolean; percentUsed?: number }) {
