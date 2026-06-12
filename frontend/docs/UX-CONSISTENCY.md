@@ -191,9 +191,11 @@ documented footgun in the codebase — `RequestTreeView.tsx:664-665` carries an 
 the screens with the most scroll content) can't use the house scroll styling, so their scrollbars
 look and behave differently from everywhere else, feeding Finding A.
 
-**Remediation (P0, additive).** Add an optional `viewportRef` prop (or forward the ref to the
-Viewport) so `ScrollArea` is usable as a virtualization container. Purely additive — no existing
-caller changes.
+**Remediation (P0, additive — done).** Added an optional `viewportRef` prop forwarding to the
+Viewport so `ScrollArea` is usable as a virtualization container (purely additive). `RequestTreeView`
+is migrated onto it (`type="auto"` for a native-like, always-when-overflowing scrollbar), removing
+the plain-`<div>` workaround. Other virtualized surfaces (`RequestsPanel`, `ConflictsPage`) can
+follow the same pattern.
 
 ### F. DRY debt is the root cause that let A–C drift
 
@@ -273,16 +275,21 @@ where exported, the `CLAUDE.md` coordination):
   scrolling Viewport so virtualizers stop needing the plain-`<div>` workaround from
   [Finding E](#e-scrollarea-forwards-its-ref-to-the-wrong-element). Covered by
   `components/ui/scroll-area.test.tsx`.
+- **`RequestTreeView` migrated onto `ScrollArea` + `viewportRef`** (`components/requests/RequestTreeView.tsx`) —
+  the primary virtualized tree now uses the house scrollbar (`type="auto"`) instead of a bare
+  overflow div; the workaround comment is gone.
+- **Coding guidelines** captured in [`UI-GUIDELINES.md`](UI-GUIDELINES.md) so future work follows
+  the scroll-owner rule, the dialog recipe, and the virtualization pattern by default.
 
 All additive: existing `ScrollArea`/`Dialog` callers are untouched; typecheck, lint, and the full
-suite (227 files / 2943 tests) pass. Migrating the big virtualized surfaces (`RequestTreeView`
-et al.) onto `viewportRef`, and the base-`DialogContent` default, are deferred pending visual QA.
+suite (227 files / 2943 tests) pass. The remaining virtualized surfaces (`RequestsPanel`,
+`ConflictsPage`) and the base-`DialogContent` default are deferred pending the visual-QA pass.
 
 ---
 
 ## Conventions cheat-sheet
 
-Copy-paste rules for day-to-day work:
+The canonical, example-backed version lives in [`UI-GUIDELINES.md`](UI-GUIDELINES.md). Quick recap:
 
 - **Scroll owner:** one per route. Default = let `AppLayout`'s `<main>` scroll. Introduce an
   internal scroll surface only when the page hosts a grid/tree/table — then make the page

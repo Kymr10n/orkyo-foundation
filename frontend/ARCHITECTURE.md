@@ -4,7 +4,9 @@
 
 `orkyo-foundation` provides a **domain-based rendering split** that routes based on DNS domain + authentication state. This pattern is used by all consuming products (SaaS, Community) to avoid duplicating routing logic.
 
-> **See also:** [`docs/UX-CONSISTENCY.md`](docs/UX-CONSISTENCY.md) — UX friction audit (scroll ownership, dialog overflow, shared-primitive conventions) and the staged remediation backlog.
+> **See also:**
+> - [`docs/UI-GUIDELINES.md`](docs/UI-GUIDELINES.md) — **canonical UI coding rules** (scroll ownership, `min-h-0`, dialogs/`FormDialog`, virtualization). Read this before building UI.
+> - [`docs/UX-CONSISTENCY.md`](docs/UX-CONSISTENCY.md) — the UX friction audit those rules came from, plus the staged remediation backlog.
 
 ## The Three Rendering Modes
 
