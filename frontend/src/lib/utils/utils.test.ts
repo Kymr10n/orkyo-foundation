@@ -181,7 +181,7 @@ describe('Request payload builders — icon plumbing', () => {
 describe('cn', () => {
   it('merges class names and dedupes conflicting tailwind utilities', () => {
     expect(cn('px-2', 'px-4')).toBe('px-4');
-    expect(cn('text-sm', false && 'hidden', 'font-bold')).toBe('text-sm font-bold');
+    expect(cn('text-sm', false, 'font-bold')).toBe('text-sm font-bold');
   });
 });
 

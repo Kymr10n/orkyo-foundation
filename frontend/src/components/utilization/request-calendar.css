@@ -75,7 +75,8 @@
   line-height: 1.1rem;
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid hsl(var(--border));
+  border-width: 1px;
+  border-style: solid;
 }
 
 .orkyo-calendar .orkyo-cal-event .fc-event-title,

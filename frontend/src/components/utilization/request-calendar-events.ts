@@ -1,5 +1,4 @@
 import type { Conflict, Request, RequestStatus } from "@foundation/src/types/requests";
-import { getStatusColor } from "@foundation/src/lib/utils/utils";
 
 /**
  * Calendar event projection of a Request — see
@@ -41,15 +40,33 @@ export function getEventConflictSeverity(
 }
 
 /**
- * Event colour = request-status base (`getStatusColor`) plus a conflict overlay
- * ring (red = error, amber = warning). No new colour tokens are introduced; the
- * status classes are the same ones the status badges use.
+ * Opaque bg + matching border for calendar event blocks. Kept separate from
+ * getStatusColor (which is badge-sized and intentionally transparent) so the
+ * two call sites can diverge independently.
+ */
+function getCalendarEventColor(status: RequestStatus): string {
+  switch (status) {
+    case "planned":
+      return "bg-blue-100 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300";
+    case "in_progress":
+      return "bg-amber-100 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300";
+    case "done":
+      return "bg-emerald-100 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300";
+    case "cancelled":
+      return "bg-muted border-muted-foreground/30 text-muted-foreground line-through";
+    default:
+      return "bg-muted border-muted-foreground/30 text-muted-foreground";
+  }
+}
+
+/**
+ * Event colour = opaque status block + conflict overlay ring.
  */
 export function getEventClassNames(
   status: RequestStatus,
   severity: ConflictSeverity,
 ): string[] {
-  const classes = ["orkyo-cal-event", ...getStatusColor(status).split(/\s+/).filter(Boolean)];
+  const classes = ["orkyo-cal-event", ...getCalendarEventColor(status).split(/\s+/).filter(Boolean)];
   if (severity === "error") classes.push("ring-2", "ring-red-500");
   else if (severity === "warning") classes.push("ring-2", "ring-amber-500");
   return classes;
