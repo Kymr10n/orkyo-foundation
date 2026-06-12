@@ -37,6 +37,14 @@ export async function getConflictedRequests(): Promise<Request[]> {
 }
 
 /**
+ * Get the direct children of a request. Used to decide whether a request may be
+ * converted to a leaf (Task) — the backend rejects that while children exist.
+ */
+export async function getRequestChildren(requestId: string): Promise<Request[]> {
+  return apiGet<Request[]>(API_PATHS.requestChildren(requestId));
+}
+
+/**
  * Create a new request
  */
 export async function createRequest(

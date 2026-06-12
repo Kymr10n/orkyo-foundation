@@ -21,7 +21,7 @@ public interface IRequestService
     Task<List<RequestInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default);
     /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
     Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);
-    /// <summary>Unscheduled backlog (tenant-wide) — drag-to-schedule source for the panel.</summary>
+    /// <summary>Unscheduled, directly-schedulable (leaf) backlog (tenant-wide) — drag-to-schedule source. Groups are excluded.</summary>
     Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default);
     /// <summary>Creates a request. Validates parent mode and throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on violations.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);

@@ -5,14 +5,6 @@ import type { Criterion } from '@foundation/src/types/criterion';
 import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import type { ReactNode } from 'react';
 
-vi.mock('@foundation/src/components/ui/collapsible', () => ({
-  Collapsible: ({ children, onOpenChange }: { children: ReactNode; open: boolean; onOpenChange?: () => void }) =>
-    <div onClick={onOpenChange}>{children}</div>,
-  CollapsibleTrigger: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) =>
-    <button {...props}>{children}</button>,
-  CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
-
 vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -62,13 +54,11 @@ const baseState = {
   schedulingSettingsApply: false,
   requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
-  openSections: { basic: true, schedule: true, constraints: true, duration: true, requirements: true },
 };
 
 describe('RequestRequirementsSection', () => {
   const defaultProps = {
     state: baseState,
-    toggleSection: vi.fn(),
     availableCriteria: mockCriteria,
     selectedCriterionId: '',
     setSelectedCriterionId: vi.fn(),
@@ -124,13 +114,6 @@ describe('RequestRequirementsSection', () => {
     expect(addBtn).toBeDisabled();
   });
 
-  it('calls toggleSection when trigger is clicked', () => {
-    const toggleSection = vi.fn();
-    render(<RequestRequirementsSection {...defaultProps} toggleSection={toggleSection} />);
-    fireEvent.click(screen.getByRole('button', { name: /requirements/i }));
-    expect(toggleSection).toHaveBeenCalledWith('requirements');
-  });
-
   it('calls onRemoveRequirement when trash button clicked', () => {
     const onRemove = vi.fn();
     const stateWithReqs = {
@@ -144,9 +127,9 @@ describe('RequestRequirementsSection', () => {
         onRemoveRequirement={onRemove}
       />,
     );
-    // All buttons: Collapsible trigger, add (+), and the remove trash button
+    // Buttons: add (+) and the remove trash button
     const buttons = screen.getAllByRole('button');
-    // Remove button is the last one (after trigger and add)
+    // Remove button is the last one (after add)
     const removeBtn = buttons[buttons.length - 1];
     fireEvent.click(removeBtn);
     expect(onRemove).toHaveBeenCalledWith('c1');

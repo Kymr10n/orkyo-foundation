@@ -181,9 +181,14 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
+        // Only leaf requests are directly schedulable (see RequestService.UpdateAsync), so the
+        // drag-to-schedule backlog excludes groups — their null start_ts is a derived state, not an
+        // unscheduled one. Unscheduled leaf *children* of a group still surface (they're the units
+        // you place); only the group nodes drop.
         var requests = new List<RequestInfo>();
         var cmd = new NpgsqlCommand(
-            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE start_ts IS NULL " +
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
+            "WHERE start_ts IS NULL AND planning_mode = 'leaf' " +
             "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC", db);
 
         await using (var reader = await cmd.ExecuteReaderAsync(ct))

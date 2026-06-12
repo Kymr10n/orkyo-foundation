@@ -1,6 +1,5 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
@@ -10,11 +9,13 @@ import {
   createAssignment,
   cancelAssignment,
   validateAssignment,
+  hardBlockers,
+  softBlockers,
   type ResourceAssignmentInfo,
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { ValidationIssueList } from "./ValidationIssueList";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 interface RequestPeopleSectionProps {
@@ -24,9 +25,6 @@ interface RequestPeopleSectionProps {
   requestStartTs?: string;
   /** ISO datetime for the request end (used for validation). */
   requestEndTs?: string;
-  /** Whether this section is collapsed or open. */
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   /** Called whenever the blocker state changes so the parent can disable Save. */
   onBlockersChange: (hasBlockers: boolean) => void;
 }
@@ -48,8 +46,6 @@ export function RequestPeopleSection({
   requestId,
   requestStartTs,
   requestEndTs,
-  open,
-  onOpenChange,
   onBlockersChange,
 }: RequestPeopleSectionProps) {
   const [people, setPeople] = useState<ResourceInfo[]>([]);
@@ -82,10 +78,12 @@ export function RequestPeopleSection({
     return () => { cancelled = true; };
   }, [requestId]);
 
-  // Recompute blocker state whenever pending rows change
+  // Recompute blocker state whenever pending rows change. Only HARD blockers gate
+  // saving — capability.missing / overbooked are soft (see SOFT_BLOCKER_CODES) and
+  // the backend accepts them, so they must not disable Save here either.
   useEffect(() => {
     const hasBlockers = pendingRows.some(
-      (r) => r.validationResult && r.validationResult.blockers.length > 0
+      (r) => r.validationResult && hardBlockers(r.validationResult).length > 0
     );
     onBlockersChange(hasBlockers);
   }, [pendingRows, onBlockersChange]);
@@ -173,7 +171,7 @@ export function RequestPeopleSection({
     }
     const row = pendingRows.find((r) => r.key === key);
     if (!row?.resourceId) return;
-    if (row.validationResult && row.validationResult.blockers.length > 0) return;
+    if (row.validationResult && hardBlockers(row.validationResult).length > 0) return;
 
     updatePendingRow(key, { saving: true, error: null });
     try {
@@ -204,18 +202,14 @@ export function RequestPeopleSection({
   const alreadyPickedIds = new Set(pendingRows.map((r) => r.resourceId).filter(Boolean));
 
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 rounded-lg">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">People</h3>
-          <Badge variant="outline" className="text-xs">
-            {assignments.length} assigned
-          </Badge>
-        </div>
-        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-4">
-        <div className="space-y-3">
+    <div>
+      <div className="flex items-center gap-2">
+        <h4 className="text-sm font-medium">People</h4>
+        <Badge variant="outline" className="text-xs">
+          {assignments.length} assigned
+        </Badge>
+      </div>
+      <div className="space-y-3 pt-4">
           {isLoading && (
             <p className="text-xs text-muted-foreground">Loading…</p>
           )}
@@ -307,8 +301,13 @@ export function RequestPeopleSection({
 
               {row.validationResult && (
                 <div data-testid="validation-feedback">
-                  <ValidationIssueList issues={row.validationResult.blockers} variant="blocker" />
-                  <ValidationIssueList issues={row.validationResult.warnings} variant="warning" />
+                  {/* Soft blockers (capability.missing / overbooked) render as warnings —
+                      the assignment can still be saved. */}
+                  <ValidationIssueList issues={hardBlockers(row.validationResult)} variant="blocker" />
+                  <ValidationIssueList
+                    issues={[...softBlockers(row.validationResult), ...row.validationResult.warnings]}
+                    variant="warning"
+                  />
                   {row.validationResult.severity === 'ok' && row.validationResult.blockers.length === 0 && row.validationResult.warnings.length === 0 && (
                     <p className="text-xs text-green-600" data-testid="validation-ok">No issues found</p>
                   )}
@@ -334,7 +333,7 @@ export function RequestPeopleSection({
                   disabled={
                     !row.resourceId ||
                     row.saving ||
-                    !!(row.validationResult && row.validationResult.blockers.length > 0)
+                    !!(row.validationResult && hardBlockers(row.validationResult).length > 0)
                   }
                   data-testid="save-row-btn"
                   onClick={() => handleSaveRow(row.key)}
@@ -357,8 +356,7 @@ export function RequestPeopleSection({
             <Plus className="h-4 w-4 mr-1" />
             Add Person
           </Button>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </div>
   );
 }

@@ -48,20 +48,10 @@ export interface RequestFormState {
   // Requirements
   requirements: Map<string, RequirementEntry>;
   selectedCriterionId: string;
-
-  // UI state
-  openSections: {
-    basic: boolean;
-    schedule: boolean;
-    constraints: boolean;
-    duration: boolean;
-    requirements: boolean;
-  };
 }
 
 type RequestFormAction =
   | { type: 'SET_FIELD'; field: keyof RequestFormState; value: RequestFormState[keyof RequestFormState] }
-  | { type: 'TOGGLE_SECTION'; section: keyof RequestFormState['openSections'] }
   | { type: 'ADD_REQUIREMENT'; criterionId: string; value: CriterionValue | null }
   | { type: 'REMOVE_REQUIREMENT'; criterionId: string }
   | { type: 'UPDATE_REQUIREMENT'; criterionId: string; patch: Partial<RequirementEntry> }
@@ -87,13 +77,6 @@ const initialState: RequestFormState = {
   schedulingSettingsApply: true,
   requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
-  openSections: {
-    basic: true,
-    schedule: true,
-    constraints: false,
-    duration: true,
-    requirements: true,
-  },
 };
 
 /** @internal Exported for unit testing */
@@ -101,15 +84,6 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
   switch (action.type) {
     case 'SET_FIELD':
       return { ...state, [action.field]: action.value };
-
-    case 'TOGGLE_SECTION':
-      return {
-        ...state,
-        openSections: {
-          ...state.openSections,
-          [action.section]: !state.openSections[action.section],
-        },
-      };
 
     case 'ADD_REQUIREMENT': {
       const newRequirements = new Map(state.requirements);
@@ -201,13 +175,6 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       schedulingSettingsApply: request.schedulingSettingsApply ?? true,
       requirements: reqMap,
       selectedCriterionId: '',
-      openSections: {
-        basic: true,
-        schedule: true,
-        constraints: false,
-        duration: true,
-        requirements: true,
-      },
     }, defaultSchedule);
   }
 
@@ -225,8 +192,6 @@ export function useRequestForm(request?: Request | null, parentRequestId?: strin
     state,
     setField: (field: keyof RequestFormState, value: RequestFormState[keyof RequestFormState]) =>
       dispatch({ type: 'SET_FIELD', field, value }),
-    toggleSection: (section: keyof RequestFormState['openSections']) =>
-      dispatch({ type: 'TOGGLE_SECTION', section }),
     addRequirement: (criterionId: string, value: CriterionValue | null) =>
       dispatch({ type: 'ADD_REQUIREMENT', criterionId, value }),
     removeRequirement: (criterionId: string) =>

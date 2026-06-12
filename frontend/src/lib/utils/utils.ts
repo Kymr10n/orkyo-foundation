@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { RequestFormData } from "@foundation/src/components/requests/RequestFormDialog"
-import type { CreateRequestRequest, UpdateRequestRequest } from "@foundation/src/types/requests"
+import type { CreateRequestRequest, PlanningMode, UpdateRequestRequest } from "@foundation/src/types/requests"
 import { REQUEST_STATUS } from "@foundation/src/constants/request-status"
 
 export function cn(...inputs: ClassValue[]) {
@@ -136,13 +136,25 @@ export function formatStatusLabel(status: string): string {
 
 /**
  * Build an UpdateRequestRequest from form data.
+ *
+ * Pass `originalPlanningMode` (the request's mode when the form opened) so the Type is
+ * sent only when the user actually changed it. The backend treats an absent
+ * `planningMode` as "keep existing" (UpdateRequestRequest.PlanningMode is nullable), so
+ * an unrelated edit no longer re-asserts the mode and trips the "cannot change to leaf
+ * while it has children" guard. Omit the argument to always send it (e.g. create-derived
+ * flows that have no prior mode).
  */
-export function buildUpdatePayload(data: RequestFormData): UpdateRequestRequest {
+export function buildUpdatePayload(
+  data: RequestFormData,
+  originalPlanningMode?: PlanningMode,
+): UpdateRequestRequest {
+  const planningModeChanged =
+    originalPlanningMode === undefined || data.planningMode !== originalPlanningMode;
   return {
     name: data.name,
     description: data.description,
     icon: data.icon,
-    planningMode: data.planningMode,
+    planningMode: planningModeChanged ? data.planningMode : undefined,
     resourceId: data.resourceId,
     startTs: data.startTs,
     endTs: data.endTs,

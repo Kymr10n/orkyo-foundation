@@ -2,16 +2,9 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RequestPeopleSection } from './RequestPeopleSection';
 import type { ReactNode } from 'react';
+import type * as ResourceAssignmentsApi from '@foundation/src/lib/api/resource-assignments-api';
 
 // --- Mock UI components ---
-
-vi.mock('@foundation/src/components/ui/collapsible', () => ({
-  Collapsible: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div>{children}</div> : <div>{(children as ReactNode[])?.[0]}</div>,
-  CollapsibleTrigger: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) =>
-    <button {...props}>{children}</button>,
-  CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
 
 vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ children, value, onValueChange }: { children: ReactNode; value?: string; onValueChange?: (v: string) => void }) => (
@@ -49,7 +42,9 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
 }));
 
-vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
+vi.mock('@foundation/src/lib/api/resource-assignments-api', async (importActual) => ({
+  // Keep the real pure helpers (SOFT_BLOCKER_CODES, hardBlockers, …); mock only network calls.
+  ...(await importActual<typeof ResourceAssignmentsApi>()),
   getAssignmentsByRequest: vi.fn(),
   validateAssignment: vi.fn(),
   createAssignment: vi.fn(),
@@ -93,8 +88,6 @@ const defaultProps = {
   requestId: 'req-1',
   requestStartTs: '2026-06-01T09:00:00Z',
   requestEndTs: '2026-06-01T17:00:00Z',
-  open: true,
-  onOpenChange: vi.fn(),
   onBlockersChange: vi.fn(),
 };
 
@@ -225,6 +218,28 @@ describe('RequestPeopleSection', () => {
       const lastCall = calls[calls.length - 1];
       expect(lastCall[0]).toBe(true);
     });
+  });
+
+  it('treats capability.missing as a soft blocker: Add stays enabled and it shows as a warning', async () => {
+    (validateAssignment as Mock).mockResolvedValue({
+      severity: 'blocker',
+      blockers: [{ code: 'capability.missing', message: 'Resource does not satisfy requirement', resourceId: 'res-person-1' }],
+      warnings: [],
+    });
+
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    await waitFor(() => {
+      // Surfaced as a warning, not a hard blocker…
+      expect(screen.getByText(/Required capability missing/)).toBeInTheDocument();
+    });
+    // …so the row's Add button stays enabled and the dialog isn't gated.
+    expect(screen.getByTestId('save-row-btn')).not.toBeDisabled();
+    const calls = (defaultProps.onBlockersChange as Mock).mock.calls;
+    expect(calls[calls.length - 1][0]).toBe(false);
   });
 
   it('removes an existing assignment when remove is clicked', async () => {

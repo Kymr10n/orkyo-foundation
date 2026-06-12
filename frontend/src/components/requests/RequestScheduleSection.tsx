@@ -1,38 +1,31 @@
 import { Label } from "@foundation/src/components/ui/label";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
 import { SPACE_NONE_PLACEHOLDER } from "@foundation/src/constants";
 import { combineDateTimeFields, splitDateTimeFields } from "@foundation/src/lib/utils/picker-utils";
 import type { Space } from "@foundation/src/types/space";
 import type { useRequestForm } from "@foundation/src/hooks/useRequestForm";
-import { Calendar, ChevronDown, MapPin } from "lucide-react";
+import { Calendar, MapPin } from "lucide-react";
 
 interface RequestScheduleSectionProps {
   state: ReturnType<typeof useRequestForm>['state'];
   setField: ReturnType<typeof useRequestForm>['setField'];
-  toggleSection: ReturnType<typeof useRequestForm>['toggleSection'];
   availableSpaces: Space[];
 }
 
 export function RequestScheduleSection({
   state,
   setField,
-  toggleSection,
   availableSpaces,
 }: RequestScheduleSectionProps) {
   return (
-    <Collapsible open={state.openSections.schedule} onOpenChange={() => toggleSection('schedule')}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 rounded-lg">
-        <h3 className="text-sm font-medium flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
-          Schedule (Optional)
-        </h3>
-        <ChevronDown className={`h-4 w-4 transition-transform ${state.openSections.schedule ? 'rotate-180' : ''}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-4">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+    <div>
+      <h4 className="text-sm font-medium flex items-center gap-2">
+        <Calendar className="h-4 w-4" />
+        Schedule (Optional)
+      </h4>
+      <div className="space-y-4 pt-4">
+        <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Start</Label>
               <DateTimePicker
@@ -81,7 +74,6 @@ export function RequestScheduleSection({
             Leave dates blank to create an unscheduled request. Schedule later from the utilization view.
           </p>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+    </div>
   );
 }

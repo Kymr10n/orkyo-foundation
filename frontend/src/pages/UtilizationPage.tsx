@@ -496,7 +496,7 @@ export function UtilizationPage() {
   const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
     if (!calendarForm) return;
     if (calendarForm.mode === "edit" && calendarForm.request) {
-      await updateRequest(calendarForm.request.id, buildUpdatePayload(data));
+      await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode));
     } else {
       await createRequest(buildCreatePayload(data));
     }

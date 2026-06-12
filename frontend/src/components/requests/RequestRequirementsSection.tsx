@@ -1,16 +1,14 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { useRequestForm, RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Criterion } from "@foundation/src/types/criterion";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { CriterionRequirementInput } from "./CriterionRequirementInput";
 
 interface RequestRequirementsSectionProps {
   state: ReturnType<typeof useRequestForm>['state'];
-  toggleSection: ReturnType<typeof useRequestForm>['toggleSection'];
   availableCriteria: Criterion[];
   selectedCriterionId: string;
   setSelectedCriterionId: (id: string) => void;
@@ -22,7 +20,6 @@ interface RequestRequirementsSectionProps {
 
 export function RequestRequirementsSection({
   state,
-  toggleSection,
   availableCriteria,
   selectedCriterionId,
   setSelectedCriterionId,
@@ -36,18 +33,14 @@ export function RequestRequirementsSection({
   );
 
   return (
-    <Collapsible open={state.openSections.requirements} onOpenChange={() => toggleSection('requirements')}>
-      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 rounded-lg">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">Requirements</h3>
-          <Badge variant="outline" className="text-xs">
-            {state.requirements.size} active
-          </Badge>
-        </div>
-        <ChevronDown className={`h-4 w-4 transition-transform ${state.openSections.requirements ? 'rotate-180' : ''}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-4">
-        <div className="space-y-4">
+    <div>
+      <div className="flex items-center gap-2">
+        <h4 className="text-sm font-medium">Requirements</h4>
+        <Badge variant="outline" className="text-xs">
+          {state.requirements.size} active
+        </Badge>
+      </div>
+      <div className="space-y-4 pt-4">
 
           {/* Add Requirement */}
           {unusedCriteria.length > 0 && (
@@ -123,8 +116,7 @@ export function RequestRequirementsSection({
               })}
             </div>
           )}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </div>
   );
 }

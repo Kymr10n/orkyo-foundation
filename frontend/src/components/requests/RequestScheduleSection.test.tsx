@@ -5,13 +5,6 @@ import type { Space } from '@foundation/src/types/space';
 import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import type { ReactNode } from 'react';
 
-vi.mock('@foundation/src/components/ui/collapsible', () => ({
-  Collapsible: ({ children, onOpenChange }: { children: ReactNode; open: boolean; onOpenChange?: () => void }) =>
-    <div onClick={onOpenChange}>{children}</div>,
-  CollapsibleTrigger: ({ children }: { children: ReactNode }) => <button>{children}</button>,
-  CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
-
 vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -77,14 +70,12 @@ const baseState = {
   schedulingSettingsApply: false,
   requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
-  openSections: { basic: true, schedule: true, constraints: true, duration: true, requirements: true },
 };
 
 describe('RequestScheduleSection', () => {
   const defaultProps = {
     state: baseState,
     setField: vi.fn(),
-    toggleSection: vi.fn(),
     availableSpaces: mockSpaces,
   };
 
@@ -107,13 +98,6 @@ describe('RequestScheduleSection', () => {
   it('shows help text about unscheduled requests', () => {
     render(<RequestScheduleSection {...defaultProps} />);
     expect(screen.getByText(/leave dates blank/i)).toBeInTheDocument();
-  });
-
-  it('calls toggleSection when trigger is clicked', () => {
-    const toggleSection = vi.fn();
-    render(<RequestScheduleSection {...defaultProps} toggleSection={toggleSection} />);
-    fireEvent.click(screen.getByRole('button'));
-    expect(toggleSection).toHaveBeenCalledWith('schedule');
   });
 
   it('calls splitDateTimeFields (and setField) when start date changes', () => {

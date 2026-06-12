@@ -19,6 +19,7 @@ import {
   cancelAssignment,
   validateAssignment,
   validateAssignmentsBatch,
+  SOFT_BLOCKER_CODES,
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import {
@@ -41,16 +42,6 @@ export interface PersonAssignmentDialogProps {
   /** ISO datetime for the clicked segment's end. */
   end: string;
 }
-
-/**
- * Validation codes that are surfaced as warnings rather than hard blockers in the
- * quick-assign flow — the planner may assign despite them. Mirrors the backend's
- * soft-constraint set in ResourceAssignmentService.
- */
-const SOFT_BLOCKER_CODES: ReadonlySet<string> = new Set([
-  "capability.missing",
-  "assignment.overbooked",
-]);
 
 /**
  * The window an assignment should occupy: the request's own scheduled window when it

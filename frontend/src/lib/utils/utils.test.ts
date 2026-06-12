@@ -176,6 +176,21 @@ describe('Request payload builders — icon plumbing', () => {
     const out = buildUpdatePayload({ ...base, icon: null });
     expect(out.icon).toBeNull();
   });
+
+  it('buildUpdatePayload omits planningMode when it is unchanged from the original', () => {
+    const out = buildUpdatePayload({ ...base, planningMode: 'summary' }, 'summary');
+    expect(out.planningMode).toBeUndefined();
+  });
+
+  it('buildUpdatePayload sends planningMode when the user changed the type', () => {
+    const out = buildUpdatePayload({ ...base, planningMode: 'leaf' }, 'summary');
+    expect(out.planningMode).toBe('leaf');
+  });
+
+  it('buildUpdatePayload sends planningMode when no original is provided', () => {
+    const out = buildUpdatePayload({ ...base, planningMode: 'leaf' });
+    expect(out.planningMode).toBe('leaf');
+  });
 });
 
 describe('cn', () => {

@@ -202,4 +202,33 @@ public class RequestRepositoryTests
         Assert.Single(scheduled.Assignments);
         Assert.Equal(ResourceTypeKeys.Space, scheduled.Assignments[0].ResourceTypeKey);
     }
+
+    [Fact]
+    public async Task GetUnscheduled_ExcludesGroupsAndIncludesLeaves()
+    {
+        // A schedulable leaf with no start_ts…
+        var leafId = await CreateUnscheduledRequestAsync();
+
+        // …and an unscheduled group (summary): its null start_ts is derived, not unscheduled.
+        var groupResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"Group-{Guid.NewGuid():N}"[..25],
+            PlanningMode = PlanningMode.Summary,
+            StartTs = null,
+            EndTs = null,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = false,
+        });
+        groupResp.EnsureSuccessStatusCode();
+        var groupId = (await groupResp.Content.ReadFromJsonAsync<RequestInfo>())!.Id;
+
+        var resp = await _client.GetAsync("/api/requests?scheduled=false");
+        resp.EnsureSuccessStatusCode();
+        var backlog = await resp.Content.ReadFromJsonAsync<List<RequestInfo>>();
+
+        Assert.NotNull(backlog);
+        Assert.Contains(backlog, r => r.Id == leafId);
+        Assert.DoesNotContain(backlog, r => r.Id == groupId);
+    }
 }
