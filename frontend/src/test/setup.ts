@@ -39,6 +39,12 @@ if (!Element.prototype.releasePointerCapture) {
   Element.prototype.releasePointerCapture = function () {};
 }
 
+// Radix Select scrolls the active item into view on open; happy-dom has no
+// layout so it ships no implementation. Stub it as a no-op.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function () {};
+}
+
 // Cleanup after each test case
 afterEach(() => {
   cleanup();
