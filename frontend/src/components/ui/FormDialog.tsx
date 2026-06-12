@@ -6,9 +6,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ScrollableDialogBody,
 } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { cn } from '@foundation/src/lib/utils';
 
 export interface FormDialogProps {
   open: boolean;
@@ -56,19 +58,27 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={contentClassName ?? 'sm:max-w-[500px]'}>
-        <DialogHeader>
+      {/* Height-bounded flex column so tall forms scroll their body (pinned
+          header + footer) instead of growing past the viewport. `dvh` keeps the
+          dialog clear of mobile browser chrome. */}
+      <DialogContent
+        className={cn(
+          'flex max-h-[85dvh] flex-col gap-0 sm:max-w-[500px]',
+          contentClassName,
+        )}
+      >
+        <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <ScrollableDialogBody className="space-y-4 py-4">
             {children}
             <ErrorAlert message={error ?? null} />
-          </div>
+          </ScrollableDialogBody>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 pt-4">
             <Button
               type="button"
               variant="outline"
