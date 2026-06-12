@@ -5,6 +5,7 @@ import {
 import { RequestDetailPanel } from "@foundation/src/components/requests/RequestDetailPanel";
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { AddExistingRequestsDialog } from "@foundation/src/components/requests/AddExistingRequestsDialog";
 import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
 import {
@@ -549,9 +550,10 @@ export function RequestsPage() {
 
       {/* Body: View + Detail Panel */}
       <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
-        {/* Main content area. Tree view manages its own internal scroll (overflow-hidden);
-            the list view's data table grows naturally, so its column must scroll itself. */}
-        <div className={`flex-1 ${selectedRequest ? 'min-w-0' : ''} ${viewMode === 'tree' ? 'overflow-hidden' : 'min-h-0 overflow-y-auto'}`}>
+        {/* Main content area. Single scroll owner regardless of view mode: the
+            container never scrolls (overflow-hidden); the tree owns its own scroll,
+            and the list view is wrapped in its own bounded ScrollArea below. */}
+        <div className={`flex-1 min-h-0 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
           {loading && requests.length === 0 ? (
             <LoadingSpinner fullScreen={false} message="Loading requests..." />
           ) : error ? (
@@ -595,15 +597,17 @@ export function RequestsPage() {
               onDrop={handleDrop}
             />
           ) : (
-            <RequestListView
-              requests={filteredRequests}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              onEdit={handleEditRequest}
-              onDelete={handleDeleteRequest}
-              onAddChild={handleAddChild}
-              onAddExisting={handleAddExisting}
-            />
+            <ScrollArea type="auto" className="h-full">
+              <RequestListView
+                requests={filteredRequests}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                onEdit={handleEditRequest}
+                onDelete={handleDeleteRequest}
+                onAddChild={handleAddChild}
+                onAddExisting={handleAddExisting}
+              />
+            </ScrollArea>
           )}
         </div>
 
