@@ -22,7 +22,7 @@
   },
   "scripts": {
     "prepublishOnly": "npm run build && mkdir -p assets && cp -r ../assets/orkyo-favicon-pack/. assets/",
-    "build": "tsc -b && tsc-alias -p tsconfig.json",
+    "build": "tsc -b && tsc-alias -p tsconfig.json && find src -name '*.css' | xargs cp --parents -t .tsbuild/",
     "typecheck": "tsc -b && tsc-alias -p tsconfig.json",
     "test": "vitest run",
     "lint": "eslint src contracts"
