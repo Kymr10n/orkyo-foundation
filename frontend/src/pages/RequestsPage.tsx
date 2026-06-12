@@ -479,7 +479,7 @@ export function RequestsPage() {
     : filteredRequests.length === 0;
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={300}>
     <PageLayout>
       <PageHeader
         title="Requests"

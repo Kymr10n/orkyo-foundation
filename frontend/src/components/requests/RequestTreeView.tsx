@@ -623,7 +623,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
   if (selectedIndex >= 0) focusedIndexRef.current = selectedIndex;
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={300}>
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
