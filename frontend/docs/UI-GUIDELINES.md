@@ -109,11 +109,19 @@ Use `type="auto"` for primary content surfaces so the bar is visible whenever co
 
 ## 5. Tokens over magic numbers
 
-Prefer a named token/utility over a raw literal for spacing, radius, and sizes. Avoid one-off
-`w-[70px]` / `min-h-[80px]` / `max-h-[83vh]` values; if a value must be specific, factor it into
-a shared constant so it stays consistent across screens. (A design-token layer is on the backlog
-in [`UX-CONSISTENCY.md`](UX-CONSISTENCY.md#remediation-backlog); until it lands, reuse existing
-utilities and don't invent new magic numbers.)
+Tailwind's built-in scale **is** the token system — prefer `gap-2`, `rounded-md`, `text-sm` over
+arbitrary `[..]` values. Avoid one-off `w-[70px]` / `min-h-[80px]` / `max-h-[83vh]` literals.
+
+When a value genuinely must be app-specific (e.g. the dialog height cap), **centralize it in the
+component that owns it** so there's a single source of truth — e.g. `max-h-[85dvh]` lives once on
+`DialogContent`, and the form-dialog width once on `FormDialog`. Don't copy such literals into
+call sites.
+
+> Note: `orkyo-foundation` ships source + `index.css` with raw `@tailwind` directives and has **no
+> Tailwind build of its own** — the consuming products (saas/community) run Tailwind. So a shared
+> Tailwind *theme* extension (custom spacing/radius scales) is a downstream concern, not something
+> this repo can add. Foundation's own tokens are: Tailwind's default scale, the CSS variables in
+> `index.css` (colors, `--radius`), and centralized component constants.
 
 ## 6. Tooltips
 

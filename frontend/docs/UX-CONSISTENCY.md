@@ -243,12 +243,19 @@ Prioritized and costed. **"Major bump?"** = does it change the public component 
 | **P0 ✅** | `ScrollArea` `viewportRef` (forward to Viewport) | Removes Finding E workarounds | Additive prop | No (additive) | No |
 | **P0** | Route new dialogs through `FormDialog`; migrate worst hand-rolled overflow divergers | Reuse over rebuild (Finding F) | New code + opportunistic migration | No | No |
 | **P0 (deferred)** | Safe default `max-h`/`overflow` on the *base* `DialogContent` | Protects raw-`Dialog` users too | Touches every dialog — needs visual QA across the 3 patterns | No (additive) | No |
+| **P0 ✅** | Height-bound the base `DialogContent` (`flex flex-col max-h-[85dvh]`, no base overflow) | Removes per-dialog `max-h` guesswork (Finding B) | All dialogs (visual-QA-friendly) | No (additive) | No |
+| **P1 ✅** | Migrate `RequestsPanel` + `ConflictsPage` to `ScrollArea` + `viewportRef` | Consistent house scrollbar (Finding E) | Two surfaces | No | No |
+| **P1 ✅** | Collapse `RequestsPage` tree/list to one scroll behavior | Removes the per-view-mode surprise (Finding A) | One page | No | No |
 | **P1** | `PageShell` / `ScrollContainer` primitive encoding `flex-1 min-h-0` + overflow contract | Makes Findings A & D structural, not recalled | Pages migrate onto it | Only if exported & signatures shift | If exported from package |
-| **P1** | Collapse `RequestsPage` tree/list to one scroll behavior | Removes the per-view-mode surprise (Finding A) | One page | No | No |
-| **P2** | `TimelineGridShell` scrollbar affordance + sticky-header over JS sync | Fixes Finding C desync class | One component | No | No |
-| **P2** | Design-token layer for spacing/radius/size/`dvh` literals | Names the magic numbers (Finding F) | Broad but mechanical | No (values unchanged) | No |
-| **P2** | Hoist `TooltipProvider` to app root; drop per-component providers | One provider, one delay (Finding F) | Several components + root | No | No |
-| **P2** | a11y pass: `jest-axe`, `LoadingSpinner` `aria-busy`/SR text | Consistency the eye can't see | Tests + small component edits | No | No |
+| **P2 ✅** | Standardize tooltip `delayDuration` to 300ms (kept self-contained — see note) | Consistent delay (Finding F) | A few components | No | No |
+| **P2 ✅** | a11y: `LoadingSpinner` `role/aria-busy`/SR text + `jest-axe` harness | Consistency the eye can't see | Tests + small component edits | No | No |
+| **P2 (needs visual QA)** | `TimelineGridShell` sticky-header over JS scroll-sync | Removes Finding C desync class | One virtualized grid — high regression risk | No | No |
+| **P2 (downstream)** | Shared Tailwind *theme* token scale | Names spacing/radius literals (Finding F) | Products only — foundation has no Tailwind build | n/a here | Lives in saas/community |
+
+> **Tooltip note:** the original backlog said "hoist `TooltipProvider` to a single root." Rejected
+> for this repo: it's a shared **library**, Radix 1.2.8 *requires* a `TooltipProvider` ancestor, so
+> a single root provider would break any downstream product that renders these components outside
+> `TenantApp`. Kept each provider self-contained and standardized the delay instead.
 
 **Recommended sequence.** Land all **P0** first — they are additive, break nothing, and remove
 the *causes* of the friction (no scroll rule, no dialog default, unusable shared `ScrollArea`,
@@ -282,8 +289,12 @@ where exported, the `CLAUDE.md` coordination):
   the scroll-owner rule, the dialog recipe, and the virtualization pattern by default.
 
 All additive: existing `ScrollArea`/`Dialog` callers are untouched; typecheck, lint, and the full
-suite (227 files / 2943 tests) pass. The remaining virtualized surfaces (`RequestsPanel`,
-`ConflictsPage`) and the base-`DialogContent` default are deferred pending the visual-QA pass.
+suite pass. A follow-up change extended this work — `RequestsPanel`/`ConflictsPage` migrated onto
+`viewportRef`, `RequestsPage` unified to a single scroll owner, the base `DialogContent` made
+height-bounded by default, `LoadingSpinner` a11y, a `jest-axe` harness, and standardized tooltip
+delays — see the ✅ rows in the [backlog](#remediation-backlog). Remaining: the `PageShell`
+primitive, the `TimelineGridShell` sticky-header rewrite (needs visual QA), and a downstream
+Tailwind token scale.
 
 ---
 
