@@ -67,6 +67,7 @@ export {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ScrollableDialogBody,
 } from "./dialog";
 
 // Input

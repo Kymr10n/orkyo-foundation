@@ -1,5 +1,6 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -661,10 +662,11 @@ export const RequestTreeView = React.memo(function RequestTreeView({
           </Button>
         </div>
       )}
-      {/* Plain overflow container is the virtualizer's scroll element. (A Radix ScrollArea
-          forwards its ref to the non-scrolling Root, not the inner Viewport, which mis-wires
-          react-virtual and breaks scrolling once the list overflows.) */}
-      <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
+      {/* The virtualizer scrolls the ScrollArea Viewport (wired via `viewportRef`),
+          not the Root — so this uses the shared house scrollbar instead of a bare
+          overflow div. `type="auto"` keeps the bar visible whenever the tree
+          overflows (native-like) rather than only on hover. */}
+      <ScrollArea type="auto" viewportRef={parentRef} className="flex-1 min-h-0">
         <div
           role="tree"
           tabIndex={0}
@@ -713,7 +715,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
             );
           })}
         </div>
-      </div>
+      </ScrollArea>
     </div>
     <DragOverlay dropAnimation={null}>
       {activeEntry && (

@@ -47,6 +47,25 @@ const DialogContent = React.forwardRef<
 ))
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
+/**
+ * The single sanctioned scroll region for a dialog. Place tall content here so
+ * the header and footer stay pinned while only the body scrolls. Use inside a
+ * height-bounded, `flex flex-col` `DialogContent` (e.g. `max-h-[85dvh]`); the
+ * paired `flex-1 min-h-0` is what makes the body actually scroll instead of
+ * pushing the dialog past the viewport.
+ *
+ * This replaces the three divergent per-dialog overflow recipes
+ * (`overflow-y-auto` on content / nested `ScrollArea` / inner `overflow-y-auto`
+ * div) with one consistent affordance.
+ */
+const ScrollableDialogBody = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("flex-1 min-h-0 overflow-y-auto", className)} {...props} />
+)
+ScrollableDialogBody.displayName = "ScrollableDialogBody"
+
 const DialogHeader = ({
   className,
   ...props
@@ -109,4 +128,5 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  ScrollableDialogBody,
 }
