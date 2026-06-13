@@ -111,7 +111,7 @@ public static class NarrativeYearSeeder
             // (correct) room but are staffed by a person who lacks a required skill — and only that
             // person, so nobody covers it. Person-skills are checked against the assigned people, so
             // this surfaces a capability blocker on the people dimension (see ConflictService).
-            var capBudget = Math.Max(1, cohortJobs.Count / 20);
+            var capBudget = Math.Max(1, cohortJobs.Count / 40);
             var capPool = cohortJobs
                 .Where(j => j.SpaceId is not null && j.RequiredCriteria.Count > 0)
                 .OrderBy(_ => faker.Random.Int())
@@ -157,7 +157,7 @@ public static class NarrativeYearSeeder
                     && InNonConcurrentRoom(j)
                     && j.Assignees.Any(a => personIds.Contains(a.ResId)))
                 .ToList();
-            var conflictBudget = Math.Max(1, cohortJobs.Count / 20); // ~5%
+            var conflictBudget = Math.Max(1, cohortJobs.Count / 40); // ~2.5% clone injection → ~5% requests flagged (source + clone each)
             for (var i = 0; i < conflictBudget && clonePool.Count > 0; i++)
             {
                 var src = faker.PickRandom(clonePool);

@@ -86,13 +86,13 @@ public class NarrativeYearSeederTests
         avail.Absences.Should().BeGreaterThan(0);
         tools.Should().NotBeEmpty();
 
-        // year.Conflicts now counts BOTH injected kinds the validator surfaces: ~5 % capability
-        // staffing + ~5 % scheduling clones ≈ 10 % of leaf requests. The 0.20 bound leaves headroom
-        // for the per-cohort Math.Max(1, …) floors at small scales while still catching a regression
-        // to the old "mostly conflicted" state (which was ≈ 100 %).
+        // year.Conflicts counts BOTH injected kinds: ~2.5 % capability staffing + ~2.5 % scheduling
+        // clones ≈ 5 % of leaf requests. Each clone flags 2 requests in the UI (source + clone), so
+        // the visible conflict rate is ~10 % of scheduled requests. The 0.15 bound leaves headroom
+        // for the per-cohort Math.Max(1, …) floors at small/tiny scales.
         var leafRequests = year.Requests - cohorts.Count; // subtract parent summary rows
-        ((double)year.Conflicts / leafRequests).Should().BeLessThan(0.20,
-            "injected conflicts must stay near ~10 % of leaf requests");
+        ((double)year.Conflicts / leafRequests).Should().BeLessThan(0.15,
+            "injected conflicts must stay near ~5 % of leaf requests (visible ~10 % in the UI)");
 
         // Scope all assertions to the requests this test seeded — earlier tests in the suite may have
         // committed rows to these tables (via the API) and we must not count them.
@@ -201,6 +201,28 @@ public class NarrativeYearSeederTests
             ("ids", seededIds));
         personPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
             "accidental person overbooking must stay within the intentional conflict band");
+
+        // Site model: pin cohort people to their facility site, then run the full home/current-site
+        // pass (which also adopts each request's space site). Regression guard for the "every booking
+        // conflicted" bug — the post-commit round-robin must NOT scatter cohort people across sites
+        // (that made ~56 % of requests cross-site mismatched and painted the whole grid red).
+        await SiteModelFactory.ApplyCohortSitesAsync(conn, tx,
+            cohorts.SelectMany(c => c.People.Select(p => (p.ResourceId, c.SiteId))).ToList());
+        await SiteModelFactory.ApplyAsync(conn, spaceTypeId, personTypeId, tx);
+
+        var (sitedReqs, crossSiteReqs) = await TwoLongs(conn, tx, @"
+            SELECT count(DISTINCT req.id),
+                   count(DISTINCT req.id) FILTER (
+                       WHERE res.current_site_id IS NOT NULL AND res.current_site_id <> req.site_id)
+            FROM requests req
+            JOIN resource_assignments ra ON ra.request_id = req.id AND ra.assignment_status <> 'Cancelled'
+            JOIN resources res ON res.id = ra.resource_id
+            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = 'person'
+            WHERE req.id = ANY(@ids) AND req.site_id IS NOT NULL",
+            ("ids", seededIds));
+        sitedReqs.Should().BeGreaterThan(0, "scheduled requests adopt their space's site");
+        ((double)crossSiteReqs / sitedReqs).Should().BeLessThan(0.15,
+            "cohort people stay at their facility site — only a small deliberate set is cross-site");
 
         await tx.RollbackAsync();
     }
