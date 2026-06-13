@@ -157,8 +157,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition hover:brightness-95 ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
         isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing'
       }`}
-      onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) onRequestClick(request.id); }}
-      onDoubleClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) onRequestDoubleClick?.(request.id); }}
+      onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); } }}
       title={tooltipText}
       {...attributes}
       {...listeners}
@@ -173,14 +172,14 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity rounded-l z-20"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handleResizePointerDown(e, 'left')}
-        onDoubleClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       />
       {/* Right resize handle — only needs onPointerDown; move/up go to document */}
       <div
         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity rounded-r z-20"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handleResizePointerDown(e, 'right')}
-        onDoubleClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       />
       <div className="relative z-10 flex items-center gap-1">
         {displayData.hasConflict && (

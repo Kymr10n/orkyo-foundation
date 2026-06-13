@@ -405,9 +405,9 @@ describe("UtilizationPage", () => {
     expect(screen.getByTestId("collapsible-floorplan")).toBeInTheDocument();
   });
 
-  // --- Request double-click handlers ---
+  // --- Request click handlers ---
 
-  it("opens edit dialog on double-click when user can edit", async () => {
+  it("opens edit dialog on click when user can edit", async () => {
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -418,7 +418,7 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("opens details dialog on double-click for viewer", async () => {
+  it("opens details dialog on click for viewer", async () => {
     mockRole = "viewer";
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
@@ -534,7 +534,7 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // Open edit dialog via double-click
+    // Open edit dialog via click
     fireEvent.click(screen.getByTestId("dblclick-request"));
     await waitFor(() => {
       expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument();
