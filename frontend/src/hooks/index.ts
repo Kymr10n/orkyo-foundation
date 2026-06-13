@@ -1,5 +1,4 @@
 export { useCommandPalette } from "./useCommandPalette";
-export { useConflicts } from "./useConflicts";
 export {
   useCriteria,
   useCreateCriterion,

@@ -11,7 +11,7 @@ import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-as
 import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
-import { useConflicts } from "@foundation/src/hooks/useConflicts";
+import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
 import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
@@ -185,8 +185,10 @@ export function UtilizationPage() {
     }
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
-  // Conflict detection (scheduling + capability) — extracted to hook
-  const { conflictingRequestIds, capabilityConflicts, conflicts } = useConflicts();
+  // Conflict detection — backend is the single source of truth (tenant-wide
+  // registry, shared with the Conflicts page and Requests-page badges).
+  const { conflictsByRequest: conflicts } = useConflictRegistry();
+  const conflictingRequestIds = useMemo(() => new Set(conflicts.keys()), [conflicts]);
 
   // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
   // status + conflict severity. Reuses the same scoped `scheduled` set as the grid.
@@ -339,7 +341,7 @@ export function UtilizationPage() {
       data: { resourceId: null, startTs: null, endTs: null },
     });
     setSelectedRequestId(null);
-    // Conflicts recompute naturally via useConflicts() when the request loses its space assignment
+    // Conflicts refresh via the registry (invalidated on the schedule mutation) when the request loses its space assignment
   }, [scheduleMutation, setSelectedRequestId]);
 
   const handleTreeReparent = useCallback(async (requestId: string, parentId: string) => {
@@ -505,7 +507,7 @@ export function UtilizationPage() {
   }, [calendarForm, queryClient]);
 
   // Keep the shared store window (scale + anchor) aligned with the calendar's
-  // current view so useScheduledRequests/useConflicts fetch the right range.
+  // current view so useScheduledRequests fetches the right range.
   const handleCalendarDatesSet = useCallback((nextScale: "day" | "week" | "month", activeStart: Date) => {
     setScale(nextScale);
     setAnchorTs(activeStart);
@@ -620,7 +622,6 @@ export function UtilizationPage() {
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
-                    capabilityConflicts={capabilityConflicts}
                     weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
                     workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
                     workingDayStart={schedulingSettings?.workingDayStart}

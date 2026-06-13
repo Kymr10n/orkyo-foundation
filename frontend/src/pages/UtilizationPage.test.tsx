@@ -100,6 +100,10 @@ vi.mock("@foundation/src/hooks/useSchedulingConflicts", () => ({
   useSchedulingConflicts: vi.fn(() => ({ conflictingRequestIds: new Set() })),
 }));
 
+vi.mock("@foundation/src/hooks/useConflictRegistry", () => ({
+  useConflictRegistry: vi.fn(() => ({ conflictsByRequest: new Map() })),
+}));
+
 const mockPreviewMutateAsync = vi.fn(() => Promise.resolve({ fingerprint: "fp-1", assignments: [] }));
 const mockApplyMutateAsync = vi.fn(() => Promise.resolve());
 const mockScheduleMutate = vi.fn();

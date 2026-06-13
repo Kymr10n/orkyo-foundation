@@ -18,7 +18,8 @@ import type { TimeColumn } from "./scheduler-types";
 /**
  * Defer the backend capability validation until shortly after first paint so it doesn't compete
  * with the initial spaces/requests/floorplan fetches — conflict badges are decorative on load and
- * can appear a moment later. Shared by the Spaces (`useConflicts`) and People grids.
+ * can appear a moment later. Used by the People grid's batch validation. (The Spaces grid now
+ * sources committed conflicts from the tenant-wide registry instead.)
  */
 export const CONFLICT_CHECK_DELAY_MS = 1500;
 

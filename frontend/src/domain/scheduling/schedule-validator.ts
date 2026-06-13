@@ -1,12 +1,17 @@
 /**
- * Pure validation engine.
+ * Pure validation engine — the in-flight draft overlay only.
  *
- * evaluateSchedule(schedule, spaceCapacities?) → ValidationResult
+ * evaluateSchedule(schedule, existingIndex?) → ValidationResult
  *
  * Rules evaluated (in order):
  *   1. Below minimum duration
- *   2. Overlap with another entry in the same space (capacity=1)
- *      OR capacity exceeded (capacity>1, concurrent allocations > capacity)
+ *   2. Overlap with another entry in the same space
+ *
+ * Committed bookings' conflicts come from the backend (the single source of
+ * truth, via the tenant-wide conflicts registry). This client check exists only
+ * so the grid can give instant overlap/duration feedback for the bar being
+ * dragged, before the mutation commits and the registry refetches. It is
+ * deliberately capacity-agnostic (Exclusive semantics: any overlap is flagged).
  *
  * This function is side-effect-free and produces a stable result for any
  * given preview schedule. It must never be called inside a store action.
@@ -17,12 +22,8 @@ import { buildIndex, getOverlapping } from "./schedule-index";
 import type { ScheduleIndex } from "./schedule-index";
 import type { PreviewSchedule, ValidationResult } from "./schedule-model";
 
-/** resourceId → max concurrent allocations allowed (default 1) */
-type SpaceCapacityMap = ReadonlyMap<string, number>;
-
 export function evaluateSchedule(
   schedule: PreviewSchedule,
-  spaceCapacities?: SpaceCapacityMap,
   existingIndex?: ScheduleIndex,
 ): ValidationResult {
   const result: ValidationResult = new Map();
@@ -42,32 +43,15 @@ export function evaluateSchedule(
       });
     }
 
-    // --- Rule 2: overlap / capacity ---
-    const overlapping = getOverlapping(index, entry);
-    const capacity = spaceCapacities?.get(entry.resourceId) ?? 1;
-
-    if (capacity <= 1) {
-      // Classic behaviour: any overlap is a conflict
-      for (const other of overlapping) {
-        conflicts.push({
-          id: `${entry.requestId}-overlap-${other.requestId}`,
-          kind: "overlap",
-          severity: "error",
-          peerRequestId: other.requestId,
-          message: `Overlaps with "${other.name}" in the same space`,
-        });
-      }
-    } else {
-      // Capacity > 1: only flag when concurrent count exceeds capacity.
-      // concurrent = overlapping.length + 1 (self)
-      if (overlapping.length + 1 > capacity) {
-        conflicts.push({
-          id: `${entry.requestId}-capacity-exceeded`,
-          kind: "capacity_exceeded",
-          severity: "error",
-          message: `Space capacity exceeded (${overlapping.length + 1}/${capacity} concurrent allocations)`,
-        });
-      }
+    // --- Rule 2: overlap (any overlap in the same space is a conflict) ---
+    for (const other of getOverlapping(index, entry)) {
+      conflicts.push({
+        id: `${entry.requestId}-overlap-${other.requestId}`,
+        kind: "overlap",
+        severity: "error",
+        peerRequestId: other.requestId,
+        message: `Overlaps with "${other.name}" in the same space`,
+      });
     }
 
     if (conflicts.length > 0) {

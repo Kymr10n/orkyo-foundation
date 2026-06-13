@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
 // Domain pipeline
 import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
-import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
+import { buildIndex, getOverlapping } from "@foundation/src/domain/scheduling/schedule-index";
 import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useAppStore } from "@foundation/src/store/app-store";
 import type { Request } from "@foundation/src/types/requests";
@@ -24,7 +25,6 @@ import {
   type WorkingHoursConfig,
 } from "./time-grid-utils";
 import { enrichColumnsWithOffTime } from "./time-grid-offtime";
-import type { Conflict } from "@foundation/src/types/requests";
 
 interface SchedulerGridProps {
   spaces: Space[];
@@ -38,7 +38,6 @@ interface SchedulerGridProps {
   onTimeCursorClick: (ts: Date) => void;
   onAnchorChange?: (ts: Date) => void;
   offTimeRanges?: readonly OffTimeRange[];
-  capabilityConflicts?: Map<string, Conflict[]>;
   weekendsEnabled?: boolean;
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
@@ -57,7 +56,6 @@ export function SchedulerGrid({
   onTimeCursorClick,
   onAnchorChange,
   offTimeRanges = [],
-  capabilityConflicts,
   weekendsEnabled = false,
   workingHoursEnabled = false,
   workingDayStart = "08:00",
@@ -96,21 +94,35 @@ export function SchedulerGrid({
     [previewSchedule]
   );
 
-  const schedulingValidation = useMemo(
-    () => evaluateSchedule(previewSchedule, undefined, scheduleIndex),
-    [previewSchedule, scheduleIndex]
-  );
+  // The backend is the single source of truth for committed bookings' conflicts
+  // (overlap/overbook, capability, off-time, site). The grid reads them from the
+  // tenant-wide registry — the same source the Conflicts page and Requests-page
+  // badges use — so the three views agree by construction.
+  const { conflictsByRequest: committedConflicts } = useConflictRegistry();
 
-  // Merge backend capability conflicts into the scheduling validation map so
-  // the overlay shows the red indicator + tooltip for both conflict kinds.
+  // Draft overlay: while a bar is being resized, re-evaluate overlap/duration
+  // client-side for just the dragged entry and the peers it now overlaps, so the
+  // feedback is instant before the mutation commits and the registry refetches.
+  // Backend-only conflict kinds for those ids are restored on the next refetch.
   const validation = useMemo(() => {
-    if (!capabilityConflicts?.size) return schedulingValidation;
-    const merged = new Map(schedulingValidation);
-    for (const [requestId, capConflicts] of capabilityConflicts) {
-      merged.set(requestId, [...(merged.get(requestId) ?? []), ...capConflicts]);
+    if (!draft) return committedConflicts;
+    const draftEntry = previewSchedule.get(draft.requestId);
+    if (!draftEntry) return committedConflicts;
+
+    const affected = new Set<string>([draft.requestId]);
+    for (const peer of getOverlapping(scheduleIndex, draftEntry)) {
+      affected.add(peer.requestId);
+    }
+
+    const draftValidation = evaluateSchedule(previewSchedule, scheduleIndex);
+    const merged = new Map(committedConflicts);
+    for (const id of affected) {
+      const conflicts = draftValidation.get(id);
+      if (conflicts && conflicts.length > 0) merged.set(id, conflicts);
+      else merged.delete(id);
     }
     return merged;
-  }, [schedulingValidation, capabilityConflicts]);
+  }, [committedConflicts, draft, previewSchedule, scheduleIndex]);
   // ---------------------------------------------------------------------------
 
   // Pre-group requests by space to avoid O(n×m) filtering inside each SpaceRow.

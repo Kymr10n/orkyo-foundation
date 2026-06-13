@@ -122,77 +122,6 @@ describe('evaluateSchedule', () => {
     expect(bOverlap.peerRequestId).toBe('a');
   });
 
-  // --- capacity ---
-
-  it('allows overlaps when within space capacity', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T09:00Z', '2024-01-01T11:00Z');
-    const capacities = new Map([['s1', 2]]);
-    const result = evaluateSchedule(makeSchedule(a, b), capacities);
-    // 2 concurrent, capacity 2 → no conflict
-    expect(result.has('a')).toBe(false);
-    expect(result.has('b')).toBe(false);
-  });
-
-  it('flags capacity_exceeded when concurrent allocations exceed capacity', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const c = makeEntry('c', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const capacities = new Map([['s1', 2]]);
-    const result = evaluateSchedule(makeSchedule(a, b, c), capacities);
-    // 3 concurrent, capacity 2 → all three should be flagged
-    for (const id of ['a', 'b', 'c']) {
-      expect(result.has(id)).toBe(true);
-      expect(result.get(id)!.some((c) => c.kind === 'capacity_exceeded')).toBe(true);
-    }
-  });
-
-  it('capacity_exceeded message includes concurrent count', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const c = makeEntry('c', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const capacities = new Map([['s1', 2]]);
-    const result = evaluateSchedule(makeSchedule(a, b, c), capacities);
-    const conflict = result.get('a')!.find((c) => c.kind === 'capacity_exceeded')!;
-    expect(conflict.message).toContain('3/2');
-  });
-
-  it('uses default capacity of 1 when space is not in capacity map', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T09:00Z', '2024-01-01T11:00Z');
-    const capacities = new Map([['s2', 5]]); // s1 not in map
-    const result = evaluateSchedule(makeSchedule(a, b), capacities);
-    // Falls back to capacity=1, so classic overlap
-    expect(result.get('a')!.some((c) => c.kind === 'overlap')).toBe(true);
-  });
-
-  it('does not flag capacity_exceeded at exact capacity boundary', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const c = makeEntry('c', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const capacities = new Map([['s1', 3]]);
-    const result = evaluateSchedule(makeSchedule(a, b, c), capacities);
-    // 3 concurrent, capacity 3 → exactly at limit, no conflict
-    expect(result.has('a')).toBe(false);
-    expect(result.has('b')).toBe(false);
-    expect(result.has('c')).toBe(false);
-  });
-
-  it('handles mixed spaces with different capacities', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const c = makeEntry('c', 's2', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const d = makeEntry('d', 's2', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const capacities = new Map([['s1', 2], ['s2', 1]]);
-    const result = evaluateSchedule(makeSchedule(a, b, c, d), capacities);
-    // s1: 2 concurrent, capacity 2 → ok
-    expect(result.has('a')).toBe(false);
-    expect(result.has('b')).toBe(false);
-    // s2: 2 concurrent, capacity 1 → overlap
-    expect(result.get('c')!.some((c) => c.kind === 'overlap')).toBe(true);
-    expect(result.get('d')!.some((c) => c.kind === 'overlap')).toBe(true);
-  });
-
   // --- combined ---
 
   it('reports both overlap and below_min_duration on the same entry', () => {
@@ -213,7 +142,7 @@ describe('evaluateSchedule', () => {
     const schedule = makeSchedule(a, b);
     const prebuilt = scheduleIndex.buildIndex(schedule);
     const withoutIndex = evaluateSchedule(schedule);
-    const withIndex = evaluateSchedule(schedule, undefined, prebuilt);
+    const withIndex = evaluateSchedule(schedule, prebuilt);
     expect(withIndex).toEqual(withoutIndex);
   });
 
@@ -223,7 +152,7 @@ describe('evaluateSchedule', () => {
     const schedule = makeSchedule(a, b);
     const prebuilt = scheduleIndex.buildIndex(schedule);
     const buildIndexSpy = vi.spyOn(scheduleIndex, 'buildIndex');
-    evaluateSchedule(schedule, undefined, prebuilt);
+    evaluateSchedule(schedule, prebuilt);
     expect(buildIndexSpy).not.toHaveBeenCalled();
     buildIndexSpy.mockRestore();
   });

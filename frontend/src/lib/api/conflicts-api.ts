@@ -1,9 +1,10 @@
 /**
  * API client for the tenant-wide conflicts registry (`GET /api/conflicts`).
  *
- * The registry is the authoritative, all-sites/all-dates conflict source for the Conflicts page
- * and the Requests-page badges. The utilization grid computes its own scoped, contextual conflicts
- * separately (client `evaluateSchedule` + `validate-batch` over the visible site/window).
+ * The registry is the authoritative, all-sites/all-dates conflict source for the Conflicts page,
+ * the Requests-page badges, and the utilization grid. The grid layers a thin client-side
+ * `evaluateSchedule` overlay on top for the bar currently being dragged, so feedback is instant
+ * before the mutation commits and this registry refetches.
  */
 
 import type { Conflict } from "@foundation/src/types/requests";

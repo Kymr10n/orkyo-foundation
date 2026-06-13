@@ -12,13 +12,10 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useImportHandler: vi.fn(() => vi.fn()),
 }));
 
-// Mock useConflicts — replaces Zustand conflicts state
-vi.mock('@foundation/src/hooks/useConflicts', () => ({
-  useConflicts: vi.fn(() => ({
-    conflicts: new Map(),
-    conflictingRequestIds: new Set(),
-    schedulingValidation: new Map(),
-    spaceCapacities: new Map(),
+// Mock the tenant-wide conflicts registry — the page's conflict source.
+vi.mock('@foundation/src/hooks/useConflictRegistry', () => ({
+  useConflictRegistry: vi.fn(() => ({
+    conflictsByRequest: new Map(),
   })),
 }));
 

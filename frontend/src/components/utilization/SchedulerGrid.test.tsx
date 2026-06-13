@@ -39,6 +39,15 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn(() => Promise.resolve([])),
 }));
 
+// Mock the tenant-wide conflicts registry — the grid's source of truth for
+// committed bookings. Tests set `registryConflicts` to drive the badges.
+const registryMock = vi.hoisted(() => ({
+  conflicts: [] as { requestId: string; conflicts: unknown[] }[],
+}));
+vi.mock('@foundation/src/lib/api/conflicts-api', () => ({
+  getConflicts: vi.fn(() => Promise.resolve(registryMock.conflicts)),
+}));
+
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -114,6 +123,7 @@ describe('SchedulerGrid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     appStoreMock.collapsedGroupIds = [];
+    registryMock.conflicts = [];
   });
 
   it('renders without crashing', async () => {
@@ -350,12 +360,11 @@ describe('SchedulerGrid', () => {
     });
   });
 
-  describe('capabilityConflicts prop', () => {
-    it('marks a request bar as conflicting when capabilityConflicts contains it', async () => {
+  describe('conflicts from the registry', () => {
+    it('marks a request bar as conflicting when the registry reports it', async () => {
       const Wrapper = createWrapper();
-      const capConflicts = new Map<string, Conflict[]>([
-        ['req-1', [{ id: 'c1', kind: 'connector_mismatch', severity: 'error', message: 'Missing Crane' }]],
-      ]);
+      const conflict: Conflict = { id: 'c1', kind: 'connector_mismatch', severity: 'error', message: 'Missing Crane' };
+      registryMock.conflicts = [{ requestId: 'req-1', conflicts: [conflict] }];
 
       render(
         <Wrapper>
@@ -367,7 +376,6 @@ describe('SchedulerGrid', () => {
             timeCursorTs={new Date()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
-            capabilityConflicts={capConflicts}
           />
         </Wrapper>
       );
@@ -381,8 +389,9 @@ describe('SchedulerGrid', () => {
       await act(async () => {});
     });
 
-    it('does not mark a request bar as conflicting when capabilityConflicts is empty', async () => {
+    it('does not mark a request bar as conflicting when the registry is empty', async () => {
       const Wrapper = createWrapper();
+      registryMock.conflicts = [];
 
       render(
         <Wrapper>
@@ -394,7 +403,6 @@ describe('SchedulerGrid', () => {
             timeCursorTs={new Date()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
-            capabilityConflicts={new Map()}
           />
         </Wrapper>
       );

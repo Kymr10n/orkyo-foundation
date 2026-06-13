@@ -568,9 +568,7 @@ export function RequestFormDialog({
                 {hasEditableSchedule && (
                   <>
                     {/* Minimal Duration — first, since it's required and drives scheduling */}
-                    <div>
-                      <h4 className="text-sm font-medium">Minimal Duration *</h4>
-                      <div className="space-y-2 pt-4">
+                    <div className="space-y-2">
                         <Label htmlFor="durationValue">
                           Minimal Duration <span className="text-destructive">*</span>
                         </Label>
@@ -618,7 +616,6 @@ export function RequestFormDialog({
                             </AlertDescription>
                           </Alert>
                         )}
-                      </div>
                     </div>
 
                     <Separator />
