@@ -145,7 +145,7 @@ export function EditCriterionDialog({
                   <div className="px-3 py-2 bg-muted rounded-md">
                     <Badge variant="secondary">{criterion.dataType}</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
                     Data type is locked because this criterion has existing values
                   </p>
                 </>
