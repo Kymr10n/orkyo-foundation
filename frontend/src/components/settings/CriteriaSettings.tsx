@@ -7,6 +7,12 @@ import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@foundation/src/components/ui/tooltip';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 import { EditCriterionDialog } from './EditCriterionDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
@@ -183,19 +189,33 @@ export function CriteriaSettings() {
             >
               <Edit className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(criterion);
-              }}
-              className="text-destructive hover:text-destructive"
-              aria-label={`Delete ${criterion.name}`}
-              title="Delete criterion"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Span wrapper so the tooltip still fires while the button is disabled */}
+                  <span className="inline-flex">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={criterion.inUse}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(criterion);
+                      }}
+                      className="text-destructive hover:text-destructive"
+                      aria-label={`Delete ${criterion.name}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {criterion.inUse
+                    ? 'Cannot delete: this criterion has existing values'
+                    : 'Delete criterion'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         );
       },
