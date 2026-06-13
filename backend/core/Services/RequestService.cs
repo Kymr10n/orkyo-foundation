@@ -22,7 +22,7 @@ public interface IRequestService
     /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
     Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);
     /// <summary>Unscheduled, directly-schedulable (leaf) backlog (tenant-wide) — drag-to-schedule source. Groups are excluded.</summary>
-    Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default);
+    Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default);
     /// <summary>Creates a request. Validates parent mode and throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on violations.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
     /// <summary>Updates a request. Throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on tree violations. Returns <c>null</c> if not found.</summary>
@@ -77,8 +77,8 @@ public class RequestService : IRequestService
     public Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default)
         => _repository.GetScheduledBySiteWindowAsync(siteId, from, to, ct);
 
-    public Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default)
-        => _repository.GetUnscheduledAsync(ct);
+    public Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default)
+        => _repository.GetUnscheduledAsync(siteId, includeSiteNeutral, ct);
 
     public async Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {

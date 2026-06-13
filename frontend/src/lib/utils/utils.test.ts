@@ -4,6 +4,7 @@ import {
   buildUpdatePayload,
   cn,
   combineDateTimeToISO,
+  durationToMinutes,
   formatDateDisplay,
   formatDateForInput,
   formatDuration,
@@ -191,6 +192,31 @@ describe('Request payload builders — icon plumbing', () => {
     const out = buildUpdatePayload({ ...base, planningMode: 'leaf' });
     expect(out.planningMode).toBe('leaf');
   });
+
+  it('buildCreatePayload forwards the chosen siteId', () => {
+    const out = buildCreatePayload({ ...base, siteId: 'site-A' });
+    expect(out.siteId).toBe('site-A');
+  });
+
+  it('buildCreatePayload omits siteId when site-neutral', () => {
+    const out = buildCreatePayload({ ...base, siteId: null });
+    expect(out.siteId).toBeUndefined();
+  });
+
+  it('buildUpdatePayload omits siteId when unchanged from the original', () => {
+    const out = buildUpdatePayload({ ...base, siteId: 'site-A' }, undefined, 'site-A');
+    expect(out.siteId).toBeUndefined();
+  });
+
+  it('buildUpdatePayload sends siteId when the user re-scoped', () => {
+    const out = buildUpdatePayload({ ...base, siteId: 'site-B' }, undefined, 'site-A');
+    expect(out.siteId).toBe('site-B');
+  });
+
+  it('buildUpdatePayload omits siteId when no original is provided (safe default)', () => {
+    const out = buildUpdatePayload({ ...base, siteId: 'site-A' });
+    expect(out.siteId).toBeUndefined();
+  });
 });
 
 describe('cn', () => {
@@ -257,6 +283,15 @@ describe('status helpers', () => {
     expect(formatStatusLabel('cancelled')).toBe('Cancelled');
     expect(formatStatusLabel('custom')).toBe('custom');
   });
+});
+
+describe('durationToMinutes', () => {
+  it('minutes pass through', () => expect(durationToMinutes(30, 'minutes')).toBe(30));
+  it('hours → minutes',      () => expect(durationToMinutes(2,  'hours')).toBe(120));
+  it('days → minutes',       () => expect(durationToMinutes(1,  'days')).toBe(1440));
+  it('weeks → minutes',      () => expect(durationToMinutes(1,  'weeks')).toBe(10080));
+  it('months → minutes',     () => expect(durationToMinutes(1,  'months')).toBe(43200));
+  it('years → minutes',      () => expect(durationToMinutes(1,  'years')).toBe(525600));
 });
 
 describe('formatMinutesHuman', () => {

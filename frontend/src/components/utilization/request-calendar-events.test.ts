@@ -7,7 +7,6 @@ import {
   scaleToCalendarView,
   calendarViewToScale,
 } from "./request-calendar-events";
-import { getStatusColor } from "@foundation/src/lib/utils/utils";
 import { makeRequest, makeScheduledRequest } from "@foundation/src/test-utils/request-fixtures";
 import type { Conflict } from "@foundation/src/types/requests";
 
@@ -35,12 +34,12 @@ describe("getEventConflictSeverity", () => {
 });
 
 describe("getEventClassNames", () => {
-  it("uses the existing status colour as the base (no new tokens)", () => {
+  it("uses an opaque, self-contained status colour (planned → blue) with no ring when clean", () => {
     const classes = getEventClassNames("planned", null);
-    for (const token of getStatusColor("planned").split(/\s+/)) {
-      expect(classes).toContain(token);
-    }
+    // Calendar events are opaque (unlike the translucent status badges): solid bg + border.
     expect(classes).toContain("orkyo-cal-event");
+    expect(classes).toContain("bg-blue-100");
+    expect(classes).toContain("border-blue-200");
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
   });
 

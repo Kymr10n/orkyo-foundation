@@ -46,7 +46,7 @@ public interface IRequestRepository
     Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);
 
     /// <summary>Unscheduled, directly-schedulable (leaf) requests tenant-wide — the drag-to-schedule backlog. Groups are excluded; their null start_ts is derived, not unscheduled.</summary>
-    Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default);
+    Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default);
 
     /// <summary>Updates the schedule (space, start, end) of a request. Returns <c>null</c> if not found.</summary>
     Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);

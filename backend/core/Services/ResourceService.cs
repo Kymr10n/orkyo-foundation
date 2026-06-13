@@ -50,7 +50,11 @@ public class ResourceService(
             request.Description,
             request.ExternalReference,
             request.AllocationMode,
-            request.BaseAvailabilityPercent);
+            request.BaseAvailabilityPercent,
+            homeSiteId: request.HomeSiteId,
+            // Current site defaults to the home site when not supplied.
+            currentSiteId: request.CurrentSiteId ?? request.HomeSiteId,
+            crossSiteAllowed: request.CrossSiteAllowed);
     }
 
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)

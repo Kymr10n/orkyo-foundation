@@ -56,6 +56,7 @@ public class ResourceAssignmentValidator(
 
         await CheckCapabilitiesAsync(request, resource, blockers);
         await CheckSiteScopedWindowAsync(request, resource, warnings, ct);
+        await CheckSiteMatchAsync(request, resource, blockers, warnings);
         await CheckAllocationAsync(request, resource, blockers);
 
         return Build(blockers, warnings);
@@ -113,13 +114,19 @@ public class ResourceAssignmentValidator(
             if (!resource.IsActive)
                 blockers.Add(Inactive(resource.Id));
 
-            // Capabilities (skip dry-run items with no request id, mirroring the single path).
+            // Capabilities + site match (skip dry-run items with no request id, mirroring the single path).
             if (request.RequestId is { } reqId && requestsById.TryGetValue(reqId, out var requestInfo))
             {
                 var caps = capabilitiesByResource.GetValueOrDefault(resource.Id, []);
                 foreach (var requirement in requestInfo.Requirements ?? [])
                     if (!capabilityMatcher.Satisfies(caps, requirement))
                         blockers.Add(CapabilityMissing(resource.Id, requirement));
+
+                if (requestInfo.SiteId is not null)
+                {
+                    Guid? resourceSite = siteByResource.TryGetValue(resource.Id, out var rs) ? rs : null;
+                    EvaluateSite(resource, resourceSite, requestInfo.SiteId, blockers, warnings);
+                }
             }
 
             // Site-scoped non-working time.
@@ -160,6 +167,19 @@ public class ResourceAssignmentValidator(
 
         var settings = await schedulingRepository.GetSettingsAsync(siteId.Value);
         EvaluateWeekends(request, resource.Id, settings, warnings);
+    }
+
+    private async Task CheckSiteMatchAsync(
+        ValidateResourceAssignmentRequest request, ResourceInfo resource,
+        List<ValidationIssue> blockers, List<ValidationIssue> warnings)
+    {
+        // Dry-run (no request) and site-neutral requests have no scope to violate.
+        if (request.RequestId is not { } reqId) return;
+        var requestInfo = await requestRepository.GetByIdAsync(reqId, includeRequirements: false);
+        if (requestInfo?.SiteId is null) return;
+
+        var resourceSite = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id);
+        EvaluateSite(resource, resourceSite, requestInfo.SiteId, blockers, warnings);
     }
 
     private async Task CheckCapabilitiesAsync(
@@ -324,6 +344,48 @@ public class ResourceAssignmentValidator(
         ResourceId = resourceId,
         CriterionId = req.CriterionId,
         Details = req.Criterion?.Name,
+    };
+
+    /// <summary>
+    /// Site/location rule (Home-Site model). The resource is checked against the request's committed
+    /// site scope (set implicitly once a space is placed). A space whose site differs is a hard
+    /// blocker; a person/tool whose current site differs is a soft warning when cross-site is allowed,
+    /// else a hard blocker. No scope or no resource site → no constraint (caller guards the scope).
+    /// </summary>
+    private static void EvaluateSite(
+        ResourceInfo resource, Guid? resourceSite, Guid? requestSiteId,
+        List<ValidationIssue> blockers, List<ValidationIssue> warnings)
+    {
+        if (requestSiteId is not { } scope || resourceSite is not { } site || site == scope)
+            return;
+
+        if (resource.ResourceTypeKey == ResourceTypeKeys.Space)
+            blockers.Add(SiteMismatchSpace(resource.Id));
+        else if (resource.CrossSiteAllowed)
+            warnings.Add(SiteMismatchPerson(resource.Id));
+        else
+            blockers.Add(SiteCrossNotAllowed(resource.Id));
+    }
+
+    private static ValidationIssue SiteMismatchSpace(Guid resourceId) => new()
+    {
+        Code = ValidationReasonCode.SiteMismatchSpace,
+        Message = "Space belongs to a different site than the request",
+        ResourceId = resourceId,
+    };
+
+    private static ValidationIssue SiteMismatchPerson(Guid resourceId) => new()
+    {
+        Code = ValidationReasonCode.SiteMismatchPerson,
+        Message = "Resource is currently at a different site (cross-site assignment)",
+        ResourceId = resourceId,
+    };
+
+    private static ValidationIssue SiteCrossNotAllowed(Guid resourceId) => new()
+    {
+        Code = ValidationReasonCode.SiteCrossNotAllowed,
+        Message = "Resource is not available for cross-site assignment",
+        ResourceId = resourceId,
     };
 
     private static AssignmentValidationBatchItem Correlated(

@@ -16,7 +16,7 @@ public static class RequestEndpoints
     {
         var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireTenantMembership();
 
-        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, int? page = null, int? pageSize = null) =>
+        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
@@ -29,8 +29,9 @@ public static class RequestEndpoints
                 }
                 if (scheduled == false)
                 {
-                    // The unscheduled backlog (drag-to-schedule source for the utilization panel).
-                    return Results.Ok(await requestService.GetUnscheduledAsync(ct));
+                    // The unscheduled backlog (drag-to-schedule source). When a site is given it is
+                    // scoped to that site plus site-neutral rows; otherwise tenant-wide.
+                    return Results.Ok(await requestService.GetUnscheduledAsync(siteId, includeSiteNeutral: true, ct));
                 }
                 if (page.HasValue || pageSize.HasValue)
                 {

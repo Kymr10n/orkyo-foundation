@@ -385,7 +385,7 @@ export function RequestsPage() {
 
       const isEdit = dialog?.kind === "edit";
       if (isEdit) {
-        await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode));
+        await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
       } else {
         await createRequest(buildCreatePayload(data));
       }

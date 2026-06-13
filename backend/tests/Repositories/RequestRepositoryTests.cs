@@ -203,6 +203,89 @@ public class RequestRepositoryTests
         Assert.Equal(ResourceTypeKeys.Space, scheduled.Assignments[0].ResourceTypeKey);
     }
 
+    // ── site model (request site_id, implicit site-on-schedule, site-scoped feeds) ──
+
+    [Fact]
+    public async Task GetScheduled_SiteScopedSpacelessRequest_AppearsForItsSite()
+    {
+        // The orphan fix: a request scoped to a site with a time but NO space must still show on
+        // that site's calendar feed (previously it was excluded for lacking a space assignment).
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var start = DateTime.UtcNow.Date.AddDays(3).AddHours(9);
+        var end = start.AddHours(2);
+
+        var createResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"Sited-{Guid.NewGuid():N}"[..20],
+            SiteId = siteId,
+            StartTs = start,
+            EndTs = end,
+            MinimalDurationValue = 2,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = false,
+        });
+        createResp.EnsureSuccessStatusCode();
+        var created = (await createResp.Content.ReadFromJsonAsync<RequestInfo>())!;
+        Assert.Equal(siteId, created.SiteId);
+        Assert.Empty(created.Assignments); // no space
+
+        var feedResp = await _client.GetAsync(
+            $"/api/sites/{siteId}/requests?from={start.AddHours(-1):o}&to={end.AddHours(1):o}");
+        feedResp.EnsureSuccessStatusCode();
+        var feed = await feedResp.Content.ReadFromJsonAsync<List<RequestInfo>>();
+        Assert.Contains(feed!, r => r.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task Schedule_SiteNeutralRequestIntoSpace_AdoptsSpaceSite()
+    {
+        // Implicit site-on-schedule: a site-neutral (NULL) request adopts the space's site when placed.
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var neutralId = await CreateUnscheduledRequestAsync();
+
+        // Sanity: starts site-neutral.
+        var before = await (await _client.GetAsync($"/api/requests/{neutralId}")).Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.Null(before!.SiteId);
+
+        var schedResp = await _client.PatchAsJsonAsync($"/api/requests/{neutralId}/schedule",
+            new ScheduleRequestRequest
+            {
+                ResourceId = spaceId,
+                StartTs = DateTime.UtcNow.AddDays(1),
+                EndTs = DateTime.UtcNow.AddDays(1).AddHours(2),
+            });
+        schedResp.EnsureSuccessStatusCode();
+
+        var after = await (await _client.GetAsync($"/api/requests/{neutralId}")).Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.Equal(siteId, after!.SiteId);
+    }
+
+    [Fact]
+    public async Task GetUnscheduled_WithSite_IncludesSiteScopedAndNeutral()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var neutralId = await CreateUnscheduledRequestAsync(); // site-neutral leaf, no start
+
+        var scopedResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"ScopedBacklog-{Guid.NewGuid():N}"[..20],
+            SiteId = siteId,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = false,
+        });
+        scopedResp.EnsureSuccessStatusCode();
+        var scopedId = (await scopedResp.Content.ReadFromJsonAsync<RequestInfo>())!.Id;
+
+        var resp = await _client.GetAsync($"/api/requests?scheduled=false&siteId={siteId}");
+        resp.EnsureSuccessStatusCode();
+        var backlog = await resp.Content.ReadFromJsonAsync<List<RequestInfo>>();
+
+        Assert.Contains(backlog!, r => r.Id == neutralId); // site-neutral is schedulable anywhere
+        Assert.Contains(backlog!, r => r.Id == scopedId);  // this site's own backlog
+    }
+
     [Fact]
     public async Task GetUnscheduled_ExcludesGroupsAndIncludesLeaves()
     {

@@ -10,20 +10,25 @@ import { Textarea } from "@foundation/src/components/ui/textarea";
 import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
 import { getRequestChildren } from "@foundation/src/lib/api/request-api";
+import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
 import { getSpaces } from "@foundation/src/lib/api/space-api";
 import { useAppStore } from "@foundation/src/store/app-store";
-import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG } from "@foundation/src/constants";
-import { combineDateTimeToISO } from "@foundation/src/lib/utils";
+import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG, SPACE_NONE_PLACEHOLDER } from "@foundation/src/constants";
+import { combineDateTimeToISO, durationToMinutes, formatMinutesHuman } from "@foundation/src/lib/utils";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
-import { FileText, Layers } from "lucide-react";
+import { FileText, Layers, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 
-type RequestFormTab = 'details' | 'timing' | 'requirements' | 'people';
+type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
+
+/** Sentinel for the "Any site" (site-neutral) option — Radix Select disallows empty values. */
+const ANY_SITE = '__any_site__';
 import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
@@ -50,6 +55,8 @@ export interface RequestFormData {
   icon?: string | null;
   planningMode: PlanningMode;
   parentRequestId?: string;
+  /** Site scope. null/undefined = site-neutral (Any site). */
+  siteId?: string | null;
   resourceId?: string;
   startTs?: string;
   endTs?: string;
@@ -74,6 +81,8 @@ export function RequestFormDialog({
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
+  const { data: sites = [] } = useSites();
+  const isMultiSite = useIsMultiSite();
   const isCreateMode = !request;
   const isChildCreation = !request && !!parentRequest;
 
@@ -85,7 +94,7 @@ export function RequestFormDialog({
     removeRequirement,
     updateRequirement,
     applyTemplate,
-  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule);
+  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId);
 
   // Additional state not managed by the form hook
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
@@ -287,6 +296,7 @@ export function RequestFormDialog({
       icon: state.icon ?? null,
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
+      siteId: state.siteId || null,
       resourceId: isLeaf ? (state.selectedResourceId || undefined) : undefined,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
@@ -350,7 +360,7 @@ export function RequestFormDialog({
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="timing">Timing</TabsTrigger>
               <TabsTrigger value="requirements">Requirements</TabsTrigger>
-              {isLeaf && <TabsTrigger value="people">People</TabsTrigger>}
+              {isLeaf && <TabsTrigger value="resources">Resources</TabsTrigger>}
             </TabsList>
 
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
@@ -483,6 +493,35 @@ export function RequestFormDialog({
                         </div>
                       )}
                     </div>
+
+                    {/* Site scope — only meaningful with more than one site (free/single-site
+                        tenants never see it; their requests default to the one site). */}
+                    {isMultiSite && (
+                      <div className="space-y-2">
+                        <Label htmlFor="siteId">Site</Label>
+                        <Select
+                          value={state.siteId || ANY_SITE}
+                          onValueChange={(v) => setField('siteId', v === ANY_SITE ? '' : v)}
+                        >
+                          <SelectTrigger id="siteId">
+                            <SelectValue placeholder="Any site" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={ANY_SITE}>
+                              <span className="text-muted-foreground">Any site</span>
+                            </SelectItem>
+                            {sites.map((site) => (
+                              <SelectItem key={site.id} value={site.id}>
+                                {site.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Where can this request be fulfilled? “Any site” can be scheduled at any site.
+                        </p>
+                      </div>
+                    )}
                   </div>
               </TabsContent>
 
@@ -501,22 +540,7 @@ export function RequestFormDialog({
                 {/* Schedule + Constraints + Duration — leaf only */}
                 {hasEditableSchedule && (
                   <>
-                    <RequestScheduleSection
-                      state={state}
-                      setField={setField}
-                      availableSpaces={isLeaf ? availableSpaces : []}
-                    />
-
-                    <Separator />
-
-                    <RequestConstraintsSection
-                      state={state}
-                      setField={setField}
-                    />
-
-                    <Separator />
-
-                    {/* Minimal Duration */}
+                    {/* Minimal Duration — first, since it's required and drives scheduling */}
                     <div>
                       <h4 className="text-sm font-medium">Minimal Duration *</h4>
                       <div className="space-y-2 pt-4">
@@ -559,8 +583,38 @@ export function RequestFormDialog({
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Advisory warning when chosen window is shorter than minimal duration */}
+                        {(() => {
+                          if (!state.durationValue || !state.startDate || !state.startTime || !state.endDate || !state.endTime) return null;
+                          const startMs = new Date(combineDateTimeToISO(state.startDate, state.startTime)).getTime();
+                          const endMs   = new Date(combineDateTimeToISO(state.endDate,   state.endTime)).getTime();
+                          const windowMinutes = (endMs - startMs) / 60_000;
+                          const minMinutes    = durationToMinutes(state.durationValue, state.durationUnit);
+                          if (windowMinutes >= minMinutes) return null;
+                          return (
+                            <Alert className="mt-1 border-amber-400 bg-amber-50 text-amber-900">
+                              <AlertDescription>
+                                The selected window ({formatMinutesHuman(Math.max(0, Math.round(windowMinutes)))}) is shorter than the minimal duration ({formatMinutesHuman(minMinutes)}). You can still save — a conflict will be recorded and must be resolved before scheduling.
+                              </AlertDescription>
+                            </Alert>
+                          );
+                        })()}
                       </div>
                     </div>
+
+                    <Separator />
+
+                    <RequestScheduleSection
+                      state={state}
+                      setField={setField}
+                    />
+
+                    <Separator />
+
+                    <RequestConstraintsSection
+                      state={state}
+                      setField={setField}
+                    />
 
                     <Separator />
 
@@ -601,14 +655,45 @@ export function RequestFormDialog({
                 />
               </TabsContent>
 
-              {/* PEOPLE — leaf only. forceMount + conditional hidden keeps pending rows and
+              {/* RESOURCES — leaf only. forceMount + conditional hidden keeps pending rows and
                   blocker state alive across tab switches (Radix would otherwise unmount it). */}
               {isLeaf && (
                 <TabsContent
-                  value="people"
+                  value="resources"
                   forceMount
-                  className={activeTab === 'people' ? 'mt-0' : 'mt-0 hidden'}
+                  className={activeTab === 'resources' ? 'mt-0 space-y-6' : 'mt-0 hidden'}
                 >
+                  {/* Space */}
+                  <div>
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Space
+                    </h4>
+                    <div className="space-y-2 pt-4">
+                      <Select
+                        value={state.selectedResourceId || SPACE_NONE_PLACEHOLDER}
+                        onValueChange={(value) => setField('selectedResourceId', value === SPACE_NONE_PLACEHOLDER ? "" : value)}
+                      >
+                        <SelectTrigger id="resourceId">
+                          <SelectValue placeholder="No space assigned (unscheduled)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SPACE_NONE_PLACEHOLDER}>
+                            <span className="text-muted-foreground">No space (unscheduled)</span>
+                          </SelectItem>
+                          {availableSpaces.map((space) => (
+                            <SelectItem key={space.id} value={space.id}>
+                              {space.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* People */}
                   <RequestPeopleSection
                     requestId={request?.id}
                     requestStartTs={

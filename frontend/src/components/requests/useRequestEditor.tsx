@@ -52,7 +52,7 @@ export function useRequestEditor(): UseRequestEditorResult {
   const handleSave = useCallback(
     async (data: RequestFormData) => {
       if (!request) return;
-      await updateRequest(request.id, buildUpdatePayload(data, request.planningMode));
+      await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
       queryClient.invalidateQueries({ queryKey: ["requests"] });
       setIsEditOpen(false);
       setRequest(null);

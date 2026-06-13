@@ -20,7 +20,7 @@ export {
   buildInitialState,
   type RequestFormState,
 } from "./useRequestForm";
-export { useSites, useCreateSite, useUpdateSite, useDeleteSite } from "./useSites";
+export { useSites, useCreateSite, useUpdateSite, useDeleteSite, useIsMultiSite } from "./useSites";
 export {
   useSpaces,
   useCreateSpace,

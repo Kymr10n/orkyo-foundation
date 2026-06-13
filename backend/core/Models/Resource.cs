@@ -23,6 +23,16 @@ public record ResourceInfo
     public required string AllocationMode { get; init; }
     public required int BaseAvailabilityPercent { get; init; }
     public required bool IsActive { get; init; }
+
+    // Location model. Spaces resolve their site via spaces.site_id and leave these null;
+    // people/tools carry an administrative home site and an operational current site.
+    /// <summary>Administrative/owning site (null for spaces and un-remediated resources).</summary>
+    public Guid? HomeSiteId { get; init; }
+    /// <summary>Site where the resource is currently available (defaults to home site).</summary>
+    public Guid? CurrentSiteId { get; init; }
+    /// <summary>Whether the resource may be assigned to requests at another site.</summary>
+    public bool CrossSiteAllowed { get; init; } = true;
+
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
@@ -35,6 +45,10 @@ public record CreateResourceRequest
     public string? ExternalReference { get; init; }
     public required string AllocationMode { get; init; }
     public int BaseAvailabilityPercent { get; init; } = 100;
+
+    public Guid? HomeSiteId { get; init; }
+    public Guid? CurrentSiteId { get; init; }
+    public bool CrossSiteAllowed { get; init; } = true;
 }
 
 public record UpdateResourceRequest
@@ -45,6 +59,10 @@ public record UpdateResourceRequest
     public string? AllocationMode { get; init; }
     public int? BaseAvailabilityPercent { get; init; }
     public bool? IsActive { get; init; }
+
+    public Guid? HomeSiteId { get; init; }
+    public Guid? CurrentSiteId { get; init; }
+    public bool? CrossSiteAllowed { get; init; }
 }
 
 public record ResourceListFilter

@@ -16,6 +16,9 @@ export const REASON_LABELS: Record<ValidationReasonCode, string> = {
   "nonworking.holiday": "Overlaps with a holiday",
   "allocation-mode.invalid": "Invalid allocation mode",
   "allocation-percent.invalid": "Invalid allocation percent",
+  "site.mismatch-space": "Space is at a different site",
+  "site.mismatch-person": "Currently at a different site",
+  "site.cross-not-allowed": "Not available for cross-site work",
 };
 
 /**

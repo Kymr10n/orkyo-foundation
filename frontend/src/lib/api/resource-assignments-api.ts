@@ -62,7 +62,10 @@ export type ValidationReasonCode =
   | 'nonworking.weekend'
   | 'nonworking.holiday'
   | 'allocation-mode.invalid'
-  | 'allocation-percent.invalid';
+  | 'allocation-percent.invalid'
+  | 'site.mismatch-space'
+  | 'site.mismatch-person'
+  | 'site.cross-not-allowed';
 
 export interface ValidationIssue {
   code: ValidationReasonCode;

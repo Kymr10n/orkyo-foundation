@@ -68,6 +68,9 @@ export interface Request {
   planningMode: PlanningMode;
   sortOrder: number;
 
+  /** Site this request is scoped to. null = site-neutral (schedulable at any site). */
+  siteId?: string | null;
+
   // Item reference
   requestItemId?: string | null;
 
@@ -131,6 +134,7 @@ export interface CreateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
+  siteId?: string | null;
   resourceId?: string;
   requestItemId?: string;
   icon?: string | null;
@@ -158,6 +162,7 @@ export interface UpdateRequestRequest {
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
+  siteId?: string | null;
   resourceId?: string;
   requestItemId?: string;
   icon?: string | null;

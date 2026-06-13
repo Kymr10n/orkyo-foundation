@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { RequestFormData } from "@foundation/src/components/requests/RequestFormDialog"
-import type { CreateRequestRequest, PlanningMode, UpdateRequestRequest } from "@foundation/src/types/requests"
+import type { CreateRequestRequest, DurationUnit, PlanningMode, UpdateRequestRequest } from "@foundation/src/types/requests"
 import { REQUEST_STATUS } from "@foundation/src/constants/request-status"
 
 export function cn(...inputs: ClassValue[]) {
@@ -147,14 +147,21 @@ export function formatStatusLabel(status: string): string {
 export function buildUpdatePayload(
   data: RequestFormData,
   originalPlanningMode?: PlanningMode,
+  originalSiteId?: string | null,
 ): UpdateRequestRequest {
   const planningModeChanged =
     originalPlanningMode === undefined || data.planningMode !== originalPlanningMode;
+  // Same omit-on-unchanged treatment as planningMode: only send siteId when the user
+  // actually re-scoped, so unrelated edits don't re-assert it. (The backend keeps the
+  // existing value when siteId is absent.)
+  const siteChanged =
+    originalSiteId !== undefined && (data.siteId ?? null) !== (originalSiteId ?? null);
   return {
     name: data.name,
     description: data.description,
     icon: data.icon,
     planningMode: planningModeChanged ? data.planningMode : undefined,
+    siteId: siteChanged ? (data.siteId ?? undefined) : undefined,
     resourceId: data.resourceId,
     startTs: data.startTs,
     endTs: data.endTs,
@@ -183,6 +190,7 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
     icon: data.icon,
     planningMode: data.planningMode,
     parentRequestId: data.parentRequestId,
+    siteId: data.siteId ?? undefined,
     resourceId: data.resourceId,
     startTs: data.startTs,
     endTs: data.endTs,
@@ -199,6 +207,18 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
         ...(req.operator !== undefined && { operator: req.operator }),
       })),
   };
+}
+
+/** Converts a duration value+unit to minutes. Mirrors SchedulingEngine.DurationToMinutes on the backend. */
+export function durationToMinutes(value: number, unit: DurationUnit): number {
+  switch (unit) {
+    case 'minutes': return value;
+    case 'hours':   return value * 60;
+    case 'days':    return value * 60 * 24;
+    case 'weeks':   return value * 60 * 24 * 7;
+    case 'months':  return value * 60 * 24 * 30;
+    case 'years':   return value * 60 * 24 * 365;
+  }
 }
 
 /**

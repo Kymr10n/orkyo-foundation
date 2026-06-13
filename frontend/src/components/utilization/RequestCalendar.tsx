@@ -129,6 +129,16 @@ export function RequestCalendar({
         selectable={editable}
         selectMirror
         dayMaxEvents
+        views={{
+          timeGridWeek: {
+            // "Mon 08" — matches the timeline grid's EEE dd label
+            dayHeaderFormat: { weekday: 'short', day: '2-digit' },
+          },
+          timeGridDay: {
+            // Single-column day view: show full context
+            dayHeaderFormat: { weekday: 'long', month: 'short', day: 'numeric' },
+          },
+        }}
         events={allEvents}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}

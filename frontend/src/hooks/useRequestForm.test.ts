@@ -13,6 +13,7 @@ function makeState(overrides: Partial<RequestFormState> = {}): RequestFormState 
     icon: null,
     planningMode: 'leaf',
     parentRequestId: '',
+    siteId: '',
     selectedResourceId: '',
     startDate: '',
     startTime: '09:00',
@@ -373,5 +374,28 @@ describe('buildInitialState — defaultSchedule (calendar slot prefill)', () => 
     });
     expect(state.startDate).toBe('');
     expect(state.endDate).toBe('');
+  });
+});
+
+describe('buildInitialState — site scope', () => {
+  it('seeds siteId from the active site in create mode', () => {
+    const state = buildInitialState(null, undefined, undefined, undefined, 'site-A');
+    expect(state.siteId).toBe('site-A');
+  });
+
+  it('defaults to site-neutral ("") when no active site is given', () => {
+    const state = buildInitialState(null);
+    expect(state.siteId).toBe('');
+  });
+
+  it('hydrates siteId from an existing request (ignoring the create default)', () => {
+    const request: Request = {
+      id: 'r1', name: 'r', planningMode: 'leaf', sortOrder: 0,
+      siteId: 'site-B',
+      minimalDurationValue: 1, minimalDurationUnit: 'hours',
+      schedulingSettingsApply: true, status: 'planned',
+      createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', assignments: [],
+    };
+    expect(buildInitialState(request, undefined, undefined, undefined, 'site-A').siteId).toBe('site-B');
   });
 });

@@ -20,6 +20,8 @@ import {
 } from '@foundation/src/components/ui/select';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
+import { Checkbox } from '@foundation/src/components/ui/checkbox';
+import { useSites, useIsMultiSite } from '@foundation/src/hooks/useSites';
 import { Loader2, Plus } from 'lucide-react';
 import {
   createResource,
@@ -57,6 +59,10 @@ interface FormState {
   description: string;
   allocationMode: string;
   baseAvailabilityPercent: number;
+  // Location (Home-Site model)
+  homeSiteId: string;     // empty = unset
+  currentSiteId: string;  // empty = defaults to home
+  crossSiteAllowed: boolean;
   // Profile side
   email: string;
   jobTitleId: string;      // empty = unassigned
@@ -69,6 +75,9 @@ const emptyForm: FormState = {
   description: '',
   allocationMode: ALLOCATION_MODE.EXCLUSIVE,
   baseAvailabilityPercent: 100,
+  homeSiteId: '',
+  currentSiteId: '',
+  crossSiteAllowed: true,
   email: '',
   jobTitleId: '',
   departmentId: '',
@@ -87,6 +96,9 @@ function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo
     description: person.description ?? '',
     allocationMode: person.allocationMode ?? emptyForm.allocationMode,
     baseAvailabilityPercent: person.baseAvailabilityPercent ?? emptyForm.baseAvailabilityPercent,
+    homeSiteId: person.homeSiteId ?? '',
+    currentSiteId: person.currentSiteId ?? '',
+    crossSiteAllowed: person.crossSiteAllowed ?? true,
     email: profile?.email ?? '',
     jobTitleId: profile?.jobTitleId ?? '',
     departmentId: profile?.departmentId ?? '',
@@ -118,7 +130,11 @@ function flattenForSelect(tree: DepartmentTreeNode[], depth = 0): { id: string; 
   return out;
 }
 
+const SITE_UNSET = '__unset_site__';
+
 export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEditDialogProps) {
+  const { data: sites = [] } = useSites();
+  const isMultiSite = useIsMultiSite();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Inline-create dialog state for each reference list. `undefined` = closed,
@@ -169,6 +185,10 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
         description: form.description || undefined,
         allocationMode: form.allocationMode,
         baseAvailabilityPercent: form.baseAvailabilityPercent,
+        homeSiteId: form.homeSiteId || null,
+        // Current site defaults to home when left unset (backend mirrors this on create).
+        currentSiteId: form.currentSiteId || form.homeSiteId || null,
+        crossSiteAllowed: form.crossSiteAllowed,
       };
 
       const saved = person
@@ -377,6 +397,39 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
               />
             </div>
           </div>
+
+          {/* Location (Home-Site model) — hidden for single-site/free-tier tenants. */}
+          {isMultiSite && (
+            <div className="space-y-4 rounded-lg border p-3">
+              <p className="text-sm font-medium">Location</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="homeSite">Home Site</Label>
+                  <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)}>
+                    <SelectTrigger id="homeSite"><SelectValue placeholder="Unset" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Unset</span></SelectItem>
+                      {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="currentSite">Current Site</Label>
+                  <Select value={form.currentSiteId || SITE_UNSET} onValueChange={(v) => set('currentSiteId', v === SITE_UNSET ? '' : v)}>
+                    <SelectTrigger id="currentSite"><SelectValue placeholder="Defaults to home" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Defaults to home</span></SelectItem>
+                      {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} />
+                <Label htmlFor="crossSite" className="text-sm cursor-pointer">Available for other sites</Label>
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>

@@ -103,14 +103,14 @@ describe('PersonSegmentBar', () => {
     renderBar(seg({ status: 'partial', utilizationPercent: 65 }));
     const fill = screen.getByTestId('segment-fill');
     expect(fill).toHaveStyle({ width: '65%' });
-    expect(fill.className).toMatch(/bg-amber-500/);
+    expect(fill.className).toMatch(/bg-amber-300/);
   });
 
   it('fills the meter fully and red for an overbooked segment', () => {
     renderBar(seg({ status: 'overbooked', utilizationPercent: 120 }));
     const fill = screen.getByTestId('segment-fill');
     expect(fill).toHaveStyle({ width: '100%' });
-    expect(fill.className).toMatch(/bg-red-600/);
+    expect(fill.className).toMatch(/bg-red-400/);
   });
 
   it('fills the meter fully for an assigned (exclusive) segment', () => {

@@ -125,6 +125,18 @@ public class ConflictService(
                     Message = issue.Message,
                 };
 
+            case ValidationReasonCode.SiteMismatchSpace:
+            case ValidationReasonCode.SiteCrossNotAllowed:
+            case ValidationReasonCode.SiteMismatchPerson:
+                return new ConflictInfo
+                {
+                    Id = $"{requestId}-{issue.ResourceId}-site",
+                    Kind = "site_mismatch",
+                    // Cross-site-allowed person mismatch is advisory; space/not-allowed are errors.
+                    Severity = issue.Code == ValidationReasonCode.SiteMismatchPerson ? "warning" : "error",
+                    Message = issue.Message,
+                };
+
             // Config errors (invalid allocation mode/percent) and resource not-found/inactive are
             // not schedule conflicts surfaced on the grid/page.
             default:

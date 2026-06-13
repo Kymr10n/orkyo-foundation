@@ -155,6 +155,11 @@ public static class SeedRunner
         }
 
         await tx.CommitAsync();
+
+        // Populate the Home-Site / Current-Site model on the committed rows (see SiteModelFactory).
+        // Post-commit so it sees data from both the floorplan and generic paths uniformly.
+        await SiteModelFactory.ApplyAsync(conn, spaceTypeId, personTypeId);
+
         sw.Stop();
 
         return new SeedReport(
