@@ -36,6 +36,7 @@ public static class CriteriaMapper
             UpdatedAt = reader.GetDateTime("updated_at"),
             ApplicableToRequests = reader.GetBoolean("applicable_to_requests"),
             ResourceTypeKeys = resourceTypeKeys,
+            InUse = reader.GetBoolean("in_use"),
         };
     }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,14 @@ import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
-import type { Criterion } from '@foundation/src/types/criterion';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@foundation/src/components/ui/select';
+import type { Criterion, CriterionDataType, UpdateCriterionRequest } from '@foundation/src/types/criterion';
 import { useUpdateCriterion, useUpdateCriterionApplicability } from '@foundation/src/hooks/useCriteria';
 import { EnumValueEditor } from './EnumValueEditor';
 import {
@@ -38,32 +45,49 @@ export function EditCriterionDialog({
   const updateMutation = useUpdateCriterion();
   const applicabilityMutation = useUpdateCriterionApplicability();
   const form = useCriterionForm();
+  // Name and DataType are mutable on edit (DataType only while not in use), so they live in
+  // local state here rather than in the shared form hook — mirrors CreateCriterionDialog.
+  const [name, setName] = useState(criterion.name);
+  const [dataType, setDataType] = useState<CriterionDataType>(criterion.dataType);
   const [error, setError] = useState<string | null>(null);
   const isSubmitting = updateMutation.isPending || applicabilityMutation.isPending;
 
   useSeedCriterionForm(form, criterion);
+  useEffect(() => {
+    setName(criterion.name);
+    setDataType(criterion.dataType);
+  }, [criterion]);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
-    const validationError = form.validate(criterion.dataType);
+    if (!name.trim()) {
+      setError('Name is required');
+      return;
+    }
+    const validationError = form.validate(dataType);
     if (validationError) {
       setError(validationError);
       return;
     }
 
     try {
-      const detailData = {
+      const detailData: UpdateCriterionRequest = {
         description: form.description.trim() || undefined,
-        enumValues: criterion.dataType === 'Enum' ? form.enumValues : undefined,
-        unit: criterion.dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
+        enumValues: dataType === 'Enum' ? form.enumValues : undefined,
+        unit: dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
       };
+      // Name and DataType are sent only when actually changed.
+      if (name.trim() !== criterion.name) detailData.name = name.trim();
+      if (dataType !== criterion.dataType) detailData.dataType = dataType;
 
       // Only PUT the criterion when there's a detail field to update — otherwise the
       // backend rejects an empty update with 400 "No fields to update" (e.g. a Boolean
       // criterion with no description, where the user only changed applicability).
       const hasDetailChanges =
+        detailData.name !== undefined ||
+        detailData.dataType !== undefined ||
         detailData.description !== undefined ||
         detailData.enumValues !== undefined ||
         detailData.unit !== undefined;
@@ -95,32 +119,53 @@ export function EditCriterionDialog({
         <DialogHeader>
           <DialogTitle>Edit Criterion</DialogTitle>
           <DialogDescription>
-            Update the criterion details. Name and data type cannot be changed.
+            Update the criterion details.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
-            {/* Name (read-only) */}
+            {/* Name */}
             <div className="space-y-2">
-              <Label>Name</Label>
-              <div className="px-3 py-2 bg-muted rounded-md font-mono text-sm">
-                {criterion.name}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Name cannot be changed to maintain referential integrity
-              </p>
+              <Label htmlFor="name">Name *</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Project Management, Max Load (kg)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isSubmitting}
+              />
             </div>
 
-            {/* Data Type (read-only) */}
+            {/* Data Type — editable until the criterion has values, then locked */}
             <div className="space-y-2">
-              <Label>Data Type</Label>
-              <div className="px-3 py-2 bg-muted rounded-md">
-                <Badge variant="secondary">{criterion.dataType}</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Data type cannot be changed
-              </p>
+              <Label htmlFor="dataType">Data Type{criterion.inUse ? '' : ' *'}</Label>
+              {criterion.inUse ? (
+                <>
+                  <div className="px-3 py-2 bg-muted rounded-md">
+                    <Badge variant="secondary">{criterion.dataType}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Data type is locked because this criterion has existing values
+                  </p>
+                </>
+              ) : (
+                <Select
+                  value={dataType}
+                  onValueChange={(value) => setDataType(value as CriterionDataType)}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger id="dataType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Boolean">Boolean (true/false)</SelectItem>
+                    <SelectItem value="Number">Number (numeric value)</SelectItem>
+                    <SelectItem value="String">String (text)</SelectItem>
+                    <SelectItem value="Enum">Enum (predefined options)</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Description */}
@@ -137,7 +182,7 @@ export function EditCriterionDialog({
             </div>
 
             {/* Unit (for Number type) */}
-            {criterion.dataType === 'Number' && (
+            {dataType === 'Number' && (
               <div className="space-y-2">
                 <Label htmlFor="unit">Unit</Label>
                 <Input
@@ -154,7 +199,7 @@ export function EditCriterionDialog({
             )}
 
             {/* Enum Values (for Enum type) */}
-            {criterion.dataType === 'Enum' && (
+            {dataType === 'Enum' && (
               <EnumValueEditor
                 values={form.enumValues}
                 onChange={form.setEnumValues}

@@ -16,6 +16,8 @@ export interface Criterion {
   unit?: string;
   applicableToRequests?: boolean; // Phase 3: defaults to true
   resourceTypeKeys: ResourceTypeKey[];
+  /** True when the criterion has value assignments; data type is locked while in use. */
+  inUse?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,10 +33,11 @@ export interface CreateCriterionRequest {
 }
 
 export interface UpdateCriterionRequest {
+  name?: string;
   description?: string;
   enumValues?: string[];
   unit?: string;
-  applicableToRequests?: boolean;
+  dataType?: CriterionDataType;
 }
 
 export interface CriterionApplicabilityInfo {

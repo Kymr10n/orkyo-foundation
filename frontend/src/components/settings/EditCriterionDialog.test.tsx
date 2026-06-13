@@ -44,6 +44,19 @@ vi.mock('./EnumValueEditor', () => ({
   EnumValueEditor: () => <div data-testid="enum-editor" />,
 }));
 
+// Render the Radix Select as a native <select> so dataType changes are driveable in jsdom.
+vi.mock('@foundation/src/components/ui/select', () => ({
+  Select: ({ value, onValueChange, children }: { value: string; onValueChange: (v: string) => void; children: ReactNode }) => (
+    <select data-testid="datatype-select" value={value} onChange={(e) => onValueChange(e.target.value)}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children: ReactNode }) => <option value={value}>{children}</option>,
+}));
+
 describe('EditCriterionDialog', () => {
   const criterion = {
     id: 'c1',
@@ -53,6 +66,7 @@ describe('EditCriterionDialog', () => {
     unit: 'seats',
     enumValues: [],
     resourceTypeKeys: ['space'] as ResourceTypeKey[],
+    inUse: false,
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
   };
@@ -73,14 +87,22 @@ describe('EditCriterionDialog', () => {
     expect(screen.getByText('Edit Criterion')).toBeInTheDocument();
   });
 
-  it('shows criterion name as read-only badge', () => {
+  it('shows criterion name as an editable input', () => {
     render(<EditCriterionDialog {...defaultProps} />);
-    expect(screen.getByText('Capacity')).toBeInTheDocument();
+    expect(screen.getByLabelText(/name/i)).toHaveValue('Capacity');
   });
 
-  it('shows data type as read-only badge', () => {
+  it('shows dataType select when criterion is not in use', () => {
     render(<EditCriterionDialog {...defaultProps} />);
+    expect(screen.getByTestId('datatype-select')).toHaveValue('Number');
+  });
+
+  it('shows dataType as a locked badge when criterion is in use', () => {
+    const inUseCriterion = { ...criterion, inUse: true };
+    render(<EditCriterionDialog {...defaultProps} criterion={inUseCriterion} />);
+    expect(screen.queryByTestId('datatype-select')).not.toBeInTheDocument();
     expect(screen.getByText('Number')).toBeInTheDocument();
+    expect(screen.getByText(/locked because this criterion has existing values/i)).toBeInTheDocument();
   });
 
   it('submits updated description', async () => {
@@ -97,6 +119,42 @@ describe('EditCriterionDialog', () => {
           unit: 'seats',
         },
       });
+    });
+  });
+
+  it('submits a name change when the name is edited', async () => {
+    render(<EditCriterionDialog {...defaultProps} />);
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Renamed' } });
+    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'c1', data: expect.objectContaining({ name: 'Renamed' }) }),
+      );
+    });
+  });
+
+  it('does not send name in the payload when name is unchanged', async () => {
+    render(<EditCriterionDialog {...defaultProps} />);
+    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Changed' } });
+    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.not.objectContaining({ name: expect.anything() }) }),
+      );
+    });
+  });
+
+  it('includes dataType in the payload when changed', async () => {
+    render(<EditCriterionDialog {...defaultProps} />);
+    fireEvent.change(screen.getByTestId('datatype-select'), { target: { value: 'Boolean' } });
+    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'c1', data: expect.objectContaining({ dataType: 'Boolean' }) }),
+      );
     });
   });
 

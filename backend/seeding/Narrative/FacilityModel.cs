@@ -3,7 +3,8 @@ namespace Orkyo.Foundation.Seed.Narrative;
 /// <summary>
 /// The fixed operational scaffold per facility: its tools (with allocation modes), the kinds of work
 /// that happen there (job archetypes — which room, which skills, which tool, how long), and which
-/// storage room runs at ConcurrentCapacity. Site codes match <c>FloorplanCatalog</c>. The narrative
+/// storage rooms are shared (Fractional, holding several jobs at partial load). Site codes match
+/// <c>FloorplanCatalog</c>. The narrative
 /// seeder generates the year of jobs from these archetypes against the calendar.
 /// </summary>
 public enum JobCadence { Campaign, Routine, MonthlyPm, QuarterlyQa }

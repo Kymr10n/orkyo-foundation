@@ -31,9 +31,10 @@ public interface ICriteriaRepository
 
     /// <summary>
     /// Updates mutable fields on an existing criterion. Returns <c>null</c> if the criterion was not found.
-    /// Name and data type are immutable after creation.
+    /// Name is freely editable (uniqueness is enforced by the DB). Data type is editable only while the
+    /// criterion has no value assignments; once in use, changing it throws.
     /// </summary>
-    Task<CriterionInfo?> UpdateAsync(Guid id, string? description, List<string>? enumValues, string? unit, CancellationToken ct = default);
+    Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default);
 
     /// <summary>Deletes the criterion. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);

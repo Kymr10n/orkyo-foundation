@@ -304,6 +304,37 @@ public class CriteriaEndpointsTests
         Assert.True(firstIndex < secondIndex, "Criteria should be sorted alphabetically");
     }
 
+    [Fact]
+    public async Task GetAllCriteria_WithPaging_ReturnsPagedEnvelope()
+    {
+        // Arrange - create a couple of criteria so the page is non-empty
+        await _client.PostAsJsonAsync("/api/criteria", new CreateCriterionRequest
+        {
+            Name = $"paged_a_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
+        });
+        await _client.PostAsJsonAsync("/api/criteria", new CreateCriterionRequest
+        {
+            Name = $"paged_b_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "space" }
+        });
+
+        // Act - the paged overload is selected once page/pageSize query params are present
+        var response = await _client.GetAsync("/api/criteria?page=1&pageSize=1");
+
+        // Assert - envelope with page metadata and a single-item page
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var paged = await response.Content.ReadFromJsonAsync<PagedResult<CriterionInfo>>(_jsonOptions);
+        Assert.NotNull(paged);
+        Assert.Equal(1, paged.Page);
+        Assert.Equal(1, paged.PageSize);
+        Assert.Single(paged.Items);
+        Assert.True(paged.TotalItems >= 2);
+        Assert.True(paged.HasNextPage);
+    }
+
     #endregion
 
     #region GET /criteria/{id} - Get Specific Criterion
@@ -507,6 +538,121 @@ public class CriteriaEndpointsTests
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_WithNewName_ChangesName()
+    {
+        var created = await CreateWithApplicabilityAsync($"rename_src_{Guid.NewGuid():N}", new[] { "space" });
+        var newName = $"rename_dst_{Guid.NewGuid():N}";
+
+        var response = await _client.PutAsJsonAsync($"/api/criteria/{created.Id}",
+            new UpdateCriterionRequest { Name = newName });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
+        Assert.Equal(newName, updated!.Name);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_NameConflict_Returns409()
+    {
+        var existing = await CreateWithApplicabilityAsync($"conflict_a_{Guid.NewGuid():N}", new[] { "space" });
+        var target = await CreateWithApplicabilityAsync($"conflict_b_{Guid.NewGuid():N}", new[] { "space" });
+
+        // Rename target onto existing's name → unique violation → 409.
+        var response = await _client.PutAsJsonAsync($"/api/criteria/{target.Id}",
+            new UpdateCriterionRequest { Name = existing.Name });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_NameEmpty_Returns400()
+    {
+        var created = await CreateWithApplicabilityAsync($"empty_name_{Guid.NewGuid():N}", new[] { "space" });
+
+        var response = await _client.PutAsJsonAsync($"/api/criteria/{created.Id}",
+            new UpdateCriterionRequest { Name = "" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_DataType_WhenNotInUse_ChangesType()
+    {
+        var created = await CreateWithApplicabilityAsync($"dt_change_{Guid.NewGuid():N}", new[] { "space" });
+        Assert.Equal(CriterionDataType.Boolean, created.DataType);
+
+        var response = await _client.PutAsJsonAsync($"/api/criteria/{created.Id}",
+            new UpdateCriterionRequest { DataType = CriterionDataType.String });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
+        Assert.Equal(CriterionDataType.String, updated!.DataType);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_DataType_WhenInUse_Returns400()
+    {
+        var criterion = await CreateWithApplicabilityAsync($"dt_inuse_{Guid.NewGuid():N}", new[] { "person" });
+        var person = await CreatePersonAsync($"DtInUse-{Guid.NewGuid().ToString("N")[..12]}");
+        var capResponse = await _client.PostAsJsonAsync(
+            $"/api/resources/{person.Id}/capabilities",
+            new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
+        capResponse.EnsureSuccessStatusCode();
+
+        var response = await _client.PutAsJsonAsync($"/api/criteria/{criterion.Id}",
+            new UpdateCriterionRequest { DataType = CriterionDataType.Number });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_DataType_FromEnum_ClearsEnumValues()
+    {
+        var createRequest = new CreateCriterionRequest
+        {
+            Name = $"dt_fromenum_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Enum,
+            EnumValues = new List<string> { "A", "B" },
+            ResourceTypeKeys = new List<string> { "space" },
+        };
+        var createResponse = await _client.PostAsJsonAsync("/api/criteria", createRequest);
+        var created = await createResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
+
+        var response = await _client.PutAsJsonAsync($"/api/criteria/{created!.Id}",
+            new UpdateCriterionRequest { DataType = CriterionDataType.Boolean });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
+        Assert.Equal(CriterionDataType.Boolean, updated!.DataType);
+        Assert.Null(updated.EnumValues);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_InUse_FalseWhenNoValues()
+    {
+        var created = await CreateWithApplicabilityAsync($"inuse_false_{Guid.NewGuid():N}", new[] { "space" });
+
+        var getResponse = await _client.GetAsync($"/api/criteria/{created.Id}");
+        var fetched = await getResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
+        Assert.False(fetched!.InUse);
+    }
+
+    [Fact]
+    public async Task UpdateCriterion_InUse_TrueAfterCapabilityAdded()
+    {
+        var criterion = await CreateWithApplicabilityAsync($"inuse_true_{Guid.NewGuid():N}", new[] { "person" });
+        var person = await CreatePersonAsync($"InUseTrue-{Guid.NewGuid().ToString("N")[..12]}");
+        var capResponse = await _client.PostAsJsonAsync(
+            $"/api/resources/{person.Id}/capabilities",
+            new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
+        capResponse.EnsureSuccessStatusCode();
+
+        var getResponse = await _client.GetAsync($"/api/criteria/{criterion.Id}");
+        var fetched = await getResponse.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
+        Assert.True(fetched!.InUse);
     }
 
     #endregion

@@ -219,6 +219,32 @@ public class CriterionValidatorTests
     }
 
     [Fact]
+    public void Update_NullName_Passes()
+    {
+        // No rename → Name rules are skipped.
+        var result = _updateValidator.Validate(new UpdateCriterionRequest { Description = "x" });
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_ValidName_Passes()
+    {
+        var result = _updateValidator.Validate(new UpdateCriterionRequest { Name = "Renamed_Criterion-1" });
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("")]          // empty
+    [InlineData("1leading")]  // starts with a digit
+    [InlineData(" spaced")]   // starts with a space
+    [InlineData("has space")] // contains a space
+    public void Update_InvalidNameFormat_Fails(string name)
+    {
+        var result = _updateValidator.Validate(new UpdateCriterionRequest { Name = name });
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
     public void Update_ValidEnumValues_Passes()
     {
         var request = new UpdateCriterionRequest

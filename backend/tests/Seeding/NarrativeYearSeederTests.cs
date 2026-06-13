@@ -15,8 +15,10 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// Integration test for the relatable-year narrative seed against a real tenant DB (rolled back).
 /// Proves the demo is coherent and correct, not just non-empty: assigned resources actually satisfy
 /// every requirement (CapabilityMatcher presence/Boolean/Enum), tool assignments are facility-local,
-/// all three allocation modes appear (incl. a ConcurrentCapacity space holding overlapping jobs),
-/// holidays/shutdowns + absences exist, and conflicts are only the small injected set.
+/// both supported allocation modes appear (Exclusive rooms/machines; Fractional people, shared
+/// storage rooms, and forklifts/cranes), every Exclusive assignment carries a null percent (the
+/// validator rejects a percent on Exclusive resources), holidays/shutdowns + absences exist, and
+/// conflicts are only the small injected set.
 /// </summary>
 [Collection("Database collection")]
 public class NarrativeYearSeederTests
@@ -57,7 +59,7 @@ public class NarrativeYearSeederTests
                 await w.WriteAsync(id, NpgsqlDbType.Uuid);
                 await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
                 await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
-                await w.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
+                await w.WriteAsync("Fractional", NpgsqlDbType.Varchar); // people are Fractional in production (PeopleFactories)
                 await w.WriteAsync(100, NpgsqlDbType.Integer);
                 await w.WriteAsync(true, NpgsqlDbType.Boolean);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
@@ -83,6 +85,14 @@ public class NarrativeYearSeederTests
         avail.Events.Should().BeGreaterThan(0);
         avail.Absences.Should().BeGreaterThan(0);
         tools.Should().NotBeEmpty();
+
+        // year.Conflicts now counts BOTH injected kinds the validator surfaces: ~5 % capability
+        // staffing + ~5 % scheduling clones ≈ 10 % of leaf requests. The 0.20 bound leaves headroom
+        // for the per-cohort Math.Max(1, …) floors at small scales while still catching a regression
+        // to the old "mostly conflicted" state (which was ≈ 100 %).
+        var leafRequests = year.Requests - cohorts.Count; // subtract parent summary rows
+        ((double)year.Conflicts / leafRequests).Should().BeLessThan(0.20,
+            "injected conflicts must stay near ~10 % of leaf requests");
 
         // Scope all assertions to the requests this test seeded — earlier tests in the suite may have
         // committed rows to these tables (via the API) and we must not count them.
@@ -138,7 +148,8 @@ public class NarrativeYearSeederTests
             ("ids", seededIds));
         toolCoherent.Should().Be(toolTotal, "every tool assignment must belong to the request's facility");
 
-        // All three allocation modes appear among assigned resources.
+        // Both supported allocation modes appear among assigned resources; the unsupported
+        // ConcurrentCapacity (which the validator rejects outright) must never be seeded.
         var modes = new List<string>();
         await using (var cmd = new NpgsqlCommand(
             "SELECT DISTINCT r.allocation_mode FROM resource_assignments ra JOIN resources r ON r.id=ra.resource_id WHERE ra.request_id = ANY(@ids)",
@@ -148,11 +159,21 @@ public class NarrativeYearSeederTests
             await using var rd = await cmd.ExecuteReaderAsync();
             while (await rd.ReadAsync()) modes.Add(rd.GetString(0));
         }
-        modes.Should().Contain(["Exclusive", "Fractional", "ConcurrentCapacity"]);
+        modes.Should().Contain(["Exclusive", "Fractional"]);
+        modes.Should().NotContain("ConcurrentCapacity", "ConcurrentCapacity is not supported by the validator and must not be seeded");
+
+        // Root-cause guard: an Exclusive resource must carry a null allocation_percent — the validator
+        // emits an InvalidAllocationPercent blocker otherwise, which is what made every room conflicted.
+        var (_, exclusiveWithPct) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*) FROM resource_assignments ra
+            JOIN resources r ON r.id = ra.resource_id
+            WHERE r.allocation_mode = 'Exclusive' AND ra.allocation_percent IS NOT NULL
+              AND ra.request_id = ANY(@ids)",
+            ("ids", seededIds));
+        exclusiveWithPct.Should().Be(0, "Exclusive assignments must have a null percent (validator rejects a percent on Exclusive resources)");
 
         // Exclusive machines (tools) must never accidentally double-book — overlap pairs stay within
-        // the injected-conflict band. (People may be lightly over-allocated by the lead fallback that
-        // guarantees requirement satisfaction; that's acceptable demo behaviour.)
+        // the injected-conflict band.
         var (_, toolPairs) = await TwoLongs(conn, tx, @"
             SELECT 0, count(*) FROM resource_assignments a
             JOIN resource_assignments b ON a.resource_id=b.resource_id AND a.id<b.id AND a.start_utc<b.end_utc AND b.start_utc<a.end_utc
@@ -162,6 +183,24 @@ public class NarrativeYearSeederTests
             ("ids", seededIds));
         toolPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
             "Exclusive machines must not accidentally double-book beyond the injected conflicts");
+
+        // People must not be accidentally overbooked either: total allocation in any overlapping
+        // window must not exceed 100 %. The only intentional person overlaps are the injected clone
+        // conflicts (B2), which each add one lead-lead pair. Allow a small buffer for the rare case
+        // where two clones happen to share a lead.
+        var (_, personPairs) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*)
+            FROM resource_assignments a
+            JOIN resource_assignments b
+                ON a.resource_id = b.resource_id AND a.id < b.id
+                AND a.start_utc < b.end_utc AND b.start_utc < a.end_utc
+            JOIN resources r ON r.id = a.resource_id
+            JOIN resource_types rt ON rt.id = r.resource_type_id AND rt.key = 'person'
+            WHERE (a.allocation_percent + b.allocation_percent) > 100
+              AND a.request_id = ANY(@ids)",
+            ("ids", seededIds));
+        personPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
+            "accidental person overbooking must stay within the intentional conflict band");
 
         await tx.RollbackAsync();
     }
@@ -191,7 +230,7 @@ public class NarrativeYearSeederTests
                 await w.WriteAsync(id, NpgsqlDbType.Uuid);
                 await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
                 await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
-                await w.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
+                await w.WriteAsync("Fractional", NpgsqlDbType.Varchar); // people are Fractional in production (PeopleFactories)
                 await w.WriteAsync(100, NpgsqlDbType.Integer);
                 await w.WriteAsync(true, NpgsqlDbType.Boolean);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);

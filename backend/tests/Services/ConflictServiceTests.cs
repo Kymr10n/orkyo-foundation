@@ -233,4 +233,70 @@ public class ConflictServiceTests
             .ReturnsAsync([]);
         Assert.Empty(await _service.GetAllAsync());
     }
+
+    // Regression guard: ConflictInfo.Id must be unique per resource so the frontend can use it as a
+    // React key without hitting duplicate-key warnings.
+
+    [Fact]
+    public async Task TwoResourcesOverCapacity_YieldDistinctCapacityExceededIds()
+    {
+        var reqId = Guid.NewGuid();
+        var person1 = Guid.NewGuid();
+        var person2 = Guid.NewGuid();
+        var a1 = Assignment(Guid.NewGuid(), reqId, person1, ResourceTypeKeys.Person, Start, Start.AddHours(2));
+        var a2 = Assignment(Guid.NewGuid(), reqId, person2, ResourceTypeKeys.Person, Start, Start.AddHours(2));
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(reqId, [a1, a2], Start, Start.AddHours(2))]);
+        // Two Fractional over-capacity issues: no ConflictingAssignmentId → capacity_exceeded path.
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                Batch(reqId, person1, new ValidationIssue { Code = ValidationReasonCode.AssignmentOverbooked, Message = "over", ResourceId = person1 }),
+                Batch(reqId, person2, new ValidationIssue { Code = ValidationReasonCode.AssignmentOverbooked, Message = "over", ResourceId = person2 }),
+            ]);
+
+        var result = await _service.GetAllAsync();
+
+        var entry = Assert.Single(result);
+        var capacityConflicts = entry.Conflicts.Where(c => c.Kind == "capacity_exceeded").ToList();
+        Assert.Equal(2, capacityConflicts.Count);
+        Assert.Equal(2, capacityConflicts.Select(c => c.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task TwoResourcesWithSameOffTimeCode_YieldDistinctStartsInOffTimeIds()
+    {
+        var reqId = Guid.NewGuid();
+        var person1 = Guid.NewGuid();
+        var person2 = Guid.NewGuid();
+        var a1 = Assignment(Guid.NewGuid(), reqId, person1, ResourceTypeKeys.Person, Start, Start.AddHours(2));
+        var a2 = Assignment(Guid.NewGuid(), reqId, person2, ResourceTypeKeys.Person, Start, Start.AddHours(2));
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(reqId, [a1, a2], Start, Start.AddHours(2))]);
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                BatchWarn(reqId, person1, new ValidationIssue { Code = ValidationReasonCode.OffTimeOverlap, Message = "off", ResourceId = person1 }),
+                BatchWarn(reqId, person2, new ValidationIssue { Code = ValidationReasonCode.OffTimeOverlap, Message = "off", ResourceId = person2 }),
+            ]);
+
+        var result = await _service.GetAllAsync();
+
+        var entry = Assert.Single(result);
+        var offTimeConflicts = entry.Conflicts.Where(c => c.Kind == "starts_in_off_time").ToList();
+        Assert.Equal(2, offTimeConflicts.Count);
+        Assert.Equal(2, offTimeConflicts.Select(c => c.Id).Distinct().Count());
+    }
+
+    private static AssignmentValidationBatchItem BatchWarn(Guid requestId, Guid resourceId, params ValidationIssue[] warnings) => new()
+    {
+        RequestId = requestId,
+        ResourceId = resourceId,
+        Result = new ValidationResult
+        {
+            Severity = warnings.Length > 0 ? ValidationSeverity.Warning : ValidationSeverity.Ok,
+            Blockers = [],
+            Warnings = [.. warnings],
+        },
+    };
 }

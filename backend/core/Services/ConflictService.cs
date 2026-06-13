@@ -155,7 +155,7 @@ public class ConflictService(
                 }
                 return new ConflictInfo
                 {
-                    Id = $"{requestId}-capacity-exceeded",
+                    Id = $"{requestId}-{issue.ResourceId}-capacity-exceeded",
                     Kind = "capacity_exceeded",
                     Severity = "error",
                     Message = issue.Message,
@@ -166,7 +166,7 @@ public class ConflictService(
             case ValidationReasonCode.NonWorkingWeekend:
                 return new ConflictInfo
                 {
-                    Id = $"{requestId}-{issue.Code}-offtime",
+                    Id = $"{requestId}-{issue.ResourceId}-{issue.Code}-offtime",
                     Kind = "starts_in_off_time",
                     Severity = "warning",
                     Message = issue.Message,

@@ -49,6 +49,12 @@ public record CriterionInfo
     /// at the API boundary.
     /// </summary>
     public IReadOnlyList<string> ResourceTypeKeys { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// True when this criterion has any value assignments (capability, requirement, or template).
+    /// DataType becomes immutable once InUse is true.
+    /// </summary>
+    public bool InUse { get; init; } = false;
 }
 
 /// <summary>
@@ -86,8 +92,9 @@ public record CreateCriterionRequest
 /// </summary>
 public record UpdateCriterionRequest
 {
+    public string? Name { get; init; }
     public string? Description { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
-    public bool? ApplicableToRequests { get; init; }
+    public CriterionDataType? DataType { get; init; }
 }

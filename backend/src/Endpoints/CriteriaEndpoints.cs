@@ -71,7 +71,7 @@ public static class CriteriaEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var criterion = await criteriaService.UpdateAsync(id, request.Description, request.EnumValues, request.Unit, ct);
+                var criterion = await criteriaService.UpdateAsync(id, request.Name, request.Description, request.EnumValues, request.Unit, request.DataType, ct);
                 return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
             }, logger, "update criterion", new { id });
         })
