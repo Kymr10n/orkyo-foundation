@@ -11,6 +11,7 @@ import {
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState } from "react";
 import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import { EditTemplateDialog } from "./EditTemplateDialog";
@@ -196,22 +197,15 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
 
       {/* Error State */}
       {error && (
-        <div className="flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm text-destructive">
-            {error instanceof Error
-              ? error.message
-              : "Failed to load templates"}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="ml-auto"
-          >
-            Retry
-          </Button>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-2">
+            <span>{error instanceof Error ? error.message : "Failed to load templates"}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Templates List */}

@@ -5,7 +5,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
-import { calendarViewToScale } from "./request-calendar-events";
+import { calendarViewToScale, SEVERITY_SWATCH } from "./request-calendar-events";
 import { AlertCircle, AlertTriangle } from "lucide-react";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import "./request-calendar.css";
@@ -123,8 +123,8 @@ export function RequestCalendar({
         <LegendItem className="bg-amber-100 dark:bg-amber-950 border-amber-200 dark:border-amber-800" label="In Progress" />
         <LegendItem className="bg-emerald-100 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800" label="Done" />
         <LegendItem className="bg-muted border-muted-foreground/30" label="Cancelled" />
-        <LegendItem className="bg-red-100 dark:bg-red-950 border-red-300 dark:border-red-800" label="Conflicts" />
-        <LegendItem className="bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-800" label="Warnings" />
+        <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
+        <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
       </div>
       <div className="flex-1 min-h-0">
       <FullCalendar

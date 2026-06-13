@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { Input } from "@foundation/src/components/ui/input";
 import {
   Dialog,
@@ -191,9 +192,7 @@ export function ResourceGroupMembersEditor({
                 ))}
               </ul>
             </ScrollArea>
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>
-            )}
+            <ErrorAlert message={error ?? null} />
           </div>
         ) : (
         <>
@@ -270,11 +269,7 @@ export function ResourceGroupMembersEditor({
               </>
             )}
 
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                {error}
-              </div>
-            )}
+            <ErrorAlert message={error ?? null} />
           </div>
         </ScrollArea>
         </>

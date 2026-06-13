@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
@@ -134,12 +135,12 @@ export function DepartmentSettings() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm text-destructive">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
             {error instanceof Error ? error.message : 'Failed to load departments'}
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       {tree.length === 0 ? (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { Badge } from "@foundation/src/components/ui/badge";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { Button } from "@foundation/src/components/ui/button";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { Input } from "@foundation/src/components/ui/input";
@@ -358,9 +359,7 @@ export function PersonAssignmentDialog({
             {isLoading ? (
               <div className="text-center py-8 text-sm text-muted-foreground">Loading…</div>
             ) : loadError ? (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                {loadError}
-              </div>
+              <ErrorAlert message={loadError} />
             ) : options.length === 0 ? (
               <div className="text-center py-8 border rounded-lg border-dashed">
                 <p className="text-sm text-muted-foreground">
@@ -374,8 +373,8 @@ export function PersonAssignmentDialog({
                   <div className="flex items-center gap-2">
                     {conflictCount > 0 && (
                       <Badge
-                        variant="outline"
-                        className="text-xs text-amber-600 border-amber-300 gap-1"
+                        variant="warning"
+                        className="text-xs gap-1"
                         data-testid="conflict-summary-badge"
                       >
                         <AlertTriangle className="h-3 w-3" />
@@ -468,8 +467,8 @@ export function PersonAssignmentDialog({
                           )}
                           {!isInFlight && !isChecked && mismatches > 0 && (
                             <Badge
-                              variant="outline"
-                              className="text-xs text-amber-600 border-amber-300 shrink-0 gap-1"
+                              variant="warning"
+                              className="text-xs shrink-0 gap-1"
                               data-testid="mismatch-badge"
                             >
                               <AlertTriangle className="h-3 w-3" />
@@ -478,8 +477,8 @@ export function PersonAssignmentDialog({
                           )}
                           {!isInFlight && showConflict && (
                             <Badge
-                              variant="outline"
-                              className="text-xs text-amber-600 border-amber-300 shrink-0 gap-1"
+                              variant="warning"
+                              className="text-xs shrink-0 gap-1"
                               data-testid="conflict-badge"
                             >
                               <AlertTriangle className="h-3 w-3" />

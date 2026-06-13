@@ -8,6 +8,7 @@ import {
 } from "@foundation/src/components/ui/dialog";
 import { Button } from "@foundation/src/components/ui/button";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 
 interface Props {
@@ -161,10 +162,10 @@ export function AutoSchedulePreviewDialog({
         )}
 
         {applyError && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            <span>{applyError}</span>
-          </div>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{applyError}</AlertDescription>
+          </Alert>
         )}
 
         <DialogFooter>

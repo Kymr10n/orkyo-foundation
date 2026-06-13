@@ -84,9 +84,9 @@ export function getStatusColor(status: string): string {
     case REQUEST_STATUS.PLANNED:
       return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
     case REQUEST_STATUS.IN_PROGRESS:
-      return "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400";
+      return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
     case REQUEST_STATUS.DONE:
-      return "bg-green-500/10 text-green-700 dark:text-green-400";
+      return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
     case REQUEST_STATUS.CANCELLED:
       return "bg-muted text-muted-foreground line-through";
     default:
@@ -102,9 +102,9 @@ export function getStatusDotColor(status: string): string {
     case REQUEST_STATUS.PLANNED:
       return "bg-blue-500";
     case REQUEST_STATUS.IN_PROGRESS:
-      return "bg-yellow-500";
+      return "bg-amber-500";
     case REQUEST_STATUS.DONE:
-      return "bg-green-500";
+      return "bg-emerald-500";
     case REQUEST_STATUS.CANCELLED:
       return "bg-gray-400";
     default:

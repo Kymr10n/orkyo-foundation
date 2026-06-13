@@ -26,6 +26,7 @@ import {
 import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import { Plus, Trash2 } from "lucide-react";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { useEffect, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -283,11 +284,7 @@ export function SpaceCapabilitiesEditor({
             </div>
 
             {/* Error Message */}
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                {error}
-              </div>
-            )}
+            <ErrorAlert message={error ?? null} />
           </div>
         </ScrollArea>
 

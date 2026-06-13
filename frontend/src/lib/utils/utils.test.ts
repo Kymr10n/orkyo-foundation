@@ -262,17 +262,19 @@ describe('formatDateDisplay', () => {
 });
 
 describe('status helpers', () => {
+  // Status badges share the scheduling palette (amber/emerald) so a request
+  // reads the same colour in a list badge as on the calendar / utilization grid.
   it('getStatusColor covers every known status plus the default', () => {
     expect(getStatusColor('planned')).toContain('blue');
-    expect(getStatusColor('in_progress')).toContain('yellow');
-    expect(getStatusColor('done')).toContain('green');
+    expect(getStatusColor('in_progress')).toContain('amber');
+    expect(getStatusColor('done')).toContain('emerald');
     expect(getStatusColor('cancelled')).toContain('line-through');
     expect(getStatusColor('???')).toBe('bg-muted text-muted-foreground');
   });
   it('getStatusDotColor covers every known status plus the default', () => {
     expect(getStatusDotColor('planned')).toBe('bg-blue-500');
-    expect(getStatusDotColor('in_progress')).toBe('bg-yellow-500');
-    expect(getStatusDotColor('done')).toBe('bg-green-500');
+    expect(getStatusDotColor('in_progress')).toBe('bg-amber-500');
+    expect(getStatusDotColor('done')).toBe('bg-emerald-500');
     expect(getStatusDotColor('cancelled')).toBe('bg-gray-400');
     expect(getStatusDotColor('???')).toBe('bg-gray-400');
   });

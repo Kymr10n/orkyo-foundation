@@ -1,5 +1,6 @@
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import {
   Dialog,
   DialogContent,
@@ -255,11 +256,7 @@ export function PersonSkillsEditor({
               )}
             </div>
 
-            {(error || saveError) && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                {error ?? saveError}
-              </div>
-            )}
+            <ErrorAlert message={error ?? saveError ?? null} />
           </div>
         </ScrollArea>
 

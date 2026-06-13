@@ -128,6 +128,48 @@ call sites.
 Assume a single `TooltipProvider` near the app root; don't mount a new provider per component, and
 don't set per-component `delayDuration` overrides.
 
+## 7. Status, severity & feedback colours
+
+Foundation has **no Tailwind theme of its own** (§5), so there are no `bg-warning`/`bg-success`
+semantic tokens — the single source of truth is the shared primitives and colour helpers below.
+**Never hand-roll a feedback box from a raw `<div>` + a light semantic background, and never
+hardcode a semantic colour class on a `Badge`.** Reach for the matching pattern instead:
+
+| Need | Use |
+|---|---|
+| Section-level message (load error, warning panel) | `<Alert variant="destructive\|warning\|default">` + icon as first child |
+| Compact inline form error | `<ErrorAlert message={…} />` |
+| Row-level validation list | `<ValidationIssueList variant="blocker\|warning">` |
+| Status / severity tag | `<Badge variant="success\|warning\|destructive\|secondary">` — never a colour className |
+| Status colour in bespoke markup | the `getStatusColor` / `getStatusDotColor` helpers (`lib/utils`) |
+| Calendar / Gantt severity colour | `SEVERITY_EVENT_CLASS` / `SEVERITY_SWATCH` (`utilization/request-calendar-events.ts`) |
+
+**One palette for status, everywhere.** A status reads the same in a list badge and on the
+calendar: `planned` → blue, `in_progress` → **amber**, `done` → **emerald**, `cancelled` → muted.
+`getStatusColor` (badges) and `getCalendarEventColor` (calendar) are locked to the same colour
+family by a cross-helper test in `request-calendar-events.test.ts` — if you change one palette,
+change both and keep that test green.
+
+```tsx
+// ✅ section error            // ✅ compact form error        // ✅ semantic tag
+<Alert variant="destructive">  <ErrorAlert message={error} /> <Badge variant="warning">Conflict</Badge>
+  <AlertCircle className="h-4 w-4" />
+  <AlertDescription>{msg}</AlertDescription>
+</Alert>
+
+// ❌ hand-rolled feedback box — the lint rule (below) rejects this.
+<div className="bg-destructive/10 text-destructive p-3 rounded-md">{error}</div>
+<Badge variant="outline" className="text-amber-600 border-amber-300">Conflict</Badge>
+```
+
+**Enforcement.** `eslint.config.js` carries a `no-restricted-syntax` rule (scoped to
+`src/components/**`) that fails the build on `bg-destructive/10` and light semantic backgrounds
+(`bg-{red,amber}-50`) in component markup. The colour-source primitives themselves
+(`ui/alert.tsx`, `ui/badge.tsx`, `ui/ErrorAlert.tsx`, `ui/ValidationIssueList.tsx`) and two
+deliberate, non-box uses (`RequestCalendar.tsx`, `TimelineGridShell.tsx`, `BreakGlassBanner.tsx`)
+are allowlisted there. A genuine one-off needs a justified `// eslint-disable-next-line` — not a
+new hand-rolled box.
+
 ---
 
 ## Public-API note (this is a shared package)

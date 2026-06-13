@@ -60,22 +60,31 @@ function getCalendarEventColor(status: RequestStatus): string {
 }
 
 /**
- * Event colour = opaque status block, overridden by conflict severity.
- * Ring overlays are not used — FullCalendar's nested overflow:hidden clips them.
+ * Conflict-severity colours — the single source of truth shared by the calendar
+ * event blocks (below) and the RequestCalendar legend swatches. Ring overlays are
+ * not used — FullCalendar's nested overflow:hidden clips them, so severity is
+ * expressed as a full background override.
  */
+export const SEVERITY_EVENT_CLASS: Record<"error" | "warning", string[]> = {
+  error: ["bg-red-100", "dark:bg-red-950", "border-red-300", "dark:border-red-800",
+    "text-red-900", "dark:text-red-200"],
+  warning: ["bg-amber-100", "dark:bg-amber-950", "border-amber-300", "dark:border-amber-800",
+    "text-amber-900", "dark:text-amber-200"],
+};
+
+/** Legend swatch (bg + border only) for the same severities. */
+export const SEVERITY_SWATCH: Record<"error" | "warning", string> = {
+  error: "bg-red-100 dark:bg-red-950 border-red-300 dark:border-red-800",
+  warning: "bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-800",
+};
+
+/** Event colour = opaque status block, overridden by conflict severity. */
 export function getEventClassNames(
   status: RequestStatus,
   severity: ConflictSeverity,
 ): string[] {
-  if (severity === "error") {
-    return ["orkyo-cal-event",
-      "bg-red-100", "dark:bg-red-950", "border-red-300", "dark:border-red-800",
-      "text-red-900", "dark:text-red-200"];
-  }
-  if (severity === "warning") {
-    return ["orkyo-cal-event",
-      "bg-amber-100", "dark:bg-amber-950", "border-amber-300", "dark:border-amber-800",
-      "text-amber-900", "dark:text-amber-200"];
+  if (severity) {
+    return ["orkyo-cal-event", ...SEVERITY_EVENT_CLASS[severity]];
   }
   return ["orkyo-cal-event", ...getCalendarEventColor(status).split(/\s+/).filter(Boolean)];
 }

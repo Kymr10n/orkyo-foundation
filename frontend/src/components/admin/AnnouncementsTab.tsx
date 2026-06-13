@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -208,11 +209,9 @@ export function AnnouncementsTab() {
           </Button>
         </CardHeader>
         <CardContent>
-          {error && (
-            <div className="mb-4 p-3 rounded bg-destructive/10 text-destructive text-sm">
-              {error}
-            </div>
-          )}
+          <div className="mb-4 empty:mb-0">
+            <ErrorAlert message={error ?? null} />
+          </div>
 
           <OrkyoDataTable
             columns={columns}

@@ -8,6 +8,7 @@ import {
   calendarViewToScale,
 } from "./request-calendar-events";
 import { makeRequest, makeScheduledRequest } from "@foundation/src/test-utils/request-fixtures";
+import { getStatusColor } from "@foundation/src/lib/utils";
 import type { Conflict } from "@foundation/src/types/requests";
 
 const noConflicts = new Map<string, Conflict[]>();
@@ -57,6 +58,18 @@ describe("getEventClassNames", () => {
     expect(classes).toContain("bg-amber-100");
     expect(classes).toContain("border-amber-300");
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
+  });
+
+  // Anti-drift: the calendar event colour and the list badge colour must agree on
+  // hue per status (the badge is translucent, the event opaque — only the shade
+  // differs). If someone re-introduces yellow/green on one side, this fails.
+  it.each([
+    ["planned", "blue"],
+    ["in_progress", "amber"],
+    ["done", "emerald"],
+  ] as const)("shares the %s colour family with getStatusColor (%s)", (status, family) => {
+    expect(getEventClassNames(status, null).join(" ")).toContain(family);
+    expect(getStatusColor(status)).toContain(family);
   });
 });
 
