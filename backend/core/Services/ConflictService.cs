@@ -6,11 +6,13 @@ namespace Api.Services;
 
 /// <summary>
 /// Authoritative, tenant-wide conflicts registry for the Conflicts page and the Requests-page
-/// badges. Computes every scheduled request's conflicts server-side by reusing the shared,
-/// bulk-optimized <see cref="IResourceAssignmentValidator.ValidateBatchAsync"/> (capability /
-/// overbook / capacity / off-time / weekend) and adding the cheap request-intrinsic checks
-/// (below-min-duration, before-earliest-start, after-latest-end). Computed on demand — see the
-/// caching note in the plan (no DB materialization).
+/// badges. Computes every scheduled request's conflicts server-side by evaluating its whole
+/// assignment set (room + people + tools) through the shared, bulk-optimized
+/// <see cref="IResourceAssignmentValidator.ValidateBatchAsync"/> (overbook / capacity / off-time /
+/// weekend / site), checking capability at the request level (a requirement is satisfied iff ANY
+/// assigned resource satisfies it — so person-skills are matched against people and space-specs
+/// against the space), and adding the cheap request-intrinsic checks (below-min-duration,
+/// before-earliest-start, after-latest-end). Computed on demand (no DB materialization).
 /// </summary>
 public interface IConflictService
 {
@@ -20,51 +22,57 @@ public interface IConflictService
 
 public class ConflictService(
     IRequestRepository requestRepository,
-    IResourceAssignmentValidator validator) : IConflictService
+    IResourceAssignmentValidator validator,
+    ICapabilityMatcher capabilityMatcher,
+    IResourceCapabilityRepository capabilityRepository) : IConflictService
 {
     public async Task<List<RequestConflictInfo>> GetAllAsync(CancellationToken ct = default)
     {
         var requests = await requestRepository.GetScheduledAsync(ct);
         if (requests.Count == 0) return [];
 
-        // Validate each request's space assignment in one bulk round-trip. Carry a
-        // spaceAssignmentId → requestId map so overbook conflicts can name the peer request.
+        // Validate every non-cancelled assignment (room + people + tools) of each request in one
+        // bulk round-trip. Carry an assignmentId → requestId map so overbook conflicts can name the
+        // peer request — for any resource type, not just the room.
         var requestByAssignmentId = new Dictionary<Guid, Guid>();
-        var items = new List<ValidateResourceAssignmentRequest>(requests.Count);
+        var items = new List<ValidateResourceAssignmentRequest>();
         foreach (var r in requests)
-        {
-            var space = r.Assignments.FirstOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space);
-            if (space is null) continue;
-            requestByAssignmentId[space.Id] = r.Id;
-            items.Add(new ValidateResourceAssignmentRequest
+            foreach (var a in r.Assignments.Where(a => a.AssignmentStatus != AssignmentStatuses.Cancelled))
             {
-                RequestId = r.Id,
-                ResourceId = space.ResourceId,
-                StartUtc = space.StartUtc,
-                EndUtc = space.EndUtc,
-                AllocationPercent = space.AllocationPercent,
-                ExcludeAssignmentId = space.Id,
-            });
-        }
+                requestByAssignmentId[a.Id] = r.Id;
+                items.Add(new ValidateResourceAssignmentRequest
+                {
+                    RequestId = r.Id,
+                    ResourceId = a.ResourceId,
+                    StartUtc = a.StartUtc,
+                    EndUtc = a.EndUtc,
+                    AllocationPercent = a.AllocationPercent,
+                    ExcludeAssignmentId = a.Id,
+                });
+            }
 
-        var validation = (await validator.ValidateBatchAsync(items, ct))
+        // Multiple items per request now → group results rather than keying by request id.
+        var validationByRequest = (await validator.ValidateBatchAsync(items, ct))
             .Where(v => v.RequestId.HasValue)
-            .ToDictionary(v => v.RequestId!.Value, v => v.Result);
+            .GroupBy(v => v.RequestId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(v => v.Result).ToList());
+
+        var capsByResource = await LoadCapabilitiesAsync(requests, ct);
 
         var result = new List<RequestConflictInfo>();
         foreach (var request in requests)
         {
             var conflicts = new List<ConflictInfo>();
 
-            if (validation.TryGetValue(request.Id, out var v))
-            {
-                foreach (var issue in v.Blockers.Concat(v.Warnings))
-                {
-                    var mapped = MapIssue(request.Id, issue, requestByAssignmentId);
-                    if (mapped is not null) conflicts.Add(mapped);
-                }
-            }
+            if (validationByRequest.TryGetValue(request.Id, out var results))
+                foreach (var v in results)
+                    foreach (var issue in v.Blockers.Concat(v.Warnings))
+                    {
+                        var mapped = MapIssue(request.Id, issue, requestByAssignmentId);
+                        if (mapped is not null) conflicts.Add(mapped);
+                    }
 
+            conflicts.AddRange(CapabilityConflicts(request, capsByResource));
             conflicts.AddRange(IntrinsicConflicts(request));
 
             if (conflicts.Count > 0)
@@ -74,6 +82,48 @@ public class ConflictService(
         return result;
     }
 
+    /// <summary>
+    /// Request-level capability: a requirement is satisfied iff at least one assigned resource has a
+    /// matching capability. Because only applicable resource types ever hold a given capability, this
+    /// matches person-skills against the assigned people and space-specs against the assigned space —
+    /// without falsely flagging a room for "missing" a person-skill. One conflict per unmet requirement.
+    /// </summary>
+    private IEnumerable<ConflictInfo> CapabilityConflicts(
+        RequestInfo request, IReadOnlyDictionary<Guid, IReadOnlyList<ResourceCapabilityInfo>> capsByResource)
+    {
+        foreach (var requirement in request.Requirements ?? [])
+        {
+            var satisfied = request.Assignments
+                .Where(a => a.AssignmentStatus != AssignmentStatuses.Cancelled)
+                .Any(a => capabilityMatcher.Satisfies(capsByResource.GetValueOrDefault(a.ResourceId, []), requirement));
+            if (!satisfied)
+                yield return new ConflictInfo
+                {
+                    Id = $"{request.Id}-{requirement.CriterionId}-capability",
+                    Kind = "connector_mismatch",
+                    Severity = "error",
+                    Message = $"No assigned resource provides '{requirement.Criterion?.Name ?? "a required capability"}'",
+                };
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<ResourceCapabilityInfo>>> LoadCapabilitiesAsync(
+        IReadOnlyList<RequestInfo> requests, CancellationToken ct)
+    {
+        var resourceIds = requests
+            .SelectMany(r => r.Assignments)
+            .Where(a => a.AssignmentStatus != AssignmentStatuses.Cancelled)
+            .Select(a => a.ResourceId)
+            .Distinct()
+            .ToList();
+        if (resourceIds.Count == 0)
+            return new Dictionary<Guid, IReadOnlyList<ResourceCapabilityInfo>>();
+
+        return (await capabilityRepository.GetByResourcesAsync(resourceIds, ct))
+            .GroupBy(c => c.ResourceId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<ResourceCapabilityInfo>)g.ToList());
+    }
+
     /// <summary>Maps a validator issue to the FE conflict shape; returns null for issues that
     /// aren't schedule conflicts (e.g. allocation-config errors).</summary>
     private static ConflictInfo? MapIssue(
@@ -81,15 +131,12 @@ public class ConflictService(
     {
         switch (issue.Code)
         {
+            // Capability is evaluated at the request level (CapabilityConflicts), not per-resource —
+            // a room legitimately lacks the person-skills its job's people supply. Drop the
+            // per-resource verdict here so it isn't double-counted or falsely raised.
             case ValidationReasonCode.CapabilityMissing:
             case ValidationReasonCode.ResourceTypeMismatch:
-                return new ConflictInfo
-                {
-                    Id = $"{requestId}-{issue.CriterionId?.ToString() ?? "cap"}-capability",
-                    Kind = "connector_mismatch",
-                    Severity = "error",
-                    Message = issue.Message,
-                };
+                return null;
 
             case ValidationReasonCode.AssignmentOverbooked:
                 // Exclusive overbook carries the conflicting assignment id → it's an overlap with a

@@ -63,7 +63,7 @@ public static class CriterionApplicabilityEndpoints
                 var updated = await applicabilityRepo.GetByCriterionAsync(id);
                 return Results.Ok(updated);
             }, logger, "update criterion applicability", new { id }))
-            .RequireAdminAccess()
+            .RequireEditAccess()
             .WithName("UpdateCriterionApplicability")
             .WithSummary("Update applicability settings for a criterion");
     }

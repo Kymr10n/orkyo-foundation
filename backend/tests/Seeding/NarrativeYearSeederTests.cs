@@ -88,7 +88,7 @@ public class NarrativeYearSeederTests
         // committed rows to these tables (via the API) and we must not count them.
         var seededIds = year.RequestIds.ToArray();
 
-        // Every request with requirements has at least one assigned resource covering ALL of them.
+        // Per request with requirements: does ANY assigned resource cover ALL of them? (reqSat).
         var (reqTotal, reqSat) = await TwoLongs(conn, tx, @"
             WITH req AS (SELECT request_id, array_agg(criterion_id) crits FROM request_requirements
                          WHERE request_id = ANY(@ids) GROUP BY request_id),
@@ -98,8 +98,31 @@ public class NarrativeYearSeederTests
               FROM req r JOIN resource_assignments ra ON ra.request_id=r.request_id GROUP BY r.request_id)
             SELECT count(*), count(*) FILTER (WHERE ok) FROM sat",
             ("ids", seededIds));
-        reqSat.Should().Be(reqTotal, "every requirement must be satisfiable by an assigned resource");
+        // Correctly-staffed jobs are satisfiable by their capable lead; the injected people-capability
+        // conflicts (B1) deliberately staff a few with an incapable person and nobody else, so those
+        // requirements are unsatisfiable. Both facts must hold — that's the people-capability conflict.
         reqTotal.Should().BeGreaterThan(0);
+        reqSat.Should().BeGreaterThan(0, "correctly-staffed requests are satisfiable by their assigned people");
+        reqSat.Should().BeLessThan(reqTotal, "the injected people-capability conflicts leave some requirements unsatisfiable");
+
+        // Applicability is consistent with assignments: no seeded capability is assigned on a resource
+        // type the criterion is not marked applicable to. Rooms now carry only their space-specs (never
+        // person-skills) and people only their skills, so this holds by construction (no backfill).
+        var (_, orphanCaps) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*) FROM resource_capabilities rc
+            JOIN resources r ON r.id = rc.resource_id
+            WHERE rc.criterion_id = ANY(@critIds)
+              AND NOT EXISTS (SELECT 1 FROM criterion_resource_types crt
+                              WHERE crt.criterion_id = rc.criterion_id AND crt.resource_type_id = r.resource_type_id)",
+            ("critIds", criteria.Values.ToArray()));
+        orphanCaps.Should().Be(0, "every assigned capability must have matching criterion_resource_types applicability");
+
+        // The scheduling conflicts (B2) are clones sharing their source's room+lead+slot — proving the
+        // overbook injection fired (its double-book surfaces as space + person overlaps).
+        var (_, rushClones) = await TwoLongs(conn, tx,
+            "SELECT 0, count(*) FROM requests WHERE id = ANY(@ids) AND name LIKE 'Rush order — %'",
+            ("ids", seededIds));
+        rushClones.Should().BeGreaterThan(0, "the seed must inject overbook (clone) conflicts");
 
         // Tool assignments are facility-local (tool name prefixed with the request's space site code).
         var (toolTotal, toolCoherent) = await TwoLongs(conn, tx, @"

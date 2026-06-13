@@ -144,7 +144,7 @@ public class ResourceAssignmentValidator(
                 ? active.Where(a => Overlaps(a, request) && NotExcluded(a, request)).ToList()
                 : [];
             var fractionalTotal = mode == AllocationModes.Fractional
-                ? active.Where(a => Overlaps(a, request)).Sum(a => a.AllocationPercent ?? 0m)
+                ? active.Where(a => Overlaps(a, request) && NotExcluded(a, request)).Sum(a => a.AllocationPercent ?? 0m)
                 : 0m;
             EvaluateAllocation(request, resource, overlapping, fractionalTotal, blockers);
 
@@ -210,7 +210,7 @@ public class ResourceAssignmentValidator(
                 resource.Id, request.StartUtc, request.EndUtc, request.ExcludeAssignmentId);
         else if (mode == AllocationModes.Fractional)
             fractionalTotal = await assignmentRepository.GetTotalAllocatedPercentAsync(
-                resource.Id, request.StartUtc, request.EndUtc);
+                resource.Id, request.StartUtc, request.EndUtc, request.ExcludeAssignmentId);
 
         EvaluateAllocation(request, resource, overlapping, fractionalTotal, blockers);
     }

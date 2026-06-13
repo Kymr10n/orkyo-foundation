@@ -66,7 +66,7 @@ public static class FloorplanEndpoints
                 return Results.Problem("Failed to upload floorplan");
             }
         })
-        .RequireRole(TenantRole.Editor, TenantRole.Admin)
+        .RequireEditAccess()
         .DisableAntiforgery()
         .Accepts<IFormFile>("multipart/form-data")
         .WithName("UploadFloorplan")
@@ -170,7 +170,7 @@ public static class FloorplanEndpoints
                 return ErrorResponses.NotFound("Site", siteId);
             }
         })
-        .RequireRole(TenantRole.Editor, TenantRole.Admin)
+        .RequireEditAccess()
         .WithName("DeleteFloorplan")
         .WithDescription("Delete a site's floorplan");
     }

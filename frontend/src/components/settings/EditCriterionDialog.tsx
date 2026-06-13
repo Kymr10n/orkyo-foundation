@@ -54,14 +54,24 @@ export function EditCriterionDialog({
     }
 
     try {
-      const updated = await updateMutation.mutateAsync({
-        id: criterion.id,
-        data: {
-          description: form.description.trim() || undefined,
-          enumValues: criterion.dataType === 'Enum' ? form.enumValues : undefined,
-          unit: criterion.dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
-        },
-      });
+      const detailData = {
+        description: form.description.trim() || undefined,
+        enumValues: criterion.dataType === 'Enum' ? form.enumValues : undefined,
+        unit: criterion.dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
+      };
+
+      // Only PUT the criterion when there's a detail field to update — otherwise the
+      // backend rejects an empty update with 400 "No fields to update" (e.g. a Boolean
+      // criterion with no description, where the user only changed applicability).
+      const hasDetailChanges =
+        detailData.description !== undefined ||
+        detailData.enumValues !== undefined ||
+        detailData.unit !== undefined;
+
+      let updated = criterion;
+      if (hasDetailChanges) {
+        updated = await updateMutation.mutateAsync({ id: criterion.id, data: detailData });
+      }
 
       // Update applicability if it changed
       const currentKeys = [...(criterion.resourceTypeKeys ?? [])].sort().join(',');

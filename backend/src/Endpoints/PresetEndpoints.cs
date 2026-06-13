@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models.Preset;
 using Api.Security;
 using Api.Services;
@@ -16,6 +17,7 @@ public static class PresetEndpoints
     {
         var group = app.MapGroup("/api/admin/presets")
             .RequireAuthorization()
+            .RequireTenantMembership()
             .WithTags("Presets");
 
         group.MapPost("/validate", async ([FromBody] Preset preset, IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
@@ -26,6 +28,7 @@ public static class PresetEndpoints
                 return Results.Ok(result);
             }, logger, "validate preset", new { presetId = preset.PresetId });
         })
+        .RequireEditAccess()
         .WithName("ValidatePreset")
         .WithDescription("Validates a preset JSON without applying it")
         .Produces<PresetValidationResult>(200);
@@ -39,6 +42,7 @@ public static class PresetEndpoints
                 return result.Success ? Results.Ok(result) : Results.BadRequest(new { error = result.Error });
             }, logger, "apply preset", new { presetId = preset.PresetId });
         })
+        .RequireEditAccess()
         .WithName("ApplyPreset")
         .WithDescription("Applies a preset to the current tenant")
         .Produces<PresetApplicationResult>(200);

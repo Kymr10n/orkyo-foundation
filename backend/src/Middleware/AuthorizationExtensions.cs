@@ -89,6 +89,17 @@ public static class AuthorizationExtensions
     }
 
     /// <summary>
+    /// Requires Editor-or-Admin role in the current tenant — the standard gate for
+    /// write operations on tenant-editable content (settings criteria, templates,
+    /// presets, scheduling, …). Reads stay open to any member via
+    /// <see cref="RequireTenantMembership{TBuilder}"/>; this guards the writes.
+    /// Mirrors <see cref="IAuthorizationContext.CanEdit"/> (Role &gt;= Editor) and is
+    /// the single source of truth for that threshold across endpoints.
+    /// </summary>
+    public static RouteHandlerBuilder RequireEditAccess(this RouteHandlerBuilder builder)
+        => builder.RequireRole(TenantRole.Editor, TenantRole.Admin);
+
+    /// <summary>
     /// Requires the user to be a member of the current tenant (any role).
     /// Apply at the MapGroup level on all tenant-scoped route groups to block
     /// authenticated users who are not members of the resolved tenant.

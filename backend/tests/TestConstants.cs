@@ -15,10 +15,18 @@ public static class TestConstants
     public static string MasterEncryptionKey { get; } = Convert.ToBase64String(new byte[32]);
 
     /// <summary>
-    /// Pre-encoded Bearer token for integration tests.
-    /// Decoded by <see cref="TestAuthHandler"/> — no real JWT required.
+    /// Pre-encoded Bearer token for integration tests. Carries the default "user" role
+    /// (which the factory treats as tenant Admin). Decoded by <see cref="TestAuthHandler"/>
+    /// — no real JWT required.
     /// </summary>
-    public static string TestBearerToken { get; } = Convert.ToBase64String(
+    public static string TestBearerToken { get; } = BearerTokenForRole("user");
+
+    /// <summary>
+    /// Builds a Bearer token for the shared test user carrying a specific tenant
+    /// <paramref name="role"/> ("admin" | "editor" | "viewer"). Used by authorization
+    /// boundary tests to exercise role-gated endpoints.
+    /// </summary>
+    public static string BearerTokenForRole(string role) => Convert.ToBase64String(
         System.Text.Encoding.UTF8.GetBytes(
             System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -28,6 +36,6 @@ public static class TestConstants
                 TenantId = "00000000-0000-0000-0000-000000000001",
                 TenantSlug = "test",
                 IsTenantAdmin = false,
-                Role = "user"
+                Role = role
             })));
 }

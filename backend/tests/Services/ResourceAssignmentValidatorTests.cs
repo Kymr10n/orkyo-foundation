@@ -535,6 +535,45 @@ public class ResourceAssignmentValidatorTests
     }
 
     [Fact]
+    public async Task ValidateBatchAsync_FractionalCapacity_ExcludesSelfFromCommittedTotal()
+    {
+        // Re-validating a committed Fractional assignment must exclude its own row from the
+        // committed total, mirroring the Exclusive overlap path. Otherwise a lone person at
+        // 100% counts itself twice (100% + 100% = 200%) and every person/tool falsely overbooks.
+        var resource = CreateResource(allocationMode: AllocationModes.Fractional, baseAvailabilityPercent: 100);
+        var selfAssignmentId = Guid.NewGuid();
+        var request = CreateValidationRequest(resourceId: resource.Id, allocationPercent: 100m)
+            with
+        { ExcludeAssignmentId = selfAssignmentId };
+
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceInfo> { resource });
+        _assignmentRepoMock
+            .Setup(a => a.GetActiveByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceAssignmentInfo>
+            {
+                new()
+                {
+                    Id = selfAssignmentId,
+                    RequestId = request.RequestId ?? Guid.NewGuid(),
+                    ResourceId = resource.Id,
+                    ResourceTypeKey = "person",
+                    StartUtc = request.StartUtc,
+                    EndUtc = request.EndUtc,
+                    AllocationPercent = 100m,
+                    AssignmentStatus = AssignmentStatuses.Planned,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                },
+            });
+
+        var result = Assert.Single(await _validator.ValidateBatchAsync([request]));
+
+        Assert.Equal(ValidationSeverity.Ok, result.Result.Severity);
+    }
+
+    [Fact]
     public async Task ValidateBatchAsync_PreloadsInBulk_NotPerItem()
     {
         // The batch must NOT fan out per-item single-row queries (the old N+1) — it preloads

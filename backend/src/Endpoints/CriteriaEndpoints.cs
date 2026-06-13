@@ -63,6 +63,7 @@ public static class CriteriaEndpoints
                 return Results.Created($"/criteria/{criterion.Id}", criterion);
             }, logger, "create criterion");
         })
+        .RequireEditAccess()
         .WithName("CreateCriterion")
         .WithSummary("Create a new criterion");
 
@@ -74,6 +75,7 @@ public static class CriteriaEndpoints
                 return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
             }, logger, "update criterion", new { id });
         })
+        .RequireEditAccess()
         .WithName("UpdateCriterion")
         .WithSummary("Update an existing criterion");
 
@@ -85,6 +87,7 @@ public static class CriteriaEndpoints
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Criterion", id);
             }, logger, "delete criterion", new { id });
         })
+        .RequireEditAccess()
         .WithName("DeleteCriterion")
         .WithSummary("Delete a criterion");
     }

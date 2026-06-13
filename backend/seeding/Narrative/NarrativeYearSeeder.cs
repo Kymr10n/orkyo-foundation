@@ -97,15 +97,16 @@ public static class NarrativeYearSeeder
             }
 
             // Scope conflict injection to this cohort's jobs only — avoids cross-facility
-            // space swaps and keeps the budget proportional to this cohort's volume.
+            // swaps and keeps the budget proportional to this cohort's volume.
             var cohortJobs = jobs.GetRange(cohortStart, jobs.Count - cohortStart);
+            var personIds = cohort.People.Select(p => p.ResourceId).ToHashSet();
+            var toolIds = cohort.Tools.Select(t => t.Id).ToHashSet();
+            var concurrentRooms = cohort.Facility.ConcurrentRoomCodes.ToHashSet();
 
-            // Intentional capability conflicts: ~5 % of this cohort's jobs are misrouted to a
-            // room that does not cover their required skills, producing a capability blocker.
-            var roomSkills = cohort.Facility.Archetypes
-                .GroupBy(a => a.RoomCode)
-                .ToDictionary(g => g.Key, g => g.SelectMany(a => a.RequiredSkills).ToHashSet());
-
+            // Intentional capability conflicts: ~5 % of this cohort's skill-bearing jobs keep their
+            // (correct) room but are staffed by a person who lacks a required skill — and only that
+            // person, so nobody covers it. Person-skills are checked against the assigned people, so
+            // this surfaces a capability blocker on the people dimension (see ConflictService).
             var capBudget = Math.Max(1, cohortJobs.Count / 20);
             var capPool = cohortJobs
                 .Where(j => j.SpaceId is not null && j.RequiredCriteria.Count > 0)
@@ -115,30 +116,42 @@ public static class NarrativeYearSeeder
 
             foreach (var job in capPool)
             {
-                var jobSkillKeys = job.Archetype.RequiredSkills.ToHashSet();
-                var incompatible = cohort.SpaceByRoomCode
-                    .Where(kv => kv.Key != job.Archetype.RoomCode
-                        && !(roomSkills.TryGetValue(kv.Key, out var rs) && jobSkillKeys.All(rs.Contains)))
-                    .Select(kv => kv.Value)
-                    .ToList();
-                if (incompatible.Count == 0) continue;
+                // A cohort person missing at least one of this job's required criteria.
+                var required = job.RequiredCriteria;
+                var incapable = cohort.People
+                    .Select(p => p.ResourceId)
+                    .Where(pid => !(personSkills.TryGetValue(pid, out var sk) && required.All(sk.Contains)))
+                    .OrderBy(_ => faker.Random.Int())
+                    .FirstOrDefault();
+                if (incapable == Guid.Empty) continue;
 
-                var wrongSpace = faker.PickRandom(incompatible);
+                // Keep only the room (and any non-person, non-tool placement); a tool could otherwise
+                // cover a tool-applicable skill (e.g. CNC). Then add the single incapable person.
                 var newAssignees = job.Assignees
-                    .Where(a => a.ResId != job.SpaceId)
-                    .Append((wrongSpace.Id, 100m))
+                    .Where(a => !personIds.Contains(a.ResId) && !toolIds.Contains(a.ResId))
+                    .Append((incapable, 100m))
                     .ToList();
-                jobs[cohortStart + cohortJobs.IndexOf(job)] = job with { SpaceId = wrongSpace.Id, Assignees = newAssignees };
+                jobs[cohortStart + cohortJobs.IndexOf(job)] = job with { Assignees = newAssignees };
             }
 
-            // Intentional scheduling conflicts: clone a few tool-bearing jobs onto the same Exclusive tool+lead+slot.
-            var toolJobs = cohortJobs.Where(j => j.SpaceId is not null
-                && j.Assignees.Count > 0
-                && ctx.ExclusiveToolIds.Overlaps(j.Assignees.Select(a => a.ResId))).ToList();
+            // Intentional scheduling conflicts: clone a few jobs that sit in a non-concurrent
+            // (Exclusive) room with a lead onto the same room+lead+slot. The clone double-books both
+            // the Exclusive room and the Exclusive lead → one space overlap and one person overlap,
+            // covering "spaces and people" without depending on tools. Exclude the capability-conflict
+            // jobs so the two conflict kinds stay distinct.
+            bool InNonConcurrentRoom(Job j) =>
+                j.SpaceId is { } sid
+                && !concurrentRooms.Contains(j.Archetype.RoomCode)
+                && j.Assignees.Any(a => a.ResId == sid);
+            var clonePool = cohortJobs
+                .Where(j => !capPool.Contains(j)
+                    && InNonConcurrentRoom(j)
+                    && j.Assignees.Any(a => personIds.Contains(a.ResId)))
+                .ToList();
             var conflictBudget = Math.Max(1, cohortJobs.Count / 20); // ~5%
-            for (var i = 0; i < conflictBudget && toolJobs.Count > 0; i++)
+            for (var i = 0; i < conflictBudget && clonePool.Count > 0; i++)
             {
-                var src = faker.PickRandom(toolJobs);
+                var src = faker.PickRandom(clonePool);
                 var clone = src with
                 {
                     Id = Guid.NewGuid(),
@@ -226,12 +239,10 @@ public static class NarrativeYearSeeder
         private readonly FacilityCohort _cohort;
         private readonly IReadOnlyDictionary<Guid, HashSet<Guid>> _personSkills;
         private readonly Faker _faker;
-        public HashSet<Guid> ExclusiveToolIds { get; }
 
         public AssignContext(FacilityCohort cohort, IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills, Faker faker)
         {
             _cohort = cohort; _personSkills = personSkills; _faker = faker;
-            ExclusiveToolIds = cohort.Tools.Where(t => t.AllocationMode == "Exclusive").Select(t => t.Id).ToHashSet();
         }
 
         public bool IsFree(Guid id, DateTime s, DateTime e) =>

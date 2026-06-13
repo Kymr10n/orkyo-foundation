@@ -25,13 +25,17 @@ const mockMutateAsync = vi.fn(() =>
   Promise.resolve({ id: 'c1', name: 'Capacity', dataType: 'Number', description: 'Updated', unit: 'seats', enumValues: [] }),
 );
 
+const mockApplicabilityMutateAsync = vi.fn(() =>
+  Promise.resolve({ criterionId: 'c1', applicableToRequests: true, resourceTypeKeys: ['space'] }),
+);
+
 vi.mock('@foundation/src/hooks/useCriteria', () => ({
   useUpdateCriterion: () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
   useUpdateCriterionApplicability: () => ({
-    mutateAsync: vi.fn(() => Promise.resolve({ criterionId: 'c1', applicableToRequests: true, resourceTypeKeys: ['space'] })),
+    mutateAsync: mockApplicabilityMutateAsync,
     isPending: false,
   }),
 }));
@@ -113,5 +117,30 @@ describe('EditCriterionDialog', () => {
     render(<EditCriterionDialog {...defaultProps} />);
     expect(screen.getByLabelText('Spaces')).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByLabelText('People')).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('skips the criterion-detail update when only applicability changed', async () => {
+    // Regression: a Boolean criterion with no description has nothing to PUT on the
+    // criterion itself; firing it anyway returned 400 "No fields to update" and blocked
+    // the applicability change. Only applicability should be sent here.
+    const booleanCriterion = {
+      ...criterion,
+      dataType: 'Boolean' as const,
+      description: '',
+      unit: undefined,
+      enumValues: [],
+    };
+    render(<EditCriterionDialog {...defaultProps} criterion={booleanCriterion} />);
+
+    fireEvent.click(screen.getByLabelText('People')); // toggle applicability
+    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+    await waitFor(() => {
+      expect(mockApplicabilityMutateAsync).toHaveBeenCalledWith({
+        id: 'c1',
+        data: { resourceTypeKeys: ['space', 'person'] },
+      });
+    });
+    expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 });

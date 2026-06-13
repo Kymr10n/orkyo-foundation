@@ -23,7 +23,7 @@ import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
 
@@ -106,6 +106,7 @@ export function RequestFormDialog({
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
   const [hasPeopleBlockers, setHasPeopleBlockers] = useState(false);
   const [activeTab, setActiveTab] = useState<RequestFormTab>('details');
+  const nameInputRef = useRef<HTMLInputElement>(null);
   // True when the edited request already has child requests — the backend rejects
   // converting such a request to a leaf (Task), so that option is disabled below.
   const [hasChildren, setHasChildren] = useState(false);
@@ -342,7 +343,16 @@ export function RequestFormDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-      <DialogContent className="max-w-2xl h-[640px] max-h-[85vh] flex flex-col p-0">
+      <DialogContent
+        className="max-w-2xl h-[640px] max-h-[85vh] flex flex-col p-0"
+        onOpenAutoFocus={(e) => {
+          // Land focus on the first field, not the active tab — otherwise the
+          // tab's keyboard-focus ring flashes on open. The ring still shows for
+          // real keyboard tab navigation.
+          e.preventDefault();
+          nameInputRef.current?.focus();
+        }}
+      >
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="text-xl">
             {request ? "Edit Request" : isChildCreation ? "Add Child Request" : "Create New Request"}
@@ -419,6 +429,7 @@ export function RequestFormDialog({
                           onChange={(next) => setField('icon', next)}
                         />
                         <Input
+                          ref={nameInputRef}
                           id="name"
                           value={state.name}
                           onChange={(e) => setField('name', e.target.value)}
