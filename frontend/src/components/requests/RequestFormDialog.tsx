@@ -22,8 +22,8 @@ import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
-import { FileText, Layers, MapPin } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
 
@@ -161,6 +161,17 @@ export function RequestFormDialog({
   const setGroupBoundaryMode = (enabled: boolean) => {
     setField('planningMode', enabled ? 'container' : 'summary');
   };
+
+  // Duration warning: fires when the chosen start–end window is shorter than the minimal duration.
+  // Non-blocking — user may still save; backend IntrinsicConflicts.below_min_duration persists it.
+  const { hasDurationWarning, windowMinutes } = useMemo(() => {
+    if (!state.durationValue || !state.startDate || !state.startTime || !state.endDate || !state.endTime)
+      return { hasDurationWarning: false, windowMinutes: 0 };
+    const startMs = new Date(combineDateTimeToISO(state.startDate, state.startTime)).getTime();
+    const endMs   = new Date(combineDateTimeToISO(state.endDate,   state.endTime)).getTime();
+    const mins = (endMs - startMs) / 60_000;
+    return { hasDurationWarning: mins < durationToMinutes(state.durationValue, state.durationUnit), windowMinutes: mins };
+  }, [state.durationValue, state.durationUnit, state.startDate, state.startTime, state.endDate, state.endTime]);
 
   // Load criteria, templates, and spaces on mount
   useEffect(() => {
@@ -358,7 +369,12 @@ export function RequestFormDialog({
           >
             <TabsList className="mx-6 shrink-0">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="timing">Timing</TabsTrigger>
+              <TabsTrigger value="timing" className="relative">
+                Timing
+                {hasDurationWarning && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label="timing warning" />
+                )}
+              </TabsTrigger>
               <TabsTrigger value="requirements">Requirements</TabsTrigger>
               {isLeaf && <TabsTrigger value="resources">Resources</TabsTrigger>}
             </TabsList>
@@ -583,22 +599,14 @@ export function RequestFormDialog({
                             </SelectContent>
                           </Select>
                         </div>
-                        {/* Advisory warning when chosen window is shorter than minimal duration */}
-                        {(() => {
-                          if (!state.durationValue || !state.startDate || !state.startTime || !state.endDate || !state.endTime) return null;
-                          const startMs = new Date(combineDateTimeToISO(state.startDate, state.startTime)).getTime();
-                          const endMs   = new Date(combineDateTimeToISO(state.endDate,   state.endTime)).getTime();
-                          const windowMinutes = (endMs - startMs) / 60_000;
-                          const minMinutes    = durationToMinutes(state.durationValue, state.durationUnit);
-                          if (windowMinutes >= minMinutes) return null;
-                          return (
-                            <Alert className="mt-1 border-amber-400 bg-amber-50 text-amber-900">
-                              <AlertDescription>
-                                The selected window ({formatMinutesHuman(Math.max(0, Math.round(windowMinutes)))}) is shorter than the minimal duration ({formatMinutesHuman(minMinutes)}). You can still save — a conflict will be recorded and must be resolved before scheduling.
-                              </AlertDescription>
-                            </Alert>
-                          );
-                        })()}
+                        {hasDurationWarning && (
+                          <Alert variant="warning" className="mt-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              Window ({formatMinutesHuman(Math.max(0, Math.round(windowMinutes)))}) is shorter than the minimal duration ({formatMinutesHuman(durationToMinutes(state.durationValue, state.durationUnit))}). You can still save — a conflict will be recorded and must be resolved before scheduling.
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     </div>
 

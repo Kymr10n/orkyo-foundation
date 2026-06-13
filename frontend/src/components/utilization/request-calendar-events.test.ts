@@ -43,15 +43,20 @@ describe("getEventClassNames", () => {
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
   });
 
-  it("adds a red ring overlay for error severity", () => {
+  it("overrides the status colour with a red background for error severity", () => {
     const classes = getEventClassNames("done", "error");
-    expect(classes).toContain("ring-2");
-    expect(classes).toContain("ring-red-500");
+    expect(classes).toContain("bg-red-100");
+    expect(classes).toContain("border-red-300");
+    expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
+    // Status colour must not leak through — overridden
+    expect(classes.some((c) => c.startsWith("bg-emerald"))).toBe(false);
   });
 
-  it("adds an amber ring overlay for warning severity", () => {
+  it("overrides the status colour with an amber background for warning severity", () => {
     const classes = getEventClassNames("done", "warning");
-    expect(classes).toContain("ring-amber-500");
+    expect(classes).toContain("bg-amber-100");
+    expect(classes).toContain("border-amber-300");
+    expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
   });
 });
 

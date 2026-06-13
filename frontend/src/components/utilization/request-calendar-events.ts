@@ -60,16 +60,24 @@ function getCalendarEventColor(status: RequestStatus): string {
 }
 
 /**
- * Event colour = opaque status block + conflict overlay ring.
+ * Event colour = opaque status block, overridden by conflict severity.
+ * Ring overlays are not used — FullCalendar's nested overflow:hidden clips them.
  */
 export function getEventClassNames(
   status: RequestStatus,
   severity: ConflictSeverity,
 ): string[] {
-  const classes = ["orkyo-cal-event", ...getCalendarEventColor(status).split(/\s+/).filter(Boolean)];
-  if (severity === "error") classes.push("ring-2", "ring-red-500");
-  else if (severity === "warning") classes.push("ring-2", "ring-amber-500");
-  return classes;
+  if (severity === "error") {
+    return ["orkyo-cal-event",
+      "bg-red-100", "dark:bg-red-950", "border-red-300", "dark:border-red-800",
+      "text-red-900", "dark:text-red-200"];
+  }
+  if (severity === "warning") {
+    return ["orkyo-cal-event",
+      "bg-amber-100", "dark:bg-amber-950", "border-amber-300", "dark:border-amber-800",
+      "text-amber-900", "dark:text-amber-200"];
+  }
+  return ["orkyo-cal-event", ...getCalendarEventColor(status).split(/\s+/).filter(Boolean)];
 }
 
 /**
