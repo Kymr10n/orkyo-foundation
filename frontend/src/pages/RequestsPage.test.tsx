@@ -375,13 +375,6 @@ describe('RequestsPage', () => {
     vi.useRealTimers();
   });
 
-  it('renders Filters button', async () => {
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    expect(screen.getByText('Filters')).toBeInTheDocument();
-    await act(async () => {});
-  });
-
   // --- View mode toggle ---
 
   it('toggles to list view and back', async () => {

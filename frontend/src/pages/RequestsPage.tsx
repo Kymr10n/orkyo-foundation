@@ -54,7 +54,6 @@ import {
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import {
     Calendar,
-    Filter,
     List,
     Plus,
     Search,
@@ -531,7 +530,7 @@ export function RequestsPage() {
         }
       />
 
-      {/* Search and Filters */}
+      {/* Search */}
       <div className="flex gap-3 mb-4 shrink-0">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -542,10 +541,6 @@ export function RequestsPage() {
             className="pl-9"
           />
         </div>
-        <Button variant="outline" size="sm">
-          <Filter className="h-4 w-4 mr-2" />
-          Filters
-        </Button>
       </div>
 
       {/* Body: View + Detail Panel */}
