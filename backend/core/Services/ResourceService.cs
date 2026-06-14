@@ -52,8 +52,6 @@ public class ResourceService(
             request.AllocationMode,
             request.BaseAvailabilityPercent,
             homeSiteId: request.HomeSiteId,
-            // Current site defaults to the home site when not supplied.
-            currentSiteId: request.CurrentSiteId ?? request.HomeSiteId,
             crossSiteAllowed: request.CrossSiteAllowed);
     }
 

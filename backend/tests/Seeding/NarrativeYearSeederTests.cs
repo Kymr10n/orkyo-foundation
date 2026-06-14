@@ -213,8 +213,8 @@ public class NarrativeYearSeederTests
         personPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
             "accidental person overbooking must stay within the intentional conflict band");
 
-        // Site model: pin cohort people to their facility site, then run the full home/current-site
-        // pass (which also adopts each request's space site). Regression guard for the "every booking
+        // Site model: pin cohort people to their facility site, then run the full home-site pass
+        // (which also adopts each request's space site). Regression guard for the "every booking
         // conflicted" bug — the post-commit round-robin must NOT scatter cohort people across sites
         // (that made ~56 % of requests cross-site mismatched and painted the whole grid red).
         await SiteModelFactory.ApplyCohortSitesAsync(conn, tx,
@@ -224,7 +224,7 @@ public class NarrativeYearSeederTests
         var (sitedReqs, crossSiteReqs) = await TwoLongs(conn, tx, @"
             SELECT count(DISTINCT req.id),
                    count(DISTINCT req.id) FILTER (
-                       WHERE res.current_site_id IS NOT NULL AND res.current_site_id <> req.site_id)
+                       WHERE res.home_site_id IS NOT NULL AND res.home_site_id <> req.site_id)
             FROM requests req
             JOIN resource_assignments ra ON ra.request_id = req.id AND ra.assignment_status <> 'Cancelled'
             JOIN resources res ON res.id = ra.resource_id
