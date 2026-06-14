@@ -37,6 +37,7 @@ import {
     updateRequest,
 } from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import type {
     CreateRequestRequest,
     PlanningMode,
@@ -90,6 +91,7 @@ type Dialog =
 
 export function RequestsPage() {
   const queryClient = useQueryClient();
+  const canEdit = useCanEdit();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [requests, setRequests] = useState<Request[]>([]);
@@ -517,12 +519,12 @@ export function RequestsPage() {
               </Tooltip>
             </div>
 
-            <Button onClick={() => handleCreateRequest('leaf')}>
+            <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
               <Plus className="h-4 w-4 mr-2" />
               New Task
             </Button>
 
-            <Button onClick={() => handleCreateRequest('summary')}>
+            <Button onClick={() => handleCreateRequest('summary')} disabled={!canEdit}>
               <Plus className="h-4 w-4 mr-2" />
               New Group
             </Button>
@@ -568,7 +570,7 @@ export function RequestsPage() {
                   : "Get started by creating your first request"}
               </p>
               {!searchQuery && (
-                <Button onClick={() => handleCreateRequest()}>
+                <Button onClick={() => handleCreateRequest()} disabled={!canEdit}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Request
                 </Button>

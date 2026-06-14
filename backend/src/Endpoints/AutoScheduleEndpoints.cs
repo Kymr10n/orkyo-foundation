@@ -15,7 +15,7 @@ public static class AutoScheduleEndpoints
         var group = app.MapGroup("/api/scheduling/auto-schedule")
             .WithTags("AutoSchedule")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapPost("/preview", async (AutoSchedulePreviewRequest request, IAutoScheduleService service, ILogger<EndpointLoggerCategory> logger, CancellationToken cancellationToken) =>
         {
@@ -25,7 +25,8 @@ public static class AutoScheduleEndpoints
         })
         .WithName("AutoSchedulePreview")
         .WithSummary("Compute auto-schedule proposal without persisting")
-        .Produces<AutoSchedulePreviewResponse>(StatusCodes.Status200OK);
+        .Produces<AutoSchedulePreviewResponse>(StatusCodes.Status200OK)
+        .AllowMemberWrite();
 
         group.MapPost("/apply", async (AutoScheduleApplyRequest request, IAutoScheduleService service, ILogger<EndpointLoggerCategory> logger, CancellationToken cancellationToken) =>
         {

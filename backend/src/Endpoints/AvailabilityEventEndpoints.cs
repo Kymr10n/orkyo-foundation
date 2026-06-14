@@ -17,7 +17,7 @@ public static class AvailabilityEventEndpoints
         var events = app.MapGroup("/api/sites/{siteId:guid}/availability-events")
             .WithTags("AvailabilityEvents")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         events.MapGet("/", async (
             Guid siteId,
@@ -55,7 +55,6 @@ public static class AvailabilityEventEndpoints
                 var result = await repo.CreateAsync(siteId, request, ct);
                 return Results.Created($"/api/sites/{siteId}/availability-events/{result.Id}", result);
             }, logger, "create availability event", new { siteId }))
-            .RequireAdminAccess()
             .WithName("CreateAvailabilityEvent")
             .WithSummary("Create a new availability event for a site");
 
@@ -74,7 +73,6 @@ public static class AvailabilityEventEndpoints
                 var result = await repo.UpdateAsync(eventId, request, ct);
                 return EndpointHelpers.OkOrNotFound(result, "AvailabilityEvent", eventId);
             }, logger, "update availability event", new { siteId, eventId }))
-            .RequireAdminAccess()
             .WithName("UpdateAvailabilityEvent")
             .WithSummary("Update an availability event");
 
@@ -91,7 +89,6 @@ public static class AvailabilityEventEndpoints
                 var deleted = await repo.DeleteAsync(eventId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("AvailabilityEvent", eventId);
             }, logger, "delete availability event", new { siteId, eventId }))
-            .RequireAdminAccess()
             .WithName("DeleteAvailabilityEvent")
             .WithSummary("Delete an availability event");
 
@@ -112,7 +109,6 @@ public static class AvailabilityEventEndpoints
                 var scope = await repo.AddScopeAsync(eventId, request, ct);
                 return Results.Created($"/api/sites/{siteId}/availability-events/{eventId}/scopes/{scope.Id}", scope);
             }, logger, "add event scope", new { siteId, eventId }))
-            .RequireAdminAccess()
             .WithName("AddAvailabilityEventScope")
             .WithSummary("Add a scoped override to an availability event");
 
@@ -130,7 +126,6 @@ public static class AvailabilityEventEndpoints
                 var deleted = await repo.DeleteScopeAsync(eventId, scopeId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Scope", scopeId);
             }, logger, "delete event scope", new { siteId, eventId, scopeId }))
-            .RequireAdminAccess()
             .WithName("DeleteAvailabilityEventScope")
             .WithSummary("Remove a scoped override");
     }

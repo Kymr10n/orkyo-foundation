@@ -27,6 +27,7 @@ import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import { Plus, Trash2 } from "lucide-react";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useEffect, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -50,6 +51,7 @@ export function SpaceCapabilitiesEditor({
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
   const [isLoadingCriteria, setIsLoadingCriteria] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const canEdit = useCanEdit();
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -298,7 +300,7 @@ export function SpaceCapabilitiesEditor({
           >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSubmitting}>
+          <Button onClick={handleSave} disabled={isSubmitting || !canEdit}>
             {isSubmitting ? "Saving..." : "Save Changes"}
           </Button>
         </DialogFooter>

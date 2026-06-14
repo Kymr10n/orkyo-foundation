@@ -17,7 +17,7 @@ public static class JobTitleEndpoints
         var group = app.MapGroup("/api/job-titles")
             .WithTags("JobTitles")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (
             bool? includeInactive,
@@ -50,7 +50,6 @@ public static class JobTitleEndpoints
                 var jt = await repo.CreateAsync(request);
                 return Results.Created($"/api/job-titles/{jt.Id}", jt);
             }, logger, "create job title"))
-            .RequireAdminAccess()
             .WithName("CreateJobTitle");
 
         group.MapPut("/{id:guid}", async (
@@ -64,7 +63,6 @@ public static class JobTitleEndpoints
                 var jt = await repo.UpdateAsync(id, request);
                 return EndpointHelpers.OkOrNotFound(jt, "JobTitle", id);
             }, logger, "update job title", new { id }))
-            .RequireAdminAccess()
             .WithName("UpdateJobTitle");
 
         group.MapDelete("/{id:guid}", async (
@@ -76,7 +74,6 @@ public static class JobTitleEndpoints
                 var deleted = await repo.DeleteAsync(id);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("JobTitle", id);
             }, logger, "delete job title", new { id }))
-            .RequireAdminAccess()
             .WithName("DeleteJobTitle");
     }
 }

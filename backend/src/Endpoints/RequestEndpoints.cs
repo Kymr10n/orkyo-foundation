@@ -14,7 +14,7 @@ public static class RequestEndpoints
 {
     public static void MapRequestEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireTenantMembership();
+        var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
         {
@@ -171,7 +171,7 @@ public static class RequestEndpoints
 
         // Site + time-window scoped scheduled requests — the utilization grid's bar feed.
         var siteRequests = app.MapGroup("/api/sites/{siteId:guid}/requests")
-            .WithTags("Requests").RequireAuthorization().RequireTenantMembership();
+            .WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
         siteRequests.MapGet("/", async (Guid siteId, DateTime from, DateTime to, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(

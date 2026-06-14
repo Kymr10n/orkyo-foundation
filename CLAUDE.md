@@ -19,6 +19,27 @@ Multi-tenancy or a `tenantId` parameter alone is NOT a reason to keep code in Sa
 - **Tests live where the code lives.** Service tests for foundation code stay here; integration tests against product wiring stay in the product repo.
 - **`dotnet format`** must pass before push (enforced by `.githooks/pre-push`, to be replaced by `pre-commit`).
 
+## Authorization & roles
+
+Three tiers — **Viewer** (reads core content; no access to Settings or Administration areas),
+**Editor** (reads + writes Settings and all general content; no Administration area), **Admin**
+(everything). The full contract, the endpoint
+conventions, and the frontend gating live in **[docs/authorization.md](docs/authorization.md)** —
+read it before touching any endpoint.
+
+Rules that are enforced (a conformance test fails CI otherwise):
+
+- Every tenant endpoint group declares exactly **one** convention at its `MapGroup`:
+  `RequireMemberReadEditorWrite()` (default), `RequireMemberReadAdminWrite()` (Sites), or
+  `RequireAdminArea()` (Administration). Mutating routes are gated by HTTP verb, so new writes are
+  protected by default.
+- A non-mutating POST (validate/preview) uses `.AllowMemberWrite()`. Never leave a write ungated;
+  never gate general content at Admin nor admin content below Admin.
+- Frontend: gate write affordances with `useCanEdit()` and disable every edit dialog's Save when
+  `!canEdit` (the shared `DialogFormFooter` does this centrally). Wrap route segments with
+  `RequireEditor` (for `/settings`) or `RequireTenantAdmin` (for `/tenant-admin`); hide the
+  corresponding nav links using `useCanEdit()` / `useIsTenantAdmin()` in `SidebarNav`.
+
 ## Before merging changes that touch the public API
 
 When you alter the signature of a service registered in `FoundationWebApplicationFactory`, or rename/remove a `Map*Endpoints()` function, run:

@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@foundation/src/components/ui/select';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { Loader2 } from 'lucide-react';
 import {
   createDepartment,
@@ -104,6 +105,7 @@ export function DepartmentEditDialog({
 }: DepartmentEditDialogProps) {
   const [form, setForm] = useState<FormState>(empty);
   const [error, setError] = useState<string | null>(null);
+  const canEdit = useCanEdit();
   const queryClient = useQueryClient();
 
   const { data: tree = [] } = useQuery({
@@ -231,7 +233,7 @@ export function DepartmentEditDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isPending || !form.name.trim()}>
+            <Button type="submit" disabled={mutation.isPending || !form.name.trim() || !canEdit}>
               {mutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

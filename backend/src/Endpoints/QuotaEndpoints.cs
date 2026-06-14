@@ -17,7 +17,7 @@ public static class QuotaEndpoints
     {
         var group = app.MapGroup("/api/settings/quotas")
             .RequireAuthorization()
-            .RequireTenantMembership()
+            .RequireAdminArea()
             .WithTags("Quotas");
 
         group.MapGet("/", GetQuotas)
@@ -27,7 +27,6 @@ public static class QuotaEndpoints
 
     private static async Task<IResult> GetQuotas(
         ICurrentTenant currentTenant,
-        IAuthorizationContext authContext,
         IDbConnectionFactory db,
         ISiteRepository siteRepository,
         ISpaceRepository spaceRepository,
@@ -39,8 +38,6 @@ public static class QuotaEndpoints
     {
         return await EndpointHelpers.ExecuteAsync(async () =>
         {
-            authContext.RequireRole(TenantRole.Admin);
-
             var tenantId = currentTenant.TenantId;
 
             // ── Live usage ────────────────────────────────────────────────────────

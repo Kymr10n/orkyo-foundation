@@ -14,6 +14,7 @@ public static class SettingsEndpoints
     {
         var settings = app.MapGroup("/api/settings")
             .RequireAuthorization()
+            .RequireAdminArea()
             .WithTags("Settings")
             .WithMetadata(new SkipTenantResolutionAttribute());
 
@@ -39,7 +40,6 @@ public static class SettingsEndpoints
                 return Results.Ok(new { settings = result });
             }, logger, "GetSettings");
         })
-        .RequireEditAccess()
         .WithName("GetSettings")
         .WithDescription("Get all tenant settings with current values and metadata");
 
@@ -67,7 +67,6 @@ public static class SettingsEndpoints
                 return Results.Ok(new { settings = result });
             }, logger, "UpdateSettings");
         })
-        .RequireAdminAccess()
         .WithName("UpdateSettings")
         .WithDescription("Update one or more tenant settings")
         .Accepts<UpdateSettingsRequest>("application/json");
@@ -85,7 +84,6 @@ public static class SettingsEndpoints
                     : Results.NotFound(new { error = $"Setting '{key}' has no override to reset" });
             }, logger, "ResetSetting", new { key });
         })
-        .RequireAdminAccess()
         .WithName("ResetSetting")
         .WithDescription("Reset a single setting to its compiled default");
     }

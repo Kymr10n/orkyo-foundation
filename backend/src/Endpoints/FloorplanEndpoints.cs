@@ -15,7 +15,7 @@ public static class FloorplanEndpoints
     {
         var floorplan = app.MapGroup("/api/sites/{siteId:guid}/floorplan")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         floorplan.MapPost("/", async (
             Guid siteId,
@@ -66,7 +66,6 @@ public static class FloorplanEndpoints
                 return Results.Problem("Failed to upload floorplan");
             }
         })
-        .RequireEditAccess()
         .DisableAntiforgery()
         .Accepts<IFormFile>("multipart/form-data")
         .WithName("UploadFloorplan")
@@ -170,7 +169,6 @@ public static class FloorplanEndpoints
                 return ErrorResponses.NotFound("Site", siteId);
             }
         })
-        .RequireEditAccess()
         .WithName("DeleteFloorplan")
         .WithDescription("Delete a site's floorplan");
     }

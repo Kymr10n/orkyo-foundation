@@ -18,6 +18,7 @@ import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
 import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 interface CreateSpaceDialogProps {
   open: boolean;
@@ -39,6 +40,7 @@ export function CreateSpaceDialog({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canEdit = useCanEdit();
 
   const isDirty = name !== '' || code !== '' || description !== '';
 
@@ -166,7 +168,7 @@ export function CreateSpaceDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !canEdit}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Space
             </Button>

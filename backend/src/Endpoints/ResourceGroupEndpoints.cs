@@ -16,7 +16,7 @@ public static class ResourceGroupEndpoints
         var group = app.MapGroup("/api/resource-groups")
             .WithTags("Resource Groups")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (string resourceTypeKey, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -46,7 +46,6 @@ public static class ResourceGroupEndpoints
                 return Results.Created($"/api/resource-groups/{result.Id}", result);
             }, logger, "create resource group", new { name = request.Name });
         })
-        .RequireAdminAccess()
         .WithName("CreateResourceGroup")
         .WithSummary("Create a new resource group");
 
@@ -58,7 +57,6 @@ public static class ResourceGroupEndpoints
                 return EndpointHelpers.OkOrNotFound(result, "Resource group", id);
             }, logger, "update resource group", new { id });
         })
-        .RequireAdminAccess()
         .WithName("UpdateResourceGroup")
         .WithSummary("Update a resource group");
 
@@ -70,7 +68,6 @@ public static class ResourceGroupEndpoints
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Resource group", id);
             }, logger, "delete resource group", new { id });
         })
-        .RequireAdminAccess()
         .WithName("DeleteResourceGroup")
         .WithSummary("Delete a resource group");
     }

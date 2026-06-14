@@ -17,7 +17,7 @@ public static class SchedulingEndpoints
         var settings = app.MapGroup("/api/sites/{siteId:guid}/scheduling")
             .WithTags("Scheduling")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         settings.MapGet("/", async (Guid siteId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -40,7 +40,6 @@ public static class SchedulingEndpoints
                 return Results.Ok(result);
             }, logger, "upsert scheduling settings", new { siteId });
         })
-        .RequireEditAccess()
         .WithName("UpsertSchedulingSettings")
         .WithDescription("Create or update scheduling settings for a site")
         .Accepts<UpsertSchedulingSettingsRequest>("application/json")
@@ -54,7 +53,6 @@ public static class SchedulingEndpoints
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("SchedulingSettings");
             }, logger, "delete scheduling settings", new { siteId });
         })
-        .RequireEditAccess()
         .WithName("DeleteSchedulingSettings")
         .WithDescription("Reset scheduling settings for a site to defaults");
 

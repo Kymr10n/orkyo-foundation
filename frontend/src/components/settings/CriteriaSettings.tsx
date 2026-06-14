@@ -21,6 +21,7 @@ import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
 import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { logger } from '@foundation/src/lib/core/logger';
 
 type FilterTab = 'all' | ResourceTypeKey;
@@ -48,6 +49,7 @@ export function CriteriaSettings() {
   const { data: criteria = [], isLoading, error, refetch } = useCriteria();
   const createMutation = useCreateCriterion();
   const deleteMutation = useDeleteCriterion();
+  const canEdit = useCanEdit();
 
   // Handle export/import
   useExportHandler('criteria', async (format) => {
@@ -180,6 +182,7 @@ export function CriteriaSettings() {
             <Button
               variant="ghost"
               size="icon"
+              disabled={!canEdit}
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingCriterion(criterion);
@@ -197,7 +200,7 @@ export function CriteriaSettings() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      disabled={criterion.inUse}
+                      disabled={criterion.inUse || !canEdit}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(criterion);
@@ -244,7 +247,7 @@ export function CriteriaSettings() {
         title="Criteria Definitions"
         description="Define reusable criteria that can be used as space capabilities or utilization requirements. These criteria enable automatic validation during utilization."
       >
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Add Criterion
         </Button>
@@ -278,7 +281,7 @@ export function CriteriaSettings() {
       {criteria.length === 0 ? (
         <Card className="p-12 text-center">
           <p className="text-muted-foreground mb-4">No criteria defined yet</p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             Create your first criterion
           </Button>

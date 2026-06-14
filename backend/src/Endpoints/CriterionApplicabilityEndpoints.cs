@@ -17,7 +17,7 @@ public static class CriterionApplicabilityEndpoints
         var group = app.MapGroup("/api/criteria")
             .WithTags("Criteria")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/{id:guid}/applicability", async (
             Guid id,
@@ -63,7 +63,6 @@ public static class CriterionApplicabilityEndpoints
                 var updated = await applicabilityRepo.GetByCriterionAsync(id);
                 return Results.Ok(updated);
             }, logger, "update criterion applicability", new { id }))
-            .RequireEditAccess()
             .WithName("UpdateCriterionApplicability")
             .WithSummary("Update applicability settings for a criterion");
     }

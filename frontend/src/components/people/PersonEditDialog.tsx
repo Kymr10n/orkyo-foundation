@@ -22,6 +22,8 @@ import { Textarea } from '@foundation/src/components/ui/textarea';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { useSites, useIsMultiSite } from '@foundation/src/hooks/useSites';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { getAssignmentsByResource } from '@foundation/src/lib/api/resource-assignments-api';
 import { Loader2, Plus } from 'lucide-react';
 import {
   createResource,
@@ -135,8 +137,21 @@ const SITE_UNSET = '__unset_site__';
 export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEditDialogProps) {
   const { data: sites = [] } = useSites();
   const isMultiSite = useIsMultiSite();
+  const canEdit = useCanEdit();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Changing a scheduled person's site silently re-evaluates cross-site conflicts on their
+  // existing assignments, so the site fields are locked while they have any. Forward-looking
+  // window: only current/future assignments are affected by a site change.
+  const { data: scheduledAssignments = [] } = useQuery({
+    queryKey: ['resource-assignments', 'site-guard', person?.id],
+    queryFn: () =>
+      getAssignmentsByResource(person!.id, new Date(), new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)),
+    enabled: isOpen && isMultiSite && !!person?.id,
+  });
+  const hasSchedule = scheduledAssignments.length > 0;
+  const siteFieldsLocked = !canEdit || hasSchedule;
   // Inline-create dialog state for each reference list. `undefined` = closed,
   // string = pre-populated name (from a Create-new sentinel selection).
   const [createJobTitleName, setCreateJobTitleName] = useState<string | undefined>(undefined);
@@ -405,7 +420,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="homeSite">Home Site</Label>
-                  <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)}>
+                  <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)} disabled={siteFieldsLocked}>
                     <SelectTrigger id="homeSite"><SelectValue placeholder="Unset" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Unset</span></SelectItem>
@@ -415,7 +430,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currentSite">Current Site</Label>
-                  <Select value={form.currentSiteId || SITE_UNSET} onValueChange={(v) => set('currentSiteId', v === SITE_UNSET ? '' : v)}>
+                  <Select value={form.currentSiteId || SITE_UNSET} onValueChange={(v) => set('currentSiteId', v === SITE_UNSET ? '' : v)} disabled={siteFieldsLocked}>
                     <SelectTrigger id="currentSite"><SelectValue placeholder="Defaults to home" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Defaults to home</span></SelectItem>
@@ -425,9 +440,15 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} />
+                <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} disabled={siteFieldsLocked} />
                 <Label htmlFor="crossSite" className="text-sm cursor-pointer">Available for other sites</Label>
               </div>
+              {hasSchedule && (
+                <p className="text-sm text-amber-600 dark:text-amber-500">
+                  This person has {scheduledAssignments.length} scheduled assignment
+                  {scheduledAssignments.length === 1 ? '' : 's'}. Reassign or cancel them before changing their site.
+                </p>
+              )}
             </div>
           )}
 
@@ -435,7 +456,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !form.name.trim()}>
+            <Button type="submit" disabled={isSubmitting || !form.name.trim() || !canEdit}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

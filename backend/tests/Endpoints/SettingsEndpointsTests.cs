@@ -122,8 +122,11 @@ public class SettingsEndpointsTests
     }
 
     [Fact]
-    public async Task GetSettings_Editor_ReturnsOk()
+    public async Task GetSettings_Editor_ReturnsForbidden()
     {
+        // /api/settings backs the Administration → Organization/Configuration tabs, which are an
+        // admin-only area: Editors (like Viewers) cannot read it. Reading the editor-open Settings
+        // page content (criteria/templates/…) goes through their own endpoints, not /api/settings.
         var email = $"settings_editor_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor", TenantSlug, "editor", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -146,7 +149,7 @@ public class SettingsEndpointsTests
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", editorToken);
 
         var response = await _client.SendAsync(msg);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]

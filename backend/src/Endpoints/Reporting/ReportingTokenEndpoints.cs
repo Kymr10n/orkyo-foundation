@@ -17,7 +17,7 @@ public static class ReportingTokenEndpoints
     {
         var group = app.MapGroup("/api/reporting/v1/tokens")
             .RequireAuthorization()
-            .RequireTenantMembership()
+            .RequireAdminArea()
             .WithTags("Reporting API Tokens");
 
         group.MapGet("/", ListTokens)
@@ -36,13 +36,11 @@ public static class ReportingTokenEndpoints
     private static async Task<IResult> ListTokens(
         IReportingTokenService tokenService,
         ICurrentTenant tenant,
-        IAuthorizationContext authContext,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct)
     {
         return await EndpointHelpers.ExecuteAsync(async () =>
         {
-            authContext.RequireRole(TenantRole.Admin);
             var tokens = await tokenService.ListForTenantAsync(tenant.TenantId, ct);
             return Results.Ok(tokens);
         }, logger, "list reporting tokens");
@@ -53,15 +51,12 @@ public static class ReportingTokenEndpoints
         IReportingTokenService tokenService,
         ICurrentTenant tenant,
         ICurrentPrincipal principal,
-        IAuthorizationContext authContext,
         IFeatureGate featureGate,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct)
     {
         return await EndpointHelpers.ExecuteAsync(async () =>
         {
-            authContext.RequireRole(TenantRole.Admin);
-
             // Reporting API keys require the API-access entitlement. The edition decides:
             // SaaS grants it on paid tiers; Community allows everything.
             if (!await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct))
@@ -88,13 +83,11 @@ public static class ReportingTokenEndpoints
         IReportingTokenService tokenService,
         ICurrentTenant tenant,
         ICurrentPrincipal principal,
-        IAuthorizationContext authContext,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct)
     {
         return await EndpointHelpers.ExecuteAsync(async () =>
         {
-            authContext.RequireRole(TenantRole.Admin);
             var revoked = await tokenService.RevokeAsync(
                 id, tenant.TenantId,
                 principal.UserId == Guid.Empty ? null : principal.UserId,

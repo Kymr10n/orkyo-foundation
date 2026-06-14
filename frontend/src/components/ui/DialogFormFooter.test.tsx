@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { DialogFormFooter } from './DialogFormFooter';
 
 describe('DialogFormFooter', () => {
@@ -7,6 +8,18 @@ describe('DialogFormFooter', () => {
     render(<DialogFormFooter onCancel={vi.fn()} isSubmitting={false} submitLabel="Save" />);
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('enables submit when the user can edit', () => {
+    render(<DialogFormFooter onCancel={vi.fn()} isSubmitting={false} submitLabel="Save" />);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('disables submit for a viewer who cannot edit', () => {
+    // useCanEdit is globally mocked to true in src/test/setup.ts; flip it for this case.
+    vi.mocked(useCanEdit).mockReturnValueOnce(false);
+    render(<DialogFormFooter onCancel={vi.fn()} isSubmitting={false} submitLabel="Save" />);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
   it('shows submitting label when submitting', () => {

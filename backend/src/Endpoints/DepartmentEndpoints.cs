@@ -17,7 +17,7 @@ public static class DepartmentEndpoints
         var group = app.MapGroup("/api/departments")
             .WithTags("Departments")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (
             bool? includeInactive,
@@ -60,7 +60,6 @@ public static class DepartmentEndpoints
                 var d = await repo.CreateAsync(request);
                 return Results.Created($"/api/departments/{d.Id}", d);
             }, logger, "create department"))
-            .RequireAdminAccess()
             .WithName("CreateDepartment");
 
         group.MapPut("/{id:guid}", async (
@@ -74,7 +73,6 @@ public static class DepartmentEndpoints
                 var d = await repo.UpdateAsync(id, request);
                 return EndpointHelpers.OkOrNotFound(d, "Department", id);
             }, logger, "update department", new { id }))
-            .RequireAdminAccess()
             .WithName("UpdateDepartment");
 
         group.MapDelete("/{id:guid}", async (
@@ -86,7 +84,6 @@ public static class DepartmentEndpoints
                 var deleted = await repo.DeleteAsync(id);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Department", id);
             }, logger, "delete department", new { id }))
-            .RequireAdminAccess()
             .WithName("DeleteDepartment");
     }
 }

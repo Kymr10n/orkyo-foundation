@@ -14,7 +14,7 @@ public static class GroupCapabilityEndpoints
         var capabilities = app.MapGroup("/api/resource-groups/{groupId:guid}/capabilities")
             .WithTags("Group Capabilities")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         capabilities.MapGet("/", async (Guid groupId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {

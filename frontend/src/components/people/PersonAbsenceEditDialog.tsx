@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@foundation/src/components/ui/popover';
 import { Calendar } from '@foundation/src/components/ui/calendar';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { format } from 'date-fns';
 
 interface PersonAbsenceEditDialogProps {
@@ -34,6 +35,7 @@ const absenceTypes: { value: AbsenceType; label: string }[] = [
 ];
 
 export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
+  const canEdit = useCanEdit();
   const [absenceType, setAbsenceType] = useState<AbsenceType>('vacation');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -131,7 +133,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
             <Button type="button" variant="outline" onClick={onClose} disabled={saveMutation.isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saveMutation.isPending || !startDate || !endDate}>
+            <Button type="submit" disabled={saveMutation.isPending || !startDate || !endDate || !canEdit}>
               {saveMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

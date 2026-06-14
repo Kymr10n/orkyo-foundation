@@ -13,7 +13,7 @@ public static class TemplateEndpoints
 {
     public static void MapTemplateEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/templates").RequireAuthorization().RequireTenantMembership();
+        var group = app.MapGroup("/api/templates").RequireAuthorization().RequireMemberReadEditorWrite();
 
         group.MapGet("", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, string? entityType) =>
         {
@@ -41,8 +41,7 @@ public static class TemplateEndpoints
                 var template = await templateRepo.CreateAsync(request);
                 return Results.Created($"/api/templates/{template.Id}", template);
             }, logger, "create template", new { name = request.Name, entityType = request.EntityType });
-        })
-        .RequireEditAccess();
+        });
 
         group.MapDelete("{id:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id) =>
         {
@@ -51,8 +50,7 @@ public static class TemplateEndpoints
                 var deleted = await templateRepo.DeleteAsync(id);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template", id);
             }, logger, "delete template", new { id });
-        })
-        .RequireEditAccess();
+        });
 
         group.MapPut("{id:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id, UpdateTemplateRequest request) =>
         {
@@ -61,8 +59,7 @@ public static class TemplateEndpoints
                 var template = await templateRepo.UpdateAsync(id, request);
                 return EndpointHelpers.OkOrNotFound(template, "Template", id);
             }, logger, "update template", new { id, name = request.Name });
-        })
-        .RequireEditAccess();
+        });
 
         group.MapGet("{id:guid}/items", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id) =>
         {
@@ -82,8 +79,7 @@ public static class TemplateEndpoints
                 var created = await templateRepo.CreateTemplateItemAsync(item);
                 return Results.Created($"/api/templates/{id}/items/{created.Id}", created);
             }, logger, "add template item", new { templateId = id, criterionId = request.CriterionId });
-        })
-        .RequireEditAccess();
+        });
 
         group.MapDelete("{templateId:guid}/items/{itemId:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid templateId, Guid itemId) =>
         {
@@ -92,7 +88,6 @@ public static class TemplateEndpoints
                 var deleted = await templateRepo.DeleteTemplateItemAsync(itemId);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template item", itemId);
             }, logger, "delete template item", new { templateId, itemId });
-        })
-        .RequireEditAccess();
+        });
     }
 }

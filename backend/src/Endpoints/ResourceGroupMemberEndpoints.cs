@@ -16,7 +16,7 @@ public static class ResourceGroupMemberEndpoints
         var group = app.MapGroup("/api/resource-groups")
             .WithTags("Resource Groups")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/{id:guid}/members", async (
             Guid id,
@@ -38,7 +38,6 @@ public static class ResourceGroupMemberEndpoints
                 await repo.SetMembersAsync(id, request.ResourceIds);
                 return Results.Ok(await repo.GetMembersAsync(id));
             }, logger, "set resource group members", new { id }))
-            .RequireAdminAccess()
             .WithName("SetResourceGroupMembers")
             .WithSummary("Replace all members of a resource group");
     }

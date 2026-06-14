@@ -17,7 +17,7 @@ public static class ResourceAssignmentEndpoints
         var group = app.MapGroup("/api/resource-assignments")
             .WithTags("ResourceAssignments")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (
             [FromQuery] Guid? requestId,
@@ -93,7 +93,8 @@ public static class ResourceAssignmentEndpoints
                 return Results.Ok(result);
             }, logger, "validate resource assignment"))
             .WithName("ValidateResourceAssignment")
-            .WithSummary("Validate a resource assignment without creating it");
+            .WithSummary("Validate a resource assignment without creating it")
+            .AllowMemberWrite();
 
         group.MapPost("/validate-batch", async (
             [FromBody] ValidateResourceAssignmentBatchRequest request,
@@ -105,6 +106,7 @@ public static class ResourceAssignmentEndpoints
                 return Results.Ok(results);
             }, logger, "validate resource assignments (batch)"))
             .WithName("ValidateResourceAssignmentBatch")
-            .WithSummary("Validate many resource assignments without creating them");
+            .WithSummary("Validate many resource assignments without creating them")
+            .AllowMemberWrite();
     }
 }

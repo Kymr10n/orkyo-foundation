@@ -19,7 +19,7 @@ public static class ResourceEndpoints
         var group = app.MapGroup("/api/resources")
             .WithTags("Resources")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (
             IResourceService service,
@@ -62,7 +62,6 @@ public static class ResourceEndpoints
                 var r = await service.CreateAsync(request);
                 return Results.Created($"/api/resources/{r.Id}", r);
             }, logger, "create resource"))
-            .RequireAdminAccess()
             .WithName("CreateResource")
             .WithSummary("Create a new resource");
 
@@ -76,7 +75,6 @@ public static class ResourceEndpoints
                 var r = await service.UpdateAsync(id, request);
                 return EndpointHelpers.OkOrNotFound(r, "Resource", id);
             }, logger, "update resource", new { id }))
-            .RequireAdminAccess()
             .WithName("UpdateResource")
             .WithSummary("Update a resource");
 
@@ -89,7 +87,6 @@ public static class ResourceEndpoints
                 var deactivated = await service.DeactivateAsync(id);
                 return deactivated ? Results.NoContent() : ErrorResponses.NotFound("Resource", id);
             }, logger, "deactivate resource", new { id }))
-            .RequireAdminAccess()
             .WithName("DeactivateResource")
             .WithSummary("Deactivate (soft-delete) a resource");
 
@@ -222,7 +219,6 @@ public static class ResourceEndpoints
                 var absence = await absenceRepo.CreateAsync(id, request, ct);
                 return Results.Created($"/api/resources/{id}/absences/{absence.Id}", absence);
             }, logger, "create resource absence", new { id }))
-            .RequireAdminAccess()
             .WithName("CreateResourceAbsence")
             .WithSummary("Create an absence for a resource");
 
@@ -241,7 +237,6 @@ public static class ResourceEndpoints
                 var updated = await absenceRepo.UpdateAsync(absenceId, request, ct);
                 return EndpointHelpers.OkOrNotFound(updated, "Absence", absenceId);
             }, logger, "update resource absence", new { id, absenceId }))
-            .RequireAdminAccess()
             .WithName("UpdateResourceAbsence")
             .WithSummary("Update an absence for a resource");
 
@@ -258,7 +253,6 @@ public static class ResourceEndpoints
                 var deleted = await absenceRepo.DeleteAsync(absenceId, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Absence", absenceId);
             }, logger, "delete resource absence", new { id, absenceId }))
-            .RequireAdminAccess()
             .WithName("DeleteResourceAbsence")
             .WithSummary("Delete an absence for a resource");
     }

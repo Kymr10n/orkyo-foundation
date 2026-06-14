@@ -1,6 +1,7 @@
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,7 @@ export function PersonSkillsEditor({
 }: PersonSkillsEditorProps) {
   const [assignments, setAssignments] = useState(new Map<string, CriterionValue | null>());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const canEdit = useCanEdit();
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -265,7 +267,7 @@ export function PersonSkillsEditor({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSubmitting}>
+          <Button onClick={handleSave} disabled={isSubmitting || !canEdit}>
             {isSubmitting ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>

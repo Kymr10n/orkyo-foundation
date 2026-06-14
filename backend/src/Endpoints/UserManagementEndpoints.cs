@@ -17,38 +17,27 @@ public static class UserManagementEndpoints
     {
         var group = app.MapGroup("/api/users")
             .RequireAuthorization()
+            .RequireAdminArea()
             .WithTags("User Management");
 
-        group.MapGet("/", GetAllUsers)
-            .RequireRole(TenantRole.Admin)
-            .WithName("GetAllUsers")
+        group.MapGet("/", GetAllUsers).WithName("GetAllUsers")
             .WithDescription("Get all users in the tenant (Admin only)");
 
-        group.MapPost("/invite", InviteUser)
-            .RequireRole(TenantRole.Admin)
-            .WithName("InviteUser")
+        group.MapPost("/invite", InviteUser).WithName("InviteUser")
             .WithDescription("Invite a new user to the tenant (Admin only)")
             .Accepts<InviteUserRequest>("application/json");
 
-        group.MapPatch("/{userId:guid}/role", UpdateUserRole)
-            .RequireRole(TenantRole.Admin)
-            .WithName("UpdateUserRole")
+        group.MapPatch("/{userId:guid}/role", UpdateUserRole).WithName("UpdateUserRole")
             .WithDescription("Update a user's role (Admin only)")
             .Accepts<UpdateUserRoleRequest>("application/json");
 
-        group.MapDelete("/{userId:guid}", DeleteUser)
-            .RequireRole(TenantRole.Admin)
-            .WithName("DeleteUser")
+        group.MapDelete("/{userId:guid}", DeleteUser).WithName("DeleteUser")
             .WithDescription("Delete a user from the tenant (Admin only)");
 
-        group.MapGet("/invitations", GetPendingInvitations)
-            .RequireRole(TenantRole.Admin)
-            .WithName("GetPendingInvitations")
+        group.MapGet("/invitations", GetPendingInvitations).WithName("GetPendingInvitations")
             .WithDescription("Get all pending user invitations (Admin only)");
 
-        group.MapDelete("/invitations/{invitationId:guid}", RevokeInvitation)
-            .RequireRole(TenantRole.Admin)
-            .WithName("RevokeInvitation")
+        group.MapDelete("/invitations/{invitationId:guid}", RevokeInvitation).WithName("RevokeInvitation")
             .WithDescription("Revoke a pending invitation (Admin only)");
 
         // Public invitation endpoints (no auth, no tenant)

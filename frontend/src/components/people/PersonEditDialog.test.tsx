@@ -22,6 +22,9 @@ vi.mock('@foundation/src/lib/api/job-titles-api', () => ({
 vi.mock('@foundation/src/lib/api/departments-api', () => ({
   getDepartmentTree: vi.fn(),
 }));
+vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
+  getAssignmentsByResource: vi.fn(),
+}));
 const sitesMock = vi.hoisted(() => ({
   sites: [] as { id: string; name: string }[],
   isMultiSite: false,
@@ -38,6 +41,8 @@ import { createResource, updateResource } from '@foundation/src/lib/api/resource
 import { getPersonProfile, upsertPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getJobTitles } from '@foundation/src/lib/api/job-titles-api';
 import { getDepartmentTree } from '@foundation/src/lib/api/departments-api';
+import { getAssignmentsByResource } from '@foundation/src/lib/api/resource-assignments-api';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
 
 const createdResource: ResourceInfo = {
@@ -76,6 +81,10 @@ describe('PersonEditDialog', () => {
     sitesMock.isMultiSite = false;
     vi.mocked(createResource).mockResolvedValue(createdResource);
     vi.mocked(updateResource).mockResolvedValue(createdResource);
+    vi.mocked(getAssignmentsByResource).mockResolvedValue([]);
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test so a
+    // viewer-state override never leaks (clearAllMocks does not restore the implementation).
+    vi.mocked(useCanEdit).mockReturnValue(true);
     vi.mocked(getPersonProfile).mockResolvedValue({
       resourceId: 'res-1',
       jobTitleId: 'jt-engineer',
@@ -387,6 +396,32 @@ describe('PersonEditDialog', () => {
       renderDialog({ onSaved: vi.fn() });
       expect(screen.queryByText('Location')).not.toBeInTheDocument();
     });
+
+    it('locks the site fields and warns when the person has scheduled assignments', async () => {
+      vi.mocked(getAssignmentsByResource).mockResolvedValue(
+        [{ id: 'a1' }] as unknown as Awaited<ReturnType<typeof getAssignmentsByResource>>,
+      );
+      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
+
+      expect(await screen.findByText(/scheduled assignment/i)).toBeInTheDocument();
+      expect(screen.getByLabelText('Home Site')).toBeDisabled();
+      expect(screen.getByLabelText('Current Site')).toBeDisabled();
+      expect(screen.getByLabelText('Available for other sites')).toBeDisabled();
+    });
+
+    it('leaves the site fields editable when the person has no assignments', async () => {
+      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      expect(screen.queryByText(/scheduled assignment/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Home Site')).toBeEnabled();
+    });
+  });
+
+  it('disables Save for a viewer who cannot edit', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ person: createdResource, onSaved: vi.fn() });
+    expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
   });
 
   describe('reference-data selects', () => {

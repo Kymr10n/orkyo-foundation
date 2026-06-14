@@ -25,6 +25,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 interface EditSpaceDialogProps {
   space: Space;
@@ -48,6 +49,7 @@ export function EditSpaceDialog({
 
   const updateMutation = useUpdateSpace(siteId);
   const isSubmitting = updateMutation.isPending;
+  const canEdit = useCanEdit();
 
   useEffect(() => {
     if (open) {
@@ -181,7 +183,7 @@ export function EditSpaceDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !canEdit}>
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}

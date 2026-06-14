@@ -31,6 +31,7 @@ type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
 const ANY_SITE = '__any_site__';
 import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
 import { RequestConstraintsSection } from "./RequestConstraintsSection";
@@ -95,6 +96,8 @@ export function RequestFormDialog({
     updateRequirement,
     applyTemplate,
   } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId);
+
+  const canEdit = useCanEdit();
 
   // Additional state not managed by the form hook
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
@@ -743,7 +746,7 @@ export function RequestFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving || hasPeopleBlockers}>
+            <Button type="submit" disabled={isSaving || hasPeopleBlockers || !canEdit}>
               {isSaving ? "Saving..." : request ? "Update Request" : "Create Request"}
             </Button>
           </div>

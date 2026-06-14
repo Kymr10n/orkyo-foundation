@@ -16,6 +16,7 @@ import { useState } from "react";
 import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import { EditTemplateDialog } from "./EditTemplateDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -26,6 +27,7 @@ interface TemplateSettingsProps {
 
 export function TemplateSettings({ entityType = 'request' }: TemplateSettingsProps) {
   const queryClient = useQueryClient();
+  const canEdit = useCanEdit();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
     useState<Template | null>(null);
@@ -152,6 +154,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
             <Button
               variant="ghost"
               size="icon"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); setEditingTemplate(template); }}
               aria-label={`Edit ${template.name}`}
               title="Edit template"
@@ -161,6 +164,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
             <Button
               variant="ghost"
               size="icon"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); handleDelete(template); }}
               className="text-destructive hover:text-destructive"
               aria-label={`Delete ${template.name}`}
@@ -189,7 +193,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         title="Templates"
         description="Create reusable templates for common utilization request patterns. Templates define duration and timing constraints that can be applied to new requests."
       >
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Add Template
         </Button>
@@ -214,7 +218,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
           <p className="text-muted-foreground mb-4">
             No request templates defined yet
           </p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             Create your first template
           </Button>

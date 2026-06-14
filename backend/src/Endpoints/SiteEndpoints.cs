@@ -14,7 +14,7 @@ public static class SiteEndpoints
 {
     public static void MapSiteEndpoints(this WebApplication app)
     {
-        var sites = app.MapGroup("/api/sites").RequireAuthorization().RequireTenantMembership();
+        var sites = app.MapGroup("/api/sites").RequireAuthorization().RequireMemberReadAdminWrite();
 
         sites.MapGet("/", async (ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize) =>
         {

@@ -12,6 +12,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { Loader2 } from 'lucide-react';
 import {
   createJobTitle,
@@ -52,6 +53,7 @@ export function JobTitleEditDialog({
 }: JobTitleEditDialogProps) {
   const [form, setForm] = useState<FormState>(empty);
   const [error, setError] = useState<string | null>(null);
+  const canEdit = useCanEdit();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -124,7 +126,7 @@ export function JobTitleEditDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isPending || !form.name.trim()}>
+            <Button type="submit" disabled={mutation.isPending || !form.name.trim() || !canEdit}>
               {mutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
