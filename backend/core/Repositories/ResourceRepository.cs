@@ -19,10 +19,28 @@ public interface IResourceRepository
 public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : IResourceRepository
 {
+    // Derived "current site": where the resource is right now. A space is immovable
+    // (spaces.site_id); a person/tool is wherever a non-cancelled assignment overlapping now()
+    // places them, else their home site. Read-only — never stored. On concurrent (fractional)
+    // assignments the most recently started one wins, so the value is deterministic.
+    private const string CurrentSiteExpr =
+        @"COALESCE(
+            (SELECT sp.site_id FROM spaces sp WHERE sp.id = r.id),
+            (SELECT req.site_id
+               FROM resource_assignments ra
+               JOIN requests req ON req.id = ra.request_id
+              WHERE ra.resource_id = r.id
+                AND ra.assignment_status <> 'Cancelled'
+                AND ra.start_utc <= now() AND ra.end_utc > now()
+                AND req.site_id IS NOT NULL
+              ORDER BY ra.start_utc DESC
+              LIMIT 1),
+            r.home_site_id)";
+
     private const string SelectColumns =
         "r.id, r.resource_type_id, rt.key as resource_type_key, r.name, r.description, " +
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
-        "r.home_site_id, r.cross_site_allowed, " +
+        "r.home_site_id, " + CurrentSiteExpr + " AS current_site_id, r.cross_site_allowed, " +
         "r.is_active, r.created_at, r.updated_at";
 
     public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
@@ -126,6 +144,8 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 AllocationMode = allocationMode,
                 BaseAvailabilityPercent = baseAvailabilityPercent,
                 HomeSiteId = homeSiteId,
+                // A freshly created resource has no assignments yet, so it is at its home site.
+                CurrentSiteId = homeSiteId,
                 CrossSiteAllowed = crossSiteAllowed,
                 IsActive = true,
                 CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
@@ -174,6 +194,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         AllocationMode = r.GetString(r.GetOrdinal("allocation_mode")),
         BaseAvailabilityPercent = r.GetInt32(r.GetOrdinal("base_availability_percent")),
         HomeSiteId = r.IsDBNull(r.GetOrdinal("home_site_id")) ? null : r.GetGuid(r.GetOrdinal("home_site_id")),
+        CurrentSiteId = r.IsDBNull(r.GetOrdinal("current_site_id")) ? null : r.GetGuid(r.GetOrdinal("current_site_id")),
         CrossSiteAllowed = r.GetBoolean(r.GetOrdinal("cross_site_allowed")),
         IsActive = r.GetBoolean(r.GetOrdinal("is_active")),
         CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
