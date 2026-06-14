@@ -8,7 +8,7 @@
 ALTER TABLE requests
   ADD COLUMN site_id UUID NULL REFERENCES sites(id);
 
-CREATE INDEX idx_requests_site_id ON requests (site_id);
+CREATE INDEX CONCURRENTLY idx_requests_site_id ON requests (site_id);
 
 -- ── resources: home/current site + cross-site availability ────────────────────
 -- Generic columns so people, tools, and future resource types share one model.
@@ -18,7 +18,7 @@ ALTER TABLE resources
   ADD COLUMN current_site_id   UUID    NULL REFERENCES sites(id),
   ADD COLUMN cross_site_allowed BOOLEAN NOT NULL DEFAULT true;
 
-CREATE INDEX idx_resources_current_site ON resources (current_site_id);
+CREATE INDEX CONCURRENTLY idx_resources_current_site ON resources (current_site_id);
 
 -- Spaces are immovable: their location is spaces.site_id and they are never
 -- cross-site. Mark the flag false so a stray default `true` can't mislead.
