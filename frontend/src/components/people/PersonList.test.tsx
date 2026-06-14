@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { PersonList } from './PersonList';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { ResourceInfo, ResourcesResponse } from '@foundation/src/lib/api/resources-api';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
@@ -138,6 +139,8 @@ describe('PersonList', () => {
     vi.clearAllMocks();
     vi.mocked(getResources).mockResolvedValue(populatedResponse);
     vi.mocked(deleteResource).mockResolvedValue(undefined);
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
   it('calls getResources with person resource type key', async () => {
@@ -317,5 +320,15 @@ describe('PersonList', () => {
     expect(screen.getByTestId('person-absence-list')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('absence-close'));
     expect(screen.queryByTestId('person-absence-list')).not.toBeInTheDocument();
+  });
+
+  it('disables write affordances for a viewer who cannot edit', async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderList();
+
+    const deactivate = await screen.findByRole('button', { name: 'Deactivate Alice' });
+    expect(deactivate).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Add Person/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Manage skills for Alice' })).toBeDisabled();
   });
 });

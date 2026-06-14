@@ -10,7 +10,7 @@ namespace Orkyo.Foundation.Seed.Narrative;
 /// Generates the coherent year of work: per-facility campaign + routine + recurring (PM/QA) jobs placed
 /// in shift hours within the calendar, each with skill requirements and capability-matched, facility-
 /// local, timeline-aware assignments (Exclusive machines/people aren't accidentally double-booked;
-/// Fractional forklifts/cranes are shared; ConcurrentCapacity storage holds several jobs). Injects a
+/// Fractional forklifts/cranes and shared storage rooms hold several jobs at partial load). Injects a
 /// small, bounded set of intentional conflicts so conflict detection has something to surface. Replaces
 /// the random WorkItemFactories for the demo.
 /// </summary>
@@ -22,7 +22,14 @@ public static class NarrativeYearSeeder
     private sealed record Job(
         Guid Id, string Name, Guid? ParentId, DateTime Start, DateTime End, string Status,
         int DurationHours, IReadOnlyList<Guid> RequiredCriteria, JobArchetype Archetype,
-        Guid? SpaceId, List<(Guid ResId, decimal Pct)> Assignees);
+        Guid? SpaceId, List<(Guid ResId, decimal? Pct)> Assignees);
+
+    // Shared storage rooms (Fractional) hold several jobs concurrently at this per-job load,
+    // tracked so they never exceed 100 % (≈4 simultaneous jobs before full).
+    private const decimal StoragePct = 25m;
+
+    // Curated, scale-independent backlog of unscheduled tasks the demo user schedules themselves.
+    private const int BacklogCount = 15;
 
     public static async Task<Result> SeedAsync(
         NpgsqlConnection conn,
@@ -97,16 +104,17 @@ public static class NarrativeYearSeeder
             }
 
             // Scope conflict injection to this cohort's jobs only — avoids cross-facility
-            // space swaps and keeps the budget proportional to this cohort's volume.
+            // swaps and keeps the budget proportional to this cohort's volume.
             var cohortJobs = jobs.GetRange(cohortStart, jobs.Count - cohortStart);
+            var personIds = cohort.People.Select(p => p.ResourceId).ToHashSet();
+            var toolIds = cohort.Tools.Select(t => t.Id).ToHashSet();
+            var concurrentRooms = cohort.Facility.ConcurrentRoomCodes.ToHashSet();
 
-            // Intentional capability conflicts: ~5 % of this cohort's jobs are misrouted to a
-            // room that does not cover their required skills, producing a capability blocker.
-            var roomSkills = cohort.Facility.Archetypes
-                .GroupBy(a => a.RoomCode)
-                .ToDictionary(g => g.Key, g => g.SelectMany(a => a.RequiredSkills).ToHashSet());
-
-            var capBudget = Math.Max(1, cohortJobs.Count / 20);
+            // Intentional capability conflicts: ~5 % of this cohort's skill-bearing jobs keep their
+            // (correct) room but are staffed by a person who lacks a required skill — and only that
+            // person, so nobody covers it. Person-skills are checked against the assigned people, so
+            // this surfaces a capability blocker on the people dimension (see ConflictService).
+            var capBudget = Math.Max(1, cohortJobs.Count / 40);
             var capPool = cohortJobs
                 .Where(j => j.SpaceId is not null && j.RequiredCriteria.Count > 0)
                 .OrderBy(_ => faker.Random.Int())
@@ -115,30 +123,47 @@ public static class NarrativeYearSeeder
 
             foreach (var job in capPool)
             {
-                var jobSkillKeys = job.Archetype.RequiredSkills.ToHashSet();
-                var incompatible = cohort.SpaceByRoomCode
-                    .Where(kv => kv.Key != job.Archetype.RoomCode
-                        && !(roomSkills.TryGetValue(kv.Key, out var rs) && jobSkillKeys.All(rs.Contains)))
-                    .Select(kv => kv.Value)
-                    .ToList();
-                if (incompatible.Count == 0) continue;
+                // A cohort person missing at least one of this job's required criteria AND free at
+                // this slot — so the replacement doesn't accidentally add an overbooking conflict
+                // on top of the capability conflict.
+                var required = job.RequiredCriteria;
+                var incapable = cohort.People
+                    .Select(p => p.ResourceId)
+                    .Where(pid => !(personSkills.TryGetValue(pid, out var sk) && required.All(sk.Contains))
+                        && ctx.IsFree(pid, job.Start, job.End))
+                    .OrderBy(_ => faker.Random.Int())
+                    .FirstOrDefault();
+                if (incapable == Guid.Empty) continue;
 
-                var wrongSpace = faker.PickRandom(incompatible);
+                // Keep only the room (and any non-person, non-tool placement); a tool could otherwise
+                // cover a tool-applicable skill (e.g. CNC). Then add the single incapable person.
                 var newAssignees = job.Assignees
-                    .Where(a => a.ResId != job.SpaceId)
-                    .Append((wrongSpace.Id, 100m))
+                    .Where(a => !personIds.Contains(a.ResId) && !toolIds.Contains(a.ResId))
+                    .Append((incapable, 100m))
                     .ToList();
-                jobs[cohortStart + cohortJobs.IndexOf(job)] = job with { SpaceId = wrongSpace.Id, Assignees = newAssignees };
+                jobs[cohortStart + cohortJobs.IndexOf(job)] = job with { Assignees = newAssignees };
+                ctx.MarkBusy(incapable, job.Start, job.End); // prevent a second capability-conflict job from also picking this person
+                conflicts++; // a real capability blocker the validator will surface
             }
 
-            // Intentional scheduling conflicts: clone a few tool-bearing jobs onto the same Exclusive tool+lead+slot.
-            var toolJobs = cohortJobs.Where(j => j.SpaceId is not null
-                && j.Assignees.Count > 0
-                && ctx.ExclusiveToolIds.Overlaps(j.Assignees.Select(a => a.ResId))).ToList();
-            var conflictBudget = Math.Max(1, cohortJobs.Count / 20); // ~5%
-            for (var i = 0; i < conflictBudget && toolJobs.Count > 0; i++)
+            // Intentional scheduling conflicts: clone a few jobs that sit in a non-concurrent
+            // (Exclusive) room with a lead onto the same room+lead+slot. The clone double-books both
+            // the Exclusive room and the Exclusive lead → one space overlap and one person overlap,
+            // covering "spaces and people" without depending on tools. Exclude the capability-conflict
+            // jobs so the two conflict kinds stay distinct.
+            bool InNonConcurrentRoom(Job j) =>
+                j.SpaceId is { } sid
+                && !concurrentRooms.Contains(j.Archetype.RoomCode)
+                && j.Assignees.Any(a => a.ResId == sid);
+            var clonePool = cohortJobs
+                .Where(j => !capPool.Contains(j)
+                    && InNonConcurrentRoom(j)
+                    && j.Assignees.Any(a => personIds.Contains(a.ResId)))
+                .ToList();
+            var conflictBudget = Math.Max(1, cohortJobs.Count / 40); // ~2.5% clone injection → ~5% requests flagged (source + clone each)
+            for (var i = 0; i < conflictBudget && clonePool.Count > 0; i++)
             {
-                var src = faker.PickRandom(toolJobs);
+                var src = faker.PickRandom(clonePool);
                 var clone = src with
                 {
                     Id = Guid.NewGuid(),
@@ -155,8 +180,13 @@ public static class NarrativeYearSeeder
         var reqCount = await WriteRequirementsAsync(conn, jobs, criteria);
         var asgCount = await WriteAssignmentsAsync(conn, jobs);
 
+        // A small curated backlog of unscheduled tasks so the demo's utilization backlog isn't empty —
+        // users drag these onto the grid to schedule them.
+        var backlogIds = await WriteBacklogAsync(conn, cohorts, faker, BacklogCount);
+
         var allIds = parents.Select(p => p.Id)
             .Concat(jobs.Select(j => j.Id))
+            .Concat(backlogIds)
             .ToList();
         return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds);
     }
@@ -171,18 +201,21 @@ public static class NarrativeYearSeeder
         var requiredCriteria = arch.RequiredSkills.Select(s => criteria[s]).ToList();
         var name = $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}";
 
-        var assignees = new List<(Guid, decimal)>();
+        var assignees = new List<(Guid, decimal?)>();
 
-        // Space (the room).
+        // Space (the room). Shared storage rooms (ConcurrentRoomCodes) are Fractional — booked at a
+        // small load-tracked %; every other room is Exclusive — booked with a null percent, one job
+        // per slot. Either way only book when there is capacity, so rooms never overbook accidentally.
         Guid? spaceId = null;
         if (cohort.SpaceByRoomCode.TryGetValue(arch.RoomCode, out var space))
         {
             spaceId = space.Id;
             var concurrent = cohort.Facility.ConcurrentRoomCodes.Contains(arch.RoomCode);
-            if (concurrent || ctx.IsFree(space.Id, start, end))
+            var requestedPct = concurrent ? StoragePct : 100m;
+            if (ctx.IsFree(space.Id, start, end, requestedPct))
             {
-                assignees.Add((space.Id, 100m));
-                if (!concurrent) ctx.MarkBusy(space.Id, start, end);
+                assignees.Add((space.Id, concurrent ? StoragePct : (decimal?)null));
+                ctx.MarkBusy(space.Id, start, end, requestedPct);
             }
         }
 
@@ -191,27 +224,35 @@ public static class NarrativeYearSeeder
         if (lead is { } leadId)
         {
             assignees.Add((leadId, 100m));
-            ctx.MarkBusy(leadId, start, end);
+            ctx.MarkBusy(leadId, start, end, 100m);
 
             // Additional team members for multi-person jobs (assembly crews, packaging lines, etc.).
-            // Helpers are assigned at 50 % so they can support concurrent jobs without being Overbooked.
-            // They are NOT tracked in _busy — only the lead (Exclusive primary operator) is.
+            // Helpers are tracked at 50 % — PickHelpers checks capacity and marks them busy.
             if (arch.TeamSize > 1)
             {
-                foreach (var helper in ctx.PickHelpers(leadId, requiredCriteria, arch.TeamSize - 1))
+                foreach (var helper in ctx.PickHelpers(leadId, requiredCriteria, arch.TeamSize - 1, start, end))
                     assignees.Add((helper, 50m));
             }
         }
+        else
+        {
+            // No capable free person — drop requirements so ConflictService doesn't fire
+            // a capability conflict for every unmet skill. The job appears as "needs
+            // assignment" rather than conflicted.
+            requiredCriteria = [];
+        }
 
-        // Tool (Exclusive ⇒ free slot; Fractional ⇒ shared at 50%).
+        // Tool (Exclusive ⇒ free slot; Fractional ⇒ shared at 50 %, both tracked).
         if (arch.ToolRole is { } role)
         {
             var tool = ctx.PickTool(role, start, end);
             if (tool is { } t)
             {
-                var pct = t.AllocationMode == "Fractional" ? 50m : 100m;
-                assignees.Add((t.Id, pct));
-                if (t.AllocationMode != "Fractional") ctx.MarkBusy(t.Id, start, end);
+                // Fractional tools are shared at 50 %; Exclusive tools (machines) book the whole slot
+                // and must carry a null percent (the validator rejects a percent on Exclusive resources).
+                var fractional = t.AllocationMode == "Fractional";
+                assignees.Add((t.Id, fractional ? 50m : (decimal?)null));
+                ctx.MarkBusy(t.Id, start, end, fractional ? 50m : 100m);
             }
         }
 
@@ -222,25 +263,30 @@ public static class NarrativeYearSeeder
     // ── Assignment context: per-facility timelines, capability lookup, tool pools ──
     private sealed class AssignContext
     {
-        private readonly Dictionary<Guid, List<(DateTime S, DateTime E)>> _busy = new();
+        // Tracks cumulative allocation % per resource across overlapping windows.
+        // A person/tool is available for a new assignment only when currentLoad + requestedPct ≤ 100.
+        // This prevents accidental overbooking for leads (100%), helpers (50%), and fractional tools (50%).
+        private readonly Dictionary<Guid, List<(DateTime S, DateTime E, decimal Pct)>> _alloc = new();
         private readonly FacilityCohort _cohort;
         private readonly IReadOnlyDictionary<Guid, HashSet<Guid>> _personSkills;
         private readonly Faker _faker;
-        public HashSet<Guid> ExclusiveToolIds { get; }
 
         public AssignContext(FacilityCohort cohort, IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills, Faker faker)
         {
             _cohort = cohort; _personSkills = personSkills; _faker = faker;
-            ExclusiveToolIds = cohort.Tools.Where(t => t.AllocationMode == "Exclusive").Select(t => t.Id).ToHashSet();
         }
 
-        public bool IsFree(Guid id, DateTime s, DateTime e) =>
-            !_busy.TryGetValue(id, out var list) || !list.Any(b => s < b.E && b.S < e);
-
-        public void MarkBusy(Guid id, DateTime s, DateTime e)
+        public bool IsFree(Guid id, DateTime s, DateTime e, decimal requestedPct = 100m)
         {
-            if (!_busy.TryGetValue(id, out var list)) _busy[id] = list = [];
-            list.Add((s, e));
+            if (!_alloc.TryGetValue(id, out var list)) return true;
+            var load = list.Where(b => s < b.E && b.S < e).Sum(b => b.Pct);
+            return load + requestedPct <= 100m;
+        }
+
+        public void MarkBusy(Guid id, DateTime s, DateTime e, decimal pct = 100m)
+        {
+            if (!_alloc.TryGetValue(id, out var list)) _alloc[id] = list = [];
+            list.Add((s, e, pct));
         }
 
         public Guid? PickCapablePerson(IReadOnlyList<Guid> required, DateTime s, DateTime e)
@@ -250,29 +296,35 @@ public static class NarrativeYearSeeder
                 .Select(p => p.ResourceId)
                 .ToList();
             if (candidates.Count == 0) return null;
-            var shuffled = candidates.OrderBy(_ => _faker.Random.Int());
-            return shuffled.FirstOrDefault(id => IsFree(id, s, e)) is var free && free != Guid.Empty
-                ? free
-                : candidates[0]; // all busy ⇒ allow (rare); keeps the job staffed
+            // Never double-book: if no capable person is free, leave the job unstaffed.
+            var free = candidates.OrderBy(_ => _faker.Random.Int()).FirstOrDefault(id => IsFree(id, s, e, 100m));
+            return free == Guid.Empty ? null : free;
         }
 
-        // Helpers are supporting crew: not tracked for Exclusive scheduling, float freely between jobs.
-        public IEnumerable<Guid> PickHelpers(Guid leadId, IReadOnlyList<Guid> required, int count) =>
-            _cohort.People
+        // Helpers support the lead at 50 % — checked and tracked so total load stays ≤ 100 %.
+        public IReadOnlyList<Guid> PickHelpers(Guid leadId, IReadOnlyList<Guid> required, int count, DateTime s, DateTime e)
+        {
+            var helpers = _cohort.People
                 .Where(p => p.ResourceId != leadId
                     && _personSkills.TryGetValue(p.ResourceId, out var sk)
-                    && required.Any(c => sk.Contains(c)))
+                    && required.Any(c => sk.Contains(c))
+                    && IsFree(p.ResourceId, s, e, 50m))
                 .OrderBy(_ => _faker.Random.Int())
                 .Take(count)
-                .Select(p => p.ResourceId);
+                .Select(p => p.ResourceId)
+                .ToList();
+            foreach (var id in helpers) MarkBusy(id, s, e, 50m);
+            return helpers;
+        }
 
         public ToolFactory.SeededTool? PickTool(string role, DateTime s, DateTime e)
         {
             // A role's tools are homogeneous (machines are Exclusive; forklifts/cranes Fractional).
             var pool = _cohort.Tools.Where(t => t.Role == role).OrderBy(_ => _faker.Random.Int()).ToList();
             if (pool.Count == 0) return null;
-            if (pool[0].AllocationMode == "Fractional") return pool[0];   // shareable — overlap is fine
-            return pool.FirstOrDefault(t => IsFree(t.Id, s, e));          // free machine, else skip (no accidental double-book)
+            // Fractional tools are shared at 50 % — check capacity the same way as for helpers.
+            var pct = pool[0].AllocationMode == "Fractional" ? 50m : 100m;
+            return pool.FirstOrDefault(t => IsFree(t.Id, s, e, pct));
         }
     }
 
@@ -333,6 +385,48 @@ public static class NarrativeYearSeeder
         }
     }
 
+    /// <summary>
+    /// Writes <paramref name="count"/> unscheduled, top-level leaf requests (no start/end, no
+    /// assignments/requirements) — the demo backlog. They stay site-neutral (SiteModelFactory only
+    /// sites assigned requests), so they appear in every site's backlog and can be dragged onto any
+    /// space. Names mirror the scheduled jobs' "{Verb} {Noun} — {Site}".
+    /// </summary>
+    private static async Task<IReadOnlyList<Guid>> WriteBacklogAsync(
+        NpgsqlConnection conn, IReadOnlyList<FacilityCohort> cohorts, Faker faker, int count)
+    {
+        var now = DateTime.UtcNow;
+        var ids = new List<Guid>(count);
+        using var w = await conn.BeginBinaryImportAsync(RequestCopy);
+        for (var i = 0; i < count; i++)
+        {
+            var cohort = faker.PickRandom(cohorts.AsEnumerable());
+            var arch = faker.PickRandom(cohort.Facility.Archetypes.AsEnumerable());
+            var name = $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}";
+            if (name.Length > 200) name = name[..200];
+            var hours = Math.Max(1, faker.Random.Int(arch.MinHours, arch.MaxHours));
+            var id = Guid.NewGuid();
+            ids.Add(id);
+
+            await w.StartRowAsync();
+            await w.WriteAsync(id, NpgsqlDbType.Uuid);
+            await w.WriteAsync(name, NpgsqlDbType.Varchar);
+            await w.WriteNullAsync();                                  // description
+            await w.WriteNullAsync();                                  // start_ts  → unscheduled
+            await w.WriteNullAsync();                                  // end_ts
+            await w.WriteAsync(hours, NpgsqlDbType.Integer);          // minimal_duration_value
+            await w.WriteAsync("hours", NpgsqlDbType.Varchar);        // minimal_duration_unit
+            await w.WriteAsync("planned", NpgsqlDbType.Varchar);      // status
+            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            await w.WriteAsync(true, NpgsqlDbType.Boolean);           // scheduling_settings_apply
+            await w.WriteAsync("leaf", NpgsqlDbType.Varchar);         // planning_mode
+            await w.WriteAsync(i, NpgsqlDbType.Integer);              // sort_order
+            await w.WriteNullAsync();                                  // parent_request_id → top-level
+        }
+        await w.CompleteAsync();
+        return ids;
+    }
+
     private static async Task<int> WriteRequirementsAsync(
         NpgsqlConnection conn, IReadOnlyList<Job> jobs, IReadOnlyDictionary<string, Guid> criteria)
     {
@@ -381,7 +475,7 @@ public static class NarrativeYearSeeder
                 await w.WriteAsync(resId, NpgsqlDbType.Uuid);
                 await w.WriteAsync(j.Start, NpgsqlDbType.TimestampTz);
                 await w.WriteAsync(j.End, NpgsqlDbType.TimestampTz);
-                await w.WriteAsync(pct, NpgsqlDbType.Numeric);
+                if (pct is null) await w.WriteNullAsync(); else await w.WriteAsync(pct.Value, NpgsqlDbType.Numeric);
                 await w.WriteAsync("Planned", NpgsqlDbType.Varchar);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);

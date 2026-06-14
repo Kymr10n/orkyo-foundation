@@ -62,7 +62,10 @@ export type ValidationReasonCode =
   | 'nonworking.weekend'
   | 'nonworking.holiday'
   | 'allocation-mode.invalid'
-  | 'allocation-percent.invalid';
+  | 'allocation-percent.invalid'
+  | 'site.mismatch-space'
+  | 'site.mismatch-person'
+  | 'site.cross-not-allowed';
 
 export interface ValidationIssue {
   code: ValidationReasonCode;
@@ -78,6 +81,27 @@ export interface ValidationResult {
   severity: ValidationSeverity;
   blockers: ValidationIssue[];
   warnings: ValidationIssue[];
+}
+
+/**
+ * Reason codes the backend surfaces but never hard-blocks a manual assignment on
+ * (mirrors ResourceAssignmentService.SoftBlockerCodes). The validate endpoint still
+ * returns them under `blockers`; the create endpoint accepts them. The UI mirrors
+ * this: it shows them as warnings and allows the assignment to be saved.
+ */
+export const SOFT_BLOCKER_CODES: ReadonlySet<ValidationReasonCode> = new Set<ValidationReasonCode>([
+  'capability.missing',
+  'assignment.overbooked',
+]);
+
+/** Blockers that genuinely prevent a manual assignment (soft blockers excluded). */
+export function hardBlockers(result: ValidationResult): ValidationIssue[] {
+  return result.blockers.filter((b) => !SOFT_BLOCKER_CODES.has(b.code));
+}
+
+/** Soft blockers — shown to the planner as warnings; they do not prevent saving. */
+export function softBlockers(result: ValidationResult): ValidationIssue[] {
+  return result.blockers.filter((b) => SOFT_BLOCKER_CODES.has(b.code));
 }
 
 /**

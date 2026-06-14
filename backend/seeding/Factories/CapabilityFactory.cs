@@ -106,35 +106,28 @@ public static class CapabilityFactory
                     rows.Add((tool.Id, criteria[SkillCatalog.MaxLoadTons], load.ToString(CultureInfo.InvariantCulture)));
             }
 
-            // Spaces: QC rooms are clean rooms; the paint booth is ventilated.
+            // Spaces: QC rooms are clean rooms; the paint booth is ventilated. Rooms carry only
+            // their own space-specs — never person-skills — so applicability stays honest
+            // (person-skills→person, space-specs→space) and capability conflicts are checked against
+            // the assigned people, not the room. See ConflictService for the request-level match.
             if (cohort.SpaceByRoomCode.TryGetValue("QC", out var qc))
                 rows.Add((qc.Id, criteria[SkillCatalog.CleanRoom], "true"));
             if (cohort.SpaceByRoomCode.TryGetValue("PAINT", out var paint))
                 rows.Add((paint.Id, criteria[SkillCatalog.Ventilated], "true"));
-
-            // Rooms inherit the required-skill capabilities of the archetypes that use them so
-            // that correctly-routed space assignments satisfy their jobs' requirements.
-            foreach (var arch in cohort.Facility.Archetypes)
-            {
-                if (!cohort.SpaceByRoomCode.TryGetValue(arch.RoomCode, out var room)) continue;
-                foreach (var skillKey in arch.RequiredSkills)
-                {
-                    if (rows.Any(r => r.ResourceId == room.Id && r.CriterionId == criteria[skillKey])) continue;
-                    rows.Add((room.Id, criteria[skillKey], ValueFor(skillKey, faker)));
-                }
-            }
         }
 
-        using var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_capabilities (resource_id, criterion_id, value) FROM STDIN (FORMAT BINARY)");
-        foreach (var (rid, cid, json) in rows)
+        using (var writer = await conn.BeginBinaryImportAsync(
+            "COPY public.resource_capabilities (resource_id, criterion_id, value) FROM STDIN (FORMAT BINARY)"))
         {
-            await writer.StartRowAsync();
-            await writer.WriteAsync(rid, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(cid, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(json, NpgsqlDbType.Jsonb);
+            foreach (var (rid, cid, json) in rows)
+            {
+                await writer.StartRowAsync();
+                await writer.WriteAsync(rid, NpgsqlDbType.Uuid);
+                await writer.WriteAsync(cid, NpgsqlDbType.Uuid);
+                await writer.WriteAsync(json, NpgsqlDbType.Jsonb);
+            }
+            await writer.CompleteAsync();
         }
-        await writer.CompleteAsync();
 
         return new AssignResult(personSkills, rows.Count);
     }

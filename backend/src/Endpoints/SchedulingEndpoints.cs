@@ -17,7 +17,7 @@ public static class SchedulingEndpoints
         var settings = app.MapGroup("/api/sites/{siteId:guid}/scheduling")
             .WithTags("Scheduling")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         settings.MapGet("/", async (Guid siteId, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {

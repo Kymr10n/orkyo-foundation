@@ -1,6 +1,7 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { cn } from "@foundation/src/lib/utils";
 import {
   AlertTriangle,
@@ -15,23 +16,28 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
-const baseNavItems = [
+const coreNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
   { to: "/spaces", label: "Spaces", icon: Box },
   { to: "/people", label: "People", icon: Users },
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/conflicts", label: "Conflicts", icon: AlertTriangle },
-  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Administration sits directly below Settings, visible to tenant admins only.
+// Settings visible to editors and admins; Administration to tenant admins only.
+const settingsNavItem = { to: "/settings", label: "Settings", icon: Settings };
 const adminNavItem = { to: "/tenant-admin", label: "Administration", icon: ShieldCheck };
 
 export function SidebarNav() {
   const location = useLocation();
   const { membership } = useAuth();
+  const canEdit = useCanEdit();
   const isTenantAdmin = membership?.isTenantAdmin === true;
-  const navItems = isTenantAdmin ? [...baseNavItems, adminNavItem] : baseNavItems;
+  const navItems = [
+    ...coreNavItems,
+    ...(canEdit ? [settingsNavItem] : []),
+    ...(isTenantAdmin ? [adminNavItem] : []),
+  ];
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);
 

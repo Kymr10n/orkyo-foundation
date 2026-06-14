@@ -14,7 +14,7 @@ public static class CriteriaEndpoints
 {
     public static void MapCriteriaEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/criteria").WithTags("Criteria").RequireAuthorization().RequireTenantMembership();
+        var group = app.MapGroup("/api/criteria").WithTags("Criteria").RequireAuthorization().RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize, string? resourceType, CancellationToken ct) =>
         {
@@ -70,7 +70,7 @@ public static class CriteriaEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var criterion = await criteriaService.UpdateAsync(id, request.Description, request.EnumValues, request.Unit, ct);
+                var criterion = await criteriaService.UpdateAsync(id, request.Name, request.Description, request.EnumValues, request.Unit, request.DataType, ct);
                 return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
             }, logger, "update criterion", new { id });
         })

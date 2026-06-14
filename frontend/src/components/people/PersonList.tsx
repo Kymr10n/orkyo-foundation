@@ -10,8 +10,10 @@ import { PersonSkillsEditor } from './PersonSkillsEditor';
 import { PersonAbsenceList } from './PersonAbsenceList';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 export function PersonList() {
+  const canEdit = useCanEdit();
   const [editingPerson, setEditingPerson] = useState<ResourceInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [skillsPerson, setSkillsPerson] = useState<ResourceInfo | null>(null);
@@ -126,13 +128,13 @@ export function PersonList() {
             <Button variant="ghost" size="sm" onClick={() => handleEdit(person)} aria-label={`Edit ${person.name}`} title="Edit Person">
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setSkillsPerson(person)} aria-label={`Manage skills for ${person.name}`} title="Manage Skills">
+            <Button variant="ghost" size="sm" onClick={() => setSkillsPerson(person)} disabled={!canEdit} aria-label={`Manage skills for ${person.name}`} title="Manage Skills">
               <Sliders className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setAbsencePerson(person)} aria-label={`Manage absences for ${person.name}`} title="Manage Absences">
+            <Button variant="ghost" size="sm" onClick={() => setAbsencePerson(person)} disabled={!canEdit} aria-label={`Manage absences for ${person.name}`} title="Manage Absences">
               <CalendarOff className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleDelete(person.id)} aria-label={`Deactivate ${person.name}`} title="Deactivate Person">
+            <Button variant="ghost" size="sm" onClick={() => handleDelete(person.id)} disabled={!canEdit} aria-label={`Deactivate ${person.name}`} title="Deactivate Person">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
@@ -146,7 +148,7 @@ export function PersonList() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => handleEdit(null)}>
+        <Button onClick={() => handleEdit(null)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Add Person
         </Button>

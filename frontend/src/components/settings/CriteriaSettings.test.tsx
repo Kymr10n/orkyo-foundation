@@ -5,25 +5,42 @@ import userEvent from '@testing-library/user-event';
 import { CriteriaSettings } from './CriteriaSettings';
 
 const mockDeleteMutateAsync = vi.fn(() => Promise.resolve());
+const mockCreateMutateAsync = vi.fn(() => Promise.resolve());
 const mockRefetch = vi.fn();
 
 let mockCriteriaData: { data: unknown[]; isLoading: boolean; error: Error | null; refetch?: () => void };
 
 vi.mock('@foundation/src/hooks/useCriteria', () => ({
   useCriteria: () => mockCriteriaData,
-  useCreateCriterion: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateCriterion: () => ({ mutateAsync: mockCreateMutateAsync, isPending: false }),
   useDeleteCriterion: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),
 }));
 
+// Capture the export/import callbacks the page registers so the tests can drive
+// them directly (the real hooks wire them to a global event the toolbar fires).
+const ioHandlers = vi.hoisted(() => ({
+  exportCb: null as null | ((format: string) => Promise<void>),
+  importCb: null as null | ((file: File, format: string) => Promise<void>),
+}));
 vi.mock('@foundation/src/hooks/useImportExport', () => ({
-  useExportHandler: vi.fn(),
-  useImportHandler: vi.fn(),
+  useExportHandler: (_key: string, cb: (format: string) => Promise<void>) => {
+    ioHandlers.exportCb = cb;
+  },
+  useImportHandler: (_key: string, cb: (file: File, format: string) => Promise<void>) => {
+    ioHandlers.importCb = cb;
+  },
 }));
 
 vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
-  exportCriteria: vi.fn(),
-  importCriteria: vi.fn(),
+  exportCriteria: vi.fn(() => Promise.resolve()),
+  importCriteria: vi.fn(() => Promise.resolve([])),
 }));
+
+import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
+
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
 
 vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -135,15 +152,17 @@ describe('CriteriaSettings', () => {
     expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
   });
 
-  it('shows alert on delete error', async () => {
+  it('swallows delete errors (toast handled by useDeleteCriterion hook)', async () => {
     mockDeleteMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const user = userEvent.setup();
     render(<CriteriaSettings />);
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await waitFor(() => {
-      expect(global.alert).toHaveBeenCalledWith('Delete failed');
+      expect(mockDeleteMutateAsync).toHaveBeenCalled();
     });
+    // Component catch is a no-op; toast.error is fired by the real hook's onError (entityLabel: "Criterion").
+    // The hook is mocked in this test, so no toast fires here — coverage lives in useMutations.test.tsx.
   });
 
   it('clicking Add Criterion button opens create dialog', async () => {
@@ -252,6 +271,81 @@ describe('CriteriaSettings', () => {
           (element?.textContent ?? '').includes('No criteria defined for'),
         ),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('delete guard (criterion in use)', () => {
+    beforeEach(() => {
+      mockCriteriaData = {
+        data: [
+          { id: 'free', name: 'Deletable', dataType: 'Number', description: '', unit: null, enumValues: [], resourceTypeKeys: ['space'], inUse: false, createdAt: '2024-01-15T00:00:00Z' },
+          { id: 'used', name: 'Locked', dataType: 'Number', description: '', unit: null, enumValues: [], resourceTypeKeys: ['space'], inUse: true, createdAt: '2024-01-15T00:00:00Z' },
+        ],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch,
+      };
+    });
+
+    it('disables the delete button for an in-use criterion and enables it otherwise', () => {
+      render(<CriteriaSettings />);
+      expect(screen.getByLabelText('Delete Locked')).toBeDisabled();
+      expect(screen.getByLabelText('Delete Deletable')).not.toBeDisabled();
+    });
+
+    it('explains why deletion is blocked via tooltip for an in-use criterion', async () => {
+      const user = userEvent.setup();
+      render(<CriteriaSettings />);
+      await user.hover(screen.getByLabelText('Delete Locked').closest('span')!);
+      await waitFor(() =>
+        expect(
+          screen.getAllByText('Cannot delete: this criterion has existing values').length,
+        ).toBeGreaterThan(0),
+      );
+    });
+
+    it('shows the default delete tooltip for a deletable criterion', async () => {
+      const user = userEvent.setup();
+      render(<CriteriaSettings />);
+      await user.hover(screen.getByLabelText('Delete Deletable').closest('span')!);
+      await waitFor(() =>
+        expect(screen.getAllByText('Delete criterion').length).toBeGreaterThan(0),
+      );
+    });
+  });
+
+  describe('export / import handlers', () => {
+    it('exports the current criteria in the requested format', async () => {
+      render(<CriteriaSettings />);
+      await ioHandlers.exportCb!('csv');
+      expect(exportCriteria).toHaveBeenCalledWith(mockCriteria, 'csv');
+    });
+
+    it('imports valid criteria and creates each one', async () => {
+      vi.mocked(importCriteria).mockResolvedValueOnce([
+        { name: 'Imported', dataType: 'Number' } as any,
+      ]);
+      render(<CriteriaSettings />);
+      await ioHandlers.importCb!(new File(['x'], 'criteria.csv'), 'csv');
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Imported' }),
+      );
+      expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Imported 1'));
+    });
+
+    it('shows error toast when the imported file contains no valid criteria', async () => {
+      vi.mocked(importCriteria).mockResolvedValueOnce([]);
+      render(<CriteriaSettings />);
+      await ioHandlers.importCb!(new File(['x'], 'criteria.csv'), 'csv');
+      expect(mockCreateMutateAsync).not.toHaveBeenCalled();
+      expect(toastError).toHaveBeenCalledWith('Import failed', expect.objectContaining({ description: 'No valid criteria found in file' }));
+    });
+
+    it('shows error toast when import fails', async () => {
+      vi.mocked(importCriteria).mockRejectedValueOnce(new Error('Bad file'));
+      render(<CriteriaSettings />);
+      await ioHandlers.importCb!(new File(['x'], 'criteria.csv'), 'csv');
+      expect(toastError).toHaveBeenCalledWith('Import failed', expect.objectContaining({ description: 'Bad file' }));
     });
   });
 

@@ -1,24 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestScheduleSection } from './RequestScheduleSection';
-import type { Space } from '@foundation/src/types/space';
-import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import type { ReactNode } from 'react';
-
-vi.mock('@foundation/src/components/ui/collapsible', () => ({
-  Collapsible: ({ children, onOpenChange }: { children: ReactNode; open: boolean; onOpenChange?: () => void }) =>
-    <div onClick={onOpenChange}>{children}</div>,
-  CollapsibleTrigger: ({ children }: { children: ReactNode }) => <button>{children}</button>,
-  CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('@foundation/src/components/ui/select', () => ({
-  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectValue: ({ placeholder }: { placeholder: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
-}));
+import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 
 vi.mock('@foundation/src/components/ui/label', () => ({
   Label: ({ children }: { children: ReactNode }) => <label>{children}</label>,
@@ -43,19 +27,11 @@ vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
   ),
 }));
 
-vi.mock('@foundation/src/constants', () => ({
-  SPACE_NONE_PLACEHOLDER: '__none__',
-}));
-
 const mockSplitDateTimeFields = vi.fn();
 vi.mock('@foundation/src/lib/utils/picker-utils', () => ({
   combineDateTimeFields: (d: string, t: string) => d && t ? `${d}T${t}` : '',
   splitDateTimeFields: (...args: unknown[]) => mockSplitDateTimeFields(...args),
 }));
-
-const mockSpaces: Space[] = [
-  { id: 's1', name: 'Room A', siteId: 'site1', isPhysical: true, capacity: 10, createdAt: '', updatedAt: '' },
-];
 
 const baseState = {
   name: '',
@@ -63,6 +39,7 @@ const baseState = {
   icon: null,
   planningMode: 'leaf' as const,
   parentRequestId: '',
+  siteId: '',
   selectedResourceId: '',
   startDate: '',
   startTime: '',
@@ -77,15 +54,12 @@ const baseState = {
   schedulingSettingsApply: false,
   requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
-  openSections: { basic: true, schedule: true, constraints: true, duration: true, requirements: true },
 };
 
 describe('RequestScheduleSection', () => {
   const defaultProps = {
     state: baseState,
     setField: vi.fn(),
-    toggleSection: vi.fn(),
-    availableSpaces: mockSpaces,
   };
 
   it('renders schedule heading', () => {
@@ -99,21 +73,9 @@ describe('RequestScheduleSection', () => {
     expect(screen.getByTestId('endDateTime')).toBeInTheDocument();
   });
 
-  it('renders space selector with available spaces', () => {
-    render(<RequestScheduleSection {...defaultProps} />);
-    expect(screen.getByText('Room A')).toBeInTheDocument();
-  });
-
   it('shows help text about unscheduled requests', () => {
     render(<RequestScheduleSection {...defaultProps} />);
     expect(screen.getByText(/leave dates blank/i)).toBeInTheDocument();
-  });
-
-  it('calls toggleSection when trigger is clicked', () => {
-    const toggleSection = vi.fn();
-    render(<RequestScheduleSection {...defaultProps} toggleSection={toggleSection} />);
-    fireEvent.click(screen.getByRole('button'));
-    expect(toggleSection).toHaveBeenCalledWith('schedule');
   });
 
   it('calls splitDateTimeFields (and setField) when start date changes', () => {
@@ -128,13 +90,4 @@ describe('RequestScheduleSection', () => {
     expect(mockSplitDateTimeFields).toHaveBeenCalled();
   });
 
-  it('renders with no available spaces without crashing', () => {
-    render(<RequestScheduleSection {...defaultProps} availableSpaces={[]} />);
-    expect(screen.getByText(/schedule \(optional\)/i)).toBeInTheDocument();
-  });
-
-  it('shows "No space assigned" placeholder text', () => {
-    render(<RequestScheduleSection {...defaultProps} />);
-    expect(screen.getByText(/no space \(unscheduled\)/i)).toBeInTheDocument();
-  });
 });

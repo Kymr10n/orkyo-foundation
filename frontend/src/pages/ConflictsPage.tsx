@@ -10,6 +10,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { logger } from "@foundation/src/lib/core/logger";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { Button } from "@foundation/src/components/ui/button";
 
 type ConflictWithRequest = Conflict & { request: Request };
@@ -257,7 +258,7 @@ export function ConflictsPage() {
           </div>
         </div>
       ) : (
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+        <ScrollArea type="auto" viewportRef={scrollRef} className="flex-1 min-h-0">
           <div style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
             {virtualizer.getVirtualItems().map((vItem) => {
               const item = visibleConflictItems[vItem.index];
@@ -284,7 +285,7 @@ export function ConflictsPage() {
               );
             })}
           </div>
-        </div>
+        </ScrollArea>
       )}
       {requestEditorDialogs}
     </PageLayout>

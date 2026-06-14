@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { render as rtlRender, screen, fireEvent, waitFor, type RenderOptions } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
 import { TemplateDialogBase } from './TemplateDialogBase';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
 // ── UI mocks ──────────────────────────────────────────
 vi.mock('@foundation/src/components/ui/dialog', () => ({
@@ -69,10 +70,14 @@ vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   return { ...actual, getDataTypeColor: () => 'bg-blue-100 text-blue-800' };
 });
 
-const mockInvalidateQueries = vi.fn();
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
-}));
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
+
+// The dialog now saves via useMutation; render under a QueryClientProvider whose
+// MutationCache mirrors production so meta-driven toasts/invalidation fire.
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: createFeedbackTestQueryWrapper(), ...options });
 
 // ── Template fixture ───────────────────────────────────
 const existingTemplate = {

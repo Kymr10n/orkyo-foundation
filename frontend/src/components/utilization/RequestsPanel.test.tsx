@@ -189,4 +189,61 @@ describe('RequestsPanel', () => {
     renderPanel([withDesc]);
     expect(screen.getByText('Hello world')).toBeInTheDocument();
   });
+
+  it('renders in-progress badge, duration, and gross-duration for an unscheduled leaf', () => {
+    const req = makeRequest({
+      id: 'ip-1',
+      name: 'In Progress Task',
+      status: 'in_progress',
+      durationMin: 120,
+      actualDurationValue: 90,
+      actualDurationUnit: 'minutes',
+    });
+    renderPanel([req]);
+    expect(screen.getByText('In Progress Task')).toBeInTheDocument();
+    expect(screen.getByText('in_progress')).toBeInTheDocument();
+    expect(screen.getByText('• 2h')).toBeInTheDocument();
+    expect(screen.getByText(/Gross:/)).toBeInTheDocument();
+  });
+
+  it('collapses and re-expands a parent node, pruning its children', () => {
+    renderPanel([parentReq, childOfParent]);
+    expect(screen.getByText('Child of Container')).toBeInTheDocument();
+
+    // The expand/collapse toggle is the button inside the parent's card.
+    const card = screen.getByText('Container Group').closest('[class*="rounded-lg"]')!;
+    const toggle = () => card.querySelector('button')!;
+    fireEvent.click(toggle());
+    expect(screen.queryByText('Child of Container')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle());
+    expect(screen.getByText('Child of Container')).toBeInTheDocument();
+  });
+
+  it('renders an "Add child request" button on drop-target nodes and fires onCreateChild', () => {
+    const onCreateChild = vi.fn();
+    renderPanel([parentReq], { onCreateChild });
+    const addBtn = screen.getByTitle('Add child request');
+    fireEvent.click(addBtn);
+    expect(onCreateChild).toHaveBeenCalledWith('p-1');
+  });
+
+  it('filters out requests that do not match the selected status', () => {
+    renderPanel();
+    const statusTrigger = screen.getByText('All Statuses');
+    fireEvent.click(statusTrigger);
+    fireEvent.click(screen.getByRole('option', { name: 'Done' }));
+    expect(screen.getByText('Done Task')).toBeInTheDocument();
+    expect(screen.queryByText('Unscheduled Task')).not.toBeInTheDocument();
+  });
+
+  it('shows scheduled requests with a green "Scheduled" indicator when the schedule filter is "Scheduled Only"', () => {
+    renderPanel();
+    const scheduleTrigger = screen.getByText('Unscheduled Only');
+    fireEvent.click(scheduleTrigger);
+    fireEvent.click(screen.getByRole('option', { name: 'Scheduled Only' }));
+    expect(screen.getByText('Scheduled Task')).toBeInTheDocument();
+    expect(screen.getByText('Scheduled')).toBeInTheDocument();
+    expect(screen.queryByText('Unscheduled Task')).not.toBeInTheDocument();
+  });
 });

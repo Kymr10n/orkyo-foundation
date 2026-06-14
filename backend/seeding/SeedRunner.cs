@@ -118,6 +118,12 @@ public static class SeedRunner
                 includeTools ? await ToolFactory.SeedAsync(conn, facilities) : [];
             var skillCriteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools);
             var cohorts = Narrative.Cohorts.Build(facilities, sites, spaces, people, seededTools);
+
+            // Pin each cohort's people to their facility site so cohort work stays same-site; the
+            // post-commit round-robin in SiteModelFactory then only fills any people left un-sited.
+            await SiteModelFactory.ApplyCohortSitesAsync(conn, tx,
+                cohorts.SelectMany(c => c.People.Select(p => (p.ResourceId, c.SiteId))).ToList());
+
             var caps = await CapabilityFactory.AssignAsync(conn, skillCriteria, cohorts, faker);
 
             // Person groups by team/role, derived from the skills just assigned.
@@ -155,6 +161,11 @@ public static class SeedRunner
         }
 
         await tx.CommitAsync();
+
+        // Populate the Home-Site / Current-Site model on the committed rows (see SiteModelFactory).
+        // Post-commit so it sees data from both the floorplan and generic paths uniformly.
+        await SiteModelFactory.ApplyAsync(conn, spaceTypeId, personTypeId);
+
         sw.Stop();
 
         return new SeedReport(

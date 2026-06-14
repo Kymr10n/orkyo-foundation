@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models.Preset;
 using Api.Security;
 using Api.Services;
@@ -16,6 +17,7 @@ public static class PresetEndpoints
     {
         var group = app.MapGroup("/api/admin/presets")
             .RequireAuthorization()
+            .RequireMemberReadEditorWrite()
             .WithTags("Presets");
 
         group.MapPost("/validate", async ([FromBody] Preset preset, IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
@@ -28,7 +30,8 @@ public static class PresetEndpoints
         })
         .WithName("ValidatePreset")
         .WithDescription("Validates a preset JSON without applying it")
-        .Produces<PresetValidationResult>(200);
+        .Produces<PresetValidationResult>(200)
+        .AllowMemberWrite();
 
         group.MapPost("/apply", async ([FromBody] Preset preset, ICurrentPrincipal principal, IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {

@@ -14,6 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import {
   canHaveChildren,
@@ -98,11 +99,12 @@ const TreeRow = React.memo(function TreeRow({
   const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
   const isExpanded = useRequestTreeStore((s) => s.expandedIds.has(request.id));
   const isParent = canHaveChildren(request.planningMode);
+  const canEdit = useCanEdit();
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: request.id,
     data: { request },
-    disabled: isDragOverlay,
+    disabled: isDragOverlay || !canEdit,
   });
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -255,8 +257,8 @@ const TreeRow = React.memo(function TreeRow({
           <TooltipContent side="top">{formatStatusLabel(request.status)}</TooltipContent>
         </Tooltip>
 
-        {/* Inline add child dropdown for parents */}
-        {isParent && (
+        {/* Inline add child dropdown for parents — editors/admins only */}
+        {isParent && canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -282,7 +284,8 @@ const TreeRow = React.memo(function TreeRow({
           </DropdownMenu>
         )}
 
-        {/* Actions dropdown */}
+        {/* Actions dropdown — all items are mutations, so hidden for viewers */}
+        {canEdit && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -329,6 +332,7 @@ const TreeRow = React.memo(function TreeRow({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
     </div>
   );
@@ -623,7 +627,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
   if (selectedIndex >= 0) focusedIndexRef.current = selectedIndex;
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={300}>
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}

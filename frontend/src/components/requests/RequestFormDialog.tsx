@@ -1,6 +1,6 @@
 import { Button } from "@foundation/src/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@foundation/src/components/ui/collapsible";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@foundation/src/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@foundation/src/components/ui/tabs";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
@@ -9,20 +9,29 @@ import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
+import { getRequestChildren } from "@foundation/src/lib/api/request-api";
+import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
 import { getSpaces } from "@foundation/src/lib/api/space-api";
 import { useAppStore } from "@foundation/src/store/app-store";
-import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG } from "@foundation/src/constants";
-import { combineDateTimeToISO } from "@foundation/src/lib/utils";
+import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG, SPACE_NONE_PLACEHOLDER } from "@foundation/src/constants";
+import { combineDateTimeToISO, durationToMinutes, formatMinutesHuman } from "@foundation/src/lib/utils";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
-import { ChevronDown, FileText, Layers } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
+
+/** Sentinel for the "Any site" (site-neutral) option — Radix Select disallows empty values. */
+const ANY_SITE = '__any_site__';
 import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
 import { RequestConstraintsSection } from "./RequestConstraintsSection";
@@ -47,6 +56,8 @@ export interface RequestFormData {
   icon?: string | null;
   planningMode: PlanningMode;
   parentRequestId?: string;
+  /** Site scope. null/undefined = site-neutral (Any site). */
+  siteId?: string | null;
   resourceId?: string;
   startTs?: string;
   endTs?: string;
@@ -71,6 +82,8 @@ export function RequestFormDialog({
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
+  const { data: sites = [] } = useSites();
+  const isMultiSite = useIsMultiSite();
   const isCreateMode = !request;
   const isChildCreation = !request && !!parentRequest;
 
@@ -78,12 +91,13 @@ export function RequestFormDialog({
   const {
     state,
     setField,
-    toggleSection,
     addRequirement,
     removeRequirement,
     updateRequirement,
     applyTemplate,
-  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule);
+  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId);
+
+  const canEdit = useCanEdit();
 
   // Additional state not managed by the form hook
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
@@ -93,14 +107,27 @@ export function RequestFormDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
-  const [peopleSectionOpen, setPeopleSectionOpen] = useState(false);
   const [hasPeopleBlockers, setHasPeopleBlockers] = useState(false);
+  const [activeTab, setActiveTab] = useState<RequestFormTab>('details');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  // True when the edited request already has child requests — the backend rejects
+  // converting such a request to a leaf (Task), so that option is disabled below.
+  const [hasChildren, setHasChildren] = useState(false);
+
+  /** Surface a validation error on the tab that owns the offending field. */
+  const failValidation = (tab: RequestFormTab, message: string) => {
+    setActiveTab(tab);
+    setValidationError(message);
+  };
 
   // Track unsaved-changes state. Flips to true on first user interaction with
   // any form input; reset when the dialog is reopened.
   const [isDirty, setIsDirty] = useState(false);
   useEffect(() => {
-    if (open) setIsDirty(false);
+    if (open) {
+      setIsDirty(false);
+      setActiveTab('details');
+    }
   }, [open]);
 
   const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
@@ -139,6 +166,17 @@ export function RequestFormDialog({
     setField('planningMode', enabled ? 'container' : 'summary');
   };
 
+  // Duration warning: fires when the chosen start–end window is shorter than the minimal duration.
+  // Non-blocking — user may still save; backend IntrinsicConflicts.below_min_duration persists it.
+  const { hasDurationWarning, windowMinutes } = useMemo(() => {
+    if (!state.durationValue || !state.startDate || !state.startTime || !state.endDate || !state.endTime)
+      return { hasDurationWarning: false, windowMinutes: 0 };
+    const startMs = new Date(combineDateTimeToISO(state.startDate, state.startTime)).getTime();
+    const endMs   = new Date(combineDateTimeToISO(state.endDate,   state.endTime)).getTime();
+    const mins = (endMs - startMs) / 60_000;
+    return { hasDurationWarning: mins < durationToMinutes(state.durationValue, state.durationUnit), windowMinutes: mins };
+  }, [state.durationValue, state.durationUnit, state.startDate, state.startTime, state.endDate, state.endTime]);
+
   // Load criteria, templates, and spaces on mount
   useEffect(() => {
     const loadData = async () => {
@@ -161,6 +199,20 @@ export function RequestFormDialog({
     };
     loadData();
   }, [open, selectedSiteId]);
+
+  // Determine whether the edited request has children, to gate the leaf (Task) option.
+  // Only groups can have children, so we skip the lookup for create mode and leaf requests.
+  useEffect(() => {
+    if (!open || !request || request.planningMode === 'leaf') {
+      setHasChildren(false);
+      return;
+    }
+    let cancelled = false;
+    getRequestChildren(request.id)
+      .then((children) => { if (!cancelled) setHasChildren(children.length > 0); })
+      .catch((error: unknown) => { logger.error("Failed to load request children:", error); });
+    return () => { cancelled = true; };
+  }, [open, request]);
 
   const handleApplyTemplate = (templateId: string) => {
     const template = availableTemplates.find((t) => t.id === templateId);
@@ -191,12 +243,12 @@ export function RequestFormDialog({
     setValidationError(null);
 
     if (!state.name.trim()) {
-      setValidationError(VALIDATION_MESSAGES.REQUEST_NAME_REQUIRED);
+      failValidation('details', VALIDATION_MESSAGES.REQUEST_NAME_REQUIRED);
       return;
     }
 
     if (hasEditableSchedule && (!state.durationValue || state.durationValue < 1)) {
-      setValidationError(VALIDATION_MESSAGES.DURATION_REQUIRED);
+      failValidation('timing', VALIDATION_MESSAGES.DURATION_REQUIRED);
       return;
     }
 
@@ -214,13 +266,13 @@ export function RequestFormDialog({
 
     // If both are provided, validate order
     if (startTs && endTs && new Date(startTs) >= new Date(endTs)) {
-      setValidationError(VALIDATION_MESSAGES.END_BEFORE_START);
+      failValidation('timing', VALIDATION_MESSAGES.END_BEFORE_START);
       return;
     }
 
     // If one is provided but not the other, show error
     if ((startTs && !endTs) || (!startTs && endTs)) {
-      setValidationError(VALIDATION_MESSAGES.DATES_MUST_BE_TOGETHER);
+      failValidation('timing', VALIDATION_MESSAGES.DATES_MUST_BE_TOGETHER);
       return;
     }
 
@@ -238,18 +290,18 @@ export function RequestFormDialog({
 
     // Validate constraint order
     if (earliestStartTs && latestEndTs && new Date(earliestStartTs) >= new Date(latestEndTs)) {
-      setValidationError(VALIDATION_MESSAGES.CONSTRAINT_ORDER);
+      failValidation('timing', VALIDATION_MESSAGES.CONSTRAINT_ORDER);
       return;
     }
 
     // Validate scheduled dates are within constraints
     if (earliestStartTs && startTs && new Date(startTs) < new Date(earliestStartTs)) {
-      setValidationError(VALIDATION_MESSAGES.START_BEFORE_CONSTRAINT);
+      failValidation('timing', VALIDATION_MESSAGES.START_BEFORE_CONSTRAINT);
       return;
     }
 
     if (latestEndTs && endTs && new Date(endTs) > new Date(latestEndTs)) {
-      setValidationError(VALIDATION_MESSAGES.END_AFTER_CONSTRAINT);
+      failValidation('timing', VALIDATION_MESSAGES.END_AFTER_CONSTRAINT);
       return;
     }
 
@@ -259,6 +311,7 @@ export function RequestFormDialog({
       icon: state.icon ?? null,
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
+      siteId: state.siteId || null,
       resourceId: isLeaf ? (state.selectedResourceId || undefined) : undefined,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
@@ -293,7 +346,16 @@ export function RequestFormDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0">
+      <DialogContent
+        className="max-w-2xl h-[640px] max-h-[85vh] flex flex-col p-0"
+        onOpenAutoFocus={(e) => {
+          // Land focus on the first field, not the active tab — otherwise the
+          // tab's keyboard-focus ring flashes on open. The ring still shows for
+          // real keyboard tab navigation.
+          e.preventDefault();
+          nameInputRef.current?.focus();
+        }}
+      >
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="text-xl">
             {request ? "Edit Request" : isChildCreation ? "Add Child Request" : "Create New Request"}
@@ -313,9 +375,27 @@ export function RequestFormDialog({
           onChange={() => setIsDirty(true)}
           className="flex flex-col flex-1 min-h-0"
         >
-          <div className="flex-1 px-6 overflow-y-auto">
-            <div className="space-y-6 pb-6">              {/* Template Selector - Only show in create mode */}
-              {!request && availableTemplates.length > 0 && (
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as RequestFormTab)}
+            className="flex flex-col flex-1 min-h-0"
+          >
+            <TabsList className="mx-6 shrink-0">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="timing" className="relative">
+                Timing
+                {hasDurationWarning && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label="timing warning" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="requirements">Requirements</TabsTrigger>
+              {isLeaf && <TabsTrigger value="resources">Resources</TabsTrigger>}
+            </TabsList>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+              <TabsContent value="details" className="mt-0 space-y-4">
+                {/* Template Selector - Only show in create mode */}
+                {!request && availableTemplates.length > 0 && (
                 <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
                   <Label htmlFor="template" className="flex items-center gap-2">
                     <FileText className="h-4 w-4" />
@@ -338,14 +418,9 @@ export function RequestFormDialog({
                   </p>
                 </div>
               )}
-              {/* Basic Info */}
-              <Collapsible open={state.openSections.basic} onOpenChange={() => toggleSection('basic')}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 rounded-lg">
-                  <h3 className="text-sm font-medium">Basic Information</h3>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${state.openSections.basic ? 'rotate-180' : ''}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4">
-                  <div className="space-y-4">
+                {/* Basic Information */}
+                <h4 className="text-sm font-medium">Basic Information</h4>
+                <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">
                         Name <span className="text-destructive">*</span>
@@ -357,6 +432,7 @@ export function RequestFormDialog({
                           onChange={(next) => setField('icon', next)}
                         />
                         <Input
+                          ref={nameInputRef}
                           id="name"
                           value={state.name}
                           onChange={(e) => setField('name', e.target.value)}
@@ -403,7 +479,10 @@ export function RequestFormDialog({
                             <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="leaf">
+                            {/* A request with children can't become a leaf — the backend
+                                rejects it (RequestService.UpdateAsync). Disable rather than
+                                let the user hit a 409 on save. */}
+                            <SelectItem value="leaf" disabled={hasChildren}>
                               <span className="flex items-center gap-2">
                                 <FileText className="h-3.5 w-3.5" />
                                 Task
@@ -423,6 +502,11 @@ export function RequestFormDialog({
                           ? PLANNING_MODE_CONFIG.leaf.description
                           : 'Groups child tasks. Use boundary mode to enforce child timing limits.'}
                       </p>
+                      {hasChildren && (
+                        <p className="text-xs text-muted-foreground">
+                          This request has child requests — remove or reassign them before it can become a Task.
+                        </p>
+                      )}
 
                       {isGroup && (
                         <div className="flex items-center gap-2 pt-1">
@@ -439,148 +523,196 @@ export function RequestFormDialog({
                         </div>
                       )}
                     </div>
+
+                    {/* Site scope — only meaningful with more than one site (free/single-site
+                        tenants never see it; their requests default to the one site). */}
+                    {isMultiSite && (
+                      <div className="space-y-2">
+                        <Label htmlFor="siteId">Site</Label>
+                        <Select
+                          value={state.siteId || ANY_SITE}
+                          onValueChange={(v) => setField('siteId', v === ANY_SITE ? '' : v)}
+                        >
+                          <SelectTrigger id="siteId">
+                            <SelectValue placeholder="Any site" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={ANY_SITE}>
+                              <span className="text-muted-foreground">Any site</span>
+                            </SelectItem>
+                            {sites.map((site) => (
+                              <SelectItem key={site.id} value={site.id}>
+                                {site.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Where can this request be fulfilled? “Any site” can be scheduled at any site.
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </CollapsibleContent>
-              </Collapsible>
+              </TabsContent>
 
-              <Separator />
+              {/* TIMING */}
+              <TabsContent value="timing" className="mt-0 space-y-6">
+                {/* Summary: read-only derived info (schedule is computed from children) */}
+                {isSummary && request && (
+                  <div className="p-4 border rounded-lg bg-muted/30">
+                    <h4 className="text-sm font-medium mb-2">Derived Schedule (read-only)</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Summary dates and duration are automatically calculated from child requests.
+                    </p>
+                  </div>
+                )}
 
-              {/* Summary: read-only derived info (schedule is computed from children) */}
-              {isSummary && request && (
-                <div className="p-4 border rounded-lg bg-muted/30">
-                  <h3 className="text-sm font-medium mb-2">Derived Schedule (read-only)</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Summary dates and duration are automatically calculated from child requests.
-                  </p>
-                </div>
-              )}
+                {/* Schedule + Constraints + Duration — leaf only */}
+                {hasEditableSchedule && (
+                  <>
+                    {/* Minimal Duration — first, since it's required and drives scheduling */}
+                    <div className="space-y-2">
+                        <Label htmlFor="durationValue">
+                          Minimal Duration <span className="text-destructive">*</span>
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          {isContainer ? "Boundary duration for child requests" : "Minimum time needed for this request"}
+                        </p>
+                        <div className="flex gap-2">
+                          <Input
+                            id="durationValue"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={state.durationValue || ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              setField('durationValue', val === '' ? 0 : parseInt(val));
+                            }}
+                            className="flex-1"
+                            required
+                          />
+                          <Select
+                            value={state.durationUnit}
+                            onValueChange={(value) => setField('durationUnit', value as DurationUnit)}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue placeholder="Unit">
+                                {state.durationUnit.charAt(0).toUpperCase() + state.durationUnit.slice(1)}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="minutes">Minutes</SelectItem>
+                              <SelectItem value="hours">Hours</SelectItem>
+                              <SelectItem value="days">Days</SelectItem>
+                              <SelectItem value="weeks">Weeks</SelectItem>
+                              <SelectItem value="months">Months</SelectItem>
+                              <SelectItem value="years">Years</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {hasDurationWarning && (
+                          <Alert variant="warning" className="mt-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              Window ({formatMinutesHuman(Math.max(0, Math.round(windowMinutes)))}) is shorter than the minimal duration ({formatMinutesHuman(durationToMinutes(state.durationValue, state.durationUnit))}). You can still save — a conflict will be recorded and must be resolved before scheduling.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                    </div>
 
-              {/* Schedule — leaf only */}
-              {hasEditableSchedule && (
-                <>
-                  <RequestScheduleSection
-                    state={state}
-                    setField={setField}
-                    toggleSection={toggleSection}
-                    availableSpaces={isLeaf ? availableSpaces : []}
-                  />
+                    <Separator />
 
-                  <Separator />
-
-                  <RequestConstraintsSection
-                    state={state}
-                    setField={setField}
-                    toggleSection={toggleSection}
-                  />
-
-                  <Separator />
-                </>
-              )}
-
-              {/* Constraints — boundary groups only */}
-              {isContainer && (
-                <>
-                  <RequestConstraintsSection
-                    state={state}
-                    setField={setField}
-                    toggleSection={toggleSection}
-                  />
-
-                  <Separator />
-                </>
-              )}
-
-              {/* Minimal Duration — leaf only */}
-              {hasEditableSchedule && (
-                <>
-              <Collapsible open={state.openSections.duration} onOpenChange={() => toggleSection('duration')}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 rounded-lg">
-                  <h3 className="text-sm font-medium">Minimal Duration *</h3>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${state.openSections.duration ? 'rotate-180' : ''}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4">
-                  <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="durationValue">
-                    Minimal Duration <span className="text-destructive">*</span>
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {isContainer ? "Boundary duration for child requests" : "Minimum time needed for this request"}
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      id="durationValue"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={state.durationValue || ''}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setField('durationValue', val === '' ? 0 : parseInt(val));
-                      }}
-                      className="flex-1"
-                      required
+                    <RequestScheduleSection
+                      state={state}
+                      setField={setField}
                     />
-                    <Select
-                      value={state.durationUnit}
-                      onValueChange={(value) => setField('durationUnit', value as DurationUnit)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Unit">
-                          {state.durationUnit.charAt(0).toUpperCase() + state.durationUnit.slice(1)}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="minutes">Minutes</SelectItem>
-                        <SelectItem value="hours">Hours</SelectItem>
-                        <SelectItem value="days">Days</SelectItem>
-                        <SelectItem value="weeks">Weeks</SelectItem>
-                        <SelectItem value="months">Months</SelectItem>
-                        <SelectItem value="years">Years</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-                </CollapsibleContent>
-              </Collapsible>
 
-              <Separator />
-                </>
-              )}
+                    <Separator />
 
-              {/* Scheduling Settings Apply — only for leaf mode */}
-              {isLeaf && (
-                <div className="flex items-center gap-2 p-3">
-                  <Checkbox
-                    id="schedulingSettingsApply"
-                    checked={state.schedulingSettingsApply}
-                    onCheckedChange={(checked) => setField('schedulingSettingsApply', !!checked)}
+                    <RequestConstraintsSection
+                      state={state}
+                      setField={setField}
+                    />
+
+                    <Separator />
+
+                    {/* Scheduling Settings Apply */}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="schedulingSettingsApply"
+                        checked={state.schedulingSettingsApply}
+                        onCheckedChange={(checked) => setField('schedulingSettingsApply', !!checked)}
+                      />
+                      <Label htmlFor="schedulingSettingsApply" className="text-sm cursor-pointer">
+                        Apply scheduling settings (working hours, off-times)
+                      </Label>
+                    </div>
+                  </>
+                )}
+
+                {/* Constraints — boundary groups only */}
+                {isContainer && (
+                  <RequestConstraintsSection
+                    state={state}
+                    setField={setField}
                   />
-                  <Label htmlFor="schedulingSettingsApply" className="text-sm cursor-pointer">
-                    Apply scheduling settings (working hours, off-times)
-                  </Label>
-                </div>
-              )}
+                )}
+              </TabsContent>
 
-              <Separator />
+              {/* REQUIREMENTS */}
+              <TabsContent value="requirements" className="mt-0">
+                <RequestRequirementsSection
+                  state={state}
+                  availableCriteria={availableCriteria}
+                  selectedCriterionId={selectedCriterionId}
+                  setSelectedCriterionId={setSelectedCriterionId}
+                  isLoading={isLoading}
+                  onAddRequirement={handleAddRequirement}
+                  onRemoveRequirement={handleRemoveRequirement}
+                  onRequirementChange={handleRequirementChange}
+                />
+              </TabsContent>
 
-              <RequestRequirementsSection
-                state={state}
-                toggleSection={toggleSection}
-                availableCriteria={availableCriteria}
-                selectedCriterionId={selectedCriterionId}
-                setSelectedCriterionId={setSelectedCriterionId}
-                isLoading={isLoading}
-                onAddRequirement={handleAddRequirement}
-                onRemoveRequirement={handleRemoveRequirement}
-                onRequirementChange={handleRequirementChange}
-              />
-
-              {/* People — only for leaf requests that have a saved ID */}
+              {/* RESOURCES — leaf only. forceMount + conditional hidden keeps pending rows and
+                  blocker state alive across tab switches (Radix would otherwise unmount it). */}
               {isLeaf && (
-                <>
+                <TabsContent
+                  value="resources"
+                  forceMount
+                  className={activeTab === 'resources' ? 'mt-0 space-y-6' : 'mt-0 hidden'}
+                >
+                  {/* Space */}
+                  <div>
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Space
+                    </h4>
+                    <div className="space-y-2 pt-4">
+                      <Select
+                        value={state.selectedResourceId || SPACE_NONE_PLACEHOLDER}
+                        onValueChange={(value) => setField('selectedResourceId', value === SPACE_NONE_PLACEHOLDER ? "" : value)}
+                      >
+                        <SelectTrigger id="resourceId">
+                          <SelectValue placeholder="No space assigned (unscheduled)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SPACE_NONE_PLACEHOLDER}>
+                            <span className="text-muted-foreground">No space (unscheduled)</span>
+                          </SelectItem>
+                          {availableSpaces.map((space) => (
+                            <SelectItem key={space.id} value={space.id}>
+                              {space.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <Separator />
+
+                  {/* People */}
                   <RequestPeopleSection
                     requestId={request?.id}
                     requestStartTs={
@@ -593,14 +725,12 @@ export function RequestFormDialog({
                         ? (() => { try { return combineDateTimeToISO(state.endDate, state.endTime); } catch { return undefined; } })()
                         : undefined
                     }
-                    open={peopleSectionOpen}
-                    onOpenChange={setPeopleSectionOpen}
                     onBlockersChange={setHasPeopleBlockers}
                   />
-                </>
+                </TabsContent>
               )}
             </div>
-          </div>
+          </Tabs>
 
           {/* Footer Actions */}
           <Separator className="shrink-0" />
@@ -616,7 +746,7 @@ export function RequestFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving || hasPeopleBlockers}>
+            <Button type="submit" disabled={isSaving || hasPeopleBlockers || !canEdit}>
               {isSaving ? "Saving..." : request ? "Update Request" : "Create Request"}
             </Button>
           </div>

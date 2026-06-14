@@ -20,6 +20,9 @@ vi.mock('./DepartmentEditDialog', () => ({
 
 import { getDepartmentTree, deleteDepartment } from '@foundation/src/lib/api/departments-api';
 
+const toastError = vi.fn();
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+
 const mockTree: DepartmentTreeNode[] = [
   {
     id: 'd1',
@@ -166,7 +169,7 @@ describe('DepartmentSettings', () => {
     });
   });
 
-  it('alerts when trying to delete a department with children', async () => {
+  it('shows error toast when trying to delete a department with children', async () => {
     const user = userEvent.setup();
     renderComponent();
     await waitFor(() => screen.getByText('Operations'));
@@ -174,8 +177,9 @@ describe('DepartmentSettings', () => {
     const row = opsText.closest('div[class*="flex items-center"]')!;
     const buttonsInRow = Array.from(row.querySelectorAll('button'));
     await user.click(buttonsInRow[3]); // delete
-    expect(global.alert).toHaveBeenCalledWith(
-      expect.stringContaining('child departments'),
+    expect(toastError).toHaveBeenCalledWith(
+      'Cannot delete department',
+      expect.objectContaining({ description: expect.stringContaining('child') }),
     );
     expect(deleteDepartment).not.toHaveBeenCalled();
   });

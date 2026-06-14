@@ -31,4 +31,15 @@ describe('LoadingSpinner', () => {
     expect(root.className).toMatch(/h-full/);
     expect(root.className).toMatch(/w-full/);
   });
+
+  it('exposes an accessible busy status', () => {
+    render(<LoadingSpinner message="Loading requests..." />);
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('provides a screen-reader label when no message is given', () => {
+    render(<LoadingSpinner />);
+    expect(screen.getByText('Loading')).toBeInTheDocument();
+  });
 });

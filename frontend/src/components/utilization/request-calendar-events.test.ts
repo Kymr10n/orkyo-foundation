@@ -7,8 +7,8 @@ import {
   scaleToCalendarView,
   calendarViewToScale,
 } from "./request-calendar-events";
-import { getStatusColor } from "@foundation/src/lib/utils/utils";
 import { makeRequest, makeScheduledRequest } from "@foundation/src/test-utils/request-fixtures";
+import { getStatusColor } from "@foundation/src/lib/utils";
 import type { Conflict } from "@foundation/src/types/requests";
 
 const noConflicts = new Map<string, Conflict[]>();
@@ -35,24 +35,41 @@ describe("getEventConflictSeverity", () => {
 });
 
 describe("getEventClassNames", () => {
-  it("uses the existing status colour as the base (no new tokens)", () => {
+  it("uses an opaque, self-contained status colour (planned → blue) with no ring when clean", () => {
     const classes = getEventClassNames("planned", null);
-    for (const token of getStatusColor("planned").split(/\s+/)) {
-      expect(classes).toContain(token);
-    }
+    // Calendar events are opaque (unlike the translucent status badges): solid bg + border.
     expect(classes).toContain("orkyo-cal-event");
+    expect(classes).toContain("bg-blue-100");
+    expect(classes).toContain("border-blue-200");
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
   });
 
-  it("adds a red ring overlay for error severity", () => {
+  it("overrides the status colour with a red background for error severity", () => {
     const classes = getEventClassNames("done", "error");
-    expect(classes).toContain("ring-2");
-    expect(classes).toContain("ring-red-500");
+    expect(classes).toContain("bg-red-100");
+    expect(classes).toContain("border-red-300");
+    expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
+    // Status colour must not leak through — overridden
+    expect(classes.some((c) => c.startsWith("bg-emerald"))).toBe(false);
   });
 
-  it("adds an amber ring overlay for warning severity", () => {
+  it("overrides the status colour with an amber background for warning severity", () => {
     const classes = getEventClassNames("done", "warning");
-    expect(classes).toContain("ring-amber-500");
+    expect(classes).toContain("bg-amber-100");
+    expect(classes).toContain("border-amber-300");
+    expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
+  });
+
+  // Anti-drift: the calendar event colour and the list badge colour must agree on
+  // hue per status (the badge is translucent, the event opaque — only the shade
+  // differs). If someone re-introduces yellow/green on one side, this fails.
+  it.each([
+    ["planned", "blue"],
+    ["in_progress", "amber"],
+    ["done", "emerald"],
+  ] as const)("shares the %s colour family with getStatusColor (%s)", (status, family) => {
+    expect(getEventClassNames(status, null).join(" ")).toContain(family);
+    expect(getStatusColor(status)).toContain(family);
   });
 });
 

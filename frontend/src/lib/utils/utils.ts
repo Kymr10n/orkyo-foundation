@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { RequestFormData } from "@foundation/src/components/requests/RequestFormDialog"
-import type { CreateRequestRequest, UpdateRequestRequest } from "@foundation/src/types/requests"
+import type { CreateRequestRequest, DurationUnit, PlanningMode, UpdateRequestRequest } from "@foundation/src/types/requests"
 import { REQUEST_STATUS } from "@foundation/src/constants/request-status"
 
 export function cn(...inputs: ClassValue[]) {
@@ -84,9 +84,9 @@ export function getStatusColor(status: string): string {
     case REQUEST_STATUS.PLANNED:
       return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
     case REQUEST_STATUS.IN_PROGRESS:
-      return "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400";
+      return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
     case REQUEST_STATUS.DONE:
-      return "bg-green-500/10 text-green-700 dark:text-green-400";
+      return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
     case REQUEST_STATUS.CANCELLED:
       return "bg-muted text-muted-foreground line-through";
     default:
@@ -102,9 +102,9 @@ export function getStatusDotColor(status: string): string {
     case REQUEST_STATUS.PLANNED:
       return "bg-blue-500";
     case REQUEST_STATUS.IN_PROGRESS:
-      return "bg-yellow-500";
+      return "bg-amber-500";
     case REQUEST_STATUS.DONE:
-      return "bg-green-500";
+      return "bg-emerald-500";
     case REQUEST_STATUS.CANCELLED:
       return "bg-gray-400";
     default:
@@ -136,13 +136,32 @@ export function formatStatusLabel(status: string): string {
 
 /**
  * Build an UpdateRequestRequest from form data.
+ *
+ * Pass `originalPlanningMode` (the request's mode when the form opened) so the Type is
+ * sent only when the user actually changed it. The backend treats an absent
+ * `planningMode` as "keep existing" (UpdateRequestRequest.PlanningMode is nullable), so
+ * an unrelated edit no longer re-asserts the mode and trips the "cannot change to leaf
+ * while it has children" guard. Omit the argument to always send it (e.g. create-derived
+ * flows that have no prior mode).
  */
-export function buildUpdatePayload(data: RequestFormData): UpdateRequestRequest {
+export function buildUpdatePayload(
+  data: RequestFormData,
+  originalPlanningMode?: PlanningMode,
+  originalSiteId?: string | null,
+): UpdateRequestRequest {
+  const planningModeChanged =
+    originalPlanningMode === undefined || data.planningMode !== originalPlanningMode;
+  // Same omit-on-unchanged treatment as planningMode: only send siteId when the user
+  // actually re-scoped, so unrelated edits don't re-assert it. (The backend keeps the
+  // existing value when siteId is absent.)
+  const siteChanged =
+    originalSiteId !== undefined && (data.siteId ?? null) !== (originalSiteId ?? null);
   return {
     name: data.name,
     description: data.description,
     icon: data.icon,
-    planningMode: data.planningMode,
+    planningMode: planningModeChanged ? data.planningMode : undefined,
+    siteId: siteChanged ? (data.siteId ?? undefined) : undefined,
     resourceId: data.resourceId,
     startTs: data.startTs,
     endTs: data.endTs,
@@ -171,6 +190,7 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
     icon: data.icon,
     planningMode: data.planningMode,
     parentRequestId: data.parentRequestId,
+    siteId: data.siteId ?? undefined,
     resourceId: data.resourceId,
     startTs: data.startTs,
     endTs: data.endTs,
@@ -187,6 +207,18 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
         ...(req.operator !== undefined && { operator: req.operator }),
       })),
   };
+}
+
+/** Converts a duration value+unit to minutes. Mirrors SchedulingEngine.DurationToMinutes on the backend. */
+export function durationToMinutes(value: number, unit: DurationUnit): number {
+  switch (unit) {
+    case 'minutes': return value;
+    case 'hours':   return value * 60;
+    case 'days':    return value * 60 * 24;
+    case 'weeks':   return value * 60 * 24 * 7;
+    case 'months':  return value * 60 * 24 * 30;
+    case 'years':   return value * 60 * 24 * 365;
+  }
 }
 
 /**

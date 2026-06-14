@@ -78,6 +78,9 @@ public record RequestInfo
     public required PlanningMode PlanningMode { get; init; }
     public int SortOrder { get; init; }
 
+    /// <summary>Site this request is scoped to. NULL = site-neutral (schedulable at any site).</summary>
+    public Guid? SiteId { get; init; }
+
     public string? RequestItemId { get; init; }
 
     /// <summary>
@@ -167,6 +170,9 @@ public record CreateRequestRequest
     public PlanningMode PlanningMode { get; init; } = PlanningMode.Leaf;
     public int SortOrder { get; init; }
 
+    /// <summary>Site scope. NULL = site-neutral (schedulable at any site).</summary>
+    public Guid? SiteId { get; init; }
+
     public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
@@ -204,6 +210,9 @@ public record UpdateRequestRequest
     public Guid? ParentRequestId { get; init; }
     public PlanningMode? PlanningMode { get; init; }
     public int? SortOrder { get; init; }
+
+    /// <summary>Site scope. Provide to (re)scope; null/omitted keeps the existing value.</summary>
+    public Guid? SiteId { get; init; }
 
     public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }

@@ -24,6 +24,7 @@ import { Badge } from "@foundation/src/components/ui/badge";
 import { Combobox, type ComboboxOption } from "@foundation/src/components/ui/combobox";
 import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
 import { Loader2, Plus, X } from "lucide-react";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { getResources } from "@foundation/src/lib/api/resources-api";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
 import { apiGet } from "@foundation/src/lib/api/../core/api-client";
@@ -225,6 +226,7 @@ function AddScopeForm({
   isSubmitting?: boolean;
   error?: string | null;
 }) {
+  const canEdit = useCanEdit();
   const [targetType, setTargetType] = useState<ScopeTargetType>("resource");
   const [targetId, setTargetId] = useState("");
   const [effect, setEffect] = useState<ScopeEffect>("available");
@@ -367,7 +369,7 @@ function AddScopeForm({
           type="button"
           size="sm"
           className="h-7 text-xs"
-          disabled={!targetId || isSubmitting}
+          disabled={!targetId || isSubmitting || !canEdit}
           onClick={() => void handleAdd()}
         >
           {isSubmitting ? (

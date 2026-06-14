@@ -1,6 +1,7 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Input } from "@foundation/src/components/ui/input";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
     Select,
     SelectContent,
@@ -343,8 +344,9 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
         </div>
       </div>
 
-      {/* Request List */}
-      <div ref={listScrollRef} className="flex-1 overflow-y-auto px-4 py-2">
+      {/* Request List — house scrollbar; the virtualizer scrolls the ScrollArea Viewport. */}
+      <ScrollArea type="auto" viewportRef={listScrollRef} className="flex-1 min-h-0">
+        <div className="px-4 py-2">
         {isLoading ? (
           <LoadingSpinner fullScreen={false} message="Loading requests..." />
         ) : visibleEntries.length === 0 ? (
@@ -383,7 +385,8 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
             })}
           </div>
         )}
-      </div>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

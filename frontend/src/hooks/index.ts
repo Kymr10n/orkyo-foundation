@@ -1,5 +1,4 @@
 export { useCommandPalette } from "./useCommandPalette";
-export { useConflicts } from "./useConflicts";
 export {
   useCriteria,
   useCreateCriterion,
@@ -8,6 +7,7 @@ export {
   useUpdateCriterionApplicability,
 } from "./useCriteria";
 export { useExportHandler, useImportHandler } from "./useImportExport";
+export { useCanEdit, useIsTenantAdmin, TENANT_ROLE } from "./usePermissions";
 export { createCrudHooks } from "./useMutations";
 export {
   usePreferences,
@@ -20,7 +20,7 @@ export {
   buildInitialState,
   type RequestFormState,
 } from "./useRequestForm";
-export { useSites, useCreateSite, useUpdateSite, useDeleteSite } from "./useSites";
+export { useSites, useCreateSite, useUpdateSite, useDeleteSite, useIsMultiSite } from "./useSites";
 export {
   useSpaces,
   useCreateSpace,

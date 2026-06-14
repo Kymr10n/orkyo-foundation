@@ -6,8 +6,8 @@ import type { Conflict } from "@foundation/src/types/requests";
 
 /**
  * Tenant-wide conflicts registry — the authoritative, all-sites/all-dates source for the Conflicts
- * page and the Requests-page badges. Computed server-side; cached client-side. Distinct from
- * `useConflicts` (the utilization grid's fast, scoped, contextual validation).
+ * page, the Requests-page badges, and the utilization grid. Computed server-side; cached
+ * client-side. The grid layers a thin client-side draft overlay on top for the bar being dragged.
  *
  * Conflict mutations should `invalidateQueries({ queryKey: ["conflicts"] })`.
  */

@@ -56,6 +56,35 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         if (!await conn.ExistsAsync("criteria", criterionId, ct))
             throw new NotFoundException("Criterion", criterionId);
 
+        // Validate the criterion is applicable to this group's resource type. Mirrors the
+        // resource-level guard in ResourceCapabilityRepository.UpsertAsync: if the resource
+        // type has no criterion_resource_types entries at all, every criterion is considered
+        // applicable (open-world assumption for new resource types).
+        var isApplicable = await conn.ExecuteScalarAsync<object>(@"
+            SELECT 1
+            FROM resource_groups g
+            WHERE g.id = @groupId
+              AND (
+                EXISTS (
+                    SELECT 1 FROM criterion_resource_types
+                    WHERE criterion_id = @criterionId AND resource_type_id = g.resource_type_id
+                )
+                OR NOT EXISTS (
+                    SELECT 1 FROM criterion_resource_types
+                    WHERE resource_type_id = g.resource_type_id
+                )
+              )",
+            p =>
+            {
+                p.AddWithValue("groupId", groupId);
+                p.AddWithValue("criterionId", criterionId);
+            }, ct) is not null;
+
+        if (!isApplicable)
+            throw new CapabilityNotApplicableException(
+                groupId, criterionId,
+                "Criterion is not applicable to this group's resource type");
+
         try
         {
             return await conn.QuerySingleOrDefaultAsync(@"

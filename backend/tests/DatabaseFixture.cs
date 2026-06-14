@@ -33,10 +33,21 @@ public class DatabaseFixture : IAsyncLifetime
     /// instead of repeating the header wiring in every constructor.
     /// </summary>
     public HttpClient CreateAuthorizedClient(string tenantSlug = TestConstants.TenantSlug)
+        => CreateClient(TestConstants.TestBearerToken, tenantSlug);
+
+    /// <summary>
+    /// Creates an <see cref="HttpClient"/> authorized as the shared test user with a
+    /// specific tenant <paramref name="role"/> ("admin" | "editor" | "viewer"), for
+    /// exercising role-gated authorization on endpoints.
+    /// </summary>
+    public HttpClient CreateClientWithRole(string role, string tenantSlug = TestConstants.TenantSlug)
+        => CreateClient(TestConstants.BearerTokenForRole(role), tenantSlug);
+
+    private HttpClient CreateClient(string bearerToken, string tenantSlug)
     {
         var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Tenant-Slug", tenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearerToken}");
         return client;
     }
 

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 // Mock FullCalendar + plugins so the wrapper's wiring can be tested without the
 // real library (and without a browser layout engine). The stub captures the
@@ -121,5 +121,60 @@ describe("RequestCalendar", () => {
     const currentStart = new Date("2026-04-13T00:00:00Z");
     capturedProps.datesSet({ view: { type: "timeGridWeek", currentStart } });
     expect(onDatesSet).toHaveBeenCalledWith("week", currentStart);
+  });
+
+  // --- Legend ---
+
+  it("renders legend labels for all statuses and conflict indicators", () => {
+    renderCalendar();
+    expect(screen.getByText("Planned")).toBeInTheDocument();
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+    expect(screen.getByText("Conflicts")).toBeInTheDocument();
+    expect(screen.getByText("Warnings")).toBeInTheDocument();
+  });
+
+  // --- eventContent ---
+
+  it("passes eventContent to FullCalendar", () => {
+    renderCalendar();
+    expect(typeof capturedProps.eventContent).toBe("function");
+  });
+
+  it("eventContent renders conflict icon for error severity", () => {
+    renderCalendar();
+    const { container } = render(
+      capturedProps.eventContent({
+        event: { title: "Broken Task", extendedProps: { conflictSeverity: "error" } },
+        timeText: "9:00",
+      }),
+    );
+    expect(container.querySelector("svg")).toBeTruthy();
+    expect(container.textContent).toContain("Broken Task");
+    expect(container.textContent).toContain("9:00");
+  });
+
+  it("eventContent renders warning icon for warning severity", () => {
+    renderCalendar();
+    const { container } = render(
+      capturedProps.eventContent({
+        event: { title: "Warn Task", extendedProps: { conflictSeverity: "warning" } },
+        timeText: "",
+      }),
+    );
+    expect(container.querySelector("svg")).toBeTruthy();
+  });
+
+  it("eventContent renders no icon when conflictSeverity is null", () => {
+    renderCalendar();
+    const { container } = render(
+      capturedProps.eventContent({
+        event: { title: "Fine Task", extendedProps: { conflictSeverity: null } },
+        timeText: "10:00",
+      }),
+    );
+    expect(container.querySelector("svg")).toBeNull();
+    expect(container.textContent).toContain("Fine Task");
   });
 });

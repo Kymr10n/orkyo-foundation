@@ -24,6 +24,8 @@ export interface RequestFormState {
   icon: string | null;
   planningMode: PlanningMode;
   parentRequestId: string;
+  /** Site scope. '' = site-neutral (Any site). */
+  siteId: string;
   selectedResourceId: string;
 
   // Schedule
@@ -48,20 +50,10 @@ export interface RequestFormState {
   // Requirements
   requirements: Map<string, RequirementEntry>;
   selectedCriterionId: string;
-
-  // UI state
-  openSections: {
-    basic: boolean;
-    schedule: boolean;
-    constraints: boolean;
-    duration: boolean;
-    requirements: boolean;
-  };
 }
 
 type RequestFormAction =
   | { type: 'SET_FIELD'; field: keyof RequestFormState; value: RequestFormState[keyof RequestFormState] }
-  | { type: 'TOGGLE_SECTION'; section: keyof RequestFormState['openSections'] }
   | { type: 'ADD_REQUIREMENT'; criterionId: string; value: CriterionValue | null }
   | { type: 'REMOVE_REQUIREMENT'; criterionId: string }
   | { type: 'UPDATE_REQUIREMENT'; criterionId: string; patch: Partial<RequirementEntry> }
@@ -73,6 +65,7 @@ const initialState: RequestFormState = {
   icon: null,
   planningMode: 'leaf',
   parentRequestId: '',
+  siteId: '',
   selectedResourceId: '',
   startDate: '',
   startTime: DEFAULT_START_TIME,
@@ -87,13 +80,6 @@ const initialState: RequestFormState = {
   schedulingSettingsApply: true,
   requirements: new Map<string, RequirementEntry>(),
   selectedCriterionId: '',
-  openSections: {
-    basic: true,
-    schedule: true,
-    constraints: false,
-    duration: true,
-    requirements: true,
-  },
 };
 
 /** @internal Exported for unit testing */
@@ -101,15 +87,6 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
   switch (action.type) {
     case 'SET_FIELD':
       return { ...state, [action.field]: action.value };
-
-    case 'TOGGLE_SECTION':
-      return {
-        ...state,
-        openSections: {
-          ...state.openSections,
-          [action.section]: !state.openSections[action.section],
-        },
-      };
 
     case 'ADD_REQUIREMENT': {
       const newRequirements = new Map(state.requirements);
@@ -174,7 +151,7 @@ function applyDefaultSchedule(state: RequestFormState, schedule?: DefaultSchedul
 }
 
 /** @internal Exported for unit testing */
-export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule): RequestFormState {
+export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null): RequestFormState {
   if (request) {
     const reqMap = new Map<string, RequirementEntry>();
     request.requirements?.forEach((r) => {
@@ -187,6 +164,7 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       icon: request.icon ?? null,
       planningMode: request.planningMode || 'leaf',
       parentRequestId: request.parentRequestId || '',
+      siteId: request.siteId ?? '',
       selectedResourceId: getSpaceResourceId(request) || '',
       startDate: request.startTs ? formatDateForInput(new Date(request.startTs)) : '',
       startTime: request.startTs ? formatTimeForInput(new Date(request.startTs)) : DEFAULT_START_TIME,
@@ -201,32 +179,26 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       schedulingSettingsApply: request.schedulingSettingsApply ?? true,
       requirements: reqMap,
       selectedCriterionId: '',
-      openSections: {
-        basic: true,
-        schedule: true,
-        constraints: false,
-        duration: true,
-        requirements: true,
-      },
     }, defaultSchedule);
   }
 
+  // Create mode: default to the active site (caller passes selectedSiteId) so a new request is
+  // scoped to where the user is working; '' = site-neutral when none is supplied.
+  const createSiteId = defaultSiteId ?? '';
   if (parentRequestId) {
-    return applyDefaultSchedule({ ...initialState, parentRequestId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule);
+    return applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule);
   }
 
-  return applyDefaultSchedule(defaultPlanningMode ? { ...initialState, planningMode: defaultPlanningMode } : initialState, defaultSchedule);
+  return applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule);
 }
 
-export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule) {
-  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule));
+export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null) {
+  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId));
 
   return {
     state,
     setField: (field: keyof RequestFormState, value: RequestFormState[keyof RequestFormState]) =>
       dispatch({ type: 'SET_FIELD', field, value }),
-    toggleSection: (section: keyof RequestFormState['openSections']) =>
-      dispatch({ type: 'TOGGLE_SECTION', section }),
     addRequirement: (criterionId: string, value: CriterionValue | null) =>
       dispatch({ type: 'ADD_REQUIREMENT', criterionId, value }),
     removeRequirement: (criterionId: string) =>

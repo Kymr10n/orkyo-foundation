@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { PersonAssignmentDialog } from "./PersonAssignmentDialog";
+import type * as ResourceAssignmentsApi from "@foundation/src/lib/api/resource-assignments-api";
 import type { PersonAssignmentOption } from "@foundation/src/lib/api/person-candidate-requests-api";
 import type { ResourceAssignmentInfo, ValidationResult } from "@foundation/src/lib/api/resource-assignments-api";
 
@@ -17,7 +18,9 @@ vi.mock("@foundation/src/lib/api/person-candidate-requests-api", () => ({
   ),
 }));
 
-vi.mock("@foundation/src/lib/api/resource-assignments-api", () => ({
+vi.mock("@foundation/src/lib/api/resource-assignments-api", async (importActual) => ({
+  // Keep the real pure helpers (SOFT_BLOCKER_CODES, hardBlockers, …); mock only network calls.
+  ...(await importActual<typeof ResourceAssignmentsApi>()),
   createAssignment: vi.fn(),
   cancelAssignment: vi.fn(),
   validateAssignment: vi.fn(),

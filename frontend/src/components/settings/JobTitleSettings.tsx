@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Badge } from '@foundation/src/components/ui/badge';
@@ -16,7 +16,6 @@ export function JobTitleSettings() {
   const [editing, setEditing] = useState<JobTitleInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [includeInactive, setIncludeInactive] = useState(false);
-  const queryClient = useQueryClient();
 
   const { data: jobTitles = [], isLoading, error } = useQuery({
     queryKey: ['job-titles', { includeInactive }],
@@ -25,7 +24,11 @@ export function JobTitleSettings() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteJobTitle(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['job-titles'] }),
+    meta: {
+      successMessage: 'Job title deleted',
+      errorMessage: 'Failed to delete job title',
+      invalidates: [['job-titles']],
+    },
   });
 
   const handleDelete = (jt: JobTitleInfo) => {

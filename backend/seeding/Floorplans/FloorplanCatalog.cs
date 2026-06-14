@@ -31,8 +31,8 @@ public static class FloorplanCatalog
             new FloorplanRoom("CNC Machining",         "CNC",   8, 430, 150, 450, 290),
             new FloorplanRoom("Assembly",              "ASSY", 12, 930, 150, 510, 290),
             new FloorplanRoom("Quality Control",       "QC",    6, 540, 468, 330,  92),
-            new FloorplanRoom("Raw Material Storage",  "RAW",   4, 430, 585, 315, 280, "ConcurrentCapacity"),
-            new FloorplanRoom("Finished Goods Storage","FIN",   4, 750, 585, 315, 280, "ConcurrentCapacity"),
+            new FloorplanRoom("Raw Material Storage",  "RAW",   4, 430, 585, 315, 280, "Fractional"),
+            new FloorplanRoom("Finished Goods Storage","FIN",   4, 750, 585, 315, 280, "Fractional"),
         }),
 
         new FloorplanSite("Fabrication & Welding", "FWF", "fabrication-welding.png", 1536, 1024, new[]
@@ -51,7 +51,7 @@ public static class FloorplanCatalog
             new FloorplanRoom("Paint Booth",           "PAINT", 3, 430, 560, 175, 165),
             new FloorplanRoom("Quality Control",       "QC",    6, 610, 560, 250, 165),
             new FloorplanRoom("Finishing / Grinding",  "GRIND", 4, 875, 560, 205, 165),
-            new FloorplanRoom("Material Storage",      "MAT",   4,1150, 560, 295, 165, "ConcurrentCapacity"),
+            new FloorplanRoom("Material Storage",      "MAT",   4,1150, 560, 295, 165, "Fractional"),
         }),
 
         new FloorplanSite("Production & Packaging", "PPF", "production-packaging.png", 1536, 1024, new[]
@@ -69,8 +69,8 @@ public static class FloorplanCatalog
             new FloorplanRoom("Quality Control",       "QC",    6, 800, 340, 160, 160),
             new FloorplanRoom("Maintenance",           "MAINT", 4,1030, 340, 170, 160),
             new FloorplanRoom("Tool Room",             "TOOL",  3,1250, 340, 170, 160),
-            new FloorplanRoom("Warehouse / Storage",   "WHSE",  6, 430, 540, 650, 320, "ConcurrentCapacity"),
-            new FloorplanRoom("Raw Material Storage",  "RAW",   4,1110, 540, 320, 320, "ConcurrentCapacity"),
+            new FloorplanRoom("Warehouse / Storage",   "WHSE",  6, 430, 540, 650, 320, "Fractional"),
+            new FloorplanRoom("Raw Material Storage",  "RAW",   4,1110, 540, 320, 320, "Fractional"),
         }),
     };
 }

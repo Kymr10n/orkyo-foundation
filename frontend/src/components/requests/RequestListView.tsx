@@ -175,8 +175,6 @@ export const RequestListView = React.memo(function RequestListView({
       columns={columns}
       data={requests}
       emptyMessage="No requests found."
-      filterColumn="name"
-      filterPlaceholder="Search requests..."
       pageSize={50}
     />
   );

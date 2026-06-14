@@ -90,6 +90,54 @@ export default defineConfig(
     },
   },
 
+  // UI feedback-colour guardrail — keep section feedback flowing through the
+  // sanctioned primitives instead of hand-rolled boxes. See docs/UI-GUIDELINES.md §7.
+  {
+    files: ['src/components/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/bg-destructive\\/10/]',
+          message:
+            'Hand-rolled feedback box: use <ErrorAlert>, <Alert variant="destructive">, or a <Badge> variant instead of bg-destructive/10. See docs/UI-GUIDELINES.md §7.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/bg-destructive\\/10/]',
+          message:
+            'Hand-rolled feedback box: use <ErrorAlert>, <Alert variant="destructive">, or a <Badge> variant instead of bg-destructive/10. See docs/UI-GUIDELINES.md §7.',
+        },
+        {
+          selector: 'Literal[value=/bg-(red|amber)-50(?!0)/]',
+          message:
+            'Hand-rolled feedback box: use <Alert variant="warning|destructive"> or a <Badge> variant instead of a light semantic background. See docs/UI-GUIDELINES.md §7.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/bg-(red|amber)-50(?!0)/]',
+          message:
+            'Hand-rolled feedback box: use <Alert variant="warning|destructive"> or a <Badge> variant instead of a light semantic background. See docs/UI-GUIDELINES.md §7.',
+        },
+      ],
+    },
+  },
+
+  // Sanctioned colour-source primitives + deliberate banners are exempt: they ARE
+  // the single source of truth the guardrail steers everything else toward.
+  {
+    files: [
+      'src/components/ui/alert.tsx',
+      'src/components/ui/badge.tsx',
+      'src/components/ui/ErrorAlert.tsx',
+      'src/components/ui/ValidationIssueList.tsx',
+      'src/components/utilization/RequestCalendar.tsx',
+      'src/components/utilization/TimelineGridShell.tsx',
+      'src/components/break-glass/BreakGlassBanner.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {

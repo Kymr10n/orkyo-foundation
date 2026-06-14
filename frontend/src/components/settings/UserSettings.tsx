@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Card } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -366,23 +367,22 @@ export function UserSettings() {
 
       {/* Error State */}
       {error && (
-        <div className="flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm text-destructive">
-            {error instanceof Error ? error.message : "Failed to load users"}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchUsers();
-              refetchInvitations();
-            }}
-            className="ml-auto"
-          >
-            Retry
-          </Button>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-2">
+            <span>{error instanceof Error ? error.message : "Failed to load users"}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchUsers();
+                refetchInvitations();
+              }}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Pending Invitations Section */}

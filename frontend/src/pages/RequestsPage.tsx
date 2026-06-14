@@ -5,6 +5,7 @@ import {
 import { RequestDetailPanel } from "@foundation/src/components/requests/RequestDetailPanel";
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { AddExistingRequestsDialog } from "@foundation/src/components/requests/AddExistingRequestsDialog";
 import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
 import {
@@ -36,6 +37,7 @@ import {
     updateRequest,
 } from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import type {
     CreateRequestRequest,
     PlanningMode,
@@ -53,7 +55,6 @@ import {
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import {
     Calendar,
-    Filter,
     List,
     Plus,
     Search,
@@ -67,6 +68,7 @@ import { exportRequests, importRequests } from "@foundation/src/lib/utils/export
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
 type ViewMode = "tree" | "list";
 
@@ -90,6 +92,7 @@ type Dialog =
 
 export function RequestsPage() {
   const queryClient = useQueryClient();
+  const canEdit = useCanEdit();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [requests, setRequests] = useState<Request[]>([]);
@@ -271,7 +274,7 @@ export function RequestsPage() {
         sortOrder: targetParentId ? getNextSortOrder(targetParentId, requests) : 0,
       });
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       if (targetParentId && !expandedIds.has(targetParentId)) {
         toggle(targetParentId);
       }
@@ -297,7 +300,7 @@ export function RequestsPage() {
       }
       setDialog(null);
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       // Auto-expand the parent so user sees the newly added children
       if (!expandedIds.has(parent.id)) {
         toggle(parent.id);
@@ -319,7 +322,7 @@ export function RequestsPage() {
         sortOrder: getNextSortOrder(targetId, requests),
       });
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       // Auto-expand the new parent
       if (!expandedIds.has(targetId)) {
         toggle(targetId);
@@ -365,7 +368,7 @@ export function RequestsPage() {
       }
 
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       toast.success("Request deleted");
     } catch (err) {
       logger.error("Failed to delete request:", err);
@@ -384,13 +387,13 @@ export function RequestsPage() {
 
       const isEdit = dialog?.kind === "edit";
       if (isEdit) {
-        await updateRequest(dialog.request.id, buildUpdatePayload(data));
+        await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
       } else {
         await createRequest(buildCreatePayload(data));
       }
 
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       setDialog(null);
       toast.success(isEdit ? "Request updated" : "Request created");
     } catch (err) {
@@ -478,7 +481,7 @@ export function RequestsPage() {
     : filteredRequests.length === 0;
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={300}>
     <PageLayout>
       <PageHeader
         title="Requests"
@@ -517,12 +520,12 @@ export function RequestsPage() {
               </Tooltip>
             </div>
 
-            <Button onClick={() => handleCreateRequest('leaf')}>
+            <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
               <Plus className="h-4 w-4 mr-2" />
               New Task
             </Button>
 
-            <Button onClick={() => handleCreateRequest('summary')}>
+            <Button onClick={() => handleCreateRequest('summary')} disabled={!canEdit}>
               <Plus className="h-4 w-4 mr-2" />
               New Group
             </Button>
@@ -530,7 +533,7 @@ export function RequestsPage() {
         }
       />
 
-      {/* Search and Filters */}
+      {/* Search */}
       <div className="flex gap-3 mb-4 shrink-0">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -541,17 +544,14 @@ export function RequestsPage() {
             className="pl-9"
           />
         </div>
-        <Button variant="outline" size="sm">
-          <Filter className="h-4 w-4 mr-2" />
-          Filters
-        </Button>
       </div>
 
       {/* Body: View + Detail Panel */}
       <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
-        {/* Main content area. Tree view manages its own internal scroll (overflow-hidden);
-            the list view's data table grows naturally, so its column must scroll itself. */}
-        <div className={`flex-1 ${selectedRequest ? 'min-w-0' : ''} ${viewMode === 'tree' ? 'overflow-hidden' : 'min-h-0 overflow-y-auto'}`}>
+        {/* Main content area. Single scroll owner regardless of view mode: the
+            container never scrolls (overflow-hidden); the tree owns its own scroll,
+            and the list view is wrapped in its own bounded ScrollArea below. */}
+        <div className={`flex-1 min-h-0 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
           {loading && requests.length === 0 ? (
             <LoadingSpinner fullScreen={false} message="Loading requests..." />
           ) : error ? (
@@ -571,7 +571,7 @@ export function RequestsPage() {
                   : "Get started by creating your first request"}
               </p>
               {!searchQuery && (
-                <Button onClick={() => handleCreateRequest()}>
+                <Button onClick={() => handleCreateRequest()} disabled={!canEdit}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Request
                 </Button>
@@ -595,15 +595,17 @@ export function RequestsPage() {
               onDrop={handleDrop}
             />
           ) : (
-            <RequestListView
-              requests={filteredRequests}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              onEdit={handleEditRequest}
-              onDelete={handleDeleteRequest}
-              onAddChild={handleAddChild}
-              onAddExisting={handleAddExisting}
-            />
+            <ScrollArea type="auto" className="h-full">
+              <RequestListView
+                requests={filteredRequests}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                onEdit={handleEditRequest}
+                onDelete={handleDeleteRequest}
+                onAddChild={handleAddChild}
+                onAddExisting={handleAddExisting}
+              />
+            </ScrollArea>
           )}
         </div>
 

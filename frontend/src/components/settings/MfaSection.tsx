@@ -83,10 +83,7 @@ export function MfaSection() {
                       <span className="font-medium text-sm">
                         TOTP Authenticator
                       </span>
-                      <Badge
-                        variant="secondary"
-                        className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      >
+                      <Badge variant="success" className="text-xs">
                         Enabled
                       </Badge>
                     </div>

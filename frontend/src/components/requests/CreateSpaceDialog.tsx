@@ -11,12 +11,14 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
 import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 interface CreateSpaceDialogProps {
   open: boolean;
@@ -38,6 +40,7 @@ export function CreateSpaceDialog({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canEdit = useCanEdit();
 
   const isDirty = name !== '' || code !== '' || description !== '';
 
@@ -153,11 +156,7 @@ export function CreateSpaceDialog({
             </div>
 
             {/* Error message */}
-            {error && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
+            <ErrorAlert message={error ?? null} />
           </div>
 
           <DialogFooter>
@@ -169,7 +168,7 @@ export function CreateSpaceDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !canEdit}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Space
             </Button>

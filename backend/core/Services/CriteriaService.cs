@@ -26,7 +26,7 @@ public interface ICriteriaService
         string? unit,
         IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default);
     /// <summary>Updates a criterion's mutable fields. Returns <c>null</c> if not found.</summary>
-    Task<CriterionInfo?> UpdateAsync(Guid id, string? description, List<string>? enumValues, string? unit, CancellationToken ct = default);
+    Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default);
     /// <summary>Deletes a criterion. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
@@ -45,7 +45,7 @@ public class CriteriaService(ICriteriaRepository repository) : ICriteriaService
         string? unit,
         IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default)
         => repository.CreateAsync(name, description, dataType, enumValues, unit, resourceTypeKeys, ct);
-    public Task<CriterionInfo?> UpdateAsync(Guid id, string? description, List<string>? enumValues, string? unit, CancellationToken ct = default)
-        => repository.UpdateAsync(id, description, enumValues, unit, ct);
+    public Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default)
+        => repository.UpdateAsync(id, name, description, enumValues, unit, dataType, ct);
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => repository.DeleteAsync(id, ct);
 }

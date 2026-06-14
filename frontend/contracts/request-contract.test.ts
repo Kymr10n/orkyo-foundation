@@ -136,6 +136,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
+    | "siteId"
     | "assignments"
     | "requestItemId"
     | "icon"
@@ -165,6 +166,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "parentRequestId",
     "planningMode",
     "sortOrder",
+    "siteId",
     "assignments",
     "requestItemId",
     "icon",
@@ -196,6 +198,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       parentRequestId: null,
       planningMode: "leaf",
       sortOrder: 0,
+      siteId: null,
       assignments: [],
       requestItemId: null,
       icon: null,
@@ -331,6 +334,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
+    | "siteId"
     | "resourceId"
     | "requestItemId"
     | "icon"
@@ -355,6 +359,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
       "parentRequestId",
       "planningMode",
       "sortOrder",
+      "siteId",
       "resourceId",
       "requestItemId",
       "icon",
@@ -401,6 +406,7 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "parentRequestId"
     | "planningMode"
     | "sortOrder"
+    | "siteId"
     | "resourceId"
     | "requestItemId"
     | "icon"

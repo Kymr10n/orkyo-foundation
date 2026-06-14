@@ -10,11 +10,14 @@ import {
 } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState } from "react";
 import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import { EditTemplateDialog } from "./EditTemplateDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -25,6 +28,7 @@ interface TemplateSettingsProps {
 
 export function TemplateSettings({ entityType = 'request' }: TemplateSettingsProps) {
   const queryClient = useQueryClient();
+  const canEdit = useCanEdit();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
     useState<Template | null>(null);
@@ -43,8 +47,10 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteTemplate,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`templates-${entityType}`] });
+    meta: {
+      successMessage: 'Template deleted',
+      errorMessage: 'Failed to delete template',
+      invalidates: [[`templates-${entityType}`]],
     },
   });
 
@@ -66,10 +72,12 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       }
       // Reload templates
       queryClient.invalidateQueries({ queryKey: [`templates-${entityType}`] });
-      alert(`Successfully imported ${importedTemplates.length} templates`);
+      toast.success(`Imported ${importedTemplates.length} template${importedTemplates.length === 1 ? '' : 's'}`);
     } catch (error) {
       logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import templates');
+      toast.error('Import failed', {
+        description: error instanceof Error ? error.message : 'Failed to import templates',
+      });
     }
   });
 
@@ -82,20 +90,14 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   };
 
   const handleDelete = async (template: Template) => {
-    if (
-      !confirm(
-        `Delete template "${template.name}"? This action cannot be undone.`
-      )
-    ) {
+    if (!confirm(`Delete template "${template.name}"? This action cannot be undone.`)) {
       return;
     }
 
     try {
       await deleteMutation.mutateAsync(template.id);
-    } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Failed to delete template"
-      );
+    } catch {
+      // error toast fired centrally via the mutation's meta (MutationCache)
     }
   };
 
@@ -151,6 +153,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
             <Button
               variant="ghost"
               size="icon"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); setEditingTemplate(template); }}
               aria-label={`Edit ${template.name}`}
               title="Edit template"
@@ -160,6 +163,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
             <Button
               variant="ghost"
               size="icon"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); handleDelete(template); }}
               className="text-destructive hover:text-destructive"
               aria-label={`Delete ${template.name}`}
@@ -188,7 +192,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         title="Templates"
         description="Create reusable templates for common utilization request patterns. Templates define duration and timing constraints that can be applied to new requests."
       >
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Add Template
         </Button>
@@ -196,22 +200,15 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
 
       {/* Error State */}
       {error && (
-        <div className="flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm text-destructive">
-            {error instanceof Error
-              ? error.message
-              : "Failed to load templates"}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="ml-auto"
-          >
-            Retry
-          </Button>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-2">
+            <span>{error instanceof Error ? error.message : "Failed to load templates"}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Templates List */}
@@ -220,7 +217,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
           <p className="text-muted-foreground mb-4">
             No request templates defined yet
           </p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             Create your first template
           </Button>

@@ -7,6 +7,7 @@
 > **See also:**
 > - [`docs/UI-GUIDELINES.md`](docs/UI-GUIDELINES.md) — **canonical UI coding rules** (scroll ownership, `min-h-0`, dialogs/`FormDialog`, virtualization). Read this before building UI.
 > - [`docs/UX-CONSISTENCY.md`](docs/UX-CONSISTENCY.md) — the UX friction audit those rules came from, plus the staged remediation backlog.
+> - [`docs/COVERAGE.md`](docs/COVERAGE.md) — test-coverage policy (≥80% target), current numbers, and documented exceptions.
 
 ## The Three Rendering Modes
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Separator } from '@foundation/src/components/ui/separator';
 import { Button } from '@foundation/src/components/ui/button';
@@ -72,9 +73,7 @@ export function DiagnosticsTab() {
 
   if (error && !data) {
     return (
-      <div className="rounded-md bg-destructive/10 p-4 text-destructive text-sm">
-        {error}
-      </div>
+      <ErrorAlert message={error} />
     );
   }
 

@@ -10,7 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// <summary>
 /// Integration tests for the settings endpoints.
 /// Tests GET/PUT/DELETE /api/settings against the real DB.
-/// All endpoints require authentication + Admin role.
+/// GET is member-read (tenant config is read app-wide); PUT/DELETE require Admin.
 /// </summary>
 [Collection("Database collection")]
 public class SettingsEndpointsTests
@@ -94,8 +94,10 @@ public class SettingsEndpointsTests
     }
 
     [Fact]
-    public async Task GetSettings_Viewer_ReturnsForbidden()
+    public async Task GetSettings_Viewer_ReturnsOk()
     {
+        // GET /api/settings is member-read: tenant config (scheduling, working hours, …) is read
+        // app-wide (e.g. the auto-schedule flow). Only PUT/DELETE require Admin.
         var email = $"settings_viewer_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Viewer", TenantSlug, "viewer", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -118,12 +120,13 @@ public class SettingsEndpointsTests
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", viewerToken);
 
         var response = await _client.SendAsync(msg);
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
     public async Task GetSettings_Editor_ReturnsOk()
     {
+        // Members (incl. Editors) can read tenant settings; managing them stays Admin-only.
         var email = $"settings_editor_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor", TenantSlug, "editor", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -147,6 +150,38 @@ public class SettingsEndpointsTests
 
         var response = await _client.SendAsync(msg);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task UpdateSettings_Editor_ReturnsForbidden()
+    {
+        // Writes remain Admin-only even though reads are member-open.
+        var email = $"settings_editor_w_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor W", TenantSlug, "editor", active: true);
+        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+        var tokenData = new
+        {
+            UserId = userId.ToString(),
+            Email = email,
+            DisplayName = "Settings Editor W",
+            TenantId = tenantId.ToString(),
+            TenantSlug = TenantSlug,
+            IsTenantAdmin = false,
+            Role = "editor"
+        };
+
+        var json = JsonSerializer.Serialize(tokenData);
+        var editorToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+
+        var msg = new HttpRequestMessage(HttpMethod.Put, "/api/settings")
+        {
+            Content = JsonContent.Create(new { settings = new Dictionary<string, string> { ["working_day_start"] = "08:00" } }),
+        };
+        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", editorToken);
+
+        var response = await _client.SendAsync(msg);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]

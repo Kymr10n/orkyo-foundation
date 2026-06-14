@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models.Export;
 using Api.Security;
 using Api.Security.Features;
@@ -17,13 +18,13 @@ public static class ExportEndpoints
     {
         var group = app.MapGroup("/api/admin/export")
             .RequireAuthorization()
+            .RequireAdminArea()
             .WithTags("Export");
 
-        group.MapPost("/", async ([FromBody] ExportRequest request, IAuthorizationContext authContext, IFeatureGate featureGate, IExportService exportService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/", async ([FromBody] ExportRequest request, IFeatureGate featureGate, IExportService exportService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                authContext.RequireRole(TenantRole.Admin);
                 await featureGate.EnsureEnabledAsync(FeatureKeys.DataExport, ct);
                 var payload = await exportService.ExportAsync(request, ct);
                 return Results.Json(payload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });

@@ -118,6 +118,95 @@ public class ResourceAssignmentValidatorTests
         };
     }
 
+    private static RequestInfo CreateRequestInfo(Guid id, Guid? siteId) => new()
+    {
+        Id = id,
+        Name = "Req",
+        PlanningMode = PlanningMode.Leaf,
+        Assignments = new List<ResourceAssignmentInfo>(),
+        MinimalDurationValue = 1,
+        MinimalDurationUnit = DurationUnit.Hours,
+        Status = RequestStatus.Planned,
+        SchedulingSettingsApply = false,
+        SiteId = siteId,
+    };
+
+    private void SetupSiteScenario(ResourceInfo resource, Guid requestSite, Guid resourceSite)
+    {
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
+        _requestRepoMock
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid id, bool _, CancellationToken _) => CreateRequestInfo(id, requestSite));
+        _schedulingRepoMock
+            .Setup(s => s.GetSiteIdForResourceAsync(resource.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resourceSite);
+    }
+
+    // ===== Site / location rule tests =====
+
+    [Fact]
+    public async Task Site_SpaceInDifferentSiteThanRequest_ReturnsBlocker()
+    {
+        var siteA = Guid.NewGuid();
+        var siteB = Guid.NewGuid();
+        var space = CreateResource() with { ResourceTypeKey = ResourceTypeKeys.Space };
+        var request = CreateValidationRequest(resourceId: space.Id);
+        SetupSiteScenario(space, requestSite: siteA, resourceSite: siteB);
+
+        var result = await _validator.ValidateAsync(request);
+
+        Assert.Contains(result.Blockers, b => b.Code == ValidationReasonCode.SiteMismatchSpace);
+    }
+
+    [Fact]
+    public async Task Site_PersonCrossSiteAllowed_DifferentSite_ReturnsWarning()
+    {
+        var siteA = Guid.NewGuid();
+        var siteB = Guid.NewGuid();
+        var person = CreateResource() with { ResourceTypeKey = ResourceTypeKeys.Person, CrossSiteAllowed = true };
+        var request = CreateValidationRequest(resourceId: person.Id);
+        SetupSiteScenario(person, requestSite: siteA, resourceSite: siteB);
+
+        var result = await _validator.ValidateAsync(request);
+
+        Assert.Contains(result.Warnings, w => w.Code == ValidationReasonCode.SiteMismatchPerson);
+        Assert.DoesNotContain(result.Blockers, b => b.Code == ValidationReasonCode.SiteCrossNotAllowed);
+    }
+
+    [Fact]
+    public async Task Site_PersonCrossSiteNotAllowed_DifferentSite_ReturnsBlocker()
+    {
+        var siteA = Guid.NewGuid();
+        var siteB = Guid.NewGuid();
+        var person = CreateResource() with { ResourceTypeKey = ResourceTypeKeys.Person, CrossSiteAllowed = false };
+        var request = CreateValidationRequest(resourceId: person.Id);
+        SetupSiteScenario(person, requestSite: siteA, resourceSite: siteB);
+
+        var result = await _validator.ValidateAsync(request);
+
+        Assert.Contains(result.Blockers, b => b.Code == ValidationReasonCode.SiteCrossNotAllowed);
+    }
+
+    [Fact]
+    public async Task Site_NeutralRequest_NoSiteIssue()
+    {
+        var person = CreateResource() with { ResourceTypeKey = ResourceTypeKeys.Person, CrossSiteAllowed = false };
+        var request = CreateValidationRequest(resourceId: person.Id);
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(person.Id)).ReturnsAsync(person);
+        // Site-neutral request (SiteId null) — no scope to violate.
+        _requestRepoMock
+            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid id, bool _, CancellationToken _) => CreateRequestInfo(id, siteId: null));
+        _schedulingRepoMock
+            .Setup(s => s.GetSiteIdForResourceAsync(person.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
+
+        var result = await _validator.ValidateAsync(request);
+
+        Assert.DoesNotContain(result.Blockers, b => b.Code == ValidationReasonCode.SiteCrossNotAllowed);
+        Assert.DoesNotContain(result.Warnings, w => w.Code == ValidationReasonCode.SiteMismatchPerson);
+    }
+
     // ===== Reason Code Tests =====
 
     [Fact]
@@ -443,6 +532,45 @@ public class ResourceAssignmentValidatorTests
         _assignmentRepoMock.Verify(a => a.GetOverlappingActiveAsync(
             resource.Id, request.StartUtc, request.EndUtc, selfAssignmentId, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_FractionalCapacity_ExcludesSelfFromCommittedTotal()
+    {
+        // Re-validating a committed Fractional assignment must exclude its own row from the
+        // committed total, mirroring the Exclusive overlap path. Otherwise a lone person at
+        // 100% counts itself twice (100% + 100% = 200%) and every person/tool falsely overbooks.
+        var resource = CreateResource(allocationMode: AllocationModes.Fractional, baseAvailabilityPercent: 100);
+        var selfAssignmentId = Guid.NewGuid();
+        var request = CreateValidationRequest(resourceId: resource.Id, allocationPercent: 100m)
+            with
+        { ExcludeAssignmentId = selfAssignmentId };
+
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceInfo> { resource });
+        _assignmentRepoMock
+            .Setup(a => a.GetActiveByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceAssignmentInfo>
+            {
+                new()
+                {
+                    Id = selfAssignmentId,
+                    RequestId = request.RequestId ?? Guid.NewGuid(),
+                    ResourceId = resource.Id,
+                    ResourceTypeKey = "person",
+                    StartUtc = request.StartUtc,
+                    EndUtc = request.EndUtc,
+                    AllocationPercent = 100m,
+                    AssignmentStatus = AssignmentStatuses.Planned,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                },
+            });
+
+        var result = Assert.Single(await _validator.ValidateBatchAsync([request]));
+
+        Assert.Equal(ValidationSeverity.Ok, result.Result.Severity);
     }
 
     [Fact]

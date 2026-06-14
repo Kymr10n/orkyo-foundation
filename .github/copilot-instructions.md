@@ -27,3 +27,13 @@ These instructions are mandatory for this repository.
 - Prefer extracting shared behavior here rather than duplicating it across composition repos.
 - Keep dependencies environment-agnostic and avoid hidden coupling to infra or hosted-only runtime assumptions.
 - Local development must not depend on private package feeds unless explicitly requested for release workflows.
+
+## Authorization
+
+- Roles: **Viewer** (read core content, no Settings or Administration area), **Editor** (read + write Settings and all general content, no Administration area), **Admin** (everything). See [`docs/authorization.md`](../docs/authorization.md) before touching endpoints.
+- Every tenant endpoint group declares one convention at its `MapGroup` (`RequireMemberReadEditorWrite` / `RequireMemberReadAdminWrite` / `RequireAdminArea`); non-mutating POSTs use `.AllowMemberWrite()`. A conformance test fails CI on any ungated write.
+- Frontend: gate write affordances with `useCanEdit()`; edit-dialog Save buttons are disabled when `!canEdit`. Route segments use `RequireEditor` (for `/settings`) and `RequireTenantAdmin` (for `/tenant-admin`); corresponding nav links are hidden via `useCanEdit()` / `useIsTenantAdmin()` in `SidebarNav`.
+
+## Dialog & mutation feedback
+
+- Don't hand-roll `toast.*` / `invalidateQueries` in a dialog mutation. Declare `meta: { successMessage, errorMessage?, invalidates }` on `useMutation`; the central `MutationCache` (`query-client.ts`) fires the toast + cache invalidation. Keep inline `ErrorAlert` for in-context errors. Full-CRUD entities use `createCrudHooks` (`entityLabel`). See [`docs/dialog-feedback.md`](../docs/dialog-feedback.md).

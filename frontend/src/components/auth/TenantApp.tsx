@@ -29,6 +29,7 @@ import { ReportingApiPage } from '@foundation/src/components/settings/ReportingA
 import { UsageLimitsSettings } from '@foundation/src/components/settings/UsageLimitsSettings';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
+import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
 import { RequireTenantAdmin } from '@foundation/src/components/auth/RequireTenantAdmin';
 import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
@@ -135,8 +136,8 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="requests" element={<RequestsPage />} />
           <Route path="conflicts" element={<ConflictsPage />} />
 
-          {/* Settings — editor-open content. Nested sub-routes. Default = criteria. */}
-          <Route path="settings" element={<SettingsPage />}>
+          {/* Settings — editor-open content. Viewers are redirected to root. */}
+          <Route path="settings" element={<RequireEditor><SettingsPage /></RequireEditor>}>
             <Route index element={<Navigate to="criteria" replace />} />
             <Route path="criteria" element={<CriteriaSettings />} />
             <Route path="templates" element={<TemplateSettings entityType="request" />} />

@@ -14,9 +14,9 @@ public static class RequestEndpoints
 {
     public static void MapRequestEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireTenantMembership();
+        var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, int? page = null, int? pageSize = null) =>
+        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
@@ -29,8 +29,9 @@ public static class RequestEndpoints
                 }
                 if (scheduled == false)
                 {
-                    // The unscheduled backlog (drag-to-schedule source for the utilization panel).
-                    return Results.Ok(await requestService.GetUnscheduledAsync(ct));
+                    // The unscheduled backlog (drag-to-schedule source). When a site is given it is
+                    // scoped to that site plus site-neutral rows; otherwise tenant-wide.
+                    return Results.Ok(await requestService.GetUnscheduledAsync(siteId, includeSiteNeutral: true, ct));
                 }
                 if (page.HasValue || pageSize.HasValue)
                 {
@@ -170,7 +171,7 @@ public static class RequestEndpoints
 
         // Site + time-window scoped scheduled requests — the utilization grid's bar feed.
         var siteRequests = app.MapGroup("/api/sites/{siteId:guid}/requests")
-            .WithTags("Requests").RequireAuthorization().RequireTenantMembership();
+            .WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
         siteRequests.MapGet("/", async (Guid siteId, DateTime from, DateTime to, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(

@@ -9,9 +9,22 @@ namespace Api.Repositories;
 
 public class CriteriaRepository : ICriteriaRepository
 {
+    // Single source of truth for "what makes a criterion in use": a value reference in any of the
+    // five value-bearing tables. {idExpr} is `c.id` for the correlated projection below and `@id`
+    // for the standalone IsInUseAsync check — both are hardcoded literals, never user input.
+    private static string InUseExists(string idExpr) =>
+        "EXISTS (" +
+        $"  SELECT 1 FROM resource_capabilities WHERE criterion_id = {idExpr} " +
+        $"  UNION ALL SELECT 1 FROM resource_group_capabilities WHERE criterion_id = {idExpr} " +
+        $"  UNION ALL SELECT 1 FROM request_requirements WHERE criterion_id = {idExpr} " +
+        $"  UNION ALL SELECT 1 FROM request_template_requirements WHERE criterion_id = {idExpr} " +
+        $"  UNION ALL SELECT 1 FROM template_items WHERE criterion_id = {idExpr} " +
+        ")";
+
     // Columns are always selected with the `c.` alias on `criteria c` so the
-    // aggregate sub-select can correlate. `resource_type_keys` is a text[].
-    private const string SelectColumns =
+    // aggregate sub-selects can correlate. `resource_type_keys` is a text[]; `in_use`
+    // is a boolean computed from value references across five tables.
+    private static readonly string SelectColumns =
         "c.id, c.name, c.description, c.data_type, c.enum_values, c.unit, " +
         "c.applicable_to_requests, c.created_at, c.updated_at, " +
         "COALESCE(" +
@@ -20,7 +33,8 @@ public class CriteriaRepository : ICriteriaRepository
         "   JOIN resource_types rt ON rt.id = crt.resource_type_id " +
         "   WHERE crt.criterion_id = c.id), " +
         "  '{}'::text[]" +
-        ") AS resource_type_keys";
+        ") AS resource_type_keys, " +
+        InUseExists("c.id") + " AS in_use";
 
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
@@ -167,7 +181,7 @@ public class CriteriaRepository : ICriteriaRepository
         }
     }
 
-    public async Task<CriterionInfo?> UpdateAsync(Guid id, string? description, List<string>? enumValues, string? unit, CancellationToken ct = default)
+    public async Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
@@ -175,11 +189,16 @@ public class CriteriaRepository : ICriteriaRepository
         // Check if criterion exists and get its data type
         var checkCmd = new NpgsqlCommand("SELECT data_type FROM criteria WHERE id = @id", db);
         checkCmd.Parameters.AddWithValue("id", id);
-        var existingDataType = await checkCmd.ExecuteScalarAsync(ct) as string;
-        if (existingDataType == null)
+        var existingDataTypeStr = await checkCmd.ExecuteScalarAsync(ct) as string;
+        if (existingDataTypeStr == null)
         {
             return null;
         }
+
+        var existingDataType = Enum.Parse<CriterionDataType>(existingDataTypeStr);
+        // enum_values and the enum guard are evaluated against the EFFECTIVE (post-update) type:
+        // a single request may change DataType and set EnumValues at once.
+        var effectiveType = dataType ?? existingDataType;
 
         // Build dynamic update query
         var updateFields = new List<string>();
@@ -187,21 +206,45 @@ public class CriteriaRepository : ICriteriaRepository
         cmd.Connection = db;
         cmd.Parameters.AddWithValue("id", id);
 
+        if (name != null)
+        {
+            updateFields.Add("name = @name");
+            cmd.Parameters.AddWithValue("name", name);
+        }
+
         if (description != null)
         {
             updateFields.Add("description = @description");
             cmd.Parameters.AddWithValue("description", description);
         }
 
+        // DataType is immutable once the criterion has any value assignments: the raw JSONB
+        // values would be reinterpreted under the new type. Reject the change when in use.
+        if (dataType != null && dataType != existingDataType)
+        {
+            if (await IsInUseAsync(db, id, ct))
+            {
+                throw new ArgumentException("Cannot change data type: criterion has existing values");
+            }
+            updateFields.Add("data_type = @data_type");
+            cmd.Parameters.AddWithValue("data_type", dataType.Value.ToString());
+        }
+
         if (enumValues != null)
         {
-            // Only allow updating enum_values for Enum type
-            if (existingDataType != "Enum")
+            // enum_values are valid only for the Enum type — checked against the EFFECTIVE type so
+            // "Boolean→Enum + set values" in one request works, while a stray set on a non-Enum fails.
+            if (effectiveType != CriterionDataType.Enum)
             {
                 throw new ArgumentException("Cannot set enum values for non-Enum criterion");
             }
             updateFields.Add("enum_values = @enum_values::jsonb");
             cmd.Parameters.AddWithValue("enum_values", JsonSerializer.Serialize(enumValues));
+        }
+        else if (dataType != null && dataType != existingDataType && effectiveType != CriterionDataType.Enum)
+        {
+            // Changing TO a non-Enum type: drop any stored enum values so they don't dangle.
+            updateFields.Add("enum_values = NULL");
         }
 
         if (unit != null)
@@ -219,10 +262,27 @@ public class CriteriaRepository : ICriteriaRepository
 
         cmd.CommandText =
             $"UPDATE criteria SET {string.Join(", ", updateFields)} WHERE id = @id";
-        await cmd.ExecuteNonQueryAsync(ct);
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch (PostgresException pg) when (pg.SqlState == "23505")
+        {
+            // Unique violation on idx_criteria_name_lower — same conflict CreateAsync reports.
+            throw new ConflictException("A criterion with this name already exists");
+        }
 
         // Re-select via GetByIdAsync to return the full DTO with aggregate columns.
         return await GetByIdAsync(id);
+    }
+
+    // Mirrors the reference check in DeleteAsync and the in_use projection column: a criterion is
+    // "in use" once any value assignment (capability, requirement, or template) references it.
+    private static async Task<bool> IsInUseAsync(NpgsqlConnection db, Guid id, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand("SELECT " + InUseExists("@id"), db);
+        cmd.Parameters.AddWithValue("id", id);
+        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)

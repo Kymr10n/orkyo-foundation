@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
@@ -98,6 +99,10 @@ vi.mock("@foundation/src/hooks/useScheduling", () => ({
 
 vi.mock("@foundation/src/hooks/useSchedulingConflicts", () => ({
   useSchedulingConflicts: vi.fn(() => ({ conflictingRequestIds: new Set() })),
+}));
+
+vi.mock("@foundation/src/hooks/useConflictRegistry", () => ({
+  useConflictRegistry: vi.fn(() => ({ conflictsByRequest: new Map() })),
 }));
 
 const mockPreviewMutateAsync = vi.fn(() => Promise.resolve({ fingerprint: "fp-1", assignments: [] }));
@@ -276,6 +281,8 @@ describe("UtilizationPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRole = "admin";
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
     mockUseRequests.mockReturnValue({ data: [], isLoading: false });
     mockUseSpaces.mockReturnValue({ data: [], isLoading: false });
     mockUseAutoScheduleAvailable.mockReturnValue(false);
@@ -348,7 +355,7 @@ describe("UtilizationPage", () => {
 
   it("hides Auto-Schedule button for viewer role", () => {
     mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockRole = "viewer";
+    vi.mocked(useCanEdit).mockReturnValue(false);
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -405,9 +412,9 @@ describe("UtilizationPage", () => {
     expect(screen.getByTestId("collapsible-floorplan")).toBeInTheDocument();
   });
 
-  // --- Request double-click handlers ---
+  // --- Request click handlers ---
 
-  it("opens edit dialog on double-click when user can edit", async () => {
+  it("opens edit dialog on click when user can edit", async () => {
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -418,7 +425,7 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("opens details dialog on double-click for viewer", async () => {
+  it("opens details dialog on click for viewer", async () => {
     mockRole = "viewer";
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
@@ -444,7 +451,7 @@ describe("UtilizationPage", () => {
   });
 
   it("hides create-child button for viewers", () => {
-    mockRole = "viewer";
+    vi.mocked(useCanEdit).mockReturnValue(false);
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -534,7 +541,7 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // Open edit dialog via double-click
+    // Open edit dialog via click
     fireEvent.click(screen.getByTestId("dblclick-request"));
     await waitFor(() => {
       expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument();
@@ -898,6 +905,55 @@ describe("UtilizationPage", () => {
     });
 
     expect(mockScheduleMutate).not.toHaveBeenCalled();
+  });
+
+  // --- Tab default + site-scoped hook args ---
+
+  it("defaults to the calendar tab when no tab param is present", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <QueryClientProvider client={queryClient}>
+          <UtilizationPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Utilization")).toBeInTheDocument();
+  });
+
+  it("passes undefined site id to scheduling hooks when no site is selected", () => {
+    mockStoreOverrides = { selectedSiteId: null };
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    expect(mockUseSchedulingSettings).toHaveBeenCalledWith(undefined);
+    expect(mockUseAvailabilityEvents).toHaveBeenCalledWith(undefined);
+  });
+
+  // --- Export end-date computation per scale ---
+
+  it.each(["year", "week", "day", "hour"] as const)(
+    "export computes the visible window for scale=%s",
+    async (scale) => {
+      const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+      mockStoreOverrides = { scale };
+      const Wrapper = createWrapper();
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+      await capturedExportHandler!("pdf");
+      expect(vi.mocked(exportUtilization)).toHaveBeenCalled();
+    },
+  );
+
+  // --- Auto-schedule guard ---
+
+  it("auto-schedule click is a no-op when no site is selected", () => {
+    mockUseAutoScheduleAvailable.mockReturnValue(true);
+    mockStoreOverrides = { selectedSiteId: null };
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
+    expect(mockPreviewMutateAsync).not.toHaveBeenCalled();
   });
 });
 

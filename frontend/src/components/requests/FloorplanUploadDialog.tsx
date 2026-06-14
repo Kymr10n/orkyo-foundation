@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Upload, X, FileImage } from 'lucide-react';
 import { cn } from '@foundation/src/lib/utils';
 import { uploadFloorplan, type FloorplanMetadata } from '@foundation/src/lib/api/floorplan-api';
@@ -213,11 +214,7 @@ export function FloorplanUploadDialog({
           )}
 
           {/* Error message */}
-          {error && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive text-sm text-destructive">
-              {error}
-            </div>
-          )}
+          <ErrorAlert message={error ?? null} />
 
           {/* Actions */}
           <div className="flex justify-end gap-2">

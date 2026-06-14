@@ -18,6 +18,7 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
 }));
 
 import { getResourceGroups, deleteResourceGroup } from '@foundation/src/lib/api/resource-groups-api';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 const mockGroups: ResourceGroupInfo[] = [
   {
@@ -58,6 +59,18 @@ describe('ResourceGroupList', () => {
     vi.clearAllMocks();
     vi.mocked(getResourceGroups).mockResolvedValue(mockGroups);
     vi.mocked(deleteResourceGroup).mockResolvedValue(undefined);
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
+  });
+
+  it('disables all edit affordances for a viewer who cannot edit', async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderList();
+    await waitFor(() => expect(screen.getByText('Engineering')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Add Group/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit Engineering' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete Engineering' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Manage members of Engineering' })).toBeDisabled();
   });
 
   it('renders Add Group button', async () => {

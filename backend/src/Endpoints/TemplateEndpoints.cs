@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
 using Microsoft.AspNetCore.Builder;
@@ -12,7 +13,7 @@ public static class TemplateEndpoints
 {
     public static void MapTemplateEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/templates").RequireAuthorization();
+        var group = app.MapGroup("/api/templates").RequireAuthorization().RequireMemberReadEditorWrite();
 
         group.MapGet("", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, string? entityType) =>
         {

@@ -20,5 +20,7 @@ public enum ResourceConflictType
     FractionalCapacityExceeded,
     InvalidAllocationMode,
     InvalidAllocationPercent,
-    OffTimeOverlap
+    OffTimeOverlap,
+    SiteMismatch,
+    CrossSiteNotAllowed
 }

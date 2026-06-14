@@ -39,9 +39,16 @@ public class SchedulingRepository : ISchedulingRepository
     {
         if (resourceIds.Count == 0) return [];
 
+        // A resource's site: spaces use spaces.site_id (immovable); people/tools use
+        // resources.current_site_id (operational location). Single resolver so site logic
+        // isn't scattered. Unsited resources (null on both) are simply omitted.
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         var rows = await conn.QueryListAsync(
-            "SELECT id, site_id FROM spaces WHERE id = ANY(@ids)",
+            @"SELECT r.id, COALESCE(s.site_id, r.current_site_id) AS site_id
+              FROM resources r
+              LEFT JOIN spaces s ON s.id = r.id
+              WHERE r.id = ANY(@ids)
+                AND COALESCE(s.site_id, r.current_site_id) IS NOT NULL",
             p => p.AddWithValue("ids", resourceIds.ToArray()),
             r => (r.GetGuid(0), r.GetGuid(1)), ct);
 

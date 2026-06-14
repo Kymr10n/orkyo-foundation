@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { Input } from "@foundation/src/components/ui/input";
 import {
   Dialog,
@@ -46,13 +47,11 @@ export function ResourceGroupMembersEditor({
   // For spaces only: resourceId → the OTHER group it currently belongs to (1:1 rule).
   const [otherGroupByResource, setOtherGroupByResource] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Pending move confirmation: spaces that will be moved out of another group on save.
   const [pendingMoves, setPendingMoves] = useState<{ name: string; from: string }[] | null>(null);
   const [search, setSearch] = useState('');
   const [showOnlySelected, setShowOnlySelected] = useState(false);
-  const queryClient = useQueryClient();
 
   const filteredResources = useMemo(() => {
     let result = allResources;
@@ -144,25 +143,30 @@ export function ResourceGroupMembersEditor({
         return;
       }
     }
-    void commit();
+    commit();
   };
 
-  const commit = async () => {
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      await setResourceGroupMembers(groupId, Array.from(selectedResourceIds));
-      queryClient.invalidateQueries({ queryKey: ["resource-groups", resourceTypeKey] });
+  const saveMutation = useMutation({
+    mutationFn: () => setResourceGroupMembers(groupId, Array.from(selectedResourceIds)),
+    meta: {
+      successMessage: "Members updated",
+      errorMessage: "Failed to update members",
+      invalidates: [["resource-groups", resourceTypeKey]],
+    },
+    onSuccess: () => {
+      setError(null);
       onSuccess?.();
       onOpenChange(false);
-    } catch (err) {
+    },
+    onError: (err) => {
       logger.error("Failed to update group members:", err);
       setError(err instanceof Error ? err.message : "Failed to update members");
-    } finally {
-      setIsSubmitting(false);
-      setPendingMoves(null);
-    }
-  };
+    },
+    onSettled: () => setPendingMoves(null),
+  });
+
+  const isSubmitting = saveMutation.isPending;
+  const commit = () => saveMutation.mutate();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,9 +195,7 @@ export function ResourceGroupMembersEditor({
                 ))}
               </ul>
             </ScrollArea>
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>
-            )}
+            <ErrorAlert message={error ?? null} />
           </div>
         ) : (
         <>
@@ -270,11 +272,7 @@ export function ResourceGroupMembersEditor({
               </>
             )}
 
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                {error}
-              </div>
-            )}
+            <ErrorAlert message={error ?? null} />
           </div>
         </ScrollArea>
         </>
@@ -291,7 +289,7 @@ export function ResourceGroupMembersEditor({
               >
                 Back
               </Button>
-              <Button onClick={() => void commit()} disabled={isSubmitting}>
+              <Button onClick={() => commit()} disabled={isSubmitting}>
                 {isSubmitting ? "Saving..." : `Move & Save`}
               </Button>
             </>

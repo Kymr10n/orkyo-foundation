@@ -92,14 +92,16 @@ export function durationToMs(value: number, unit: DurationUnit): number {
 
 /** Convert a domain Request into a ScheduledEntry, or null if not scheduled. */
 export function toScheduledEntry(request: Request): ScheduledEntry | null {
-  const spaceResourceId = getSpaceResourceId(request);
-  if (!spaceResourceId || !request.startTs || !request.endTs) return null;
+  if (!request.startTs || !request.endTs) return null;
   const startMs = new Date(request.startTs).getTime();
   const endMs = new Date(request.endTs).getTime();
   if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) return null;
+  // Spaceless-but-scheduled requests use the request id as a synthetic resourceId so
+  // below_min_duration is still detected. Each gets its own "slot" — no false overlaps.
+  const resourceId = getSpaceResourceId(request) ?? request.id;
   return {
     requestId: request.id,
-    resourceId: spaceResourceId,
+    resourceId,
     startMs,
     endMs,
     name: request.name,

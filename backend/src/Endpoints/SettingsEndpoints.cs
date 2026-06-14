@@ -1,7 +1,6 @@
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
-using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -13,8 +12,13 @@ public static class SettingsEndpoints
 {
     public static void MapSettingsEndpoints(this WebApplication app)
     {
+        // Member-read / Admin-write: tenant settings (scheduling config, working hours,
+        // public-holiday region, …) are read app-wide — e.g. the auto-schedule flow reads them
+        // via useTenantSettings — but only admins manage them (the Administration → Configuration
+        // tab). Reads stay member-open; PUT/DELETE require Admin.
         var settings = app.MapGroup("/api/settings")
             .RequireAuthorization()
+            .RequireMemberReadAdminWrite()
             .WithTags("Settings")
             .WithMetadata(new SkipTenantResolutionAttribute());
 
@@ -40,7 +44,6 @@ public static class SettingsEndpoints
                 return Results.Ok(new { settings = result });
             }, logger, "GetSettings");
         })
-        .RequireRole(TenantRole.Editor, TenantRole.Admin)
         .WithName("GetSettings")
         .WithDescription("Get all tenant settings with current values and metadata");
 
@@ -68,7 +71,6 @@ public static class SettingsEndpoints
                 return Results.Ok(new { settings = result });
             }, logger, "UpdateSettings");
         })
-        .RequireAdminAccess()
         .WithName("UpdateSettings")
         .WithDescription("Update one or more tenant settings")
         .Accepts<UpdateSettingsRequest>("application/json");
@@ -86,7 +88,6 @@ public static class SettingsEndpoints
                     : Results.NotFound(new { error = $"Setting '{key}' has no override to reset" });
             }, logger, "ResetSetting", new { key });
         })
-        .RequireAdminAccess()
         .WithName("ResetSetting")
         .WithDescription("Reset a single setting to its compiled default");
     }

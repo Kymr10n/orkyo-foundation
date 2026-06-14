@@ -25,6 +25,7 @@ import {
   isImportSupported,
 } from "@foundation/src/lib/utils/import-export";
 import { AlertCircle, Download, Upload } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState, useRef, useEffect } from "react";
 
 interface ImportExportDialogProps {
@@ -188,17 +189,13 @@ export function ImportExportDialog({
         ) : (
           <div className="space-y-4">
             {!canImport ? (
-              <div className="flex items-start gap-2 p-4 bg-destructive/10 border border-destructive/50 rounded-lg">
-                <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-destructive mb-1">
-                    Import not available
-                  </p>
-                  <p className="text-sm text-destructive/80">
-                    Import is not supported for {contextLabels[context].toLowerCase()}.
-                  </p>
-                </div>
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Import not available</AlertTitle>
+                <AlertDescription>
+                  Import is not supported for {contextLabels[context].toLowerCase()}.
+                </AlertDescription>
+              </Alert>
             ) : (
               <>
                 <div className="space-y-2">

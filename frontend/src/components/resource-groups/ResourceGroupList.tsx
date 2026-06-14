@@ -4,6 +4,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Plus, Pencil, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
 
@@ -16,6 +17,7 @@ interface ResourceGroupListProps {
 
 export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', membersIcon: MembersIcon = Users }: ResourceGroupListProps) {
   const queryClient = useQueryClient();
+  const canEdit = useCanEdit();
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [managingMembersFor, setManagingMembersFor] = useState<ResourceGroupInfo | null>(null);
@@ -78,13 +80,13 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         const group = row.original;
         return (
           <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="icon" onClick={() => setManagingMembersFor(group)} aria-label={`Manage members of ${group.name}`} title="Manage members">
+            <Button variant="ghost" size="icon" onClick={() => setManagingMembersFor(group)} disabled={!canEdit} aria-label={`Manage members of ${group.name}`} title="Manage members">
               <MembersIcon className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => handleEdit(group)} aria-label={`Edit ${group.name}`}>
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(group)} disabled={!canEdit} aria-label={`Edit ${group.name}`}>
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(group.id)} disabled={deleteMutation.isPending} aria-label={`Delete ${group.name}`}>
+            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(group.id)} disabled={!canEdit || deleteMutation.isPending} aria-label={`Delete ${group.name}`}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -96,7 +98,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={handleAdd}>
+        <Button onClick={handleAdd} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Add {entityLabel}
         </Button>

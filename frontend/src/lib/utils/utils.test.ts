@@ -2,10 +2,19 @@ import { describe, it, expect } from 'vitest';
 import {
   buildCreatePayload,
   buildUpdatePayload,
+  cn,
   combineDateTimeToISO,
+  durationToMinutes,
+  formatDateDisplay,
   formatDateForInput,
+  formatDuration,
+  formatMinutesHuman,
+  formatStatusLabel,
   formatTimeForInput,
   getDataTypeColor,
+  getStatusColor,
+  getStatusDotColor,
+  isValidSlug,
 } from './utils';
 import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
 
@@ -142,6 +151,23 @@ describe('Request payload builders — icon plumbing', () => {
     expect(out.icon).toBeUndefined();
   });
 
+  it('payload builders drop requirements with a null value and keep the rest', () => {
+    const withReqs: RequestFormData = {
+      ...base,
+      requirements: [
+        { criterionId: 'c1', value: 'x', operator: 'eq' },
+        { criterionId: 'c2', value: null },
+        { criterionId: 'c3', value: 42 },
+      ],
+    };
+    for (const out of [buildCreatePayload(withReqs), buildUpdatePayload(withReqs)]) {
+      expect(out.requirements).toEqual([
+        { criterionId: 'c1', value: 'x', operator: 'eq' },
+        { criterionId: 'c3', value: 42 },
+      ]);
+    }
+  });
+
   it('buildUpdatePayload forwards a chosen icon', () => {
     const out = buildUpdatePayload({ ...base, icon: 'hammer' });
     expect(out.icon).toBe('hammer');
@@ -150,5 +176,141 @@ describe('Request payload builders — icon plumbing', () => {
   it('buildUpdatePayload forwards null when the form cleared the icon', () => {
     const out = buildUpdatePayload({ ...base, icon: null });
     expect(out.icon).toBeNull();
+  });
+
+  it('buildUpdatePayload omits planningMode when it is unchanged from the original', () => {
+    const out = buildUpdatePayload({ ...base, planningMode: 'summary' }, 'summary');
+    expect(out.planningMode).toBeUndefined();
+  });
+
+  it('buildUpdatePayload sends planningMode when the user changed the type', () => {
+    const out = buildUpdatePayload({ ...base, planningMode: 'leaf' }, 'summary');
+    expect(out.planningMode).toBe('leaf');
+  });
+
+  it('buildUpdatePayload sends planningMode when no original is provided', () => {
+    const out = buildUpdatePayload({ ...base, planningMode: 'leaf' });
+    expect(out.planningMode).toBe('leaf');
+  });
+
+  it('buildCreatePayload forwards the chosen siteId', () => {
+    const out = buildCreatePayload({ ...base, siteId: 'site-A' });
+    expect(out.siteId).toBe('site-A');
+  });
+
+  it('buildCreatePayload omits siteId when site-neutral', () => {
+    const out = buildCreatePayload({ ...base, siteId: null });
+    expect(out.siteId).toBeUndefined();
+  });
+
+  it('buildUpdatePayload omits siteId when unchanged from the original', () => {
+    const out = buildUpdatePayload({ ...base, siteId: 'site-A' }, undefined, 'site-A');
+    expect(out.siteId).toBeUndefined();
+  });
+
+  it('buildUpdatePayload sends siteId when the user re-scoped', () => {
+    const out = buildUpdatePayload({ ...base, siteId: 'site-B' }, undefined, 'site-A');
+    expect(out.siteId).toBe('site-B');
+  });
+
+  it('buildUpdatePayload omits siteId when no original is provided (safe default)', () => {
+    const out = buildUpdatePayload({ ...base, siteId: 'site-A' });
+    expect(out.siteId).toBeUndefined();
+  });
+});
+
+describe('cn', () => {
+  it('merges class names and dedupes conflicting tailwind utilities', () => {
+    expect(cn('px-2', 'px-4')).toBe('px-4');
+    expect(cn('text-sm', false, 'font-bold')).toBe('text-sm font-bold');
+  });
+});
+
+describe('isValidSlug', () => {
+  it('accepts alphanumerics, underscores and hyphens', () => {
+    expect(isValidSlug('site_01-A')).toBe(true);
+  });
+  it('rejects spaces and other punctuation', () => {
+    expect(isValidSlug('has space')).toBe(false);
+    expect(isValidSlug('with.dot')).toBe(false);
+    expect(isValidSlug('')).toBe(false);
+  });
+});
+
+describe('formatDuration', () => {
+  it('singularizes the unit when value is 1', () => {
+    expect(formatDuration(1, 'days')).toBe('1 day');
+    expect(formatDuration(1, 'hours')).toBe('1 hour');
+  });
+  it('keeps the plural unit otherwise', () => {
+    expect(formatDuration(2, 'hours')).toBe('2 hours');
+    expect(formatDuration(0, 'minutes')).toBe('0 minutes');
+  });
+});
+
+describe('formatDateDisplay', () => {
+  it('returns a dash for null/undefined/empty input', () => {
+    expect(formatDateDisplay(null)).toBe('-');
+    expect(formatDateDisplay(undefined)).toBe('-');
+    expect(formatDateDisplay('')).toBe('-');
+  });
+  it('renders a locale date for a valid ISO string', () => {
+    expect(formatDateDisplay('2026-04-02T10:30:00Z')).toBe(
+      new Date('2026-04-02T10:30:00Z').toLocaleDateString(),
+    );
+  });
+});
+
+describe('status helpers', () => {
+  // Status badges share the scheduling palette (amber/emerald) so a request
+  // reads the same colour in a list badge as on the calendar / utilization grid.
+  it('getStatusColor covers every known status plus the default', () => {
+    expect(getStatusColor('planned')).toContain('blue');
+    expect(getStatusColor('in_progress')).toContain('amber');
+    expect(getStatusColor('done')).toContain('emerald');
+    expect(getStatusColor('cancelled')).toContain('line-through');
+    expect(getStatusColor('???')).toBe('bg-muted text-muted-foreground');
+  });
+  it('getStatusDotColor covers every known status plus the default', () => {
+    expect(getStatusDotColor('planned')).toBe('bg-blue-500');
+    expect(getStatusDotColor('in_progress')).toBe('bg-amber-500');
+    expect(getStatusDotColor('done')).toBe('bg-emerald-500');
+    expect(getStatusDotColor('cancelled')).toBe('bg-gray-400');
+    expect(getStatusDotColor('???')).toBe('bg-gray-400');
+  });
+  it('formatStatusLabel humanizes known statuses and echoes unknown ones', () => {
+    expect(formatStatusLabel('planned')).toBe('Planned');
+    expect(formatStatusLabel('in_progress')).toBe('In Progress');
+    expect(formatStatusLabel('done')).toBe('Done');
+    expect(formatStatusLabel('cancelled')).toBe('Cancelled');
+    expect(formatStatusLabel('custom')).toBe('custom');
+  });
+});
+
+describe('durationToMinutes', () => {
+  it('minutes pass through', () => expect(durationToMinutes(30, 'minutes')).toBe(30));
+  it('hours → minutes',      () => expect(durationToMinutes(2,  'hours')).toBe(120));
+  it('days → minutes',       () => expect(durationToMinutes(1,  'days')).toBe(1440));
+  it('weeks → minutes',      () => expect(durationToMinutes(1,  'weeks')).toBe(10080));
+  it('months → minutes',     () => expect(durationToMinutes(1,  'months')).toBe(43200));
+  it('years → minutes',      () => expect(durationToMinutes(1,  'years')).toBe(525600));
+});
+
+describe('formatMinutesHuman', () => {
+  it('formats minutes-only durations', () => {
+    expect(formatMinutesHuman(5)).toBe('5m');
+    expect(formatMinutesHuman(59)).toBe('59m');
+  });
+  it('formats hours, with and without trailing minutes', () => {
+    expect(formatMinutesHuman(60)).toBe('1h');
+    expect(formatMinutesHuman(90)).toBe('1h 30m');
+  });
+  it('formats days, with and without trailing hours', () => {
+    expect(formatMinutesHuman(1440)).toBe('1d');
+    expect(formatMinutesHuman(1440 + 120)).toBe('1d 2h');
+  });
+  it('formats weeks, with and without trailing days', () => {
+    expect(formatMinutesHuman(10080)).toBe('1w');
+    expect(formatMinutesHuman(10080 + 1440)).toBe('1w 1d');
   });
 });

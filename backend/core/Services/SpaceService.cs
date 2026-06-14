@@ -66,9 +66,12 @@ public class SpaceService : ISpaceService
             ?? throw new InvalidOperationException("Space resource type not found");
 
         var resourceId = Guid.NewGuid();
+        // Spaces are immovable: their site lives in spaces.site_id, so the generic
+        // location columns stay null and cross-site is always false.
         await _resourceRepository.CreateAsync(
             spaceType.Id, spaceType.Key, name, description,
-            externalReference: null, AllocationModes.Exclusive, 100, id: resourceId);
+            externalReference: null, AllocationModes.Exclusive, 100,
+            crossSiteAllowed: false, id: resourceId);
 
         var space = await _repository.CreateAsync(resourceId, siteId, code, isPhysical, geometry, properties, capacity);
         await _rollup.RecordDeltaAsync(QuotaResourceTypes.Spaces, 1, ct);

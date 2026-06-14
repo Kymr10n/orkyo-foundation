@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@foundation/src/components/ui/tooltip';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 import { EditCriterionDialog } from './EditCriterionDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
@@ -14,7 +21,9 @@ import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
 import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { logger } from '@foundation/src/lib/core/logger';
+import { toast } from 'sonner';
 
 type FilterTab = 'all' | ResourceTypeKey;
 
@@ -41,6 +50,7 @@ export function CriteriaSettings() {
   const { data: criteria = [], isLoading, error, refetch } = useCriteria();
   const createMutation = useCreateCriterion();
   const deleteMutation = useDeleteCriterion();
+  const canEdit = useCanEdit();
 
   // Handle export/import
   useExportHandler('criteria', async (format) => {
@@ -58,10 +68,12 @@ export function CriteriaSettings() {
       for (const criterion of importedCriteria) {
         await createMutation.mutateAsync(criterion as CreateCriterionRequest);
       }
-      alert(`Successfully imported ${importedCriteria.length} criteria`);
+      toast.success(`Imported ${importedCriteria.length} criterion${importedCriteria.length === 1 ? '' : 'ia'}`);
     } catch (error) {
       logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import criteria');
+      toast.error('Import failed', {
+        description: error instanceof Error ? error.message : 'Failed to import criteria',
+      });
     }
   });
 
@@ -82,9 +94,8 @@ export function CriteriaSettings() {
 
     try {
       await deleteMutation.mutateAsync(criterion.id);
-      // Cache is automatically invalidated by the mutation hook
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete criterion');
+    } catch {
+      // toast already fired by useDeleteCriterion.onError (entityLabel: "Criterion")
     }
   };
 
@@ -173,6 +184,7 @@ export function CriteriaSettings() {
             <Button
               variant="ghost"
               size="icon"
+              disabled={!canEdit}
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingCriterion(criterion);
@@ -182,19 +194,33 @@ export function CriteriaSettings() {
             >
               <Edit className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(criterion);
-              }}
-              className="text-destructive hover:text-destructive"
-              aria-label={`Delete ${criterion.name}`}
-              title="Delete criterion"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Span wrapper so the tooltip still fires while the button is disabled */}
+                  <span className="inline-flex">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={criterion.inUse || !canEdit}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(criterion);
+                      }}
+                      className="text-destructive hover:text-destructive"
+                      aria-label={`Delete ${criterion.name}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {criterion.inUse
+                    ? 'Cannot delete: this criterion has existing values'
+                    : 'Delete criterion'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         );
       },
@@ -223,7 +249,7 @@ export function CriteriaSettings() {
         title="Criteria Definitions"
         description="Define reusable criteria that can be used as space capabilities or utilization requirements. These criteria enable automatic validation during utilization."
       >
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Add Criterion
         </Button>
@@ -231,13 +257,15 @@ export function CriteriaSettings() {
 
       {/* Error State */}
       {error && (
-        <div className="flex items-center gap-2 p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm text-destructive">{error instanceof Error ? error.message : 'Failed to load criteria'}</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-auto">
-            Retry
-          </Button>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-2">
+            <span>{error instanceof Error ? error.message : 'Failed to load criteria'}</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Filter Tabs */}
@@ -255,7 +283,7 @@ export function CriteriaSettings() {
       {criteria.length === 0 ? (
         <Card className="p-12 text-center">
           <p className="text-muted-foreground mb-4">No criteria defined yet</p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             Create your first criterion
           </Button>

@@ -25,6 +25,23 @@ public class GroupCapabilityEndpointsTests
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
     }
 
+    // The test group is space-typed, and the applicability guard only admits a criterion that is
+    // explicitly applicable to space (its open-world fallback is off once the space type has any
+    // applicability rows, which other tests in the shared DB commit). Picking from the shared pool
+    // is order-dependent and flaky, so each CRUD test mints its own space-applicable criterion.
+    private async Task<CriterionInfo> CreateSpaceCriterionAsync(CriterionDataType dataType)
+    {
+        var create = new CreateCriterionRequest
+        {
+            Name = $"grp_space_{dataType}_{Guid.NewGuid():N}"[..24],
+            DataType = dataType,
+            ResourceTypeKeys = new List<string> { "space" },
+        };
+        var response = await _client.PostAsJsonAsync("/api/criteria", create);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CriterionInfo>())!;
+    }
+
     private async Task<Guid> CreateTestGroupAsync()
     {
         var request = new CreateResourceGroupRequest
@@ -102,8 +119,7 @@ public class GroupCapabilityEndpointsTests
     public async Task AddCapability_ValidData_Returns201()
     {
         var groupId = await CreateTestGroupAsync();
-        var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.First(c => c.DataType == CriterionDataType.Number);
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Number);
 
         var request = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
@@ -122,11 +138,35 @@ public class GroupCapabilityEndpointsTests
     }
 
     [Fact]
+    public async Task AddCapability_CriterionNotApplicableToGroupType_Returns400()
+    {
+        // The group is space-typed (see CreateTestGroupAsync). A criterion applicable only to
+        // people must not be assignable to it — mirrors the resource-level applicability guard so
+        // a group can't carry a capability its resource type isn't marked applicable to.
+        var groupId = await CreateTestGroupAsync();
+
+        var createCriterion = new CreateCriterionRequest
+        {
+            Name = $"grp_notapp_{Guid.NewGuid():N}",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = new List<string> { "person" },
+        };
+        var createResponse = await _client.PostAsJsonAsync("/api/criteria", createCriterion);
+        createResponse.EnsureSuccessStatusCode();
+        var criterion = (await createResponse.Content.ReadFromJsonAsync<CriterionInfo>())!;
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{groupId}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, true));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AddCapability_ThenGetReturnsIt()
     {
         var groupId = await CreateTestGroupAsync();
-        var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.First(c => c.DataType == CriterionDataType.Boolean);
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Boolean);
 
         var addRequest = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
@@ -171,8 +211,7 @@ public class GroupCapabilityEndpointsTests
     public async Task DeleteCapability_Existing_Returns204()
     {
         var groupId = await CreateTestGroupAsync();
-        var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.First(c => c.DataType == CriterionDataType.Number);
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Number);
 
         // Create capability
         var addRequest = new AddGroupCapabilityRequest(
@@ -197,8 +236,7 @@ public class GroupCapabilityEndpointsTests
     public async Task DeleteCapability_ThenGetReturnsEmpty()
     {
         var groupId = await CreateTestGroupAsync();
-        var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.First(c => c.DataType == CriterionDataType.String);
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.String);
 
         // Create
         var addResponse = await _client.PostAsJsonAsync(

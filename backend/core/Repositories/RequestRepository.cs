@@ -13,6 +13,7 @@ public class RequestRepository : IRequestRepository
     // Columns selected from the view.
     private const string SelectFromView =
         @"id, name, description, parent_request_id, planning_mode, sort_order,
+          site_id,
           request_item_id, icon,
           start_ts, end_ts, earliest_start_ts, latest_end_ts,
           minimal_duration_value, minimal_duration_unit,
@@ -143,22 +144,27 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
-        // Site-scoped scheduled requests whose bar overlaps [from,to]: start_ts <= to AND end_ts >= from.
+        // Scheduled requests for this site whose bar overlaps [from,to]: start_ts <= to AND end_ts >= from.
+        // A request belongs to the site if it is scoped to it (site_id) OR placed into one of its
+        // spaces. The site_id arm makes a scheduled, space-less request appear on its site's calendar.
         var requests = new List<RequestInfo>();
         var cmd = new NpgsqlCommand($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE start_ts IS NOT NULL
               AND start_ts <= @to AND end_ts >= @from
-              AND EXISTS (
-                SELECT 1 FROM resource_assignments ra
-                JOIN resources res ON res.id = ra.resource_id
-                JOIN resource_types rt ON rt.id = res.resource_type_id
-                JOIN spaces s ON s.id = res.id
-                WHERE ra.request_id = v_requests_with_assignments.id
-                  AND rt.key = @spaceKey
-                  AND ra.assignment_status != @cancelled
-                  AND s.site_id = @siteId
+              AND (
+                site_id = @siteId
+                OR EXISTS (
+                  SELECT 1 FROM resource_assignments ra
+                  JOIN resources res ON res.id = ra.resource_id
+                  JOIN resource_types rt ON rt.id = res.resource_type_id
+                  JOIN spaces s ON s.id = res.id
+                  WHERE ra.request_id = v_requests_with_assignments.id
+                    AND rt.key = @spaceKey
+                    AND ra.assignment_status != @cancelled
+                    AND s.site_id = @siteId
+                )
               )", db);
         cmd.Parameters.AddWithValue("siteId", siteId);
         cmd.Parameters.AddWithValue("from", from);
@@ -176,15 +182,33 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
-    public async Task<List<RequestInfo>> GetUnscheduledAsync(CancellationToken ct = default)
+    public async Task<List<RequestInfo>> GetUnscheduledAsync(
+        Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
+        // Only leaf requests are directly schedulable (see RequestService.UpdateAsync), so the
+        // drag-to-schedule backlog excludes groups — their null start_ts is a derived state, not an
+        // unscheduled one. Unscheduled leaf *children* of a group still surface (they're the units
+        // you place); only the group nodes drop.
+        //
+        // Site scoping: when a site is given, return that site's backlog plus (by default) the
+        // site-neutral rows, which are schedulable at any site and adopt a site once placed. A null
+        // siteId keeps the tenant-wide backlog (used until a caller passes a site).
+        var siteFilter = siteId is null
+            ? ""
+            : includeSiteNeutral
+                ? "AND (site_id = @siteId OR site_id IS NULL) "
+                : "AND site_id = @siteId ";
+
         var requests = new List<RequestInfo>();
         var cmd = new NpgsqlCommand(
-            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE start_ts IS NULL " +
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
+            "WHERE start_ts IS NULL AND planning_mode = 'leaf' " +
+            siteFilter +
             "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC", db);
+        if (siteId is not null) cmd.Parameters.AddWithValue("siteId", siteId.Value);
 
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
@@ -265,19 +289,37 @@ public class RequestRepository : IRequestRepository
             throw new ArgumentException("Invalid resource_id: resource does not exist");
         }
 
+        // Validate site_id if provided (site must exist)
+        if (request.SiteId.HasValue
+            && !await db.ExistsAsync("sites", request.SiteId.Value, ct))
+        {
+            throw new ArgumentException("Invalid site_id: site does not exist");
+        }
+
+        // Implicit site-on-schedule: a request created directly into a space (no explicit site)
+        // adopts that space's site. Mirrors UpdateScheduleAsync so every creation route agrees.
+        var effectiveSiteId = request.SiteId;
+        if (effectiveSiteId is null && request.ResourceId.HasValue)
+        {
+            effectiveSiteId = await db.QuerySingleOrDefaultAsync<Guid?>(
+                "SELECT site_id FROM spaces WHERE id = @id",
+                p => p.AddWithValue("id", request.ResourceId.Value),
+                r => r.GetGuid(0), ct);
+        }
+
         await using var transaction = await db.BeginTransactionAsync();
 
         try
         {
             var cmd = new NpgsqlCommand(
                 $@"INSERT INTO requests (name, description, parent_request_id, planning_mode, sort_order,
-                                        request_item_id, icon,
+                                        site_id, request_item_id, icon,
                                         start_ts, end_ts, earliest_start_ts, latest_end_ts,
                                         minimal_duration_value, minimal_duration_unit,
                                         actual_duration_value, actual_duration_unit,
                                         status, scheduling_settings_apply)
                    VALUES (@name, @description, @parent_request_id, @planning_mode, @sort_order,
-                           @request_item_id, @icon,
+                           @site_id, @request_item_id, @icon,
                            @start_ts, @end_ts, @earliest_start_ts, @latest_end_ts,
                            @minimal_duration_value, @minimal_duration_unit,
                            @actual_duration_value, @actual_duration_unit,
@@ -290,6 +332,7 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("parent_request_id", (object?)request.ParentRequestId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("planning_mode", EnumMapper.ToDbValue(request.PlanningMode));
             cmd.Parameters.AddWithValue("sort_order", request.SortOrder);
+            cmd.Parameters.AddWithValue("site_id", (object?)effectiveSiteId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("request_item_id", (object?)request.RequestItemId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("icon", (object?)request.Icon ?? DBNull.Value);
             cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
@@ -382,6 +425,7 @@ public class RequestRepository : IRequestRepository
         if (request.ParentRequestId.HasValue) update.Set("parent_request_id", request.ParentRequestId.Value);
         if (request.PlanningMode.HasValue) update.Set("planning_mode", EnumMapper.ToDbValue(request.PlanningMode.Value));
         if (request.SortOrder.HasValue) update.Set("sort_order", request.SortOrder.Value);
+        if (request.SiteId.HasValue) update.Set("site_id", request.SiteId.Value);
         update.SetIfNotNull("request_item_id", request.RequestItemId);
         update.SetIfNotNull("icon", request.Icon);
         if (request.StartTs.HasValue) update.Set("start_ts", request.StartTs.Value);
@@ -482,16 +526,21 @@ public class RequestRepository : IRequestRepository
 
         await using var tx = await db.BeginTransactionAsync();
 
+        // Implicit site-on-schedule: a site-neutral request adopts the site of the space it is
+        // scheduled into. COALESCE keeps an existing scope and is a no-op when no space is given
+        // (the subquery yields NULL for a null/ non-space resource id).
         var cmd = new NpgsqlCommand(
             $@"UPDATE requests
                SET start_ts = @start_ts, end_ts = @end_ts,
                    actual_duration_value = @actual_duration_value,
-                   actual_duration_unit  = @actual_duration_unit
+                   actual_duration_unit  = @actual_duration_unit,
+                   site_id = COALESCE(site_id, (SELECT site_id FROM spaces WHERE id = @resource_id))
                WHERE id = @id
                RETURNING id",
             db, tx);
 
         cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("resource_id", (object?)request.ResourceId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
         cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
         cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);

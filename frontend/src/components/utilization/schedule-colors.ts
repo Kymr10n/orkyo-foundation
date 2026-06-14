@@ -24,9 +24,9 @@ export const STATUS_BORDER_CLASS: Record<BucketStatus, string> = {
 // Empty string = no fill (the track tint alone carries the meaning).
 export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
   available:     '',
-  partial:       'bg-amber-500/50 dark:bg-amber-500/40',
-  assigned:      'bg-blue-500/50  dark:bg-blue-500/40',
-  overbooked:    'bg-red-600/60   dark:bg-red-600/50',
+  partial:       'bg-amber-300   dark:bg-amber-600',
+  assigned:      'bg-blue-300    dark:bg-blue-600',
+  overbooked:    'bg-red-400     dark:bg-red-600',
   'non-working': '',
 };
 

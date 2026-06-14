@@ -18,7 +18,7 @@ public static class SpaceEndpoints
         var spaces = app.MapGroup("/api/sites/{siteId:guid}/spaces")
             .WithTags("Spaces")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         spaces.MapGet("/", async (Guid siteId, ISpaceService spaceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize) =>
         {

@@ -20,7 +20,7 @@ public static class PersonProfileEndpoints
         var group = app.MapGroup("/api/person-profiles")
             .WithTags("PersonProfiles")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/{resourceId:guid}", async (
             Guid resourceId,
@@ -53,7 +53,6 @@ public static class PersonProfileEndpoints
                 var profile = await profileRepository.UpsertAsync(resourceId, request, ct);
                 return Results.Ok(profile);
             }, logger, "upsert person profile", new { resourceId }))
-            .RequireAdminAccess()
             .WithName("UpsertPersonProfile")
             .WithSummary("Upsert a person profile");
 
@@ -76,7 +75,6 @@ public static class PersonProfileEndpoints
                 var success = await profileRepository.LinkUserAsync(resourceId, request.UserId, ct);
                 return success ? Results.NoContent() : ErrorResponses.NotFound("PersonProfile", resourceId);
             }, logger, "link user to person profile", new { resourceId }))
-            .RequireAdminAccess()
             .WithName("LinkUserToPersonProfile")
             .WithSummary("Link a user to a person profile");
 
@@ -93,7 +91,6 @@ public static class PersonProfileEndpoints
                 var success = await profileRepository.UnlinkUserAsync(resourceId, ct);
                 return success ? Results.NoContent() : Results.NotFound();
             }, logger, "unlink user from person profile", new { resourceId }))
-            .RequireAdminAccess()
             .WithName("UnlinkUserFromPersonProfile")
             .WithSummary("Unlink a user from a person profile");
     }

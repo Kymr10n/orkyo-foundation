@@ -2,16 +2,9 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RequestPeopleSection } from './RequestPeopleSection';
 import type { ReactNode } from 'react';
+import type * as ResourceAssignmentsApi from '@foundation/src/lib/api/resource-assignments-api';
 
 // --- Mock UI components ---
-
-vi.mock('@foundation/src/components/ui/collapsible', () => ({
-  Collapsible: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div>{children}</div> : <div>{(children as ReactNode[])?.[0]}</div>,
-  CollapsibleTrigger: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) =>
-    <button {...props}>{children}</button>,
-  CollapsibleContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
 
 vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ children, value, onValueChange }: { children: ReactNode; value?: string; onValueChange?: (v: string) => void }) => (
@@ -49,7 +42,9 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
 }));
 
-vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
+vi.mock('@foundation/src/lib/api/resource-assignments-api', async (importActual) => ({
+  // Keep the real pure helpers (SOFT_BLOCKER_CODES, hardBlockers, …); mock only network calls.
+  ...(await importActual<typeof ResourceAssignmentsApi>()),
   getAssignmentsByRequest: vi.fn(),
   validateAssignment: vi.fn(),
   createAssignment: vi.fn(),
@@ -93,8 +88,6 @@ const defaultProps = {
   requestId: 'req-1',
   requestStartTs: '2026-06-01T09:00:00Z',
   requestEndTs: '2026-06-01T17:00:00Z',
-  open: true,
-  onOpenChange: vi.fn(),
   onBlockersChange: vi.fn(),
 };
 
@@ -227,6 +220,28 @@ describe('RequestPeopleSection', () => {
     });
   });
 
+  it('treats capability.missing as a soft blocker: Add stays enabled and it shows as a warning', async () => {
+    (validateAssignment as Mock).mockResolvedValue({
+      severity: 'blocker',
+      blockers: [{ code: 'capability.missing', message: 'Resource does not satisfy requirement', resourceId: 'res-person-1' }],
+      warnings: [],
+    });
+
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    await waitFor(() => {
+      // Surfaced as a warning, not a hard blocker…
+      expect(screen.getByText(/Required capability missing/)).toBeInTheDocument();
+    });
+    // …so the row's Add button stays enabled and the dialog isn't gated.
+    expect(screen.getByTestId('save-row-btn')).not.toBeDisabled();
+    const calls = (defaultProps.onBlockersChange as Mock).mock.calls;
+    expect(calls[calls.length - 1][0]).toBe(false);
+  });
+
   it('removes an existing assignment when remove is clicked', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
     render(<RequestPeopleSection {...defaultProps} />);
@@ -322,5 +337,101 @@ describe('RequestPeopleSection', () => {
         }),
       );
     });
+  });
+
+  // ── Branch coverage: create-mode, validation-skip, save guards ──────────────
+
+  it('does not fetch assignments when creating a new request (no requestId)', async () => {
+    render(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    expect(getAssignmentsByRequest).not.toHaveBeenCalled();
+  });
+
+  it('skips validation when the request has no start/end times', async () => {
+    render(
+      <RequestPeopleSection
+        {...defaultProps}
+        requestStartTs={undefined}
+        requestEndTs={undefined}
+      />,
+    );
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    // Give the debounce window a chance to (not) fire.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(validateAssignment).not.toHaveBeenCalled();
+  });
+
+  it('shows "No issues found" when validation returns a clean result', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    await waitFor(() => expect(screen.getByTestId('validation-ok')).toBeInTheDocument());
+  });
+
+  it('blocks saving a row before the request itself has a schedule', async () => {
+    render(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('row-error')).toHaveTextContent(
+        /Request must be saved with a schedule/,
+      ),
+    );
+    expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when saving a row with no person selected', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    // Save without selecting a person.
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a row error when createAssignment fails', async () => {
+    (createAssignment as Mock).mockRejectedValue(new Error('Conflict on save'));
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('row-error')).toHaveTextContent('Conflict on save'),
+    );
+  });
+
+  it('clamps and sanitizes the allocation percent input', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    const alloc = screen.getByTestId('allocation-input');
+    fireEvent.change(alloc, { target: { value: '250' } });
+    expect(alloc).toHaveValue('100');
+    fireEvent.change(alloc, { target: { value: 'abc' } });
+    expect(alloc).toHaveValue('0');
+  });
+
+  it('updates free-text role/notes fields on a pending row', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.change(screen.getByTestId('role-input'), { target: { value: 'Lead' } });
+    expect(screen.getByTestId('role-input')).toHaveValue('Lead');
+  });
+
+  it('falls back to the resourceId when the assigned person is not in the people list', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([
+      { ...mockAssignment, resourceId: 'ghost-person' },
+    ]);
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => expect(screen.getByText('ghost-person')).toBeInTheDocument());
   });
 });

@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { ResourceCapability } from '@foundation/src/lib/api/resource-capabilities-api';
 
@@ -16,6 +16,10 @@ vi.mock('@foundation/src/lib/api/resource-capabilities-api', () => ({
 vi.mock('@foundation/src/lib/core/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
 
 // Stub CreateCriterionDialog. The real dialog mounts react-query mutations and
 // is exercised by its own test suite; here we only care that the editor wires
@@ -83,12 +87,9 @@ const defaultProps = {
   personName: 'Alice',
 };
 
-function makeWrapper() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
-}
+// Save now flows through useMutation; the feedback wrapper's MutationCache mirrors
+// production so meta-driven toasts/invalidation fire in tests.
+const makeWrapper = createFeedbackTestQueryWrapper;
 
 describe('PersonSkillsEditor', () => {
   beforeEach(() => {
@@ -202,14 +203,32 @@ describe('PersonSkillsEditor', () => {
     );
   });
 
-  it('displays saveError when upsert fails during save', async () => {
+  it('shows success toast and closes dialog after a successful save', async () => {
+    vi.mocked(getResourceCapabilities).mockResolvedValue([EXISTING_ASSIGNMENT]);
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<PersonSkillsEditor {...defaultProps} onOpenChange={onOpenChange} />, { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(screen.getByText('1 active')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('Skills saved');
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it('displays saveError and toast when upsert fails during save', async () => {
     vi.mocked(getResourceCapabilities).mockResolvedValue([EXISTING_ASSIGNMENT]);
     vi.mocked(upsertResourceCapability).mockRejectedValueOnce(new Error('Save failed'));
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
     await waitFor(() => expect(screen.getByText('1 active')).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: /save changes/i }));
-    await waitFor(() => expect(screen.getByText('Save failed')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByText('Save failed')).toBeInTheDocument();
+      expect(toastError).toHaveBeenCalledWith('Failed to save skills', expect.objectContaining({ description: 'Save failed' }));
+    });
   });
 
   it('shows empty message when no criteria are available', async () => {

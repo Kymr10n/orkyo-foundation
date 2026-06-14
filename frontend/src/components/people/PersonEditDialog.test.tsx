@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersonEditDialog } from './PersonEditDialog';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 
 // API mocks. The reworked dialog now also queries job-titles and departments to
@@ -22,6 +22,17 @@ vi.mock('@foundation/src/lib/api/job-titles-api', () => ({
 vi.mock('@foundation/src/lib/api/departments-api', () => ({
   getDepartmentTree: vi.fn(),
 }));
+vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
+  getAssignmentsByResource: vi.fn(),
+}));
+const sitesMock = vi.hoisted(() => ({
+  sites: [] as { id: string; name: string }[],
+  isMultiSite: false,
+}));
+vi.mock('@foundation/src/hooks/useSites', () => ({
+  useSites: () => ({ data: sitesMock.sites }),
+  useIsMultiSite: () => sitesMock.isMultiSite,
+}));
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -30,6 +41,8 @@ import { createResource, updateResource } from '@foundation/src/lib/api/resource
 import { getPersonProfile, upsertPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getJobTitles } from '@foundation/src/lib/api/job-titles-api';
 import { getDepartmentTree } from '@foundation/src/lib/api/departments-api';
+import { getAssignmentsByResource } from '@foundation/src/lib/api/resource-assignments-api';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
 
 const createdResource: ResourceInfo = {
@@ -45,27 +58,31 @@ const createdResource: ResourceInfo = {
 };
 
 function renderDialog(props: Partial<Parameters<typeof PersonEditDialog>[0]> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Save flows through useMutation; the feedback wrapper's MutationCache mirrors
+  // production so meta-driven toasts/invalidation fire in tests.
   return render(
-    <QueryClientProvider client={queryClient}>
-      <PersonEditDialog
-        person={null}
-        isOpen
-        onClose={() => {}}
-        onSaved={() => {}}
-        {...props}
-      />
-    </QueryClientProvider>,
+    <PersonEditDialog
+      person={null}
+      isOpen
+      onClose={() => {}}
+      onSaved={() => {}}
+      {...props}
+    />,
+    { wrapper: createFeedbackTestQueryWrapper() },
   );
 }
 
 describe('PersonEditDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sitesMock.sites = [];
+    sitesMock.isMultiSite = false;
     vi.mocked(createResource).mockResolvedValue(createdResource);
     vi.mocked(updateResource).mockResolvedValue(createdResource);
+    vi.mocked(getAssignmentsByResource).mockResolvedValue([]);
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test so a
+    // viewer-state override never leaks (clearAllMocks does not restore the implementation).
+    vi.mocked(useCanEdit).mockReturnValue(true);
     vi.mocked(getPersonProfile).mockResolvedValue({
       resourceId: 'res-1',
       jobTitleId: 'jt-engineer',
@@ -92,6 +109,43 @@ describe('PersonEditDialog', () => {
         children: [],
       },
     ]);
+  });
+
+  it('renders nothing and does not sync the form while closed', () => {
+    renderDialog({ isOpen: false });
+    expect(screen.queryByLabelText(/Name/)).not.toBeInTheDocument();
+  });
+
+  it('shows an "update" error toast when an edit save fails', async () => {
+    vi.mocked(updateResource).mockRejectedValue(new Error('Conflict'));
+    renderDialog({ person: createdResource, onSaved: vi.fn() });
+
+    await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Failed to update person',
+        expect.objectContaining({ description: 'Conflict' }),
+      ),
+    );
+  });
+
+  it('coalesces a partial/stale resource shape to safe form defaults', async () => {
+    // The API normally returns a fully-populated ResourceInfo; a stale or partial
+    // shape (null name/allocationMode/availability) must not crash the form.
+    const partial = {
+      ...createdResource,
+      name: null,
+      allocationMode: null,
+      baseAvailabilityPercent: null,
+    } as unknown as ResourceInfo;
+    renderDialog({ person: partial, onSaved: vi.fn() });
+
+    await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+    expect(screen.getByLabelText(/Name/)).toHaveValue('');
+    // Save stays disabled because the coalesced name is empty.
+    expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
   });
 
   it('renders form fields for name, email, job title, department, and notes', () => {
@@ -228,5 +282,169 @@ describe('PersonEditDialog', () => {
 
     await waitFor(() => expect(createResource).toHaveBeenCalled());
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('persists description, notes, and base availability on create', async () => {
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
+    fireEvent.change(screen.getByLabelText(/Description/), {
+      target: { value: 'A teammate' },
+    });
+    fireEvent.change(screen.getByLabelText(/Notes/), {
+      target: { value: 'Prefers mornings' },
+    });
+    fireEvent.change(screen.getByLabelText(/Base Availability/), {
+      target: { value: '80' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => expect(createResource).toHaveBeenCalled());
+    expect(createResource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'A teammate',
+        baseAvailabilityPercent: 80,
+      }),
+    );
+    expect(upsertPersonProfile).toHaveBeenCalledWith(
+      'res-1',
+      expect.objectContaining({ notes: 'Prefers mornings' }),
+    );
+  });
+
+  describe('multi-site Location block', () => {
+    const multiSitePerson: ResourceInfo = {
+      ...createdResource,
+      homeSiteId: 'site-1',
+      currentSiteId: 'site-1',
+      crossSiteAllowed: true,
+    };
+
+    beforeEach(() => {
+      sitesMock.isMultiSite = true;
+      sitesMock.sites = [
+        { id: 'site-1', name: 'Site A' },
+        { id: 'site-2', name: 'Site B' },
+      ];
+      vi.mocked(updateResource).mockResolvedValue(multiSitePerson);
+      // No profile row → the API 404s and the component's loadProfileOrNull maps it to null.
+      vi.mocked(getPersonProfile).mockRejectedValue(new Error('404 Not Found'));
+    });
+
+    it('renders the Location fields only when the tenant is multi-site', async () => {
+      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      expect(screen.getByText('Location')).toBeInTheDocument();
+      expect(screen.getByLabelText('Home Site')).toBeInTheDocument();
+      expect(screen.getByLabelText('Current Site')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Available for other sites'),
+      ).toBeInTheDocument();
+    });
+
+    it('saves the home-site fields, toggling cross-site availability', async () => {
+      const onSaved = vi.fn();
+      renderDialog({ person: multiSitePerson, onSaved });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      // Wait for the form to sync from the person (checkbox starts checked),
+      // then turn off "available for other sites".
+      const crossSite = screen.getByLabelText('Available for other sites');
+      await waitFor(() => expect(crossSite).toBeChecked());
+      fireEvent.click(crossSite);
+      await waitFor(() => expect(crossSite).not.toBeChecked());
+
+      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(updateResource).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({
+          homeSiteId: 'site-1',
+          currentSiteId: 'site-1',
+          crossSiteAllowed: false,
+        }),
+      );
+    });
+
+    it('defaults the current site to the home site when current is left unset', async () => {
+      const onSaved = vi.fn();
+      const homeOnlyPerson: ResourceInfo = {
+        ...multiSitePerson,
+        homeSiteId: 'site-1',
+        currentSiteId: undefined,
+      };
+      vi.mocked(updateResource).mockResolvedValue(homeOnlyPerson);
+      renderDialog({ person: homeOnlyPerson, onSaved });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(updateResource).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({ homeSiteId: 'site-1', currentSiteId: 'site-1' }),
+      );
+    });
+
+    it('hides the Location block for single-site tenants', () => {
+      sitesMock.isMultiSite = false;
+      renderDialog({ onSaved: vi.fn() });
+      expect(screen.queryByText('Location')).not.toBeInTheDocument();
+    });
+
+    it('locks the site fields and warns when the person has scheduled assignments', async () => {
+      vi.mocked(getAssignmentsByResource).mockResolvedValue(
+        [{ id: 'a1' }] as unknown as Awaited<ReturnType<typeof getAssignmentsByResource>>,
+      );
+      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
+
+      expect(await screen.findByText(/scheduled assignment/i)).toBeInTheDocument();
+      expect(screen.getByLabelText('Home Site')).toBeDisabled();
+      expect(screen.getByLabelText('Current Site')).toBeDisabled();
+      expect(screen.getByLabelText('Available for other sites')).toBeDisabled();
+    });
+
+    it('leaves the site fields editable when the person has no assignments', async () => {
+      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      expect(screen.queryByText(/scheduled assignment/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Home Site')).toBeEnabled();
+    });
+  });
+
+  it('disables Save for a viewer who cannot edit', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ person: createdResource, onSaved: vi.fn() });
+    expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
+  });
+
+  describe('reference-data selects', () => {
+    it('renders a disabled placeholder option for a no-longer-active job title and department', async () => {
+      // Profile points at FK ids that are no longer in the active lists; the
+      // dialog injects a disabled "current assignment" option so the Select is
+      // not blank. Opening the trigger mounts the SelectContent that holds it.
+      vi.mocked(getPersonProfile).mockResolvedValue({
+        resourceId: 'res-1',
+        jobTitleId: 'jt-removed',
+        departmentId: 'dept-removed',
+        jobTitleName: 'Removed',
+        departmentPath: 'Removed',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      });
+      renderDialog({ person: createdResource, onSaved: vi.fn() });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      fireEvent.click(screen.getByLabelText(/Job Title/));
+      await waitFor(() =>
+        expect(
+          screen.getAllByText('(current assignment — no longer active)').length,
+        ).toBeGreaterThan(0),
+      );
+    });
   });
 });

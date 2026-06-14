@@ -117,6 +117,12 @@ public class SchedulingService : ISchedulingService
         var applyScheduling = request.SchedulingSettingsApply ?? existing.SchedulingSettingsApply;
         if (!applyScheduling) return request;
 
+        // Respect an explicitly-provided window: when the caller sets an end, never override it.
+        // A window shorter than the minimal duration is allowed to persist and surfaces a
+        // `below_min_duration` conflict (ConflictService) — matching the edit dialog's promise.
+        // The auto-compute below only applies when the caller gives a start but no end.
+        if (request.EndTs != null) return request;
+
         var resourceId = request.ResourceId ?? existing.GetSpaceResourceId();
         var startTs = request.StartTs ?? existing.StartTs;
         if (resourceId == null || startTs == null) return request;

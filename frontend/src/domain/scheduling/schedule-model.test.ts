@@ -80,9 +80,12 @@ describe('toScheduledEntry', () => {
     expect(entry!.minimalDurationMs).toBe(3_600_000); // 1 hour
   });
 
-  it('returns null when resourceId is missing', () => {
+  it('uses request id as synthetic resourceId when no space is assigned', () => {
     const req = makeRequest({ assignments: [], startTs: '2024-06-01T08:00:00Z', endTs: '2024-06-01T10:00:00Z' });
-    expect(toScheduledEntry(req)).toBeNull();
+    const entry = toScheduledEntry(req);
+    expect(entry).not.toBeNull();
+    expect(entry!.resourceId).toBe('req-1');
+    expect(entry!.requestId).toBe('req-1');
   });
 
   it('returns null when startTs is missing', () => {

@@ -15,8 +15,10 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// Integration test for the relatable-year narrative seed against a real tenant DB (rolled back).
 /// Proves the demo is coherent and correct, not just non-empty: assigned resources actually satisfy
 /// every requirement (CapabilityMatcher presence/Boolean/Enum), tool assignments are facility-local,
-/// all three allocation modes appear (incl. a ConcurrentCapacity space holding overlapping jobs),
-/// holidays/shutdowns + absences exist, and conflicts are only the small injected set.
+/// both supported allocation modes appear (Exclusive rooms/machines; Fractional people, shared
+/// storage rooms, and forklifts/cranes), every Exclusive assignment carries a null percent (the
+/// validator rejects a percent on Exclusive resources), holidays/shutdowns + absences exist, and
+/// conflicts are only the small injected set.
 /// </summary>
 [Collection("Database collection")]
 public class NarrativeYearSeederTests
@@ -45,6 +47,10 @@ public class NarrativeYearSeederTests
         var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
 
         // 30 minimal people (resources of type person) — enough for facility coverage.
+        // Deterministic ids (own Randomizer so the main faker stream is untouched): the cross-site
+        // off-site selection in SiteModelFactory.ApplyAsync is `abs(hashtext(id::text)) % 40 = 0`, so
+        // random person ids made the cross-site-ratio assertion below non-deterministic run-to-run.
+        var idRng = new Randomizer(1337);
         var people = new List<PeopleFactories.SeededPerson>();
         var now = DateTime.UtcNow;
         using (var w = await conn.BeginBinaryImportAsync(
@@ -52,12 +58,12 @@ public class NarrativeYearSeederTests
         {
             for (var i = 0; i < 30; i++)
             {
-                var id = Guid.NewGuid();
+                var id = idRng.Guid();
                 await w.StartRowAsync();
                 await w.WriteAsync(id, NpgsqlDbType.Uuid);
                 await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
                 await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
-                await w.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
+                await w.WriteAsync("Fractional", NpgsqlDbType.Varchar); // people are Fractional in production (PeopleFactories)
                 await w.WriteAsync(100, NpgsqlDbType.Integer);
                 await w.WriteAsync(true, NpgsqlDbType.Boolean);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
@@ -84,11 +90,26 @@ public class NarrativeYearSeederTests
         avail.Absences.Should().BeGreaterThan(0);
         tools.Should().NotBeEmpty();
 
+        // year.Conflicts counts BOTH injected kinds: ~2.5 % capability staffing + ~2.5 % scheduling
+        // clones ≈ 5 % of leaf requests. Each clone flags 2 requests in the UI (source + clone), so
+        // the visible conflict rate is ~10 % of scheduled requests. The 0.15 bound leaves headroom
+        // for the per-cohort Math.Max(1, …) floors at small/tiny scales.
+        var leafRequests = year.Requests - cohorts.Count; // subtract parent summary rows
+        ((double)year.Conflicts / leafRequests).Should().BeLessThan(0.15,
+            "injected conflicts must stay near ~5 % of leaf requests (visible ~10 % in the UI)");
+
         // Scope all assertions to the requests this test seeded — earlier tests in the suite may have
         // committed rows to these tables (via the API) and we must not count them.
         var seededIds = year.RequestIds.ToArray();
 
-        // Every request with requirements has at least one assigned resource covering ALL of them.
+        // The demo seeds a small, scale-independent backlog of unscheduled tasks (no start/end) for
+        // the user to schedule themselves — they must surface in the utilization backlog.
+        var (_, backlog) = await TwoLongs(conn, tx,
+            "SELECT 0, count(*) FROM requests WHERE id = ANY(@ids) AND start_ts IS NULL AND planning_mode='leaf'",
+            ("ids", seededIds));
+        backlog.Should().Be(15, "the narrative seed adds a 15-item unscheduled backlog");
+
+        // Per request with requirements: does ANY assigned resource cover ALL of them? (reqSat).
         var (reqTotal, reqSat) = await TwoLongs(conn, tx, @"
             WITH req AS (SELECT request_id, array_agg(criterion_id) crits FROM request_requirements
                          WHERE request_id = ANY(@ids) GROUP BY request_id),
@@ -98,8 +119,31 @@ public class NarrativeYearSeederTests
               FROM req r JOIN resource_assignments ra ON ra.request_id=r.request_id GROUP BY r.request_id)
             SELECT count(*), count(*) FILTER (WHERE ok) FROM sat",
             ("ids", seededIds));
-        reqSat.Should().Be(reqTotal, "every requirement must be satisfiable by an assigned resource");
+        // Correctly-staffed jobs are satisfiable by their capable lead; the injected people-capability
+        // conflicts (B1) deliberately staff a few with an incapable person and nobody else, so those
+        // requirements are unsatisfiable. Both facts must hold — that's the people-capability conflict.
         reqTotal.Should().BeGreaterThan(0);
+        reqSat.Should().BeGreaterThan(0, "correctly-staffed requests are satisfiable by their assigned people");
+        reqSat.Should().BeLessThan(reqTotal, "the injected people-capability conflicts leave some requirements unsatisfiable");
+
+        // Applicability is consistent with assignments: no seeded capability is assigned on a resource
+        // type the criterion is not marked applicable to. Rooms now carry only their space-specs (never
+        // person-skills) and people only their skills, so this holds by construction (no backfill).
+        var (_, orphanCaps) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*) FROM resource_capabilities rc
+            JOIN resources r ON r.id = rc.resource_id
+            WHERE rc.criterion_id = ANY(@critIds)
+              AND NOT EXISTS (SELECT 1 FROM criterion_resource_types crt
+                              WHERE crt.criterion_id = rc.criterion_id AND crt.resource_type_id = r.resource_type_id)",
+            ("critIds", criteria.Values.ToArray()));
+        orphanCaps.Should().Be(0, "every assigned capability must have matching criterion_resource_types applicability");
+
+        // The scheduling conflicts (B2) are clones sharing their source's room+lead+slot — proving the
+        // overbook injection fired (its double-book surfaces as space + person overlaps).
+        var (_, rushClones) = await TwoLongs(conn, tx,
+            "SELECT 0, count(*) FROM requests WHERE id = ANY(@ids) AND name LIKE 'Rush order — %'",
+            ("ids", seededIds));
+        rushClones.Should().BeGreaterThan(0, "the seed must inject overbook (clone) conflicts");
 
         // Tool assignments are facility-local (tool name prefixed with the request's space site code).
         var (toolTotal, toolCoherent) = await TwoLongs(conn, tx, @"
@@ -115,7 +159,8 @@ public class NarrativeYearSeederTests
             ("ids", seededIds));
         toolCoherent.Should().Be(toolTotal, "every tool assignment must belong to the request's facility");
 
-        // All three allocation modes appear among assigned resources.
+        // Both supported allocation modes appear among assigned resources; the unsupported
+        // ConcurrentCapacity (which the validator rejects outright) must never be seeded.
         var modes = new List<string>();
         await using (var cmd = new NpgsqlCommand(
             "SELECT DISTINCT r.allocation_mode FROM resource_assignments ra JOIN resources r ON r.id=ra.resource_id WHERE ra.request_id = ANY(@ids)",
@@ -125,11 +170,21 @@ public class NarrativeYearSeederTests
             await using var rd = await cmd.ExecuteReaderAsync();
             while (await rd.ReadAsync()) modes.Add(rd.GetString(0));
         }
-        modes.Should().Contain(["Exclusive", "Fractional", "ConcurrentCapacity"]);
+        modes.Should().Contain(["Exclusive", "Fractional"]);
+        modes.Should().NotContain("ConcurrentCapacity", "ConcurrentCapacity is not supported by the validator and must not be seeded");
+
+        // Root-cause guard: an Exclusive resource must carry a null allocation_percent — the validator
+        // emits an InvalidAllocationPercent blocker otherwise, which is what made every room conflicted.
+        var (_, exclusiveWithPct) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*) FROM resource_assignments ra
+            JOIN resources r ON r.id = ra.resource_id
+            WHERE r.allocation_mode = 'Exclusive' AND ra.allocation_percent IS NOT NULL
+              AND ra.request_id = ANY(@ids)",
+            ("ids", seededIds));
+        exclusiveWithPct.Should().Be(0, "Exclusive assignments must have a null percent (validator rejects a percent on Exclusive resources)");
 
         // Exclusive machines (tools) must never accidentally double-book — overlap pairs stay within
-        // the injected-conflict band. (People may be lightly over-allocated by the lead fallback that
-        // guarantees requirement satisfaction; that's acceptable demo behaviour.)
+        // the injected-conflict band.
         var (_, toolPairs) = await TwoLongs(conn, tx, @"
             SELECT 0, count(*) FROM resource_assignments a
             JOIN resource_assignments b ON a.resource_id=b.resource_id AND a.id<b.id AND a.start_utc<b.end_utc AND b.start_utc<a.end_utc
@@ -139,6 +194,46 @@ public class NarrativeYearSeederTests
             ("ids", seededIds));
         toolPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
             "Exclusive machines must not accidentally double-book beyond the injected conflicts");
+
+        // People must not be accidentally overbooked either: total allocation in any overlapping
+        // window must not exceed 100 %. The only intentional person overlaps are the injected clone
+        // conflicts (B2), which each add one lead-lead pair. Allow a small buffer for the rare case
+        // where two clones happen to share a lead.
+        var (_, personPairs) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*)
+            FROM resource_assignments a
+            JOIN resource_assignments b
+                ON a.resource_id = b.resource_id AND a.id < b.id
+                AND a.start_utc < b.end_utc AND b.start_utc < a.end_utc
+            JOIN resources r ON r.id = a.resource_id
+            JOIN resource_types rt ON rt.id = r.resource_type_id AND rt.key = 'person'
+            WHERE (a.allocation_percent + b.allocation_percent) > 100
+              AND a.request_id = ANY(@ids)",
+            ("ids", seededIds));
+        personPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
+            "accidental person overbooking must stay within the intentional conflict band");
+
+        // Site model: pin cohort people to their facility site, then run the full home/current-site
+        // pass (which also adopts each request's space site). Regression guard for the "every booking
+        // conflicted" bug — the post-commit round-robin must NOT scatter cohort people across sites
+        // (that made ~56 % of requests cross-site mismatched and painted the whole grid red).
+        await SiteModelFactory.ApplyCohortSitesAsync(conn, tx,
+            cohorts.SelectMany(c => c.People.Select(p => (p.ResourceId, c.SiteId))).ToList());
+        await SiteModelFactory.ApplyAsync(conn, spaceTypeId, personTypeId, tx);
+
+        var (sitedReqs, crossSiteReqs) = await TwoLongs(conn, tx, @"
+            SELECT count(DISTINCT req.id),
+                   count(DISTINCT req.id) FILTER (
+                       WHERE res.current_site_id IS NOT NULL AND res.current_site_id <> req.site_id)
+            FROM requests req
+            JOIN resource_assignments ra ON ra.request_id = req.id AND ra.assignment_status <> 'Cancelled'
+            JOIN resources res ON res.id = ra.resource_id
+            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = 'person'
+            WHERE req.id = ANY(@ids) AND req.site_id IS NOT NULL",
+            ("ids", seededIds));
+        sitedReqs.Should().BeGreaterThan(0, "scheduled requests adopt their space's site");
+        ((double)crossSiteReqs / sitedReqs).Should().BeLessThan(0.15,
+            "cohort people stay at their facility site — only a small deliberate set is cross-site");
 
         await tx.RollbackAsync();
     }
@@ -168,7 +263,7 @@ public class NarrativeYearSeederTests
                 await w.WriteAsync(id, NpgsqlDbType.Uuid);
                 await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
                 await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
-                await w.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
+                await w.WriteAsync("Fractional", NpgsqlDbType.Varchar); // people are Fractional in production (PeopleFactories)
                 await w.WriteAsync(100, NpgsqlDbType.Integer);
                 await w.WriteAsync(true, NpgsqlDbType.Boolean);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
