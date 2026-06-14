@@ -1,5 +1,15 @@
 # Orkyo Home Site / Current Site Resource Model Implementation Pack
 
+> **Superseded note (2026-06):** The **stored** `current_site_id` column described throughout this
+> pack has been removed (migration `1560.foundation.drop_current_site_id.sql`). It was a manually
+> maintained value that drifted from reality. `current_site_id` now lives on as a **derived,
+> read-only** field on the resource read model (`ResourceInfo.currentSiteId`): for a space it is
+> `spaces.site_id`; for a person/tool it is the site of the non-cancelled assignment overlapping the
+> current time, else `home_site_id`. It is computed, never written. Cross-site validation compares the
+> request's site against `home_site_id` (+ `cross_site_allowed`); cross-site time clashes surface via
+> the existing overbooking warning. The surviving **stored** fields are `home_site_id` and
+> `cross_site_allowed`; read the `current_site_id` write/column references below as historical context.
+
 This pack defines the holistic design and implementation plan for introducing a unified resource location model across spaces, people, tools, and requests.
 
 ## Files

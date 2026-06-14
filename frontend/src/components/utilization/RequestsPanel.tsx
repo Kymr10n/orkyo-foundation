@@ -24,6 +24,7 @@ interface RequestsPanelProps {
   requests: Request[];
   isLoading?: boolean;
   onCreateChild?: (parentId: string) => void;
+  onRequestClick?: (request: Request) => void;
 }
 
 const INDENT_PX = 20;
@@ -35,6 +36,7 @@ interface RequestCardProps {
   isExpanded: boolean;
   onToggle: (requestId: string) => void;
   onCreateChild?: (requestId: string) => void;
+  onCardClick?: (request: Request) => void;
   requestId: string;
 }
 
@@ -45,6 +47,7 @@ const RequestCard = React.memo(function RequestCard({
   isExpanded,
   onToggle,
   onCreateChild,
+  onCardClick,
   requestId,
 }: RequestCardProps) {
   const isDraggable = canBeScheduled(request.planningMode);
@@ -85,8 +88,9 @@ const RequestCard = React.memo(function RequestCard({
     <div
       ref={combinedRef}
       style={style}
+      onClick={onCardClick ? () => onCardClick(request) : undefined}
       className={`py-2 pr-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors ${
-        isDraggable ? "cursor-grab active:cursor-grabbing" : ""
+        isDraggable ? "cursor-grab active:cursor-grabbing" : onCardClick ? "cursor-pointer" : ""
       } ${isOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
       {...attributes}
       {...(isDraggable ? listeners : {})}
@@ -175,7 +179,7 @@ const RequestCard = React.memo(function RequestCard({
   );
 });
 
-export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPanelProps) {
+export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestClick }: RequestsPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">(
     "all"
@@ -379,6 +383,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild }: RequestsPa
                     isExpanded={!collapsedIds.has(entry.request.id)}
                     onToggle={toggleCollapse}
                     onCreateChild={onCreateChild ? handleCreateChild : undefined}
+                    onCardClick={onRequestClick}
                   />
                 </div>
               );

@@ -15,9 +15,11 @@ export interface ResourceInfo {
   allocationMode: string;
   baseAvailabilityPercent: number;
   isActive: boolean;
-  /** Administrative/owning site (null for spaces and un-remediated resources). */
+  /** Administrative/owning site and idle-time anchor (null for spaces and un-remediated resources). */
   homeSiteId?: string | null;
-  /** Site where the resource is currently available (defaults to home site). */
+  /** Derived, read-only: where the resource is right now — the site of the non-cancelled assignment
+   * overlapping the current time, else the home site (spaces resolve to their own site). Computed by
+   * the backend; not settable. */
   currentSiteId?: string | null;
   /** Whether the resource may be assigned to requests at another site (backend defaults true). */
   crossSiteAllowed?: boolean;
@@ -33,7 +35,6 @@ export interface CreateResourceRequest {
   allocationMode: string;
   baseAvailabilityPercent?: number;
   homeSiteId?: string | null;
-  currentSiteId?: string | null;
   crossSiteAllowed?: boolean;
 }
 
@@ -45,7 +46,6 @@ export interface UpdateResourceRequest {
   baseAvailabilityPercent?: number;
   isActive?: boolean;
   homeSiteId?: string | null;
-  currentSiteId?: string | null;
   crossSiteAllowed?: boolean;
 }
 

@@ -23,7 +23,6 @@ import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { useSites, useIsMultiSite } from '@foundation/src/hooks/useSites';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { getAssignmentsByResource } from '@foundation/src/lib/api/resource-assignments-api';
 import { Loader2, Plus } from 'lucide-react';
 import {
   createResource,
@@ -63,7 +62,6 @@ interface FormState {
   baseAvailabilityPercent: number;
   // Location (Home-Site model)
   homeSiteId: string;     // empty = unset
-  currentSiteId: string;  // empty = defaults to home
   crossSiteAllowed: boolean;
   // Profile side
   email: string;
@@ -78,7 +76,6 @@ const emptyForm: FormState = {
   allocationMode: ALLOCATION_MODE.EXCLUSIVE,
   baseAvailabilityPercent: 100,
   homeSiteId: '',
-  currentSiteId: '',
   crossSiteAllowed: true,
   email: '',
   jobTitleId: '',
@@ -99,7 +96,6 @@ function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo
     allocationMode: person.allocationMode ?? emptyForm.allocationMode,
     baseAvailabilityPercent: person.baseAvailabilityPercent ?? emptyForm.baseAvailabilityPercent,
     homeSiteId: person.homeSiteId ?? '',
-    currentSiteId: person.currentSiteId ?? '',
     crossSiteAllowed: person.crossSiteAllowed ?? true,
     email: profile?.email ?? '',
     jobTitleId: profile?.jobTitleId ?? '',
@@ -141,17 +137,6 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const [form, setForm] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Changing a scheduled person's site silently re-evaluates cross-site conflicts on their
-  // existing assignments, so the site fields are locked while they have any. Forward-looking
-  // window: only current/future assignments are affected by a site change.
-  const { data: scheduledAssignments = [] } = useQuery({
-    queryKey: ['resource-assignments', 'site-guard', person?.id],
-    queryFn: () =>
-      getAssignmentsByResource(person!.id, new Date(), new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)),
-    enabled: isOpen && isMultiSite && !!person?.id,
-  });
-  const hasSchedule = scheduledAssignments.length > 0;
-  const siteFieldsLocked = !canEdit || hasSchedule;
   // Inline-create dialog state for each reference list. `undefined` = closed,
   // string = pre-populated name (from a Create-new sentinel selection).
   const [createJobTitleName, setCreateJobTitleName] = useState<string | undefined>(undefined);
@@ -201,8 +186,6 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
         allocationMode: form.allocationMode,
         baseAvailabilityPercent: form.baseAvailabilityPercent,
         homeSiteId: form.homeSiteId || null,
-        // Current site defaults to home when left unset (backend mirrors this on create).
-        currentSiteId: form.currentSiteId || form.homeSiteId || null,
         crossSiteAllowed: form.crossSiteAllowed,
       };
 
@@ -409,42 +392,26 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
             </div>
           </div>
 
-          {/* Location (Home-Site model) — hidden for single-site/free-tier tenants. */}
+          {/* Location (Home-Site model) — hidden for single-site/free-tier tenants.
+              The home site is the administrative anchor and the idle-time location; where the
+              person actually is at a point in time is derived from their assignments. */}
           {isMultiSite && (
             <div className="space-y-4 rounded-lg border p-3">
               <p className="text-sm font-medium">Location</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="homeSite">Home Site</Label>
-                  <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)} disabled={siteFieldsLocked}>
-                    <SelectTrigger id="homeSite"><SelectValue placeholder="Unset" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Unset</span></SelectItem>
-                      {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currentSite">Current Site</Label>
-                  <Select value={form.currentSiteId || SITE_UNSET} onValueChange={(v) => set('currentSiteId', v === SITE_UNSET ? '' : v)} disabled={siteFieldsLocked}>
-                    <SelectTrigger id="currentSite"><SelectValue placeholder="Defaults to home" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Defaults to home</span></SelectItem>
-                      {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="homeSite">Home Site</Label>
+                <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)} disabled={!canEdit}>
+                  <SelectTrigger id="homeSite"><SelectValue placeholder="Unset" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Unset</span></SelectItem>
+                    {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} disabled={siteFieldsLocked} />
+                <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} disabled={!canEdit} />
                 <Label htmlFor="crossSite" className="text-sm cursor-pointer">Available for other sites</Label>
               </div>
-              {hasSchedule && (
-                <p className="text-sm text-amber-600 dark:text-amber-500">
-                  This person has {scheduledAssignments.length} scheduled assignment
-                  {scheduledAssignments.length === 1 ? '' : 's'}. Reassign or cancel them before changing their site.
-                </p>
-              )}
             </div>
           )}
 

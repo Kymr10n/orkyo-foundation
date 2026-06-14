@@ -11,7 +11,7 @@ public interface IResourceRepository
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
     Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<ResourceInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default);
-    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? homeSiteId = null, Guid? currentSiteId = null, bool crossSiteAllowed = true, Guid? id = null, CancellationToken ct = default);
+    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? homeSiteId = null, bool crossSiteAllowed = true, Guid? id = null, CancellationToken ct = default);
     Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
     Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
 }
@@ -19,10 +19,28 @@ public interface IResourceRepository
 public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : IResourceRepository
 {
+    // Derived "current site": where the resource is right now. A space is immovable
+    // (spaces.site_id); a person/tool is wherever a non-cancelled assignment overlapping now()
+    // places them, else their home site. Read-only — never stored. On concurrent (fractional)
+    // assignments the most recently started one wins, so the value is deterministic.
+    private const string CurrentSiteExpr =
+        @"COALESCE(
+            (SELECT sp.site_id FROM spaces sp WHERE sp.id = r.id),
+            (SELECT req.site_id
+               FROM resource_assignments ra
+               JOIN requests req ON req.id = ra.request_id
+              WHERE ra.resource_id = r.id
+                AND ra.assignment_status <> 'Cancelled'
+                AND ra.start_utc <= now() AND ra.end_utc > now()
+                AND req.site_id IS NOT NULL
+              ORDER BY ra.start_utc DESC
+              LIMIT 1),
+            r.home_site_id)";
+
     private const string SelectColumns =
         "r.id, r.resource_type_id, rt.key as resource_type_key, r.name, r.description, " +
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
-        "r.home_site_id, r.current_site_id, r.cross_site_allowed, " +
+        "r.home_site_id, " + CurrentSiteExpr + " AS current_site_id, r.cross_site_allowed, " +
         "r.is_active, r.created_at, r.updated_at";
 
     public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
@@ -87,7 +105,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     public async Task<ResourceInfo> CreateAsync(
         Guid resourceTypeId, string typeKey, string name, string? description,
         string? externalReference, string allocationMode, int baseAvailabilityPercent,
-        Guid? homeSiteId = null, Guid? currentSiteId = null, bool crossSiteAllowed = true,
+        Guid? homeSiteId = null, bool crossSiteAllowed = true,
         Guid? id = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
@@ -97,11 +115,11 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             INSERT INTO resources
                 (id, resource_type_id, name, description, external_reference,
                  allocation_mode, base_availability_percent,
-                 home_site_id, current_site_id, cross_site_allowed)
+                 home_site_id, cross_site_allowed)
             VALUES
                 (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent,
-                 @homeSiteId, @currentSiteId, @crossSiteAllowed)
+                 @homeSiteId, @crossSiteAllowed)
             RETURNING id, created_at, updated_at",
             p =>
             {
@@ -113,7 +131,6 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 p.AddWithValue("allocationMode", allocationMode);
                 p.AddWithValue("baseAvailabilityPercent", baseAvailabilityPercent);
                 p.AddNullable("homeSiteId", homeSiteId);
-                p.AddNullable("currentSiteId", currentSiteId);
                 p.AddWithValue("crossSiteAllowed", crossSiteAllowed);
             },
             r => new ResourceInfo
@@ -127,7 +144,8 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 AllocationMode = allocationMode,
                 BaseAvailabilityPercent = baseAvailabilityPercent,
                 HomeSiteId = homeSiteId,
-                CurrentSiteId = currentSiteId,
+                // A freshly created resource has no assignments yet, so it is at its home site.
+                CurrentSiteId = homeSiteId,
                 CrossSiteAllowed = crossSiteAllowed,
                 IsActive = true,
                 CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
@@ -149,7 +167,6 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         if (request.IsActive.HasValue)
             update.Set("is_active", request.IsActive.Value);
         if (request.HomeSiteId.HasValue) update.Set("home_site_id", request.HomeSiteId.Value);
-        if (request.CurrentSiteId.HasValue) update.Set("current_site_id", request.CurrentSiteId.Value);
         if (request.CrossSiteAllowed.HasValue) update.Set("cross_site_allowed", request.CrossSiteAllowed.Value);
 
         await db.ExecuteAsync($"UPDATE resources SET {update.SetClause} WHERE id = @id",

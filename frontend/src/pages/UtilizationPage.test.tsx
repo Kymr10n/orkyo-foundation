@@ -244,8 +244,8 @@ vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () =
 }));
 
 vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange }: any) => open ? (
-    <div data-testid="request-form-dialog">
+  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId }: any) => open ? (
+    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""}>
       <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
       <button data-testid="close-form" onClick={() => onOpenChange(false)}>Close</button>
     </div>
@@ -256,8 +256,20 @@ vi.mock("@foundation/src/components/requests/RequestDetailsDialog", () => ({
   RequestDetailsDialog: ({ open }: any) => open ? <div data-testid="details-dialog" /> : null,
 }));
 
+let capturedOnSlotSelect: ((start: Date, end: Date) => void) | null = null;
 vi.mock("@foundation/src/components/utilization/RequestCalendar", () => ({
-  RequestCalendar: () => <div data-testid="request-calendar" />,
+  RequestCalendar: ({ onSlotSelect }: any) => {
+    capturedOnSlotSelect = onSlotSelect;
+    return <div data-testid="request-calendar" />;
+  },
+}));
+
+let capturedOnScheduleExisting: ((req: any) => void) | null = null;
+vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
+  ScheduleSlotDialog: ({ open, onScheduleExisting }: any) => {
+    capturedOnScheduleExisting = onScheduleExisting;
+    return open ? <div data-testid="slot-chooser" /> : null;
+  },
 }));
 
 const createWrapper = (initialTab = "space") => {
@@ -290,6 +302,8 @@ describe("UtilizationPage", () => {
     mockUseAvailabilityEvents.mockReturnValue({ data: [] });
     capturedExportHandler = null;
     capturedOnDragEnd = null;
+    capturedOnSlotSelect = null;
+    capturedOnScheduleExisting = null;
     mockStoreOverrides = {};
   });
 
@@ -568,6 +582,24 @@ describe("UtilizationPage", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
     });
+  });
+
+  // --- Calendar slot scheduling: site binding ---
+
+  it("hands the calendar's site to the schedule form so a site-neutral request is pre-scoped", async () => {
+    // Regression: scheduling a request from the calendar must offer the calendar's
+    // site to the form (which pre-selects it), else a site-neutral request has no
+    // site and no space assignment and vanishes from the site-scoped feed.
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    // Open the empty-slot chooser, then pick an existing site-neutral request.
+    capturedOnSlotSelect!(new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T10:00:00Z"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    capturedOnScheduleExisting!({ id: "u-1", name: "Receive steel stock", planningMode: "leaf", siteId: null });
+
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+    expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-schedule-site-id", "site-1");
   });
 
   // --- Save child request ---

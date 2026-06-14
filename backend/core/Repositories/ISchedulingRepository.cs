@@ -17,10 +17,11 @@ public interface ISchedulingRepository
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    /// <summary>Returns the site ID that owns the given resource, or <c>null</c> if the resource is not site-bound (e.g. a person).</summary>
+    /// <summary>Returns the anchoring site for the given resource (spaces.site_id for spaces,
+    /// home_site_id for people/tools), or <c>null</c> if the resource has no site.</summary>
     Task<Guid?> GetSiteIdForResourceAsync(Guid resourceId, CancellationToken ct = default);
 
-    /// <summary>Bulk resource→site map (spaces only) in one query — for batch validation.</summary>
+    /// <summary>Bulk resource→anchoring-site map (spaces.site_id or home_site_id) in one query — for batch validation.</summary>
     Task<Dictionary<Guid, Guid>> GetSiteIdsForResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 
     /// <summary>Returns resource type IDs keyed by resource ID.</summary>

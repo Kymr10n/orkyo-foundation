@@ -398,4 +398,31 @@ describe('buildInitialState — site scope', () => {
     };
     expect(buildInitialState(request, undefined, undefined, undefined, 'site-A').siteId).toBe('site-B');
   });
+
+  it('pre-selects the schedule-slot site for a site-neutral existing request', () => {
+    // "Schedule an existing request" from a site's calendar: a site-neutral
+    // backlog request should adopt that site so it lands on the calendar.
+    const request: Request = {
+      id: 'r1', name: 'r', planningMode: 'leaf', sortOrder: 0,
+      minimalDurationValue: 1, minimalDurationUnit: 'hours',
+      schedulingSettingsApply: true, status: 'planned',
+      createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', assignments: [],
+    };
+    expect(buildInitialState(request, undefined, undefined, undefined, null, 'site-cal').siteId).toBe('site-cal');
+  });
+
+  it('keeps an existing concrete site over the schedule-slot site', () => {
+    const request: Request = {
+      id: 'r1', name: 'r', planningMode: 'leaf', sortOrder: 0,
+      siteId: 'site-B',
+      minimalDurationValue: 1, minimalDurationUnit: 'hours',
+      schedulingSettingsApply: true, status: 'planned',
+      createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', assignments: [],
+    };
+    expect(buildInitialState(request, undefined, undefined, undefined, null, 'site-cal').siteId).toBe('site-B');
+  });
+
+  it('falls back to the schedule-slot site in create mode when no active site', () => {
+    expect(buildInitialState(null, undefined, undefined, undefined, null, 'site-cal').siteId).toBe('site-cal');
+  });
 });

@@ -349,8 +349,9 @@ public class ResourceAssignmentValidator(
     /// <summary>
     /// Site/location rule (Home-Site model). The resource is checked against the request's committed
     /// site scope (set implicitly once a space is placed). A space whose site differs is a hard
-    /// blocker; a person/tool whose current site differs is a soft warning when cross-site is allowed,
+    /// blocker; a person/tool whose home site differs is a soft warning when cross-site is allowed,
     /// else a hard blocker. No scope or no resource site → no constraint (caller guards the scope).
+    /// Time clashes across sites are surfaced separately by the allocation/overbooking rule.
     /// </summary>
     private static void EvaluateSite(
         ResourceInfo resource, Guid? resourceSite, Guid? requestSiteId,
@@ -377,7 +378,7 @@ public class ResourceAssignmentValidator(
     private static ValidationIssue SiteMismatchPerson(Guid resourceId) => new()
     {
         Code = ValidationReasonCode.SiteMismatchPerson,
-        Message = "Resource is currently at a different site (cross-site assignment)",
+        Message = "Resource's home site differs from the request's site (cross-site assignment)",
         ResourceId = resourceId,
     };
 

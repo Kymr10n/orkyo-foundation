@@ -22,9 +22,6 @@ vi.mock('@foundation/src/lib/api/job-titles-api', () => ({
 vi.mock('@foundation/src/lib/api/departments-api', () => ({
   getDepartmentTree: vi.fn(),
 }));
-vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
-  getAssignmentsByResource: vi.fn(),
-}));
 const sitesMock = vi.hoisted(() => ({
   sites: [] as { id: string; name: string }[],
   isMultiSite: false,
@@ -41,7 +38,6 @@ import { createResource, updateResource } from '@foundation/src/lib/api/resource
 import { getPersonProfile, upsertPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getJobTitles } from '@foundation/src/lib/api/job-titles-api';
 import { getDepartmentTree } from '@foundation/src/lib/api/departments-api';
-import { getAssignmentsByResource } from '@foundation/src/lib/api/resource-assignments-api';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
 
@@ -79,7 +75,6 @@ describe('PersonEditDialog', () => {
     sitesMock.isMultiSite = false;
     vi.mocked(createResource).mockResolvedValue(createdResource);
     vi.mocked(updateResource).mockResolvedValue(createdResource);
-    vi.mocked(getAssignmentsByResource).mockResolvedValue([]);
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test so a
     // viewer-state override never leaks (clearAllMocks does not restore the implementation).
     vi.mocked(useCanEdit).mockReturnValue(true);
@@ -317,7 +312,6 @@ describe('PersonEditDialog', () => {
     const multiSitePerson: ResourceInfo = {
       ...createdResource,
       homeSiteId: 'site-1',
-      currentSiteId: 'site-1',
       crossSiteAllowed: true,
     };
 
@@ -338,7 +332,7 @@ describe('PersonEditDialog', () => {
 
       expect(screen.getByText('Location')).toBeInTheDocument();
       expect(screen.getByLabelText('Home Site')).toBeInTheDocument();
-      expect(screen.getByLabelText('Current Site')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Current Site')).not.toBeInTheDocument();
       expect(
         screen.getByLabelText('Available for other sites'),
       ).toBeInTheDocument();
@@ -363,29 +357,8 @@ describe('PersonEditDialog', () => {
         'res-1',
         expect.objectContaining({
           homeSiteId: 'site-1',
-          currentSiteId: 'site-1',
           crossSiteAllowed: false,
         }),
-      );
-    });
-
-    it('defaults the current site to the home site when current is left unset', async () => {
-      const onSaved = vi.fn();
-      const homeOnlyPerson: ResourceInfo = {
-        ...multiSitePerson,
-        homeSiteId: 'site-1',
-        currentSiteId: undefined,
-      };
-      vi.mocked(updateResource).mockResolvedValue(homeOnlyPerson);
-      renderDialog({ person: homeOnlyPerson, onSaved });
-      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
-
-      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
-
-      await waitFor(() => expect(onSaved).toHaveBeenCalled());
-      expect(updateResource).toHaveBeenCalledWith(
-        'res-1',
-        expect.objectContaining({ homeSiteId: 'site-1', currentSiteId: 'site-1' }),
       );
     });
 
@@ -395,24 +368,14 @@ describe('PersonEditDialog', () => {
       expect(screen.queryByText('Location')).not.toBeInTheDocument();
     });
 
-    it('locks the site fields and warns when the person has scheduled assignments', async () => {
-      vi.mocked(getAssignmentsByResource).mockResolvedValue(
-        [{ id: 'a1' }] as unknown as Awaited<ReturnType<typeof getAssignmentsByResource>>,
-      );
-      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
-
-      expect(await screen.findByText(/scheduled assignment/i)).toBeInTheDocument();
-      expect(screen.getByLabelText('Home Site')).toBeDisabled();
-      expect(screen.getByLabelText('Current Site')).toBeDisabled();
-      expect(screen.getByLabelText('Available for other sites')).toBeDisabled();
-    });
-
-    it('leaves the site fields editable when the person has no assignments', async () => {
+    it('keeps the home site editable regardless of the person\'s schedule', async () => {
+      // The home site is only the administrative anchor / idle-time location now;
+      // in-window location is derived from assignments, so there is nothing to lock.
       renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
       await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
 
-      expect(screen.queryByText(/scheduled assignment/i)).not.toBeInTheDocument();
       expect(screen.getByLabelText('Home Site')).toBeEnabled();
+      expect(screen.getByLabelText('Available for other sites')).toBeEnabled();
     });
   });
 

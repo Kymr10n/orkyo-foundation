@@ -124,7 +124,7 @@ export function PersonList() {
       cell: ({ row }) => {
         const person = row.original;
         return (
-          <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="sm" onClick={() => handleEdit(person)} aria-label={`Edit ${person.name}`} title="Edit Person">
               <Pencil className="h-4 w-4" />
             </Button>
@@ -163,6 +163,7 @@ export function PersonList() {
         filterColumn="name"
         filterPlaceholder="Search people..."
         pageSize={25}
+        onRowClick={handleEdit}
       />
 
       <PersonEditDialog

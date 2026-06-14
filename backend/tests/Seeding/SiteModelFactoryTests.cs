@@ -7,8 +7,8 @@ using Xunit;
 namespace Orkyo.Foundation.Tests.Seeding;
 
 /// <summary>
-/// Validates the demo-seed Home-Site / Current-Site post-step against a real tenant DB (rolled back).
-/// Running ApplyAsync exercises all five statements against the live schema (catching any SQL error);
+/// Validates the demo-seed Home-Site post-step against a real tenant DB (rolled back).
+/// Running ApplyAsync exercises every statement against the live schema (catching any SQL error);
 /// the assertions cover the space-immovable and person-distribution effects.
 /// </summary>
 [Collection("Database collection")]
@@ -25,7 +25,7 @@ public class SiteModelFactoryTests
     }
 
     [Fact]
-    public async Task ApplyAsync_MakesSpacesImmovable_AndSitesPeople()
+    public async Task ApplyAsync_MakesSpacesImmovable_AndHomesPeople()
     {
         await using var conn = _connFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync();
@@ -51,11 +51,10 @@ public class SiteModelFactoryTests
         var spaceCross = await ScalarBool(conn, tx, $"SELECT cross_site_allowed FROM resources WHERE id = '{spaceId}'");
         Assert.False(spaceCross);
 
-        // People are sited (home = current by default).
-        var (home, current) = await ScalarTwoGuids(conn, tx,
-            $"SELECT home_site_id, current_site_id FROM resources WHERE id = '{personId}'");
+        // People are anchored to a home site.
+        var home = await ScalarNullableGuid(conn, tx,
+            $"SELECT home_site_id FROM resources WHERE id = '{personId}'");
         Assert.NotNull(home);
-        Assert.NotNull(current);
 
         await tx.RollbackAsync();
     }
@@ -78,13 +77,10 @@ public class SiteModelFactoryTests
         return (bool)(await cmd.ExecuteScalarAsync())!;
     }
 
-    private static async Task<(Guid? Home, Guid? Current)> ScalarTwoGuids(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
+    private static async Task<Guid?> ScalarNullableGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
     {
         await using var cmd = new NpgsqlCommand(sql, conn, tx);
-        await using var reader = await cmd.ExecuteReaderAsync();
-        await reader.ReadAsync();
-        var home = reader.IsDBNull(0) ? (Guid?)null : reader.GetGuid(0);
-        var current = reader.IsDBNull(1) ? (Guid?)null : reader.GetGuid(1);
-        return (home, current);
+        var result = await cmd.ExecuteScalarAsync();
+        return result is Guid g ? g : null;
     }
 }

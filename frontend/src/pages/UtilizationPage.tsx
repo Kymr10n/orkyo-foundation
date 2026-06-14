@@ -495,7 +495,10 @@ export function UtilizationPage() {
   }, [slotSelection]);
 
   // Both chooser paths reuse RequestFormDialog (space picker + validation) and
-  // persist via the existing create/update request APIs.
+  // persist via the existing create/update request APIs. The form pre-selects
+  // the calendar's site (scheduleSiteId) so the scheduled request lands on this
+  // site's calendar — but the user stays in control and the form warns if they
+  // pick a site that won't show here. So persist exactly what they chose.
   const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
     if (!calendarForm) return;
     if (calendarForm.mode === "edit" && calendarForm.request) {
@@ -604,6 +607,7 @@ export function UtilizationPage() {
                   requests={requests}
                   isLoading={requestsLoading}
                   onCreateChild={canEdit ? handleCreateChild : undefined}
+                  onRequestClick={openRequestEditor}
                 />
 
                 {spacesLoading || requestsLoading ? (
@@ -689,6 +693,7 @@ export function UtilizationPage() {
         onOpenChange={(open) => { if (!open) setCalendarForm(null); }}
         request={calendarForm?.request ?? undefined}
         defaultSchedule={calendarForm ? { startTs: calendarForm.startTs, endTs: calendarForm.endTs } : undefined}
+        scheduleSiteId={selectedSiteId ?? undefined}
         onSave={handleCalendarFormSave}
       />
 
