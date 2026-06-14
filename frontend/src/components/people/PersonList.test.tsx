@@ -217,6 +217,25 @@ describe('PersonList', () => {
     expect(dialog).toHaveAttribute('data-person-id', 'person-1');
   });
 
+  it('opens the edit dialog with the correct person when the row is clicked', async () => {
+    renderList();
+    await waitFor(() => screen.getByText('Bob'));
+    // Clicking anywhere in the row (here the name cell) opens the edit dialog.
+    fireEvent.click(screen.getByText('Bob'));
+    const dialog = screen.getByTestId('person-edit-dialog');
+    expect(dialog).toHaveAttribute('data-person-id', 'person-2');
+  });
+
+  it('does not open the edit dialog when a row action button is clicked', async () => {
+    // The actions cell stops propagation so its buttons never trigger the
+    // row-level click that would open the edit dialog.
+    renderList();
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByRole('button', { name: 'Manage skills for Alice' }));
+    expect(screen.getByTestId('person-skills-editor')).toBeInTheDocument();
+    expect(screen.queryByTestId('person-edit-dialog')).not.toBeInTheDocument();
+  });
+
   it('opens the skills editor with the correct person when manage-skills is clicked', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));

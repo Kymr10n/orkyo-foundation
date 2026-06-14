@@ -498,14 +498,20 @@ export function UtilizationPage() {
   // persist via the existing create/update request APIs.
   const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
     if (!calendarForm) return;
+    // Scheduling from the calendar binds the request to the calendar's site. A
+    // scheduled request with no site and no space assignment matches no
+    // site-scoped feed (see GetScheduledBySiteWindowAsync) and would vanish from
+    // the calendar — so default a site-neutral pick to the selected site.
+    const scheduledData =
+      !data.siteId && selectedSiteId ? { ...data, siteId: selectedSiteId } : data;
     if (calendarForm.mode === "edit" && calendarForm.request) {
-      await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode, calendarForm.request.siteId));
+      await updateRequest(calendarForm.request.id, buildUpdatePayload(scheduledData, calendarForm.request.planningMode, calendarForm.request.siteId));
     } else {
-      await createRequest(buildCreatePayload(data));
+      await createRequest(buildCreatePayload(scheduledData));
     }
     invalidateRequestData(queryClient);
     setCalendarForm(null);
-  }, [calendarForm, queryClient]);
+  }, [calendarForm, queryClient, selectedSiteId]);
 
   // Keep the shared store window (scale + anchor) aligned with the calendar's
   // current view so useScheduledRequests fetches the right range.
@@ -604,6 +610,7 @@ export function UtilizationPage() {
                   requests={requests}
                   isLoading={requestsLoading}
                   onCreateChild={canEdit ? handleCreateChild : undefined}
+                  onRequestClick={openRequestEditor}
                 />
 
                 {spacesLoading || requestsLoading ? (

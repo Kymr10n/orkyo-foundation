@@ -228,6 +228,36 @@ describe('RequestsPanel', () => {
     expect(onCreateChild).toHaveBeenCalledWith('p-1');
   });
 
+  // --- Card click → open editor ---
+
+  it('fires onRequestClick with the request when a card is clicked', () => {
+    const onRequestClick = vi.fn();
+    renderPanel([unscheduledLeaf], { onRequestClick });
+    fireEvent.click(screen.getByText('Unscheduled Task'));
+    expect(onRequestClick).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u-1' }),
+    );
+  });
+
+  it('does not fire onRequestClick when the add-child button is clicked', () => {
+    // Inner action buttons stop propagation so they never trigger the
+    // card-level click that opens the request editor.
+    const onRequestClick = vi.fn();
+    const onCreateChild = vi.fn();
+    renderPanel([parentReq], { onRequestClick, onCreateChild });
+    fireEvent.click(screen.getByTitle('Add child request'));
+    expect(onCreateChild).toHaveBeenCalledWith('p-1');
+    expect(onRequestClick).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onRequestClick when the collapse toggle is clicked', () => {
+    const onRequestClick = vi.fn();
+    renderPanel([parentReq, childOfParent], { onRequestClick });
+    const card = screen.getByText('Container Group').closest('[class*="rounded-lg"]')!;
+    fireEvent.click(card.querySelector('button')!);
+    expect(onRequestClick).not.toHaveBeenCalled();
+  });
+
   it('filters out requests that do not match the selected status', () => {
     renderPanel();
     const statusTrigger = screen.getByText('All Statuses');
