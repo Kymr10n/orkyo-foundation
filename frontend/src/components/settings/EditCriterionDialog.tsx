@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@foundation/src/components/ui/dialog';
-import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
-import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -58,8 +50,7 @@ export function EditCriterionDialog({
     setDataType(criterion.dataType);
   }, [criterion]);
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
     if (!name.trim()) {
@@ -114,131 +105,118 @@ export function EditCriterionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Edit Criterion</DialogTitle>
-          <DialogDescription>
-            Update the criterion details.
-          </DialogDescription>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit Criterion"
+      description="Update the criterion details."
+      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitLabel="Save Changes"
+      error={error}
+    >
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="name">Name *</Label>
+        <Input
+          id="name"
+          placeholder="e.g., Project Management, Max Load (kg)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={isSubmitting}
+        />
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Project Management, Max Load (kg)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
-              />
+      {/* Data Type — editable until the criterion has values, then locked */}
+      <div className="space-y-2">
+        <Label htmlFor="dataType">Data Type{criterion.inUse ? '' : ' *'}</Label>
+        {criterion.inUse ? (
+          <>
+            <div className="px-3 py-2 bg-muted rounded-md">
+              <Badge variant="secondary">{criterion.dataType}</Badge>
             </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Data type is locked because this criterion has existing values
+            </p>
+          </>
+        ) : (
+          <Select
+            value={dataType}
+            onValueChange={(value) => setDataType(value as CriterionDataType)}
+            disabled={isSubmitting}
+          >
+            <SelectTrigger id="dataType">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Boolean">Boolean (true/false)</SelectItem>
+              <SelectItem value="Number">Number (numeric value)</SelectItem>
+              <SelectItem value="String">String (text)</SelectItem>
+              <SelectItem value="Enum">Enum (predefined options)</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
-            {/* Data Type — editable until the criterion has values, then locked */}
-            <div className="space-y-2">
-              <Label htmlFor="dataType">Data Type{criterion.inUse ? '' : ' *'}</Label>
-              {criterion.inUse ? (
-                <>
-                  <div className="px-3 py-2 bg-muted rounded-md">
-                    <Badge variant="secondary">{criterion.dataType}</Badge>
-                  </div>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Data type is locked because this criterion has existing values
-                  </p>
-                </>
-              ) : (
-                <Select
-                  value={dataType}
-                  onValueChange={(value) => setDataType(value as CriterionDataType)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger id="dataType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Boolean">Boolean (true/false)</SelectItem>
-                    <SelectItem value="Number">Number (numeric value)</SelectItem>
-                    <SelectItem value="String">String (text)</SelectItem>
-                    <SelectItem value="Enum">Enum (predefined options)</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          placeholder="Describe what this criterion represents"
+          value={form.description}
+          onChange={(e) => form.setDescription(e.target.value)}
+          disabled={isSubmitting}
+          rows={2}
+        />
+      </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe what this criterion represents"
-                value={form.description}
-                onChange={(e) => form.setDescription(e.target.value)}
-                disabled={isSubmitting}
-                rows={2}
-              />
-            </div>
-
-            {/* Unit (for Number type) */}
-            {dataType === 'Number' && (
-              <div className="space-y-2">
-                <Label htmlFor="unit">Unit</Label>
-                <Input
-                  id="unit"
-                  placeholder="e.g., kg, m², kW"
-                  value={form.unit}
-                  onChange={(e) => form.setUnit(e.target.value)}
-                  disabled={isSubmitting}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Optional unit of measurement
-                </p>
-              </div>
-            )}
-
-            {/* Enum Values (for Enum type) */}
-            {dataType === 'Enum' && (
-              <EnumValueEditor
-                values={form.enumValues}
-                onChange={form.setEnumValues}
-                disabled={isSubmitting}
-                helpText="Warning: Removing values may cause validation errors for existing assignments"
-              />
-            )}
-
-            {/* Applies To */}
-            <div className="space-y-2">
-              <Label>Applies to *</Label>
-              <div className="flex gap-4">
-                {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`edit-applies-to-${key}`}
-                      checked={form.resourceTypeKeys.includes(key)}
-                      onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
-                      disabled={isSubmitting}
-                    />
-                    <Label htmlFor={`edit-applies-to-${key}`} className="font-normal cursor-pointer">
-                      {label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Error Display */}
-            <ErrorAlert message={error} />
-          </div>
-
-          <DialogFormFooter
-            onCancel={() => onOpenChange(false)}
-            isSubmitting={isSubmitting}
-            submitLabel="Save Changes"
+      {/* Unit (for Number type) */}
+      {dataType === 'Number' && (
+        <div className="space-y-2">
+          <Label htmlFor="unit">Unit</Label>
+          <Input
+            id="unit"
+            placeholder="e.g., kg, m², kW"
+            value={form.unit}
+            onChange={(e) => form.setUnit(e.target.value)}
+            disabled={isSubmitting}
           />
-        </form>
-      </DialogContent>
-    </Dialog>
+          <p className="text-xs text-muted-foreground">
+            Optional unit of measurement
+          </p>
+        </div>
+      )}
+
+      {/* Enum Values (for Enum type) */}
+      {dataType === 'Enum' && (
+        <EnumValueEditor
+          values={form.enumValues}
+          onChange={form.setEnumValues}
+          disabled={isSubmitting}
+          helpText="Warning: Removing values may cause validation errors for existing assignments"
+        />
+      )}
+
+      {/* Applies To */}
+      <div className="space-y-2">
+        <Label>Applies to *</Label>
+        <div className="flex gap-4">
+          {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-2">
+              <Checkbox
+                id={`edit-applies-to-${key}`}
+                checked={form.resourceTypeKeys.includes(key)}
+                onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
+                disabled={isSubmitting}
+              />
+              <Label htmlFor={`edit-applies-to-${key}`} className="font-normal cursor-pointer">
+                {label}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </div>
+    </FormDialog>
   );
 }

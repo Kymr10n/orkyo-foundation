@@ -7,6 +7,7 @@ import { SpaceCapabilitiesEditor } from './SpaceCapabilitiesEditor';
 import { logger } from '@foundation/src/lib/core/logger';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Button } from '@foundation/src/components/ui/button';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { Square, Pentagon, Edit, Trash2, Settings } from 'lucide-react';
 
 /**
@@ -20,6 +21,7 @@ export function SpaceListView() {
 
   const [editingSpace, setEditingSpace] = useState<Space | null>(null);
   const [capabilitiesSpace, setCapabilitiesSpace] = useState<Space | null>(null);
+  const canEdit = useCanEdit();
 
   if (!selectedSiteId) {
     return (
@@ -78,6 +80,7 @@ export function SpaceListView() {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); setCapabilitiesSpace(space); }}
               title="Edit Capabilities"
               aria-label={`Edit capabilities for ${space.name}`}
@@ -88,6 +91,7 @@ export function SpaceListView() {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); setEditingSpace(space); }}
               title="Edit Space"
               aria-label={`Edit space ${space.name}`}
@@ -98,6 +102,7 @@ export function SpaceListView() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-destructive hover:text-destructive"
+              disabled={!canEdit}
               onClick={(e) => { e.stopPropagation(); handleDelete(space.id); }}
               title="Delete Space"
               aria-label={`Delete space ${space.name}`}

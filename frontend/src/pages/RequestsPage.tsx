@@ -68,6 +68,7 @@ import { exportRequests, importRequests } from "@foundation/src/lib/utils/export
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
 type ViewMode = "tree" | "list";
 
@@ -273,7 +274,7 @@ export function RequestsPage() {
         sortOrder: targetParentId ? getNextSortOrder(targetParentId, requests) : 0,
       });
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       if (targetParentId && !expandedIds.has(targetParentId)) {
         toggle(targetParentId);
       }
@@ -299,7 +300,7 @@ export function RequestsPage() {
       }
       setDialog(null);
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       // Auto-expand the parent so user sees the newly added children
       if (!expandedIds.has(parent.id)) {
         toggle(parent.id);
@@ -321,7 +322,7 @@ export function RequestsPage() {
         sortOrder: getNextSortOrder(targetId, requests),
       });
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       // Auto-expand the new parent
       if (!expandedIds.has(targetId)) {
         toggle(targetId);
@@ -367,7 +368,7 @@ export function RequestsPage() {
       }
 
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       toast.success("Request deleted");
     } catch (err) {
       logger.error("Failed to delete request:", err);
@@ -392,7 +393,7 @@ export function RequestsPage() {
       }
 
       await loadRequests();
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       setDialog(null);
       toast.success(isEdit ? "Request updated" : "Request created");
     } catch (err) {

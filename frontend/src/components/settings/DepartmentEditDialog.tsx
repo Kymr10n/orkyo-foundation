@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@foundation/src/components/ui/dialog';
-import { Button } from '@foundation/src/components/ui/button';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -19,8 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@foundation/src/components/ui/select';
-import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { Loader2 } from 'lucide-react';
 import {
   createDepartment,
   updateDepartment,
@@ -105,8 +95,6 @@ export function DepartmentEditDialog({
 }: DepartmentEditDialogProps) {
   const [form, setForm] = useState<FormState>(empty);
   const [error, setError] = useState<string | null>(null);
-  const canEdit = useCanEdit();
-  const queryClient = useQueryClient();
 
   const { data: tree = [] } = useQuery({
     queryKey: ['departments', 'tree', { includeInactive: false }],
@@ -149,16 +137,20 @@ export function DepartmentEditDialog({
         parentDepartmentId: parentId,
       });
     },
+    meta: {
+      successMessage: department ? 'Department updated' : 'Department created',
+      errorMessage: department ? 'Failed to update department' : 'Failed to create department',
+      invalidates: [['departments']],
+    },
     onSuccess: (saved) => {
-      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      setError(null);
       onSaved?.(saved);
       onOpenChange(false);
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Save failed'),
   });
 
-  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!form.name.trim()) return;
     mutation.mutate();
   };
@@ -166,86 +158,69 @@ export function DepartmentEditDialog({
   const parentOptions = flattenForParentSelect(tree, department?.id ?? null);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{department ? 'Edit Department' : 'New Department'}</DialogTitle>
-          <DialogDescription>
-            Departments are organizational units. They do not carry capabilities, availability,
-            or scheduling rules.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="dept-name">Name</Label>
-            <Input
-              id="dept-name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              maxLength={200}
-              autoFocus
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="dept-parent">Parent department</Label>
-            <Select
-              value={form.parentDepartmentId === '' ? ROOT_VALUE : form.parentDepartmentId}
-              onValueChange={(v) =>
-                setForm({ ...form, parentDepartmentId: v === ROOT_VALUE ? '' : v })
-              }
-            >
-              <SelectTrigger id="dept-parent">
-                <SelectValue placeholder="(root department)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ROOT_VALUE}>(root department)</SelectItem>
-                {parentOptions.map((opt) => (
-                  <SelectItem key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="dept-code">Code (optional)</Label>
-            <Input
-              id="dept-code"
-              value={form.code}
-              onChange={(e) => setForm({ ...form, code: e.target.value })}
-              maxLength={50}
-              placeholder="e.g. ENG, OPS"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="dept-description">Description</Label>
-            <Textarea
-              id="dept-description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              maxLength={2000}
-              rows={3}
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={mutation.isPending || !form.name.trim() || !canEdit}>
-              {mutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={department ? 'Edit Department' : 'New Department'}
+      description="Departments are organizational units. They do not carry capabilities, availability, or scheduling rules."
+      onSubmit={handleSubmit}
+      isSubmitting={mutation.isPending}
+      submitLabel="Save"
+      submitDisabled={!form.name.trim()}
+      error={error}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="dept-name">Name</Label>
+        <Input
+          id="dept-name"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          maxLength={200}
+          autoFocus
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="dept-parent">Parent department</Label>
+        <Select
+          value={form.parentDepartmentId === '' ? ROOT_VALUE : form.parentDepartmentId}
+          onValueChange={(v) =>
+            setForm({ ...form, parentDepartmentId: v === ROOT_VALUE ? '' : v })
+          }
+        >
+          <SelectTrigger id="dept-parent">
+            <SelectValue placeholder="(root department)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ROOT_VALUE}>(root department)</SelectItem>
+            {parentOptions.map((opt) => (
+              <SelectItem key={opt.id} value={opt.id}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="dept-code">Code (optional)</Label>
+        <Input
+          id="dept-code"
+          value={form.code}
+          onChange={(e) => setForm({ ...form, code: e.target.value })}
+          maxLength={50}
+          placeholder="e.g. ENG, OPS"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="dept-description">Description</Label>
+        <Textarea
+          id="dept-description"
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          maxLength={2000}
+          rows={3}
+        />
+      </div>
+    </FormDialog>
   );
 }

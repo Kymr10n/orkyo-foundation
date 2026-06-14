@@ -10,6 +10,7 @@ import {
   getFloorplanMetadata,
 } from "@foundation/src/lib/api/floorplan-api";
 import { cn } from "@foundation/src/lib/utils";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import type {
   CreateSpaceRequest,
   DrawingMode,
@@ -63,6 +64,7 @@ export function SpaceManagementPanel({
   const moveSpaceMutation = useMoveSpace(siteId);
   const resizeSpaceMutation = useMoveSpace(siteId);
 
+  const canEdit = useCanEdit();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const [floorplanMetadata, setFloorplanMetadata] =
@@ -289,6 +291,7 @@ export function SpaceManagementPanel({
                     variant="ghost"
                     size="icon"
                     onClick={handleDeleteFloorplan}
+                    disabled={!canEdit}
                     title="Delete floorplan"
                     aria-label="Delete floorplan"
                   >
@@ -300,6 +303,7 @@ export function SpaceManagementPanel({
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetDrawingMode("select")}
+                      disabled={!canEdit}
                       title="Select (S)"
                       aria-label="Select tool"
                       aria-pressed={drawingMode === "select"}
@@ -315,6 +319,7 @@ export function SpaceManagementPanel({
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetDrawingMode("resize")}
+                      disabled={!canEdit}
                       title="Resize (Z)"
                       aria-label="Resize tool"
                       aria-pressed={drawingMode === "resize"}
@@ -330,6 +335,7 @@ export function SpaceManagementPanel({
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetDrawingMode("rectangle")}
+                      disabled={!canEdit}
                       title="Draw Rectangle (R)"
                       aria-label="Draw rectangle"
                       aria-pressed={drawingMode === "rectangle"}
@@ -345,6 +351,7 @@ export function SpaceManagementPanel({
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetDrawingMode("polygon")}
+                      disabled={!canEdit}
                       title="Draw Polygon (P)"
                       aria-label="Draw polygon"
                       aria-pressed={drawingMode === "polygon"}
@@ -389,7 +396,7 @@ export function SpaceManagementPanel({
                   </div>
                 </>
               ) : (
-                <Button onClick={() => setUploadDialogOpen(true)} size="sm">
+                <Button onClick={() => setUploadDialogOpen(true)} size="sm" disabled={!canEdit}>
                   <Upload className="h-4 w-4 mr-2" />
                   Upload Floorplan
                 </Button>

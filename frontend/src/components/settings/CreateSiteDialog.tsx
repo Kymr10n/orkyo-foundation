@@ -1,9 +1,4 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
@@ -11,8 +6,6 @@ import type { Site } from "@foundation/src/lib/api/site-api";
 import { isValidSlug } from "@foundation/src/lib/utils";
 import { useState } from "react";
 import { useCreateSite } from "@foundation/src/hooks/useSites";
-import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
-import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
 
 interface CreateSiteDialogProps {
   open: boolean;
@@ -41,8 +34,7 @@ export function CreateSiteDialog({
     setError(null);
   };
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
     // Validation
@@ -86,84 +78,73 @@ export function CreateSiteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Create Site</DialogTitle>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Create Site"
+      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitLabel="Create Site"
+      submittingLabel="Creating..."
+      error={error}
+    >
+      {/* Code */}
+      <div className="space-y-2">
+        <Label htmlFor="code">
+          Code <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          id="code"
+          placeholder="e.g., MAIN-01, WAREHOUSE-A"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          disabled={isSubmitting}
+          className="font-mono"
+        />
+        <p className="text-xs text-muted-foreground">
+          Unique identifier (alphanumeric, underscores, hyphens only)
+        </p>
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Code */}
-            <div className="space-y-2">
-              <Label htmlFor="code">
-                Code <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="code"
-                placeholder="e.g., MAIN-01, WAREHOUSE-A"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                disabled={isSubmitting}
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Unique identifier (alphanumeric, underscores, hyphens only)
-              </p>
-            </div>
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="name">
+          Name <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          id="name"
+          placeholder="e.g., Main Production Facility"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={isSubmitting}
+        />
+      </div>
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g., Main Production Facility"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          placeholder="Optional description of the site"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={isSubmitting}
+          rows={3}
+        />
+      </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Optional description of the site"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isSubmitting}
-                rows={3}
-              />
-            </div>
-
-            {/* Address */}
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Textarea
-                id="address"
-                placeholder="Physical address of the site"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                disabled={isSubmitting}
-                rows={2}
-              />
-            </div>
-
-            {/* Error Message */}
-            <ErrorAlert message={error} />
-          </div>
-
-          <DialogFormFooter
-            onCancel={() => handleOpenChange(false)}
-            isSubmitting={isSubmitting}
-            submitLabel="Create Site"
-            submittingLabel="Creating..."
-          />
-        </form>
-      </DialogContent>
-    </Dialog>
+      {/* Address */}
+      <div className="space-y-2">
+        <Label htmlFor="address">Address</Label>
+        <Textarea
+          id="address"
+          placeholder="Physical address of the site"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          disabled={isSubmitting}
+          rows={2}
+        />
+      </div>
+    </FormDialog>
   );
 }

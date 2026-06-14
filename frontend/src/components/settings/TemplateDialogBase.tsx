@@ -27,7 +27,7 @@ import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import type { Template } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
@@ -51,7 +51,6 @@ export function TemplateDialogBase({
   entityType = 'request',
 }: TemplateDialogBaseProps) {
   const isEditMode = template !== null;
-  const queryClient = useQueryClient();
 
   const {
     state,
@@ -65,7 +64,6 @@ export function TemplateDialogBase({
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
   const [isLoadingCriteria, setIsLoadingCriteria] = useState(false);
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load criteria when dialog opens
@@ -105,24 +103,8 @@ export function TemplateDialogBase({
     updateRequirement(criterionId, value);
   };
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!state.name.trim()) {
-      setError("Name is required");
-      return;
-    }
-
-    const durationVal = parseInt(state.durationValue, 10);
-    if (isNaN(durationVal) || durationVal < 1) {
-      setError("Minimal duration must be a positive number");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-
+  const saveMutation = useMutation({
+    mutationFn: async (durationVal: number) => {
       if (isEditMode) {
         await updateTemplate(template.id, {
           name: state.name.trim(),
@@ -139,7 +121,6 @@ export function TemplateDialogBase({
               }))
             : undefined,
         });
-        queryClient.invalidateQueries({ queryKey: ["request-templates"] });
       } else {
         await createTemplate({
           name: state.name.trim(),
@@ -148,18 +129,45 @@ export function TemplateDialogBase({
           durationValue: durationVal,
           durationUnit: state.durationUnit,
         });
-        queryClient.invalidateQueries({ queryKey: [`templates-${entityType}`] });
+      }
+    },
+    meta: {
+      successMessage: isEditMode ? 'Template updated' : 'Template created',
+      errorMessage: isEditMode ? 'Failed to update template' : 'Failed to create template',
+      // Both modes feed the same `templates-${entityType}` list query (TemplateSettings).
+      invalidates: [[`templates-${entityType}`]],
+    },
+    onSuccess: () => {
+      if (!isEditMode) {
         reset();
         setSelectedCriterionId("");
       }
-
       setError(null);
       onSuccess();
-    } catch (err) {
+    },
+    onError: (err) => {
       setError(err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} template`);
-    } finally {
-      setIsSubmitting(false);
+    },
+  });
+
+  const isSubmitting = saveMutation.isPending;
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!state.name.trim()) {
+      setError("Name is required");
+      return;
     }
+
+    const durationVal = parseInt(state.durationValue, 10);
+    if (isNaN(durationVal) || durationVal < 1) {
+      setError("Minimal duration must be a positive number");
+      return;
+    }
+
+    saveMutation.mutate(durationVal);
   };
 
   const handleOpenChange = (newOpen: boolean) => {

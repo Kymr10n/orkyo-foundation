@@ -59,15 +59,15 @@ public class AuthorizationMatrixTests
 
     [Fact]
     public async Task AdminAreaRead_AsEditor_IsForbidden() =>
-        AssertForbidden(await _editor.GetAsync("/api/settings"));
+        AssertForbidden(await _editor.GetAsync("/api/users"));
 
     [Fact]
     public async Task AdminAreaRead_AsViewer_IsForbidden() =>
-        AssertForbidden(await _viewer.GetAsync("/api/settings"));
+        AssertForbidden(await _viewer.GetAsync("/api/users"));
 
     [Fact]
     public async Task AdminAreaRead_AsAdmin_IsAllowed() =>
-        AssertNotForbidden(await _admin.GetAsync("/api/settings"));
+        AssertNotForbidden(await _admin.GetAsync("/api/users"));
 
     [Fact]
     public async Task AdminAreaWrite_AsEditor_IsForbidden() =>
@@ -90,4 +90,23 @@ public class AuthorizationMatrixTests
     [Fact]
     public async Task SiteWrite_AsAdmin_IsAllowed() =>
         AssertNotForbidden(await _admin.DeleteAsync($"/api/sites/{Guid.NewGuid()}"));
+
+    // ── Settings: read = member, write = Admin ────────────────────────────────
+    // GET is read app-wide (e.g. auto-schedule via useTenantSettings); only admins manage them.
+
+    [Fact]
+    public async Task SettingsRead_AsViewer_IsAllowed() =>
+        AssertNotForbidden(await _viewer.GetAsync("/api/settings"));
+
+    [Fact]
+    public async Task SettingsRead_AsEditor_IsAllowed() =>
+        AssertNotForbidden(await _editor.GetAsync("/api/settings"));
+
+    [Fact]
+    public async Task SettingsWrite_AsEditor_IsForbidden() =>
+        AssertForbidden(await _editor.DeleteAsync("/api/settings/some-key"));
+
+    [Fact]
+    public async Task SettingsWrite_AsAdmin_IsAllowed() =>
+        AssertNotForbidden(await _admin.DeleteAsync("/api/settings/some-key"));
 }

@@ -10,6 +10,7 @@ import {
 } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState } from "react";
@@ -46,8 +47,10 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteTemplate,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`templates-${entityType}`] });
+    meta: {
+      successMessage: 'Template deleted',
+      errorMessage: 'Failed to delete template',
+      invalidates: [[`templates-${entityType}`]],
     },
   });
 
@@ -69,10 +72,12 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       }
       // Reload templates
       queryClient.invalidateQueries({ queryKey: [`templates-${entityType}`] });
-      alert(`Successfully imported ${importedTemplates.length} templates`);
+      toast.success(`Imported ${importedTemplates.length} template${importedTemplates.length === 1 ? '' : 's'}`);
     } catch (error) {
       logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import templates');
+      toast.error('Import failed', {
+        description: error instanceof Error ? error.message : 'Failed to import templates',
+      });
     }
   });
 
@@ -85,20 +90,14 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   };
 
   const handleDelete = async (template: Template) => {
-    if (
-      !confirm(
-        `Delete template "${template.name}"? This action cannot be undone.`
-      )
-    ) {
+    if (!confirm(`Delete template "${template.name}"? This action cannot be undone.`)) {
       return;
     }
 
     try {
       await deleteMutation.mutateAsync(template.id);
-    } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Failed to delete template"
-      );
+    } catch {
+      // error toast fired centrally via the mutation's meta (MutationCache)
     }
   };
 

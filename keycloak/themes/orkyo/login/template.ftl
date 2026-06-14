@@ -46,10 +46,12 @@
 <body class="orkyo-login">
     <div class="orkyo-login-container">
         <div class="orkyo-login-card">
-            <#-- Logo and branding -->
+            <#-- Logo and branding — links back to the apex marketing site -->
             <div class="orkyo-login-header">
-                <img src="${url.resourcesPath}/img/orkyo-logo.png" alt="Orkyo" class="orkyo-logo" />
-                <h1 class="orkyo-title">Orkyo</h1>
+                <a href="${properties.orkyoAppUrl}" class="orkyo-logo-link" aria-label="Go to Orkyo homepage">
+                    <img src="${url.resourcesPath}/img/orkyo-logo.png" alt="Orkyo" class="orkyo-logo" />
+                    <h1 class="orkyo-title">Orkyo</h1>
+                </a>
                 <p class="orkyo-subtitle">Production Space Planning</p>
             </div>
 

@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { CommandPalette } from './CommandPalette';
+import { useCanEdit, useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
 import * as searchApi from '@foundation/src/lib/api/search-api';
 import type { SearchResponse, SearchResult } from '@foundation/src/lib/api/search-api';
 
@@ -66,6 +67,31 @@ describe('CommandPalette', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: '', results: [] });
+    // usePermissions hooks are globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
+    vi.mocked(useIsTenantAdmin).mockReturnValue(true);
+  });
+
+  it('filters out settings/admin-only result types for a viewer', async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
+    const mk = (type: SearchResult['type'], title: string): SearchResult => ({
+      type, id: `${type}-1`, title, score: 1, updatedAt: '2024-01-01T00:00:00Z',
+      open: { route: '/', params: {} }, permissions: { canRead: true, canEdit: false },
+    });
+    vi.mocked(searchApi.globalSearch).mockResolvedValue({
+      query: 'x',
+      results: [mk('space', 'My Space'), mk('criterion', 'My Criterion'), mk('template', 'My Template'), mk('site', 'My Site'), mk('person', 'My Person')],
+    });
+    renderCommandPalette({ open: true });
+    await userEvent.type(screen.getByPlaceholderText(/search/i), 'x');
+
+    // Viewer-viewable types remain; editor/admin-only ones are filtered out.
+    await waitFor(() => expect(screen.getByText('My Space')).toBeInTheDocument());
+    expect(screen.getByText('My Person')).toBeInTheDocument();
+    expect(screen.queryByText('My Criterion')).not.toBeInTheDocument();
+    expect(screen.queryByText('My Template')).not.toBeInTheDocument();
+    expect(screen.queryByText('My Site')).not.toBeInTheDocument();
   });
 
   describe('rendering', () => {

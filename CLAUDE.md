@@ -40,6 +40,20 @@ Rules that are enforced (a conformance test fails CI otherwise):
   `RequireEditor` (for `/settings`) or `RequireTenantAdmin` (for `/tenant-admin`); hide the
   corresponding nav links using `useCanEdit()` / `useIsTenantAdmin()` in `SidebarNav`.
 
+## Dialog & mutation feedback
+
+Don't hand-roll `toast.*` / `invalidateQueries` in a dialog's mutation. Declare
+`meta: { successMessage, errorMessage?, invalidates }` on `useMutation`; the central `MutationCache`
+in `query-client.ts` fires the toast + invalidation once. Keep inline `ErrorAlert` (`setError`) for
+in-context errors. Full-CRUD entities use `createCrudHooks` (`entityLabel`) instead. Tests render via
+`createFeedbackTestQueryWrapper()`.
+
+Don't hand-roll the dialog shell either: simple form dialogs use `FormDialog` (owns shell + header +
+scrollable body + `ErrorAlert` + Cancel/Submit footer with `canEdit` gating); criterion/skill/
+capability editors wrap the shared `CriterionAssignmentEditor` (+ `capability-diff.ts`). A few
+genuinely-special dialogs (multi-tab wizards, list pickers, read-only views) are exempt. Full rules:
+**[docs/dialog-feedback.md](docs/dialog-feedback.md)**.
+
 ## Before merging changes that touch the public API
 
 When you alter the signature of a service registered in `FoundationWebApplicationFactory`, or rename/remove a `Map*Endpoints()` function, run:

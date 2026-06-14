@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@foundation/src/components/ui/dialog';
-import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
-import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -55,8 +47,7 @@ export function CreateCriterionDialog({
     setError(null);
   };
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
     if (!name.trim()) {
@@ -93,123 +84,110 @@ export function CreateCriterionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Create Criterion</DialogTitle>
-          <DialogDescription>
-            Define a new criterion for evaluating spaces and requests.
-          </DialogDescription>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Create Criterion"
+      description="Define a new criterion for evaluating spaces and requests."
+      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitLabel="Create"
+      submittingLabel="Creating..."
+      error={error}
+    >
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="name">Name *</Label>
+        <Input
+          id="name"
+          placeholder="e.g., Project Management, Max Load (kg)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={isSubmitting}
+        />
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Project Management, Max Load (kg)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          placeholder="Describe what this criterion represents"
+          value={form.description}
+          onChange={(e) => form.setDescription(e.target.value)}
+          disabled={isSubmitting}
+          rows={2}
+        />
+      </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe what this criterion represents"
-                value={form.description}
-                onChange={(e) => form.setDescription(e.target.value)}
-                disabled={isSubmitting}
-                rows={2}
-              />
-            </div>
+      {/* Data Type */}
+      <div className="space-y-2">
+        <Label htmlFor="dataType">Data Type *</Label>
+        <Select
+          value={dataType}
+          onValueChange={(value) => setDataType(value as CriterionDataType)}
+          disabled={isSubmitting}
+        >
+          <SelectTrigger id="dataType">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Boolean">Boolean (true/false)</SelectItem>
+            <SelectItem value="Number">Number (numeric value)</SelectItem>
+            <SelectItem value="String">String (text)</SelectItem>
+            <SelectItem value="Enum">Enum (predefined options)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-            {/* Data Type */}
-            <div className="space-y-2">
-              <Label htmlFor="dataType">Data Type *</Label>
-              <Select
-                value={dataType}
-                onValueChange={(value) => setDataType(value as CriterionDataType)}
-                disabled={isSubmitting}
-              >
-                <SelectTrigger id="dataType">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Boolean">Boolean (true/false)</SelectItem>
-                  <SelectItem value="Number">Number (numeric value)</SelectItem>
-                  <SelectItem value="String">String (text)</SelectItem>
-                  <SelectItem value="Enum">Enum (predefined options)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Unit (for Number type) */}
-            {dataType === 'Number' && (
-              <div className="space-y-2">
-                <Label htmlFor="unit">Unit</Label>
-                <Input
-                  id="unit"
-                  placeholder="e.g., kg, m², kW"
-                  value={form.unit}
-                  onChange={(e) => form.setUnit(e.target.value)}
-                  disabled={isSubmitting}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Optional unit of measurement
-                </p>
-              </div>
-            )}
-
-            {/* Enum Values (for Enum type) */}
-            {dataType === 'Enum' && (
-              <EnumValueEditor
-                values={form.enumValues}
-                onChange={form.setEnumValues}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {/* Applies To */}
-            <div className="space-y-2">
-              <Label>Applies to *</Label>
-              <div className="flex gap-4">
-                {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`applies-to-${key}`}
-                      checked={form.resourceTypeKeys.includes(key)}
-                      onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
-                      disabled={isSubmitting}
-                    />
-                    <Label htmlFor={`applies-to-${key}`} className="font-normal cursor-pointer">
-                      {label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Select at least one resource domain this criterion applies to
-              </p>
-            </div>
-
-            {/* Error Display */}
-            <ErrorAlert message={error} />
-          </div>
-
-          <DialogFormFooter
-            onCancel={() => handleOpenChange(false)}
-            isSubmitting={isSubmitting}
-            submitLabel="Create"
-            submittingLabel="Creating..."
+      {/* Unit (for Number type) */}
+      {dataType === 'Number' && (
+        <div className="space-y-2">
+          <Label htmlFor="unit">Unit</Label>
+          <Input
+            id="unit"
+            placeholder="e.g., kg, m², kW"
+            value={form.unit}
+            onChange={(e) => form.setUnit(e.target.value)}
+            disabled={isSubmitting}
           />
-        </form>
-      </DialogContent>
-    </Dialog>
+          <p className="text-xs text-muted-foreground">
+            Optional unit of measurement
+          </p>
+        </div>
+      )}
+
+      {/* Enum Values (for Enum type) */}
+      {dataType === 'Enum' && (
+        <EnumValueEditor
+          values={form.enumValues}
+          onChange={form.setEnumValues}
+          disabled={isSubmitting}
+        />
+      )}
+
+      {/* Applies To */}
+      <div className="space-y-2">
+        <Label>Applies to *</Label>
+        <div className="flex gap-4">
+          {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-2">
+              <Checkbox
+                id={`applies-to-${key}`}
+                checked={form.resourceTypeKeys.includes(key)}
+                onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
+                disabled={isSubmitting}
+              />
+              <Label htmlFor={`applies-to-${key}`} className="font-normal cursor-pointer">
+                {label}
+              </Label>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Select at least one resource domain this criterion applies to
+        </p>
+      </div>
+    </FormDialog>
   );
 }

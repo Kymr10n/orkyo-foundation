@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
@@ -23,7 +24,6 @@ export function DepartmentSettings() {
   // ^ undefined = dialog closed; null = create root; string = create child
   const [includeInactive, setIncludeInactive] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const queryClient = useQueryClient();
 
   const { data: tree = [], isLoading, error } = useQuery({
     queryKey: ['departments', 'tree', { includeInactive }],
@@ -32,13 +32,18 @@ export function DepartmentSettings() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteDepartment(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['departments'] }),
-    onError: (err) => alert(err instanceof Error ? err.message : 'Delete failed'),
+    meta: {
+      successMessage: 'Department deleted',
+      errorMessage: 'Failed to delete department',
+      invalidates: [['departments']],
+    },
   });
 
   const handleDelete = (d: DepartmentTreeNode) => {
     if (d.children.length > 0) {
-      alert('Cannot delete a department that has child departments. Move or delete the children first.');
+      toast.error('Cannot delete department', {
+        description: 'Move or delete child departments first.',
+      });
       return;
     }
     if (!confirm(`Delete department "${d.name}"? People assigned to this department will be unlinked.`)) return;

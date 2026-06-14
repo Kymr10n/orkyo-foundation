@@ -8,6 +8,7 @@ import {
 } from "@foundation/src/components/requests/RequestFormDialog";
 import { updateRequest } from "@foundation/src/lib/api/request-api";
 import { buildUpdatePayload } from "@foundation/src/lib/utils/utils";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import type { Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
@@ -53,7 +54,7 @@ export function useRequestEditor(): UseRequestEditorResult {
     async (data: RequestFormData) => {
       if (!request) return;
       await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       setIsEditOpen(false);
       setRequest(null);
     },

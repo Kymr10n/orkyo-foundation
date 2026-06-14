@@ -22,6 +22,11 @@ describe('DialogFormFooter', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
+  it('disables submit when submitDisabled is set', () => {
+    render(<DialogFormFooter onCancel={vi.fn()} isSubmitting={false} submitLabel="Save" submitDisabled />);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
   it('shows submitting label when submitting', () => {
     render(<DialogFormFooter onCancel={vi.fn()} isSubmitting submitLabel="Save" submittingLabel="Saving..." />);
     expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();

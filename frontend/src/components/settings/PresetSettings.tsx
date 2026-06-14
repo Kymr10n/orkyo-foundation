@@ -27,6 +27,7 @@ import {
   type PresetValidationResult,
 } from "@foundation/src/lib/api/preset-api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   AlertCircle,
   CheckCircle2,
@@ -113,7 +114,9 @@ export function PresetSettings() {
       // Auto-validate
       validateMutation.mutate(preset);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to parse preset file");
+      toast.error('Failed to read preset file', {
+        description: error instanceof Error ? error.message : 'Failed to parse preset file',
+      });
     }
 
     // Reset file input

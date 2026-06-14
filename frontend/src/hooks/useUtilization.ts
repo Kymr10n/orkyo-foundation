@@ -9,6 +9,7 @@ import {
 import { applySpaceAssignmentOptimistic, clearSpaceAssignmentOptimistic } from "@foundation/src/domain/scheduling/request-assignments";
 import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { toast } from "sonner";
 
 // Fetch all requests (tenant-wide). Kept for non-grid callers; the utilization grid uses the
@@ -110,9 +111,6 @@ export function useScheduleRequest() {
     // Always sync after settling: a schedule/unschedule moves a request between the scoped
     // scheduled windows and the backlog, and changes conflicts — refresh both (prefix match
     // covers every ["requests",…] key).
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
-      queryClient.invalidateQueries({ queryKey: ["conflicts"] });
-    },
+    onSettled: () => invalidateRequestData(queryClient),
   });
 }

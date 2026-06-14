@@ -25,6 +25,7 @@ import { VisuallyHidden } from "@foundation/src/components/ui/visually-hidden";
 import { cn } from "@foundation/src/lib/utils";
 import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-api";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { logger } from "@foundation/src/lib/core/logger";
 
 // Icon mapping for entity types
@@ -69,6 +70,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
+  // Only surface results the current role can actually open: criteria/templates live on the
+  // Settings page (editors) and sites on the Administration page (admins). For other roles those
+  // would dead-end at a route-guard redirect, so filter them out.
+  const canEdit = useCanEdit();
+  const isTenantAdmin = useIsTenantAdmin();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -107,7 +113,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         siteId: selectedSiteId ?? undefined,
         limit: 20,
       }).then((response) => {
-        setResults(response.results);
+        const visible = response.results.filter((r) => {
+          if (r.type === "site") return isTenantAdmin;
+          if (r.type === "template" || r.type === "criterion") return canEdit;
+          return true; // spaces/requests/people/groups are viewable on core pages
+        });
+        setResults(visible);
         setSelectedIndex(0);
       }).catch((error: unknown) => {
         logger.error("Search failed:", error);
@@ -122,7 +133,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [query, selectedSiteId]);
+  }, [query, selectedSiteId, canEdit, isTenantAdmin]);
 
   // Scroll selected item into view
   useEffect(() => {

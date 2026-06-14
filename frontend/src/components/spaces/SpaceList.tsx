@@ -2,6 +2,7 @@ import { type Space } from '@foundation/src/types/space';
 import { Button } from '@foundation/src/components/ui/button';
 import { ScrollArea } from '@foundation/src/components/ui/scroll-area';
 import { cn } from '@foundation/src/lib/utils';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { Square, Pentagon, Edit, Trash2, Settings } from 'lucide-react';
 
 interface SpaceListProps {
@@ -23,6 +24,7 @@ export function SpaceList({
   onCapabilitiesEdit,
   isLoading
 }: SpaceListProps) {
+  const canEdit = useCanEdit();
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -85,6 +87,7 @@ export function SpaceList({
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
+                      disabled={!canEdit}
                       onClick={(e) => {
                         e.stopPropagation();
                         onCapabilitiesEdit(space);
@@ -100,6 +103,7 @@ export function SpaceList({
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
+                      disabled={!canEdit}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSpaceEdit(space);
@@ -115,6 +119,7 @@ export function SpaceList({
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 text-destructive hover:text-destructive"
+                      disabled={!canEdit}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (confirm(`Delete space "${space.name}"?`)) {

@@ -146,7 +146,9 @@ describe('useRequestEditor', () => {
       });
     });
 
-    it('invalidates the requests query on save', async () => {
+    it('invalidates the requests AND conflicts queries on save', async () => {
+      // Conflicts are derived from request state, so an edit must refresh both — otherwise the
+      // grid's conflict badges go stale (e.g. a newly-recorded below_min_duration conflict).
       const queryClient = makeQueryClient();
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
       render(
@@ -158,6 +160,7 @@ describe('useRequestEditor', () => {
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
         expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'] });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['conflicts'] });
       });
     });
 

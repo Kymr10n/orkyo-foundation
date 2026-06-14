@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestTreeView } from './RequestTreeView';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { Request } from '@foundation/src/types/requests';
 import type { FlatTreeEntry } from '@foundation/src/domain/request-tree';
 
@@ -139,6 +140,20 @@ describe('RequestTreeView', () => {
     mockExpandedIds.add('parent-1');
     mockExpandAll.mockClear();
     mockCollapseAll.mockClear();
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
+  });
+
+  it('renders a row action menu per row for editors', () => {
+    const { container } = renderTreeView();
+    // One "more actions" (ellipsis) trigger per visible row.
+    expect(container.querySelectorAll('.lucide-ellipsis').length).toBe(defaultEntries.length);
+  });
+
+  it('hides the row action menus (all mutating) for a viewer', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    const { container } = renderTreeView();
+    expect(container.querySelectorAll('.lucide-ellipsis').length).toBe(0);
   });
 
   it('renders all visible entries', () => {

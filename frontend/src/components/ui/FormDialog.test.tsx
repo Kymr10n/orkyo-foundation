@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FormDialog } from './FormDialog';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 function renderDialog(props: Partial<React.ComponentProps<typeof FormDialog>> = {}) {
   const onSubmit = vi.fn();
@@ -63,5 +64,12 @@ describe('FormDialog', () => {
   it('renders an error message when provided', () => {
     renderDialog({ error: 'Something went wrong' });
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+  });
+
+  it('disables submit for a viewer who cannot edit (via the shared footer)', () => {
+    // useCanEdit is globally mocked to true in src/test/setup.ts; flip it here.
+    vi.mocked(useCanEdit).mockReturnValueOnce(false);
+    renderDialog();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 });

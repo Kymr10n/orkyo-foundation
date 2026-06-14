@@ -1,8 +1,10 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, type RenderOptions } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { SpaceCapabilitiesEditor } from "./SpaceCapabilitiesEditor";
+import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
 import * as criteriaApi from "@foundation/src/lib/api/criteria-api";
 import * as spaceCapApi from "@foundation/src/lib/api/space-capability-api";
 import type { Criterion } from "@foundation/src/types/criterion";
@@ -12,6 +14,15 @@ vi.mock("@foundation/src/lib/api/space-capability-api");
 vi.mock("@foundation/src/lib/core/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
+
+// The editor now saves via useMutation; render under a QueryClientProvider whose
+// MutationCache mirrors production so meta-driven toasts/invalidation fire in tests.
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: createFeedbackTestQueryWrapper(), ...options });
 
 const mockCriteria: Criterion[] = [
   { id: "c1", name: "HasProjector", dataType: "Boolean", resourceTypeKeys: ['space'],
@@ -137,9 +148,10 @@ describe("SpaceCapabilitiesEditor", () => {
     await waitFor(() => {
       expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
     });
+    expect(toastSuccess).toHaveBeenCalledWith("Capabilities saved");
   });
 
-  it("shows error on save failure", async () => {
+  it("shows error on save failure (inline + toast)", async () => {
     vi.mocked(spaceCapApi.getSpaceCapabilities)
       .mockResolvedValueOnce(mockExistingCaps) // initial load
       .mockRejectedValueOnce(new Error("Save error")); // save diff
@@ -156,6 +168,10 @@ describe("SpaceCapabilitiesEditor", () => {
     await waitFor(() => {
       expect(screen.getByText("Save error")).toBeInTheDocument();
     });
+    expect(toastError).toHaveBeenCalledWith(
+      "Failed to save capabilities",
+      expect.objectContaining({ description: "Save error" }),
+    );
   });
 
   it("parallel-loads criteria and capabilities", async () => {

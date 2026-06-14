@@ -13,8 +13,8 @@ import { getFetchWindow } from "@foundation/src/components/utilization/time-grid
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
@@ -27,6 +27,7 @@ import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { createRequest, moveRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { wouldCreateCycle, getNextSortOrder } from "@foundation/src/domain/request-tree";
 import { logger } from "@foundation/src/lib/core/logger";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
@@ -67,12 +68,16 @@ export function UtilizationPage() {
     selectedSiteId: state.selectedSiteId,
   })));
 
+  // Viewers get a read-only grid: with no canEdit, attach no drag sensors so
+  // scheduling/reorder drags can't be initiated at all (writes also 403 server-side).
+  const canEdit = useCanEdit();
+
   // Require 8px of movement before activating a drag so that plain clicks
   // on scheduled requests don't trigger handleDragEnd and re-schedule them.
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
   });
-  const sensors = useSensors(pointerSensor);
+  const sensors = useSensors(...(canEdit ? [pointerSensor] : []));
 
   // Scope collision detection to the active drag's intent so a single set of
   // droppables can serve two modes unambiguously: dragging a space-row only
@@ -116,10 +121,6 @@ export function UtilizationPage() {
   const [isCreateChildDialogOpen, setIsCreateChildDialogOpen] = useState(false);
   const [createChildParent, setCreateChildParent] = useState<Request | null>(null);
   const queryClient = useQueryClient();
-
-  // Check if user can edit (admin or editor)
-  const { membership } = useAuth();
-  const userCanEdit = membership?.role === "admin" || membership?.role === "editor";
 
   // Auto-schedule
   const autoScheduleAvailable = useAutoScheduleAvailable();
@@ -193,8 +194,8 @@ export function UtilizationPage() {
   // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
   // status + conflict severity. Reuses the same scoped `scheduled` set as the grid.
   const calendarEvents = useMemo(
-    () => requestsToCalendarEvents(scheduled, conflicts, userCanEdit),
-    [scheduled, conflicts, userCanEdit],
+    () => requestsToCalendarEvents(scheduled, conflicts, canEdit),
+    [scheduled, conflicts, canEdit],
   );
 
   // Calendar empty-slot scheduling flow.
@@ -266,7 +267,7 @@ export function UtilizationPage() {
       setIsPreviewDialogOpen(false);
       const scheduledCount = autoSchedulePreview?.assignments.length ?? 0;
       setAutoSchedulePreview(null);
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
       toast.success(
         scheduledCount > 0
           ? `Scheduled ${scheduledCount} request${scheduledCount === 1 ? "" : "s"}`
@@ -309,7 +310,7 @@ export function UtilizationPage() {
   // Handle save for create-child dialog
   const handleSaveChildRequest = useCallback(async (data: RequestFormData) => {
     await createRequest(buildCreatePayload(data));
-    queryClient.invalidateQueries({ queryKey: ["requests"] });
+    invalidateRequestData(queryClient);
     setIsCreateChildDialogOpen(false);
     setCreateChildParent(null);
   }, [queryClient]);
@@ -351,7 +352,7 @@ export function UtilizationPage() {
         newParentRequestId: parentId,
         sortOrder: getNextSortOrder(parentId, requests),
       });
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      invalidateRequestData(queryClient);
     } catch (error) {
       logger.error("Failed to reparent request:", error);
     }
@@ -502,7 +503,7 @@ export function UtilizationPage() {
     } else {
       await createRequest(buildCreatePayload(data));
     }
-    queryClient.invalidateQueries({ queryKey: ["requests"] });
+    invalidateRequestData(queryClient);
     setCalendarForm(null);
   }, [calendarForm, queryClient]);
 
@@ -526,7 +527,7 @@ export function UtilizationPage() {
         description="Schedule space allocations and review people utilization"
         actions={
           <>
-            {autoScheduleAvailable && userCanEdit && activeTab === 'space' && (
+            {autoScheduleAvailable && canEdit && activeTab === 'space' && (
               <AutoScheduleButton
                 onClick={handleAutoScheduleClick}
                 loading={previewMutation.isPending}
@@ -565,7 +566,7 @@ export function UtilizationPage() {
                 start: schedulingSettings.workingDayStart,
                 end: schedulingSettings.workingDayEnd,
               } : undefined}
-              editable={userCanEdit}
+              editable={canEdit}
               initialView={scaleToCalendarView(scale)}
               initialDate={anchorTs}
               onEventClick={handleCalendarEventClick}
@@ -602,7 +603,7 @@ export function UtilizationPage() {
                 <RequestsPanel
                   requests={requests}
                   isLoading={requestsLoading}
-                  onCreateChild={userCanEdit ? handleCreateChild : undefined}
+                  onCreateChild={canEdit ? handleCreateChild : undefined}
                 />
 
                 {spacesLoading || requestsLoading ? (

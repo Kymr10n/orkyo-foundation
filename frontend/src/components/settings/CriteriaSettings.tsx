@@ -23,6 +23,7 @@ import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export
 import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { logger } from '@foundation/src/lib/core/logger';
+import { toast } from 'sonner';
 
 type FilterTab = 'all' | ResourceTypeKey;
 
@@ -67,10 +68,12 @@ export function CriteriaSettings() {
       for (const criterion of importedCriteria) {
         await createMutation.mutateAsync(criterion as CreateCriterionRequest);
       }
-      alert(`Successfully imported ${importedCriteria.length} criteria`);
+      toast.success(`Imported ${importedCriteria.length} criterion${importedCriteria.length === 1 ? '' : 'ia'}`);
     } catch (error) {
       logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import criteria');
+      toast.error('Import failed', {
+        description: error instanceof Error ? error.message : 'Failed to import criteria',
+      });
     }
   });
 
@@ -91,9 +94,8 @@ export function CriteriaSettings() {
 
     try {
       await deleteMutation.mutateAsync(criterion.id);
-      // Cache is automatically invalidated by the mutation hook
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete criterion');
+    } catch {
+      // toast already fired by useDeleteCriterion.onError (entityLabel: "Criterion")
     }
   };
 

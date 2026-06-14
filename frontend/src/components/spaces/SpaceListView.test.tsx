@@ -24,6 +24,7 @@ vi.mock('./SpaceCapabilitiesEditor', () => ({
 
 import { useAppStore } from '@foundation/src/store/app-store';
 import { useSpaces, useDeleteSpace } from '@foundation/src/hooks/useSpaces';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -59,6 +60,16 @@ describe('SpaceListView', () => {
       data: spaces,
       isLoading: false,
     } as unknown as ReturnType<typeof useSpaces>);
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
+  });
+
+  it('disables the row edit/delete/capabilities actions for a viewer', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    render(<SpaceListView />, { wrapper: createWrapper() });
+    expect(screen.getByRole('button', { name: 'Edit space Lobby' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete space Lobby' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit capabilities for Lobby' })).toBeDisabled();
   });
 
   it('prompts for site when none selected', () => {

@@ -1,17 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@foundation/src/components/ui/dialog';
-import { Button } from '@foundation/src/components/ui/button';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
 import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
 interface ResourceGroupEditDialogProps {
@@ -54,71 +46,60 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
             description: description || undefined,
             defaultAvailabilityPercent,
           }),
+    meta: {
+      successMessage: `${entityLabel} ${group ? 'updated' : 'created'}`,
+      errorMessage: `Failed to ${group ? 'update' : 'create'} ${entityLabel.toLowerCase()}`,
+      invalidates: [['resource-groups', resourceTypeKey]],
+    },
     onSuccess: onSaved,
   });
 
-  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = () => {
+    if (!name.trim()) return;
     saveMutation.mutate();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{group ? `Edit ${entityLabel}` : `Add ${entityLabel}`}</DialogTitle>
-        </DialogHeader>
+    <FormDialog
+      open={isOpen}
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={group ? `Edit ${entityLabel}` : `Add ${entityLabel}`}
+      onSubmit={handleSubmit}
+      isSubmitting={saveMutation.isPending}
+      submitLabel="Save"
+      submitDisabled={!name.trim()}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="name">Name *</Label>
+        <Input
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+        />
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="defaultAvailability">Default Availability (%)</Label>
-            <Input
-              id="defaultAvailability"
-              type="number"
-              value={defaultAvailabilityPercent}
-              onChange={(e) => setDefaultAvailabilityPercent(Number(e.target.value))}
-              min={0}
-              max={100}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={saveMutation.isPending}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saveMutation.isPending || !name.trim()}>
-              {saveMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-2">
+        <Label htmlFor="defaultAvailability">Default Availability (%)</Label>
+        <Input
+          id="defaultAvailability"
+          type="number"
+          value={defaultAvailabilityPercent}
+          onChange={(e) => setDefaultAvailabilityPercent(Number(e.target.value))}
+          min={0}
+          max={100}
+        />
+      </div>
+    </FormDialog>
   );
 }

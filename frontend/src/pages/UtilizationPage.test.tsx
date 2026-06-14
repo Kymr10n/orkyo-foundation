@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
@@ -280,6 +281,8 @@ describe("UtilizationPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRole = "admin";
+    // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
+    vi.mocked(useCanEdit).mockReturnValue(true);
     mockUseRequests.mockReturnValue({ data: [], isLoading: false });
     mockUseSpaces.mockReturnValue({ data: [], isLoading: false });
     mockUseAutoScheduleAvailable.mockReturnValue(false);
@@ -352,7 +355,7 @@ describe("UtilizationPage", () => {
 
   it("hides Auto-Schedule button for viewer role", () => {
     mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockRole = "viewer";
+    vi.mocked(useCanEdit).mockReturnValue(false);
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -448,7 +451,7 @@ describe("UtilizationPage", () => {
   });
 
   it("hides create-child button for viewers", () => {
-    mockRole = "viewer";
+    vi.mocked(useCanEdit).mockReturnValue(false);
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);

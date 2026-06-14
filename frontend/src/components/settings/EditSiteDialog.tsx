@@ -1,11 +1,4 @@
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@foundation/src/components/ui/dialog";
-import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
-import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
@@ -42,8 +35,7 @@ export function EditSiteDialog({
     }
   }, [open, site]);
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
     if (!name.trim()) {
@@ -55,7 +47,7 @@ export function EditSiteDialog({
       const updatedSite = await updateMutation.mutateAsync({
         id: site.id,
         data: {
-          code: site.code,  // Required by backend, must include existing code
+          code: site.code, // Required by backend, must include existing code
           name: name.trim(),
           description: description.trim() || undefined,
           address: address.trim() || undefined,
@@ -69,79 +61,63 @@ export function EditSiteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Edit Site</DialogTitle>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit Site"
+      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitLabel="Save Changes"
+      error={error}
+    >
+      {/* Code (read-only) */}
+      <div className="space-y-2">
+        <Label htmlFor="code">Code</Label>
+        <Input id="code" value={site.code} disabled className="font-mono bg-muted" />
+        <p className="text-xs text-muted-foreground">
+          Code cannot be changed after creation
+        </p>
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Code (read-only) */}
-            <div className="space-y-2">
-              <Label htmlFor="code">Code</Label>
-              <Input
-                id="code"
-                value={site.code}
-                disabled
-                className="font-mono bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                Code cannot be changed after creation
-              </p>
-            </div>
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="name">
+          Name <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          id="name"
+          placeholder="e.g., Main Production Facility"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={isSubmitting}
+        />
+      </div>
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g., Main Production Facility"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
+      {/* Description */}
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          placeholder="Optional description of the site"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={isSubmitting}
+          rows={3}
+        />
+      </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Optional description of the site"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isSubmitting}
-                rows={3}
-              />
-            </div>
-
-            {/* Address */}
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Textarea
-                id="address"
-                placeholder="Physical address of the site"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                disabled={isSubmitting}
-                rows={2}
-              />
-            </div>
-
-            {/* Error Message */}
-            <ErrorAlert message={error} />
-          </div>
-
-          <DialogFormFooter
-            onCancel={() => onOpenChange(false)}
-            isSubmitting={isSubmitting}
-            submitLabel="Save Changes"
-          />
-        </form>
-      </DialogContent>
-    </Dialog>
+      {/* Address */}
+      <div className="space-y-2">
+        <Label htmlFor="address">Address</Label>
+        <Textarea
+          id="address"
+          placeholder="Physical address of the site"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          disabled={isSubmitting}
+          rows={2}
+        />
+      </div>
+    </FormDialog>
   );
 }

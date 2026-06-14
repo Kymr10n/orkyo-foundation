@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TemplateSettings } from './TemplateSettings';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 import { getTemplates, deleteTemplate } from '@foundation/src/lib/api/template-api';
+
+const toastError = vi.fn();
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
 
 const mockGetTemplates = vi.mocked(getTemplates);
 const mockDeleteTemplate = vi.mocked(deleteTemplate);
@@ -38,12 +41,9 @@ const mockTemplates = [
 ];
 
 function renderTemplateSettings() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={qc}>
-      <TemplateSettings />
-    </QueryClientProvider>,
-  );
+  // Delete flows through useMutation; the feedback wrapper's MutationCache mirrors
+  // production so the meta-driven delete toast fires in tests.
+  return render(<TemplateSettings />, { wrapper: createFeedbackTestQueryWrapper() });
 }
 
 describe('TemplateSettings', () => {
@@ -138,7 +138,7 @@ describe('TemplateSettings', () => {
     expect(mockDeleteTemplate).not.toHaveBeenCalled();
   });
 
-  it('shows alert on delete error', async () => {
+  it('shows error toast on delete error', async () => {
     mockDeleteTemplate.mockRejectedValueOnce(new Error('Delete failed'));
     const user = userEvent.setup();
     mockGetTemplates.mockResolvedValue(mockTemplates);
@@ -149,7 +149,7 @@ describe('TemplateSettings', () => {
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await waitFor(() => {
-      expect(global.alert).toHaveBeenCalledWith('Delete failed');
+      expect(toastError).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));
     });
   });
 

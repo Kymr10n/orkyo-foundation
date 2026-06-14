@@ -6,7 +6,7 @@ any endpoint.**
 
 ## The three-tier contract
 
-| Tier | Core content<br>(Requests, People, Teams, Spaces, Availability, Utilization, Conflicts, Search) | Settings area<br>(`/settings`: Criteria, Templates, Presets, Scheduling) | Administration area<br>(`/tenant-admin`: Users, Organization, Configuration, Integrations/reporting-tokens, Usage & Limits/quotas, tenant Settings, Export) | Sites |
+| Tier | Core content<br>(Requests, People, Teams, Spaces, Availability, Utilization, Conflicts, Search) | Settings area<br>(`/settings`: Criteria, Templates, Presets, Scheduling) | Administration area<br>(`/tenant-admin`: Users, Organization, Configuration, Integrations/reporting-tokens, Usage & Limits/quotas, Export) | Sites & tenant settings |
 |------|------|------|------|------|
 | **Viewer** | read | **no access** | **no access** | read (list/get) |
 | **Editor** | read + write | read + write | **no access** | read (list/get) |
@@ -16,6 +16,9 @@ any endpoint.**
 - **Sites are special:** the site list/get must stay readable by every member (Requests, Utilization
   and Spaces all need it), but creating/editing/deleting a site is Admin-only (site management lives
   in the Administration area).
+- **Tenant settings (`/api/settings`) are the same shape as Sites:** the GET is read by every member
+  (e.g. the auto-schedule flow reads tenant config — scheduling/working-hours — via
+  `useTenantSettings`), but PUT/DELETE are Admin-only (managed in Administration → Configuration).
 - Role ordering is `None < Viewer < Editor < Admin`
   ([AuthorizationContext.cs](../backend/core/Security/AuthorizationContext.cs)). `CanEdit` = Role ≥ Editor.
 
@@ -28,7 +31,7 @@ write endpoint is protected by default. Defined in
 | Convention | Reads | Writes | Use for |
 |------------|-------|--------|---------|
 | `RequireMemberReadEditorWrite()` | member | Editor+ | general tenant content (the default) |
-| `RequireMemberReadAdminWrite()` | member | Admin | content read app-wide but governed (Sites) |
+| `RequireMemberReadAdminWrite()` | member | Admin | content read app-wide but governed (Sites, tenant settings) |
 | `RequireAdminArea()` | Admin | Admin | the Administration area |
 | `AllowMemberWrite()` *(per-route)* | — | — | opt a **non-mutating** POST (validate/preview) out of the write gate |
 

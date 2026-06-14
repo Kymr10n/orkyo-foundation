@@ -64,27 +64,36 @@ export function useAvailabilityEvents(siteId: string | undefined) {
 }
 
 export function useCreateAvailabilityEvent(siteId: string) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (request: CreateAvailabilityEventRequest) =>
       createAvailabilityEvent(siteId, request),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.availabilityEvents(siteId) }),
+    meta: {
+      successMessage: 'Availability event created',
+      errorMessage: 'Failed to create availability event',
+      invalidates: [keys.availabilityEvents(siteId)],
+    },
   });
 }
 
 export function useUpdateAvailabilityEvent(siteId: string) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ eventId, updates }: { eventId: string; updates: UpdateAvailabilityEventRequest }) =>
       updateAvailabilityEvent(siteId, eventId, updates),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.availabilityEvents(siteId) }),
+    meta: {
+      successMessage: 'Availability event updated',
+      errorMessage: 'Failed to update availability event',
+      invalidates: [keys.availabilityEvents(siteId)],
+    },
   });
 }
 
 export function useDeleteAvailabilityEvent(siteId: string) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) => deleteAvailabilityEvent(siteId, eventId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.availabilityEvents(siteId) }),
+    meta: {
+      successMessage: 'Availability event deleted',
+      errorMessage: 'Failed to delete availability event',
+      invalidates: [keys.availabilityEvents(siteId)],
+    },
   });
 }

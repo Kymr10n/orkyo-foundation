@@ -219,17 +219,13 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
       return saved;
     },
+    meta: {
+      successMessage: isEditing ? 'Person updated' : 'Person created',
+      errorMessage: isEditing ? 'Failed to update person' : 'Failed to create person',
+      invalidates: [['resources', 'person'], ['person-profile']],
+    },
     onSettled: () => setIsSubmitting(false),
-    onSuccess: () => {
-      toast.success(isEditing ? 'Person updated' : 'Person created');
-      onSaved();
-    },
-    onError: (err) => {
-      const message = err instanceof Error ? err.message : 'Failed to save person';
-      toast.error(isEditing ? 'Failed to update person' : 'Failed to create person', {
-        description: message,
-      });
-    },
+    onSuccess: () => onSaved(),
   });
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {

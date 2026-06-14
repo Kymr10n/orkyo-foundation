@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersonEditDialog } from './PersonEditDialog';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 
 // API mocks. The reworked dialog now also queries job-titles and departments to
@@ -58,19 +58,17 @@ const createdResource: ResourceInfo = {
 };
 
 function renderDialog(props: Partial<Parameters<typeof PersonEditDialog>[0]> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Save flows through useMutation; the feedback wrapper's MutationCache mirrors
+  // production so meta-driven toasts/invalidation fire in tests.
   return render(
-    <QueryClientProvider client={queryClient}>
-      <PersonEditDialog
-        person={null}
-        isOpen
-        onClose={() => {}}
-        onSaved={() => {}}
-        {...props}
-      />
-    </QueryClientProvider>,
+    <PersonEditDialog
+      person={null}
+      isOpen
+      onClose={() => {}}
+      onSaved={() => {}}
+      {...props}
+    />,
+    { wrapper: createFeedbackTestQueryWrapper() },
   );
 }
 

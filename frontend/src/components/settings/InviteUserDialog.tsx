@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
-import { Button } from "@foundation/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import {
@@ -19,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@foundation/src/components/ui/select";
-import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { createInvitation, type CreateInvitationRequest } from "@foundation/src/lib/api/user-api";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
 
@@ -40,6 +31,11 @@ export function InviteUserDialog({
 
   const mutation = useMutation({
     mutationFn: (data: CreateInvitationRequest) => createInvitation(data),
+    meta: {
+      successMessage: "Invitation sent",
+      errorMessage: "Failed to send invitation",
+      invalidates: [["invitations"]],
+    },
     onSuccess: () => {
       setEmail("");
       setRole("viewer");
@@ -51,8 +47,7 @@ export function InviteUserDialog({
     },
   });
 
-  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     setError(null);
 
     if (!email.trim()) {
@@ -68,7 +63,8 @@ export function InviteUserDialog({
     mutation.mutate({ email: email.trim(), role });
   };
 
-  const handleClose = () => {
+  const handleClose = (newOpen: boolean) => {
+    if (newOpen) return;
     if (!mutation.isPending) {
       setEmail("");
       setRole("viewer");
@@ -78,108 +74,87 @@ export function InviteUserDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Invite User
-          </DialogTitle>
-          <DialogDescription>
-            Send an invitation email to add a new user to your workspace. They'll
-            receive a link to set up their account.
-          </DialogDescription>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={handleClose}
+      title={
+        <span className="flex items-center gap-2">
+          <Mail className="h-5 w-5" />
+          Invite User
+        </span>
+      }
+      description="Send an invitation email to add a new user to your workspace. They'll receive a link to set up their account."
+      onSubmit={handleSubmit}
+      isSubmitting={mutation.isPending}
+      submitLabel="Send Invitation"
+      submittingLabel="Sending..."
+      error={error}
+    >
+      {/* Email Field */}
+      <div className="space-y-2">
+        <Label htmlFor="email">Email Address</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="colleague@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={mutation.isPending}
+          autoFocus
+        />
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="colleague@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={mutation.isPending}
-                autoFocus
-              />
-            </div>
+      {/* Role Field */}
+      <div className="space-y-2">
+        <Label htmlFor="role">Role</Label>
+        <Select
+          value={role}
+          onValueChange={(value: "admin" | "editor" | "viewer") => setRole(value)}
+          disabled={mutation.isPending}
+        >
+          <SelectTrigger id="role">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="viewer">
+              <div>
+                <div className="font-medium">Viewer</div>
+                <div className="text-xs text-muted-foreground">
+                  Can view data but cannot make changes
+                </div>
+              </div>
+            </SelectItem>
+            <SelectItem value="editor">
+              <div>
+                <div className="font-medium">Editor</div>
+                <div className="text-xs text-muted-foreground">
+                  Can create and modify utilization and requests
+                </div>
+              </div>
+            </SelectItem>
+            <SelectItem value="admin">
+              <div>
+                <div className="font-medium">Admin</div>
+                <div className="text-xs text-muted-foreground">
+                  Full access including settings and user management
+                </div>
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-            {/* Role Field */}
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={role}
-                onValueChange={(value: "admin" | "editor" | "viewer") =>
-                  setRole(value)
-                }
-                disabled={mutation.isPending}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="viewer">
-                    <div>
-                      <div className="font-medium">Viewer</div>
-                      <div className="text-xs text-muted-foreground">
-                        Can view data but cannot make changes
-                      </div>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="editor">
-                    <div>
-                      <div className="font-medium">Editor</div>
-                      <div className="text-xs text-muted-foreground">
-                        Can create and modify utilization and requests
-                      </div>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="admin">
-                    <div>
-                      <div className="font-medium">Admin</div>
-                      <div className="text-xs text-muted-foreground">
-                        Full access including settings and user management
-                      </div>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Role Description */}
-            <div className="rounded-lg bg-muted p-3 text-sm">
-              <p className="text-muted-foreground">
-                {role === "admin" &&
-                  "Admins have full access to all features including user management and settings."}
-                {role === "editor" &&
-                  "Editors can create and modify utilization, requests, and spaces but cannot access settings."}
-                {role === "viewer" &&
-                  "Viewers have read-only access to view utilization and plans."}
-              </p>
-            </div>
-
-            {/* Error Display */}
-            <ErrorAlert message={error} />
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={mutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Sending..." : "Send Invitation"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {/* Role Description */}
+      <div className="rounded-lg bg-muted p-3 text-sm">
+        <p className="text-muted-foreground">
+          {role === "admin" &&
+            "Admins have full access to all features including user management and settings."}
+          {role === "editor" &&
+            "Editors can create and modify utilization, requests, and spaces but cannot access settings."}
+          {role === "viewer" &&
+            "Viewers have read-only access to view utilization and plans."}
+        </p>
+      </div>
+    </FormDialog>
   );
 }

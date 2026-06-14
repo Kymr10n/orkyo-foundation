@@ -7,6 +7,8 @@ interface DialogFormFooterProps {
   isSubmitting: boolean;
   submitLabel: string;
   submittingLabel?: string;
+  /** Disables submit even when not submitting and the user can edit (form invalidity). */
+  submitDisabled?: boolean;
   className?: string;
 }
 
@@ -15,6 +17,7 @@ export function DialogFormFooter({
   isSubmitting,
   submitLabel,
   submittingLabel,
+  submitDisabled,
   className,
 }: DialogFormFooterProps) {
   // Viewers get a read-only dialog: the submit is disabled (the backend would 403 anyway).
@@ -30,7 +33,7 @@ export function DialogFormFooter({
       >
         Cancel
       </Button>
-      <Button type="submit" disabled={isSubmitting || !canEdit}>
+      <Button type="submit" disabled={isSubmitting || !canEdit || !!submitDisabled}>
         {isSubmitting ? (submittingLabel ?? "Saving...") : submitLabel}
       </Button>
     </DialogFooter>

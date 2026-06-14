@@ -110,6 +110,23 @@ body.orkyo-login {
   margin-bottom: 2rem;
 }
 
+.orkyo-logo-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 0.25rem;
+}
+
+.orkyo-logo-link:hover .orkyo-logo {
+  opacity: 0.8;
+}
+
+.orkyo-logo-link:hover .orkyo-title {
+  opacity: 0.8;
+}
+
 .orkyo-logo {
   width: 64px;
   height: 64px;
