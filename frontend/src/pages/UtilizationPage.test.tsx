@@ -244,8 +244,8 @@ vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () =
 }));
 
 vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange }: any) => open ? (
-    <div data-testid="request-form-dialog">
+  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId }: any) => open ? (
+    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""}>
       <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
       <button data-testid="close-form" onClick={() => onOpenChange(false)}>Close</button>
     </div>
@@ -586,11 +586,10 @@ describe("UtilizationPage", () => {
 
   // --- Calendar slot scheduling: site binding ---
 
-  it("binds a site-neutral request to the selected site when scheduled from the calendar", async () => {
-    // Regression: a request scheduled from the calendar with Site = "Any site"
-    // must adopt the calendar's site, else it has no site and no space
-    // assignment and disappears from the (site-scoped) calendar feed.
-    const { updateRequest } = await import("@foundation/src/lib/api/request-api");
+  it("hands the calendar's site to the schedule form so a site-neutral request is pre-scoped", async () => {
+    // Regression: scheduling a request from the calendar must offer the calendar's
+    // site to the form (which pre-selects it), else a site-neutral request has no
+    // site and no space assignment and vanishes from the site-scoped feed.
     const Wrapper = createWrapper("calendar");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -599,16 +598,8 @@ describe("UtilizationPage", () => {
     await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
     capturedOnScheduleExisting!({ id: "u-1", name: "Receive steel stock", planningMode: "leaf", siteId: null });
 
-    // The prefilled form opens; saving it (RequestFormDialog mock omits siteId).
     await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("save-request"));
-
-    await waitFor(() => {
-      expect(vi.mocked(updateRequest)).toHaveBeenCalledWith(
-        "u-1",
-        expect.objectContaining({ siteId: "site-1" }),
-      );
-    });
+    expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-schedule-site-id", "site-1");
   });
 
   // --- Save child request ---

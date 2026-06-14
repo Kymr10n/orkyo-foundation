@@ -47,6 +47,11 @@ interface RequestFormDialogProps {
   defaultPlanningMode?: PlanningMode;
   /** Seed start/end (e.g. a calendar slot selection). Overrides any schedule on `request`. */
   defaultSchedule?: DefaultSchedule;
+  /**
+   * Site whose calendar/schedule this request is being placed on. Pre-selects a
+   * site-neutral request to it and warns when the chosen site won't surface here.
+   */
+  scheduleSiteId?: string | null;
   onSave: (data: RequestFormData) => void | Promise<void>;
 }
 
@@ -72,6 +77,26 @@ export interface RequestFormData {
   }[];
 }
 
+/**
+ * @internal Exported for unit testing. Returns a warning when the chosen site
+ * won't surface on the schedule the user is placing this request on — a
+ * different site, or site-neutral ("Any site" isn't placed on any calendar).
+ * Returns null when there's nothing to warn about (single-site, no schedule
+ * context, or the site already matches).
+ */
+export function computeSiteScopeWarning(
+  isMultiSite: boolean,
+  scheduleSiteId: string | null | undefined,
+  currentSiteId: string,
+  scheduleSiteName: string | undefined,
+): string | null {
+  if (!isMultiSite || !scheduleSiteId || (currentSiteId || '') === scheduleSiteId) return null;
+  const where = scheduleSiteName ?? "this site";
+  return currentSiteId
+    ? `This request is scoped to another site, so it won't appear on ${where}'s schedule.`
+    : `“Any site” requests aren't placed on a specific calendar, so this won't appear on ${where}'s schedule until you assign it a site.`;
+}
+
 export function RequestFormDialog({
   open,
   onOpenChange,
@@ -79,6 +104,7 @@ export function RequestFormDialog({
   parentRequest,
   defaultPlanningMode,
   defaultSchedule,
+  scheduleSiteId,
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
@@ -95,7 +121,7 @@ export function RequestFormDialog({
     removeRequirement,
     updateRequirement,
     applyTemplate,
-  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId);
+  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId, scheduleSiteId);
 
   const canEdit = useCanEdit();
 
@@ -176,6 +202,12 @@ export function RequestFormDialog({
     const mins = (endMs - startMs) / 60_000;
     return { hasDurationWarning: mins < durationToMinutes(state.durationValue, state.durationUnit), windowMinutes: mins };
   }, [state.durationValue, state.durationUnit, state.startDate, state.startTime, state.endDate, state.endTime]);
+
+  // Scheduling-context warning: the chosen site won't surface on the calendar the
+  // user is scheduling from when it's a different site, or site-neutral. Pre-selection
+  // aims to avoid this, but the user may override it.
+  const scheduleSiteName = scheduleSiteId ? sites.find((s) => s.id === scheduleSiteId)?.name : undefined;
+  const siteScopeWarning = computeSiteScopeWarning(isMultiSite, scheduleSiteId, state.siteId, scheduleSiteName);
 
   // Load criteria, templates, and spaces on mount
   useEffect(() => {
@@ -550,6 +582,12 @@ export function RequestFormDialog({
                         <p className="text-xs text-muted-foreground">
                           Where can this request be fulfilled? “Any site” can be scheduled at any site.
                         </p>
+                        {siteScopeWarning && (
+                          <Alert variant="warning">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>{siteScopeWarning}</AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     )}
                   </div>
