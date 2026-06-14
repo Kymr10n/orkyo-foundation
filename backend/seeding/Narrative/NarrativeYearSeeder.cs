@@ -28,6 +28,9 @@ public static class NarrativeYearSeeder
     // tracked so they never exceed 100 % (≈4 simultaneous jobs before full).
     private const decimal StoragePct = 25m;
 
+    // Curated, scale-independent backlog of unscheduled tasks the demo user schedules themselves.
+    private const int BacklogCount = 15;
+
     public static async Task<Result> SeedAsync(
         NpgsqlConnection conn,
         IReadOnlyList<FacilityCohort> cohorts,
@@ -177,8 +180,13 @@ public static class NarrativeYearSeeder
         var reqCount = await WriteRequirementsAsync(conn, jobs, criteria);
         var asgCount = await WriteAssignmentsAsync(conn, jobs);
 
+        // A small curated backlog of unscheduled tasks so the demo's utilization backlog isn't empty —
+        // users drag these onto the grid to schedule them.
+        var backlogIds = await WriteBacklogAsync(conn, cohorts, faker, BacklogCount);
+
         var allIds = parents.Select(p => p.Id)
             .Concat(jobs.Select(j => j.Id))
+            .Concat(backlogIds)
             .ToList();
         return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds);
     }
@@ -375,6 +383,48 @@ public static class NarrativeYearSeeder
             }
             await w.CompleteAsync();
         }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="count"/> unscheduled, top-level leaf requests (no start/end, no
+    /// assignments/requirements) — the demo backlog. They stay site-neutral (SiteModelFactory only
+    /// sites assigned requests), so they appear in every site's backlog and can be dragged onto any
+    /// space. Names mirror the scheduled jobs' "{Verb} {Noun} — {Site}".
+    /// </summary>
+    private static async Task<IReadOnlyList<Guid>> WriteBacklogAsync(
+        NpgsqlConnection conn, IReadOnlyList<FacilityCohort> cohorts, Faker faker, int count)
+    {
+        var now = DateTime.UtcNow;
+        var ids = new List<Guid>(count);
+        using var w = await conn.BeginBinaryImportAsync(RequestCopy);
+        for (var i = 0; i < count; i++)
+        {
+            var cohort = faker.PickRandom(cohorts.AsEnumerable());
+            var arch = faker.PickRandom(cohort.Facility.Archetypes.AsEnumerable());
+            var name = $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}";
+            if (name.Length > 200) name = name[..200];
+            var hours = Math.Max(1, faker.Random.Int(arch.MinHours, arch.MaxHours));
+            var id = Guid.NewGuid();
+            ids.Add(id);
+
+            await w.StartRowAsync();
+            await w.WriteAsync(id, NpgsqlDbType.Uuid);
+            await w.WriteAsync(name, NpgsqlDbType.Varchar);
+            await w.WriteNullAsync();                                  // description
+            await w.WriteNullAsync();                                  // start_ts  → unscheduled
+            await w.WriteNullAsync();                                  // end_ts
+            await w.WriteAsync(hours, NpgsqlDbType.Integer);          // minimal_duration_value
+            await w.WriteAsync("hours", NpgsqlDbType.Varchar);        // minimal_duration_unit
+            await w.WriteAsync("planned", NpgsqlDbType.Varchar);      // status
+            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            await w.WriteAsync(true, NpgsqlDbType.Boolean);           // scheduling_settings_apply
+            await w.WriteAsync("leaf", NpgsqlDbType.Varchar);         // planning_mode
+            await w.WriteAsync(i, NpgsqlDbType.Integer);              // sort_order
+            await w.WriteNullAsync();                                  // parent_request_id → top-level
+        }
+        await w.CompleteAsync();
+        return ids;
     }
 
     private static async Task<int> WriteRequirementsAsync(

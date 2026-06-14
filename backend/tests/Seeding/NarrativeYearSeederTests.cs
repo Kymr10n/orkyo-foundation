@@ -102,6 +102,13 @@ public class NarrativeYearSeederTests
         // committed rows to these tables (via the API) and we must not count them.
         var seededIds = year.RequestIds.ToArray();
 
+        // The demo seeds a small, scale-independent backlog of unscheduled tasks (no start/end) for
+        // the user to schedule themselves — they must surface in the utilization backlog.
+        var (_, backlog) = await TwoLongs(conn, tx,
+            "SELECT 0, count(*) FROM requests WHERE id = ANY(@ids) AND start_ts IS NULL AND planning_mode='leaf'",
+            ("ids", seededIds));
+        backlog.Should().Be(15, "the narrative seed adds a 15-item unscheduled backlog");
+
         // Per request with requirements: does ANY assigned resource cover ALL of them? (reqSat).
         var (reqTotal, reqSat) = await TwoLongs(conn, tx, @"
             WITH req AS (SELECT request_id, array_agg(criterion_id) crits FROM request_requirements
