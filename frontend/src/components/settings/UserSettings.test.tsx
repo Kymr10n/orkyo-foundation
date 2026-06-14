@@ -5,11 +5,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { UserSettings } from './UserSettings';
 import * as userApi from '@foundation/src/lib/api/user-api';
+import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 
 vi.mock('@foundation/src/lib/api/user-api');
+const ioHandlers = vi.hoisted(() => ({
+  exportCb: null as null | ((format: string) => Promise<void>),
+  importCb: null as null | ((file: File, format: string) => Promise<void>),
+}));
 vi.mock('@foundation/src/hooks/useImportExport', () => ({
-  useExportHandler: vi.fn(),
-  useImportHandler: vi.fn(),
+  useExportHandler: (_k: string, cb: (format: string) => Promise<void>) => {
+    ioHandlers.exportCb = cb;
+  },
+  useImportHandler: (_k: string, cb: (file: File, format: string) => Promise<void>) => {
+    ioHandlers.importCb = cb;
+  },
+}));
+vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
+  exportUsers: vi.fn(() => Promise.resolve()),
+  importUsers: vi.fn(() => Promise.resolve([])),
 }));
 vi.mock('./InviteUserDialog', () => ({
   InviteUserDialog: ({ open, onSuccess }: any) =>
@@ -374,5 +387,95 @@ describe('UserSettings', () => {
     await waitFor(() => screen.getByTestId('role-success'));
     await user.click(screen.getByTestId('role-success'));
     await waitFor(() => expect(screen.queryByTestId('role-success')).not.toBeInTheDocument());
+  });
+
+  it('renders default badge colors for inactive role and non-active statuses', async () => {
+    vi.mocked(userApi.getUsers).mockResolvedValue([
+      { id: '9', email: 'x@example.com', displayName: 'Inactive Person', role: 'inactive', status: 'suspended', createdAt: '2024-01-01T00:00:00Z', lastLoginAt: undefined },
+      { id: '10', email: 'y@example.com', displayName: 'Unknown Person', role: 'guest' as any, status: 'mystery' as any, createdAt: '2024-01-01T00:00:00Z', lastLoginAt: undefined },
+    ]);
+    vi.mocked(userApi.getInvitations).mockResolvedValue([]);
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByText('Inactive Person')).toBeInTheDocument());
+    expect(screen.getByText('inactive')).toBeInTheDocument();
+    expect(screen.getByText('suspended')).toBeInTheDocument();
+    expect(screen.getByText('mystery')).toBeInTheDocument();
+  });
+
+  it('does not cancel an invitation when confirmation is declined', async () => {
+    global.confirm = vi.fn(() => false);
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('pending@example.com'));
+    await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
+    expect(global.confirm).toHaveBeenCalled();
+    expect(userApi.cancelInvitation).not.toHaveBeenCalled();
+  });
+
+  it('alerts with a fallback message when a non-Error cancel failure is thrown', async () => {
+    vi.mocked(userApi.cancelInvitation).mockRejectedValueOnce('boom');
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('pending@example.com'));
+    await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
+    await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to cancel invitation'));
+  });
+
+  it('alerts with a fallback message when a non-Error resend failure is thrown', async () => {
+    vi.mocked(userApi.resendInvitation).mockRejectedValueOnce('boom');
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('pending@example.com'));
+    await user.click(screen.getAllByRole('button', { name: /Resend invitation/i })[0]);
+    await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to resend invitation'));
+  });
+
+  it('alerts with a fallback message when a non-Error delete failure is thrown', async () => {
+    vi.mocked(userApi.deleteUser).mockRejectedValueOnce('boom');
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+    await waitFor(() => screen.getByText('Admin User'));
+    await user.click(screen.getAllByRole('button', { name: /^Remove /i })[0]);
+    await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to remove user'));
+  });
+
+  describe('export / import handlers', () => {
+    it('exports the current users in the requested format', async () => {
+      render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+      await waitFor(() => screen.getByText('admin@example.com'));
+      await ioHandlers.exportCb!('csv');
+      expect(exportUsers).toHaveBeenCalledWith(mockUsers, 'csv');
+    });
+
+    it('imports users, skipping rows with no email and mapping inactive to viewer', async () => {
+      vi.mocked(importUsers).mockResolvedValueOnce([
+        { email: 'new@example.com', role: 'editor' } as any,
+        { email: '', role: 'admin' } as any,
+        { email: 'demoted@example.com', role: 'inactive' } as any,
+      ]);
+      render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+      await waitFor(() => screen.getByText('admin@example.com'));
+      await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
+      expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'new@example.com', role: 'editor' });
+      expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'demoted@example.com', role: 'viewer' });
+      expect(userApi.createInvitation).not.toHaveBeenCalledWith(expect.objectContaining({ email: '' }));
+      expect(global.alert).toHaveBeenCalledWith('Successfully imported 3 users');
+    });
+
+    it('throws and alerts when the imported file has no valid users', async () => {
+      vi.mocked(importUsers).mockResolvedValueOnce([]);
+      render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+      await waitFor(() => screen.getByText('admin@example.com'));
+      await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
+      expect(global.alert).toHaveBeenCalledWith('No valid users found in file');
+    });
+
+    it('alerts with the error message when import fails', async () => {
+      vi.mocked(importUsers).mockRejectedValueOnce(new Error('Bad import'));
+      render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
+      await waitFor(() => screen.getByText('admin@example.com'));
+      await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
+      expect(global.alert).toHaveBeenCalledWith('Bad import');
+    });
   });
 });

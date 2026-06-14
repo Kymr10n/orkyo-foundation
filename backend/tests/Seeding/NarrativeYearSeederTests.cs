@@ -47,6 +47,10 @@ public class NarrativeYearSeederTests
         var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
 
         // 30 minimal people (resources of type person) — enough for facility coverage.
+        // Deterministic ids (own Randomizer so the main faker stream is untouched): the cross-site
+        // off-site selection in SiteModelFactory.ApplyAsync is `abs(hashtext(id::text)) % 40 = 0`, so
+        // random person ids made the cross-site-ratio assertion below non-deterministic run-to-run.
+        var idRng = new Randomizer(1337);
         var people = new List<PeopleFactories.SeededPerson>();
         var now = DateTime.UtcNow;
         using (var w = await conn.BeginBinaryImportAsync(
@@ -54,7 +58,7 @@ public class NarrativeYearSeederTests
         {
             for (var i = 0; i < 30; i++)
             {
-                var id = Guid.NewGuid();
+                var id = idRng.Guid();
                 await w.StartRowAsync();
                 await w.WriteAsync(id, NpgsqlDbType.Uuid);
                 await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);

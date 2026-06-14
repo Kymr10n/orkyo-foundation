@@ -903,6 +903,55 @@ describe("UtilizationPage", () => {
 
     expect(mockScheduleMutate).not.toHaveBeenCalled();
   });
+
+  // --- Tab default + site-scoped hook args ---
+
+  it("defaults to the calendar tab when no tab param is present", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <QueryClientProvider client={queryClient}>
+          <UtilizationPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Utilization")).toBeInTheDocument();
+  });
+
+  it("passes undefined site id to scheduling hooks when no site is selected", () => {
+    mockStoreOverrides = { selectedSiteId: null };
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    expect(mockUseSchedulingSettings).toHaveBeenCalledWith(undefined);
+    expect(mockUseAvailabilityEvents).toHaveBeenCalledWith(undefined);
+  });
+
+  // --- Export end-date computation per scale ---
+
+  it.each(["year", "week", "day", "hour"] as const)(
+    "export computes the visible window for scale=%s",
+    async (scale) => {
+      const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+      mockStoreOverrides = { scale };
+      const Wrapper = createWrapper();
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+      await capturedExportHandler!("pdf");
+      expect(vi.mocked(exportUtilization)).toHaveBeenCalled();
+    },
+  );
+
+  // --- Auto-schedule guard ---
+
+  it("auto-schedule click is a no-op when no site is selected", () => {
+    mockUseAutoScheduleAvailable.mockReturnValue(true);
+    mockStoreOverrides = { selectedSiteId: null };
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
+    expect(mockPreviewMutateAsync).not.toHaveBeenCalled();
+  });
 });
 
 describe("navigateTime", () => {

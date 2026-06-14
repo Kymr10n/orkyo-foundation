@@ -22,6 +22,14 @@ vi.mock('@foundation/src/lib/api/job-titles-api', () => ({
 vi.mock('@foundation/src/lib/api/departments-api', () => ({
   getDepartmentTree: vi.fn(),
 }));
+const sitesMock = vi.hoisted(() => ({
+  sites: [] as { id: string; name: string }[],
+  isMultiSite: false,
+}));
+vi.mock('@foundation/src/hooks/useSites', () => ({
+  useSites: () => ({ data: sitesMock.sites }),
+  useIsMultiSite: () => sitesMock.isMultiSite,
+}));
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -64,6 +72,8 @@ function renderDialog(props: Partial<Parameters<typeof PersonEditDialog>[0]> = {
 describe('PersonEditDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sitesMock.sites = [];
+    sitesMock.isMultiSite = false;
     vi.mocked(createResource).mockResolvedValue(createdResource);
     vi.mocked(updateResource).mockResolvedValue(createdResource);
     vi.mocked(getPersonProfile).mockResolvedValue({
@@ -92,6 +102,43 @@ describe('PersonEditDialog', () => {
         children: [],
       },
     ]);
+  });
+
+  it('renders nothing and does not sync the form while closed', () => {
+    renderDialog({ isOpen: false });
+    expect(screen.queryByLabelText(/Name/)).not.toBeInTheDocument();
+  });
+
+  it('shows an "update" error toast when an edit save fails', async () => {
+    vi.mocked(updateResource).mockRejectedValue(new Error('Conflict'));
+    renderDialog({ person: createdResource, onSaved: vi.fn() });
+
+    await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Failed to update person',
+        expect.objectContaining({ description: 'Conflict' }),
+      ),
+    );
+  });
+
+  it('coalesces a partial/stale resource shape to safe form defaults', async () => {
+    // The API normally returns a fully-populated ResourceInfo; a stale or partial
+    // shape (null name/allocationMode/availability) must not crash the form.
+    const partial = {
+      ...createdResource,
+      name: null,
+      allocationMode: null,
+      baseAvailabilityPercent: null,
+    } as unknown as ResourceInfo;
+    renderDialog({ person: partial, onSaved: vi.fn() });
+
+    await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+    expect(screen.getByLabelText(/Name/)).toHaveValue('');
+    // Save stays disabled because the coalesced name is empty.
+    expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
   });
 
   it('renders form fields for name, email, job title, department, and notes', () => {
@@ -228,5 +275,143 @@ describe('PersonEditDialog', () => {
 
     await waitFor(() => expect(createResource).toHaveBeenCalled());
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('persists description, notes, and base availability on create', async () => {
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
+    fireEvent.change(screen.getByLabelText(/Description/), {
+      target: { value: 'A teammate' },
+    });
+    fireEvent.change(screen.getByLabelText(/Notes/), {
+      target: { value: 'Prefers mornings' },
+    });
+    fireEvent.change(screen.getByLabelText(/Base Availability/), {
+      target: { value: '80' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => expect(createResource).toHaveBeenCalled());
+    expect(createResource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'A teammate',
+        baseAvailabilityPercent: 80,
+      }),
+    );
+    expect(upsertPersonProfile).toHaveBeenCalledWith(
+      'res-1',
+      expect.objectContaining({ notes: 'Prefers mornings' }),
+    );
+  });
+
+  describe('multi-site Location block', () => {
+    const multiSitePerson: ResourceInfo = {
+      ...createdResource,
+      homeSiteId: 'site-1',
+      currentSiteId: 'site-1',
+      crossSiteAllowed: true,
+    };
+
+    beforeEach(() => {
+      sitesMock.isMultiSite = true;
+      sitesMock.sites = [
+        { id: 'site-1', name: 'Site A' },
+        { id: 'site-2', name: 'Site B' },
+      ];
+      vi.mocked(updateResource).mockResolvedValue(multiSitePerson);
+      // No profile row → the API 404s and the component's loadProfileOrNull maps it to null.
+      vi.mocked(getPersonProfile).mockRejectedValue(new Error('404 Not Found'));
+    });
+
+    it('renders the Location fields only when the tenant is multi-site', async () => {
+      renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      expect(screen.getByText('Location')).toBeInTheDocument();
+      expect(screen.getByLabelText('Home Site')).toBeInTheDocument();
+      expect(screen.getByLabelText('Current Site')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Available for other sites'),
+      ).toBeInTheDocument();
+    });
+
+    it('saves the home-site fields, toggling cross-site availability', async () => {
+      const onSaved = vi.fn();
+      renderDialog({ person: multiSitePerson, onSaved });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      // Wait for the form to sync from the person (checkbox starts checked),
+      // then turn off "available for other sites".
+      const crossSite = screen.getByLabelText('Available for other sites');
+      await waitFor(() => expect(crossSite).toBeChecked());
+      fireEvent.click(crossSite);
+      await waitFor(() => expect(crossSite).not.toBeChecked());
+
+      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(updateResource).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({
+          homeSiteId: 'site-1',
+          currentSiteId: 'site-1',
+          crossSiteAllowed: false,
+        }),
+      );
+    });
+
+    it('defaults the current site to the home site when current is left unset', async () => {
+      const onSaved = vi.fn();
+      const homeOnlyPerson: ResourceInfo = {
+        ...multiSitePerson,
+        homeSiteId: 'site-1',
+        currentSiteId: undefined,
+      };
+      vi.mocked(updateResource).mockResolvedValue(homeOnlyPerson);
+      renderDialog({ person: homeOnlyPerson, onSaved });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(updateResource).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({ homeSiteId: 'site-1', currentSiteId: 'site-1' }),
+      );
+    });
+
+    it('hides the Location block for single-site tenants', () => {
+      sitesMock.isMultiSite = false;
+      renderDialog({ onSaved: vi.fn() });
+      expect(screen.queryByText('Location')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('reference-data selects', () => {
+    it('renders a disabled placeholder option for a no-longer-active job title and department', async () => {
+      // Profile points at FK ids that are no longer in the active lists; the
+      // dialog injects a disabled "current assignment" option so the Select is
+      // not blank. Opening the trigger mounts the SelectContent that holds it.
+      vi.mocked(getPersonProfile).mockResolvedValue({
+        resourceId: 'res-1',
+        jobTitleId: 'jt-removed',
+        departmentId: 'dept-removed',
+        jobTitleName: 'Removed',
+        departmentPath: 'Removed',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      });
+      renderDialog({ person: createdResource, onSaved: vi.fn() });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      fireEvent.click(screen.getByLabelText(/Job Title/));
+      await waitFor(() =>
+        expect(
+          screen.getAllByText('(current assignment — no longer active)').length,
+        ).toBeGreaterThan(0),
+      );
+    });
   });
 });

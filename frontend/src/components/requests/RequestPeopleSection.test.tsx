@@ -338,4 +338,100 @@ describe('RequestPeopleSection', () => {
       );
     });
   });
+
+  // ── Branch coverage: create-mode, validation-skip, save guards ──────────────
+
+  it('does not fetch assignments when creating a new request (no requestId)', async () => {
+    render(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    expect(getAssignmentsByRequest).not.toHaveBeenCalled();
+  });
+
+  it('skips validation when the request has no start/end times', async () => {
+    render(
+      <RequestPeopleSection
+        {...defaultProps}
+        requestStartTs={undefined}
+        requestEndTs={undefined}
+      />,
+    );
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    // Give the debounce window a chance to (not) fire.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(validateAssignment).not.toHaveBeenCalled();
+  });
+
+  it('shows "No issues found" when validation returns a clean result', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    await waitFor(() => expect(screen.getByTestId('validation-ok')).toBeInTheDocument());
+  });
+
+  it('blocks saving a row before the request itself has a schedule', async () => {
+    render(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('row-error')).toHaveTextContent(
+        /Request must be saved with a schedule/,
+      ),
+    );
+    expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when saving a row with no person selected', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    // Save without selecting a person.
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a row error when createAssignment fails', async () => {
+    (createAssignment as Mock).mockRejectedValue(new Error('Conflict on save'));
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('row-error')).toHaveTextContent('Conflict on save'),
+    );
+  });
+
+  it('clamps and sanitizes the allocation percent input', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    const alloc = screen.getByTestId('allocation-input');
+    fireEvent.change(alloc, { target: { value: '250' } });
+    expect(alloc).toHaveValue('100');
+    fireEvent.change(alloc, { target: { value: 'abc' } });
+    expect(alloc).toHaveValue('0');
+  });
+
+  it('updates free-text role/notes fields on a pending row', async () => {
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.change(screen.getByTestId('role-input'), { target: { value: 'Lead' } });
+    expect(screen.getByTestId('role-input')).toHaveValue('Lead');
+  });
+
+  it('falls back to the resourceId when the assigned person is not in the people list', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([
+      { ...mockAssignment, resourceId: 'ghost-person' },
+    ]);
+    render(<RequestPeopleSection {...defaultProps} />);
+    await waitFor(() => expect(screen.getByText('ghost-person')).toBeInTheDocument());
+  });
 });
