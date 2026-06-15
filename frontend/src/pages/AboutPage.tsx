@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foun
 import { Separator } from "@foundation/src/components/ui/separator";
 import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { runtimeConfig } from "@foundation/src/config/runtime";
 
 // Build-time metadata injected by vite.config.ts
 const APP_VERSION = (typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : null) ?? null;
@@ -77,22 +78,26 @@ export function AboutPage() {
 
             <Separator />
 
-            <div className="space-y-4">
-              <h3 className="font-medium">Links</h3>
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => window.open("mailto:support@orkyo.app", "_blank")}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Contact Support
-                  <ExternalLink className="h-3 w-3 ml-auto" />
-                </Button>
-              </div>
-            </div>
+            {runtimeConfig.supportEmail && (
+              <>
+                <div className="space-y-4">
+                  <h3 className="font-medium">Links</h3>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      className="justify-start"
+                      onClick={() => window.open(`mailto:${runtimeConfig.supportEmail}`, "_blank")}
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Contact Support
+                      <ExternalLink className="h-3 w-3 ml-auto" />
+                    </Button>
+                  </div>
+                </div>
 
-            <Separator />
+                <Separator />
+              </>
+            )}
 
             <div className="text-center text-sm text-muted-foreground">
               <p>© {currentYear} Orkyo. All rights reserved.</p>

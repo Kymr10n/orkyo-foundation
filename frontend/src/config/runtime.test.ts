@@ -100,6 +100,52 @@ describe('runtime config', () => {
     });
   });
 
+  describe('supportEmail', () => {
+    it('derives the support email domain from baseDomain', async () => {
+      window.__RUNTIME_CONFIG__ = {
+        BASE_DOMAIN: 'orkyo.app',
+      };
+      vi.resetModules();
+
+      const { runtimeConfig } = await import('./runtime');
+
+      // Domain is never hardcoded — it follows the environment-provided apex.
+      expect(runtimeConfig.supportEmail).toBe('support@orkyo.app');
+    });
+
+    it('follows baseDomain to a different apex', async () => {
+      window.__RUNTIME_CONFIG__ = {
+        BASE_DOMAIN: 'orkyo.com',
+      };
+      vi.resetModules();
+
+      const { runtimeConfig } = await import('./runtime');
+
+      expect(runtimeConfig.supportEmail).toBe('support@orkyo.com');
+    });
+
+    it('is empty when no base domain is configured (no hardcoded fallback)', async () => {
+      window.__RUNTIME_CONFIG__ = {};
+      vi.resetModules();
+
+      const { runtimeConfig } = await import('./runtime');
+
+      expect(runtimeConfig.supportEmail).toBe('');
+    });
+
+    it('can be overridden wholesale via SUPPORT_EMAIL', async () => {
+      window.__RUNTIME_CONFIG__ = {
+        BASE_DOMAIN: 'orkyo.app',
+        SUPPORT_EMAIL: 'help@desk.example',
+      };
+      vi.resetModules();
+
+      const { runtimeConfig } = await import('./runtime');
+
+      expect(runtimeConfig.supportEmail).toBe('help@desk.example');
+    });
+  });
+
   describe('__RUNTIME_CONFIG__ precedence', () => {
     it('runtime config takes precedence over import.meta.env', async () => {
       window.__RUNTIME_CONFIG__ = {
