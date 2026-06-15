@@ -9,7 +9,7 @@ import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
 import { TimelineRow } from "./TimelineRow";
 import type { TimeColumn } from "./scheduler-types";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
-import { overlapsOffTimeRange } from "./time-grid-utils";
+import { coversOffTimeRange } from "./time-grid-utils";
 
 // Constants for row height calculation
 const BASE_ROW_HEIGHT = 52; // Base height for a single request
@@ -60,8 +60,12 @@ export const SpaceRow = React.memo(function SpaceRow({
   });
 
   const isCellOffTime = useCallback(
+    // Tint a column only when an off-time range covers it end to end. Using a
+    // mere overlap painted every week/month column red at the month/year scales
+    // (each spans a weekend); full coverage shades weekend day-columns on the
+    // week view and genuine full-column closures, and nothing partial.
     (col: TimeColumn) =>
-      overlapsOffTimeRange(
+      coversOffTimeRange(
         space.id,
         col.start.getTime(),
         col.end.getTime(),
