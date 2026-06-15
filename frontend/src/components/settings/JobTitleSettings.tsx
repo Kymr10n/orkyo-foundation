@@ -36,6 +36,23 @@ export function JobTitleSettings() {
     deleteMutation.mutate(jt.id);
   };
 
+  const renderActions = (jt: JobTitleInfo) => (
+    <div className="flex justify-end gap-1">
+      <Button variant="ghost" size="icon" onClick={() => setEditing(jt)} aria-label={`Edit ${jt.name}`}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => handleDelete(jt)}
+        className="text-destructive hover:text-destructive"
+        aria-label={`Delete ${jt.name}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
   const columns: ColumnDef<JobTitleInfo>[] = [
     {
       accessorKey: 'name',
@@ -60,23 +77,23 @@ export function JobTitleSettings() {
       id: 'actions',
       header: () => null,
       size: 100,
-      cell: ({ row }) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setEditing(row.original)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleDelete(row.original)}
-            className="text-destructive hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Shared row actions — desktop table cell and phone card.
+  const renderCard = (jt: JobTitleInfo) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium truncate">{jt.name}</span>
+          {!jt.isActive && <Badge variant="outline">Inactive</Badge>}
+        </div>
+        <p className="text-sm text-muted-foreground">{jt.description || '—'}</p>
+      </div>
+      {renderActions(jt)}
+    </div>
+  );
 
   const errorMsg = error instanceof Error ? error.message : error ? 'Failed to load job titles' : null;
 
@@ -112,6 +129,7 @@ export function JobTitleSettings() {
         emptyMessage="No job titles defined yet."
         filterColumn="name"
         filterPlaceholder="Search job titles..."
+        renderCard={renderCard}
       />
 
       <JobTitleEditDialog

@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import {
   canHaveChildren,
@@ -100,6 +101,12 @@ const TreeRow = React.memo(function TreeRow({
   const isExpanded = useRequestTreeStore((s) => s.expandedIds.has(request.id));
   const isParent = canHaveChildren(request.planningMode);
   const canEdit = useCanEdit();
+  const { isDesktop } = useBreakpoint();
+
+  // Touch surfaces have no hover, so row affordances must be persistently visible
+  // there; desktop keeps the reveal-on-hover treatment. Drag-to-reparent stays
+  // desktop-only (touch users reparent via the always-present "Move to…" action).
+  const hoverReveal = isDesktop ? "opacity-0 group-hover:opacity-100 transition-opacity" : "";
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: request.id,
@@ -153,9 +160,9 @@ const TreeRow = React.memo(function TreeRow({
       onClick={() => onSelect(request.id)}
       onDoubleClick={() => onEdit(request)}
     >
-      {/* Drag handle */}
+      {/* Drag handle — desktop only; touch reparents via the "Move to…" action. */}
       <span
-        className="flex-shrink-0 cursor-grab opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity"
+        className={`flex-shrink-0 cursor-grab ${isDesktop ? "opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity" : "hidden"}`}
         {...listeners}
         {...attributes}
       >
@@ -264,7 +271,7 @@ const TreeRow = React.memo(function TreeRow({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                className={`h-6 w-6 p-0 ${hoverReveal}`}
                 onClick={(e) => e.stopPropagation()}
                 title="Add child"
               >
@@ -291,7 +298,7 @@ const TreeRow = React.memo(function TreeRow({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className={`h-6 w-6 p-0 ${hoverReveal}`}
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />

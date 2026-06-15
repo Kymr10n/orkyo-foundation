@@ -34,6 +34,35 @@ globalThis.ResizeObserver = class implements ResizeObserver {
   disconnect(): void {}
 };
 
+// happy-dom has no layout engine, so window.matchMedia is unreliable. Provide a
+// width-based polyfill defaulting to a desktop viewport (1280px) so existing tests
+// keep their desktop behavior and responsive units (useBreakpoint, ResponsiveDialog,
+// DetailDrawer, mobile nav) are testable. Tests drive a specific breakpoint by
+// overriding window.matchMedia (see useBreakpoint.test.tsx). writable/configurable so
+// those overrides — and the theme tests in app-store.test.ts — still work.
+const DEFAULT_TEST_VIEWPORT_WIDTH = 1280;
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  configurable: true,
+  value: (query: string): MediaQueryList => {
+    const min = /\(min-width:\s*(\d+)px\)/.exec(query);
+    const max = /\(max-width:\s*(\d+)px\)/.exec(query);
+    let matches = true;
+    if (min) matches = matches && DEFAULT_TEST_VIEWPORT_WIDTH >= Number(min[1]);
+    if (max) matches = matches && DEFAULT_TEST_VIEWPORT_WIDTH <= Number(max[1]);
+    return {
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList;
+  },
+});
+
 // Polyfill for Radix UI pointer capture (not implemented in happy-dom)
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = function () {

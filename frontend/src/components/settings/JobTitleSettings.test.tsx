@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -158,5 +158,44 @@ describe('JobTitleSettings', () => {
     const deleteButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
     await user.click(deleteButtons[1]);
     expect(deleteJobTitle).not.toHaveBeenCalled();
+  });
+
+  describe('phone card mode', () => {
+    const originalMatchMedia = window.matchMedia;
+
+    function setPhoneViewport() {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn((query: string) => ({
+          // 500px viewport → all min-width media queries fail → phone.
+          matches: false,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        })) as unknown as typeof window.matchMedia,
+      });
+    }
+
+    afterEach(() => {
+      Object.defineProperty(window, 'matchMedia', {
+        value: originalMatchMedia,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it('renders cards (not a table) on phone, preserving names and actions', async () => {
+      setPhoneViewport();
+      renderComponent();
+      await waitFor(() => expect(screen.getByText('Senior Engineer')).toBeInTheDocument());
+      // Card presentation: no <table>, but the data + per-row actions remain.
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(screen.getByText('Product Manager')).toBeInTheDocument();
+      expect(screen.getByLabelText('Edit Senior Engineer')).toBeInTheDocument();
+      expect(screen.getByLabelText('Delete Senior Engineer')).toBeInTheDocument();
+    });
   });
 });

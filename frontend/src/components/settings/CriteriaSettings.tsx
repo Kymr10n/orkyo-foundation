@@ -103,6 +103,81 @@ export function CriteriaSettings() {
     ? criteria
     : criteria.filter((c) => c.resourceTypeKeys?.includes(activeFilter));
 
+  // Shared row actions — desktop table cell and phone card. The delete is
+  // disabled (with an explaining tooltip) while the criterion is in use.
+  const renderActions = (criterion: Criterion) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={!canEdit}
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditingCriterion(criterion);
+        }}
+        aria-label={`Edit ${criterion.name}`}
+        title="Edit criterion"
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {/* Span wrapper so the tooltip still fires while the button is disabled */}
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={criterion.inUse || !canEdit}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(criterion);
+                }}
+                className="text-destructive hover:text-destructive"
+                aria-label={`Delete ${criterion.name}`}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {criterion.inUse
+              ? 'Cannot delete: this criterion has existing values'
+              : 'Delete criterion'}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+
+  // Phone presentation: name + type, applies-to, description, actions trailing.
+  const renderCard = (criterion: Criterion) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-sm font-semibold truncate">{criterion.name}</span>
+          <Badge className={getDataTypeColor(criterion.dataType)}>{criterion.dataType}</Badge>
+          {criterion.unit && (
+            <span className="text-xs text-muted-foreground">({criterion.unit})</span>
+          )}
+        </div>
+        {criterion.resourceTypeKeys && criterion.resourceTypeKeys.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {criterion.resourceTypeKeys.map((key) => (
+              <Badge key={key} variant="outline" className="text-xs">
+                {RESOURCE_TYPE_LABELS[key]}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {criterion.description && (
+          <p className="text-sm text-muted-foreground">{criterion.description}</p>
+        )}
+      </div>
+      {renderActions(criterion)}
+    </div>
+  );
+
   const columns: ColumnDef<Criterion>[] = [
     {
       accessorKey: 'name',
@@ -177,53 +252,7 @@ export function CriteriaSettings() {
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const criterion = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={!canEdit}
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingCriterion(criterion);
-              }}
-              aria-label={`Edit ${criterion.name}`}
-              title="Edit criterion"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* Span wrapper so the tooltip still fires while the button is disabled */}
-                  <span className="inline-flex">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={criterion.inUse || !canEdit}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(criterion);
-                      }}
-                      className="text-destructive hover:text-destructive"
-                      aria-label={`Delete ${criterion.name}`}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {criterion.inUse
-                    ? 'Cannot delete: this criterion has existing values'
-                    : 'Delete criterion'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
 
@@ -296,6 +325,7 @@ export function CriteriaSettings() {
           filterColumn="name"
           filterPlaceholder="Search criteria..."
           onRowClick={(criterion) => setEditingCriterion(criterion)}
+          renderCard={renderCard}
         />
       )}
 

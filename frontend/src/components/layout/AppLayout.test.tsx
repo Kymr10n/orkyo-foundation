@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
@@ -43,11 +43,21 @@ vi.mock('./FeedbackButton', () => ({
 }));
 
 vi.mock('./SidebarNav', () => ({
-  SidebarNav: () => <nav data-testid="sidebar" />,
+  SidebarNav: ({ forceCollapsed }: { forceCollapsed?: boolean }) => (
+    <nav data-testid="sidebar" data-forced={String(forceCollapsed)} />
+  ),
 }));
 
 vi.mock('./TopBar', () => ({
-  TopBar: () => <header data-testid="topbar" />,
+  TopBar: ({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) => (
+    <header data-testid="topbar">
+      {onOpenMobileNav && (
+        <button type="button" data-testid="hamburger" onClick={onOpenMobileNav}>
+          menu
+        </button>
+      )}
+    </header>
+  ),
 }));
 
 vi.mock('@foundation/src/components/tour/TourDialog', () => ({
@@ -116,5 +126,90 @@ describe('AppLayout', () => {
     renderLayout();
     await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
     expect(screen.queryByTestId('tour-dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('AppLayout — responsive shell', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  function setViewport(width: number) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn((query: string) => {
+        const min = /\(min-width:\s*(\d+)px\)/.exec(query);
+        return {
+          matches: min ? width >= Number(min[1]) : false,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        } as unknown as MediaQueryList;
+      }),
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      value: originalMatchMedia,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('desktop: inline sidebar (store-driven), no hamburger', async () => {
+    setViewport(1280);
+    renderLayout();
+    await waitFor(() => expect(screen.getByTestId('sidebar')).toBeInTheDocument());
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-forced', 'undefined');
+    expect(screen.queryByTestId('hamburger')).not.toBeInTheDocument();
+  });
+
+  it('tablet: collapsed icon rail, no hamburger', async () => {
+    setViewport(900);
+    renderLayout();
+    await waitFor(() => expect(screen.getByTestId('sidebar')).toBeInTheDocument());
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-forced', 'true');
+    expect(screen.queryByTestId('hamburger')).not.toBeInTheDocument();
+  });
+
+  it('phone: no inline sidebar; hamburger opens the nav drawer', async () => {
+    setViewport(500);
+    renderLayout();
+    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
+    // Drawer starts closed → the sidebar content is not mounted.
+    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('hamburger'));
+
+    // Opening the drawer mounts the sidebar in its expanded (forceCollapsed=false) form.
+    await waitFor(() => expect(screen.getByTestId('sidebar')).toBeInTheDocument());
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-forced', 'false');
+  });
+
+  it('restores the inline sidebar (and drops the hamburger) when growing past phone width', async () => {
+    setViewport(500);
+    const { rerender } = renderLayout();
+    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('hamburger'));
+    await waitFor(() => expect(screen.getByTestId('sidebar')).toBeInTheDocument());
+
+    // Resize up to desktop and re-render: the drawer-close effect runs, the
+    // inline store-driven sidebar returns and the hamburger disappears.
+    setViewport(1280);
+    rerender(
+      <MemoryRouter>
+        <AppLayout />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('sidebar')).toHaveAttribute('data-forced', 'undefined'),
+    );
+    expect(screen.queryByTestId('hamburger')).not.toBeInTheDocument();
   });
 });

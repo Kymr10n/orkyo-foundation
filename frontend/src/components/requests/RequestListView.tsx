@@ -18,7 +18,7 @@ import {
 } from "@foundation/src/lib/utils/utils";
 import type { Request } from "@foundation/src/types/requests";
 import { Edit, Link, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 
 interface RequestListViewProps {
   requests: Request[];
@@ -50,6 +50,49 @@ export const RequestListView = React.memo(function RequestListView({
     }
     return map;
   }, [requests]);
+
+  // Shared row actions — identical dropdown for the desktop table cell and the
+  // phone card. Already touch-friendly (always-visible trigger, no hover gating).
+  const renderActions = useCallback((request: Request) => {
+    const isParent = canHaveChildren(request.planningMode);
+    return (
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(request)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+            {isParent && (
+              <>
+                <DropdownMenuItem onClick={() => onAddChild(request)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add new child
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onAddExisting(request)}>
+                  <Link className="h-4 w-4 mr-2" />
+                  Add existing requests…
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(request)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }, [onEdit, onAddChild, onAddExisting, onDelete]);
 
   const columns: ColumnDef<Request>[] = useMemo(() => [
     {
@@ -126,49 +169,46 @@ export const RequestListView = React.memo(function RequestListView({
       id: "actions",
       header: () => null,
       size: 60,
-      cell: ({ row }) => {
-        const request = row.original;
-        const isParent = canHaveChildren(request.planningMode);
-        return (
-          <div className="flex justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onEdit(request)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </DropdownMenuItem>
-                {isParent && (
-                  <>
-                    <DropdownMenuItem onClick={() => onAddChild(request)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add new child
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onAddExisting(request)}>
-                      <Link className="h-4 w-4 mr-2" />
-                      Add existing requests…
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => onDelete(request)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
-  ], [parentNameMap, selectedId, onSelect, onEdit, onDelete, onAddChild, onAddExisting]);
+  ], [parentNameMap, selectedId, onSelect, onEdit, renderActions]);
+
+  // Phone presentation: name + actions on top; kind/status/duration badges and
+  // the schedule window below.
+  const renderCard = useCallback((request: Request) => {
+    const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
+    const { startTs, endTs } = request;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div
+            className={`flex items-center gap-2 min-w-0 cursor-pointer ${selectedId === request.id ? "font-semibold" : ""}`}
+            onClick={() => onSelect(request.id)}
+          >
+            <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="font-medium truncate">{request.name}</span>
+          </div>
+          {renderActions(request)}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-xs font-normal">
+            {getPlanningModeLabel(request.planningMode)}
+          </Badge>
+          <Badge className={getStatusColor(request.status)}>
+            {formatStatusLabel(request.status)}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {formatDuration(request.minimalDurationValue, request.minimalDurationUnit)}
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {startTs && endTs
+            ? `${formatDateDisplay(startTs)} — ${formatDateDisplay(endTs)}`
+            : "Unscheduled"}
+        </div>
+      </div>
+    );
+  }, [selectedId, onSelect, renderActions]);
 
   return (
     <OrkyoDataTable
@@ -176,6 +216,7 @@ export const RequestListView = React.memo(function RequestListView({
       data={requests}
       emptyMessage="No requests found."
       pageSize={50}
+      renderCard={renderCard}
     />
   );
 });

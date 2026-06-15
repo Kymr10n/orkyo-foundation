@@ -106,6 +106,33 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     return `${template.durationValue} ${template.durationUnit}`;
   };
 
+  // Shared row actions — desktop table cell and phone card.
+  const renderActions = (template: Template) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={!canEdit}
+        onClick={(e) => { e.stopPropagation(); setEditingTemplate(template); }}
+        aria-label={`Edit ${template.name}`}
+        title="Edit template"
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={!canEdit}
+        onClick={(e) => { e.stopPropagation(); handleDelete(template); }}
+        className="text-destructive hover:text-destructive"
+        aria-label={`Delete ${template.name}`}
+        title="Delete template"
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
+
   const columns: ColumnDef<Template>[] = [
     {
       accessorKey: 'name',
@@ -146,36 +173,26 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const template = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={!canEdit}
-              onClick={(e) => { e.stopPropagation(); setEditingTemplate(template); }}
-              aria-label={`Edit ${template.name}`}
-              title="Edit template"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={!canEdit}
-              onClick={(e) => { e.stopPropagation(); handleDelete(template); }}
-              className="text-destructive hover:text-destructive"
-              aria-label={`Delete ${template.name}`}
-              title="Delete template"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Phone presentation: name, duration badge + description, actions trailing.
+  const renderCard = (template: Template) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <span className="font-semibold truncate block">{template.name}</span>
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Badge variant="outline" className="text-xs">{getDurationLabel(template)}</Badge>
+        </div>
+        {template.description && (
+          <p className="text-sm text-muted-foreground">{template.description}</p>
+        )}
+      </div>
+      {renderActions(template)}
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -226,6 +243,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         <OrkyoDataTable
           columns={columns}
           data={templates}
+          renderCard={renderCard}
           filterColumn="name"
           filterPlaceholder="Search templates..."
           onRowClick={(template) => setEditingTemplate(template)}

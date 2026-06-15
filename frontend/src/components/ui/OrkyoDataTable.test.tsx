@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { OrkyoDataTable, type ColumnDef } from './OrkyoDataTable';
@@ -360,5 +360,106 @@ describe('OrkyoDataTable', () => {
     await user.click(screen.getByRole('button', { name: 'Act' }));
     expect(onAction).toHaveBeenCalledOnce();
     expect(onRowClick).not.toHaveBeenCalled();
+  });
+});
+
+// ── Responsive card mode ───────────────────────────────────────────────────
+describe('OrkyoDataTable — card mode', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  function setViewport(width: number) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn((query: string) => {
+        const min = /\(min-width:\s*(\d+)px\)/.exec(query);
+        return {
+          matches: min ? width >= Number(min[1]) : false,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        } as unknown as MediaQueryList;
+      }),
+    });
+  }
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      value: originalMatchMedia,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  const renderCard = (row: Row) => <div data-testid="card">{row.name}</div>;
+
+  it('renders cards instead of the table on phone when renderCard is provided', () => {
+    setViewport(500);
+    render(<OrkyoDataTable columns={columns} data={makeRows(3)} renderCard={renderCard} />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('card')).toHaveLength(3);
+    expect(screen.getByText('Item 2')).toBeInTheDocument();
+  });
+
+  it('keeps the grid on tablet/desktop even when renderCard is provided', () => {
+    setViewport(1280);
+    render(<OrkyoDataTable columns={columns} data={makeRows(3)} renderCard={renderCard} />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByTestId('card')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the table on phone when no renderCard is given', () => {
+    setViewport(500);
+    render(<OrkyoDataTable columns={columns} data={makeRows(2)} />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('fires onRowClick when a card is tapped', () => {
+    setViewport(500);
+    const onRowClick = vi.fn();
+    render(
+      <OrkyoDataTable columns={columns} data={makeRows(3)} renderCard={renderCard} onRowClick={onRowClick} />,
+    );
+    fireEvent.click(screen.getByText('Item 2'));
+    expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1', name: 'Item 2' }));
+  });
+
+  it('an action inside a card can stop propagation to suppress onRowClick', async () => {
+    setViewport(500);
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const onAction = vi.fn();
+    const cardWithAction = (row: Row) => (
+      <div>
+        {row.name}
+        <button onClick={(e) => { e.stopPropagation(); onAction(); }}>Act</button>
+      </div>
+    );
+    render(
+      <OrkyoDataTable columns={columns} data={makeRows(1)} renderCard={cardWithAction} onRowClick={onRowClick} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Act' }));
+    expect(onAction).toHaveBeenCalledOnce();
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it('still applies client-side filtering in card mode', async () => {
+    setViewport(500);
+    const user = userEvent.setup();
+    render(
+      <OrkyoDataTable
+        columns={columns}
+        data={makeRows(5)}
+        filterColumn="name"
+        filterPlaceholder="Search"
+        renderCard={renderCard}
+      />,
+    );
+    expect(screen.getAllByTestId('card')).toHaveLength(5);
+    await user.type(screen.getByPlaceholderText('Search'), 'Item 3');
+    expect(screen.getAllByTestId('card')).toHaveLength(1);
+    expect(screen.getByText('Item 3')).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { SidebarNav } from './SidebarNav';
 
@@ -17,12 +18,15 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({ membership: authState.membership }),
 }));
 
-function renderSidebar(initialPath = '/') {
+function renderSidebar(
+  initialPath = '/',
+  props: { forceCollapsed?: boolean; onNavigate?: () => void } = {},
+) {
   return render(
     <MemoryRouter
       initialEntries={[initialPath]}
     >
-      <SidebarNav />
+      <SidebarNav {...props} />
     </MemoryRouter>,
   );
 }
@@ -73,5 +77,30 @@ describe('SidebarNav', () => {
     // Administration is positioned directly after Settings.
     const labels = screen.getAllByRole('link').map((l) => l.textContent);
     expect(labels.indexOf('Administration')).toBe(labels.indexOf('Settings') + 1);
+  });
+
+  describe('forced presentations (tablet rail / phone drawer)', () => {
+    it('hides labels and the collapse toggle when forceCollapsed is true (rail)', () => {
+      renderSidebar('/', { forceCollapsed: true });
+      // Icon rail: link labels are not rendered, and the toggle is gone.
+      expect(screen.queryByText('Utilization')).not.toBeInTheDocument();
+      expect(screen.queryByText('Collapse')).not.toBeInTheDocument();
+      // Links themselves still present (icons), pointing at the same routes.
+      const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+      expect(hrefs).toContain('/');
+    });
+
+    it('shows labels but no toggle when forceCollapsed is false (drawer)', () => {
+      renderSidebar('/', { forceCollapsed: false });
+      expect(screen.getByText('Utilization')).toBeInTheDocument();
+      expect(screen.queryByText('Collapse')).not.toBeInTheDocument();
+    });
+
+    it('calls onNavigate when a link is activated', async () => {
+      const onNavigate = vi.fn();
+      renderSidebar('/', { forceCollapsed: false, onNavigate });
+      await userEvent.click(screen.getByText('Spaces'));
+      expect(onNavigate).toHaveBeenCalledTimes(1);
+    });
   });
 });

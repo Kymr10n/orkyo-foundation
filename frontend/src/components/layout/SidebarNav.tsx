@@ -28,7 +28,18 @@ const coreNavItems = [
 const settingsNavItem = { to: "/settings", label: "Settings", icon: Settings };
 const adminNavItem = { to: "/tenant-admin", label: "Administration", icon: ShieldCheck };
 
-export function SidebarNav() {
+interface SidebarNavProps {
+  /**
+   * Force a collapsed (icon-rail) or expanded presentation and hide the collapse
+   * toggle. The tablet rail passes `true`, the phone drawer passes `false`. When
+   * omitted, the sidebar is store-driven with a working toggle (desktop).
+   */
+  forceCollapsed?: boolean;
+  /** Called when a nav link is activated — lets the phone drawer close itself. */
+  onNavigate?: () => void;
+}
+
+export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {}) {
   const location = useLocation();
   const { membership } = useAuth();
   const canEdit = useCanEdit();
@@ -41,11 +52,16 @@ export function SidebarNav() {
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);
 
+  // A forced presentation (tablet rail / phone drawer) ignores the persisted
+  // desktop preference and never mutates it.
+  const isForced = forceCollapsed !== undefined;
+  const collapsed = isForced ? forceCollapsed : isSidebarCollapsed;
+
   return (
     <nav
       className={cn(
         "border-r bg-card h-full flex flex-col transition-all duration-200",
-        isSidebarCollapsed ? "w-16" : "w-60",
+        collapsed ? "w-16" : "w-60",
       )}
     >
       <div className="flex-1 py-4">
@@ -57,46 +73,49 @@ export function SidebarNav() {
             <Link
               key={item.to}
               to={item.to}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center text-sm transition-colors",
-                isSidebarCollapsed
+                collapsed
                   ? "justify-center px-4 py-2.5"
                   : "gap-3 px-4 py-2.5",
                 isActive
                   ? "bg-accent text-accent-foreground font-medium"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
               )}
-              title={isSidebarCollapsed ? item.label : undefined}
+              title={collapsed ? item.label : undefined}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
-              {!isSidebarCollapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{item.label}</span>}
             </Link>
           );
         })}
       </div>
 
-      {/* Toggle Button */}
-      <div className="p-2 border-t">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className={cn(
-            "w-full",
-            isSidebarCollapsed ? "px-0 justify-center" : "justify-start",
-          )}
-          title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {isSidebarCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <>
-              <ChevronLeft className="h-4 w-4" />
-              <span className="ml-2">Collapse</span>
-            </>
-          )}
-        </Button>
-      </div>
+      {/* Toggle Button — desktop only; the rail and drawer are fixed presentations. */}
+      {!isForced && (
+        <div className="p-2 border-t">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={cn(
+              "w-full",
+              isSidebarCollapsed ? "px-0 justify-center" : "justify-start",
+            )}
+            title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <>
+                <ChevronLeft className="h-4 w-4" />
+                <span className="ml-2">Collapse</span>
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </nav>
   );
 }

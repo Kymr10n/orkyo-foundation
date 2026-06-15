@@ -31,6 +31,7 @@ import {
     Info,
     LogOut,
     Megaphone,
+    Menu,
     Search,
     Shield,
     Upload,
@@ -51,7 +52,15 @@ const ImportExportDialog = lazy(() =>
   }))
 );
 
-export function TopBar() {
+interface TopBarProps {
+  /**
+   * When provided (phone layout only), renders a hamburger button that opens the
+   * navigation drawer. Omitted on tablet/desktop, where the sidebar is inline.
+   */
+  onOpenMobileNav?: () => void;
+}
+
+export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, membership, switchTenant, appUser, sessionData, canAccessAdminPage } = useAuth();
@@ -140,6 +149,18 @@ export function TopBar() {
 
   return (
     <header className="h-14 border-b bg-card flex items-center px-4 gap-4 sticky top-0 z-50">
+      {onOpenMobileNav && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="-ml-2"
+          onClick={onOpenMobileNav}
+          aria-label="Open navigation menu"
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
+      )}
+
       <div className="font-semibold text-base whitespace-nowrap">
         Orkyo
       </div>

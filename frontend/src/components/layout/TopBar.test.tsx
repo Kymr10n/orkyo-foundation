@@ -221,3 +221,28 @@ describe('TopBar — Site Selector', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 });
+
+describe('TopBar — mobile navigation hamburger', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue(authState());
+  });
+
+  it('is absent when onOpenMobileNav is not provided (tablet/desktop)', () => {
+    renderTopBar();
+    expect(screen.queryByLabelText('Open navigation menu')).not.toBeInTheDocument();
+  });
+
+  it('renders a hamburger and calls onOpenMobileNav when provided (phone)', () => {
+    const onOpenMobileNav = vi.fn();
+    render(
+      <MemoryRouter>
+        <TopBar onOpenMobileNav={onOpenMobileNav} />
+      </MemoryRouter>,
+    );
+    const hamburger = screen.getByLabelText('Open navigation menu');
+    expect(hamburger).toBeInTheDocument();
+    fireEvent.click(hamburger);
+    expect(onOpenMobileNav).toHaveBeenCalledTimes(1);
+  });
+});

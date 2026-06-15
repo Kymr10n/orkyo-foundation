@@ -184,6 +184,53 @@ export function UserSettings() {
     }
   };
 
+  // Shared row actions — desktop table cell and phone card.
+  const renderInvitationActions = (invitation: Invitation) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); handleResendInvitation(invitation); }}
+        disabled={resendMutation.isPending}
+        title="Resend invitation"
+        aria-label={`Resend invitation to ${invitation.email}`}
+      >
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); handleCancelInvitation(invitation); }}
+        disabled={cancelMutation.isPending}
+        className="text-destructive hover:text-destructive"
+        title="Cancel invitation"
+        aria-label={`Cancel invitation for ${invitation.email}`}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  const renderInvitationCard = (invitation: Invitation) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-medium truncate">{invitation.email}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={getRoleBadgeColor(invitation.role)}>
+            {invitation.role}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+      {renderInvitationActions(invitation)}
+    </div>
+  );
+
   const invitationColumns: ColumnDef<Invitation>[] = [
     {
       accessorKey: 'email',
@@ -226,36 +273,51 @@ export function UserSettings() {
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const invitation = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); handleResendInvitation(invitation); }}
-              disabled={resendMutation.isPending}
-              title="Resend invitation"
-              aria-label={`Resend invitation to ${invitation.email}`}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); handleCancelInvitation(invitation); }}
-              disabled={cancelMutation.isPending}
-              className="text-destructive hover:text-destructive"
-              title="Cancel invitation"
-              aria-label={`Cancel invitation for ${invitation.email}`}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderInvitationActions(row.original),
     },
   ];
+
+  const renderUserActions = (user: UserWithRole) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); setEditingUser(user); }}
+        title="Edit user role"
+        aria-label={`Edit ${user.displayName}`}
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
+        disabled={deleteMutation.isPending}
+        className="text-destructive hover:text-destructive"
+        title="Remove user"
+        aria-label={`Remove ${user.displayName}`}
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
+
+  const renderUserCard = (user: UserWithRole) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-semibold truncate">{user.displayName}</span>
+        </div>
+        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
+          <Badge className={getStatusBadgeColor(user.status)}>{user.status}</Badge>
+        </div>
+      </div>
+      {renderUserActions(user)}
+    </div>
+  );
 
   const userColumns: ColumnDef<UserWithRole>[] = [
     {
@@ -311,33 +373,7 @@ export function UserSettings() {
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const user = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); setEditingUser(user); }}
-              title="Edit user role"
-              aria-label={`Edit ${user.displayName}`}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
-              disabled={deleteMutation.isPending}
-              className="text-destructive hover:text-destructive"
-              title="Remove user"
-              aria-label={`Remove ${user.displayName}`}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderUserActions(row.original),
     },
   ];
 
@@ -396,6 +432,7 @@ export function UserSettings() {
             columns={invitationColumns}
             data={invitations}
             emptyMessage="No pending invitations."
+            renderCard={renderInvitationCard}
           />
         </div>
       )}
@@ -417,6 +454,7 @@ export function UserSettings() {
             filterColumn="email"
             filterPlaceholder="Search users..."
             onRowClick={(user) => setEditingUser(user)}
+            renderCard={renderUserCard}
           />
         )}
       </div>

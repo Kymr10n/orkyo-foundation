@@ -19,6 +19,8 @@ import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule 
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
+import { UtilizationAgenda } from "@foundation/src/components/utilization/UtilizationAgenda";
+import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
 import { requestsToCalendarEvents, scaleToCalendarView } from "@foundation/src/components/utilization/request-calendar-events";
@@ -118,6 +120,8 @@ export function UtilizationPage() {
 
   // Request dialog state
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
+  // On phone the drag-based scheduler grid is replaced by a drag-free agenda.
+  const { isPhone } = useBreakpoint();
   const [isCreateChildDialogOpen, setIsCreateChildDialogOpen] = useState(false);
   const [createChildParent, setCreateChildParent] = useState<Request | null>(null);
   const queryClient = useQueryClient();
@@ -582,6 +586,13 @@ export function UtilizationPage() {
         </TabsContent>
 
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
+          {isPhone ? (
+            // Phone: drag-free agenda over the same scheduled data; the heavy
+            // DnD grid and floorplan canvas are desktop/tablet only.
+            <div className="h-full overflow-hidden">
+              <UtilizationAgenda requests={scheduled} onOpen={openRequestEditor} />
+            </div>
+          ) : (
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
@@ -648,6 +659,7 @@ export function UtilizationPage() {
               ) : null}
             </DragOverlay>
           </DndContext>
+          )}
         </TabsContent>
 
         {/* People tab */}

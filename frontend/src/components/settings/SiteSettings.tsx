@@ -73,6 +73,32 @@ export function SiteSettings() {
     }
   };
 
+  // Shared row actions — desktop table cell and phone card. Stop propagation so
+  // a tap doesn't also trigger the row/card edit-onClick.
+  const renderActions = (site: Site) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); setEditingSite(site); }}
+        aria-label={`Edit ${site.name}`}
+        title="Edit site"
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); handleDelete(site); }}
+        className="text-destructive hover:text-destructive"
+        aria-label={`Delete ${site.name}`}
+        title="Delete site"
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
+
   const columns: ColumnDef<Site>[] = [
     {
       accessorKey: 'name',
@@ -114,34 +140,27 @@ export function SiteSettings() {
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const site = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); setEditingSite(site); }}
-              aria-label={`Edit ${site.name}`}
-              title="Edit site"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); handleDelete(site); }}
-              className="text-destructive hover:text-destructive"
-              aria-label={`Delete ${site.name}`}
-              title="Delete site"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Phone presentation: name/code, address + description, actions trailing.
+  const renderCard = (site: Site) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="font-semibold truncate">{site.name}</span>
+          <span className="text-xs text-muted-foreground font-mono">[{site.code}]</span>
+        </div>
+        <p className="text-sm text-muted-foreground">{site.address ?? '—'}</p>
+        {site.description && (
+          <p className="text-sm text-muted-foreground">{site.description}</p>
+        )}
+      </div>
+      {renderActions(site)}
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -193,6 +212,7 @@ export function SiteSettings() {
           filterColumn="name"
           filterPlaceholder="Search sites..."
           onRowClick={(site) => setEditingSite(site)}
+          renderCard={renderCard}
         />
       )}
 

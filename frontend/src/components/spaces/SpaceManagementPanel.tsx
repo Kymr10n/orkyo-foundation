@@ -11,6 +11,7 @@ import {
 } from "@foundation/src/lib/api/floorplan-api";
 import { cn } from "@foundation/src/lib/utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import type {
   CreateSpaceRequest,
   DrawingMode,
@@ -65,6 +66,9 @@ export function SpaceManagementPanel({
   const resizeSpaceMutation = useMoveSpace(siteId);
 
   const canEdit = useCanEdit();
+  // Phone is a read-only floorplan: editing tools (delete + drawing modes) are
+  // hidden; pan/zoom navigation stays. Tablet keeps the full toolset.
+  const { isPhone } = useBreakpoint();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const [floorplanMetadata, setFloorplanMetadata] =
@@ -287,6 +291,8 @@ export function SpaceManagementPanel({
             <div className="flex items-center gap-2">
               {floorplanMetadata ? (
                 <>
+                  {!isPhone && (
+                  <>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -365,6 +371,8 @@ export function SpaceManagementPanel({
                     </Button>
                   </div>
                   <Separator orientation="vertical" className="h-6" />
+                  </>
+                  )}
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"

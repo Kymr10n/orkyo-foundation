@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -22,6 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from '@foundation/src/components/ui/table';
+import { useBreakpoint } from '@foundation/src/hooks/useBreakpoint';
+import { cn } from '@foundation/src/lib/utils';
 
 // Re-export so callers don't need a separate @tanstack/react-table import for ColumnDef
 export type { ColumnDef, RowData };
@@ -54,6 +56,12 @@ export interface OrkyoDataTableProps<TData> {
   // Row interaction — when provided, rows become clickable (cursor + onClick).
   // Action-button cells must call e.stopPropagation() to avoid triggering this.
   onRowClick?: (row: TData) => void;
+
+  // Responsive card mode — when provided, the table is replaced by a stacked
+  // list of cards on phones (the grid is kept on tablet/desktop). Filtering,
+  // pagination and onRowClick all still apply. Action buttons inside the card
+  // must call e.stopPropagation() just like in a table cell.
+  renderCard?: (row: TData) => ReactNode;
 }
 
 export function OrkyoDataTable<TData>({
@@ -72,9 +80,12 @@ export function OrkyoDataTable<TData>({
   page: controlledPage,
   onPageChange,
   onRowClick,
+  renderCard,
 }: OrkyoDataTableProps<TData>) {
   const isServerFilter = onFilterChange !== undefined;
   const isServerPagination = onPageChange !== undefined;
+  const { isPhone } = useBreakpoint();
+  const showCards = isPhone && renderCard !== undefined;
 
   // Local state for client-side filtering
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -202,6 +213,21 @@ export function OrkyoDataTable<TData>({
         <div className="text-center py-8 text-destructive">{error}</div>
       ) : table.getRowModel().rows.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">{emptyMessage}</div>
+      ) : showCards ? (
+        <div className="space-y-2">
+          {table.getRowModel().rows.map((row) => (
+            <div
+              key={row.id}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              className={cn(
+                'rounded-lg border bg-card p-3 shadow-sm',
+                onRowClick && 'cursor-pointer hover:bg-accent/40',
+              )}
+            >
+              {renderCard!(row.original)}
+            </div>
+          ))}
+        </div>
       ) : (
         <div>
           <Table className="border-separate border-spacing-y-1.5">

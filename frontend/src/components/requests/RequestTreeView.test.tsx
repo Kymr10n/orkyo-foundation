@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestTreeView } from './RequestTreeView';
@@ -280,5 +280,71 @@ describe('RequestTreeView', () => {
       allRequests: [withIcon],
     });
     expect(container.querySelector('.lucide-hammer')).not.toBeNull();
+  });
+});
+
+describe('RequestTreeView — touch affordances', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  function setViewport(width: number) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn((query: string) => {
+        const min = /\(min-width:\s*(\d+)px\)/.exec(query);
+        return {
+          matches: min ? width >= Number(min[1]) : false,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        } as unknown as MediaQueryList;
+      }),
+    });
+  }
+
+  beforeEach(() => {
+    mockExpandedIds.clear();
+    mockExpandedIds.add('parent-1');
+    vi.mocked(useCanEdit).mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      value: originalMatchMedia,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('keeps row actions hover-gated on desktop', () => {
+    setViewport(1280);
+    const { container } = renderTreeView();
+    const actionBtn = container.querySelector('.lucide-ellipsis')?.closest('button');
+    expect(actionBtn?.className).toContain('opacity-0');
+  });
+
+  it('shows row actions persistently and hides the drag handle on phone', () => {
+    setViewport(500);
+    const { container } = renderTreeView();
+
+    const actionBtn = container.querySelector('.lucide-ellipsis')?.closest('button');
+    expect(actionBtn).toBeTruthy();
+    expect(actionBtn?.className).not.toContain('opacity-0');
+
+    // Drag-to-reparent is desktop-only; the handle is removed on touch.
+    const handle = container.querySelector('.lucide-grip-vertical')?.closest('span');
+    expect(handle?.className).toContain('hidden');
+  });
+
+  it('shows the add-child trigger persistently on parent rows on phone', () => {
+    setViewport(500);
+    const { container } = renderTreeView();
+    // The "Move to…" item inside this menu is the non-drag reparent path; the
+    // trigger being persistently visible is what makes it reachable on touch.
+    const addChild = container.querySelector('[title="Add child"]');
+    expect(addChild).toBeTruthy();
+    expect(addChild?.className).not.toContain('opacity-0');
   });
 });

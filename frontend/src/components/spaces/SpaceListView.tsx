@@ -41,23 +41,65 @@ export function SpaceListView() {
     }
   };
 
+  // Shared cell fragments — used by both the desktop table columns and the phone
+  // card so the two presentations never drift. Each action stops propagation so
+  // it doesn't trigger the row/card onClick.
+  const renderName = (space: Space) => {
+    const GeometryIcon = space.geometry?.type === 'rectangle' ? Square : Pentagon;
+    return (
+      <div className="flex items-center gap-2">
+        <GeometryIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="font-semibold">{space.name}</span>
+        {space.code && (
+          <span className="text-xs text-muted-foreground font-mono">{space.code}</span>
+        )}
+      </div>
+    );
+  };
+
+  const renderActions = (space: Space) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        disabled={!canEdit}
+        onClick={(e) => { e.stopPropagation(); setCapabilitiesSpace(space); }}
+        title="Edit Capabilities"
+        aria-label={`Edit capabilities for ${space.name}`}
+      >
+        <Settings className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        disabled={!canEdit}
+        onClick={(e) => { e.stopPropagation(); setEditingSpace(space); }}
+        title="Edit Space"
+        aria-label={`Edit space ${space.name}`}
+      >
+        <Edit className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-destructive hover:text-destructive"
+        disabled={!canEdit}
+        onClick={(e) => { e.stopPropagation(); handleDelete(space.id); }}
+        title="Delete Space"
+        aria-label={`Delete space ${space.name}`}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+      </Button>
+    </div>
+  );
+
   const columns: ColumnDef<Space>[] = [
     {
       accessorKey: 'name',
       header: 'Name',
-      cell: ({ row }) => {
-        const space = row.original;
-        const GeometryIcon = space.geometry?.type === 'rectangle' ? Square : Pentagon;
-        return (
-          <div className="flex items-center gap-2">
-            <GeometryIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="font-semibold">{space.name}</span>
-            {space.code && (
-              <span className="text-xs text-muted-foreground font-mono">{space.code}</span>
-            )}
-          </div>
-        );
-      },
+      cell: ({ row }) => renderName(row.original),
     },
     {
       id: 'description',
@@ -72,48 +114,22 @@ export function SpaceListView() {
       id: 'actions',
       header: () => null,
       size: 120,
-      cell: ({ row }) => {
-        const space = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={!canEdit}
-              onClick={(e) => { e.stopPropagation(); setCapabilitiesSpace(space); }}
-              title="Edit Capabilities"
-              aria-label={`Edit capabilities for ${space.name}`}
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={!canEdit}
-              onClick={(e) => { e.stopPropagation(); setEditingSpace(space); }}
-              title="Edit Space"
-              aria-label={`Edit space ${space.name}`}
-            >
-              <Edit className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              disabled={!canEdit}
-              onClick={(e) => { e.stopPropagation(); handleDelete(space.id); }}
-              title="Delete Space"
-              aria-label={`Delete space ${space.name}`}
-            >
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Phone presentation: name + code on top, description below, actions trailing.
+  const renderCard = (space: Space) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        {renderName(space)}
+        {space.description && (
+          <p className="text-sm text-muted-foreground">{space.description}</p>
+        )}
+      </div>
+      {renderActions(space)}
+    </div>
+  );
 
   return (
     <div className="h-full flex flex-col bg-card rounded-lg border">
@@ -128,6 +144,7 @@ export function SpaceListView() {
           filterColumn="name"
           filterPlaceholder="Search spaces..."
           emptyMessage="No spaces created yet. Draw a rectangle or polygon on the floorplan."
+          renderCard={renderCard}
         />
       </div>
 

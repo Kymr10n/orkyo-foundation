@@ -91,6 +91,25 @@ export function PersonList() {
     handleDialogClose();
   };
 
+  // Shared row actions — used by the desktop table cell and the phone card. The
+  // wrapper stops propagation so taps never trigger the row/card edit-onClick.
+  const renderActions = (person: ResourceInfo) => (
+    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+      <Button variant="ghost" size="sm" onClick={() => handleEdit(person)} aria-label={`Edit ${person.name}`} title="Edit Person">
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setSkillsPerson(person)} disabled={!canEdit} aria-label={`Manage skills for ${person.name}`} title="Manage Skills">
+        <Sliders className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setAbsencePerson(person)} disabled={!canEdit} aria-label={`Manage absences for ${person.name}`} title="Manage Absences">
+        <CalendarOff className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => handleDelete(person.id)} disabled={!canEdit} aria-label={`Deactivate ${person.name}`} title="Deactivate Person">
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
+
   // profileByPersonId is rebuilt by useQueries on every resolve, so columns must
   // also rebuild each render to close over the latest snapshot.
   const columns: ColumnDef<ResourceInfo>[] = [
@@ -121,27 +140,25 @@ export function PersonList() {
       id: 'actions',
       header: () => null,
       size: 160,
-      cell: ({ row }) => {
-        const person = row.original;
-        return (
-          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="sm" onClick={() => handleEdit(person)} aria-label={`Edit ${person.name}`} title="Edit Person">
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setSkillsPerson(person)} disabled={!canEdit} aria-label={`Manage skills for ${person.name}`} title="Manage Skills">
-              <Sliders className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setAbsencePerson(person)} disabled={!canEdit} aria-label={`Manage absences for ${person.name}`} title="Manage Absences">
-              <CalendarOff className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleDelete(person.id)} disabled={!canEdit} aria-label={`Deactivate ${person.name}`} title="Deactivate Person">
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Phone presentation: name + contact stacked, actions trailing.
+  const renderCard = (person: ResourceInfo) => {
+    const profile = profileByPersonId[person.id];
+    const subtitle = [profile?.jobTitleName, profile?.departmentPath].filter(Boolean).join(' · ');
+    return (
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-0.5">
+          <p className="font-medium truncate">{person.name}</p>
+          <p className="text-sm text-muted-foreground truncate">{profile?.email ?? '-'}</p>
+          <p className="text-xs text-muted-foreground truncate">{subtitle || '-'}</p>
+        </div>
+        {renderActions(person)}
+      </div>
+    );
+  };
 
   const queryErrorMsg = error instanceof Error ? error.message : error ? String(error) : null;
 
@@ -164,6 +181,7 @@ export function PersonList() {
         filterPlaceholder="Search people..."
         pageSize={25}
         onRowClick={handleEdit}
+        renderCard={renderCard}
       />
 
       <PersonEditDialog
