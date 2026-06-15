@@ -4,6 +4,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_EVENTS, SUSPENSION_REASON } from '@foundation/src/constants/auth';
 import { API_BASE_URL, getApiHeaders } from '@foundation/src/lib/core/api-utils';
+import { runtimeConfig } from '@foundation/src/config/runtime';
 
 export function TenantSuspendedPage() {
   const { membership, send } = useAuth();
@@ -69,12 +70,14 @@ export function TenantSuspendedPage() {
             <p className="text-muted-foreground text-xs">
               Ask a workspace owner or admin to reactivate this workspace, or contact support.
             </p>
-            <Button variant="outline" size="sm" asChild>
-              <a href="mailto:support@orkyo.com">
-                <Mail className="mr-2 h-4 w-4" />
-                Contact support
-              </a>
-            </Button>
+            {runtimeConfig.supportEmail && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={`mailto:${runtimeConfig.supportEmail}`}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Contact support
+                </a>
+              </Button>
+            )}
           </div>
         )}
 

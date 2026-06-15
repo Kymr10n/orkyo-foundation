@@ -14,6 +14,11 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+// Support email is derived from environment at runtime; mock it so the page's
+// dynamic mailto can be asserted (and toggled off to verify the no-domain fallback).
+const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@example.test' } }));
+vi.mock('@foundation/src/config/runtime', () => ({ runtimeConfig: configMock }));
+
 const renderAboutPage = () => {
   return render(
     <BrowserRouter>
@@ -25,6 +30,7 @@ const renderAboutPage = () => {
 describe('AboutPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configMock.supportEmail = 'support@example.test';
   });
 
   it('renders the page title', () => {
@@ -72,7 +78,7 @@ describe('AboutPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 
-  it('opens support email link', () => {
+  it('opens the env-derived support email link', () => {
     const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderAboutPage();
 
@@ -80,10 +86,16 @@ describe('AboutPage', () => {
     fireEvent.click(supportButton);
 
     expect(windowOpenSpy).toHaveBeenCalledWith(
-      'mailto:support@orkyo.app',
+      'mailto:support@example.test',
       '_blank'
     );
     windowOpenSpy.mockRestore();
+  });
+
+  it('hides the support link when no support email is configured', () => {
+    configMock.supportEmail = '';
+    renderAboutPage();
+    expect(screen.queryByText('Contact Support')).not.toBeInTheDocument();
   });
 
   it('displays copyright with current year', () => {

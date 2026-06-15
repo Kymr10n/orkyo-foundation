@@ -26,6 +26,10 @@ function optionalEnv(name: string, fallback: string): string {
   return import.meta.env[name] ?? fallback;
 }
 
+// Base domain for multi-tenant subdomain detection — also the source of truth for
+// any email domain (mail domains must NEVER be hardcoded; they derive from environment).
+const baseDomain = optionalEnv('VITE_BASE_DOMAIN', '');
+
 /**
  * Runtime configuration for the Orkyo frontend.
  * Validated and typed access to environment variables.
@@ -38,7 +42,15 @@ export const runtimeConfig = {
   defaultTenant: optionalEnv('VITE_DEFAULT_TENANT', ''),
 
   /** Base domain for multi-tenant subdomain detection */
-  baseDomain: optionalEnv('VITE_BASE_DOMAIN', ''),
+  baseDomain,
+
+  /**
+   * Support contact email. The domain is never hardcoded: it derives from
+   * `baseDomain` (the environment-provided apex), and can be overridden wholesale
+   * via VITE_SUPPORT_EMAIL. Empty string when no base domain is configured
+   * (e.g. local dev) — callers must treat an empty value as "no support contact".
+   */
+  supportEmail: optionalEnv('VITE_SUPPORT_EMAIL', baseDomain ? `support@${baseDomain}` : ''),
 
   /** Subdomain prefix for staging (e.g. "staging-" → staging-acme.orkyo.com) */
   subdomainPrefix: optionalEnv('VITE_SUBDOMAIN_PREFIX', ''),

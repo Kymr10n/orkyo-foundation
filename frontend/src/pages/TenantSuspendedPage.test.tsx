@@ -22,6 +22,11 @@ vi.mock('@foundation/src/lib/core/api-utils', () => ({
   }),
 }));
 
+// Support email is derived from environment at runtime; mock it so the page's
+// dynamic mailto can be asserted (and toggled off to verify the no-domain fallback).
+const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@example.test' } }));
+vi.mock('@foundation/src/config/runtime', () => ({ runtimeConfig: configMock }));
+
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
 
 describe('TenantSuspendedPage', () => {
@@ -29,6 +34,7 @@ describe('TenantSuspendedPage', () => {
     vi.clearAllMocks();
     mockAuthState.membership = null;
     mockAuthState.send = mockSend;
+    configMock.supportEmail = 'support@example.test';
   });
 
   it('renders workspace suspended heading', () => {
@@ -81,14 +87,27 @@ describe('TenantSuspendedPage', () => {
     expect(screen.queryByRole('button', { name: /reactivate workspace/i })).not.toBeInTheDocument();
   });
 
-  it('shows contact support when canReactivate is false', () => {
+  it('shows contact support with the env-derived mailto when canReactivate is false', () => {
     mockAuthState.membership = {
       state: 'suspended',
       suspensionReason: 'manual_admin',
       canReactivate: false,
     };
     render(<TenantSuspendedPage />);
-    expect(screen.getByRole('link', { name: /contact support/i })).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /contact support/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', 'mailto:support@example.test');
+  });
+
+  it('hides the contact support link when no support email is configured', () => {
+    configMock.supportEmail = '';
+    mockAuthState.membership = {
+      state: 'suspended',
+      suspensionReason: 'manual_admin',
+      canReactivate: false,
+    };
+    render(<TenantSuspendedPage />);
+    expect(screen.queryByRole('link', { name: /contact support/i })).not.toBeInTheDocument();
   });
 
   it('always shows sign out button', () => {

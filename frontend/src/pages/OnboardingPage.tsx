@@ -19,6 +19,7 @@ import { Building2, Plus, Loader2, LogOut, AlertCircle, ArrowLeft, CheckCircle2,
 import { canCreateTenant, createTenant, getStarterTemplates, getTenantMemberships, cancelTenantDeletion, type TenantMembership } from "@foundation/src/lib/api/tenant-account-api";
 import { StarterTemplatePicker, type StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
 import { logger } from "@foundation/src/lib/core/logger";
+import { runtimeConfig } from "@foundation/src/config/runtime";
 
 interface OnboardingPageProps {
   /** Called after successful tenant creation (e.g. refresh the pipeline). */
@@ -398,10 +399,14 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                 {canCreate
                   ? "Or ask an administrator to invite you to an existing organization."
                   : <>
-                      Please contact an administrator to request access.{" "}
-                      <a href="mailto:support@orkyo.app" className="underline hover:text-foreground transition-colors">
-                        Get help
-                      </a>
+                      Please contact an administrator to request access.{runtimeConfig.supportEmail && (
+                        <>
+                          {" "}
+                          <a href={`mailto:${runtimeConfig.supportEmail}`} className="underline hover:text-foreground transition-colors">
+                            Get help
+                          </a>
+                        </>
+                      )}
                     </>
                 }
               </p>
