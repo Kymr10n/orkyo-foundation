@@ -46,11 +46,11 @@ export const runtimeConfig = {
 
   /**
    * Support contact email. The domain is never hardcoded: it derives from
-   * `baseDomain` (the environment-provided apex), and can be overridden wholesale
-   * via VITE_SUPPORT_EMAIL. Empty string when no base domain is configured
-   * (e.g. local dev) — callers must treat an empty value as "no support contact".
+   * `baseDomain` (the environment-provided apex). Empty string when no base
+   * domain is configured (e.g. local dev) — callers must treat an empty value
+   * as "no support contact".
    */
-  supportEmail: optionalEnv('VITE_SUPPORT_EMAIL', baseDomain ? `support@${baseDomain}` : ''),
+  supportEmail: baseDomain ? `support@${baseDomain}` : '',
 
   /** Subdomain prefix for staging (e.g. "staging-" → staging-acme.orkyo.com) */
   subdomainPrefix: optionalEnv('VITE_SUBDOMAIN_PREFIX', ''),

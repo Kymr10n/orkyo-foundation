@@ -132,18 +132,6 @@ describe('runtime config', () => {
 
       expect(runtimeConfig.supportEmail).toBe('');
     });
-
-    it('can be overridden wholesale via SUPPORT_EMAIL', async () => {
-      window.__RUNTIME_CONFIG__ = {
-        BASE_DOMAIN: 'orkyo.app',
-        SUPPORT_EMAIL: 'help@desk.example',
-      };
-      vi.resetModules();
-
-      const { runtimeConfig } = await import('./runtime');
-
-      expect(runtimeConfig.supportEmail).toBe('help@desk.example');
-    });
   });
 
   describe('__RUNTIME_CONFIG__ precedence', () => {
