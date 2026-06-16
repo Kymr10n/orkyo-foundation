@@ -32,11 +32,14 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // Height-bounded flex column by default (`max-h-[85dvh]`) so a dialog
-        // never grows past the viewport. Put tall content in <ScrollableDialogBody>
-        // to scroll the body with header/footer pinned; callers may still override
-        // max-h / gap / padding. `dvh` keeps clear of mobile browser chrome.
-        "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        // Height-bounded flex column by default (`max-h-[85dvh]`) so a dialog never grows past the
+        // viewport. `overflow-y-auto` is the bleed backstop: any content taller than the cap scrolls
+        // *inside* the box instead of spilling past it, so a dialog can never bleed regardless of how
+        // its body is built. For the preferred experience — scroll only the body with header/footer
+        // pinned — wrap tall content in <ScrollableDialogBody>; that body absorbs the overflow via
+        // `flex-1 min-h-0`, leaving this outer scroller nothing to do (no double scrollbar). Callers
+        // may still override max-h / overflow / gap / padding. `dvh` keeps clear of mobile chrome.
+        "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
         className
       )}
       {...props}

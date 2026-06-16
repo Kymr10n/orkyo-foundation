@@ -152,6 +152,13 @@ describe('PersonEditDialog', () => {
     expect(screen.getByLabelText(/Notes/)).toBeInTheDocument();
   });
 
+  it('renders Details and Allocation tabs, hiding Location for single-site tenants', () => {
+    renderDialog();
+    expect(screen.getByRole('tab', { name: /Details/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Allocation/ })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Location' })).not.toBeInTheDocument();
+  });
+
   it('on create, calls createResource then upsertPersonProfile (with null FK ids when unselected)', async () => {
     const onSaved = vi.fn();
     renderDialog({ onSaved });
@@ -330,7 +337,7 @@ describe('PersonEditDialog', () => {
       renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
       await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
 
-      expect(screen.getByText('Location')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Location' })).toBeInTheDocument();
       expect(screen.getByLabelText('Home Site')).toBeInTheDocument();
       expect(screen.queryByLabelText('Current Site')).not.toBeInTheDocument();
       expect(
@@ -376,6 +383,41 @@ describe('PersonEditDialog', () => {
 
       expect(screen.getByLabelText('Home Site')).toBeEnabled();
       expect(screen.getByLabelText('Available for other sites')).toBeEnabled();
+    });
+  });
+
+  describe('validation status badges', () => {
+    it('shows no banner or dot for a clean new form', () => {
+      renderDialog();
+      expect(screen.queryByTestId('status-banner')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('details warning')).not.toBeInTheDocument();
+    });
+
+    it('flags an invalid email with a red Details dot and a banner', async () => {
+      renderDialog({ onSaved: vi.fn() });
+      fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'notanemail' } });
+
+      const dot = await screen.findByLabelText('details warning');
+      expect(dot.className).toContain('bg-destructive');
+      expect(screen.getByTestId('status-banner')).toHaveTextContent(/email address is not valid/i);
+    });
+
+    it('flags a deactivated job title/department assignment with an amber warning', async () => {
+      vi.mocked(getPersonProfile).mockResolvedValue({
+        resourceId: 'res-1',
+        jobTitleId: 'jt-removed',
+        departmentId: 'dept-removed',
+        jobTitleName: 'Removed',
+        departmentPath: 'Removed',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      });
+      renderDialog({ person: createdResource, onSaved: vi.fn() });
+
+      const banner = await screen.findByTestId('status-banner');
+      expect(banner).toHaveTextContent(/job title is no longer active/i);
+      expect(banner).toHaveTextContent(/department is no longer active/i);
+      expect(screen.getByLabelText('details warning').className).toContain('bg-amber-500');
     });
   });
 

@@ -10,7 +10,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ScrollableDialogBody,
 } from "@foundation/src/components/ui/dialog";
+import { Separator } from "@foundation/src/components/ui/separator";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
@@ -235,8 +237,8 @@ export function PresetSettings() {
 
       {/* Preview/Apply Dialog */}
       <Dialog open={previewDialogOpen} onOpenChange={(open) => !open && resetImportState()}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[85dvh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
             <DialogTitle>
               {applicationResult?.success ? "Preset Applied" : "Preview Preset"}
             </DialogTitle>
@@ -247,6 +249,7 @@ export function PresetSettings() {
             </DialogDescription>
           </DialogHeader>
 
+          <ScrollableDialogBody className="px-6">
           {importedPreset && (
             <div className="space-y-4">
               {/* Preset Info */}
@@ -358,8 +361,10 @@ export function PresetSettings() {
               )}
             </div>
           )}
+          </ScrollableDialogBody>
 
-          <DialogFooter>
+          <Separator className="shrink-0" />
+          <DialogFooter className="px-6 py-4 shrink-0">
             {applicationResult?.success ? (
               <Button onClick={resetImportState}>Done</Button>
             ) : (

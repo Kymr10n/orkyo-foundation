@@ -6,8 +6,21 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+  ScrollableDialogBody,
 } from '@foundation/src/components/ui/dialog';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@foundation/src/components/ui/tabs';
+import { Separator } from '@foundation/src/components/ui/separator';
+import {
+  StatusBanner,
+  TabIndicatorDot,
+  severityDotClass,
+  type StatusItem,
+} from '@foundation/src/components/ui/status-indicator';
 import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
@@ -136,6 +149,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const canEdit = useCanEdit();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tab, setTab] = useState<'details' | 'allocation' | 'location'>('details');
 
   // Inline-create dialog state for each reference list. `undefined` = closed,
   // string = pre-populated name (from a Create-new sentinel selection).
@@ -165,6 +179,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   // Sync server data into form state when it arrives or when the dialog opens
   useEffect(() => {
     if (!isOpen) return;
+    setTab('details');
     if (!person) {
       setForm(emptyForm);
       return;
@@ -249,173 +264,231 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const departmentMissing =
     form.departmentId && !deptOptions.some((o) => o.id === form.departmentId);
 
+  // Validation status surfaced as tab dots + a summary banner. All current items live on
+  // the Details tab; the dot is still computed per-tab so future per-tab warnings are trivial.
+  const detailsItems: StatusItem[] = [
+    ...(form.email && !isValidEmail(form.email)
+      ? [{ id: 'email', message: 'Email address is not valid.', severity: 'error' as const }]
+      : []),
+    ...(jobTitleMissing
+      ? [{ id: 'jobTitle', message: 'Assigned job title is no longer active.', severity: 'warning' as const }]
+      : []),
+    ...(departmentMissing
+      ? [{ id: 'department', message: 'Assigned department is no longer active.', severity: 'warning' as const }]
+      : []),
+  ];
+  const allStatusItems = detailsItems;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="max-w-[520px] h-[600px] max-h-[85dvh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle>{person ? 'Edit Person' : 'Add Person'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => set('name', e.target.value)}
-              required
-            />
-          </div>
+        <StatusBanner items={allStatusItems} className="mx-6 mb-2 shrink-0" />
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <Tabs
+            value={tab}
+            onValueChange={(v) => setTab(v as typeof tab)}
+            className="flex flex-col flex-1 min-h-0"
+          >
+            <TabsList className="mx-6 shrink-0">
+              <TabsTrigger value="details" className="relative">
+                Details
+                <TabIndicatorDot dotClass={severityDotClass(detailsItems)} label="details warning" />
+              </TabsTrigger>
+              <TabsTrigger value="allocation" className="relative">
+                Allocation
+              </TabsTrigger>
+              {isMultiSite && (
+                <TabsTrigger value="location" className="relative">
+                  Location
+                </TabsTrigger>
+              )}
+            </TabsList>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="jobTitle">Job Title</Label>
-              <Select
-                value={form.jobTitleId === '' ? UNASSIGNED : form.jobTitleId}
-                onValueChange={onJobTitleChange}
+            {/* forceMount on every panel keeps all controlled fields in the DOM so switching
+                tabs mid-edit never remounts an input. Visibility is driven by the active tab. */}
+            <ScrollableDialogBody className="px-6 py-4">
+              <TabsContent
+                value="details"
+                forceMount
+                className={tab === 'details' ? 'mt-0 space-y-4' : 'mt-0 hidden'}
               >
-                <SelectTrigger id="jobTitle">
-                  <SelectValue placeholder="(unassigned)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>(unassigned)</SelectItem>
-                  {jobTitleMissing && (
-                    <SelectItem value={form.jobTitleId} disabled>
-                      (current assignment — no longer active)
-                    </SelectItem>
-                  )}
-                  {jobTitles.map((jt: JobTitleInfo) => (
-                    <SelectItem key={jt.id} value={jt.id}>
-                      {jt.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={CREATE_NEW}>
-                    <span className="flex items-center gap-1">
-                      <Plus className="h-3 w-3" />
-                      Create new…
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <Select
-                value={form.departmentId === '' ? UNASSIGNED : form.departmentId}
-                onValueChange={onDepartmentChange}
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    value={form.name}
+                    onChange={(e) => set('name', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => set('email', e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="jobTitle">Job Title</Label>
+                    <Select
+                      value={form.jobTitleId === '' ? UNASSIGNED : form.jobTitleId}
+                      onValueChange={onJobTitleChange}
+                    >
+                      <SelectTrigger id="jobTitle">
+                        <SelectValue placeholder="(unassigned)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>(unassigned)</SelectItem>
+                        {jobTitleMissing && (
+                          <SelectItem value={form.jobTitleId} disabled>
+                            (current assignment — no longer active)
+                          </SelectItem>
+                        )}
+                        {jobTitles.map((jt: JobTitleInfo) => (
+                          <SelectItem key={jt.id} value={jt.id}>
+                            {jt.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={CREATE_NEW}>
+                          <span className="flex items-center gap-1">
+                            <Plus className="h-3 w-3" />
+                            Create new…
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Select
+                      value={form.departmentId === '' ? UNASSIGNED : form.departmentId}
+                      onValueChange={onDepartmentChange}
+                    >
+                      <SelectTrigger id="department">
+                        <SelectValue placeholder="(unassigned)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>(unassigned)</SelectItem>
+                        {departmentMissing && (
+                          <SelectItem value={form.departmentId} disabled>
+                            (current assignment — no longer active)
+                          </SelectItem>
+                        )}
+                        {deptOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={CREATE_NEW}>
+                          <span className="flex items-center gap-1">
+                            <Plus className="h-3 w-3" />
+                            Create new…
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={form.description}
+                    onChange={(e) => set('description', e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={form.notes}
+                    onChange={(e) => set('notes', e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent
+                value="allocation"
+                forceMount
+                className={tab === 'allocation' ? 'mt-0 space-y-4' : 'mt-0 hidden'}
               >
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="(unassigned)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>(unassigned)</SelectItem>
-                  {departmentMissing && (
-                    <SelectItem value={form.departmentId} disabled>
-                      (current assignment — no longer active)
-                    </SelectItem>
-                  )}
-                  {deptOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={CREATE_NEW}>
-                    <span className="flex items-center gap-1">
-                      <Plus className="h-3 w-3" />
-                      Create new…
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="allocationMode">Allocation Mode</Label>
+                    <Select
+                      value={form.allocationMode}
+                      onValueChange={(v) => set('allocationMode', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select allocation mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALLOCATION_MODE.EXCLUSIVE}>Exclusive</SelectItem>
+                        <SelectItem value={ALLOCATION_MODE.FRACTIONAL}>Fractional</SelectItem>
+                        <SelectItem value={ALLOCATION_MODE.CONCURRENT_CAPACITY} disabled>
+                          Concurrent Capacity (not yet supported)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="availability">Base Availability (%)</Label>
+                    <Input
+                      id="availability"
+                      type="number"
+                      value={form.baseAvailabilityPercent}
+                      onChange={(e) => set('baseAvailabilityPercent', Number(e.target.value))}
+                      min={0}
+                      max={100}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={form.description}
-              onChange={(e) => set('description', e.target.value)}
-              rows={2}
-            />
-          </div>
+              {/* Location (Home-Site model) — tab shown only for multi-site/paid tenants.
+                  The home site is the administrative anchor and the idle-time location; where the
+                  person actually is at a point in time is derived from their assignments. */}
+              {isMultiSite && (
+                <TabsContent
+                  value="location"
+                  forceMount
+                  className={tab === 'location' ? 'mt-0 space-y-4' : 'mt-0 hidden'}
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="homeSite">Home Site</Label>
+                    <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)} disabled={!canEdit}>
+                      <SelectTrigger id="homeSite"><SelectValue placeholder="Unset" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Unset</span></SelectItem>
+                        {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} disabled={!canEdit} />
+                    <Label htmlFor="crossSite" className="text-sm cursor-pointer">Available for other sites</Label>
+                  </div>
+                </TabsContent>
+              )}
+            </ScrollableDialogBody>
+          </Tabs>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={form.notes}
-              onChange={(e) => set('notes', e.target.value)}
-              rows={2}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="allocationMode">Allocation Mode</Label>
-              <Select
-                value={form.allocationMode}
-                onValueChange={(v) => set('allocationMode', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select allocation mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALLOCATION_MODE.EXCLUSIVE}>Exclusive</SelectItem>
-                  <SelectItem value={ALLOCATION_MODE.FRACTIONAL}>Fractional</SelectItem>
-                  <SelectItem value={ALLOCATION_MODE.CONCURRENT_CAPACITY} disabled>
-                    Concurrent Capacity (not yet supported)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="availability">Base Availability (%)</Label>
-              <Input
-                id="availability"
-                type="number"
-                value={form.baseAvailabilityPercent}
-                onChange={(e) => set('baseAvailabilityPercent', Number(e.target.value))}
-                min={0}
-                max={100}
-              />
-            </div>
-          </div>
-
-          {/* Location (Home-Site model) — hidden for single-site/free-tier tenants.
-              The home site is the administrative anchor and the idle-time location; where the
-              person actually is at a point in time is derived from their assignments. */}
-          {isMultiSite && (
-            <div className="space-y-4 rounded-lg border p-3">
-              <p className="text-sm font-medium">Location</p>
-              <div className="space-y-2">
-                <Label htmlFor="homeSite">Home Site</Label>
-                <Select value={form.homeSiteId || SITE_UNSET} onValueChange={(v) => set('homeSiteId', v === SITE_UNSET ? '' : v)} disabled={!canEdit}>
-                  <SelectTrigger id="homeSite"><SelectValue placeholder="Unset" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SITE_UNSET}><span className="text-muted-foreground">Unset</span></SelectItem>
-                    {sites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox id="crossSite" checked={form.crossSiteAllowed} onCheckedChange={(c) => set('crossSiteAllowed', !!c)} disabled={!canEdit} />
-                <Label htmlFor="crossSite" className="text-sm cursor-pointer">Available for other sites</Label>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
+          <Separator className="shrink-0" />
+          <div className="flex justify-end gap-3 px-6 py-4 shrink-0">
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
@@ -429,7 +502,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                 'Save'
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
 
