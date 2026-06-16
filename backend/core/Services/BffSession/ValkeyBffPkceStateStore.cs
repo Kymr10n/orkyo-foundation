@@ -4,23 +4,23 @@ using StackExchange.Redis;
 namespace Api.Services.BffSession;
 
 /// <summary>
-/// Redis-backed PKCE state store for multi-instance deployments.
-/// Uses the GETDEL command (Redis ≥ 6.2) for an atomic get-and-delete,
+/// Valkey-backed PKCE state store for multi-instance deployments.
+/// Uses the GETDEL command (Valkey ≥ 7.0) for an atomic get-and-delete,
 /// eliminating the TOCTOU race condition present in a two-step GET + DEL.
 /// Key: <c>bff:pkce:{state}</c> with TTL = StateTtl (10 minutes).
 /// </summary>
-public sealed class RedisBffPkceStateStore : IBffPkceStateStore
+public sealed class ValkeyBffPkceStateStore : IBffPkceStateStore
 {
-    private readonly IConnectionMultiplexer _redis;
-    private readonly ILogger<RedisBffPkceStateStore> _logger;
+    private readonly IConnectionMultiplexer _valkey;
+    private readonly ILogger<ValkeyBffPkceStateStore> _logger;
 
     private static string StateKey(string state) => $"bff:pkce:{state}";
 
-    public RedisBffPkceStateStore(
-        IConnectionMultiplexer redis,
-        ILogger<RedisBffPkceStateStore> logger)
+    public ValkeyBffPkceStateStore(
+        IConnectionMultiplexer valkey,
+        ILogger<ValkeyBffPkceStateStore> logger)
     {
-        _redis = redis;
+        _valkey = valkey;
         _logger = logger;
     }
 
@@ -28,13 +28,13 @@ public sealed class RedisBffPkceStateStore : IBffPkceStateStore
     {
         try
         {
-            var db = _redis.GetDatabase();
+            var db = _valkey.GetDatabase();
             var json = JsonSerializer.Serialize(data);
             await db.StringSetAsync(StateKey(state), json, ttl);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Redis error storing PKCE state");
+            _logger.LogError(ex, "Valkey error storing PKCE state");
             throw;
         }
     }
@@ -43,7 +43,7 @@ public sealed class RedisBffPkceStateStore : IBffPkceStateStore
     {
         try
         {
-            var db = _redis.GetDatabase();
+            var db = _valkey.GetDatabase();
 
             // GETDEL is atomic: retrieves and deletes in a single round-trip.
             // A second call with the same key always returns nil — prevents replay.
@@ -55,7 +55,7 @@ public sealed class RedisBffPkceStateStore : IBffPkceStateStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Redis error retrieving PKCE state");
+            _logger.LogError(ex, "Valkey error retrieving PKCE state");
             return null;
         }
     }

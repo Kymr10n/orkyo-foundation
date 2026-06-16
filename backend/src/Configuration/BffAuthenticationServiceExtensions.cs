@@ -69,8 +69,8 @@ public static class BffAuthenticationServiceExtensions
         var valkeyConnection = configuration[ConfigKeys.ValkeyConnection] ?? configuration[ConfigKeys.ConnectionStringValkey];
         if (!string.IsNullOrEmpty(valkeyConnection))
         {
-            services.AddSingleton<IBffSessionStore, RedisBffSessionStore>();
-            services.AddSingleton<IBffPkceStateStore, RedisBffPkceStateStore>();
+            services.AddSingleton<IBffSessionStore, ValkeyBffSessionStore>();
+            services.AddSingleton<IBffPkceStateStore, ValkeyBffPkceStateStore>();
         }
         else
         {

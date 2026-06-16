@@ -23,6 +23,13 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     /// <summary>How far before expiry to trigger a proactive token refresh.</summary>
     private static readonly TimeSpan RefreshWindow = TimeSpan.FromSeconds(60);
 
+    /// <summary>
+    /// How long the per-session refresh lock is held. Comfortably covers a refresh round-trip yet
+    /// stays well below <see cref="RefreshWindow"/> so that a failed refresh can be retried by a
+    /// later request before the access token actually expires.
+    /// </summary>
+    private static readonly TimeSpan RefreshLockTtl = TimeSpan.FromSeconds(15);
+
     private readonly IBffSessionStore _sessionStore;
     private readonly IDataProtector _protector;
     private readonly Configuration.BffOptions _bffOptions;
@@ -70,9 +77,16 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         if (session is null)
             return AuthenticateResult.Fail("Session not found or expired");
 
-        // Proactive token refresh if access token is nearing expiry
+        // Proactive token refresh if access token is nearing expiry. A burst of concurrent
+        // requests (e.g. the People tab firing many parallel API calls on a site switch) must
+        // not each fire a refresh_token grant: Keycloak rotates refresh tokens and revokes the
+        // session on reuse (revokeRefreshToken=true / refreshTokenMaxReuse=0). The session store
+        // arbitrates a single-flight refresh across all instances — only the lock winner refreshes;
+        // everyone else keeps using the current access token, which is safe here because claims are
+        // read without expiry validation and the token is never forwarded downstream.
         var accessToken = session.AccessToken;
-        if (session.TokenExpiresAt - DateTimeOffset.UtcNow < RefreshWindow)
+        if (session.TokenExpiresAt - DateTimeOffset.UtcNow < RefreshWindow
+            && await _sessionStore.TryAcquireRefreshLockAsync(sessionId, RefreshLockTtl, Context.RequestAborted))
         {
             var refreshed = await TryRefreshTokensAsync(session);
             if (refreshed is not null)

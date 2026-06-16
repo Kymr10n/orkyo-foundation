@@ -35,6 +35,10 @@ public class BffCookieAuthenticationHandlerTests
     public BffCookieAuthenticationHandlerTests()
     {
         _protector = _dataProtectionProvider.CreateProtector("BffSession");
+        // Default: this request wins the single-flight refresh lock. The lose-lock path is
+        // exercised explicitly in RefreshLockNotAcquired_SkipsRefresh.
+        _sessionStore.Setup(s => s.TryAcquireRefreshLockAsync(
+            It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
     }
 
     private static string CreateTestJwt(
@@ -252,6 +256,26 @@ public class BffCookieAuthenticationHandlerTests
         _sessionStore.Verify(s => s.RefreshTokensAsync(
             TestSessionId, refreshedJwt, "new-refresh-token",
             It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshLockNotAcquired_SkipsRefresh_UsesCurrentToken()
+    {
+        // When another request/instance holds the single-flight refresh lock, this request must
+        // NOT call Keycloak — it keeps using the current (still-valid) access token. This is what
+        // prevents the concurrent-refresh herd that would trip Keycloak's refresh-token reuse
+        // detection and revoke the session.
+        var originalJwt = CreateTestJwt(extraClaims: new Dictionary<string, object> { ["tag"] = "original" });
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSession(accessToken: originalJwt, tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10)));
+        _sessionStore.Setup(s => s.TryAcquireRefreshLockAsync(
+            It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.FindFirst("tag")!.Value.Should().Be("original");
+        _httpClientFactory.Verify(f => f.CreateClient(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]

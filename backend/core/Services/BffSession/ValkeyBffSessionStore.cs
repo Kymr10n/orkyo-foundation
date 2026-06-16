@@ -4,22 +4,23 @@ using StackExchange.Redis;
 namespace Api.Services.BffSession;
 
 /// <summary>
-/// Redis-backed implementation of <see cref="IBffSessionStore"/>.
+/// Valkey-backed implementation of <see cref="IBffSessionStore"/>.
 /// Safe for multi-instance / horizontally-scaled deployments.
 /// Key: <c>bff:s:{sessionId}</c> with TTL = session duration.
 /// </summary>
-public sealed class RedisBffSessionStore : IBffSessionStore
+public sealed class ValkeyBffSessionStore : IBffSessionStore
 {
-    private readonly IConnectionMultiplexer _redis;
-    private readonly ILogger<RedisBffSessionStore> _logger;
+    private readonly IConnectionMultiplexer _valkey;
+    private readonly ILogger<ValkeyBffSessionStore> _logger;
 
     private static string SessionKey(string sessionId) => $"bff:s:{sessionId}";
+    private static string RefreshLockKey(string sessionId) => $"bff:refresh-lock:{sessionId}";
 
-    public RedisBffSessionStore(
-        IConnectionMultiplexer redis,
-        ILogger<RedisBffSessionStore> logger)
+    public ValkeyBffSessionStore(
+        IConnectionMultiplexer valkey,
+        ILogger<ValkeyBffSessionStore> logger)
     {
-        _redis = redis;
+        _valkey = valkey;
         _logger = logger;
     }
 
@@ -27,7 +28,7 @@ public sealed class RedisBffSessionStore : IBffSessionStore
     {
         try
         {
-            var db = _redis.GetDatabase();
+            var db = _valkey.GetDatabase();
             var json = (string?)await db.StringGetAsync(SessionKey(sessionId));
             if (string.IsNullOrEmpty(json))
                 return null;
@@ -45,7 +46,7 @@ public sealed class RedisBffSessionStore : IBffSessionStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Redis error getting BFF session SessionId={SessionIdPrefix}…",
+            _logger.LogError(ex, "Valkey error getting BFF session SessionId={SessionIdPrefix}…",
                 sessionId[..Math.Min(8, sessionId.Length)]);
             return null;
         }
@@ -55,7 +56,7 @@ public sealed class RedisBffSessionStore : IBffSessionStore
     {
         try
         {
-            var db = _redis.GetDatabase();
+            var db = _valkey.GetDatabase();
             var ttl = session.ExpiresAt - DateTimeOffset.UtcNow;
             if (ttl <= TimeSpan.Zero)
                 return;
@@ -63,11 +64,11 @@ public sealed class RedisBffSessionStore : IBffSessionStore
             var json = JsonSerializer.Serialize(session);
             await db.StringSetAsync(SessionKey(session.SessionId), json, ttl);
 
-            _logger.LogDebug("BFF session stored in Redis: SessionId={SessionIdPrefix}…", session.SessionId[..8]);
+            _logger.LogDebug("BFF session stored in Valkey: SessionId={SessionIdPrefix}…", session.SessionId[..8]);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Redis error storing BFF session SessionId={SessionIdPrefix}…",
+            _logger.LogError(ex, "Valkey error storing BFF session SessionId={SessionIdPrefix}…",
                 session.SessionId[..Math.Min(8, session.SessionId.Length)]);
         }
     }
@@ -76,13 +77,13 @@ public sealed class RedisBffSessionStore : IBffSessionStore
     {
         try
         {
-            var db = _redis.GetDatabase();
+            var db = _valkey.GetDatabase();
             await db.KeyDeleteAsync(SessionKey(sessionId));
-            _logger.LogDebug("BFF session removed from Redis: SessionId={SessionIdPrefix}…", sessionId[..8]);
+            _logger.LogDebug("BFF session removed from Valkey: SessionId={SessionIdPrefix}…", sessionId[..8]);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Redis error removing BFF session SessionId={SessionIdPrefix}…",
+            _logger.LogError(ex, "Valkey error removing BFF session SessionId={SessionIdPrefix}…",
                 sessionId[..Math.Min(8, sessionId.Length)]);
         }
     }
@@ -91,7 +92,7 @@ public sealed class RedisBffSessionStore : IBffSessionStore
     {
         try
         {
-            var db = _redis.GetDatabase();
+            var db = _valkey.GetDatabase();
             var json = (string?)await db.StringGetAsync(SessionKey(sessionId));
             if (string.IsNullOrEmpty(json))
                 return;
@@ -108,18 +109,38 @@ public sealed class RedisBffSessionStore : IBffSessionStore
                 LastActivityAt = DateTimeOffset.UtcNow,
             };
 
-            // Keep Redis TTL based on overall session expiry, not token expiry
+            // Keep Valkey TTL based on overall session expiry, not token expiry
             var ttl = updated.ExpiresAt - DateTimeOffset.UtcNow;
             if (ttl <= TimeSpan.Zero)
                 return;
 
             await db.StringSetAsync(SessionKey(session.SessionId), JsonSerializer.Serialize(updated), ttl);
-            _logger.LogDebug("BFF session tokens refreshed in Redis: SessionId={SessionIdPrefix}…", sessionId[..8]);
+            _logger.LogDebug("BFF session tokens refreshed in Valkey: SessionId={SessionIdPrefix}…", sessionId[..8]);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Redis error refreshing BFF session tokens SessionId={SessionIdPrefix}…",
+            _logger.LogError(ex, "Valkey error refreshing BFF session tokens SessionId={SessionIdPrefix}…",
                 sessionId[..Math.Min(8, sessionId.Length)]);
+        }
+    }
+
+    public async Task<bool> TryAcquireRefreshLockAsync(string sessionId, TimeSpan ttl, CancellationToken ct = default)
+    {
+        try
+        {
+            var db = _valkey.GetDatabase();
+            // Atomic SET NX PX — single-flight token refresh across all instances. The key
+            // auto-expires after ttl so a crashed/failed refresher can't block future refreshes;
+            // no explicit release needed (a successful refresh pushes the token expiry well past
+            // the refresh window, so no other request re-enters it before the lock lapses).
+            return await db.StringSetAsync(RefreshLockKey(sessionId), "1", ttl, When.NotExists);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Valkey error acquiring BFF refresh lock SessionId={SessionIdPrefix}…",
+                sessionId[..Math.Min(8, sessionId.Length)]);
+            // Fail open: prefer auth continuity over herd-prevention if the store is unreachable.
+            return true;
         }
     }
 }

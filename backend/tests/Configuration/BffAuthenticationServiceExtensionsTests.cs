@@ -18,7 +18,7 @@ public class BffAuthenticationServiceExtensionsTests
     // ── Store registration ────────────────────────────────────────────────────
 
     [Fact]
-    public void AddBffAuthentication_WithoutRedis_RegistersInMemorySessionStore()
+    public void AddBffAuthentication_WithoutValkey_RegistersInMemorySessionStore()
     {
         var provider = BuildProvider(valkeyConnection: null);
 
@@ -26,7 +26,7 @@ public class BffAuthenticationServiceExtensionsTests
     }
 
     [Fact]
-    public void AddBffAuthentication_WithoutRedis_RegistersInMemoryPkceStore()
+    public void AddBffAuthentication_WithoutValkey_RegistersInMemoryPkceStore()
     {
         var provider = BuildProvider(valkeyConnection: null);
 
@@ -45,7 +45,7 @@ public class BffAuthenticationServiceExtensionsTests
     }
 
     [Fact]
-    public void AddBffAuthentication_WithoutRedis_DataProtectionCanProtectAndUnprotect()
+    public void AddBffAuthentication_WithoutValkey_DataProtectionCanProtectAndUnprotect()
     {
         var provider = BuildProvider(valkeyConnection: null);
 

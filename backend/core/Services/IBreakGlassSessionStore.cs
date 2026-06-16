@@ -17,7 +17,7 @@ public record BreakGlassSession(
 /// Storage abstraction for break-glass sessions.
 /// Implementations must be thread-safe and suitable for the deployment topology:
 /// use <see cref="InMemoryBreakGlassSessionStore"/> for single-instance dev/test,
-/// <see cref="RedisBreakGlassSessionStore"/> for multi-instance production deployments.
+/// <see cref="ValkeyBreakGlassSessionStore"/> for multi-instance production deployments.
 /// </summary>
 public interface IBreakGlassSessionStore
 {

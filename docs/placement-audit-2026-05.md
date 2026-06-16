@@ -36,7 +36,7 @@ For each non-trivial type in a product `src/` tree, ask: does the *other* produc
 
 | Where today | Type | Notes |
 |---|---|---|
-| SaaS | `RedisBreakGlassSessionStore.cs` + `BreakGlassSessionService.cs` | Redis-backed break-glass admin sessions. |
+| SaaS | `ValkeyBreakGlassSessionStore.cs` + `BreakGlassSessionService.cs` | Valkey-backed break-glass admin sessions. |
 | Community | `NullBreakGlassSessionStore.cs` | No-op (single-org, no separate admin plane). |
 
 **Recommendation:** lift the `IBreakGlassSessionStore` interface (likely already in SaaS) plus `BreakGlassSessionService` orchestrator into foundation. Community's `Null*` implementation is a textbook null-object adapter — it already proves the abstraction works.

@@ -23,7 +23,7 @@ public sealed record BffSessionRecord
 /// Storage abstraction for BFF sessions.
 /// Implementations must be thread-safe and suitable for the deployment topology:
 /// use <see cref="InMemoryBffSessionStore"/> for single-instance dev/test,
-/// <see cref="RedisBffSessionStore"/> for multi-instance production deployments.
+/// <see cref="ValkeyBffSessionStore"/> for multi-instance production deployments.
 /// </summary>
 public interface IBffSessionStore
 {
@@ -38,4 +38,13 @@ public interface IBffSessionStore
 
     /// <summary>Updates the tokens and token expiry for an existing session (after token refresh).</summary>
     Task RefreshTokensAsync(string sessionId, string accessToken, string refreshToken, DateTimeOffset tokenExpiresAt, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomically acquires a short-lived per-session refresh lock so that a burst of concurrent
+    /// requests performs at most one token refresh. Returns <c>true</c> if this caller won the lock
+    /// and should refresh; <c>false</c> if another caller/instance already holds it. The lock
+    /// auto-expires after <paramref name="ttl"/> (no explicit release) so a crashed refresher can't
+    /// block future refreshes. Must be atomic and coordinate across instances in the production store.
+    /// </summary>
+    Task<bool> TryAcquireRefreshLockAsync(string sessionId, TimeSpan ttl, CancellationToken ct = default);
 }

@@ -88,4 +88,40 @@ public class InMemoryBffSessionStoreTests
         (await _store.GetAsync(valid.SessionId)).Should().NotBeNull();
         (await _store.GetAsync(expired.SessionId)).Should().BeNull();
     }
+
+    // ── Refresh lock (single-flight) ───────────────────────────────────────
+
+    [Fact]
+    public async Task TryAcquireRefreshLock_FirstCallerWins_SecondIsBlocked()
+    {
+        (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromSeconds(30))).Should().BeTrue();
+        (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromSeconds(30))).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TryAcquireRefreshLock_DifferentSessionsAreIndependent()
+    {
+        (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromSeconds(30))).Should().BeTrue();
+        (await _store.TryAcquireRefreshLockAsync("s2", TimeSpan.FromSeconds(30))).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TryAcquireRefreshLock_ReacquirableAfterTtlExpires()
+    {
+        (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromMilliseconds(20))).Should().BeTrue();
+        await Task.Delay(40);
+        (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromSeconds(30))).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TryAcquireRefreshLock_ConcurrentBurst_ExactlyOneWinner()
+    {
+        // The People-tab site-switch scenario: a burst of parallel requests for one session must
+        // yield exactly one refresh lock holder, so only one refresh_token grant is issued.
+        var tasks = Enumerable.Range(0, 20)
+            .Select(_ => _store.TryAcquireRefreshLockAsync("burst", TimeSpan.FromSeconds(30)))
+            .ToArray();
+        var results = await Task.WhenAll(tasks);
+        results.Count(won => won).Should().Be(1);
+    }
 }
