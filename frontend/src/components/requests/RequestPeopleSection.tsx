@@ -15,6 +15,8 @@ import {
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { ValidationIssueList } from "./ValidationIssueList";
+import { ConflictIndicator } from "./ConflictIndicator";
+import type { Conflict } from "@foundation/src/types/requests";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,6 +29,8 @@ interface RequestPeopleSectionProps {
   requestEndTs?: string;
   /** Called whenever the blocker state changes so the parent can disable Save. */
   onBlockersChange: (hasBlockers: boolean) => void;
+  /** Saved conflicts keyed by resource — flags the matching assigned-person row. */
+  conflictsByResourceId?: Map<string, Conflict[]>;
 }
 
 interface PendingRow {
@@ -47,6 +51,7 @@ export function RequestPeopleSection({
   requestStartTs,
   requestEndTs,
   onBlockersChange,
+  conflictsByResourceId,
 }: RequestPeopleSectionProps) {
   const [people, setPeople] = useState<ResourceInfo[]>([]);
   const [assignments, setAssignments] = useState<ResourceAssignmentInfo[]>([]);
@@ -219,7 +224,10 @@ export function RequestPeopleSection({
             const person = people.find((p) => p.id === a.resourceId);
             return (
               <div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm" data-testid="assignment-row">
-                <span>{person?.name ?? a.resourceId}</span>
+                <span className="flex items-center gap-2">
+                  {person?.name ?? a.resourceId}
+                  <ConflictIndicator conflicts={conflictsByResourceId?.get(a.resourceId) ?? []} />
+                </span>
                 <Button
                   type="button"
                   variant="ghost"

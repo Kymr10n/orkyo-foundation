@@ -20,7 +20,8 @@ import { combineDateTimeToISO, durationToMinutes, formatMinutesHuman } from "@fo
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
-import type { Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
+import type { Conflict, Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
+import { ConflictBanner, ConflictIndicator, conflictDotClass } from "./ConflictIndicator";
 import type { Space } from "@foundation/src/types/space";
 import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -52,6 +53,8 @@ interface RequestFormDialogProps {
    * site-neutral request to it and warns when the chosen site won't surface here.
    */
   scheduleSiteId?: string | null;
+  /** Saved conflicts for this request (from the registry); surfaced as form indicators. */
+  conflicts?: Conflict[];
   onSave: (data: RequestFormData) => void | Promise<void>;
 }
 
@@ -105,6 +108,7 @@ export function RequestFormDialog({
   defaultPlanningMode,
   defaultSchedule,
   scheduleSiteId,
+  conflicts = [],
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
@@ -122,6 +126,36 @@ export function RequestFormDialog({
     updateRequirement,
     applyTemplate,
   } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId, scheduleSiteId);
+
+  // Map saved conflicts onto the form: by assigned resource (people + space) and by requirement
+  // criterion, so each row can flag itself. The banner above the tabs shows the full list.
+  const conflictsByResourceId = useMemo(() => {
+    const map = new Map<string, Conflict[]>();
+    for (const c of conflicts) {
+      if (!c.resourceId) continue;
+      const list = map.get(c.resourceId) ?? [];
+      list.push(c);
+      map.set(c.resourceId, list);
+    }
+    return map;
+  }, [conflicts]);
+  const conflictsByCriterionId = useMemo(() => {
+    const map = new Map<string, Conflict[]>();
+    for (const c of conflicts) {
+      if (!c.criterionId) continue;
+      const list = map.get(c.criterionId) ?? [];
+      list.push(c);
+      map.set(c.criterionId, list);
+    }
+    return map;
+  }, [conflicts]);
+  const spaceConflicts = state.selectedResourceId
+    ? conflictsByResourceId.get(state.selectedResourceId) ?? []
+    : [];
+  // Tab dot colour reflects the worst severity of conflicts owned by that tab
+  // (error → red, warning-only → amber), matching the per-row indicators.
+  const resourceConflictDot = conflictDotClass(conflicts.filter((c) => c.resourceId));
+  const requirementConflictDot = conflictDotClass(conflicts.filter((c) => c.criterionId));
 
   const canEdit = useCanEdit();
 
@@ -401,6 +435,8 @@ export function RequestFormDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <ConflictBanner conflicts={conflicts} />
+
         <form
           onSubmit={handleSubmit}
           onInput={() => setIsDirty(true)}
@@ -420,8 +456,20 @@ export function RequestFormDialog({
                   <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label="timing warning" />
                 )}
               </TabsTrigger>
-              <TabsTrigger value="requirements">Requirements</TabsTrigger>
-              {isLeaf && <TabsTrigger value="resources">Resources</TabsTrigger>}
+              <TabsTrigger value="requirements" className="relative">
+                Requirements
+                {requirementConflictDot && (
+                  <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ${requirementConflictDot}`} aria-label="requirement conflict" />
+                )}
+              </TabsTrigger>
+              {isLeaf && (
+                <TabsTrigger value="resources" className="relative">
+                  Resources
+                  {resourceConflictDot && (
+                    <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ${resourceConflictDot}`} aria-label="resource conflict" />
+                  )}
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
@@ -706,6 +754,7 @@ export function RequestFormDialog({
                   selectedCriterionId={selectedCriterionId}
                   setSelectedCriterionId={setSelectedCriterionId}
                   isLoading={isLoading}
+                  conflictsByCriterionId={conflictsByCriterionId}
                   onAddRequirement={handleAddRequirement}
                   onRemoveRequirement={handleRemoveRequirement}
                   onRequirementChange={handleRequirementChange}
@@ -725,6 +774,7 @@ export function RequestFormDialog({
                     <h4 className="text-sm font-medium flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
                       Space
+                      <ConflictIndicator conflicts={spaceConflicts} />
                     </h4>
                     <div className="space-y-2 pt-4">
                       <Select
@@ -764,6 +814,7 @@ export function RequestFormDialog({
                         : undefined
                     }
                     onBlockersChange={setHasPeopleBlockers}
+                    conflictsByResourceId={conflictsByResourceId}
                   />
                 </TabsContent>
               )}

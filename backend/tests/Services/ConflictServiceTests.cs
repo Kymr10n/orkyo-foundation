@@ -115,7 +115,8 @@ public class ConflictServiceTests
 
         var entry = Assert.Single(result);
         Assert.Equal(reqId, entry.RequestId);
-        Assert.Contains(entry.Conflicts, c => c.Kind == "connector_mismatch" && c.Severity == "error");
+        // Carries the unmet criterion so the editor can flag that requirement row.
+        Assert.Contains(entry.Conflicts, c => c.Kind == "connector_mismatch" && c.Severity == "error" && c.CriterionId == criterionId);
     }
 
     [Fact]
@@ -208,6 +209,7 @@ public class ConflictServiceTests
         var entry = Assert.Single(result, e => e.RequestId == r1);
         var overlap = Assert.Single(entry.Conflicts, c => c.Kind == "overlap");
         Assert.Equal(r2, overlap.PeerRequestId);
+        Assert.Equal(personId, overlap.ResourceId); // the double-booked person, so the editor flags that row
     }
 
     [Fact]
@@ -286,6 +288,9 @@ public class ConflictServiceTests
         var offTimeConflicts = entry.Conflicts.Where(c => c.Kind == "starts_in_off_time").ToList();
         Assert.Equal(2, offTimeConflicts.Count);
         Assert.Equal(2, offTimeConflicts.Select(c => c.Id).Distinct().Count());
+        // Each conflict carries the resource it's about, so the editor can flag that person row.
+        Assert.Contains(offTimeConflicts, c => c.ResourceId == person1);
+        Assert.Contains(offTimeConflicts, c => c.ResourceId == person2);
     }
 
     [Fact]

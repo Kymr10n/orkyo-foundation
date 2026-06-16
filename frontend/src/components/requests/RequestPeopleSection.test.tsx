@@ -58,6 +58,7 @@ import {
   createAssignment,
   cancelAssignment,
 } from '@foundation/src/lib/api/resource-assignments-api';
+import type { Conflict } from '@foundation/src/types/requests';
 
 const mockPeople = [
   { id: 'res-person-1', name: 'Alice', resourceTypeKey: 'person', isActive: true, resourceTypeId: 'rt-1', allocationMode: 'percent', baseAvailabilityPercent: 100, createdAt: '', updatedAt: '' },
@@ -120,6 +121,23 @@ describe('RequestPeopleSection', () => {
       expect(screen.getByText('Alice')).toBeInTheDocument();
     });
     expect(screen.getByText('1 assigned')).toBeInTheDocument();
+  });
+
+  it('flags an assigned person who has a saved conflict', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
+    const conflictsByResourceId = new Map<string, Conflict[]>([
+      ['res-person-1', [{ id: 'x', kind: 'starts_in_off_time', severity: 'warning', message: 'Off-time' }]],
+    ]);
+    render(<RequestPeopleSection {...defaultProps} conflictsByResourceId={conflictsByResourceId} />);
+    await waitFor(() => screen.getByText('Alice'));
+    expect(screen.getByTestId('conflict-indicator')).toBeInTheDocument();
+  });
+
+  it('does not flag an assigned person without a conflict', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
+    render(<RequestPeopleSection {...defaultProps} conflictsByResourceId={new Map()} />);
+    await waitFor(() => screen.getByText('Alice'));
+    expect(screen.queryByTestId('conflict-indicator')).not.toBeInTheDocument();
   });
 
   it('adds a pending row when Add Person is clicked', async () => {

@@ -9,11 +9,12 @@ import {
 import { updateRequest } from "@foundation/src/lib/api/request-api";
 import { buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
-import type { Request } from "@foundation/src/types/requests";
+import type { Conflict, Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
-  /** Open the edit dialog (admin/editor) or read-only details dialog for a request. */
-  open: (request: Request) => void;
+  /** Open the edit dialog (admin/editor) or read-only details dialog for a request. Pass the
+   *  request's conflicts (from the registry) to surface indicators in the edit form. */
+  open: (request: Request, conflicts?: Conflict[]) => void;
   /**
    * Both dialogs as a single ReactNode. Mount once at the page root —
    * they portal to document.body so the mount point doesn't affect layout.
@@ -35,12 +36,14 @@ export function useRequestEditor(): UseRequestEditorResult {
     membership?.role === "admin" || membership?.role === "editor";
 
   const [request, setRequest] = useState<Request | null>(null);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const open = useCallback(
-    (next: Request) => {
+    (next: Request, nextConflicts: Conflict[] = []) => {
       setRequest(next);
+      setConflicts(nextConflicts);
       if (userCanEdit) {
         setIsEditOpen(true);
       } else {
@@ -71,6 +74,7 @@ export function useRequestEditor(): UseRequestEditorResult {
           if (!next) setRequest(null);
         }}
         request={request}
+        conflicts={conflicts}
         onSave={handleSave}
       />
       <RequestDetailsDialog

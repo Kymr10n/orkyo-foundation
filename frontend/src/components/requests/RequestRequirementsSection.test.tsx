@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { RequestRequirementsSection } from './RequestRequirementsSection';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
+import type { Conflict } from '@foundation/src/types/requests';
 import type { ReactNode } from 'react';
 
 vi.mock('@foundation/src/components/ui/select', () => ({
@@ -147,6 +148,44 @@ describe('RequestRequirementsSection', () => {
     render(<RequestRequirementsSection {...defaultProps} state={stateWithAll} />);
     // Both criteria used — no unused criteria → add row not rendered
     expect(screen.queryByText('Select a criterion to add')).not.toBeInTheDocument();
+  });
+
+  it('flags a requirement that has a saved capability conflict', () => {
+    const stateWithReqs = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
+    };
+    const conflictsByCriterionId = new Map<string, Conflict[]>([
+      ['c1', [{ id: 'x', kind: 'connector_mismatch', severity: 'error', message: "No assigned resource provides 'Power'" }]],
+    ]);
+    render(
+      <RequestRequirementsSection
+        {...defaultProps}
+        state={stateWithReqs}
+        conflictsByCriterionId={conflictsByCriterionId}
+      />,
+    );
+    expect(screen.getByTestId('conflict-indicator')).toBeInTheDocument();
+  });
+
+  it('skips a requirement whose criterion is no longer available', () => {
+    const stateWithUnknown = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([['c-missing', { value: true }]]),
+    };
+    render(<RequestRequirementsSection {...defaultProps} state={stateWithUnknown} />);
+    // c-missing isn't in availableCriteria → the row is skipped (no input rendered).
+    expect(screen.queryByTestId('input-c-missing')).not.toBeInTheDocument();
+    expect(screen.getByText('1 active')).toBeInTheDocument();
+  });
+
+  it('does not flag a requirement without a conflict', () => {
+    const stateWithReqs = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
+    };
+    render(<RequestRequirementsSection {...defaultProps} state={stateWithReqs} />);
+    expect(screen.queryByTestId('conflict-indicator')).not.toBeInTheDocument();
   });
 
   it('renders multiple requirements', () => {

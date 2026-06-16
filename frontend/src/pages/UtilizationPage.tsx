@@ -305,8 +305,8 @@ export function UtilizationPage() {
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {
     const request = requests.find(r => r.id === requestId);
-    if (request) openRequestEditor(request);
-  }, [requests, openRequestEditor]);
+    if (request) openRequestEditor(request, conflicts.get(requestId) ?? []);
+  }, [requests, openRequestEditor, conflicts]);
 
   // Handle "Add child" from RequestsPanel
   const handleCreateChild = useCallback((parentId: string) => {

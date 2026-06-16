@@ -4,8 +4,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { useRequestForm, RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Criterion } from "@foundation/src/types/criterion";
+import type { Conflict } from "@foundation/src/types/requests";
 import { Plus, Trash2 } from "lucide-react";
 import { CriterionRequirementInput } from "./CriterionRequirementInput";
+import { ConflictIndicator } from "./ConflictIndicator";
 
 interface RequestRequirementsSectionProps {
   state: ReturnType<typeof useRequestForm>['state'];
@@ -13,6 +15,8 @@ interface RequestRequirementsSectionProps {
   selectedCriterionId: string;
   setSelectedCriterionId: (id: string) => void;
   isLoading: boolean;
+  /** Saved conflicts keyed by the criterion they're about — flags the matching requirement row. */
+  conflictsByCriterionId?: Map<string, Conflict[]>;
   onAddRequirement: () => void;
   onRemoveRequirement: (criterionId: string) => void;
   onRequirementChange: (criterionId: string, patch: Partial<RequirementEntry>) => void;
@@ -24,6 +28,7 @@ export function RequestRequirementsSection({
   selectedCriterionId,
   setSelectedCriterionId,
   isLoading,
+  conflictsByCriterionId,
   onAddRequirement,
   onRemoveRequirement,
   onRequirementChange,
@@ -93,6 +98,10 @@ export function RequestRequirementsSection({
 
                 return (
                   <div key={criterionId} className="flex gap-3">
+                    <ConflictIndicator
+                      conflicts={conflictsByCriterionId?.get(criterionId) ?? []}
+                      className="mt-9"
+                    />
                     <div className="flex-1">
                       <CriterionRequirementInput
                         criterion={criterion}

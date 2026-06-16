@@ -214,7 +214,7 @@ describe('ConflictsPage', () => {
         .closest('[role="button"]')!;
       fireEvent.click(row);
       expect(mockOpen).toHaveBeenCalledTimes(1);
-      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0]);
+      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0], expect.any(Array));
     });
 
     it('pressing Enter on a conflict row calls open', () => {
@@ -223,7 +223,7 @@ describe('ConflictsPage', () => {
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
       fireEvent.keyDown(row, { key: 'Enter' });
-      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0]);
+      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0], expect.any(Array));
     });
 
     it('pressing Space on a conflict row calls open', () => {
@@ -232,7 +232,7 @@ describe('ConflictsPage', () => {
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
       fireEvent.keyDown(row, { key: ' ' });
-      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0]);
+      expect(mockOpen).toHaveBeenCalledWith(mockRequests[0], expect.any(Array));
     });
 
     it('other keys do not trigger open', () => {
@@ -273,14 +273,14 @@ describe('ConflictsPage', () => {
       it('clicking "View other request" calls open with the peer request', () => {
         render(<ConflictsPage />, { wrapper: createWrapper() });
         fireEvent.click(screen.getByText(/View other request:/));
-        expect(mockOpen).toHaveBeenCalledWith(mockRequests[1]);
+        expect(mockOpen).toHaveBeenCalledWith(mockRequests[1], expect.any(Array));
       });
 
       it('clicking "View other request" calls open exactly once (stopPropagation prevents row click)', () => {
         render(<ConflictsPage />, { wrapper: createWrapper() });
         fireEvent.click(screen.getByText(/View other request:/));
         expect(mockOpen).toHaveBeenCalledTimes(1);
-        expect(mockOpen).toHaveBeenCalledWith(mockRequests[1]);
+        expect(mockOpen).toHaveBeenCalledWith(mockRequests[1], expect.any(Array));
       });
     });
   });

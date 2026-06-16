@@ -110,6 +110,7 @@ public class ConflictService(
                     Kind = "connector_mismatch",
                     Severity = "error",
                     Message = $"No assigned resource provides '{requirement.Criterion?.Name ?? "a required capability"}'",
+                    CriterionId = requirement.CriterionId,
                 };
         }
     }
@@ -158,6 +159,7 @@ public class ConflictService(
                         Severity = "error",
                         Message = issue.Message,
                         PeerRequestId = peer == Guid.Empty ? null : peer,
+                        ResourceId = issue.ResourceId,
                     };
                 }
                 return new ConflictInfo
@@ -166,6 +168,7 @@ public class ConflictService(
                     Kind = "capacity_exceeded",
                     Severity = "error",
                     Message = issue.Message,
+                    ResourceId = issue.ResourceId,
                 };
 
             case ValidationReasonCode.OffTimeOverlap:
@@ -177,6 +180,7 @@ public class ConflictService(
                     Kind = "starts_in_off_time",
                     Severity = "warning",
                     Message = issue.Message,
+                    ResourceId = issue.ResourceId,
                 };
 
             case ValidationReasonCode.SiteMismatchSpace:
@@ -189,6 +193,7 @@ public class ConflictService(
                     // Cross-site-allowed person mismatch is advisory; space/not-allowed are errors.
                     Severity = issue.Code == ValidationReasonCode.SiteMismatchPerson ? "warning" : "error",
                     Message = issue.Message,
+                    ResourceId = issue.ResourceId,
                 };
 
             // Config errors (invalid allocation mode/percent) and resource not-found/inactive are

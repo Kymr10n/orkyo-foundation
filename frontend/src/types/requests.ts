@@ -50,6 +50,11 @@ export interface Conflict {
   message: string;
   /** For `overlap` conflicts: the id of the other request that this one overlaps with. */
   peerRequestId?: string;
+  /** The assigned resource (space/person/tool) this conflict is about, when it maps to one —
+   *  lets the editor flag the specific row. Absent for request-level conflicts (e.g. timing). */
+  resourceId?: string;
+  /** For capability conflicts: the unmet requirement's criterion — flags that requirement row. */
+  criterionId?: string;
 }
 
 export type PlanningMode = "leaf" | "summary" | "container";

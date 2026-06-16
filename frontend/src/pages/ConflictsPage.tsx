@@ -274,7 +274,7 @@ export function ConflictsPage() {
                     <ConflictItem
                       item={item}
                       isHighlighted={targetConflictId === item.id}
-                      onOpen={openRequestEditor}
+                      onOpen={(request) => openRequestEditor(request, conflicts.get(request.id) ?? [])}
                       peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
                       getSeverityIcon={getSeverityIcon}
                       getSeverityBadgeClass={getSeverityBadgeClass}

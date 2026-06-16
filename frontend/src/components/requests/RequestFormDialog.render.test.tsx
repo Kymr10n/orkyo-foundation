@@ -176,6 +176,24 @@ describe("RequestFormDialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a conflict banner listing the request's conflicts", () => {
+    renderDialog({
+      request: EXISTING,
+      conflicts: [
+        { id: "c1", kind: "starts_in_off_time", severity: "warning", message: "Off-time during this period" },
+        { id: "c2", kind: "overlap", severity: "error", message: "Already assigned" },
+      ],
+    });
+    const banner = screen.getByTestId("conflict-banner");
+    expect(banner).toHaveTextContent("2 conflicts on this request");
+    expect(banner).toHaveTextContent("Off-time during this period");
+  });
+
+  it("shows no conflict banner when the request has no conflicts", () => {
+    renderDialog({ request: EXISTING });
+    expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
+  });
+
   it("hides the Site picker for single-site tenants and shows it for multi-site", () => {
     const { rerender } = render(
       <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />,
