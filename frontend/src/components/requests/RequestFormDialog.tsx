@@ -22,6 +22,7 @@ import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Conflict, Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import { ConflictBanner, ConflictIndicator, conflictDotClass } from "./ConflictIndicator";
+import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator";
 import type { Space } from "@foundation/src/types/space";
 import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -452,22 +453,16 @@ export function RequestFormDialog({
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="timing" className="relative">
                 Timing
-                {hasDurationWarning && (
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label="timing warning" />
-                )}
+                <TabIndicatorDot dotClass={hasDurationWarning ? "bg-amber-500" : null} label="timing warning" />
               </TabsTrigger>
               <TabsTrigger value="requirements" className="relative">
                 Requirements
-                {requirementConflictDot && (
-                  <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ${requirementConflictDot}`} aria-label="requirement conflict" />
-                )}
+                <TabIndicatorDot dotClass={requirementConflictDot} label="requirement conflict" />
               </TabsTrigger>
               {isLeaf && (
                 <TabsTrigger value="resources" className="relative">
                   Resources
-                  {resourceConflictDot && (
-                    <span className={`absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ${resourceConflictDot}`} aria-label="resource conflict" />
-                  )}
+                  <TabIndicatorDot dotClass={resourceConflictDot} label="resource conflict" />
                 </TabsTrigger>
               )}
             </TabsList>

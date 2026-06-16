@@ -1,4 +1,7 @@
-import { AlertTriangle, XCircle } from "lucide-react";
+import {
+  StatusMessageList,
+  type StatusItem,
+} from "@foundation/src/components/ui/status-indicator";
 import type {
   ValidationIssue,
   ValidationReasonCode,
@@ -33,25 +36,15 @@ export function ValidationIssueList({
   issues: ValidationIssue[];
   variant: "blocker" | "warning";
 }) {
-  if (issues.length === 0) return null;
-  const Icon = variant === "blocker" ? XCircle : AlertTriangle;
-  const className = variant === "blocker" ? "text-destructive" : "text-amber-600";
-  return (
-    <ul className="space-y-0.5 mt-1">
-      {issues.map((issue) => (
-        // Composite key from the issue's identifying fields. A single validation
-        // result never contains duplicates of (code + linked-entity ids), so this
-        // is stable across re-renders even when issues are added/removed mid-typing.
-        <li
-          key={`${issue.code}:${issue.criterionId ?? ""}:${issue.conflictingAssignmentId ?? ""}:${issue.conflictingOffTimeId ?? ""}`}
-          className={`flex items-start gap-1 text-xs ${className}`}
-        >
-          <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>
-            {REASON_LABELS[issue.code] ?? issue.code}: {issue.message}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
+  // Map onto the shared severity model so blockers/warnings render through the same
+  // StatusMessageList as every other dialog indicator (one icon/colour system).
+  const items: StatusItem[] = issues.map((issue) => ({
+    // Composite key from the issue's identifying fields. A single validation result
+    // never contains duplicates of (code + linked-entity ids), so this is stable
+    // across re-renders even when issues are added/removed mid-typing.
+    id: `${issue.code}:${issue.criterionId ?? ""}:${issue.conflictingAssignmentId ?? ""}:${issue.conflictingOffTimeId ?? ""}`,
+    message: `${REASON_LABELS[issue.code] ?? issue.code}: ${issue.message}`,
+    severity: variant === "blocker" ? "error" : "warning",
+  }));
+  return <StatusMessageList items={items} />;
 }
