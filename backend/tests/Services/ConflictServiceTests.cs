@@ -288,6 +288,41 @@ public class ConflictServiceTests
         Assert.Equal(2, offTimeConflicts.Select(c => c.Id).Distinct().Count());
     }
 
+    [Fact]
+    public async Task GetAllAsync_WithWindow_QueriesWindowedScheduledRequests()
+    {
+        var from = Start;
+        var to = Start.AddDays(7);
+        var reqId = Guid.NewGuid();
+        var space = SpaceAssignment(Guid.NewGuid(), reqId, Guid.NewGuid(), Start, Start.AddMinutes(10));
+        // 10-minute bar against a 60-minute minimum → a deterministic intrinsic conflict, no validator setup.
+        _requestRepo.Setup(r => r.GetScheduledAsync(from, to, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddMinutes(10), minMinutes: 60)]);
+
+        var result = await _service.GetAllAsync(from, to);
+
+        var entry = Assert.Single(result);
+        Assert.Equal(reqId, entry.RequestId);
+        Assert.Contains(entry.Conflicts, c => c.Kind == "below_min_duration");
+        _requestRepo.Verify(r => r.GetScheduledAsync(from, to, It.IsAny<CancellationToken>()), Times.Once);
+        _requestRepo.Verify(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_WithoutWindow_QueriesAllTimeScheduledRequests()
+    {
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var result = await _service.GetAllAsync();
+
+        Assert.Empty(result);
+        _requestRepo.Verify(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _requestRepo.Verify(
+            r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static AssignmentValidationBatchItem BatchWarn(Guid requestId, Guid resourceId, params ValidationIssue[] warnings) => new()
     {
         RequestId = requestId,

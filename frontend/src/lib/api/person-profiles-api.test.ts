@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as ApiUtils from "../core/api-utils";
 import {
   getPersonProfile,
+  getPersonJobTitles,
   upsertPersonProfile,
   linkUserToPersonProfile,
   unlinkUserFromPersonProfile,
@@ -84,6 +85,36 @@ describe("person-profiles-api", () => {
 
       const result = await getPersonProfile("not-found");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("getPersonJobTitles (bulk)", () => {
+    it("returns [] without calling fetch for an empty id list", async () => {
+      const result = await getPersonJobTitles([]);
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("sends one POST to /job-titles with the ids in the JSON body (no URL-length limit)", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) });
+
+      await getPersonJobTitles(["a", "b"]);
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe("http://localhost:5000/api/person-profiles/job-titles");
+      expect(init).toEqual(
+        expect.objectContaining({ method: "POST", credentials: "include" }),
+      );
+      expect(JSON.parse(init.body as string)).toEqual(["a", "b"]);
+    });
+
+    it("returns the parsed job-title label array", async () => {
+      const labels = [{ resourceId: "res-1", jobTitleName: "Software Engineer" }];
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(labels) });
+
+      const result = await getPersonJobTitles(["res-1"]);
+      expect(result).toEqual(labels);
     });
   });
 

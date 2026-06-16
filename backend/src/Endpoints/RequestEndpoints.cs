@@ -22,8 +22,8 @@ public static class RequestEndpoints
             {
                 if (conflicted)
                 {
-                    // Tenant-wide: requests that currently have ≥1 conflict (the registry decides).
-                    var registry = await conflictService.GetAllAsync(ct);
+                    // Tenant-wide / all-time: requests that currently have ≥1 conflict (the registry decides).
+                    var registry = await conflictService.GetAllAsync(ct: ct);
                     var ids = registry.Select(r => r.RequestId).ToList();
                     return Results.Ok(await requestService.GetByIdsAsync(ids, includeRequirements, ct));
                 }

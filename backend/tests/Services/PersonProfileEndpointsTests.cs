@@ -191,4 +191,36 @@ public class PersonProfileEndpointsTests
         var unlinkResp = await _client.DeleteAsync($"/api/person-profiles/{person.Id}/link");
         Assert.Equal(HttpStatusCode.NotFound, unlinkResp.StatusCode);
     }
+
+    [Fact]
+    public async Task GetPersonJobTitles_ReturnsLabelsForGivenResources()
+    {
+        var p1 = await CreatePersonAsync($"BP1-{Guid.NewGuid():N}"[..20]);
+        var p2 = await CreatePersonAsync($"BP2-{Guid.NewGuid():N}"[..20]);
+        var jobTitleId = await CreateJobTitleAsync($"JT-{Guid.NewGuid():N}"[..20]);
+        await _client.PutAsJsonAsync($"/api/person-profiles/{p1.Id}", new UpsertPersonProfileRequest { JobTitleId = jobTitleId });
+        await _client.PutAsJsonAsync($"/api/person-profiles/{p2.Id}", new UpsertPersonProfileRequest { Email = "bp2@example.com" });
+
+        // Include an unknown id — it should simply be omitted, not error.
+        var resp = await _client.PostAsJsonAsync(
+            "/api/person-profiles/job-titles", new[] { p1.Id, p2.Id, Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var labels = await resp.Content.ReadFromJsonAsync<List<PersonJobTitleInfo>>();
+        Assert.NotNull(labels);
+        Assert.Equal(2, labels.Count);
+        Assert.Contains(labels, l => l.ResourceId == p1.Id && l.JobTitleName != null);
+        Assert.Contains(labels, l => l.ResourceId == p2.Id && l.JobTitleName == null);
+    }
+
+    [Fact]
+    public async Task GetPersonJobTitles_NoIds_ReturnsEmptyArray()
+    {
+        var resp = await _client.PostAsJsonAsync("/api/person-profiles/job-titles", Array.Empty<Guid>());
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var labels = await resp.Content.ReadFromJsonAsync<List<PersonJobTitleInfo>>();
+        Assert.NotNull(labels);
+        Assert.Empty(labels);
+    }
 }

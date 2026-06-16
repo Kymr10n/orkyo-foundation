@@ -104,19 +104,28 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
-    public async Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default)
+    public Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default)
+        => GetScheduledCoreAsync(null, null, ct);
+
+    public Task<List<RequestInfo>> GetScheduledAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        => GetScheduledCoreAsync(from, to, ct);
+
+    private async Task<List<RequestInfo>> GetScheduledCoreAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
-        // All scheduled requests with a (non-cancelled) space assignment, tenant-wide. No
-        // scheduling_settings_apply filter — the conflicts registry mirrors what the grid surfaces
-        // for every scheduled bar.
+        // All scheduled requests with a (non-cancelled) space assignment, tenant-wide. When a
+        // [from,to] window is supplied (utilization grid) only bars overlapping it are returned;
+        // without one (Conflicts page) the registry is all-time. No scheduling_settings_apply filter
+        // — the registry mirrors what the grid surfaces for every scheduled bar.
+        var windowed = from.HasValue && to.HasValue;
+        var windowClause = windowed ? " AND start_ts <= @to AND end_ts >= @from" : "";
         var requests = new List<RequestInfo>();
         var cmd = new NpgsqlCommand($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
-            WHERE start_ts IS NOT NULL
+            WHERE start_ts IS NOT NULL{windowClause}
               AND EXISTS (
                 SELECT 1 FROM resource_assignments ra
                 JOIN resources res ON res.id = ra.resource_id
@@ -127,6 +136,11 @@ public class RequestRepository : IRequestRepository
               )", db);
         cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+        if (windowed)
+        {
+            cmd.Parameters.AddWithValue("from", from!.Value);
+            cmd.Parameters.AddWithValue("to", to!.Value);
+        }
 
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))

@@ -39,8 +39,12 @@ public interface IRequestRepository
     Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default);
 
     /// <summary>All scheduled requests tenant-wide (have a space assignment + start_ts), requirements
-    /// hydrated — the authoritative input for the conflicts registry.</summary>
+    /// hydrated — the authoritative input for the all-time conflicts registry.</summary>
     Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default);
+
+    /// <summary>Scheduled requests tenant-wide whose bar overlaps [from,to] — the windowed conflicts
+    /// feed for the utilization grid (all sites, scoped to the visible window).</summary>
+    Task<List<RequestInfo>> GetScheduledAsync(DateTime from, DateTime to, CancellationToken ct = default);
 
     /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
     Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);

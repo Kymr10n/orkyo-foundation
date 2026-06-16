@@ -28,6 +28,18 @@ public class ConflictsEndpointTests
     }
 
     [Fact]
+    public async Task GetConflicts_WithWindow_Returns200_Array()
+    {
+        var from = Uri.EscapeDataString(DateTime.UtcNow.AddDays(-7).ToString("o"));
+        var to = Uri.EscapeDataString(DateTime.UtcNow.AddDays(7).ToString("o"));
+        var response = await _client.GetAsync($"/api/conflicts?from={from}&to={to}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Array, body.ValueKind);
+    }
+
+    [Fact]
     public async Task GetConflicts_Unauthenticated_Returns401()
     {
         var response = await _anonClient.GetAsync("/api/conflicts");

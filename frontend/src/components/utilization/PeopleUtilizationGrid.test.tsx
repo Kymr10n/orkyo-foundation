@@ -14,7 +14,7 @@ vi.mock('@foundation/src/lib/api/resource-utilization-api', () => ({
   getUtilizationByResource: vi.fn(),
 }));
 vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
-  getPersonProfile: vi.fn().mockResolvedValue(null),
+  getPersonJobTitles: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn().mockResolvedValue([]),
@@ -32,7 +32,7 @@ vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
 import { getUtilizationByResource } from '@foundation/src/lib/api/resource-utilization-api';
-import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
+import { getPersonJobTitles } from '@foundation/src/lib/api/person-profiles-api';
 import { getResourceGroups, getResourceGroupMembers } from '@foundation/src/lib/api/resource-groups-api';
 import { getAssignmentsByResourceType, validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
 import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
@@ -114,7 +114,7 @@ describe('PeopleUtilizationGrid', () => {
     useAppStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
     vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableBuckets));
-    vi.mocked(getPersonProfile).mockResolvedValue(null as never);
+    vi.mocked(getPersonJobTitles).mockResolvedValue([]);
     vi.mocked(getResourceGroups).mockResolvedValue([]);
     vi.mocked(getResourceGroupMembers).mockResolvedValue({ groupId: '', members: [] });
   });
@@ -157,16 +157,27 @@ describe('PeopleUtilizationGrid', () => {
     expect(useAppStore.getState().collapsedGroupIds).not.toContain('ungrouped');
   });
 
-  it('shows job title from profile when available', async () => {
-    vi.mocked(getPersonProfile).mockResolvedValue({
-      resourceId: 'p-alice',
-      jobTitleName: 'Senior Engineer',
-      createdAt: '2026-01-01T00:00:00Z',
-      updatedAt: '2026-01-01T00:00:00Z',
-    });
+  it('shows job title from the label projection when available', async () => {
+    vi.mocked(getPersonJobTitles).mockResolvedValue([
+      { resourceId: 'p-alice', jobTitleName: 'Senior Engineer' },
+    ]);
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     await waitFor(() => expect(screen.getAllByText('Senior Engineer').length).toBeGreaterThan(0));
+  });
+
+  it('fetches job-title labels in a single bulk request (no per-person fan-out)', async () => {
+    renderGrid();
+    await waitFor(() => expect(getPersonJobTitles).toHaveBeenCalledTimes(1));
+    expect(getPersonJobTitles).toHaveBeenCalledWith(['p-alice', 'p-bob']);
+  });
+
+  it('surfaces an explicit error state when a data query fails (no silent swallow)', async () => {
+    vi.mocked(getUtilizationByResource).mockRejectedValue(new Error('boom'));
+    renderGrid();
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t load people utilization/i),
+    );
   });
 
   it('calls getResources with person resourceTypeKey and isActive=true', async () => {
@@ -407,5 +418,70 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     expect(validateAssignmentsBatch).not.toHaveBeenCalled();
+  });
+
+  it('runs the deferred capability conflict-check after the delay', async () => {
+    // Real timers (not fake) so react-query's own scheduling stays intact; the deferred
+    // check fires ~CONFLICT_CHECK_DELAY_MS later, so allow a generous waitFor window.
+    vi.mocked(getAssignmentsByResourceType).mockResolvedValue([oneAssignment]);
+    vi.mocked(validateAssignmentsBatch).mockResolvedValue([
+      {
+        requestId: 'req-1',
+        resourceId: 'p-alice',
+        result: { blockers: [{ code: 'capability.missing' }], warnings: [] },
+      },
+    ] as never);
+    renderGrid();
+    await waitFor(() => screen.getByText('Alice Smith'));
+    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalledTimes(1), { timeout: 3000 });
+  });
+
+  // ── Grouping ────────────────────────────────────────────────────────────────
+
+  it('renders people under their resource group, with the rest under Ungrouped', async () => {
+    vi.mocked(getResourceGroups).mockResolvedValue([{
+      id: 'g1',
+      name: 'Production Crew',
+      defaultAvailabilityPercent: 100,
+      memberCount: 1,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      resourceTypeKey: 'person',
+      displayOrder: 0,
+    }]);
+    vi.mocked(getResourceGroupMembers).mockResolvedValue({
+      groupId: 'g1',
+      members: [twoPeople.data[0]], // Alice belongs to the group; Bob does not
+    });
+    renderGrid();
+    await waitFor(() => expect(screen.getByText('Production Crew')).toBeInTheDocument());
+    expect(screen.getByText('Ungrouped')).toBeInTheDocument();
+    expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+    expect(screen.getByText('Bob Jones')).toBeInTheDocument();
+  });
+
+  // ── Utilization edge cases ───────────────────────────────────────────────────
+
+  it('shows 0% when a person has no working (available) buckets', async () => {
+    const offBuckets = makeBuckets(31, { effectiveAvailabilityPercent: 0 });
+    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(offBuckets));
+    renderGrid();
+    await waitFor(() => screen.getByText('Alice Smith'));
+    await waitFor(() => expect(screen.getAllByText('0%').length).toBeGreaterThan(0));
+  });
+
+  // ── Dialog lifecycle ─────────────────────────────────────────────────────────
+
+  it('closes the person assignment dialog on dismiss', async () => {
+    renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
+    await waitFor(() => screen.getByText('Alice Smith'));
+    await waitFor(() => expect(screen.getAllByTestId('person-segment-bar').length).toBeGreaterThan(0));
+    await userEvent.click(screen.getAllByTestId('person-segment-bar')[0]);
+    await waitFor(() => expect(screen.getByTestId('person-assignment-dialog')).toBeInTheDocument());
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByTestId('person-assignment-dialog')).not.toBeInTheDocument(),
+    );
   });
 });

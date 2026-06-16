@@ -92,6 +92,60 @@ public class RequestLoggingMiddlewareTests
             Times.Once);
     }
 
+    // ── Client cancellation (499) — quiet Information, not Error ────────────
+
+    [Fact]
+    public async Task InvokeAsync_ClientCancellation_LogsInformationNotError()
+    {
+        var ctx = CreateContext();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        ctx.RequestAborted = cts.Token;
+
+        var middleware = CreateMiddleware(_ => throw new OperationCanceledException(cts.Token));
+
+        var act = () => middleware.InvokeAsync(ctx);
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("499")),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_CancellationNotFromClient_LogsError()
+    {
+        // RequestAborted is NOT cancelled (e.g. a server-side timeout token) → surfaced loudly,
+        // never swallowed as a quiet client-cancel.
+        var ctx = CreateContext();
+        var middleware = CreateMiddleware(_ => throw new OperationCanceledException());
+
+        var act = () => middleware.InvokeAsync(ctx);
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
     // ── Calls next delegate ────────────────────────────────────────────────
 
     [Fact]

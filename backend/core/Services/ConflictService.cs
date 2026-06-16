@@ -16,8 +16,13 @@ namespace Api.Services;
 /// </summary>
 public interface IConflictService
 {
-    /// <summary>One entry per request that has at least one conflict, tenant-wide / all-time.</summary>
-    Task<List<RequestConflictInfo>> GetAllAsync(CancellationToken ct = default);
+    /// <summary>
+    /// One entry per request that has at least one conflict. Tenant-wide; all-time by default, or
+    /// scoped to scheduled bars overlapping [<paramref name="from"/>,<paramref name="to"/>] when a
+    /// window is supplied (the utilization grid passes its visible window; the Conflicts page omits
+    /// it for the authoritative all-time view).
+    /// </summary>
+    Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
 }
 
 public class ConflictService(
@@ -26,9 +31,11 @@ public class ConflictService(
     ICapabilityMatcher capabilityMatcher,
     IResourceCapabilityRepository capabilityRepository) : IConflictService
 {
-    public async Task<List<RequestConflictInfo>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
-        var requests = await requestRepository.GetScheduledAsync(ct);
+        var requests = from.HasValue && to.HasValue
+            ? await requestRepository.GetScheduledAsync(from.Value, to.Value, ct)
+            : await requestRepository.GetScheduledAsync(ct);
         if (requests.Count == 0) return [];
 
         // Validate every non-cancelled assignment (room + people + tools) of each request in one

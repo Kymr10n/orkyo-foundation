@@ -40,6 +40,23 @@ export async function getPersonProfile(resourceId: string): Promise<PersonProfil
   return apiGet<PersonProfileInfo>(API_PATHS.personProfile(resourceId));
 }
 
+/** Lightweight per-person job-title label for the utilization grid (not the full profile). */
+export interface PersonJobTitleInfo {
+  resourceId: string;
+  jobTitleName?: string;
+}
+
+/**
+ * Bulk-get job-title labels for many person resources in a single request — replaces a per-person
+ * profile fan-out on the utilization grid. POST (not GET) so a large id set isn't capped by URL
+ * length; returns only `{ resourceId, jobTitleName }` rather than full profiles. Order is not
+ * guaranteed (callers index by `resourceId`).
+ */
+export async function getPersonJobTitles(resourceIds: string[]): Promise<PersonJobTitleInfo[]> {
+  if (resourceIds.length === 0) return [];
+  return apiPost<PersonJobTitleInfo[]>(API_PATHS.PERSON_PROFILE_JOB_TITLES, resourceIds);
+}
+
 /**
  * Upsert a person profile
  */

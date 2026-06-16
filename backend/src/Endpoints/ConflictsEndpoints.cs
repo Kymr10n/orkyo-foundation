@@ -23,13 +23,15 @@ public static class ConflictsEndpoints
             .RequireTenantMembership();
 
         group.MapGet("/", async (
+            DateTime? from,
+            DateTime? to,
             [FromServices] IConflictService conflictService,
             ILogger<EndpointLoggerCategory> logger,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await conflictService.GetAllAsync(ct)),
+                async () => Results.Ok(await conflictService.GetAllAsync(from, to, ct)),
                 logger, "list conflicts"))
             .WithName("ListConflicts")
-            .WithSummary("Tenant-wide conflicts registry (all sites, all dates)");
+            .WithSummary("Tenant-wide conflicts registry — all-time, or scoped to [from,to] when supplied");
     }
 }

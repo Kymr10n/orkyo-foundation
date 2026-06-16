@@ -25,6 +25,17 @@ public record PersonProfileInfo
 }
 
 /// <summary>
+/// Lightweight per-person job-title projection for the utilization grid's label cells.
+/// Avoids hydrating the full <see cref="PersonProfileInfo"/> (recursive department CTE +
+/// note decryption) when only the job title is rendered.
+/// </summary>
+public record PersonJobTitleInfo
+{
+    public required Guid ResourceId { get; init; }
+    public string? JobTitleName { get; init; }
+}
+
+/// <summary>
 /// Request to upsert a person profile. Reference data is set via ID.
 /// </summary>
 public record UpsertPersonProfileRequest

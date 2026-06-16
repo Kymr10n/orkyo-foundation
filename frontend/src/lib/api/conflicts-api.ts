@@ -17,6 +17,17 @@ export interface RequestConflicts {
   conflicts: Conflict[];
 }
 
-export async function getConflicts(): Promise<RequestConflicts[]> {
-  return apiGet<RequestConflicts[]>(API_PATHS.CONFLICTS);
+/** Optional date window — scopes the registry to scheduled bars overlapping [from,to]. */
+export interface ConflictWindow {
+  from: Date;
+  to: Date;
+}
+
+export async function getConflicts(window?: ConflictWindow): Promise<RequestConflicts[]> {
+  return apiGet<RequestConflicts[]>(
+    API_PATHS.CONFLICTS,
+    window
+      ? { params: { from: window.from.toISOString(), to: window.to.toISOString() } }
+      : undefined,
+  );
 }

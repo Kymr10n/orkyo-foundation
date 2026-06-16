@@ -8,6 +8,9 @@ namespace Api.Repositories;
 public interface IPersonProfileRepository
 {
     Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId, CancellationToken ct = default);
+    /// <summary>Bulk job-title labels for many person resources in one round-trip — the utilization
+    /// grid's label cells. Intentionally skips the full profile (department CTE + note decryption).</summary>
+    Task<List<PersonJobTitleInfo>> GetJobTitlesByResourceIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
     Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId, CancellationToken ct = default);
     Task<PersonProfileInfo> UpsertAsync(Guid resourceId, UpsertPersonProfileRequest request, CancellationToken ct = default);
     Task<bool> LinkUserAsync(Guid resourceId, Guid userId, CancellationToken ct = default);
@@ -69,6 +72,24 @@ public class PersonProfileRepository(
             $"{SelectSqlBody} WHERE p.resource_id = @resourceId",
             p => p.AddWithValue("resourceId", resourceId), Map, ct);
         return profile is null ? null : Dec(profile);
+    }
+
+    public async Task<List<PersonJobTitleInfo>> GetJobTitlesByResourceIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        return await db.QueryListAsync(
+            @"SELECT p.resource_id, jt.name AS job_title_name
+              FROM person_profiles p
+              LEFT JOIN job_titles jt ON jt.id = p.job_title_id
+              WHERE p.resource_id = ANY(@resourceIds)",
+            p => p.AddWithValue("resourceIds", resourceIds.ToArray()),
+            r => new PersonJobTitleInfo
+            {
+                ResourceId = r.GetGuid(0),
+                JobTitleName = r.IsDBNull(1) ? null : r.GetString(1),
+            },
+            ct);
     }
 
     public async Task<PersonProfileInfo?> GetByLinkedUserIdAsync(Guid userId, CancellationToken ct = default)

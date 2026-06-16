@@ -5,7 +5,7 @@ import {
   getUtilizationByResource,
   type ResourceUtilizationBucket,
 } from '@foundation/src/lib/api/resource-utilization-api';
-import { getPersonProfile, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
+import { getPersonJobTitles } from '@foundation/src/lib/api/person-profiles-api';
 import {
   getResourceGroups,
   getResourceGroupMembers,
@@ -121,7 +121,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
   // 1. People resources
-  const { data: peopleResponse, isLoading: peopleLoading } = useQuery({
+  const { data: peopleResponse, isLoading: peopleLoading, isError: peopleError } = useQuery({
     queryKey: ['resources', 'person', 'utilization-grid'],
     queryFn: () => getResources({ resourceTypeKey: 'person', isActive: true }),
   });
@@ -146,7 +146,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   // 4. Utilization for every person in a single request (replaces the old
   //    one-query-per-person fan-out). Grouped into a resourceId→buckets map.
-  const { data: utilizationByResource = [], isLoading: utilizationLoading } = useQuery({
+  const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError } = useQuery({
     queryKey: ['utilization-by-resource', 'person', from.toISOString(), to.toISOString(), granularity],
     queryFn: () => getUtilizationByResource(from, to, granularity, 'person'),
     staleTime: 60_000,
@@ -158,18 +158,25 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     return map;
   }, [utilizationByResource]);
 
-  // 5. Per-person profile (for job title in the label cell)
-  const profileQueries = useQueries({
-    queries: people.map((p) => ({
-      queryKey: ['person-profile', p.id],
-      queryFn: () => getPersonProfile(p.id).catch(() => null),
-      staleTime: 5 * 60_000,
-    })),
+  // 5. Job-title labels in one request — replaces the old one-query-per-person fan-out (which also
+  //    swallowed every failure with `.catch(() => null)`). Fetches only the label the grid renders,
+  //    not the full profile; failures surface via `jobTitlesError` instead of disappearing silently.
+  const peopleIds = useMemo(() => people.map((p) => p.id), [people]);
+  const { data: jobTitles = [], isError: jobTitlesError } = useQuery({
+    queryKey: ['person-job-titles', peopleIds],
+    queryFn: () => getPersonJobTitles(peopleIds),
+    enabled: peopleIds.length > 0,
+    staleTime: 5 * 60_000,
   });
+  const jobTitleByResource = useMemo(() => {
+    const map = new Map<string, string | undefined>();
+    for (const j of jobTitles) map.set(j.resourceId, j.jobTitleName);
+    return map;
+  }, [jobTitles]);
 
   // 6. Assignments for every person in the window, in one request — drives the
   //    per-segment count badge. Grouped into a resourceId→assignments map.
-  const { data: allAssignmentsFlat = [] } = useQuery({
+  const { data: allAssignmentsFlat = [], isError: assignmentsError } = useQuery({
     queryKey: ['resource-assignments-by-type', 'person', from.toISOString(), to.toISOString()],
     queryFn: () => getAssignmentsByResourceType('person', from, to),
     staleTime: 60_000,
@@ -222,13 +229,6 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     enabled: conflictCheckReady,
     staleTime: 60_000,
   });
-
-  // Build a personId → utilization-query-index lookup once.
-  const personIndex = useMemo(() => {
-    const map = new Map<string, number>();
-    people.forEach((p, i) => map.set(p.id, i));
-    return map;
-  }, [people]);
 
   // Build groups → people mapping. Mirrors SchedulerGrid's sort logic: groups
   // sorted by displayOrder, ungrouped bucket last.
@@ -291,6 +291,19 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     return <LoadingSpinner fullScreen={false} message="Loading people…" />;
   }
 
+  // Surface load failures explicitly instead of swallowing them (a silent empty/stuck grid was
+  // the confusing part). Covers the grid's data: people, utilization, assignments and profiles.
+  if (peopleError || utilizationError || assignmentsError || jobTitlesError) {
+    return (
+      <div
+        role="alert"
+        className="h-full flex items-center justify-center text-sm text-destructive"
+      >
+        Couldn’t load people utilization. Please refresh to try again.
+      </div>
+    );
+  }
+
   if (people.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
@@ -339,19 +352,16 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
         className="h-full flex flex-col overflow-hidden rounded-xl border bg-background"
         testId="people-utilization-grid"
         renderRow={(person) => {
-          const pIdx = personIndex.get(person.id) ?? -1;
           const buckets = bucketsByResource.get(person.id) ?? [];
           const isLoadingRow = utilizationLoading;
-          const profile = (pIdx >= 0
-            ? (profileQueries[pIdx]?.data as PersonProfileInfo | null | undefined)
-            : null);
+          const jobTitle = jobTitleByResource.get(person.id);
           const overallPct = overallPercent(buckets, person.id, offTimes);
           const assignments = assignmentsByResource.get(person.id) ?? [];
           const segments = mergeBucketsToSegments(buckets, person.id, offTimes);
           return (
             <PersonTimelineRow
               person={person}
-              jobTitle={profile?.jobTitleName}
+              jobTitle={jobTitle}
               segments={segments}
               isLoadingRow={isLoadingRow}
               overallPct={overallPct}

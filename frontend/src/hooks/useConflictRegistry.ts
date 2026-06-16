@@ -11,11 +11,25 @@ import type { Conflict } from "@foundation/src/types/requests";
  *
  * Conflict mutations should `invalidateQueries({ queryKey: ["conflicts"] })`.
  */
-export function useConflictRegistry() {
+export interface UseConflictRegistryOptions {
+  /** Scope the registry to scheduled bars overlapping this window (the utilization grid passes its
+   *  visible range). Omit both for the authoritative all-time view (Conflicts page / Requests badges). */
+  from?: Date;
+  to?: Date;
+  /** Skip the query entirely — e.g. the People tab, which computes its own windowed conflicts. */
+  enabled?: boolean;
+}
+
+export function useConflictRegistry(options?: UseConflictRegistryOptions) {
+  const { from, to, enabled = true } = options ?? {};
+  const windowed = from !== undefined && to !== undefined;
   const query = useQuery({
-    queryKey: ["conflicts"],
-    queryFn: getConflicts,
+    // Keep "conflicts" as the key prefix so mutation invalidations (queryKey: ["conflicts"]) still
+    // match every windowed/all-time variant.
+    queryKey: ["conflicts", from?.toISOString() ?? "all", to?.toISOString() ?? "all"],
+    queryFn: () => getConflicts(windowed ? { from, to } : undefined),
     staleTime: 30_000,
+    enabled,
   });
 
   const conflictsByRequest = useMemo(() => {

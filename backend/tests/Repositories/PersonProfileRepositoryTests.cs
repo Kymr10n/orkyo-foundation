@@ -145,4 +145,32 @@ public class PersonProfileRepositoryTests
         Assert.NotNull(profile);
         Assert.Null(profile.LinkedUserId);
     }
+
+    [Fact]
+    public async Task GetJobTitles_ReturnsEmpty_ForEmptyInput()
+    {
+        var result = await _repo.GetJobTitlesByResourceIdsAsync([]);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetJobTitles_ReturnsRowsForResourcesWithProfiles()
+    {
+        var r1 = await SeedPersonResourceAsync();
+        var r2 = await SeedPersonResourceAsync();
+        await _repo.UpsertAsync(r1, new UpsertPersonProfileRequest { Email = "bulk-a@example.com" });
+        await _repo.UpsertAsync(r2, new UpsertPersonProfileRequest { Email = "bulk-b@example.com" });
+
+        // r3 is a person resource with NO profile row; the random id matches nothing at all.
+        var r3 = await SeedPersonResourceAsync();
+
+        var result = await _repo.GetJobTitlesByResourceIdsAsync([r1, r2, r3, Guid.NewGuid()]);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, j => j.ResourceId == r1);
+        Assert.Contains(result, j => j.ResourceId == r2);
+        Assert.DoesNotContain(result, j => j.ResourceId == r3);
+        // No job title assigned → null label; real title resolution is covered in the endpoint test.
+        Assert.All(result, j => Assert.Null(j.JobTitleName));
+    }
 }

@@ -190,9 +190,14 @@ export function UtilizationPage() {
     }
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
-  // Conflict detection — backend is the single source of truth (tenant-wide
-  // registry, shared with the Conflicts page and Requests-page badges).
-  const { conflictsByRequest: conflicts } = useConflictRegistry();
+  // Conflict detection — backend is the single source of truth. Scope the registry to the visible
+  // window (Calendar/Space) so it never evaluates the whole tenant all-time. The People tab computes
+  // its own windowed conflicts, so skip the registry there entirely.
+  const { conflictsByRequest: conflicts } = useConflictRegistry({
+    from: fetchWindow.from,
+    to: fetchWindow.to,
+    enabled: activeTab !== 'people',
+  });
   const conflictingRequestIds = useMemo(() => new Set(conflicts.keys()), [conflicts]);
 
   // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
