@@ -1,5 +1,5 @@
 using Api.Services;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace Api.Tests.Services;

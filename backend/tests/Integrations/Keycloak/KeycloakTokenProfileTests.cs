@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Api.Integrations.Keycloak;
 using Api.Security;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace Orkyo.Foundation.Tests.Integrations.Keycloak;
 

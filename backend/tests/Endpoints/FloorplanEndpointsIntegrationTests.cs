@@ -2,10 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using Api.Repositories;
 using Api.Services;
+using Api.Tests.TestHelpers;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -158,14 +157,8 @@ public class FloorplanEndpointsIntegrationTests
 
     #region Audit logging
 
-    // A real PNG ImageSharp can decode (the upload validates the image).
-    private static byte[] TestPng()
-    {
-        using var image = new Image<Rgba32>(10, 10);
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
-    }
+    // A valid PNG whose header the upload validation reads (format + dimensions).
+    private static byte[] TestPng() => TestImageFactory.Png(10, 10);
 
     private (IOrgDbConnectionFactory conn, OrgContext org) DbScope()
     {

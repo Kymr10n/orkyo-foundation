@@ -20,7 +20,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_WithoutRedis_RegistersInMemorySessionStore()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         provider.GetRequiredService<IBffSessionStore>().Should().BeOfType<InMemoryBffSessionStore>();
     }
@@ -28,7 +28,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_WithoutRedis_RegistersInMemoryPkceStore()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         provider.GetRequiredService<IBffPkceStateStore>().Should().BeOfType<InMemoryBffPkceStateStore>();
     }
@@ -38,7 +38,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_SetsApplicationNameToOrkyo()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         var dpOptions = provider.GetRequiredService<IOptions<DataProtectionOptions>>();
         dpOptions.Value.ApplicationDiscriminator.Should().Be("orkyo");
@@ -47,7 +47,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_WithoutRedis_DataProtectionCanProtectAndUnprotect()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         var dp = provider.GetRequiredService<IDataProtectionProvider>();
         var protector = dp.CreateProtector("BffSession");
@@ -62,7 +62,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_DataProtectionCiphertextNotEqualToPlaintext()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         var dp = provider.GetRequiredService<IDataProtectionProvider>();
         var protector = dp.CreateProtector("BffSession");
@@ -78,8 +78,8 @@ public class BffAuthenticationServiceExtensionsTests
     {
         // Two independently built containers must resolve the same discriminator
         // so that blue/green slots encrypt with the same app-scoped key ring.
-        var p1 = BuildProvider(redisConnection: null);
-        var p2 = BuildProvider(redisConnection: null);
+        var p1 = BuildProvider(valkeyConnection: null);
+        var p2 = BuildProvider(valkeyConnection: null);
 
         var disc1 = p1.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator;
         var disc2 = p2.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator;
@@ -92,7 +92,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_DefaultCookieName_WhenNotConfigured()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
 
@@ -102,7 +102,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_OverridesCookieName_WhenConfigured()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffCookieName] = "my-session"
         });
@@ -115,7 +115,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_SetsCookieDomain_WhenConfigured()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffCookieDomain] = ".orkyo.com"
         });
@@ -128,7 +128,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_CookieDomainIsNull_WhenEmptyString()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffCookieDomain] = ""
         });
@@ -141,7 +141,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_CookieSecureFalse_WhenExplicitlyDisabled()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffCookieSecure] = "false"
         });
@@ -154,7 +154,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_CookieSecureTrue_WhenExplicitlyEnabled()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffCookieSecure] = "true"
         });
@@ -168,7 +168,7 @@ public class BffAuthenticationServiceExtensionsTests
     public void AddBffAuthentication_BffOptions_CookieSecureDefaultsTrueInProduction()
     {
         // When BFF_COOKIE_SECURE is absent and environment is Production, secure defaults to true
-        var provider = BuildProvider(redisConnection: null, environmentName: EnvironmentNames.Production);
+        var provider = BuildProvider(valkeyConnection: null, environmentName: EnvironmentNames.Production);
 
         var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
 
@@ -178,7 +178,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_CookieSecureDefaultsFalseInDevelopment()
     {
-        var provider = BuildProvider(redisConnection: null, environmentName: EnvironmentNames.Development);
+        var provider = BuildProvider(valkeyConnection: null, environmentName: EnvironmentNames.Development);
 
         var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
 
@@ -188,7 +188,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_SetsRedirectUri_WhenConfigured()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffRedirectUri] = "https://orkyo.com/api/auth/bff/callback"
         });
@@ -201,7 +201,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_SetsAllowedHosts_WhenConfigured()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffAllowedHosts] = "orkyo.com,*.orkyo.com"
         });
@@ -214,7 +214,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_SetsSessionDuration_WhenConfigured()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffSessionDuration] = "12:00:00"
         });
@@ -227,7 +227,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public void AddBffAuthentication_BffOptions_SetsScopes_WhenConfigured()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffScopes] = "openid profile email offline_access"
         });
@@ -242,7 +242,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public async Task AddBffAuthentication_RegistersBffAuthScheme_WhenBffEnabled()
     {
-        var provider = BuildProvider(redisConnection: null, extra: new()
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
             [ConfigKeys.BffEnabled] = "true"
         });
@@ -257,7 +257,7 @@ public class BffAuthenticationServiceExtensionsTests
     [Fact]
     public async Task AddBffAuthentication_DoesNotRegisterBffAuthScheme_WhenBffDisabled()
     {
-        var provider = BuildProvider(redisConnection: null);
+        var provider = BuildProvider(valkeyConnection: null);
 
         // AddAuthentication() is not called when BFF is disabled, so the scheme provider is absent
         var schemes = provider.GetService<IAuthenticationSchemeProvider>();
@@ -269,13 +269,13 @@ public class BffAuthenticationServiceExtensionsTests
         // If schemes == null, AddAuthentication() was never called — BFF scheme definitely absent
     }
 
-    // ── ConnectionStrings:Redis fallback ──────────────────────────────────────
+    // ── ConnectionStrings:Valkey fallback ─────────────────────────────────────
 
     [Fact]
-    public void AddBffAuthentication_WithConnectionStringRedisKey_RegistersInMemoryStores_WhenMissingActualConnection()
+    public void AddBffAuthentication_WithConnectionStringValkeyKey_RegistersInMemoryStores_WhenMissingActualConnection()
     {
-        // ConnectionStrings:Redis key absent — should fall back to in-memory
-        var provider = BuildProvider(redisConnection: null);
+        // ConnectionStrings:Valkey key absent — should fall back to in-memory
+        var provider = BuildProvider(valkeyConnection: null);
 
         provider.GetRequiredService<IBffSessionStore>().Should().BeOfType<InMemoryBffSessionStore>();
     }
@@ -283,13 +283,13 @@ public class BffAuthenticationServiceExtensionsTests
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static ServiceProvider BuildProvider(
-        string? redisConnection,
+        string? valkeyConnection,
         Dictionary<string, string?>? extra = null,
         string environmentName = EnvironmentNames.Production)
     {
         var values = new Dictionary<string, string?>();
-        if (redisConnection != null)
-            values[ConfigKeys.RedisConnection] = redisConnection;
+        if (valkeyConnection != null)
+            values[ConfigKeys.ValkeyConnection] = valkeyConnection;
         if (extra != null)
             foreach (var (k, v) in extra)
                 values[k] = v;

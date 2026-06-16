@@ -64,10 +64,10 @@ public static class BffAuthenticationServiceExtensions
         // from IConfiguration inside individual handlers.
         services.Configure<TenantMiddlewareOptions>(configuration.GetSection("TenantResolution"));
 
-        // Register PKCE state store — Redis (atomic GETDEL) in production,
+        // Register PKCE state store — Valkey (atomic GETDEL) in production,
         // in-memory (ConcurrentDictionary.TryRemove) in development / test.
-        var redisConnection = configuration[ConfigKeys.RedisConnection] ?? configuration[ConfigKeys.ConnectionStringRedis];
-        if (!string.IsNullOrEmpty(redisConnection))
+        var valkeyConnection = configuration[ConfigKeys.ValkeyConnection] ?? configuration[ConfigKeys.ConnectionStringValkey];
+        if (!string.IsNullOrEmpty(valkeyConnection))
         {
             services.AddSingleton<IBffSessionStore, RedisBffSessionStore>();
             services.AddSingleton<IBffPkceStateStore, RedisBffPkceStateStore>();
@@ -79,14 +79,14 @@ public static class BffAuthenticationServiceExtensions
         }
 
         // Data Protection for encrypting session cookie values.
-        // Persist keys to Redis when Redis is configured so they survive container
+        // Persist keys to Valkey when Valkey is configured so they survive container
         // restarts and are shared across blue/green deployment slots. SetApplicationName
         // ensures keys are scoped to this app regardless of the host process name.
         var dpBuilder = services.AddDataProtection()
             .SetApplicationName("orkyo");
-        if (!string.IsNullOrEmpty(redisConnection))
+        if (!string.IsNullOrEmpty(valkeyConnection))
             dpBuilder.PersistKeysToStackExchangeRedis(
-                ConnectionMultiplexer.Connect(redisConnection),
+                ConnectionMultiplexer.Connect(valkeyConnection),
                 "DataProtection-Keys");
 
         // Named HttpClient for Keycloak token exchange

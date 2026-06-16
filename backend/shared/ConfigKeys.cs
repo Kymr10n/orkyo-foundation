@@ -12,8 +12,8 @@ public static class ConfigKeys
     // ── Connection strings ──────────────────────────────────────────────────
     public const string ConnectionStringPostgres = "Postgres";
     public const string ConnectionStringControlPlane = "ControlPlane";
-    public const string ConnectionStringRedis = "ConnectionStrings:Redis";
-    public const string RedisConnection = "REDIS_CONNECTION";
+    public const string ConnectionStringValkey = "ConnectionStrings:Valkey";
+    public const string ValkeyConnection = "VALKEY_CONNECTION";
 
     // ── OIDC / Keycloak ─────────────────────────────────────────────────────
     public const string OidcAuthority = "OIDC_AUTHORITY";

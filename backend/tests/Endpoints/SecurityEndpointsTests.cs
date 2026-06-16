@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;

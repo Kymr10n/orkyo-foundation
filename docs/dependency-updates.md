@@ -31,7 +31,7 @@ in later minors silently break in the lagging repos.
 **Backend (saas + foundation)**
 - `Microsoft.*` extensions 10.0.7 → 10.0.9
 - `MailKit` 4.16.0 → 4.17.0
-- `FluentAssertions` 8.9.0 → 8.10.0
+- ~~`FluentAssertions` 8.9.0 → 8.10.0~~ **DONE 2026-06-15: replaced with `AwesomeAssertions` 9.4.0** (OSS fork). FluentAssertions v8 is commercial-paid; Orkyo dependencies must never use commercial licenses. Namespace renamed `FluentAssertions` → `AwesomeAssertions` across saas + foundation + community test projects.
 - `StackExchange.Redis` 2.12.14 → 2.13.17
 - `Testcontainers.PostgreSql` 4.11.0 → 4.12.0
 - `CsvHelper` 33.0.1 → 33.1.0

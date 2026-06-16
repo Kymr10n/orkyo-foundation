@@ -1,5 +1,5 @@
 using Api.Models;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace Api.Tests.Models;

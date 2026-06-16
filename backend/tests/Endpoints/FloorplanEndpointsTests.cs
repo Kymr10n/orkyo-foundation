@@ -2,9 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Tests.TestHelpers;
 using Npgsql;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -292,23 +291,9 @@ public class FloorplanEndpointsTests
         return content;
     }
 
-    private static byte[] CreateTestPngImage()
-    {
-        using var image = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(10, 10);
-        image.Mutate(x => x.BackgroundColor(Color.Green));
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
-    }
+    private static byte[] CreateTestPngImage() => TestImageFactory.Png(10, 10);
 
-    private static byte[] CreateTestJpegImage()
-    {
-        using var image = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(10, 10);
-        image.Mutate(x => x.BackgroundColor(Color.Blue));
-        using var ms = new MemoryStream();
-        image.SaveAsJpeg(ms);
-        return ms.ToArray();
-    }
+    private static byte[] CreateTestJpegImage() => TestImageFactory.Jpeg(10, 10);
 
     private sealed record AssetRow(
         Guid Id,

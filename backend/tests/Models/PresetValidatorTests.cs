@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Api.Models;
 using Api.Models.Preset;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace Api.Tests.Models;

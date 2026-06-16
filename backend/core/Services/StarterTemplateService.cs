@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using Api.Models;
 using Api.Models.Preset;
 using Npgsql;
-using SixLabors.ImageSharp;
 
 namespace Api.Services;
 
@@ -149,15 +148,13 @@ public class StarterTemplateService : IStarterTemplateService
             using var ms = new MemoryStream();
             await resourceStream.CopyToAsync(ms);
 
-            ms.Position = 0;
-            var imageInfo = await Image.IdentifyAsync(ms, ct);
-            if (imageInfo is null)
+            var data = ms.ToArray();
+            if (!ImageHeaderReader.TryGetDimensions(data, out var width, out var height))
             {
                 _logger.LogWarning("Demo floorplan dimensions could not be read - skipping");
                 return;
             }
 
-            var data = ms.ToArray();
             var checksum = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
 
             await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
@@ -194,8 +191,8 @@ public class StarterTemplateService : IStarterTemplateService
             cmd.Parameters.AddWithValue("mime", "image/png");
             cmd.Parameters.AddWithValue("size", (long)data.Length);
             cmd.Parameters.AddWithValue("checksum", checksum);
-            cmd.Parameters.AddWithValue("w", imageInfo.Width);
-            cmd.Parameters.AddWithValue("h", imageInfo.Height);
+            cmd.Parameters.AddWithValue("w", width);
+            cmd.Parameters.AddWithValue("h", height);
             cmd.Parameters.AddWithValue("storageKind", AssetStorageKinds.Postgres);
             cmd.Parameters.AddWithValue("data", data);
             await cmd.ExecuteNonQueryAsync(ct);

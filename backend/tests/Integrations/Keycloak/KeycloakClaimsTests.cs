@@ -1,5 +1,5 @@
 using Api.Integrations.Keycloak;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Integrations.Keycloak;

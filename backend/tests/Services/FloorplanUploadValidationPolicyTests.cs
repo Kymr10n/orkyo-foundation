@@ -1,5 +1,5 @@
 using Api.Services;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace Orkyo.Foundation.Tests.Services;
 
@@ -100,8 +100,8 @@ public class FloorplanUploadValidationPolicyTests
     [Fact]
     public void AssertMimeAllowed_IsCaseSensitive_ToMatchExistingWireContract()
     {
-        // Caller is expected to lowercase the detected MIME (matching ImageSharp's
-        // DefaultMimeType lowercase output and the existing SaaS behavior).
+        // Caller is expected to lowercase the detected MIME (matching the canonical
+        // lowercase MIME types ImageHeaderReader emits and the existing SaaS behavior).
         var act = () => FloorplanUploadValidationPolicy.AssertMimeAllowed(
             "IMAGE/PNG", new[] { "image/png" });
         act.Should().Throw<ArgumentException>();

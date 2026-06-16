@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Api.Constants;
 using Api.Integrations.Keycloak;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 

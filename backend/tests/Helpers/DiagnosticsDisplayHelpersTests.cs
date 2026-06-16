@@ -1,5 +1,5 @@
 using Api.Helpers;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Helpers;

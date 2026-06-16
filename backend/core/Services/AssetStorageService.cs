@@ -2,8 +2,6 @@ using System.Security.Cryptography;
 using Api.Models;
 using Api.Repositories;
 using Api.Security.Quotas;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
 
 namespace Api.Services;
 
@@ -145,41 +143,17 @@ public class AssetStorageService(
             data = ms.ToArray();
         }
 
-        await using var detectStream = new MemoryStream(data);
-        IImageFormat format;
-        try
-        {
-            format = await Image.DetectFormatAsync(detectStream, ct)
-                ?? throw new ArgumentException("File is not a recognised image format");
-        }
-        catch (Exception ex) when (ex is not ArgumentException)
-        {
-            throw new ArgumentException("File is not a valid image", ex);
-        }
+        var detectedMimeType = ImageHeaderReader.DetectMimeType(data)
+            ?? throw new ArgumentException("File is not a recognised image format");
 
-        var detectedMimeType = format.DefaultMimeType.ToLowerInvariant();
         var allowedMimeTypes = FloorplanUploadValidationPolicy.ParseAllowedMimeTypes(settings.Upload_AllowedMimeTypes);
         FloorplanUploadValidationPolicy.AssertMimeAllowed(detectedMimeType, allowedMimeTypes);
 
         if (!FloorplanMimeExtensionPolicy.TryGetExtensionForMime(detectedMimeType, out var extension))
             throw new ArgumentException($"Unsupported image format: {detectedMimeType}");
 
-        int width;
-        int height;
-        await using (var dimensionsStream = new MemoryStream(data))
-        {
-            try
-            {
-                var info = await Image.IdentifyAsync(dimensionsStream, ct)
-                    ?? throw new ArgumentException("Could not read image dimensions");
-                width = info.Width;
-                height = info.Height;
-            }
-            catch (Exception ex) when (ex is not ArgumentException)
-            {
-                throw new ArgumentException("File is not a valid image", ex);
-            }
-        }
+        if (!ImageHeaderReader.TryGetDimensions(data, out var width, out var height))
+            throw new ArgumentException("Could not read image dimensions");
 
         var checksum = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
         return new ValidatedFloorplan(data, detectedMimeType, extension, checksum, width, height);
