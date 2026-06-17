@@ -1,5 +1,5 @@
-import { Button } from "@foundation/src/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@foundation/src/components/ui/dialog";
+import { ScaffoldDialog } from "@foundation/src/components/ui/ScaffoldDialog";
+import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@foundation/src/components/ui/tabs";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { Input } from "@foundation/src/components/ui/input";
@@ -33,7 +33,6 @@ type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
 const ANY_SITE = '__any_site__';
 import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
-import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
 import { RequestConstraintsSection } from "./RequestConstraintsSection";
@@ -157,8 +156,6 @@ export function RequestFormDialog({
   // (error → red, warning-only → amber), matching the per-row indicators.
   const resourceConflictDot = conflictDotClass(conflicts.filter((c) => c.resourceId));
   const requirementConflictDot = conflictDotClass(conflicts.filter((c) => c.criterionId));
-
-  const canEdit = useCanEdit();
 
   // Additional state not managed by the form hook
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
@@ -412,30 +409,32 @@ export function RequestFormDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-      <DialogContent
-        className="max-w-2xl h-[85dvh] flex flex-col p-0"
-        onOpenAutoFocus={(e) => {
+    <ScaffoldDialog
+      open={open}
+      onOpenChange={guardedOnOpenChange}
+      size="lg"
+      title={
+        <span className="text-xl">
+          {request ? "Edit Request" : isChildCreation ? "Add Child Request" : "Create New Request"}
+        </span>
+      }
+      description={
+        request
+          ? "Update the request details below."
+          : isChildCreation
+            ? `Adding a child request under "${parentRequest.name}".`
+            : "Fill in the details for your new space request."
+      }
+      contentProps={{
+        onOpenAutoFocus: (e) => {
           // Land focus on the first field, not the active tab — otherwise the
           // tab's keyboard-focus ring flashes on open. The ring still shows for
           // real keyboard tab navigation.
           e.preventDefault();
           nameInputRef.current?.focus();
-        }}
-      >
-        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-          <DialogTitle className="text-xl">
-            {request ? "Edit Request" : isChildCreation ? "Add Child Request" : "Create New Request"}
-          </DialogTitle>
-          <DialogDescription>
-            {request
-              ? "Update the request details below."
-              : isChildCreation
-                ? `Adding a child request under "${parentRequest.name}".`
-                : "Fill in the details for your new space request."}
-          </DialogDescription>
-        </DialogHeader>
-
+        },
+      }}
+    >
         <ConflictBanner conflicts={conflicts} />
 
         <form
@@ -821,22 +820,15 @@ export function RequestFormDialog({
           <div className="px-6 pt-3">
             <ErrorAlert message={validationError} />
           </div>
-          <div className="flex justify-end gap-3 px-6 py-4 shrink-0 bg-background">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => guardedOnOpenChange(false)}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSaving || hasPeopleBlockers || !canEdit}>
-              {isSaving ? "Saving..." : request ? "Update Request" : "Create Request"}
-            </Button>
-          </div>
+          <DialogFormFooter
+            className="px-6 py-4 shrink-0 bg-background"
+            onCancel={() => guardedOnOpenChange(false)}
+            isSubmitting={isSaving}
+            submitLabel={request ? "Update Request" : "Create Request"}
+            submitDisabled={hasPeopleBlockers}
+          />
         </form>
-      </DialogContent>
-    </Dialog>
+    </ScaffoldDialog>
     {ConfirmDiscardDialog}
     </>
   );

@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  ScrollableDialogBody,
-} from '@foundation/src/components/ui/dialog';
+import { ScrollableDialogBody } from '@foundation/src/components/ui/dialog';
+import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
+import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
 import {
   Tabs,
   TabsContent,
@@ -21,7 +17,6 @@ import {
   severityDotClass,
   type StatusItem,
 } from '@foundation/src/components/ui/status-indicator';
-import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import {
@@ -36,7 +31,7 @@ import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { useSites, useIsMultiSite } from '@foundation/src/hooks/useSites';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { Loader2, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import {
   createResource,
   updateResource,
@@ -287,12 +282,13 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const allStatusItems = detailsItems;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[520px] h-[600px] max-h-[85dvh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-          <DialogTitle>{person ? 'Edit Person' : 'Add Person'}</DialogTitle>
-        </DialogHeader>
-
+    <>
+      <ScaffoldDialog
+        open={isOpen}
+        onOpenChange={onClose}
+        contentClassName="sm:max-w-[520px] h-[600px] max-h-[85dvh]"
+        title={person ? 'Edit Person' : 'Add Person'}
+      >
         <StatusBanner items={allStatusItems} className="mx-6 mb-2 shrink-0" />
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
@@ -495,23 +491,15 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
           </Tabs>
 
           <Separator className="shrink-0" />
-          <div className="flex justify-end gap-3 px-6 py-4 shrink-0">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !form.name.trim() || !canEdit}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save'
-              )}
-            </Button>
-          </div>
+          <DialogFormFooter
+            className="px-6 py-4 shrink-0"
+            onCancel={onClose}
+            isSubmitting={isSubmitting}
+            submitLabel="Save"
+            submitDisabled={!form.name.trim()}
+          />
         </form>
-      </DialogContent>
+      </ScaffoldDialog>
 
       {/* Inline-create sub-dialogs. When the user saves a new job title or
           department, we auto-select it in the form so they don't have to find
@@ -534,6 +522,6 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
           onSaved={(d) => set('departmentId', d.id)}
         />
       )}
-    </Dialog>
+    </>
   );
 }

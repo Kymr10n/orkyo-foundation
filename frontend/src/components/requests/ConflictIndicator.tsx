@@ -34,6 +34,7 @@ export function ConflictIndicator({
  * ones (e.g. timing) that don't map to a single row. Renders nothing when there are no conflicts.
  */
 export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
+  if (conflicts.length === 0) return null;
   return (
     <div className="px-6 mb-2">
       <StatusBanner

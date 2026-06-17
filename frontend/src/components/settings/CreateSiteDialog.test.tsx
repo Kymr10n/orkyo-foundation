@@ -8,6 +8,7 @@ const mockMutateAsync = vi.fn(() =>
 );
 
 vi.mock('@foundation/src/components/ui/dialog', () => ({
+  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,

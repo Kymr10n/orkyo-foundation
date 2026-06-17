@@ -6,6 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollableDialogBody,
+  DIALOG_SIZE,
+  type DialogSize,
 } from '@foundation/src/components/ui/dialog';
 import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
@@ -16,6 +18,8 @@ export interface FormDialogProps {
   onOpenChange: (open: boolean) => void;
   title: ReactNode;
   description?: ReactNode;
+  /** Render the description visually hidden (still announced to screen readers). */
+  srOnlyDescription?: boolean;
   /** The form body (inputs, fields). Rendered above the error + footer. */
   children: ReactNode;
   /** Optional error message; passes through to <ErrorAlert />. */
@@ -27,7 +31,9 @@ export interface FormDialogProps {
   submittingLabel?: string;
   /** Disables the submit button when true even if not submitting (form validity). */
   submitDisabled?: boolean;
-  /** Tailwind size override for DialogContent (default sm:max-w-[500px]). */
+  /** Shared width token (default "md" = sm:max-w-[500px]). */
+  size?: DialogSize;
+  /** Tailwind size override for DialogContent; wins over `size` for one-offs. */
   contentClassName?: string;
 }
 
@@ -41,6 +47,7 @@ export function FormDialog({
   onOpenChange,
   title,
   description,
+  srOnlyDescription,
   children,
   error,
   onSubmit,
@@ -48,6 +55,7 @@ export function FormDialog({
   submitLabel,
   submittingLabel,
   submitDisabled,
+  size = 'md',
   contentClassName,
 }: FormDialogProps) {
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -61,11 +69,15 @@ export function FormDialog({
           default gap so the body's ScrollableDialogBody owns the spacing, and set
           the form width. Tall forms scroll their body with header/footer pinned. */}
       <DialogContent
-        className={cn('gap-0 sm:max-w-[500px]', contentClassName)}
+        className={cn('gap-0', DIALOG_SIZE[size], contentClassName)}
       >
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {description && (
+            <DialogDescription className={srOnlyDescription ? 'sr-only' : undefined}>
+              {description}
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">

@@ -7,6 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
   ScrollableDialogBody,
+  DIALOG_SIZE,
+  type DialogSize,
 } from "@foundation/src/components/ui/dialog";
 import {
   Sheet,
@@ -26,7 +28,9 @@ export interface ResponsiveDialogProps {
   children: ReactNode;
   /** Pinned footer (e.g. <DialogFormFooter /> or custom actions). */
   footer?: ReactNode;
-  /** Tailwind size override for the desktop/tablet DialogContent. */
+  /** Shared width token for the desktop/tablet DialogContent (default "md"). */
+  size?: DialogSize;
+  /** Tailwind size override for the desktop/tablet DialogContent; wins over `size`. */
   contentClassName?: string;
 }
 
@@ -47,6 +51,7 @@ export function ResponsiveDialog({
   description,
   children,
   footer,
+  size = "md",
   contentClassName,
 }: ResponsiveDialogProps) {
   const { isPhone } = useBreakpoint();
@@ -68,7 +73,7 @@ export function ResponsiveDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("gap-0 sm:max-w-[500px]", contentClassName)}>
+      <DialogContent className={cn("gap-0", DIALOG_SIZE[size], contentClassName)}>
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

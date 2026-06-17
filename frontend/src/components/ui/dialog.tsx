@@ -4,6 +4,19 @@ import { X } from "lucide-react"
 
 import { cn } from "@foundation/src/lib/utils"
 
+/**
+ * Shared dialog width vocabulary. Use the `size` prop on `FormDialog` /
+ * `ResponsiveDialog` / `ScaffoldDialog` instead of hardcoding `max-w-*` strings,
+ * so the handful of dialog widths stay consistent across the app.
+ */
+export type DialogSize = "sm" | "md" | "lg" | "xl"
+export const DIALOG_SIZE: Record<DialogSize, string> = {
+  sm: "sm:max-w-[440px]", // narrow forms
+  md: "sm:max-w-[500px]", // default form width
+  lg: "max-w-2xl", // tall / complex dialogs
+  xl: "max-w-3xl",
+}
+
 const Dialog = DialogPrimitive.Root
 
 const DialogPortal = DialogPrimitive.Portal

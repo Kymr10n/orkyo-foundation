@@ -7,25 +7,14 @@
  * - Error handling and validation
  */
 
-import { Button } from "@foundation/src/components/ui/button";
-import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import type { Space } from "@foundation/src/types/space";
-import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
-import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 interface EditSpaceDialogProps {
   space: Space;
@@ -49,7 +38,6 @@ export function EditSpaceDialog({
 
   const updateMutation = useUpdateSpace(siteId);
   const isSubmitting = updateMutation.isPending;
-  const canEdit = useCanEdit();
 
   useEffect(() => {
     if (open) {
@@ -73,8 +61,7 @@ export function EditSpaceDialog({
     onOpenChange,
   });
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
     if (!name.trim()) {
@@ -103,97 +90,71 @@ export function EditSpaceDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Edit Space</DialogTitle>
-          <DialogDescription className="sr-only">Update the name, description, and capacity for this space.</DialogDescription>
-        </DialogHeader>
+      <FormDialog
+        open={open}
+        onOpenChange={guardedOnOpenChange}
+        title="Edit Space"
+        description="Update the name, description, and capacity for this space."
+        srOnlyDescription
+        error={error}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        submitLabel="Save Changes"
+      >
+        {/* Code (read-only) */}
+        <div className="space-y-2">
+          <Label htmlFor="code">Code</Label>
+          <Input id="code" value={space.code || ""} disabled className="bg-muted" />
+          <p className="text-xs text-muted-foreground">
+            Code cannot be changed after creation
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Code (read-only) */}
-            <div className="space-y-2">
-              <Label htmlFor="code">Code</Label>
-              <Input
-                id="code"
-                value={space.code || ""}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                Code cannot be changed after creation
-              </p>
-            </div>
+        {/* Name */}
+        <div className="space-y-2">
+          <Label htmlFor="name">
+            Name <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g., Assembly Area A"
+            disabled={isSubmitting}
+            autoFocus
+          />
+        </div>
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Assembly Area A"
-                disabled={isSubmitting}
-                autoFocus
-              />
-            </div>
+        {/* Description */}
+        <div className="space-y-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional description..."
+            disabled={isSubmitting}
+            rows={3}
+          />
+        </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional description..."
-                disabled={isSubmitting}
-                rows={3}
-              />
-            </div>
-
-            {/* Capacity */}
-            <div className="space-y-2">
-              <Label htmlFor="capacity">Capacity</Label>
-              <Input
-                id="capacity"
-                type="number"
-                min={1}
-                value={capacity}
-                onChange={(e) => setCapacity(Math.max(1, parseInt(e.target.value) || 1))}
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-muted-foreground">
-                Number of concurrent allocations allowed (e.g., 5 for a hot desk area with 5 desks)
-              </p>
-            </div>
-
-            {/* Error message */}
-            <ErrorAlert message={error ?? null} />
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => guardedOnOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !canEdit}>
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-    {ConfirmDiscardDialog}
+        {/* Capacity */}
+        <div className="space-y-2">
+          <Label htmlFor="capacity">Capacity</Label>
+          <Input
+            id="capacity"
+            type="number"
+            min={1}
+            value={capacity}
+            onChange={(e) => setCapacity(Math.max(1, parseInt(e.target.value) || 1))}
+            disabled={isSubmitting}
+          />
+          <p className="text-xs text-muted-foreground">
+            Number of concurrent allocations allowed (e.g., 5 for a hot desk area with 5 desks)
+          </p>
+        </div>
+      </FormDialog>
+      {ConfirmDiscardDialog}
     </>
   );
 }

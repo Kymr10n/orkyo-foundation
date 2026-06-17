@@ -1,12 +1,6 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { ScaffoldDialog } from "@foundation/src/components/ui/ScaffoldDialog";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
 import { Input } from "@foundation/src/components/ui/input";
@@ -180,18 +174,15 @@ export function TemplateDialogBase({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl h-[85dvh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>
-            {isEditMode ? "Edit Request Template" : "Create Request Template"}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            {isEditMode ? "Edit an existing request template" : "Create a new request template"}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+    <ScaffoldDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      size="lg"
+      title={isEditMode ? "Edit Request Template" : "Create Request Template"}
+      description={isEditMode ? "Edit an existing request template" : "Create a new request template"}
+      srOnlyDescription
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <ScrollArea className="flex-1 px-6">
             <div className="space-y-6 pb-6">
               {/* Name */}
@@ -360,7 +351,6 @@ export function TemplateDialogBase({
             className="px-6 py-4"
           />
         </form>
-      </DialogContent>
-    </Dialog>
+    </ScaffoldDialog>
   );
 }

@@ -69,7 +69,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
       isSubmitting={saveMutation.isPending}
       submitLabel="Save"
       submitDisabled={!startDate || !endDate}
-      contentClassName="sm:max-w-[440px]"
+      size="sm"
     >
       <div className="space-y-2">
         <Label htmlFor="type">Type</Label>

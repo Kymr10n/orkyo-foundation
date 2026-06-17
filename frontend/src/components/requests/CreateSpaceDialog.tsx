@@ -9,16 +9,12 @@
  */
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@foundation/src/components/ui/dialog';
-import { Button } from '@foundation/src/components/ui/button';
-import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
 import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
 import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
-import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 interface CreateSpaceDialogProps {
   open: boolean;
@@ -40,7 +36,6 @@ export function CreateSpaceDialog({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canEdit = useCanEdit();
 
   const isDirty = name !== '' || code !== '' || description !== '';
 
@@ -49,8 +44,7 @@ export function CreateSpaceDialog({
     onOpenChange,
   });
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
     if (!name.trim()) {
@@ -83,100 +77,74 @@ export function CreateSpaceDialog({
     }
   };
 
-  const handleCancel = () => {
-    guardedOnOpenChange(false);
-  };
-
   const geometryInfo = `${geometry.type} with ${geometry.coordinates.length} points`;
 
   return (
     <>
-    <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Create New Space</DialogTitle>
-          <DialogDescription>
-            Define the space details for the area you've drawn on the floorplan.
-          </DialogDescription>
-        </DialogHeader>
+      <FormDialog
+        open={open}
+        onOpenChange={guardedOnOpenChange}
+        title="Create New Space"
+        description="Define the space details for the area you've drawn on the floorplan."
+        error={error}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        submitLabel="Create Space"
+      >
+        {/* Geometry info */}
+        <div className="rounded-lg bg-muted p-3 text-sm">
+          <p className="font-medium">Geometry: {geometryInfo}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Coordinates: {JSON.stringify(geometry.coordinates.slice(0, 2))}
+            {geometry.coordinates.length > 2 && '...'}
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Geometry info */}
-            <div className="rounded-lg bg-muted p-3 text-sm">
-              <p className="font-medium">Geometry: {geometryInfo}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Coordinates: {JSON.stringify(geometry.coordinates.slice(0, 2))}
-                {geometry.coordinates.length > 2 && '...'}
-              </p>
-            </div>
+        {/* Name */}
+        <div className="space-y-2">
+          <Label htmlFor="space-name" className="required">
+            Name <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="space-name"
+            placeholder="e.g., Assembly Zone A"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isSubmitting}
+            required
+            autoFocus
+          />
+        </div>
 
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="space-name" className="required">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="space-name"
-                placeholder="e.g., Assembly Zone A"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
-                required
-                autoFocus
-              />
-            </div>
+        {/* Code */}
+        <div className="space-y-2">
+          <Label htmlFor="space-code">Code</Label>
+          <Input
+            id="space-code"
+            placeholder="e.g., A-01"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            disabled={isSubmitting}
+          />
+          <p className="text-xs text-muted-foreground">
+            Optional short identifier for this space
+          </p>
+        </div>
 
-            {/* Code */}
-            <div className="space-y-2">
-              <Label htmlFor="space-code">Code</Label>
-              <Input
-                id="space-code"
-                placeholder="e.g., A-01"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-muted-foreground">
-                Optional short identifier for this space
-              </p>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="space-description">Description</Label>
-              <Textarea
-                id="space-description"
-                placeholder="Optional description..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isSubmitting}
-                rows={3}
-              />
-            </div>
-
-            {/* Error message */}
-            <ErrorAlert message={error ?? null} />
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCancel}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !canEdit}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Space
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-    {ConfirmDiscardDialog}
+        {/* Description */}
+        <div className="space-y-2">
+          <Label htmlFor="space-description">Description</Label>
+          <Textarea
+            id="space-description"
+            placeholder="Optional description..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isSubmitting}
+            rows={3}
+          />
+        </div>
+      </FormDialog>
+      {ConfirmDiscardDialog}
     </>
   );
 }

@@ -89,8 +89,9 @@ describe('ConflictsPage', () => {
 
     it('should display severity badges', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      expect(screen.getAllByText('error')).toHaveLength(2);
-      expect(screen.getAllByText('warning')).toHaveLength(1);
+      // "error"/"warning" severities render as "violation"/"advisory" (see getSeverityLabel).
+      expect(screen.getAllByText('violation')).toHaveLength(2);
+      expect(screen.getAllByText('advisory')).toHaveLength(1);
     });
 
     it('should display conflict kind badges', () => {
@@ -192,7 +193,8 @@ describe('ConflictsPage', () => {
 
     it('should apply error badge styling', () => {
       render(<ConflictsPage />, { wrapper: createWrapper() });
-      const errorBadges = screen.getAllByText('error');
+      // "error" severity renders the "violation" display label (see getSeverityLabel).
+      const errorBadges = screen.getAllByText('violation');
       errorBadges.forEach((badge) => {
         expect(badge.className).toMatch(/bg-red-100|dark:bg-red-900/);
       });
