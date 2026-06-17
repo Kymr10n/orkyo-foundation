@@ -43,19 +43,25 @@ export function getEventConflictSeverity(
  * Opaque bg + matching border for calendar event blocks. Kept separate from
  * getStatusColor (which is badge-sized and intentionally transparent) so the
  * two call sites can diverge independently.
+ *
+ * The `!` important modifier is required: FullCalendar injects its `.fc-event`
+ * colour rules *unlayered* at runtime, and under Tailwind v4 (utilities live in
+ * `@layer utilities`) unlayered CSS always beats layered utilities — so without
+ * `!important` request-calendar.css's `--fc-event-*: transparent` defaults win
+ * and the blocks render with no fill/border/text colour.
  */
 function getCalendarEventColor(status: RequestStatus): string {
   switch (status) {
     case "planned":
-      return "bg-blue-100 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300";
+      return "bg-blue-100! dark:bg-blue-950! border-blue-200! dark:border-blue-800! text-blue-800! dark:text-blue-300!";
     case "in_progress":
-      return "bg-amber-100 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300";
+      return "bg-amber-100! dark:bg-amber-950! border-amber-200! dark:border-amber-800! text-amber-800! dark:text-amber-300!";
     case "done":
-      return "bg-emerald-100 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300";
+      return "bg-emerald-100! dark:bg-emerald-950! border-emerald-200! dark:border-emerald-800! text-emerald-800! dark:text-emerald-300!";
     case "cancelled":
-      return "bg-muted border-muted-foreground/30 text-muted-foreground line-through";
+      return "bg-muted! border-muted-foreground/30! text-muted-foreground! line-through";
     default:
-      return "bg-muted border-muted-foreground/30 text-muted-foreground";
+      return "bg-muted! border-muted-foreground/30! text-muted-foreground!";
   }
 }
 
@@ -63,13 +69,14 @@ function getCalendarEventColor(status: RequestStatus): string {
  * Conflict-severity colours — the single source of truth shared by the calendar
  * event blocks (below) and the RequestCalendar legend swatches. Ring overlays are
  * not used — FullCalendar's nested overflow:hidden clips them, so severity is
- * expressed as a full background override.
+ * expressed as a full background override. `!` important is needed for the same
+ * reason as getCalendarEventColor (FC's unlayered rules beat layered utilities).
  */
 export const SEVERITY_EVENT_CLASS: Record<"error" | "warning", string[]> = {
-  error: ["bg-red-100", "dark:bg-red-950", "border-red-300", "dark:border-red-800",
-    "text-red-900", "dark:text-red-200"],
-  warning: ["bg-amber-100", "dark:bg-amber-950", "border-amber-300", "dark:border-amber-800",
-    "text-amber-900", "dark:text-amber-200"],
+  error: ["bg-red-100!", "dark:bg-red-950!", "border-red-300!", "dark:border-red-800!",
+    "text-red-900!", "dark:text-red-200!"],
+  warning: ["bg-amber-100!", "dark:bg-amber-950!", "border-amber-300!", "dark:border-amber-800!",
+    "text-amber-900!", "dark:text-amber-200!"],
 };
 
 /** Legend swatch (bg + border only) for the same severities. */

@@ -338,8 +338,8 @@ export function PersonAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden" data-testid="person-assignment-dialog">
-        <DialogHeader>
+      <DialogContent className="max-w-lg" data-testid="person-assignment-dialog">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Assignments — {personName}</DialogTitle>
           <DialogDescription>{formatPeriod(start, end)}</DialogDescription>
         </DialogHeader>
@@ -349,12 +349,12 @@ export function PersonAssignmentDialog({
             placeholder="Filter by request name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 text-sm"
+            className="h-8 text-sm shrink-0"
             data-testid="request-filter-input"
           />
         )}
 
-        <ScrollArea className="max-h-[55vh] pr-4">
+        <ScrollArea type="auto" className="flex-1 min-h-0 pr-4">
           <div className="space-y-4">
             {isLoading ? (
               <div className="text-center py-8 text-sm text-muted-foreground">Loading…</div>
@@ -523,7 +523,7 @@ export function PersonAssignmentDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>

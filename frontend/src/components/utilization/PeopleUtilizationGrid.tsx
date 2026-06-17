@@ -300,7 +300,12 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     return result;
   }, [people, groups, memberQueries, search]);
 
-  if (peopleLoading) {
+  // When a site is selected the visible row set is derived from the utilization buckets
+  // (see `people` below), so rendering before they arrive shows a misleading "No people"
+  // empty state. Gate the spinner on utilization in that case only — without a site the rows
+  // come straight from `allPeople` and render progressively (per-row "Loading…"). `placeholderData:
+  // prev` keeps utilizationLoading true only on first load, so window changes still update silently.
+  if (peopleLoading || (siteId && utilizationLoading)) {
     return <LoadingSpinner fullScreen={false} message="Loading people…" />;
   }
 
