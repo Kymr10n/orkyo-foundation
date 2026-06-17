@@ -49,6 +49,11 @@ export interface PeopleUtilizationGridProps {
   offTimeRanges?: readonly OffTimeRange[];
   /** When true, weekend columns are highlighted to match the Spaces grid. */
   weekendsEnabled?: boolean;
+  /**
+   * Selected site. When set, rows are limited to people homed at the site or assigned there during
+   * the visible window (server-filtered via the utilization query). Null = all people (no filter).
+   */
+  siteId?: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -104,7 +109,7 @@ interface DialogState {
   end: string;
 }
 
-export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], weekendsEnabled }: PeopleUtilizationGridProps) {
+export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId }: PeopleUtilizationGridProps) {
   const [search, setSearch] = useState('');
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
@@ -120,12 +125,13 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
-  // 1. People resources
+  // 1. People resources — name/metadata lookup (tenant-wide). The visible row set is derived below
+  //    from the utilization query, which is the site-filtered authority for "who's relevant".
   const { data: peopleResponse, isLoading: peopleLoading, isError: peopleError } = useQuery({
     queryKey: ['resources', 'person', 'utilization-grid'],
     queryFn: () => getResources({ resourceTypeKey: 'person', isActive: true }),
   });
-  const people: ResourceInfo[] = useMemo(() => peopleResponse?.data ?? [], [peopleResponse]);
+  const allPeople: ResourceInfo[] = useMemo(() => peopleResponse?.data ?? [], [peopleResponse]);
 
   // 2. Person groups
   const { data: groupsData } = useQuery({
@@ -147,8 +153,8 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   // 4. Utilization for every person in a single request (replaces the old
   //    one-query-per-person fan-out). Grouped into a resourceId→buckets map.
   const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError } = useQuery({
-    queryKey: ['utilization-by-resource', 'person', from.toISOString(), to.toISOString(), granularity],
-    queryFn: () => getUtilizationByResource(from, to, granularity, 'person'),
+    queryKey: ['utilization-by-resource', 'person', siteId ?? null, from.toISOString(), to.toISOString(), granularity],
+    queryFn: () => getUtilizationByResource(from, to, granularity, 'person', siteId ?? undefined),
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
@@ -157,6 +163,13 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     for (const r of utilizationByResource) map.set(r.resourceId, r.buckets);
     return map;
   }, [utilizationByResource]);
+
+  // Visible rows: when a site is selected, the utilization query is site+window filtered server-side,
+  // so its resource set is the authoritative row list (allPeople only supplies names/metadata).
+  const people: ResourceInfo[] = useMemo(
+    () => (siteId ? allPeople.filter((p) => bucketsByResource.has(p.id)) : allPeople),
+    [siteId, allPeople, bucketsByResource],
+  );
 
   // 5. Job-title labels in one request — replaces the old one-query-per-person fan-out (which also
   //    swallowed every failure with `.catch(() => null)`). Fetches only the label the grid renders,

@@ -674,6 +674,7 @@ export function UtilizationPage() {
             scale={scale}
             offTimeRanges={offTimeRanges}
             weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+            siteId={selectedSiteId}
           />
         </TabsContent>
 

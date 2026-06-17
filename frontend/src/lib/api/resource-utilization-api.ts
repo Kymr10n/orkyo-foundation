@@ -31,6 +31,7 @@ export async function getUtilizationByResource(
   to: Date,
   granularity: string,
   resourceTypeKey?: string,
+  siteId?: string | null,
 ): Promise<ResourceUtilizationByResource[]> {
   const params = new URLSearchParams({
     from: from.toISOString(),
@@ -38,6 +39,7 @@ export async function getUtilizationByResource(
     granularity,
   });
   if (resourceTypeKey) params.set('resourceTypeKey', resourceTypeKey);
+  if (siteId) params.set('siteId', siteId);
   return apiGet<ResourceUtilizationByResource[]>(
     `${API_PATHS.UTILIZATION_BY_RESOURCE}?${params}`,
   );

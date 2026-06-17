@@ -172,9 +172,13 @@ vi.mock("@foundation/src/domain/scheduling/weekend-ranges", () => ({
 
 // Capture DndContext.onDragEnd for handler testing
 let capturedOnDragEnd: ((event: any) => void) | null = null;
+let capturedOnDragStart: ((event: any) => void) | null = null;
+let capturedOnDragCancel: (() => void) | null = null;
 vi.mock("@dnd-kit/core", () => ({
-  DndContext: ({ children, onDragEnd }: any) => {
+  DndContext: ({ children, onDragEnd, onDragStart, onDragCancel }: any) => {
     capturedOnDragEnd = onDragEnd;
+    capturedOnDragStart = onDragStart;
+    capturedOnDragCancel = onDragCancel;
     return <div data-testid="dnd-context">{children}</div>;
   },
   DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
@@ -210,6 +214,12 @@ vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
       {onRequestResize && <button data-testid="resize-request" onClick={() => onRequestResize("r1", "2024-01-15T10:00:00Z", "2024-01-15T12:00:00Z")}>Resize</button>}
       {onTimeCursorClick && <button data-testid="cursor-click" onClick={() => onTimeCursorClick(new Date("2024-06-01"))}>Cursor</button>}
     </div>
+  ),
+}));
+
+vi.mock("@foundation/src/components/utilization/PeopleUtilizationGrid", () => ({
+  PeopleUtilizationGrid: ({ siteId }: any) => (
+    <div data-testid="people-utilization-grid" data-site-id={siteId ?? ""} />
   ),
 }));
 
@@ -257,17 +267,25 @@ vi.mock("@foundation/src/components/requests/RequestDetailsDialog", () => ({
 }));
 
 let capturedOnSlotSelect: ((start: Date, end: Date) => void) | null = null;
+let capturedOnEventClick: ((requestId: string) => void) | null = null;
+let capturedOnEventMove: ((requestId: string, start: Date, end: Date) => void) | null = null;
+let capturedOnDatesSet: ((scale: "day" | "week" | "month", start: Date) => void) | null = null;
 vi.mock("@foundation/src/components/utilization/RequestCalendar", () => ({
-  RequestCalendar: ({ onSlotSelect }: any) => {
+  RequestCalendar: ({ onSlotSelect, onEventClick, onEventMove, onDatesSet }: any) => {
     capturedOnSlotSelect = onSlotSelect;
+    capturedOnEventClick = onEventClick;
+    capturedOnEventMove = onEventMove;
+    capturedOnDatesSet = onDatesSet;
     return <div data-testid="request-calendar" />;
   },
 }));
 
 let capturedOnScheduleExisting: ((req: any) => void) | null = null;
+let capturedOnCreateNew: (() => void) | null = null;
 vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
-  ScheduleSlotDialog: ({ open, onScheduleExisting }: any) => {
+  ScheduleSlotDialog: ({ open, onScheduleExisting, onCreateNew }: any) => {
     capturedOnScheduleExisting = onScheduleExisting;
+    capturedOnCreateNew = onCreateNew;
     return open ? <div data-testid="slot-chooser" /> : null;
   },
 }));
@@ -302,8 +320,14 @@ describe("UtilizationPage", () => {
     mockUseAvailabilityEvents.mockReturnValue({ data: [] });
     capturedExportHandler = null;
     capturedOnDragEnd = null;
+    capturedOnDragStart = null;
+    capturedOnDragCancel = null;
     capturedOnSlotSelect = null;
+    capturedOnEventClick = null;
+    capturedOnEventMove = null;
+    capturedOnDatesSet = null;
     capturedOnScheduleExisting = null;
+    capturedOnCreateNew = null;
     mockStoreOverrides = {};
   });
 
@@ -600,6 +624,118 @@ describe("UtilizationPage", () => {
 
     await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
     expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-schedule-site-id", "site-1");
+  });
+
+  it("schedule-existing then save updates the request", async () => {
+    const { updateRequest } = await import("@foundation/src/lib/api/request-api");
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnSlotSelect!(new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T10:00:00Z"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    capturedOnScheduleExisting!({ id: "u-1", name: "Existing", planningMode: "leaf", siteId: null });
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("save-request"));
+    await waitFor(() => expect(updateRequest).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+  });
+
+  it("create-new from a slot then save creates a request", async () => {
+    const { createRequest } = await import("@foundation/src/lib/api/request-api");
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnSlotSelect!(new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T10:00:00Z"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    capturedOnCreateNew!();
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("save-request"));
+    await waitFor(() => expect(createRequest).toHaveBeenCalled());
+  });
+
+  it("clicking a calendar event opens the request editor", async () => {
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnEventClick!("r1");
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+  });
+
+  it("moving a calendar event reschedules it with its current space", async () => {
+    mockUseRequests.mockReturnValue({
+      data: [{
+        id: "r1", name: "Task 1",
+        assignments: [{ resourceTypeKey: "space", assignmentStatus: "Planned", resourceId: "s1" }],
+      }],
+      isLoading: false,
+    });
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnEventMove!("r1", new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T11:00:00Z"));
+    expect(mockScheduleMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "r1",
+        data: expect.objectContaining({ resourceId: "s1" }),
+      }),
+    );
+  });
+
+  it("calendar dates-set syncs the shared scale/anchor window", () => {
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    const start = new Date("2026-07-01T00:00:00Z");
+    capturedOnDatesSet!("week", start);
+    expect(mockSetAnchorTs).toHaveBeenCalledWith(start);
+  });
+
+  it("drag start sets the overlay label and drag cancel clears it", async () => {
+    const Wrapper = createWrapper("space");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnDragStart!({ active: { data: { current: { type: "request", name: "Task 1" } } } });
+    await waitFor(() => expect(screen.getByText("Task 1")).toBeInTheDocument());
+
+    capturedOnDragCancel!();
+    await waitFor(() => expect(screen.queryByText("Task 1")).not.toBeInTheDocument());
+  });
+
+  it("moving a calendar event with no space assignment does nothing", async () => {
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnEventMove!("r1", new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T11:00:00Z"));
+    expect(mockScheduleMutate).not.toHaveBeenCalled();
+  });
+
+  it("closing the calendar form dismisses it", async () => {
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnSlotSelect!(new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T10:00:00Z"));
+    await waitFor(() => screen.getByTestId("slot-chooser"));
+    capturedOnCreateNew!();
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("close-form"));
+    await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+  });
+
+  it("closing the create-child dialog clears the parent", async () => {
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    fireEvent.click(screen.getByTestId("create-child-btn"));
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("close-form"));
+    await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
   });
 
   // --- Save child request ---
@@ -925,6 +1061,12 @@ describe("UtilizationPage", () => {
     }
     // At minimum the component renders without crashing after tab click
     expect(screen.getByTestId('scheduler-grid')).toBeInTheDocument();
+  });
+
+  it("passes the selected site to the People utilization grid", () => {
+    const Wrapper = createWrapper("people");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    expect(screen.getByTestId('people-utilization-grid')).toHaveAttribute('data-site-id', 'site-1');
   });
 
   it("does not unschedule a request that is not scheduled", async () => {

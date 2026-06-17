@@ -196,6 +196,25 @@ describe('PeopleUtilizationGrid', () => {
       expect.any(Date),
       expect.any(String),
       'person',
+      undefined,
+    );
+  });
+
+  it('forwards the selected siteId to the utilization query and limits rows to its results', async () => {
+    // With a site selected, the utilization query is site+window filtered server-side and is the
+    // authoritative row set. Return only Alice → Bob (no utilization entry) is not rendered.
+    vi.mocked(getUtilizationByResource).mockResolvedValue([
+      { resourceId: 'p-alice', buckets: availableBuckets },
+    ]);
+    renderGrid({ siteId: 'site-a' });
+    await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+    expect(screen.queryByText('Bob Jones')).not.toBeInTheDocument();
+    expect(getUtilizationByResource).toHaveBeenCalledWith(
+      expect.any(Date),
+      expect.any(Date),
+      expect.any(String),
+      'person',
+      'site-a',
     );
   });
 
@@ -315,6 +334,7 @@ describe('PeopleUtilizationGrid', () => {
       expect.any(Date),
       'minute',
       'person',
+      undefined,
     );
   });
 

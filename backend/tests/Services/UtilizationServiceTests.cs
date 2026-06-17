@@ -253,6 +253,61 @@ public class UtilizationServiceTests
         Assert.False(result[0].Buckets[2].IsExclusiveOccupied);
     }
 
+    [Fact]
+    public async Task ByResource_WithSiteId_PassesSiteAndWindowToResourceFilter()
+    {
+        var resource = MakeResource(AllocationModes.Exclusive);
+        var from = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = from.AddDays(7);
+        var siteId = Guid.NewGuid();
+
+        ResourceListFilter? captured = null;
+        var resourceRepo = new Mock<IResourceRepository>();
+        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
+            .ReturnsAsync([resource]);
+        var assignmentRepo = new Mock<IResourceAssignmentRepository>();
+        assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var groupRepo = new Mock<IResourceGroupMemberRepository>();
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
+
+        await service.GetUtilizationByResourceAsync("person", from, to, "day", siteId);
+
+        Assert.NotNull(captured);
+        Assert.Equal(siteId, captured!.SiteId);
+        Assert.Equal(from, captured.SiteWindowFrom);
+        Assert.Equal(to, captured.SiteWindowTo);
+    }
+
+    [Fact]
+    public async Task ByResource_WithoutSiteId_LeavesSiteFilterUnset()
+    {
+        var resource = MakeResource(AllocationModes.Exclusive);
+        var from = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        ResourceListFilter? captured = null;
+        var resourceRepo = new Mock<IResourceRepository>();
+        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
+            .ReturnsAsync([resource]);
+        var assignmentRepo = new Mock<IResourceAssignmentRepository>();
+        assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, new Mock<IResourceGroupMemberRepository>().Object, resolver.Object);
+
+        await service.GetUtilizationByResourceAsync("person", from, from.AddDays(7), "day");
+
+        Assert.NotNull(captured);
+        Assert.Null(captured!.SiteId);
+        Assert.Null(captured.SiteWindowFrom);
+        Assert.Null(captured.SiteWindowTo);
+    }
+
     // ── Group utilization tests ──────────────────────────────────────────
 
     [Fact]

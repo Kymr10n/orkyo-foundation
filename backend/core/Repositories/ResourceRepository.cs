@@ -37,6 +37,18 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
               LIMIT 1),
             r.home_site_id)";
 
+    // Site membership over a window: home site matches, or a non-cancelled assignment to a request
+    // at the site overlaps [@siteFrom, @siteTo). Mirrors the assignment→request→site join in
+    // CurrentSiteExpr, but window-based (the People utilization grid filters by the visible window).
+    private const string SiteWindowMembershipExpr =
+        @"(r.home_site_id = @siteId
+           OR EXISTS (SELECT 1 FROM resource_assignments ra
+                        JOIN requests req ON req.id = ra.request_id
+                       WHERE ra.resource_id = r.id
+                         AND ra.assignment_status <> 'Cancelled'
+                         AND ra.start_utc < @siteTo AND ra.end_utc > @siteFrom
+                         AND req.site_id = @siteId))";
+
     private const string SelectColumns =
         "r.id, r.resource_type_id, rt.key as resource_type_key, r.name, r.description, " +
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
@@ -66,6 +78,21 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         {
             where.Add("r.name ILIKE @search");
             cmd.Parameters.AddWithValue("search", $"%{filter.Search}%");
+        }
+        if (filter.SiteId.HasValue)
+        {
+            cmd.Parameters.AddWithValue("siteId", filter.SiteId.Value);
+            if (filter.SiteWindowFrom.HasValue && filter.SiteWindowTo.HasValue)
+            {
+                where.Add(SiteWindowMembershipExpr);
+                cmd.Parameters.AddWithValue("siteFrom", filter.SiteWindowFrom.Value);
+                cmd.Parameters.AddWithValue("siteTo", filter.SiteWindowTo.Value);
+            }
+            else
+            {
+                // No window → fall back to the as-of-now current site.
+                where.Add($"(r.home_site_id = @siteId OR {CurrentSiteExpr} = @siteId)");
+            }
         }
 
         var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";

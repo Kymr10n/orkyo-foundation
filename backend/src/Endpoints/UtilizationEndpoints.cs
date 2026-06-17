@@ -75,10 +75,11 @@ public static class UtilizationEndpoints
             DateTime from,
             DateTime to,
             string? resourceTypeKey,
+            Guid? siteId,
             string granularity = "day") =>
             await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await service.GetUtilizationByResourceAsync(resourceTypeKey, from, to, granularity)),
-            logger, "get utilization by resource", new { resourceTypeKey, granularity }))
+                Results.Ok(await service.GetUtilizationByResourceAsync(resourceTypeKey, from, to, granularity, siteId)),
+            logger, "get utilization by resource", new { resourceTypeKey, granularity, siteId }))
             .WithName("GetUtilizationByResource")
             .WithSummary("Get per-resource utilization in one response (bulk)");
     }

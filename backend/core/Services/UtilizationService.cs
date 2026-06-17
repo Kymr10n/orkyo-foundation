@@ -16,7 +16,7 @@ public interface IUtilizationService
         string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
 
     Task<List<ResourceUtilizationResponse>> GetUtilizationByResourceAsync(
-        string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default);
+        string? resourceTypeKey, DateTime from, DateTime to, string granularity, Guid? siteId = null, CancellationToken ct = default);
 }
 
 public class UtilizationService(
@@ -170,9 +170,18 @@ public class UtilizationService(
     }
 
     public async Task<List<ResourceUtilizationResponse>> GetUtilizationByResourceAsync(
-        string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
+        string? resourceTypeKey, DateTime from, DateTime to, string granularity, Guid? siteId = null, CancellationToken ct = default)
     {
-        var filter = new ResourceListFilter { IsActive = true, ResourceTypeKey = resourceTypeKey };
+        // siteId filters which resources are included (rows); buckets stay whole-person —
+        // ComputeResourceBucketsAsync still uses each resource's full assignment set across all sites.
+        var filter = new ResourceListFilter
+        {
+            IsActive = true,
+            ResourceTypeKey = resourceTypeKey,
+            SiteId = siteId,
+            SiteWindowFrom = siteId.HasValue ? from : null,
+            SiteWindowTo = siteId.HasValue ? to : null,
+        };
         var resources = await resourceRepository.GetAllAsync(filter);
 
         var result = new List<ResourceUtilizationResponse>(resources.Count);

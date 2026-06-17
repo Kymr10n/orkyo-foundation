@@ -160,4 +160,36 @@ public class UtilizationEndpointsTests
         Assert.True(first.TryGetProperty("resourceId", out _));
         Assert.Equal(JsonValueKind.Array, first.GetProperty("buckets").ValueKind);
     }
+
+    [Fact]
+    public async Task GetUtilizationByResource_WithSiteId_ReturnsOnlySiteRelevantPeople()
+    {
+        // A site + a person homed there; the bulk grid query filtered to that site includes them,
+        // and filtered to an unrelated site excludes them.
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var siteResp = await _client.PostAsJsonAsync("/api/sites",
+            new { code = $"S{suffix}", name = $"Site {suffix}", description = (string?)null, address = (string?)null });
+        siteResp.EnsureSuccessStatusCode();
+        var siteId = (await siteResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var createResp = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "person",
+            Name = $"SitePerson-{suffix}",
+            AllocationMode = "Fractional",
+            HomeSiteId = siteId,
+        });
+        createResp.EnsureSuccessStatusCode();
+        var personId = (await createResp.Content.ReadFromJsonAsync<ResourceInfo>())!.Id;
+
+        var (from, to) = DateRange();
+
+        var atSite = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/utilization/by-resource?from={from}&to={to}&resourceTypeKey=person&granularity=day&siteId={siteId}");
+        Assert.Contains(atSite.EnumerateArray(), e => e.GetProperty("resourceId").GetGuid() == personId);
+
+        var otherSite = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/utilization/by-resource?from={from}&to={to}&resourceTypeKey=person&granularity=day&siteId={Guid.NewGuid()}");
+        Assert.DoesNotContain(otherSite.EnumerateArray(), e => e.GetProperty("resourceId").GetGuid() == personId);
+    }
 }

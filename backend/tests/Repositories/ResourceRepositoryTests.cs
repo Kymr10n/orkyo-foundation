@@ -20,6 +20,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 public class ResourceRepositoryTests
 {
     private readonly IResourceService _resources;
+    private readonly IResourceRepository _repo;
     private readonly IRequestRepository _requests;
     private readonly IResourceAssignmentRepository _assignments;
     private readonly ISpaceService _spaces;
@@ -30,6 +31,7 @@ public class ResourceRepositoryTests
     {
         var scope = fixture.Factory.Services.CreateScope();
         _resources = scope.ServiceProvider.GetRequiredService<IResourceService>();
+        _repo = scope.ServiceProvider.GetRequiredService<IResourceRepository>();
         _requests = scope.ServiceProvider.GetRequiredService<IRequestRepository>();
         _assignments = scope.ServiceProvider.GetRequiredService<IResourceAssignmentRepository>();
         _spaces = scope.ServiceProvider.GetRequiredService<ISpaceService>();
@@ -137,7 +139,85 @@ public class ResourceRepositoryTests
         Assert.Equal(siteA, resource.CurrentSiteId);
     }
 
+    // ── site-window membership filter (drives the People utilization grid) ──────
+
+    [Fact]
+    public async Task GetAll_SiteWindowFilter_IncludesHomeSitePerson_ExcludesOtherSite()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var (from, to) = Window();
+
+        Assert.Contains(await ListPeopleAtSite(siteA, from, to), r => r.Id == personId);
+        Assert.DoesNotContain(await ListPeopleAtSite(siteB, from, to), r => r.Id == personId);
+    }
+
+    [Fact]
+    public async Task GetAll_SiteWindowFilter_IncludesCrossSiteAssignmentOverlappingWindow()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var requestId = await CreateRequestAsync(siteId: siteB);
+        var (from, to) = Window();
+        await AssignAsync(personId, requestId, from.AddMinutes(30), to.AddMinutes(-30));
+
+        // Homed at A but working at B during the window → appears under B as well as A.
+        Assert.Contains(await ListPeopleAtSite(siteB, from, to), r => r.Id == personId);
+        Assert.Contains(await ListPeopleAtSite(siteA, from, to), r => r.Id == personId);
+    }
+
+    [Fact]
+    public async Task GetAll_SiteWindowFilter_ExcludesAssignmentOutsideWindow()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var requestId = await CreateRequestAsync(siteId: siteB);
+        var (from, to) = Window();
+        await AssignAsync(personId, requestId, to.AddDays(1), to.AddDays(2)); // entirely after the window
+
+        Assert.DoesNotContain(await ListPeopleAtSite(siteB, from, to), r => r.Id == personId);
+    }
+
+    [Fact]
+    public async Task GetAll_SiteWindowFilter_ExcludesCancelledAndSiteNeutralAssignments()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var (from, to) = Window();
+
+        var cancelledReq = await CreateRequestAsync(siteId: siteB);
+        await AssignAsync(personId, cancelledReq, from.AddMinutes(30), to.AddMinutes(-30));
+        await SetAssignmentsCancelledAsync(personId);
+
+        var neutralReq = await CreateRequestAsync(siteId: null);
+        await AssignAsync(personId, neutralReq, from.AddMinutes(30), to.AddMinutes(-30));
+
+        // Neither a cancelled assignment nor a site-neutral request pulls the person into site B.
+        Assert.DoesNotContain(await ListPeopleAtSite(siteB, from, to), r => r.Id == personId);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    private static (DateTime from, DateTime to) Window()
+    {
+        var now = DateTime.UtcNow;
+        return (now.AddHours(-2), now.AddHours(2));
+    }
+
+    private Task<List<ResourceInfo>> ListPeopleAtSite(Guid siteId, DateTime from, DateTime to) =>
+        _repo.GetAllAsync(new ResourceListFilter
+        {
+            ResourceTypeKey = ResourceTypeKeys.Person,
+            IsActive = true,
+            SiteId = siteId,
+            SiteWindowFrom = from,
+            SiteWindowTo = to,
+        });
+
 
     private async Task<Guid> CreateSiteAsync(string label)
     {

@@ -70,4 +70,13 @@ public record ResourceListFilter
     public string? ResourceTypeKey { get; init; }
     public bool? IsActive { get; init; }
     public string? Search { get; init; }
+
+    /// <summary>
+    /// When set, restricts results to resources belonging to this site: home_site_id = SiteId, or
+    /// (for people/tools) a non-cancelled assignment to a request at this site overlapping the
+    /// [SiteWindowFrom, SiteWindowTo] window. With no window, falls back to the as-of-now current site.
+    /// </summary>
+    public Guid? SiteId { get; init; }
+    public DateTime? SiteWindowFrom { get; init; }
+    public DateTime? SiteWindowTo { get; init; }
 }
