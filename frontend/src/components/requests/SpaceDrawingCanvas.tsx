@@ -38,10 +38,14 @@ interface SpaceDrawingCanvasProps {
     code?: string;
     geometry?: SpaceGeometry;
   }[];
+  /** When true, spaces are interactive: single-click selects, drag moves, handles resize */
+  editEnabled?: boolean;
   /** Selected space ID */
   selectedResourceId?: string;
-  /** Callback when a space is clicked */
-  onSpaceClick?: (resourceId: string) => void;
+  /** Callback when a space is clicked (null = clicked empty canvas → deselect) */
+  onSpaceClick?: (resourceId: string | null) => void;
+  /** Callback when a space is double-clicked (open detail dialog; works regardless of editEnabled) */
+  onSpaceDoubleClick?: (resourceId: string) => void;
   /** Callback when a space is moved */
   onSpaceMove?: (resourceId: string, newGeometry: SpaceGeometry) => void;
   /** Callback when a space is resized */
@@ -63,8 +67,10 @@ export function SpaceDrawingCanvas({
   onDrawingComplete,
   onDrawingCancel,
   existingSpaces = [],
+  editEnabled = false,
   selectedResourceId,
   onSpaceClick,
+  onSpaceDoubleClick,
   onSpaceMove,
   onSpaceResize,
   zoom = 1,
@@ -75,8 +81,7 @@ export function SpaceDrawingCanvas({
   const [drawingPoints, setDrawingPoints] = useState<Coordinate[]>([]);
   const [mousePosition, setMousePosition] = useState<Coordinate | null>(null);
   // True when not actively drawing — used to guard several event handlers.
-  const isPassiveMode =
-    drawingMode === "none" || drawingMode === "select" || drawingMode === "resize";
+  const isPassiveMode = drawingMode === "none";
 
   const [draggingSpace, setDraggingSpace] = useState<{
     id: string;
@@ -166,8 +171,8 @@ export function SpaceDrawingCanvas({
   };
 
   const handleMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
-    // Check for resize handle click
-    if (drawingMode === "resize") {
+    // Check for resize handle click (handles only render while editing)
+    if (editEnabled) {
       const target = e.target as HTMLElement;
       const handleElement = target.closest("[data-resize-handle]");
 
@@ -192,8 +197,8 @@ export function SpaceDrawingCanvas({
       }
     }
 
-    // Only allow dragging in select mode
-    if (drawingMode !== "select") return;
+    // Only allow dragging in view-passive mode while editing
+    if (drawingMode !== "none" || !editEnabled) return;
 
     const target = e.target as HTMLElement;
     const spaceElement = target.closest("[data-space-id]");
@@ -203,13 +208,19 @@ export function SpaceDrawingCanvas({
       const resourceId = spaceElement.getAttribute("data-space-id");
       const space = existingSpaces.find((s) => s.id === resourceId);
 
-      if (space?.geometry && onSpaceMove) {
-        const pos = screenToCanvas(e.clientX, e.clientY);
-        setDraggingSpace({
-          id: space.id,
-          startPos: pos,
-          geometry: space.geometry,
-        });
+      if (space?.geometry) {
+        // Select on press so the resize handles appear immediately — the user can
+        // then drag the body to move or grab a handle to resize, without a
+        // separate click-to-select step.
+        if (selectedResourceId !== space.id) onSpaceClick?.(space.id);
+        if (onSpaceMove) {
+          const pos = screenToCanvas(e.clientX, e.clientY);
+          setDraggingSpace({
+            id: space.id,
+            startPos: pos,
+            geometry: space.geometry,
+          });
+        }
       }
     }
   };
@@ -288,20 +299,16 @@ export function SpaceDrawingCanvas({
   };
 
   const handleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    // Check if clicking on an existing space
+    // In passive mode, clicks drive selection — but only while editing. Clicking
+    // a space selects it; clicking empty canvas deselects.
     if (isPassiveMode) {
-      const target = e.target as HTMLElement;
-      const spaceElement = target.closest("[data-space-id]");
-      if (spaceElement && onSpaceClick) {
-        const resourceId = spaceElement.getAttribute("data-space-id");
-        if (resourceId) {
-          onSpaceClick(resourceId);
-          return;
-        }
+      if (editEnabled && onSpaceClick) {
+        const target = e.target as HTMLElement;
+        const spaceElement = target.closest("[data-space-id]");
+        onSpaceClick(spaceElement?.getAttribute("data-space-id") ?? null);
       }
+      return;
     }
-
-    if (isPassiveMode) return;
 
     const point = screenToCanvas(e.clientX, e.clientY);
 
@@ -335,19 +342,28 @@ export function SpaceDrawingCanvas({
       onDrawingComplete(geometry);
       setDrawingPoints([]);
       setMousePosition(null);
+      return;
+    }
+
+    // Double-clicking a space opens its detail dialog — works in view or edit mode.
+    if (drawingMode === "none" && onSpaceDoubleClick) {
+      const target = e.target as HTMLElement;
+      const resourceId = target.closest("[data-space-id]")?.getAttribute("data-space-id");
+      if (resourceId) onSpaceDoubleClick(resourceId);
     }
   };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (
-      e.key === "Escape" &&
-      (drawingMode === "rectangle" || drawingMode === "polygon")
-    ) {
+    if (e.key !== "Escape") return;
+    if (drawingMode === "rectangle" || drawingMode === "polygon") {
       onDrawingCancel();
       setDrawingPoints([]);
       setMousePosition(null);
+    } else if (editEnabled) {
+      // Deselect the active space
+      onSpaceClick?.(null);
     }
-  }, [drawingMode, onDrawingCancel]);
+  }, [drawingMode, onDrawingCancel, editEnabled, onSpaceClick]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -362,8 +378,6 @@ export function SpaceDrawingCanvas({
   function getCanvasCursor(): string {
     if (resizingSpace || draggingSpace) return "grabbing";
     if (drawingMode === "none") return "default";
-    if (drawingMode === "select") return "grab";
-    if (drawingMode === "resize") return "pointer";
     return "crosshair";
   }
 
@@ -450,7 +464,7 @@ export function SpaceDrawingCanvas({
                   key={space.id}
                   space={previewSpace}
                   isDragging={true}
-                  drawingMode={drawingMode}
+                  editEnabled={editEnabled}
                   selectedResourceId={selectedResourceId}
                   resizingSpace={resizingSpace}
                   mousePosition={mousePosition}
@@ -463,7 +477,7 @@ export function SpaceDrawingCanvas({
               <SpaceShapeSvg
                 key={space.id}
                 space={space}
-                drawingMode={drawingMode}
+                editEnabled={editEnabled}
                 selectedResourceId={selectedResourceId}
                 resizingSpace={resizingSpace}
                 mousePosition={mousePosition}
@@ -486,7 +500,6 @@ export function SpaceDrawingCanvas({
         isPassiveMode={isPassiveMode}
         drawingMode={drawingMode}
         drawingPoints={drawingPoints}
-        selectedResourceId={selectedResourceId}
       />
     </div>
   );

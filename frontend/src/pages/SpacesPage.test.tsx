@@ -14,8 +14,8 @@ function renderAt(initialPath: string) {
       <Routes>
         <Route path="/spaces" element={<SpacesPage />}>
           <Route index element={<Navigate to="floorplan" replace />} />
-          <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
           <Route path="floorplan" element={<Stub id="floorplan" />} />
+          <Route path="list" element={<Stub id="list" />} />
           <Route path="groups" element={<Stub id="groups" />} />
         </Route>
       </Routes>
@@ -24,16 +24,10 @@ function renderAt(initialPath: string) {
 }
 
 describe('SpacesPage', () => {
-  it('renders all tab triggers', () => {
+  it('renders the tab triggers in order: Floorplan, Spaces, Groups', () => {
     renderAt('/spaces/floorplan');
-    for (const label of ['Floorplan', 'Groups']) {
-      expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
-    }
-  });
-
-  it('does not expose a standalone Spaces list tab (Floorplan owns space management)', () => {
-    renderAt('/spaces/floorplan');
-    expect(screen.queryByRole('tab', { name: 'Spaces' })).not.toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs).toEqual(['Floorplan', 'Spaces', 'Groups']);
   });
 
   it('index route redirects to /spaces/floorplan', () => {
@@ -41,13 +35,9 @@ describe('SpacesPage', () => {
     expect(screen.getByTestId('floorplan')).toBeInTheDocument();
   });
 
-  it('legacy /spaces/list redirects to /spaces/floorplan', () => {
-    renderAt('/spaces/list');
-    expect(screen.getByTestId('floorplan')).toBeInTheDocument();
-  });
-
   it.each([
     ['/spaces/floorplan', 'floorplan'],
+    ['/spaces/list', 'list'],
     ['/spaces/groups', 'groups'],
   ])('deep-links %s renders the right child', (path, id) => {
     renderAt(path);
@@ -56,8 +46,8 @@ describe('SpacesPage', () => {
 
   it('clicking a tab navigates to its sub-route', async () => {
     renderAt('/spaces/floorplan');
-    await userEvent.click(screen.getByRole('tab', { name: 'Groups' }));
-    expect(screen.getByTestId('groups')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Spaces' }));
+    expect(screen.getByTestId('list')).toBeInTheDocument();
   });
 });
 

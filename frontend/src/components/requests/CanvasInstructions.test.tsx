@@ -6,7 +6,6 @@ const defaultProps = {
   isPassiveMode: false,
   drawingMode: 'rectangle' as const,
   drawingPoints: [] as { x: number; y: number }[],
-  selectedResourceId: undefined,
 };
 
 function renderInstructions(props: Partial<React.ComponentProps<typeof CanvasInstructions>> = {}) {
@@ -48,25 +47,5 @@ describe('CanvasInstructions', () => {
   it('shows ESC cancel hint in drawing mode', () => {
     renderInstructions();
     expect(screen.getByText('Press ESC to cancel')).toBeInTheDocument();
-  });
-
-  it('renders resize instructions when in resize mode with selected space', () => {
-    renderInstructions({
-      isPassiveMode: true,
-      drawingMode: 'resize',
-      drawingPoints: [],
-      selectedResourceId: 'space-1',
-    });
-    expect(screen.getByText('Drag the handles to resize the space')).toBeInTheDocument();
-  });
-
-  it('renders nothing in resize mode without selected space', () => {
-    const { container } = renderInstructions({
-      isPassiveMode: true,
-      drawingMode: 'resize',
-      drawingPoints: [],
-      selectedResourceId: undefined,
-    });
-    expect(container.innerHTML).toBe('');
   });
 });

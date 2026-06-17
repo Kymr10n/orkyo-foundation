@@ -4,7 +4,8 @@ import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 
 const TABS: PageTab[] = [
   { value: 'floorplan', label: 'Floorplan' },
-  { value: 'groups', label: 'Groups' },
+  { value: 'list',      label: 'Spaces' },
+  { value: 'groups',    label: 'Groups' },
 ];
 
 export function SpacesPage() {

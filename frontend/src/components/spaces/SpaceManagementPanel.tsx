@@ -19,9 +19,9 @@ import type {
   Space as SpaceType,
 } from "@foundation/src/types/space";
 import {
+  Check,
   MapPin,
-  Maximize2,
-  MousePointer2,
+  Pencil,
   Pentagon,
   Square,
   Trash2,
@@ -33,15 +33,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EditSpaceDialog } from "./EditSpaceDialog";
-import { SpaceCapabilitiesEditor } from "./SpaceCapabilitiesEditor";
-import { SpaceList } from "./SpaceList";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportSpaces, importSpaces } from "@foundation/src/lib/utils/export-handlers";
 import {
   useSpaces,
   useCreateSpace,
   useUpdateSpace,
-  useDeleteSpace,
   useMoveSpace,
 } from "@foundation/src/hooks/useSpaces";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -61,7 +58,6 @@ export function SpaceManagementPanel({
   const { data: spaces = [], isLoading: isLoadingSpaces } = useSpaces(siteId);
   const createSpaceMutation = useCreateSpace(siteId);
   const _updateSpaceMutation = useUpdateSpace(siteId);
-  const deleteSpaceMutation = useDeleteSpace(siteId);
   const moveSpaceMutation = useMoveSpace(siteId);
   const resizeSpaceMutation = useMoveSpace(siteId);
 
@@ -81,8 +77,10 @@ export function SpaceManagementPanel({
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState<SpaceType | null>(null);
-  const [capabilitiesSpace, setCapabilitiesSpace] = useState<SpaceType | null>(null);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
+  // Master edit switch — view mode (pan/zoom only) by default; protects against
+  // accidental, un-undoable move/resize. Double-click-to-inspect ignores this.
+  const [editEnabled, setEditEnabled] = useState(false);
   const [, setSearchParams] = useSearchParams();
 
   // Handle ?edit=<id> query param from global search
@@ -213,17 +211,19 @@ export function SpaceManagementPanel({
     setDrawingMode(mode);
   };
 
-  const handleDeleteSpace = async (resourceId: string) => {
-    if (deleteSpaceMutation.isPending) return;
-    try {
-      await deleteSpaceMutation.mutateAsync(resourceId);
-      if (selectedResourceId === resourceId) {
+  const handleToggleEdit = () =>
+    setEditEnabled((on) => {
+      const next = !on;
+      if (!next) {
+        setDrawingMode("none");
         setSelectedResourceId(null);
       }
-    } catch (error) {
-      logger.error("Failed to delete space:", error);
-      alert("Failed to delete space");
-    }
+      return next;
+    });
+
+  const handleEditSpaceById = (resourceId: string) => {
+    const space = spaces.find((s) => s.id === resourceId);
+    if (space) setEditingSpace(space);
   };
 
   const handleMoveSpace = async (
@@ -261,226 +261,190 @@ export function SpaceManagementPanel({
   const _selectedSpace = spaces.find((s) => s.id === selectedResourceId);
 
   return (
-    <div className={cn("flex h-full gap-4", className)}>
-      {/* Space List Sidebar */}
-      <div className="w-80 flex flex-col bg-card rounded-lg border">
-        <div className="px-4 min-h-[72px] flex items-center border-b">
-          <h3 className="font-semibold">Spaces ({spaces.length})</h3>
-        </div>
-        <SpaceList
-          spaces={spaces}
-          selectedResourceId={selectedResourceId}
-          onSpaceSelect={setSelectedResourceId}
-          onSpaceEdit={setEditingSpace}
-          onSpaceDelete={handleDeleteSpace}
-          onCapabilitiesEdit={setCapabilitiesSpace}
-          isLoading={isLoadingSpaces}
-        />
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col gap-4">
-        {/* Floorplan Panel */}
-        <div className="flex-1 flex flex-col bg-card rounded-lg border">
-          {/* Header with controls */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-muted-foreground" />
-              <h2 className="font-semibold">Floorplan</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {floorplanMetadata ? (
+    <div className={cn("flex h-full", className)}>
+      {/* Floorplan Panel */}
+      <div className="flex-1 flex flex-col bg-card rounded-lg border">
+        {/* Header with controls */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-muted-foreground" />
+            <h2 className="font-semibold">Floorplan</h2>
+            {editEnabled && (
+              <span className="text-xs font-medium text-primary">Editing</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {floorplanMetadata ? (
+              <>
+                {!isPhone && (
                 <>
-                  {!isPhone && (
-                  <>
+                <Button
+                  variant={editEnabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={handleToggleEdit}
+                  disabled={!canEdit}
+                  aria-pressed={editEnabled}
+                >
+                  {editEnabled ? (
+                    <Check className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Pencil className="h-4 w-4 mr-2" />
+                  )}
+                  {editEnabled ? "Done" : "Edit"}
+                </Button>
+                <Separator orientation="vertical" className="h-6" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleDeleteFloorplan}
+                  disabled={!canEdit || !editEnabled}
+                  title="Delete floorplan"
+                  aria-label="Delete floorplan"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+                <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={handleDeleteFloorplan}
-                    disabled={!canEdit}
-                    title="Delete floorplan"
-                    aria-label="Delete floorplan"
+                    onClick={() => handleSetDrawingMode("rectangle")}
+                    disabled={!canEdit || !editEnabled}
+                    title="Draw Rectangle (R)"
+                    aria-label="Draw rectangle"
+                    aria-pressed={drawingMode === "rectangle"}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Square
+                      className={cn(
+                        "h-4 w-4",
+                        drawingMode === "rectangle" && "text-primary",
+                      )}
+                    />
                   </Button>
-                  <Separator orientation="vertical" className="h-6" />
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleSetDrawingMode("select")}
-                      disabled={!canEdit}
-                      title="Select (S)"
-                      aria-label="Select tool"
-                      aria-pressed={drawingMode === "select"}
-                    >
-                      <MousePointer2
-                        className={cn(
-                          "h-4 w-4",
-                          drawingMode === "select" && "text-primary",
-                        )}
-                      />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleSetDrawingMode("resize")}
-                      disabled={!canEdit}
-                      title="Resize (Z)"
-                      aria-label="Resize tool"
-                      aria-pressed={drawingMode === "resize"}
-                    >
-                      <Maximize2
-                        className={cn(
-                          "h-4 w-4",
-                          drawingMode === "resize" && "text-primary",
-                        )}
-                      />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleSetDrawingMode("rectangle")}
-                      disabled={!canEdit}
-                      title="Draw Rectangle (R)"
-                      aria-label="Draw rectangle"
-                      aria-pressed={drawingMode === "rectangle"}
-                    >
-                      <Square
-                        className={cn(
-                          "h-4 w-4",
-                          drawingMode === "rectangle" && "text-primary",
-                        )}
-                      />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleSetDrawingMode("polygon")}
-                      disabled={!canEdit}
-                      title="Draw Polygon (P)"
-                      aria-label="Draw polygon"
-                      aria-pressed={drawingMode === "polygon"}
-                    >
-                      <Pentagon
-                        className={cn(
-                          "h-4 w-4",
-                          drawingMode === "polygon" && "text-primary",
-                        )}
-                      />
-                    </Button>
-                  </div>
-                  <Separator orientation="vertical" className="h-6" />
-                  </>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleZoomOut}
-                      disabled={zoom <= 0.5}
-                      aria-label="Zoom out"
-                    >
-                      <ZoomOut className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleZoomReset}
-                      className="min-w-[3rem] h-8 text-xs"
-                      title="Reset zoom to 100%"
-                    >
-                      {Math.round(zoom * 100)}%
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleZoomIn}
-                      disabled={zoom >= 3}
-                      aria-label="Zoom in"
-                    >
-                      <ZoomIn className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleSetDrawingMode("polygon")}
+                    disabled={!canEdit || !editEnabled}
+                    title="Draw Polygon (P)"
+                    aria-label="Draw polygon"
+                    aria-pressed={drawingMode === "polygon"}
+                  >
+                    <Pentagon
+                      className={cn(
+                        "h-4 w-4",
+                        drawingMode === "polygon" && "text-primary",
+                      )}
+                    />
+                  </Button>
+                </div>
+                <Separator orientation="vertical" className="h-6" />
                 </>
-              ) : (
-                <Button onClick={() => setUploadDialogOpen(true)} size="sm" disabled={!canEdit}>
+                )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomOut}
+                    disabled={zoom <= 0.5}
+                    aria-label="Zoom out"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleZoomReset}
+                    className="min-w-[3rem] h-8 text-xs"
+                    title="Reset zoom to 100%"
+                  >
+                    {Math.round(zoom * 100)}%
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomIn}
+                    disabled={zoom >= 3}
+                    aria-label="Zoom in"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button onClick={() => setUploadDialogOpen(true)} size="sm" disabled={!canEdit}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Floorplan
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div
+          className={cn(
+            "flex-1 overflow-auto p-4",
+            editEnabled && "ring-2 ring-inset ring-primary rounded-md",
+          )}
+        >
+          {floorplanMetadata ? (
+            <SpaceDrawingCanvas
+              floorplanUrl={floorplanUrl || undefined}
+              floorplanDimensions={{
+                width: floorplanMetadata.widthPx,
+                height: floorplanMetadata.heightPx,
+              }}
+              zoom={zoom}
+              drawingMode={drawingMode}
+              onDrawingComplete={handleDrawingComplete}
+              onDrawingCancel={handleCancelDrawing}
+              existingSpaces={spaces}
+              editEnabled={canEdit && !isPhone && editEnabled}
+              selectedResourceId={selectedResourceId || undefined}
+              onSpaceClick={setSelectedResourceId}
+              onSpaceDoubleClick={canEdit && !isPhone ? handleEditSpaceById : undefined}
+              onSpaceMove={canEdit && !isPhone ? handleMoveSpace : undefined}
+              onSpaceResize={canEdit && !isPhone ? handleResizeSpace : undefined}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="text-center">
+                <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm mb-2">No floorplan uploaded</p>
+                <Button onClick={() => setUploadDialogOpen(true)} size="sm">
                   <Upload className="h-4 w-4 mr-2" />
                   Upload Floorplan
                 </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Canvas */}
-          <div className="flex-1 overflow-auto p-4">
-            {floorplanMetadata ? (
-              <SpaceDrawingCanvas
-                floorplanUrl={floorplanUrl || undefined}
-                floorplanDimensions={{
-                  width: floorplanMetadata.widthPx,
-                  height: floorplanMetadata.heightPx,
-                }}
-                zoom={zoom}
-                drawingMode={drawingMode}
-                onDrawingComplete={handleDrawingComplete}
-                onDrawingCancel={handleCancelDrawing}
-                existingSpaces={spaces}
-                selectedResourceId={selectedResourceId || undefined}
-                onSpaceClick={setSelectedResourceId}
-                onSpaceMove={handleMoveSpace}
-                onSpaceResize={handleResizeSpace}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <div className="text-center">
-                  <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-sm mb-2">No floorplan uploaded</p>
-                  <Button onClick={() => setUploadDialogOpen(true)} size="sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Floorplan
-                  </Button>
-                </div>
               </div>
-            )}
-          </div>
-
-          {/* Dialogs */}
-          <FloorplanUploadDialog
-            siteId={siteId}
-            open={uploadDialogOpen}
-            onOpenChange={setUploadDialogOpen}
-            onUploadComplete={handleUploadComplete}
-          />
-
-          {drawnGeometry && (
-            <CreateSpaceDialog
-              open={createDialogOpen}
-              onOpenChange={setCreateDialogOpen}
-              geometry={drawnGeometry}
-              onSubmit={handleCreateSpace}
-              siteId={siteId}
-            />
-          )}
-          {editingSpace && (
-            <EditSpaceDialog
-              space={editingSpace}
-              siteId={siteId}
-              open={!!editingSpace}
-              onOpenChange={(open) => !open && setEditingSpace(null)}
-              onSuccess={handleUpdateSpace}
-            />
-          )}
-          {capabilitiesSpace && (
-            <SpaceCapabilitiesEditor
-              open={!!capabilitiesSpace}
-              onOpenChange={(open) => !open && setCapabilitiesSpace(null)}
-              siteId={siteId}
-              resourceId={capabilitiesSpace.id}
-              spaceName={capabilitiesSpace.name}
-            />
+            </div>
           )}
         </div>
+
+        {/* Dialogs */}
+        <FloorplanUploadDialog
+          siteId={siteId}
+          open={uploadDialogOpen}
+          onOpenChange={setUploadDialogOpen}
+          onUploadComplete={handleUploadComplete}
+        />
+
+        {drawnGeometry && (
+          <CreateSpaceDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            geometry={drawnGeometry}
+            onSubmit={handleCreateSpace}
+            siteId={siteId}
+          />
+        )}
+        {editingSpace && (
+          <EditSpaceDialog
+            space={editingSpace}
+            siteId={siteId}
+            open={!!editingSpace}
+            onOpenChange={(open) => !open && setEditingSpace(null)}
+            onSuccess={handleUpdateSpace}
+          />
+        )}
       </div>
     </div>
   );

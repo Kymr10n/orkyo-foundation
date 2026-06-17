@@ -78,9 +78,8 @@ describe('SpaceListView', () => {
     expect(screen.getByText(/Please select a site/)).toBeInTheDocument();
   });
 
-  it('renders header with space count and the list', () => {
+  it('renders the spaces list', () => {
     render(<SpaceListView />, { wrapper: createWrapper() });
-    expect(screen.getByText('Spaces (2)')).toBeInTheDocument();
     expect(screen.getByText('Lobby')).toBeInTheDocument();
     expect(screen.getByText('Lab 1')).toBeInTheDocument();
   });

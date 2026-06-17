@@ -14,14 +14,12 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 
 const mockUseSpaces = vi.fn();
 const mockCreateMutateAsync = vi.fn();
-const mockDeleteMutateAsync = vi.fn();
 const mockMoveMutateAsync = vi.fn();
 
 vi.mock('@foundation/src/hooks/useSpaces', () => ({
   useSpaces: (siteId: any) => mockUseSpaces(siteId),
   useCreateSpace: () => ({ mutateAsync: mockCreateMutateAsync }),
   useUpdateSpace: () => ({ mutateAsync: vi.fn() }),
-  useDeleteSpace: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),
   useMoveSpace: () => ({ mutateAsync: mockMoveMutateAsync }),
 }));
 
@@ -58,30 +56,9 @@ vi.mock('react-router-dom', () => ({
 
 // ── Child component mocks ─────────────────────────────────────────────────────
 
-vi.mock('./SpaceList', () => ({
-  SpaceList: ({ onSpaceDelete, onSpaceEdit, onCapabilitiesEdit, isLoading, spaces }: any) => (
-    <div data-testid="space-list">
-      {isLoading && <span>Loading spaces...</span>}
-      {spaces?.map((s: any) => (
-        <div key={s.id}>
-          <span>{s.name}</span>
-          <button data-testid={`edit-${s.id}`} onClick={() => onSpaceEdit(s)}>Edit</button>
-          <button data-testid={`delete-${s.id}`} onClick={() => onSpaceDelete(s.id)}>Delete</button>
-          <button data-testid={`caps-${s.id}`} onClick={() => onCapabilitiesEdit(s)}>Caps</button>
-        </div>
-      ))}
-    </div>
-  ),
-}));
-
 vi.mock('./EditSpaceDialog', () => ({
   EditSpaceDialog: ({ open, onSuccess }: any) =>
     open ? <button data-testid="edit-dialog-save" onClick={() => onSuccess({})}>Save Edit</button> : null,
-}));
-
-vi.mock('./SpaceCapabilitiesEditor', () => ({
-  SpaceCapabilitiesEditor: ({ open, spaceName }: any) =>
-    open ? <div data-testid="caps-editor">{spaceName}</div> : null,
 }));
 
 vi.mock('@/components/requests/CreateSpaceDialog', () => ({
@@ -95,7 +72,11 @@ vi.mock('@/components/requests/FloorplanUploadDialog', () => ({
 }));
 
 vi.mock('@/components/requests/SpaceDrawingCanvas', () => ({
-  SpaceDrawingCanvas: () => <canvas data-testid="drawing-canvas" />,
+  SpaceDrawingCanvas: ({ onSpaceDoubleClick, editEnabled }: any) => (
+    <div data-testid="drawing-canvas" data-edit-enabled={String(!!editEnabled)}>
+      <button data-testid="dblclick-space-1" onClick={() => onSpaceDoubleClick?.('space-1')}>dbl</button>
+    </div>
+  ),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,7 +91,6 @@ function setup() {
   mockFetchFloorplanImageUrl.mockResolvedValue('blob:test');
   mockDeleteFloorplan.mockResolvedValue(undefined);
   mockCreateMutateAsync.mockResolvedValue({ id: 'new', name: 'New Space' });
-  mockDeleteMutateAsync.mockResolvedValue(undefined);
   mockMoveMutateAsync.mockResolvedValue(undefined);
   global.confirm = vi.fn(() => true);
   global.alert = vi.fn();
@@ -120,12 +100,6 @@ function setup() {
 
 describe('SpaceManagementPanel', () => {
   beforeEach(setup);
-
-  it('renders space list sidebar', () => {
-    render(<SpaceManagementPanel siteId="site-1" />);
-    expect(screen.getByText(/Spaces \(/i)).toBeInTheDocument();
-    expect(screen.getByTestId('space-list')).toBeInTheDocument();
-  });
 
   it('renders floorplan panel heading', () => {
     render(<SpaceManagementPanel siteId="site-1" />);
@@ -213,7 +187,7 @@ describe('SpaceManagementPanel', () => {
     });
   });
 
-  it('clicking a drawing mode button fires handleSetDrawingMode', async () => {
+  it('starts in view mode (Edit) with drawing tools disabled until enabled', async () => {
     mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
     mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
 
@@ -222,53 +196,33 @@ describe('SpaceManagementPanel', () => {
 
     await waitFor(() => screen.getByText('100%'));
 
-    // Drawing mode buttons have title attributes
-    const selectButton = screen.getByTitle(/Select \(S\)/i);
-    await user.click(selectButton);
-    // No assertion needed — just verify it doesn't throw
-    expect(selectButton).toBeInTheDocument();
-  });
+    // View mode: toolbar shows "Edit", canvas is non-interactive, draw tools disabled
+    const editButton = screen.getByRole('button', { name: /Edit/i });
+    expect(screen.getByTestId('drawing-canvas')).toHaveAttribute('data-edit-enabled', 'false');
+    expect(screen.getByTitle(/Draw Rectangle/i)).toBeDisabled();
 
-  it('clicking rectangle drawing mode button fires handleSetDrawingMode', async () => {
-    mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
-    mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
-
-    const user = userEvent.setup();
-    render(<SpaceManagementPanel siteId="site-1" />);
-
-    await waitFor(() => screen.getByText('100%'));
-
-    const rectButton = screen.getByTitle(/Draw Rectangle/i);
-    await user.click(rectButton);
-    expect(rectButton).toBeInTheDocument();
-  });
-
-  it('renders with spaces in the list', () => {
-    mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
-    render(<SpaceManagementPanel siteId="site-1" />);
-
-    expect(screen.getByText(/Spaces \(1\)/i)).toBeInTheDocument();
-    expect(screen.getByText('Office A')).toBeInTheDocument();
-  });
-
-  it('handleDeleteSpace is called when SpaceList delete fires', async () => {
-    mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
-    const user = userEvent.setup();
-    render(<SpaceManagementPanel siteId="site-1" />);
-
-    await user.click(screen.getByTestId('delete-space-1'));
-
+    // Enter edit mode → button becomes "Done", canvas interactive, draw tools enabled
+    await user.click(editButton);
     await waitFor(() => {
-      expect(mockDeleteMutateAsync).toHaveBeenCalledWith('space-1');
+      expect(screen.getByRole('button', { name: /Done/i })).toBeInTheDocument();
     });
+    expect(screen.getByTestId('drawing-canvas')).toHaveAttribute('data-edit-enabled', 'true');
+    expect(screen.getByTitle(/Draw Rectangle/i)).toBeEnabled();
+    expect(screen.getByTitle(/Draw Polygon/i)).toBeEnabled();
   });
 
-  it('setEditingSpace is called when SpaceList edit fires', async () => {
+  it('double-clicking a space opens the edit dialog regardless of edit mode', async () => {
+    mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
+    mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
     mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
+
     const user = userEvent.setup();
     render(<SpaceManagementPanel siteId="site-1" />);
 
-    await user.click(screen.getByTestId('edit-space-1'));
+    await waitFor(() => screen.getByTestId('dblclick-space-1'));
+
+    // Without entering edit mode (still locked), double-click still opens the dialog
+    await user.click(screen.getByTestId('dblclick-space-1'));
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-dialog-save')).toBeInTheDocument();
@@ -276,40 +230,20 @@ describe('SpaceManagementPanel', () => {
   });
 
   it('handleUpdateSpace closes edit dialog on save', async () => {
+    mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
+    mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
     mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
+
     const user = userEvent.setup();
     render(<SpaceManagementPanel siteId="site-1" />);
 
-    await user.click(screen.getByTestId('edit-space-1'));
+    await waitFor(() => screen.getByTestId('dblclick-space-1'));
+    await user.click(screen.getByTestId('dblclick-space-1'));
     await waitFor(() => screen.getByTestId('edit-dialog-save'));
     await user.click(screen.getByTestId('edit-dialog-save'));
 
     await waitFor(() => {
       expect(screen.queryByTestId('edit-dialog-save')).not.toBeInTheDocument();
-    });
-  });
-
-  it('setCapabilitiesSpace is called when SpaceList caps fires', async () => {
-    mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
-    const user = userEvent.setup();
-    render(<SpaceManagementPanel siteId="site-1" />);
-
-    await user.click(screen.getByTestId('caps-space-1'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('caps-editor')).toBeInTheDocument();
-    });
-  });
-
-  it('delete space calls mutation directly (no confirm gate in handleDeleteSpace)', async () => {
-    mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
-    const user = userEvent.setup();
-    render(<SpaceManagementPanel siteId="site-1" />);
-
-    await user.click(screen.getByTestId('delete-space-1'));
-
-    await waitFor(() => {
-      expect(mockDeleteMutateAsync).toHaveBeenCalledWith('space-1');
     });
   });
 
@@ -336,20 +270,6 @@ describe('SpaceManagementPanel', () => {
     }
   });
 
-  it('clicking Resize mode button fires handleSetDrawingMode("resize")', async () => {
-    mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
-    mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
-
-    const user = userEvent.setup();
-    render(<SpaceManagementPanel siteId="site-1" />);
-
-    await waitFor(() => screen.getByText('100%'));
-
-    const resizeButton = screen.getByTitle(/Resize \(Z\)/i);
-    await user.click(resizeButton);
-    expect(resizeButton).toBeInTheDocument();
-  });
-
   it('clicking Polygon mode button fires handleSetDrawingMode("polygon")', async () => {
     mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
     mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
@@ -359,7 +279,11 @@ describe('SpaceManagementPanel', () => {
 
     await waitFor(() => screen.getByText('100%'));
 
+    // Drawing tools are disabled until edit mode is enabled
+    await user.click(screen.getByRole('button', { name: /Edit/i }));
+
     const polygonButton = screen.getByTitle(/Draw Polygon \(P\)/i);
+    expect(polygonButton).toBeEnabled();
     await user.click(polygonButton);
     expect(polygonButton).toBeInTheDocument();
   });
@@ -372,6 +296,9 @@ describe('SpaceManagementPanel', () => {
     render(<SpaceManagementPanel siteId="site-1" />);
 
     await waitFor(() => screen.getByText('100%'));
+
+    // Delete-floorplan is gated by edit mode (master switch)
+    await user.click(screen.getByRole('button', { name: /Edit/i }));
 
     const deleteFloorplanBtn = screen.getByTitle(/Delete floorplan/i);
     await user.click(deleteFloorplanBtn);

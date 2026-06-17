@@ -55,6 +55,4 @@ export interface UpdateSpaceRequest {
 export type DrawingMode =
   | "none"
   | "rectangle"
-  | "polygon"
-  | "select"
-  | "resize";
+  | "polygon";

@@ -8,7 +8,7 @@ import { logger } from '@foundation/src/lib/core/logger';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Button } from '@foundation/src/components/ui/button';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { Square, Pentagon, Edit, Trash2, Settings } from 'lucide-react';
+import { Edit, Trash2, Settings } from 'lucide-react';
 
 /**
  * Spaces tab content under /spaces/list — a focused, list-only view built on
@@ -44,18 +44,14 @@ export function SpaceListView() {
   // Shared cell fragments — used by both the desktop table columns and the phone
   // card so the two presentations never drift. Each action stops propagation so
   // it doesn't trigger the row/card onClick.
-  const renderName = (space: Space) => {
-    const GeometryIcon = space.geometry?.type === 'rectangle' ? Square : Pentagon;
-    return (
-      <div className="flex items-center gap-2">
-        <GeometryIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="font-semibold">{space.name}</span>
-        {space.code && (
-          <span className="text-xs text-muted-foreground font-mono">{space.code}</span>
-        )}
-      </div>
-    );
-  };
+  const renderName = (space: Space) => (
+    <div className="flex items-center gap-2">
+      <span className="font-medium">{space.name}</span>
+      {space.code && (
+        <span className="text-xs text-muted-foreground font-mono">{space.code}</span>
+      )}
+    </div>
+  );
 
   const renderActions = (space: Space) => (
     <div className="flex justify-end gap-1">
@@ -105,7 +101,7 @@ export function SpaceListView() {
       id: 'description',
       header: 'Description',
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
+        <span className="text-muted-foreground">
           {row.original.description ?? '—'}
         </span>
       ),
@@ -132,21 +128,18 @@ export function SpaceListView() {
   );
 
   return (
-    <div className="h-full flex flex-col bg-card rounded-lg border">
-      <div className="p-4 border-b">
-        <h3 className="font-semibold">Spaces ({spaces.length})</h3>
-      </div>
-      <div className="flex-1 min-h-0 p-4 overflow-auto">
-        <OrkyoDataTable
-          columns={columns}
-          data={spaces}
-          isLoading={isLoading}
-          filterColumn="name"
-          filterPlaceholder="Search spaces..."
-          emptyMessage="No spaces created yet. Draw a rectangle or polygon on the floorplan."
-          renderCard={renderCard}
-        />
-      </div>
+    <div className="space-y-4">
+      <OrkyoDataTable
+        columns={columns}
+        data={spaces}
+        isLoading={isLoading}
+        filterColumn="name"
+        filterPlaceholder="Search spaces..."
+        emptyMessage="No spaces created yet. Draw a rectangle or polygon on the floorplan."
+        renderCard={renderCard}
+        onRowClick={canEdit ? (space) => setEditingSpace(space) : undefined}
+        pageSize={25}
+      />
 
       {editingSpace && (
         <EditSpaceDialog

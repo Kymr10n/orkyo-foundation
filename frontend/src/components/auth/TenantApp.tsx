@@ -28,6 +28,7 @@ import { SchedulingSettings } from '@foundation/src/components/settings/Scheduli
 import { ReportingApiPage } from '@foundation/src/components/settings/ReportingApiPage';
 import { UsageLimitsSettings } from '@foundation/src/components/settings/UsageLimitsSettings';
 import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
+import { SpaceListView } from '@foundation/src/components/spaces/SpaceListView';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
 import { RequireTenantAdmin } from '@foundation/src/components/auth/RequireTenantAdmin';
@@ -173,7 +174,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           {/* Spaces — nested sub-routes. Default = floorplan. */}
           <Route path="spaces" element={<SpacesPage />}>
             <Route index element={<Navigate to="floorplan" replace />} />
-            <Route path="list" element={<Navigate to="/spaces/floorplan" replace />} />
+            <Route path="list" element={<SpaceListView />} />
             <Route path="floorplan" element={<FloorplanView />} />
             <Route path="groups" element={<ResourceGroupList resourceTypeKey={RESOURCE_TYPE_KEY.SPACE} membersIcon={Box} />} />
           </Route>

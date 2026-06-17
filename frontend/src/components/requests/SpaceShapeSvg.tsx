@@ -1,9 +1,10 @@
-import type { Coordinate, DrawingMode, SpaceGeometry } from "@foundation/src/types/space";
+import type { Coordinate, SpaceGeometry } from "@foundation/src/types/space";
+import { cn } from "@foundation/src/lib/utils";
 
 interface SpaceShapeSvgProps {
   space: { id: string; name: string; code?: string; geometry?: SpaceGeometry };
   isDragging?: boolean;
-  drawingMode: DrawingMode;
+  editEnabled?: boolean;
   selectedResourceId?: string;
   resizingSpace: { id: string; handleIndex: number; geometry: SpaceGeometry } | null;
   mousePosition: Coordinate | null;
@@ -13,7 +14,7 @@ interface SpaceShapeSvgProps {
 export function SpaceShapeSvg({
   space,
   isDragging = false,
-  drawingMode,
+  editEnabled = false,
   selectedResourceId,
   resizingSpace,
   mousePosition,
@@ -22,7 +23,12 @@ export function SpaceShapeSvg({
   if (!space.geometry) return null;
 
   const isSelected = selectedResourceId === space.id;
-  const showResizeHandles = drawingMode === "resize" && isSelected;
+  const showResizeHandles = editEnabled && isSelected && !isDragging;
+  // Shapes stay pointer-event-enabled even in view mode so a double-click still
+  // registers; the cursor signals whether spatial gestures are available.
+  const shapeClassName = isDragging
+    ? "pointer-events-none"
+    : cn("hover:opacity-80", editEnabled ? "cursor-move" : "cursor-pointer");
 
   const customColors = spaceColors?.[space.id];
   const fillColor = isDragging
@@ -59,11 +65,7 @@ export function SpaceShapeSvg({
       <g
         key={space.id}
         data-space-id={space.id}
-        className={
-          isDragging
-            ? "pointer-events-none"
-            : "cursor-pointer hover:opacity-80"
-        }
+        className={shapeClassName}
       >
         <rect
           x={x}
@@ -144,11 +146,7 @@ export function SpaceShapeSvg({
       <g
         key={space.id}
         data-space-id={space.id}
-        className={
-          isDragging
-            ? "pointer-events-none"
-            : "cursor-pointer hover:opacity-80"
-        }
+        className={shapeClassName}
       >
         <path
           d={pathData}
