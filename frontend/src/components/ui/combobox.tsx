@@ -120,7 +120,7 @@ export function Combobox({
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm",
                     "hover:bg-accent hover:text-accent-foreground",
-                    "focus:bg-accent focus:text-accent-foreground focus:outline-none",
+                    "focus:bg-accent focus:text-accent-foreground focus:outline-hidden",
                     isSelected && "bg-accent/50",
                   )}
                 >

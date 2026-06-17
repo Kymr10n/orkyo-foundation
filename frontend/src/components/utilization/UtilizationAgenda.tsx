@@ -46,7 +46,7 @@ export function UtilizationAgenda({
             key={request.id}
             role="listitem"
             onClick={() => onOpen(request)}
-            className="cursor-pointer rounded-lg border bg-card p-3 shadow-sm hover:bg-accent/40"
+            className="cursor-pointer rounded-lg border bg-card p-3 shadow-xs hover:bg-accent/40"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">

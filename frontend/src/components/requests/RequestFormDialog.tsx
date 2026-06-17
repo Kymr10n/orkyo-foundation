@@ -414,7 +414,7 @@ export function RequestFormDialog({
     <>
     <Dialog open={open} onOpenChange={guardedOnOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[640px] max-h-[85vh] flex flex-col p-0"
+        className="max-w-2xl h-[85dvh] flex flex-col p-0"
         onOpenAutoFocus={(e) => {
           // Land focus on the first field, not the active tab — otherwise the
           // tab's keyboard-focus ring flashes on open. The ring still shows for

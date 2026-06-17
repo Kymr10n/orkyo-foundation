@@ -451,5 +451,53 @@ describe('PersonEditDialog', () => {
         ).toBeGreaterThan(0),
       );
     });
+
+    it('preserves deactivated FK ids on save when radix-select fires spurious onValueChange("")', async () => {
+      // Regression for radix-select 2.3+: mounting SelectContent with a controlled
+      // value that doesn't match any item fires onValueChange('') — our guard must
+      // drop that call so the form value is NOT cleared before save.
+      vi.mocked(getPersonProfile).mockResolvedValue({
+        resourceId: 'res-1',
+        jobTitleId: 'jt-removed',
+        departmentId: 'dept-removed',
+        jobTitleName: 'Removed',
+        departmentPath: 'Removed',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      });
+      const onSaved = vi.fn();
+      renderDialog({ person: createdResource, onSaved });
+      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+
+      // Open job-title select — mounts SelectContent and triggers radix's spurious
+      // onValueChange('') for the unmatched controlled value.
+      fireEvent.click(screen.getByLabelText(/Job Title/));
+      await waitFor(() =>
+        expect(screen.getAllByText('(current assignment — no longer active)').length).toBeGreaterThan(0),
+      );
+      // Close with Escape (radix handles it before the dialog does).
+      fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+
+      // Same for Department.
+      fireEvent.click(screen.getByLabelText(/Department/));
+      await waitFor(() =>
+        expect(screen.getAllByText('(current assignment — no longer active)').length).toBeGreaterThan(0),
+      );
+      fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' });
+      await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+
+      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+
+      // Both deactivated IDs must be preserved — not cleared to null.
+      expect(upsertPersonProfile).toHaveBeenCalledWith(
+        'res-1',
+        expect.objectContaining({
+          jobTitleId: 'jt-removed',
+          departmentId: 'dept-removed',
+        }),
+      );
+    });
   });
 });

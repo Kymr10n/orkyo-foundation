@@ -45,7 +45,7 @@ export const RequestDetailPanel = React.memo(function RequestDetailPanel({
   }, [request.id, allRequests, isParent]);
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+    <div className="flex flex-col h-full rounded-2xl border bg-card text-card-foreground shadow-xs overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b">
         <div className="flex items-center gap-2 min-w-0">

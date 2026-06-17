@@ -346,7 +346,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
         placeholder="Search people…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="h-8 w-48 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
+        className="h-8 w-48 rounded-md border bg-background px-3 text-sm outline-hidden focus:ring-1 focus:ring-ring"
       />
     </div>
   );

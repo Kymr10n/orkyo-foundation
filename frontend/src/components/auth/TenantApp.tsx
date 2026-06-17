@@ -43,11 +43,10 @@ import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGl
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
-import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
+import { AccountPage, type AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle size
 const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m => ({ default: m.AboutPage })));
-const AccountPage = lazy(() => import('@foundation/src/pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
 const SpacesPage = lazy(() => import('@foundation/src/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
 const PeoplePage = lazy(() => import('@foundation/src/pages/PeoplePage').then(m => ({ default: m.PeoplePage })));

@@ -220,7 +220,7 @@ export function OrkyoDataTable<TData>({
               key={row.id}
               onClick={onRowClick ? () => onRowClick(row.original) : undefined}
               className={cn(
-                'rounded-lg border bg-card p-3 shadow-sm',
+                'rounded-lg border bg-card p-3 shadow-xs',
                 onRowClick && 'cursor-pointer hover:bg-accent/40',
               )}
             >
@@ -250,7 +250,7 @@ export function OrkyoDataTable<TData>({
                   key={row.id}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   className={
-                    'bg-card shadow-sm hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
+                    'bg-card shadow-xs hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
                     (onRowClick ? ' cursor-pointer' : '')
                   }
                 >

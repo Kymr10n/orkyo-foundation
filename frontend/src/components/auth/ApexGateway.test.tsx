@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { AUTH_STAGES, AUTH_MESSAGES } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@foundation/src/constants/auth';
 
 // ── Mock page components ──────────────────────────────────────────────────────
 
@@ -10,13 +10,24 @@ vi.mock('@foundation/src/pages/LoginPage', () => ({
 }));
 vi.mock('@foundation/src/pages/TosPage', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  TosPage: (props: any) => <div data-testid="tos-page" data-tos-version={props.tosVersion} />,
+  TosPage: (props: any) => (
+    <div data-testid="tos-page" data-tos-version={props.tosVersion}>
+      <button onClick={props.onAccept}>Accept</button>
+      <button onClick={props.onCancel}>Cancel</button>
+    </div>
+  ),
 }));
 vi.mock('@foundation/src/pages/AccountPage', () => ({
   AccountPage: () => <div data-testid="account-page" />,
 }));
 vi.mock('@foundation/src/pages/OnboardingPage', () => ({
-  OnboardingPage: () => <div data-testid="onboarding-page" />,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  OnboardingPage: (props: any) => (
+    <div data-testid="onboarding-page">
+      <button onClick={props.onComplete}>Complete</button>
+      <button onClick={props.onCancel}>Cancel</button>
+    </div>
+  ),
 }));
 vi.mock('@foundation/src/pages/RequestAccessPage', () => ({
   RequestAccessPage: () => <div data-testid="request-access-page" />,
@@ -288,6 +299,87 @@ describe('ApexGateway', () => {
     mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.INITIALIZING }));
     renderGateway('/signup');
     expect(screen.getByTestId('signup-page')).toBeInTheDocument();
+  });
+
+  // ── TOS page callbacks ────────────────────────────────────────────────────
+
+  it('TosPage onAccept fires TOS_ACCEPTED event', () => {
+    mockUseAuth.mockReturnValue(authState({
+      authStage: AUTH_STAGES.TOS_REQUIRED,
+      sessionData: { requiredTosVersion: '2026-03', tenants: [] },
+    }));
+    renderGateway();
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.TOS_ACCEPTED });
+  });
+
+  it('TosPage onCancel fires LOGOUT event', () => {
+    mockUseAuth.mockReturnValue(authState({
+      authStage: AUTH_STAGES.TOS_REQUIRED,
+      sessionData: { requiredTosVersion: '2026-03', tenants: [] },
+    }));
+    renderGateway();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.LOGOUT });
+  });
+
+  // ── Onboarding page callbacks ─────────────────────────────────────────────
+
+  it('OnboardingPage onComplete fires TENANT_CREATED event', () => {
+    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS }));
+    renderGateway();
+    fireEvent.click(screen.getByRole('button', { name: 'Complete' }));
+    expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.TENANT_CREATED });
+  });
+
+  it('OnboardingPage onCancel fires LOGOUT event', () => {
+    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS }));
+    renderGateway();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.LOGOUT });
+  });
+
+  // ── Slot fallbacks ────────────────────────────────────────────────────────
+
+  it('NO_TENANTS_ADMIN without renderAdminPage slot shows LoadingSpinner', () => {
+    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS_ADMIN }));
+    render(
+      <MemoryRouter>
+        <ApexGateway renderTenantSelectPage={renderTenantSelectPageStub} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('admin-page')).not.toBeInTheDocument();
+    expect(screen.getByText(AUTH_MESSAGES.LOADING)).toBeInTheDocument();
+  });
+
+  it('SELECTING_TENANT without renderTenantSelectPage slot shows LoadingSpinner', () => {
+    mockUseAuth.mockReturnValue(authState({
+      authStage: AUTH_STAGES.SELECTING_TENANT,
+      sessionData: { tenants: [{ slug: 'a' }] },
+    }));
+    render(
+      <MemoryRouter>
+        <ApexGateway renderAdminPage={renderAdminPageStub} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('tenant-select-page')).not.toBeInTheDocument();
+    expect(screen.getByText(AUTH_MESSAGES.LOADING)).toBeInTheDocument();
+  });
+
+  // ── Error retry buttons ───────────────────────────────────────────────────
+
+  it('backend error retry button fires RETRY event', () => {
+    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_BACKEND }));
+    renderGateway();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.RETRY });
+  });
+
+  it('network error retry button fires RETRY event', () => {
+    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_NETWORK }));
+    renderGateway();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.RETRY });
   });
 
 });

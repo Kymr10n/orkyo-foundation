@@ -23,6 +23,7 @@ const ConflictItem = React.memo(function ConflictItem({
   peerRequest,
   getSeverityIcon,
   getSeverityBadgeClass,
+  getSeverityLabel,
   getConflictKindLabel,
 }: {
   item: ConflictWithRequest;
@@ -31,13 +32,14 @@ const ConflictItem = React.memo(function ConflictItem({
   peerRequest?: Request;
   getSeverityIcon: (severity: string) => React.ReactNode;
   getSeverityBadgeClass: (severity: string) => string;
+  getSeverityLabel: (severity: string) => string;
   getConflictKindLabel: (kind: string) => string;
 }) {
   return (
     <div
       role="button"
       tabIndex={0}
-      className={`border rounded-lg p-4 bg-card text-card-foreground shadow-sm hover:bg-accent/50 transition-colors cursor-pointer ${
+      className={`border rounded-lg p-4 bg-card text-card-foreground shadow-xs hover:bg-accent/50 transition-colors cursor-pointer ${
         isHighlighted ? "ring-2 ring-destructive/60 bg-destructive/5" : ""
       }`}
       onClick={() => onOpen(item.request)}
@@ -58,7 +60,7 @@ const ConflictItem = React.memo(function ConflictItem({
                 item.severity
               )}`}
             >
-              {item.severity}
+              {getSeverityLabel(item.severity)}
             </span>
             <span className="px-2 py-0.5 rounded text-xs font-medium bg-muted">
               {getConflictKindLabel(item.kind)}
@@ -170,6 +172,9 @@ export function ConflictsPage() {
     }
   };
 
+  const getSeverityLabel = (severity: string) =>
+    severity === "error" ? "violation" : severity === "warning" ? "advisory" : severity;
+
   const getSeverityBadgeClass = (severity: string) => {
     switch (severity) {
       case "error":
@@ -278,6 +283,7 @@ export function ConflictsPage() {
                       peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
                       getSeverityIcon={getSeverityIcon}
                       getSeverityBadgeClass={getSeverityBadgeClass}
+                      getSeverityLabel={getSeverityLabel}
                       getConflictKindLabel={getConflictKindLabel}
                     />
                   </div>

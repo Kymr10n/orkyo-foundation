@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useDndMonitor, type DragMoveEvent } from "@dnd-kit/core";
 import { resolveColumnIndex } from "./time-grid-utils";
@@ -15,12 +15,9 @@ import { resolveColumnIndex } from "./time-grid-utils";
  *
  * Must be mounted inside the `DndContext`.
  */
-interface Highlight {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
+// Positioning subset applied directly via `style`; typed from CSSProperties so it
+// stays assignable as React's CSSProperties typings tighten across versions.
+type Highlight = Pick<CSSProperties, "left" | "top" | "width" | "height">;
 
 export function DropColumnIndicator() {
   const [highlight, setHighlight] = useState<Highlight | null>(null);

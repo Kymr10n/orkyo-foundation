@@ -35,11 +35,12 @@ export function ConflictIndicator({
  */
 export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
   return (
-    <StatusBanner
-      items={conflicts}
-      testId="conflict-banner"
-      className="mx-6 mb-2"
-      title={`${conflicts.length} ${conflicts.length === 1 ? "conflict" : "conflicts"} on this request`}
-    />
+    <div className="px-6 mb-2">
+      <StatusBanner
+        items={conflicts}
+        testId="conflict-banner"
+        title={`${conflicts.length} ${conflicts.length === 1 ? "conflict" : "conflicts"} on this request`}
+      />
+    </div>
   );
 }

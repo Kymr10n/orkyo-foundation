@@ -241,7 +241,13 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   // Sentinel handlers for the two reference selects: a "Create new…" value
   // opens the corresponding edit dialog with an empty name. The user types the
   // name there; on save, the new id is auto-applied to the form.
+  // radix-select 2.3+ fires onValueChange('') when the controlled value has no
+  // matching mounted item — e.g. an assignment that was deactivated and is only
+  // surfaced as a placeholder option. Ignoring that spurious empty-string clear
+  // keeps the saved value intact (so saving never silently drops the assignment);
+  // every genuine selection sends the UNASSIGNED/CREATE_NEW sentinel or a real id.
   const onJobTitleChange = (value: string) => {
+    if (value === '') return;
     if (value === CREATE_NEW) {
       setCreateJobTitleName('');
       return;
@@ -249,6 +255,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
     set('jobTitleId', value === UNASSIGNED ? '' : value);
   };
   const onDepartmentChange = (value: string) => {
+    if (value === '') return;
     if (value === CREATE_NEW) {
       setCreateDeptName('');
       return;

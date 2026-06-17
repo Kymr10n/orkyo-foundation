@@ -101,7 +101,7 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
           activate();
         }
       }}
-      className={`absolute top-2 bottom-2 rounded border flex items-center gap-1.5 overflow-hidden px-2 text-xs font-medium cursor-pointer transition hover:brightness-95 outline-none focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[segment.status]} ${STATUS_BORDER_CLASS[segment.status]}`}
+      className={`absolute top-2 bottom-2 rounded border flex items-center gap-1.5 overflow-hidden px-2 text-xs font-medium cursor-pointer transition hover:brightness-95 outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[segment.status]} ${STATUS_BORDER_CLASS[segment.status]}`}
       style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
     >
       {/* Solid utilization meter — fills the track left-to-right. */}

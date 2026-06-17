@@ -282,7 +282,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             placeholder="Search spaces, requests, groups, sites..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="flex h-12 w-full border-0 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0"
+            className="flex h-12 w-full border-0 bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground focus-visible:ring-0"
           />
           {query && !isLoading && (
             <Button

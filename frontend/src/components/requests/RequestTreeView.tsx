@@ -205,7 +205,7 @@ const TreeRow = React.memo(function TreeRow({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenConflicts(request.id);
@@ -641,7 +641,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-    <div className="h-full flex flex-col rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+    <div className="h-full flex flex-col rounded-2xl border bg-card text-card-foreground shadow-xs overflow-hidden">
       {entries.length > 0 && (
         <div className="px-3 h-14 shrink-0 border-b flex items-center justify-end gap-2">
           <span className="text-xs text-muted-foreground mr-auto">
