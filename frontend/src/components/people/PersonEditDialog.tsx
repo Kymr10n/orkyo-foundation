@@ -152,12 +152,12 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const [createDeptName, setCreateDeptName] = useState<string | undefined>(undefined);
 
   // Reference data
-  const { data: jobTitles = [] } = useQuery({
+  const { data: jobTitles = [], isLoading: jobTitlesLoading } = useQuery({
     queryKey: ['job-titles', { includeInactive: false }],
     queryFn: () => getJobTitles(false),
     enabled: isOpen,
   });
-  const { data: deptTree = [] } = useQuery({
+  const { data: deptTree = [], isLoading: deptTreeLoading } = useQuery({
     queryKey: ['departments', 'tree', { includeInactive: false }],
     queryFn: () => getDepartmentTree(false),
     enabled: isOpen,
@@ -262,9 +262,9 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   // deactivated), inject a placeholder option so the Select still shows
   // something rather than going blank.
   const jobTitleMissing =
-    form.jobTitleId && !jobTitles.some((j) => j.id === form.jobTitleId);
+    !jobTitlesLoading && !!form.jobTitleId && !jobTitles.some((j) => j.id === form.jobTitleId);
   const departmentMissing =
-    form.departmentId && !deptOptions.some((o) => o.id === form.departmentId);
+    !deptTreeLoading && !!form.departmentId && !deptOptions.some((o) => o.id === form.departmentId);
 
   // Validation status surfaced as tab dots + a summary banner. All current items live on
   // the Details tab; the dot is still computed per-tab so future per-tab warnings are trivial.
