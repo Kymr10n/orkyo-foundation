@@ -268,7 +268,8 @@ public class SessionService : ISessionService
                 lifecycle_warning_count = 0,
                 lifecycle_last_warned_at = NULL,
                 lifecycle_dormant_since = NULL,
-                lifecycle_confirm_token = NULL
+                lifecycle_confirm_token = NULL,
+                lifecycle_confirm_token_expires_at = NULL
             WHERE id = @id
         ", db);
         cmd.Parameters.AddWithValue("id", userId);

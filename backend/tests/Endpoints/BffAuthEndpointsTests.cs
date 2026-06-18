@@ -238,4 +238,9 @@ public class BffAuthEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
     }
+
+    // Note: the "bff-auth" rate-limit policy applied to /login, /callback and /logout
+    // is verified by orkyo-saas RateLimitPolicyRegistrationTests, which assert the
+    // policy is declared and registered. Behavioural 429 testing is not possible in
+    // this host because rate limiting is globally disabled here (DISABLE_RATE_LIMITING).
 }

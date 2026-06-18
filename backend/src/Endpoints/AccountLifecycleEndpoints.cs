@@ -54,7 +54,8 @@ public static class AccountLifecycleEndpoints
                     SELECT id, keycloak_id, display_name, lifecycle_status
                     FROM users
                     WHERE lifecycle_confirm_token = @token
-                      AND lifecycle_status IS NOT NULL", db))
+                      AND lifecycle_status IS NOT NULL
+                      AND lifecycle_confirm_token_expires_at > NOW()", db))
                 {
                     findCmd.Parameters.AddWithValue("token", token);
                     await using var reader = await findCmd.ExecuteReaderAsync();
@@ -97,6 +98,7 @@ public static class AccountLifecycleEndpoints
                         lifecycle_last_warned_at = NULL,
                         lifecycle_dormant_since = NULL,
                         lifecycle_confirm_token = NULL,
+                        lifecycle_confirm_token_expires_at = NULL,
                         updated_at = NOW()
                     WHERE id = @id", db);
                 clearCmd.Parameters.AddWithValue("id", record.UserId);

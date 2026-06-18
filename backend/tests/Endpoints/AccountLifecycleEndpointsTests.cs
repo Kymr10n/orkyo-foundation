@@ -38,7 +38,8 @@ public class AccountLifecycleEndpointsTests
     /// </summary>
     private async Task<(Guid userId, string token)> CreateUserWithLifecycleTokenAsync(
         string lifecycleStatus = "warned",
-        string? keycloakId = null)
+        string? keycloakId = null,
+        int tokenExpiresInDays = 30)
     {
         var email = $"lifecycle_{Guid.NewGuid()}@example.com";
         // No tenant membership needed — the endpoint only touches control_plane.users
@@ -67,10 +68,12 @@ public class AccountLifecycleEndpointsTests
             SET lifecycle_status        = @status,
                 lifecycle_warning_count = 1,
                 lifecycle_last_warned_at = NOW(),
-                lifecycle_confirm_token = @token
+                lifecycle_confirm_token = @token,
+                lifecycle_confirm_token_expires_at = NOW() + make_interval(days => @expiresInDays)
             WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("status", lifecycleStatus);
         cmd.Parameters.AddWithValue("token", token);
+        cmd.Parameters.AddWithValue("expiresInDays", tokenExpiresInDays);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync();
 
@@ -208,6 +211,26 @@ public class AccountLifecycleEndpointsTests
 
         var (status, _, _) = await GetUserLifecycleStateAsync(userId);
         status.Should().BeNull();
+    }
+
+    // ─── expiry guard ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ConfirmActivity_WithExpiredToken_RedirectsToExpiredAndLeavesStateUntouched()
+    {
+        var (userId, token) = await CreateUserWithLifecycleTokenAsync("dormant", keycloakId: Guid.NewGuid().ToString(), tokenExpiresInDays: -1);
+
+        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().Contain("lifecycle=expired");
+
+        // An expired token must not re-enable the account or clear lifecycle state
+        _mockKeycloak.EnableUserCallCount.Should().Be(0);
+        var (status, count, confirmToken) = await GetUserLifecycleStateAsync(userId);
+        status.Should().Be("dormant");
+        count.Should().Be(1);
+        confirmToken.Should().Be(token);
     }
 
     // ─── idempotency guard ────────────────────────────────────────────────────────

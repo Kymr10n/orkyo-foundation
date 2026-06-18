@@ -66,13 +66,20 @@ public static class FoundationApiHostExtensions
                 {
                     if (!string.IsNullOrEmpty(baseDomain))
                     {
+                        var subdomainSuffix = $".{baseDomain}";
                         policy.SetIsOriginAllowed(origin =>
                         {
                             if (allowedOrigins.Contains(origin))
                                 return true;
-                            return Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
-                                   uri.Scheme == "https" &&
-                                   uri.Host.EndsWith($".{baseDomain}", StringComparison.OrdinalIgnoreCase);
+                            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+                                uri.Scheme != "https" ||
+                                !uri.Host.EndsWith(subdomainSuffix, StringComparison.OrdinalIgnoreCase))
+                                return false;
+                            // Only a single tenant subdomain label (slug.baseDomain) is trusted —
+                            // reject nested hosts like a.b.baseDomain to shrink the credentialed-CORS
+                            // surface exposed to dangling/takeover subdomains.
+                            var label = uri.Host[..^subdomainSuffix.Length];
+                            return label.Length > 0 && !label.Contains('.');
                         });
                     }
                     else

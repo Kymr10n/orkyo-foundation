@@ -34,9 +34,16 @@ public static class LifecyclePolicyConstants
     public const int UserWarningReminderDays = 14;
     public const int UserPurgeAfterDormantDays = 90;
 
+    // Validity of a confirm-activity token. Comfortably covers the full warned
+    // window (warnings are UserWarningReminderDays apart, with deactivation that
+    // far again after warning #3) while still bounding token reuse so a leaked
+    // link cannot re-activate an account indefinitely.
+    public const int UserConfirmTokenValidityDays = 30;
+
     public const string TenantSuspendAfterDormantSqlInterval = "30 days";
     public const string TenantDeleteGraceSqlInterval = "7 days";
     public const string UserInactiveWarningSqlInterval = "12 months";
     public const string UserWarningReminderSqlInterval = "14 days";
     public const string UserPurgeAfterDormantSqlInterval = "90 days";
+    public const string UserConfirmTokenValiditySqlInterval = "30 days";
 }

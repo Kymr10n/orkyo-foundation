@@ -242,13 +242,17 @@ public sealed class UserLifecycleService
         Npgsql.NpgsqlConnection db, Guid userId, string? status, int warningCount,
         DateTime? lastWarnedAt, DateTime? dormantSince, string? confirmToken, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand(@"
+        var cmd = new Npgsql.NpgsqlCommand($@"
             UPDATE users
             SET lifecycle_status = @status,
                 lifecycle_warning_count = @warningCount,
                 lifecycle_last_warned_at = @lastWarnedAt,
                 lifecycle_dormant_since = @dormantSince,
                 lifecycle_confirm_token = @confirmToken,
+                lifecycle_confirm_token_expires_at = CASE
+                    WHEN @confirmToken IS NULL THEN NULL
+                    ELSE NOW() + INTERVAL '{LifecyclePolicyConstants.UserConfirmTokenValiditySqlInterval}'
+                END,
                 updated_at = NOW()
             WHERE id = @id", db);
         cmd.Parameters.AddWithValue("status", (object?)status ?? DBNull.Value);
