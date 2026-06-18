@@ -13,22 +13,6 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Box } from 'lucide-react';
-import { PersonList } from '@foundation/src/components/people/PersonList';
-import { ResourceGroupList } from '@foundation/src/components/resource-groups/ResourceGroupList';
-import { JobTitleSettings } from '@foundation/src/components/settings/JobTitleSettings';
-import { DepartmentSettings } from '@foundation/src/components/settings/DepartmentSettings';
-import { CriteriaSettings } from '@foundation/src/components/settings/CriteriaSettings';
-import { SiteSettings } from '@foundation/src/components/settings/SiteSettings';
-import { TemplateSettings } from '@foundation/src/components/settings/TemplateSettings';
-import { PresetSettings } from '@foundation/src/components/settings/PresetSettings';
-import { UserSettings } from '@foundation/src/components/settings/UserSettings';
-import { OrganizationSettings } from '@foundation/src/components/settings/OrganizationSettings';
-import { TenantConfigSettings } from '@foundation/src/components/settings/TenantConfigSettings';
-import { SchedulingSettings } from '@foundation/src/components/settings/SchedulingSettings';
-import { ReportingApiPage } from '@foundation/src/components/settings/ReportingApiPage';
-import { UsageLimitsSettings } from '@foundation/src/components/settings/UsageLimitsSettings';
-import { FloorplanView } from '@foundation/src/components/spaces/FloorplanView';
-import { SpaceListView } from '@foundation/src/components/spaces/SpaceListView';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
 import { RequireTenantAdmin } from '@foundation/src/components/auth/RequireTenantAdmin';
@@ -55,6 +39,26 @@ const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').the
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const TenantAdminPage = lazy(() => import('@foundation/src/pages/TenantAdminPage').then(m => ({ default: m.TenantAdminPage })));
 const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
+
+// Lazy-loaded route-leaf components — split out of the entry chunk. Most sessions
+// only visit the utilization/requests routes; settings/admin/people/spaces leaves
+// load on demand. All are rendered as route elements under the <Suspense> below.
+const PersonList = lazy(() => import('@foundation/src/components/people/PersonList').then(m => ({ default: m.PersonList })));
+const ResourceGroupList = lazy(() => import('@foundation/src/components/resource-groups/ResourceGroupList').then(m => ({ default: m.ResourceGroupList })));
+const JobTitleSettings = lazy(() => import('@foundation/src/components/settings/JobTitleSettings').then(m => ({ default: m.JobTitleSettings })));
+const DepartmentSettings = lazy(() => import('@foundation/src/components/settings/DepartmentSettings').then(m => ({ default: m.DepartmentSettings })));
+const CriteriaSettings = lazy(() => import('@foundation/src/components/settings/CriteriaSettings').then(m => ({ default: m.CriteriaSettings })));
+const SiteSettings = lazy(() => import('@foundation/src/components/settings/SiteSettings').then(m => ({ default: m.SiteSettings })));
+const TemplateSettings = lazy(() => import('@foundation/src/components/settings/TemplateSettings').then(m => ({ default: m.TemplateSettings })));
+const PresetSettings = lazy(() => import('@foundation/src/components/settings/PresetSettings').then(m => ({ default: m.PresetSettings })));
+const UserSettings = lazy(() => import('@foundation/src/components/settings/UserSettings').then(m => ({ default: m.UserSettings })));
+const OrganizationSettings = lazy(() => import('@foundation/src/components/settings/OrganizationSettings').then(m => ({ default: m.OrganizationSettings })));
+const TenantConfigSettings = lazy(() => import('@foundation/src/components/settings/TenantConfigSettings').then(m => ({ default: m.TenantConfigSettings })));
+const SchedulingSettings = lazy(() => import('@foundation/src/components/settings/SchedulingSettings').then(m => ({ default: m.SchedulingSettings })));
+const ReportingApiPage = lazy(() => import('@foundation/src/components/settings/ReportingApiPage').then(m => ({ default: m.ReportingApiPage })));
+const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
+const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
+const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
 const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings", "/tenant-admin"];

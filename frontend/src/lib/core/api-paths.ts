@@ -70,6 +70,7 @@ export const API_PATHS = {
   // Person Profiles
   PERSON_PROFILES: '/api/person-profiles',
   PERSON_PROFILE_JOB_TITLES: '/api/person-profiles/job-titles',
+  PERSON_PROFILES_BATCH: '/api/person-profiles/batch',
   personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
   personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
 

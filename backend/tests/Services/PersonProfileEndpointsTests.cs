@@ -223,4 +223,43 @@ public class PersonProfileEndpointsTests
         Assert.NotNull(labels);
         Assert.Empty(labels);
     }
+
+    [Fact]
+    public async Task GetPersonProfilesBatch_ReturnsFullProfilesWithResolvedFields()
+    {
+        var p1 = await CreatePersonAsync($"BB1-{Guid.NewGuid():N}"[..20]);
+        var p2 = await CreatePersonAsync($"BB2-{Guid.NewGuid():N}"[..20]);
+        var jobTitleId = await CreateJobTitleAsync($"JT-{Guid.NewGuid():N}"[..20]);
+        var rootDeptId = await CreateDepartmentAsync($"D-{Guid.NewGuid():N}"[..20], parentId: null);
+        var childDeptId = await CreateDepartmentAsync($"D-{Guid.NewGuid():N}"[..20], parentId: rootDeptId);
+        await _client.PutAsJsonAsync($"/api/person-profiles/{p1.Id}",
+            new UpsertPersonProfileRequest { Email = "bb1@example.com", JobTitleId = jobTitleId, DepartmentId = childDeptId });
+        await _client.PutAsJsonAsync($"/api/person-profiles/{p2.Id}",
+            new UpsertPersonProfileRequest { Email = "bb2@example.com" });
+
+        // Include an unknown id — it should simply be omitted, not error.
+        var resp = await _client.PostAsJsonAsync(
+            "/api/person-profiles/batch", new[] { p1.Id, p2.Id, Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var profiles = await resp.Content.ReadFromJsonAsync<List<PersonProfileInfo>>();
+        Assert.NotNull(profiles);
+        Assert.Equal(2, profiles.Count);
+        var first = Assert.Single(profiles, p => p.ResourceId == p1.Id);
+        Assert.Equal("bb1@example.com", first.Email);
+        Assert.NotNull(first.JobTitleName);
+        Assert.Contains(" / ", first.DepartmentPath); // resolved path includes both levels
+        Assert.Contains(profiles, p => p.ResourceId == p2.Id);
+    }
+
+    [Fact]
+    public async Task GetPersonProfilesBatch_NoIds_ReturnsEmptyArray()
+    {
+        var resp = await _client.PostAsJsonAsync("/api/person-profiles/batch", Array.Empty<Guid>());
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var profiles = await resp.Content.ReadFromJsonAsync<List<PersonProfileInfo>>();
+        Assert.NotNull(profiles);
+        Assert.Empty(profiles);
+    }
 }

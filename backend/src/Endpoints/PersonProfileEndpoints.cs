@@ -37,6 +37,21 @@ public static class PersonProfileEndpoints
             .WithSummary("Bulk job-title labels by resource IDs for the utilization grid")
             .AllowMemberWrite();
 
+        // Bulk full profiles for the People list grid, replacing a per-row GET fan-out. POST (not GET)
+        // for the same reason as /job-titles: the id list rides in the body so a large grid can't blow
+        // the request-line limit. Resources without a profile row are simply absent from the result.
+        // AllowMemberWrite keeps this non-mutating POST open to readers.
+        group.MapPost("/batch", async (
+            [FromBody] Guid[] resourceIds,
+            IPersonProfileRepository profileRepository,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(
+                async () => Results.Ok(await profileRepository.GetByResourceIdsAsync(resourceIds, ct)),
+                logger, "list person profiles", new { count = resourceIds.Length }))
+            .WithName("ListPersonProfiles")
+            .WithSummary("Bulk person profiles by resource IDs for the People list")
+            .AllowMemberWrite();
+
         group.MapGet("/{resourceId:guid}", async (
             Guid resourceId,
             IResourceRepository resourceRepository,

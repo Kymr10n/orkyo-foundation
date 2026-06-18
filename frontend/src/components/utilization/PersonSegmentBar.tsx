@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { AlertTriangle, Briefcase } from "lucide-react";
 import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
 import { segmentDisplayData } from "@foundation/src/domain/scheduling/utilization-segments";
@@ -72,17 +72,26 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
 }) {
   const { leftPercent, widthPercent } = segmentDisplayData(segment, viewStartMs, viewEndMs);
 
+  const label = segmentLabel(segment);
+  const showCount = assignmentCount > 0;
+
+  // toLocaleString() is comparatively expensive; memoize the tooltip/aria
+  // strings so they aren't rebuilt on re-renders where the inputs are unchanged.
+  // Declared before the early return below to satisfy the rules of hooks.
+  const { tooltip, ariaLabel } = useMemo(() => {
+    const period = `${new Date(segment.start).toLocaleString()} – ${new Date(segment.end).toLocaleString()}`;
+    return {
+      tooltip: `${personName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""}${hasConflict ? " · ⚠ capability conflict" : ""} · ${period}`,
+      ariaLabel: `${personName}, ${label}, ${period}. Open assignment dialog.`,
+    };
+  }, [segment, personName, label, showCount, assignmentCount, hasConflict]);
+
   // Fully outside the visible window — nothing to paint.
   if (widthPercent <= 0) return null;
 
-  const label = segmentLabel(segment);
   const showLabel = widthPercent >= LABEL_MIN_WIDTH_PERCENT;
-  const showCount = assignmentCount > 0;
   const fill = fillPercent(segment);
   const fillClass = STATUS_FILL_CLASS[segment.status];
-  const period = `${new Date(segment.start).toLocaleString()} – ${new Date(segment.end).toLocaleString()}`;
-  const tooltip = `${personName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""}${hasConflict ? " · ⚠ capability conflict" : ""} · ${period}`;
-  const ariaLabel = `${personName}, ${label}, ${period}. Open assignment dialog.`;
 
   const activate = () => onClick(segment);
 

@@ -8,6 +8,10 @@ namespace Api.Repositories;
 public interface IPersonProfileRepository
 {
     Task<PersonProfileInfo?> GetByResourceIdAsync(Guid resourceId, CancellationToken ct = default);
+    /// <summary>Bulk full-profile lookup for many person resources in one round-trip — the People list
+    /// grid (replaces a per-row fan-out). Mirrors <see cref="GetByResourceIdAsync"/> including the
+    /// department CTE and note decryption; resources with no profile row are simply absent.</summary>
+    Task<List<PersonProfileInfo>> GetByResourceIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
     /// <summary>Bulk job-title labels for many person resources in one round-trip — the utilization
     /// grid's label cells. Intentionally skips the full profile (department CTE + note decryption).</summary>
     Task<List<PersonJobTitleInfo>> GetJobTitlesByResourceIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
@@ -72,6 +76,16 @@ public class PersonProfileRepository(
             $"{SelectSqlBody} WHERE p.resource_id = @resourceId",
             p => p.AddWithValue("resourceId", resourceId), Map, ct);
         return profile is null ? null : Dec(profile);
+    }
+
+    public async Task<List<PersonProfileInfo>> GetByResourceIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        var profiles = await db.QueryListAsync(
+            $"{SelectSqlBody} WHERE p.resource_id = ANY(@resourceIds)",
+            p => p.AddWithValue("resourceIds", resourceIds.ToArray()), Map, ct);
+        return profiles.Select(Dec).ToList();
     }
 
     public async Task<List<PersonJobTitleInfo>> GetJobTitlesByResourceIdsAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)

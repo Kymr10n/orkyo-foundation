@@ -147,6 +147,35 @@ public class PersonProfileRepositoryTests
     }
 
     [Fact]
+    public async Task GetByResourceIds_ReturnsEmpty_ForEmptyInput()
+    {
+        var result = await _repo.GetByResourceIdsAsync([]);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetByResourceIds_ReturnsFullProfiles_OnlyForResourcesWithRows()
+    {
+        var r1 = await SeedPersonResourceAsync();
+        var r2 = await SeedPersonResourceAsync();
+        await _repo.UpsertAsync(r1, new UpsertPersonProfileRequest { Email = "batch-a@example.com", Notes = "secret a" });
+        await _repo.UpsertAsync(r2, new UpsertPersonProfileRequest { Email = "batch-b@example.com" });
+
+        // r3 is a person resource with NO profile row; the random id matches nothing at all.
+        var r3 = await SeedPersonResourceAsync();
+
+        var result = await _repo.GetByResourceIdsAsync([r1, r2, r3, Guid.NewGuid()]);
+
+        Assert.Equal(2, result.Count);
+        var a = Assert.Single(result, p => p.ResourceId == r1);
+        Assert.Equal("batch-a@example.com", a.Email);
+        // Notes are encrypted at rest; the bulk path must decrypt like the single lookup.
+        Assert.Equal("secret a", a.Notes);
+        Assert.Contains(result, p => p.ResourceId == r2);
+        Assert.DoesNotContain(result, p => p.ResourceId == r3);
+    }
+
+    [Fact]
     public async Task GetJobTitles_ReturnsEmpty_ForEmptyInput()
     {
         var result = await _repo.GetJobTitlesByResourceIdsAsync([]);

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { ResourceAssignmentInfo } from "@foundation/src/lib/api/resource-assignments-api";
 import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
@@ -6,33 +6,10 @@ import type { TimeColumn } from "./scheduler-types";
 import { TimelineRow } from "./TimelineRow";
 import { PersonSegmentBar } from "./PersonSegmentBar";
 
-function countOverlapping(
-  assignments: ResourceAssignmentInfo[],
-  segment: PersonUtilizationSegment,
-): number {
-  const segStart = new Date(segment.start).getTime();
-  const segEnd = new Date(segment.end).getTime();
-  return assignments.filter(
-    (a) =>
-      new Date(a.startUtc).getTime() < segEnd &&
-      new Date(a.endUtc).getTime() > segStart,
-  ).length;
-}
-
-function hasConflictInSegment(
-  assignments: ResourceAssignmentInfo[],
-  segment: PersonUtilizationSegment,
-  conflictedIds: ReadonlySet<string>,
-): boolean {
-  if (conflictedIds.size === 0) return false;
-  const segStart = new Date(segment.start).getTime();
-  const segEnd = new Date(segment.end).getTime();
-  return assignments.some(
-    (a) =>
-      conflictedIds.has(a.id) &&
-      new Date(a.startUtc).getTime() < segEnd &&
-      new Date(a.endUtc).getTime() > segStart,
-  );
+/** Per-segment overlap count + conflict flag, indexed parallel to `segments`. */
+interface SegmentStat {
+  count: number;
+  hasConflict: boolean;
 }
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
@@ -71,6 +48,38 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   conflictedAssignmentIds?: ReadonlySet<string>;
   onSegmentClick: (person: ResourceInfo, segment: PersonUtilizationSegment) => void;
 }) {
+  // Parse assignment bounds once per assignment-set change, then compute each
+  // segment's overlap count + conflict flag in a single pass. Previously both
+  // were re-derived inside the segment map on every render, re-parsing every
+  // assignment's start/end Date for each segment (O(segments × assignments)).
+  const assignmentBounds = useMemo(
+    () =>
+      assignments.map((a) => ({
+        id: a.id,
+        startMs: new Date(a.startUtc).getTime(),
+        endMs: new Date(a.endUtc).getTime(),
+      })),
+    [assignments],
+  );
+
+  const segmentStats = useMemo<SegmentStat[]>(
+    () =>
+      segments.map((segment) => {
+        const segStart = new Date(segment.start).getTime();
+        const segEnd = new Date(segment.end).getTime();
+        let count = 0;
+        let hasConflict = false;
+        for (const a of assignmentBounds) {
+          if (a.startMs < segEnd && a.endMs > segStart) {
+            count++;
+            if (!hasConflict && conflictedAssignmentIds.has(a.id)) hasConflict = true;
+          }
+        }
+        return { count, hasConflict };
+      }),
+    [segments, assignmentBounds, conflictedAssignmentIds],
+  );
+
   const overallClass =
     overallPct > 100
       ? "text-red-500"
@@ -113,15 +122,15 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
           No data
         </div>
       ) : (
-        segments.map((segment) => (
+        segments.map((segment, i) => (
           <PersonSegmentBar
             key={`${segment.start}-${segment.status}`}
             segment={segment}
             personName={person.name}
             viewStartMs={viewStartMs}
             viewEndMs={viewEndMs}
-            assignmentCount={countOverlapping(assignments, segment)}
-            hasConflict={hasConflictInSegment(assignments, segment, conflictedAssignmentIds)}
+            assignmentCount={segmentStats[i].count}
+            hasConflict={segmentStats[i].hasConflict}
             onClick={(s) => onSegmentClick(person, s)}
           />
         ))

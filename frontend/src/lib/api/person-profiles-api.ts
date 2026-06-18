@@ -40,6 +40,17 @@ export async function getPersonProfile(resourceId: string): Promise<PersonProfil
   return apiGet<PersonProfileInfo>(API_PATHS.personProfile(resourceId));
 }
 
+/**
+ * Bulk-get full profiles for many person resources in a single request — replaces a per-row profile
+ * fan-out on the People list. POST (not GET) so a large id set isn't capped by URL length. Resources
+ * without a profile row are simply absent from the result; order is not guaranteed (callers index by
+ * `resourceId`).
+ */
+export async function getPersonProfiles(resourceIds: string[]): Promise<PersonProfileInfo[]> {
+  if (resourceIds.length === 0) return [];
+  return apiPost<PersonProfileInfo[]>(API_PATHS.PERSON_PROFILES_BATCH, resourceIds);
+}
+
 /** Lightweight per-person job-title label for the utilization grid (not the full profile). */
 export interface PersonJobTitleInfo {
   resourceId: string;

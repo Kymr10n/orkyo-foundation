@@ -12,7 +12,7 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
 }));
 
 vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
-  getPersonProfile: vi.fn().mockResolvedValue(null),
+  getPersonProfiles: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('sonner', () => ({

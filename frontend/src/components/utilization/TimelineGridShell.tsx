@@ -113,6 +113,25 @@ export function TimelineGridShell<R>({
     return items;
   }, [groups, collapseIdPrefix, collapsedGroupIds]);
 
+  // Per-column tint + tooltip title, precomputed once per column/scale change.
+  // The title's date-fns format() was previously called for every column on
+  // every render of the shell.
+  const columnHeaders = useMemo(() => {
+    const titleFormat =
+      scale === "day" || scale === "hour"
+        ? "EEEE, MMMM d, yyyy HH:mm"
+        : "EEEE, MMMM d, yyyy";
+    return columns.map((col) => ({
+      tint:
+        col.isWeekend || col.isGlobalOffTime
+          ? "bg-destructive/10 text-destructive"
+          : col.isOutsideWorkingHours
+          ? "bg-muted/80"
+          : "",
+      title: format(col.start, titleFormat),
+    }));
+  }, [columns, scale]);
+
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => bodyScrollRef.current,
@@ -170,31 +189,18 @@ export function TimelineGridShell<R>({
           onScroll={handleHeaderScroll}
         >
           <div className="flex">
-            {columns.map((col) => {
-              const tint =
-                col.isWeekend || col.isGlobalOffTime
-                  ? "bg-destructive/10 text-destructive"
-                  : col.isOutsideWorkingHours
-                  ? "bg-muted/80"
-                  : "";
-              return (
-                <div
-                  key={col.start.getTime()}
-                  className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground ${
-                    onColumnHeaderClick ? "cursor-pointer hover:bg-accent/50" : ""
-                  } ${tint}`}
-                  title={format(
-                    col.start,
-                    scale === "day" || scale === "hour"
-                      ? "EEEE, MMMM d, yyyy HH:mm"
-                      : "EEEE, MMMM d, yyyy",
-                  )}
-                  onClick={onColumnHeaderClick ? () => onColumnHeaderClick(col) : undefined}
-                >
-                  {col.label}
-                </div>
-              );
-            })}
+            {columns.map((col, i) => (
+              <div
+                key={col.start.getTime()}
+                className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground ${
+                  onColumnHeaderClick ? "cursor-pointer hover:bg-accent/50" : ""
+                } ${columnHeaders[i].tint}`}
+                title={columnHeaders[i].title}
+                onClick={onColumnHeaderClick ? () => onColumnHeaderClick(col) : undefined}
+              >
+                {col.label}
+              </div>
+            ))}
           </div>
         </div>
       </div>

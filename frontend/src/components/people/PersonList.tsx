@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
@@ -9,7 +9,7 @@ import { PersonEditDialog } from './PersonEditDialog';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
 import { PersonAbsenceList } from './PersonAbsenceList';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
-import { getPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
+import { getPersonProfiles, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 export function PersonList() {
@@ -37,24 +37,22 @@ export function PersonList() {
     }
   }, [searchParams, people, setSearchParams]);
 
-  // Fetch each person's profile in parallel. The backend has no batch endpoint
-  // for profiles yet; this keeps the grid honest (instead of showing "-" for
-  // every row) without scope-creeping into a new endpoint. If this grid grows
-  // beyond ~100 people, add GET /api/person-profiles?ids=... as a follow-up.
-  const personRows = people?.data ?? [];
-  const profileQueries = useQueries({
-    queries: personRows.map((p: ResourceInfo) => ({
-      queryKey: ['person-profile', p.id] as const,
-      queryFn: () => getPersonProfile(p.id).catch(() => null),
-      staleTime: 60_000,
-    })),
+  // Fetch every person's profile in one batched request (replaces the old
+  // per-row fan-out). Resources without a profile row are simply absent from the
+  // response; callers index by resourceId, so a missing entry reads as null.
+  const personRows = useMemo<ResourceInfo[]>(() => people?.data ?? [], [people]);
+  const personIds = useMemo(() => personRows.map((p) => p.id), [personRows]);
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['person-profiles', personIds],
+    queryFn: () => getPersonProfiles(personIds),
+    enabled: personIds.length > 0,
+    staleTime: 60_000,
   });
-  const profileByPersonId: Record<string, Awaited<ReturnType<typeof getPersonProfile>> | null> = {};
-  personRows.forEach((p, idx) => {
-    profileByPersonId[p.id] = (profileQueries[idx]?.data ?? null) as
-      | Awaited<ReturnType<typeof getPersonProfile>>
-      | null;
-  });
+  const profileByPersonId = useMemo(() => {
+    const map: Record<string, PersonProfileInfo | null> = {};
+    for (const p of profiles) map[p.resourceId] = p;
+    return map;
+  }, [profiles]);
 
   const queryClient = useQueryClient();
 
@@ -110,8 +108,8 @@ export function PersonList() {
     </div>
   );
 
-  // profileByPersonId is rebuilt by useQueries on every resolve, so columns must
-  // also rebuild each render to close over the latest snapshot.
+  // profileByPersonId is rebuilt when the batched profiles query resolves, so
+  // columns must also rebuild each render to close over the latest snapshot.
   const columns: ColumnDef<ResourceInfo>[] = [
     {
       accessorKey: 'name',
