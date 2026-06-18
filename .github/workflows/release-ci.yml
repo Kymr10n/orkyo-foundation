@@ -620,6 +620,30 @@ jobs:
           docker push "$MAJOR_TAG"
           echo "Promoted: $V_TAG / $MINOR_TAG / $MAJOR_TAG"
 
+      # ── KC image carry-forward (no new KC build this release) ─────────────
+      # A release that doesn't touch keycloak/** builds no per-commit KC image,
+      # so the promote step above is skipped and the version tags
+      # (…-orkyo-<version>) are never created — which makes the infra deploy's KC
+      # pull fail (it pins the exact patch tag). Carry the current KC image (the
+      # major tag, which always points at the latest built KC) forward to the new
+      # version tags so every release yields a complete, self-consistent artifact
+      # set. The major tag already points at that image, so only the version and
+      # minor tags need (re-)creating.
+      - name: Carry forward KC image to version tags
+        if: steps.kc-check.outputs.exists != 'true'
+        env:
+          V_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.VERSION }}
+          MINOR_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.MINOR }}
+          MAJOR_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.MAJOR }}
+        run: |
+          if ! docker manifest inspect "$MAJOR_TAG" > /dev/null 2>&1; then
+            echo "::error::No existing KC image to carry forward ($MAJOR_TAG not found). A release that starts a new major line must change keycloak/** so a KC image is built."
+            exit 1
+          fi
+          echo "No new KC image this release — carrying $MAJOR_TAG forward"
+          docker buildx imagetools create -t "$V_TAG" -t "$MINOR_TAG" "$MAJOR_TAG"
+          echo "Carried forward to: $V_TAG / $MINOR_TAG (major tag $MAJOR_TAG already current)"
+
       # ── SBOM ──────────────────────────────────────────────────────────────
       - name: Generate SBOM for release
         if: steps.kc-check.outputs.exists == 'true'
