@@ -46,9 +46,12 @@
 <body class="orkyo-login">
     <div class="orkyo-login-container">
         <div class="orkyo-login-card">
-            <#-- Logo and branding — links back to the apex marketing site -->
+            <#-- Logo link: prefer client.baseUrl (set per-environment on the Keycloak
+                 client) so staging and prod each land on their own apex; fall back to
+                 the orkyoAppUrl theme property when no client.baseUrl is configured. -->
+            <#assign _logoHref = (client.baseUrl)?has_content?then(client.baseUrl, (properties.orkyoAppUrl)!"")>
             <div class="orkyo-login-header">
-                <a href="${properties.orkyoAppUrl}" class="orkyo-logo-link" aria-label="Go to Orkyo homepage">
+                <a href="${_logoHref}" class="orkyo-logo-link" aria-label="Go to Orkyo homepage">
                     <img src="${url.resourcesPath}/img/orkyo-logo.png" alt="Orkyo" class="orkyo-logo" />
                     <h1 class="orkyo-title">Orkyo</h1>
                 </a>
