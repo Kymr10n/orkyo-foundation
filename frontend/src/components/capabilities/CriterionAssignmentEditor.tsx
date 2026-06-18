@@ -9,8 +9,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ScrollableDialogBody,
 } from '@foundation/src/components/ui/dialog';
-import { ScrollArea } from '@foundation/src/components/ui/scroll-area';
 import { Separator } from '@foundation/src/components/ui/separator';
 import {
   Select,
@@ -143,7 +143,7 @@ export function CriterionAssignmentEditor({
           <DialogDescription className="sr-only">{labels.srDescription}</DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
+        <ScrollableDialogBody className="px-6">
           <div className="space-y-6 pb-6">
             {labels.intro && (
               <p className="text-sm text-muted-foreground">{labels.intro}</p>
@@ -242,7 +242,7 @@ export function CriterionAssignmentEditor({
 
             <ErrorAlert message={loadError ?? saveError ?? null} />
           </div>
-        </ScrollArea>
+        </ScrollableDialogBody>
 
         <Separator />
         <DialogFooter className="px-6 py-4">

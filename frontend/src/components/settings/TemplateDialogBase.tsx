@@ -5,7 +5,7 @@ import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
+import { ScrollableDialogBody } from "@foundation/src/components/ui/dialog";
 import {
     Select,
     SelectContent,
@@ -183,7 +183,7 @@ export function TemplateDialogBase({
       srOnlyDescription
     >
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <ScrollArea className="flex-1 px-6">
+          <ScrollableDialogBody className="px-6">
             <div className="space-y-6 pb-6">
               {/* Name */}
               <div className="space-y-2">
@@ -340,7 +340,7 @@ export function TemplateDialogBase({
               {/* Error Message */}
               <ErrorAlert message={error} />
             </div>
-          </ScrollArea>
+          </ScrollableDialogBody>
 
           <Separator />
           <DialogFormFooter

@@ -14,6 +14,7 @@ vi.mock('@foundation/src/components/ui/dialog', () => ({
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
@@ -28,10 +29,6 @@ vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
       <button type="submit" disabled={isSubmitting}>{submitLabel}</button>
     </div>
   ),
-}));
-
-vi.mock('@foundation/src/components/ui/scroll-area', () => ({
-  ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@foundation/src/components/ui/separator', () => ({

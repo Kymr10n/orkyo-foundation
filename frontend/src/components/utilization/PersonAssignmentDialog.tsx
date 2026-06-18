@@ -13,8 +13,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ScrollableDialogBody,
 } from "@foundation/src/components/ui/dialog";
-import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
   createAssignment,
   cancelAssignment,
@@ -352,7 +352,7 @@ export function PersonAssignmentDialog({
           />
         )}
 
-        <ScrollArea type="auto" className="flex-1 min-h-0 pr-4">
+        <ScrollableDialogBody className="pr-1">
           <div className="space-y-4">
             {isLoading ? (
               <div className="text-center py-8 text-sm text-muted-foreground">Loading…</div>
@@ -519,7 +519,7 @@ export function PersonAssignmentDialog({
               </>
             )}
           </div>
-        </ScrollArea>
+        </ScrollableDialogBody>
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
