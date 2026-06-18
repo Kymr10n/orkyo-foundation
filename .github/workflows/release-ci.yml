@@ -644,6 +644,22 @@ jobs:
           docker buildx imagetools create -t "$V_TAG" -t "$MINOR_TAG" "$MAJOR_TAG"
           echo "Carried forward to: $V_TAG / $MINOR_TAG (major tag $MAJOR_TAG already current)"
 
+      # ── Release completeness gate ─────────────────────────────────────────
+      # Belt-and-suspenders to the promote + carry-forward steps above: assert the
+      # Keycloak version tag actually exists before this release is announced to the
+      # downstream repos. A release must never dispatch with a missing KC image, or the
+      # infra deploy fails later at pull time (it pins this exact tag). Fail here, at the
+      # source, instead of shipping a green-but-incomplete release.
+      - name: Verify Keycloak version image exists
+        env:
+          KC_V_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.VERSION }}
+        run: |
+          if ! docker manifest inspect "$KC_V_TAG" > /dev/null 2>&1; then
+            echo "::error::Release incomplete — Keycloak image $KC_V_TAG was not produced by the promote/carry-forward steps."
+            exit 1
+          fi
+          echo "Keycloak version image present: $KC_V_TAG"
+
       # ── SBOM ──────────────────────────────────────────────────────────────
       - name: Generate SBOM for release
         if: steps.kc-check.outputs.exists == 'true'
