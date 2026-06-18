@@ -67,6 +67,21 @@ public static class ErrorResponses
     }
 
     /// <summary>
+    /// Returns a 404 Not Found response with a custom message (rather than the
+    /// "{resource} not found" form). Use when the 404 wording is not a simple
+    /// resource/id miss — e.g. "Unknown setting key: 'x'".
+    /// </summary>
+    /// <param name="message">The error message.</param>
+    public static IResult NotFoundMessage(string message)
+    {
+        return Results.NotFound(new ErrorResponse
+        {
+            Error = message,
+            Code = ErrorCodes.NotFound
+        });
+    }
+
+    /// <summary>
     /// Returns a 409 Conflict response with a standard error format.
     /// </summary>
     /// <param name="message">The error message.</param>
@@ -76,6 +91,21 @@ public static class ErrorResponses
         {
             Error = message,
             Code = ErrorCodes.Conflict
+        });
+    }
+
+    /// <summary>
+    /// Returns a 422 Unprocessable Entity response with a standard error format.
+    /// Use when the request is well-formed but cannot be acted on (e.g. a stale
+    /// identity link), as distinct from a 400 validation failure.
+    /// </summary>
+    /// <param name="message">The error message.</param>
+    public static IResult UnprocessableEntity(string message)
+    {
+        return Results.UnprocessableEntity(new ErrorResponse
+        {
+            Error = message,
+            Code = ErrorCodes.UnprocessableEntity
         });
     }
 

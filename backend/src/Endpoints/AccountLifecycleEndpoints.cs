@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Api.Configuration;
+using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Security;
@@ -140,11 +141,11 @@ public static class AccountEmailChangeEndpoints
         {
             var userId = principal.RequireUserId();
             if (string.IsNullOrWhiteSpace(request.NewEmail))
-                return Results.BadRequest(new { message = "Email address is required." });
+                return ErrorResponses.BadRequest("Email address is required.");
 
             var newEmail = request.NewEmail.Trim().ToLowerInvariant();
             if (!EmailAddressValidator.IsValid(newEmail))
-                return Results.BadRequest(new { message = "Enter a valid email address." });
+                return ErrorResponses.BadRequest("Enter a valid email address.");
 
             await using var db = dbFactory.CreateControlPlaneConnection();
             await db.OpenAsync();
@@ -163,7 +164,7 @@ public static class AccountEmailChangeEndpoints
             }
 
             if (string.Equals(currentEmail, newEmail, StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(new { message = "The new email address is the same as your current one." });
+                return ErrorResponses.BadRequest("The new email address is the same as your current one.");
 
             // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE indexes below
             bool taken;
@@ -174,7 +175,7 @@ public static class AccountEmailChangeEndpoints
                 return Results.Problem("Could not verify email availability. Please try again.");
             }
             if (taken)
-                return Results.Conflict(new { message = "That email address is already in use." });
+                return ErrorResponses.Conflict("That email address is already in use.");
 
             var token = Guid.NewGuid().ToString();
 
@@ -194,7 +195,7 @@ public static class AccountEmailChangeEndpoints
             }
             catch (Npgsql.PostgresException ex) when (ex.SqlState == PgUniqueViolation)
             {
-                return Results.Conflict(new { message = "That email address is already in use." });
+                return ErrorResponses.Conflict("That email address is already in use.");
             }
 
             // IEmailService returns false on SMTP failure (no exception thrown).

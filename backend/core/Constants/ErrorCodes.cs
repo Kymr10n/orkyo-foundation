@@ -14,4 +14,7 @@ public static class ErrorCodes
 
     /// <summary>Conflict error (409)</summary>
     public const string Conflict = "CONFLICT";
+
+    /// <summary>Unprocessable entity (422)</summary>
+    public const string UnprocessableEntity = "UNPROCESSABLE_ENTITY";
 }

@@ -52,7 +52,7 @@ public static class SettingsEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (request.Settings == null || request.Settings.Count == 0)
-                    return Results.BadRequest(new { error = "At least one setting is required" });
+                    return ErrorResponses.BadRequest("At least one setting is required");
                 var updated = await settingsService.UpdateSettingsAsync(request.Settings, ct);
                 var descriptors = settingsService.GetDescriptors();
                 var result = descriptors.Select(d => new
@@ -81,11 +81,11 @@ public static class SettingsEndpoints
             {
                 var allDescriptors = TenantSettingsService.GetAllDescriptors();
                 var descriptor = allDescriptors.FirstOrDefault(d => string.Equals(d.Key, key, StringComparison.OrdinalIgnoreCase));
-                if (descriptor == null) return Results.NotFound(new { error = $"Unknown setting key: '{key}'" });
+                if (descriptor == null) return ErrorResponses.NotFoundMessage($"Unknown setting key: '{key}'");
                 var deleted = await settingsService.ResetSettingAsync(key, ct);
                 return deleted
                     ? Results.Ok(new { message = $"Setting '{key}' reset to default" })
-                    : Results.NotFound(new { error = $"Setting '{key}' has no override to reset" });
+                    : ErrorResponses.NotFoundMessage($"Setting '{key}' has no override to reset");
             }, logger, "ResetSetting", new { key });
         })
         .WithName("ResetSetting")

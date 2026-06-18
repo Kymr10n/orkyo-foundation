@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Orkyo.Foundation.TestSupport</RootNamespace>
+    <AssemblyName>Orkyo.Foundation.TestSupport</AssemblyName>
+
+    <PackageId>Orkyo.Foundation.TestSupport</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Orkyo</Authors>
+    <Description>Shared integration-test scaffolding (test auth handler, constants, control-plane/tenant DB helpers) consumed identically by every product's test project.</Description>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <!-- AuthenticationHandler / ILoggerFactory / IOptionsMonitor come from the ASP.NET shared framework. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+</Project>

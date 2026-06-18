@@ -85,7 +85,7 @@ public static class PersonProfileEndpoints
                 // Reject if the user is already linked to a different person resource (tenant-wide constraint).
                 var existingProfile = await profileRepository.GetByLinkedUserIdAsync(request.UserId, ct);
                 if (existingProfile is not null && existingProfile.ResourceId != resourceId)
-                    return Results.Conflict(new { error = "User is already linked to another person profile" });
+                    return ErrorResponses.Conflict("User is already linked to another person profile");
 
                 var success = await profileRepository.LinkUserAsync(resourceId, request.UserId, ct);
                 return success ? Results.NoContent() : ErrorResponses.NotFound("PersonProfile", resourceId);
@@ -124,7 +124,7 @@ public static class PersonProfileEndpoints
             return (null, ErrorResponses.NotFound("Resource", resourceId));
 
         if (resource.ResourceTypeKey != ResourceTypeKeys.Person)
-            return (null, Results.BadRequest(new { error = NotAPersonMessage }));
+            return (null, ErrorResponses.BadRequest(NotAPersonMessage));
 
         return (resource, null);
     }

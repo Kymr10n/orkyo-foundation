@@ -193,12 +193,12 @@ public static class SessionEndpoints
                     var requiredVersion = sessionService.GetRequiredTosVersion();
                     if (string.IsNullOrEmpty(requiredVersion))
                     {
-                        return Results.BadRequest(new { error = "No ToS version required" });
+                        return ErrorResponses.BadRequest("No ToS version required");
                     }
 
                     if (request.TosVersion != requiredVersion)
                     {
-                        return Results.BadRequest(new { error = $"Invalid ToS version. Required: {requiredVersion}" });
+                        return ErrorResponses.BadRequest($"Invalid ToS version. Required: {requiredVersion}");
                     }
 
                     // Get IP and user agent for audit

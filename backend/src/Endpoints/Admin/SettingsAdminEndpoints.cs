@@ -1,4 +1,5 @@
 using Api.Configuration;
+using Api.Helpers;
 using Api.Middleware;
 using Api.Security;
 using Api.Services;
@@ -96,7 +97,7 @@ public static class SettingsAdminEndpoints
         CancellationToken ct = default)
     {
         if (request.Settings == null || request.Settings.Count == 0)
-            return Results.BadRequest(new { error = "No settings provided" });
+            return ErrorResponses.BadRequest("No settings provided");
 
         // Map property-style keys to DB keys
         var dbUpdates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -113,7 +114,7 @@ public static class SettingsAdminEndpoints
             }
             else
             {
-                return Results.BadRequest(new { error = $"Unknown setting: '{key}'" });
+                return ErrorResponses.BadRequest($"Unknown setting: '{key}'");
             }
         }
 
@@ -148,7 +149,7 @@ public static class SettingsAdminEndpoints
         }
         catch (ArgumentException ex)
         {
-            return Results.BadRequest(new { error = ex.Message });
+            return ErrorResponses.BadRequest(ex.Message);
         }
     }
 }

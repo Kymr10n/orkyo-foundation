@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Models;
@@ -188,7 +189,7 @@ public static class UserAdminEndpoints
         await using var userReader = await userCmd.ExecuteReaderAsync();
 
         if (!await userReader.ReadAsync())
-            return Results.NotFound(new { error = "User not found" });
+            return ErrorResponses.NotFound("User");
 
         var user = new AdminUserDetail
         {
@@ -290,7 +291,7 @@ public static class UserAdminEndpoints
         checkCmd.Parameters.AddWithValue("userId", userId);
 
         if (await checkCmd.ExecuteScalarAsync() == null)
-            return Results.NotFound(new { error = "User not found" });
+            return ErrorResponses.NotFound("User");
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT tm.tenant_id, t.slug, t.display_name, tm.role, tm.status, tm.created_at
@@ -435,23 +436,23 @@ public static class UserAdminEndpoints
         CancellationToken ct = default)
     {
         if (!await UserExistsAsync(userId, connectionFactory))
-            return Results.NotFound(new { error = "User not found" });
+            return ErrorResponses.NotFound("User");
 
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
         if (keycloakId == null)
-            return Results.UnprocessableEntity(new { error = "User has no Keycloak identity — cannot manage realm roles" });
+            return ErrorResponses.UnprocessableEntity("User has no Keycloak identity — cannot manage realm roles");
 
         try
         {
             if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole))
-                return Results.Conflict(new { error = "User already has the site-admin role" });
+                return ErrorResponses.Conflict("User already has the site-admin role");
 
             await keycloak.AssignRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole);
         }
         catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status404NotFound)
         {
             logger.LogWarning("Keycloak user {KeycloakId} not found for DB user {UserId} — stale identity link", keycloakId, userId);
-            return Results.UnprocessableEntity(new { error = "Keycloak identity is stale — user not found in identity provider" });
+            return ErrorResponses.UnprocessableEntity("Keycloak identity is stale — user not found in identity provider");
         }
 
         logger.LogInformation("Admin {AdminId} promoted user {UserId} to site-admin", principal.UserId, userId);
@@ -468,31 +469,31 @@ public static class UserAdminEndpoints
     {
         // Prevent revoking your own site-admin role
         if (userId == principal.UserId)
-            return Results.BadRequest(new { error = "Cannot revoke your own site-admin role" });
+            return ErrorResponses.BadRequest("Cannot revoke your own site-admin role");
 
         if (!await UserExistsAsync(userId, connectionFactory))
-            return Results.NotFound(new { error = "User not found" });
+            return ErrorResponses.NotFound("User");
 
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
         if (keycloakId == null)
-            return Results.UnprocessableEntity(new { error = "User has no Keycloak identity — cannot manage realm roles" });
+            return ErrorResponses.UnprocessableEntity("User has no Keycloak identity — cannot manage realm roles");
 
         try
         {
             if (!await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole))
-                return Results.Conflict(new { error = "User does not have the site-admin role" });
+                return ErrorResponses.Conflict("User does not have the site-admin role");
 
             // Prevent revoking the last site-admin
             var memberCount = await keycloak.CountRealmRoleMembersAsync(KeycloakClaims.SiteAdminRole);
             if (memberCount <= 1)
-                return Results.BadRequest(new { error = "Cannot revoke the last site-admin. Promote another user first." });
+                return ErrorResponses.BadRequest("Cannot revoke the last site-admin. Promote another user first.");
 
             await keycloak.RevokeRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole);
         }
         catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status404NotFound)
         {
             logger.LogWarning("Keycloak user {KeycloakId} not found for DB user {UserId} — stale identity link", keycloakId, userId);
-            return Results.UnprocessableEntity(new { error = "Keycloak identity is stale — user not found in identity provider" });
+            return ErrorResponses.UnprocessableEntity("Keycloak identity is stale — user not found in identity provider");
         }
 
         logger.LogInformation("Admin {AdminId} revoked site-admin from user {UserId}", principal.UserId, userId);

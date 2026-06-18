@@ -54,6 +54,15 @@ capability editors wrap the shared `CriterionAssignmentEditor` (+ `capability-di
 genuinely-special dialogs (multi-tab wizards, list pickers, read-only views) are exempt. Full rules:
 **[docs/dialog-feedback.md](docs/dialog-feedback.md)**.
 
+## Validation
+
+Two mechanisms, by design: **FluentValidation** (`AbstractValidator<T>` in `backend/core/Validators/`)
+for request-shape rules, applied at the boundary via `EndpointHelpers.ExecuteAsync(request, validator,
+handler)`; and **service validators** (e.g. `IResourceAssignmentValidator` in `backend/core/Services/`)
+for cross-entity/stateful rules that need the DB and return blockers vs. warnings. Shape → FluentValidation;
+cross-entity → service validator. Don't scatter ad-hoc guards in handlers. Full rules:
+**[docs/validation.md](docs/validation.md)**.
+
 ## Before merging changes that touch the public API
 
 When you alter the signature of a service registered in `FoundationWebApplicationFactory`, or rename/remove a `Map*Endpoints()` function, run:

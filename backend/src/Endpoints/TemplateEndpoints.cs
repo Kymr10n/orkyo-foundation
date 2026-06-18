@@ -19,8 +19,8 @@ public static class TemplateEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
-                if (string.IsNullOrEmpty(entityType)) return Results.BadRequest(new { error = "entityType query parameter is required" });
-                if (!TemplateEntityTypes.IsKnown(entityType)) return Results.BadRequest(new { error = $"Invalid entity type: {entityType}" });
+                if (string.IsNullOrEmpty(entityType)) return ErrorResponses.BadRequest("entityType query parameter is required");
+                if (!TemplateEntityTypes.IsKnown(entityType)) return ErrorResponses.BadRequest($"Invalid entity type: {entityType}");
                 return Results.Ok(await templateRepo.GetAllAsync(entityType));
             }, logger, "get templates", new { entityType });
         });

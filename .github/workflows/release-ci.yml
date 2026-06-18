@@ -264,6 +264,8 @@ jobs:
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/seeding/Orkyo.Foundation.Seed.csproj \
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/testsupport/Orkyo.Foundation.TestSupport.csproj \
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
 
   # ─────────────────────────────────────────────
   # FRONTEND CI
@@ -558,6 +560,13 @@ jobs:
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o ./nupkgs
 
+      - name: Pack Orkyo.Foundation.TestSupport
+        run: |
+          dotnet pack backend/testsupport/Orkyo.Foundation.TestSupport.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
       - name: Push NuGet packages to GitHub Packages
         run: |
           dotnet nuget push ./nupkgs/*.nupkg \
@@ -755,7 +764,8 @@ jobs:
             backend/core/Orkyo.Foundation.Core.csproj \
             backend/src/Orkyo.Foundation.Web.csproj \
             backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
-            backend/seeding/Orkyo.Foundation.Seed.csproj; do
+            backend/seeding/Orkyo.Foundation.Seed.csproj \
+            backend/testsupport/Orkyo.Foundation.TestSupport.csproj; do
             dotnet pack "$proj" -c Release --no-build \
               -p:Version=${{ steps.version.outputs.VERSION }} \
               -o ./nupkgs

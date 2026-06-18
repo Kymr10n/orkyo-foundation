@@ -97,7 +97,7 @@ public static class BffAuthEndpoints
             if (!bffOptions.IsReturnToAllowed(returnTo))
             {
                 logger.LogWarning("BFF login rejected: invalid returnTo={ReturnTo}", returnTo);
-                return Results.BadRequest(new { error = "Invalid returnTo URL" });
+                return ErrorResponses.BadRequest("Invalid returnTo URL");
             }
 
             var codeVerifier = GenerateRandomBase64Url(PkceVerifierLength);
@@ -152,7 +152,7 @@ public static class BffAuthEndpoints
         try
         {
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
-                return Results.BadRequest(new { error = "Missing code or state parameter" });
+                return ErrorResponses.BadRequest("Missing code or state parameter");
 
             // Atomic get-and-remove — a replayed state returns null immediately
             var pkceState = await pkceStore.GetAndRemoveAsync(state);
@@ -169,7 +169,7 @@ public static class BffAuthEndpoints
                 httpClientFactory, keycloakOptions, bffOptions, code, pkceState.CodeVerifier, logger);
 
             if (tokenResponse is null)
-                return Results.BadRequest(new { error = "Token exchange failed" });
+                return ErrorResponses.BadRequest("Token exchange failed");
 
             // Build a ClaimsPrincipal from the token, then use KeycloakTokenProfile
             // for all claim extraction — the single authoritative claims mapper.
@@ -179,14 +179,14 @@ public static class BffAuthEndpoints
             if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
             {
                 logger.LogError("BFF callback: access token missing 'sub' claim");
-                return Results.BadRequest(new { error = "Invalid access token" });
+                return ErrorResponses.BadRequest("Invalid access token");
             }
 
             var externalToken = tokenProfile.ToExternalIdentityToken();
             if (externalToken is null)
             {
                 logger.LogError("BFF callback: could not build external identity token");
-                return Results.BadRequest(new { error = "Invalid access token" });
+                return ErrorResponses.BadRequest("Invalid access token");
             }
 
             var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);

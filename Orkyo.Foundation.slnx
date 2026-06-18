@@ -17,6 +17,9 @@
   <Folder Name="/src/">
     <Project Path="backend/src/Orkyo.Foundation.Web.csproj" />
   </Folder>
+  <Folder Name="/testsupport/">
+    <Project Path="backend/testsupport/Orkyo.Foundation.TestSupport.csproj" />
+  </Folder>
   <Folder Name="/seeding/">
     <Project Path="backend/seeding/Orkyo.Foundation.Seed.csproj" />
   </Folder>

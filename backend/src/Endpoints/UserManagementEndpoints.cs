@@ -44,11 +44,11 @@ public static class UserManagementEndpoints
         app.MapGet("/api/invitations/validate", async ([FromServices] IInvitationService invitationService, [FromQuery] string? token, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(token))
-                return Results.BadRequest(new { error = "Invalid invitation token" });
+                return ErrorResponses.BadRequest("Invalid invitation token");
 
             var (email, expiresAt, tenantName, error) = await invitationService.ValidateInvitationAsync(token, ct);
             return error != null
-                ? Results.BadRequest(new { error })
+                ? ErrorResponses.BadRequest(error)
                 : Results.Ok(new { email, expiresAt, tenantName });
         })
         .AllowAnonymous()
@@ -127,7 +127,7 @@ public static class UserManagementEndpoints
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
                 var (success, error) = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
-                if (error != null) return Results.BadRequest(new { error });
+                if (error != null) return ErrorResponses.BadRequest(error);
                 if (!success) throw new KeyNotFoundException("User not found");
                 return Results.Ok(new { message = "User role updated successfully" });
             }, logger, "UpdateUserRole");
@@ -143,7 +143,7 @@ public static class UserManagementEndpoints
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
                 var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
-                if (error != null) return Results.BadRequest(new { error });
+                if (error != null) return ErrorResponses.BadRequest(error);
                 if (!success) throw new KeyNotFoundException("User not found");
                 return Results.Ok(new { message = "User deleted successfully" });
             }, logger, "DeleteUser");

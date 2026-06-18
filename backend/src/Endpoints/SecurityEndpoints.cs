@@ -84,7 +84,7 @@ public static class SecurityEndpoints
                 var sub = principal.RequireExternalSubject();
                 var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
                 if (!sessions.Any(s => s.Id == sessionId))
-                    return Results.NotFound(new { error = "Session not found" });
+                    return ErrorResponses.NotFoundMessage("Session not found");
                 await keycloakService.RevokeSessionAsync(sessionId, ct);
                 logger.LogInformation("Session {SessionId} revoked by user {Sub}", sessionId, sub);
                 return Results.Ok(new { message = "Session revoked" });

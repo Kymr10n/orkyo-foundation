@@ -39,7 +39,7 @@ public static class PresetEndpoints
             {
                 var userId = principal.RequireUserId();
                 var result = await presetService.ApplyAsync(preset, userId, ct);
-                return result.Success ? Results.Ok(result) : Results.BadRequest(new { error = result.Error });
+                return result.Success ? Results.Ok(result) : ErrorResponses.BadRequest(result.Error ?? "Preset application failed");
             }, logger, "apply preset", new { presetId = preset.PresetId });
         })
         .WithName("ApplyPreset")
@@ -51,7 +51,7 @@ public static class PresetEndpoints
             return await EndpointHelpers.ExecuteAsync(async () =>
             {
                 if (string.IsNullOrWhiteSpace(presetId) || string.IsNullOrWhiteSpace(name))
-                    return Results.BadRequest(new { error = "presetId and name are required" });
+                    return ErrorResponses.BadRequest("presetId and name are required");
                 var preset = await presetService.ExportAsync(presetId, name, description, ct);
                 return Results.Json(preset, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             }, logger, "export preset", new { presetId, name });

@@ -29,7 +29,7 @@ public static class FloorplanEndpoints
             var tenant = ctx.GetTenantContext();
             var file = ctx.Request.Form.Files.GetFile("file");
             if (file is null || file.Length == 0)
-                return Results.BadRequest(new { error = "No file uploaded" });
+                return ErrorResponses.BadRequest("No file uploaded");
 
             try
             {
@@ -58,7 +58,7 @@ public static class FloorplanEndpoints
             catch (ArgumentException ex)
             {
                 logger.LogInformation(ex, "Invalid floorplan upload for site {SiteId}", siteId);
-                return Results.BadRequest(new { error = ex.Message });
+                return ErrorResponses.BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
@@ -86,7 +86,7 @@ public static class FloorplanEndpoints
                 var download = await assetStorage.GetSiteFloorplanDownloadAsync(
                     tenant.TenantId, siteId, ct);
                 if (download is null)
-                    return Results.NotFound(new { error = "No floorplan found for this site" });
+                    return ErrorResponses.NotFoundMessage("No floorplan found for this site");
 
                 var asset = download.Metadata;
                 var eTag = $"\"{asset.ChecksumSha256}\"";
@@ -155,7 +155,7 @@ public static class FloorplanEndpoints
                 var deleted = await assetStorage.DeleteSiteFloorplanAsync(
                     tenant.TenantId, siteId, ct);
                 if (!deleted)
-                    return Results.NotFound(new { error = "No floorplan found for this site" });
+                    return ErrorResponses.NotFoundMessage("No floorplan found for this site");
 
                 var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
                 await tenantAudit.RecordAuditEventAsync(
