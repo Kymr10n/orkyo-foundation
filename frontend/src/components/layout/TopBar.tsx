@@ -67,8 +67,6 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
 
   const _scale = useAppStore((state) => state.scale);
   const anchorTs = useAppStore((state) => state.anchorTs);
-  const user = useAppStore((state) => state.user);
-  const _setUser = useAppStore((state) => state.setUser);
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
 
@@ -274,9 +272,9 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
             <div className="space-y-3">
               <div className="space-y-1">
                 <p className="text-sm font-medium">
-                  {user?.displayName || appUser?.displayName || "User"}
+                  {appUser?.displayName || "User"}
                 </p>
-                <p className="text-xs text-muted-foreground">{user?.email || appUser?.email}</p>
+                <p className="text-xs text-muted-foreground">{appUser?.email}</p>
               </div>
 
               <Separator />

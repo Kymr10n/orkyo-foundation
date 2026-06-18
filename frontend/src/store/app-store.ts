@@ -1,15 +1,8 @@
-import { type User } from "@foundation/src/types/auth";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 import { COOKIE_NAMES } from "@foundation/src/constants/http";
 import { create } from "zustand";
 
 interface AppState {
-  // Authentication
-  user: User | null;
-  isAuthLoading: boolean;
-  setUser: (user: User | null) => void;
-  setIsAuthLoading: (loading: boolean) => void;
-
   // Site and hall selection
   selectedSiteId: string | null;
   selectedHallId: string | null;
@@ -50,10 +43,6 @@ interface AppState {
   isSidebarCollapsed: boolean;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
 
-  // Right panel tab state (deprecated in v3, but keeping for now)
-  rightPanelTab: "details" | "floorplan";
-  setRightPanelTab: (tab: "details" | "floorplan") => void;
-
   // Space groups collapse state
   collapsedGroupIds: string[];
   toggleGroupCollapse: (groupId: string) => void;
@@ -65,12 +54,6 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  // Authentication
-  user: null,
-  isAuthLoading: false,
-  setUser: (user) => set({ user }),
-  setIsAuthLoading: (loading) => set({ isAuthLoading: loading }),
-
   selectedSiteId:
     typeof localStorage !== "undefined"
       ? localStorage.getItem(STORAGE_KEYS.SELECTED_SITE_ID)
@@ -120,9 +103,6 @@ export const useAppStore = create<AppState>((set) => ({
     }
     set({ isSidebarCollapsed: collapsed });
   },
-
-  rightPanelTab: "floorplan", // Default to floorplan
-  setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
 
   collapsedGroupIds: [],
   toggleGroupCollapse: (groupId) =>

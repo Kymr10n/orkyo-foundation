@@ -1,5 +1,6 @@
 import { createCrudHooks } from "./useMutations";
 import { createSite, deleteSite, getSites, updateSite } from "@foundation/src/lib/api/site-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import type { Site, CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types/site";
 
 const sitesHooks = createCrudHooks<Site, CreateSiteRequest, UpdateSiteRequest>({
@@ -10,7 +11,7 @@ const sitesHooks = createCrudHooks<Site, CreateSiteRequest, UpdateSiteRequest>({
   deleteFn: (id) => deleteSite(id),
   // Deleting a site cascades to spaces and requests; over-invalidating on
   // create/update is harmless and keeps the factory contract simple.
-  invalidateKeys: () => [["spaces"], ["requests"]],
+  invalidateKeys: () => [qk.spaces.all(), qk.requests.all()],
   entityLabel: "Site",
 });
 

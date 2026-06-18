@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import {
   getUtilizationByResource,
   type ResourceUtilizationBucket,
@@ -127,9 +128,10 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   // 1. People resources — name/metadata lookup (tenant-wide). The visible row set is derived below
   //    from the utilization query, which is the site-filtered authority for "who's relevant".
-  const { data: peopleResponse, isLoading: peopleLoading, isError: peopleError } = useQuery({
+  const { data: peopleResponse, isLoading: peopleLoading, isFetching: peopleFetching, isError: peopleError } = useQuery({
     queryKey: ['resources', 'person', 'utilization-grid'],
     queryFn: () => getResources({ resourceTypeKey: 'person', isActive: true }),
+    staleTime: 60_000,
   });
   const allPeople: ResourceInfo[] = useMemo(() => peopleResponse?.data ?? [], [peopleResponse]);
 
@@ -152,8 +154,8 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   // 4. Utilization for every person in a single request (replaces the old
   //    one-query-per-person fan-out). Grouped into a resourceId→buckets map.
-  const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError } = useQuery({
-    queryKey: ['utilization-by-resource', 'person', siteId ?? null, from.toISOString(), to.toISOString(), granularity],
+  const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError, isPlaceholderData: utilizationIsPlaceholder } = useQuery({
+    queryKey: qk.utilization.byResource('person', siteId ?? null, from, to, granularity),
     queryFn: () => getUtilizationByResource(from, to, granularity, 'person', siteId ?? undefined),
     staleTime: 60_000,
     placeholderData: (prev) => prev,
@@ -190,7 +192,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   // 6. Assignments for every person in the window, in one request — drives the
   //    per-segment count badge. Grouped into a resourceId→assignments map.
   const { data: allAssignmentsFlat = [], isError: assignmentsError } = useQuery({
-    queryKey: ['resource-assignments-by-type', 'person', from.toISOString(), to.toISOString()],
+    queryKey: qk.utilization.assignmentsByType('person', from, to),
     queryFn: () => getAssignmentsByResourceType('person', from, to),
     staleTime: 60_000,
   });
@@ -305,7 +307,12 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   // empty state. Gate the spinner on utilization in that case only — without a site the rows
   // come straight from `allPeople` and render progressively (per-row "Loading…"). `placeholderData:
   // prev` keeps utilizationLoading true only on first load, so window changes still update silently.
-  if (peopleLoading || (siteId && utilizationLoading)) {
+  if (
+    peopleLoading ||
+    (peopleFetching && allPeople.length === 0) ||
+    (siteId && utilizationLoading) ||
+    (siteId && utilizationIsPlaceholder && people.length === 0)
+  ) {
     return <LoadingSpinner fullScreen={false} message="Loading people…" />;
   }
 

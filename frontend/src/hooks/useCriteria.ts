@@ -2,6 +2,7 @@ import { createCrudHooks } from "./useMutations";
 import { createCriterion, deleteCriterion, getCriteria, updateCriterion, updateCriterionApplicability } from "@foundation/src/lib/api/criteria-api";
 import type { Criterion, CreateCriterionRequest, UpdateCriterionRequest, UpdateCriterionApplicabilityRequest, CriterionApplicabilityInfo } from "@foundation/src/types/criterion";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 const CRITERIA_QUERY_KEY = ["criteria"] as const;
 
@@ -11,7 +12,7 @@ const criteriaHooks = createCrudHooks<Criterion, CreateCriterionRequest, UpdateC
   createFn: (data) => createCriterion(data),
   updateFn: (id, data) => updateCriterion(id, data),
   deleteFn: (id) => deleteCriterion(id),
-  invalidateKeys: () => [["requests"]],
+  invalidateKeys: () => [qk.requests.all()],
   entityLabel: "Criterion",
 });
 

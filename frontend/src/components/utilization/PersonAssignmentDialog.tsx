@@ -30,6 +30,8 @@ import {
 } from "@foundation/src/lib/api/person-candidate-requests-api";
 import { ValidationIssueList } from "../requests/ValidationIssueList";
 import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
+import { formatMinutesHuman } from "@foundation/src/lib/utils";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 export interface PersonAssignmentDialogProps {
   open: boolean;
@@ -91,17 +93,13 @@ function formatPeriod(start: string, end: string): string {
   return `${fmt.format(new Date(start))} – ${fmt.format(new Date(end))}`;
 }
 
-/** Compact duration between two ISO datetimes, e.g. "45m", "5h", "1h 30m". */
+/** Compact duration between two ISO datetimes, e.g. "45m", "5h", "1h 30m". Empty when invalid. */
 function formatSpan(start: string, end: string): string {
   const totalMinutes = Math.round(
     (new Date(end).getTime() - new Date(start).getTime()) / 60_000,
   );
   if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "";
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
+  return formatMinutesHuman(totalMinutes);
 }
 
 /**
@@ -159,8 +157,8 @@ export function PersonAssignmentDialog({
   // badges refetch. The capability-conflicts query keys off the assignments and
   // refetches transitively.
   const invalidateGridQueries = () => {
-    queryClient.invalidateQueries({ queryKey: ["utilization-by-resource"] });
-    queryClient.invalidateQueries({ queryKey: ["resource-assignments-by-type"] });
+    queryClient.invalidateQueries({ queryKey: qk.utilization.byResourceAll() });
+    queryClient.invalidateQueries({ queryKey: qk.utilization.assignmentsByTypeAll() });
   };
 
   useEffect(() => {

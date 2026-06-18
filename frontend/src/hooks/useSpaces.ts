@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createSpace, deleteSpace, getSpaces, updateSpace } from "@foundation/src/lib/api/space-api";
 import type { CreateSpaceRequest, SpaceGeometry, Space as SpaceType, UpdateSpaceRequest } from "@foundation/src/types/space";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -10,7 +11,7 @@ function errorMessage(err: unknown): string {
 // Query hook
 export function useSpaces(siteId: string | null) {
   return useQuery({
-    queryKey: ["spaces", siteId],
+    queryKey: qk.spaces.list(siteId),
     queryFn: () => getSpaces(siteId!),
     enabled: !!siteId,
     staleTime: 5 * 60 * 1000,
@@ -22,8 +23,8 @@ export function useSpaces(siteId: string | null) {
 function useSpaceMutation(siteId: string) {
   const queryClient = useQueryClient();
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["spaces", siteId] });
-    queryClient.invalidateQueries({ queryKey: ["requests"] });
+    queryClient.invalidateQueries({ queryKey: qk.spaces.list(siteId) });
+    queryClient.invalidateQueries({ queryKey: qk.requests.all() });
   };
   return { queryClient, invalidate };
 }
@@ -63,11 +64,11 @@ export function useDeleteSpace(siteId: string) {
     mutationFn: (resourceId: string) => deleteSpace(siteId, resourceId),
     onMutate: async (resourceId: string) => {
       // Cancel any in-flight refetches so they don't overwrite optimistic update
-      await queryClient.cancelQueries({ queryKey: ["spaces", siteId] });
+      await queryClient.cancelQueries({ queryKey: qk.spaces.list(siteId) });
       // Snapshot current cache for rollback
-      const previous = queryClient.getQueryData<SpaceType[]>(["spaces", siteId]);
+      const previous = queryClient.getQueryData<SpaceType[]>(qk.spaces.list(siteId));
       // Optimistically remove the space immediately
-      queryClient.setQueryData<SpaceType[]>(["spaces", siteId], (old) =>
+      queryClient.setQueryData<SpaceType[]>(qk.spaces.list(siteId), (old) =>
         old ? old.filter((s) => s.id !== resourceId) : []
       );
       return { previous };
@@ -75,7 +76,7 @@ export function useDeleteSpace(siteId: string) {
     onError: (err, _resourceId, context) => {
       // Rollback to snapshot on failure
       if (context?.previous !== undefined) {
-        queryClient.setQueryData(["spaces", siteId], context.previous);
+        queryClient.setQueryData(qk.spaces.list(siteId), context.previous);
       }
       toast.error("Failed to delete space", { description: errorMessage(err) });
     },

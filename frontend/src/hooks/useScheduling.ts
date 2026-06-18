@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import {
   getSchedulingSettings,
   upsertSchedulingSettings,
@@ -14,18 +15,11 @@ import {
   type UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
 
-// ── Query keys ──────────────────────────────────────────────────
-
-const keys = {
-  settings: (siteId: string) => ["scheduling-settings", siteId] as const,
-  availabilityEvents: (siteId: string) => ["availability-events", siteId] as const,
-};
-
 // ── Settings hooks ──────────────────────────────────────────────
 
 export function useSchedulingSettings(siteId: string | undefined) {
   return useQuery({
-    queryKey: keys.settings(siteId!),
+    queryKey: qk.scheduling.settings(siteId!),
     queryFn: () => getSchedulingSettings(siteId!),
     enabled: !!siteId,
     staleTime: 60_000,
@@ -38,8 +32,8 @@ export function useUpsertSchedulingSettings(siteId: string) {
     mutationFn: (settings: Omit<SchedulingSettings, "siteId">) =>
       upsertSchedulingSettings(siteId, settings),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.settings(siteId) });
-      qc.invalidateQueries({ queryKey: ["requests"] });
+      qc.invalidateQueries({ queryKey: qk.scheduling.settings(siteId) });
+      qc.invalidateQueries({ queryKey: qk.requests.all() });
     },
   });
 }
@@ -48,7 +42,7 @@ export function useDeleteSchedulingSettings(siteId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => deleteSchedulingSettings(siteId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.settings(siteId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.scheduling.settings(siteId) }),
   });
 }
 
@@ -56,7 +50,7 @@ export function useDeleteSchedulingSettings(siteId: string) {
 
 export function useAvailabilityEvents(siteId: string | undefined) {
   return useQuery({
-    queryKey: keys.availabilityEvents(siteId!),
+    queryKey: qk.scheduling.availabilityEvents(siteId!),
     queryFn: () => getAvailabilityEvents(siteId!),
     enabled: !!siteId,
     staleTime: 60_000,
@@ -70,7 +64,7 @@ export function useCreateAvailabilityEvent(siteId: string) {
     meta: {
       successMessage: 'Availability event created',
       errorMessage: 'Failed to create availability event',
-      invalidates: [keys.availabilityEvents(siteId)],
+      invalidates: [qk.scheduling.availabilityEvents(siteId)],
     },
   });
 }
@@ -82,7 +76,7 @@ export function useUpdateAvailabilityEvent(siteId: string) {
     meta: {
       successMessage: 'Availability event updated',
       errorMessage: 'Failed to update availability event',
-      invalidates: [keys.availabilityEvents(siteId)],
+      invalidates: [qk.scheduling.availabilityEvents(siteId)],
     },
   });
 }
@@ -93,7 +87,7 @@ export function useDeleteAvailabilityEvent(siteId: string) {
     meta: {
       successMessage: 'Availability event deleted',
       errorMessage: 'Failed to delete availability event',
-      invalidates: [keys.availabilityEvents(siteId)],
+      invalidates: [qk.scheduling.availabilityEvents(siteId)],
     },
   });
 }

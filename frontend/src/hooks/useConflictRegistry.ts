@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getConflicts } from "@foundation/src/lib/api/conflicts-api";
 import { getConflictedRequests } from "@foundation/src/lib/api/request-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import type { Conflict } from "@foundation/src/types/requests";
 
 /**
@@ -9,7 +10,7 @@ import type { Conflict } from "@foundation/src/types/requests";
  * page, the Requests-page badges, and the utilization grid. Computed server-side; cached
  * client-side. The grid layers a thin client-side draft overlay on top for the bar being dragged.
  *
- * Conflict mutations should `invalidateQueries({ queryKey: ["conflicts"] })`.
+ * Conflict mutations should `invalidateQueries({ queryKey: qk.conflicts.all() })`.
  */
 export interface UseConflictRegistryOptions {
   /** Scope the registry to scheduled bars overlapping this window (the utilization grid passes its
@@ -24,9 +25,9 @@ export function useConflictRegistry(options?: UseConflictRegistryOptions) {
   const { from, to, enabled = true } = options ?? {};
   const windowed = from !== undefined && to !== undefined;
   const query = useQuery({
-    // Keep "conflicts" as the key prefix so mutation invalidations (queryKey: ["conflicts"]) still
-    // match every windowed/all-time variant.
-    queryKey: ["conflicts", from?.toISOString() ?? "all", to?.toISOString() ?? "all"],
+    // qk.conflicts.window keeps "conflicts" as the prefix so mutation invalidations
+    // (qk.conflicts.all()) still match every windowed/all-time variant.
+    queryKey: qk.conflicts.window(from, to),
     queryFn: () => getConflicts(windowed ? { from, to } : undefined),
     staleTime: 30_000,
     enabled,
@@ -44,7 +45,7 @@ export function useConflictRegistry(options?: UseConflictRegistryOptions) {
 /** The conflicted requests themselves (for the Conflicts page rows / names). */
 export function useConflictedRequests() {
   return useQuery({
-    queryKey: ["requests", "conflicted"],
+    queryKey: qk.requests.conflicted(),
     queryFn: () => getConflictedRequests(),
     staleTime: 30_000,
   });

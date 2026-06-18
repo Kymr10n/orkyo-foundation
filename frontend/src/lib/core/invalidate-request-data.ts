@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 /**
  * Invalidate everything a request mutation can change: the request lists/feeds AND the
@@ -9,6 +10,6 @@ import type { QueryClient } from "@tanstack/react-query";
  * Prefix match on `["requests"]` covers every scoped key (["requests","scheduled",…], backlog, etc.).
  */
 export function invalidateRequestData(queryClient: QueryClient): void {
-  queryClient.invalidateQueries({ queryKey: ["requests"] });
-  queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+  queryClient.invalidateQueries({ queryKey: qk.requests.all() });
+  queryClient.invalidateQueries({ queryKey: qk.conflicts.all() });
 }

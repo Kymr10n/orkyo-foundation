@@ -1,59 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '@foundation/src/store/app-store';
-import type { User } from '@foundation/src/types/auth';
-
-describe('useAppStore - authentication', () => {
-  beforeEach(() => {
-    useAppStore.setState({
-      user: null,
-      isAuthLoading: false,
-    });
-  });
-
-  it('should set user', () => {
-    const { setUser } = useAppStore.getState();
-    const mockUser: User = {
-      id: 'user-1',
-      email: 'test@example.com',
-      displayName: 'Test User',
-      role: 'viewer',
-      status: 'active',
-      createdAt: '2024-01-01T00:00:00Z',
-    };
-
-    setUser(mockUser);
-
-    expect(useAppStore.getState().user).toEqual(mockUser);
-  });
-
-  it('should clear user', () => {
-    const { setUser } = useAppStore.getState();
-    const mockUser: User = {
-      id: 'user-1',
-      email: 'test@example.com',
-      displayName: 'Test User',
-      role: 'viewer',
-      status: 'active',
-      createdAt: '2024-01-01T00:00:00Z',
-    };
-
-    setUser(mockUser);
-    expect(useAppStore.getState().user).toEqual(mockUser);
-
-    setUser(null);
-    expect(useAppStore.getState().user).toBeNull();
-  });
-
-  it('should set auth loading state', () => {
-    const { setIsAuthLoading } = useAppStore.getState();
-
-    setIsAuthLoading(true);
-    expect(useAppStore.getState().isAuthLoading).toBe(true);
-
-    setIsAuthLoading(false);
-    expect(useAppStore.getState().isAuthLoading).toBe(false);
-  });
-});
 
 describe('useAppStore - site and space selection', () => {
   beforeEach(() => {
@@ -195,7 +141,6 @@ describe('useAppStore - UI state', () => {
       isDetailsDrawerOpen: false,
       isFloorplanCollapsed: false,
       isSidebarCollapsed: false,
-      rightPanelTab: 'floorplan',
     });
   });
 
@@ -231,15 +176,6 @@ describe('useAppStore - UI state', () => {
     expect(localStorage.getItem('sidebar-collapsed')).toBe('false');
   });
 
-  it('should set right panel tab', () => {
-    const { setRightPanelTab } = useAppStore.getState();
-
-    setRightPanelTab('details');
-    expect(useAppStore.getState().rightPanelTab).toBe('details');
-
-    setRightPanelTab('floorplan');
-    expect(useAppStore.getState().rightPanelTab).toBe('floorplan');
-  });
 });
 
 describe('useAppStore - space groups', () => {

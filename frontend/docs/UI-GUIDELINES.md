@@ -172,6 +172,32 @@ new hand-rolled box.
 
 ---
 
+## 8. Third-party widgets & the Tailwind v4 cascade-layer rule
+
+Tailwind v4 emits all utilities inside `@layer utilities`. Per the CSS cascade, **unlayered styles
+beat layered ones regardless of specificity or source order.** So when a third-party widget injects
+its *own* unlayered CSS at runtime (e.g. FullCalendar v6's `.fc-event` rules) or ships an unlayered
+stylesheet, that CSS will **win over any Tailwind utility class** you put on the same element — the
+utility silently does nothing (transparent backgrounds, missing borders, etc.). This worked under
+Tailwind v3 (utilities weren't natively layered) and regressed on the v4 upgrade.
+
+**Rule:** when you style a third-party widget that injects/ships unlayered CSS, the utilities that
+must override it need the `!` important modifier (`bg-blue-100!`, `dark:bg-blue-950!`). `!important`
+beats unlayered non-important declarations. Scope it to the elements the widget also styles — don't
+blanket the whole component.
+
+Reference implementation: `components/utilization/request-calendar-events.ts` (`getCalendarEventColor`
++ `SEVERITY_EVENT_CLASS`) — the `!` modifiers there exist solely for this reason, with a comment.
+
+**Safe alternative:** CSS-*variable* theming is immune — the widget's own rule reads your var, so
+setting `--fc-…`/`--rdp-…` design-token values (see `request-calendar.css`) never fights the cascade.
+Prefer variable theming where the widget exposes it; reach for `!` only to override a concrete
+property the widget hard-sets. (Widgets that are fully restyled via `className` props with no shipped
+CSS — e.g. react-day-picker as wrapped in `ui/calendar.tsx`, sonner via its `theme`/`richColors`
+mechanism — are not at risk and need no `!`.)
+
+---
+
 ## Public-API note (this is a shared package)
 
 `@kymr10n/foundation` is consumed by `orkyo-saas` and `orkyo-community`. Per the repo `CLAUDE.md`,

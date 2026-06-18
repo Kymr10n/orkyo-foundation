@@ -16,7 +16,7 @@ interface MutationConfig<TData, TCreate, TUpdate, TParams> {
   createFn?: (data: TCreate, params?: TParams) => Promise<TData>;
   updateFn?: (id: string, data: TUpdate, params?: TParams) => Promise<TData>;
   deleteFn?: (id: string, params?: TParams) => Promise<void>;
-  invalidateKeys?: (params?: TParams) => unknown[][];
+  invalidateKeys?: (params?: TParams) => readonly (readonly unknown[])[];
   /** When set, fires success/error toasts using this label (singular form). */
   entityLabel?: string;
 }
