@@ -193,6 +193,10 @@ export function utilizationGranularityForScale(scale: TimeScale): string {
 }
 
 export function formatTimeColumn(date: Date, granularity: string): string {
+  // Deliberately compact, fixed-format labels (not locale Intl): these are dense
+  // grid-column headers where Intl's locale ordering/separators ("08 Mon", "Jan 24",
+  // "08:00 AM") are ambiguous or too wide. The locale-aware surfaces are the calendar
+  // (FullCalendar) and the TimeNavigator header.
   switch (granularity) {
     case "month":
       return format(date, "MMM ''yy");

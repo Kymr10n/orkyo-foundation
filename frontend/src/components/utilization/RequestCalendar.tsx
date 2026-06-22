@@ -4,6 +4,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
+import { USER_LOCALE } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
 import { calendarViewToScale, SEVERITY_SWATCH } from "./request-calendar-events";
 import { AlertCircle, AlertTriangle } from "lucide-react";
@@ -70,6 +71,13 @@ export function RequestCalendar({
 }: RequestCalendarProps) {
   const plugins = useMemo(() => [dayGridPlugin, timeGridPlugin, interactionPlugin], []);
 
+  // Format dates/times (slot labels, day headers, event times, title) per the
+  // user's browser locale — e.g. 24-hour "06:00" vs 12-hour "6 AM", and locale
+  // date ordering — instead of FullCalendar's hardcoded `en` default. The inline
+  // `{ code }` form formats via Intl without bundling all locale packs (and without
+  // FullCalendar's "unknown locale" warning); buttonText + firstDay below stay fixed.
+  const locale = useMemo(() => ({ code: USER_LOCALE }), []);
+
   const businessHoursConfig = useMemo<BusinessHoursInput | false>(() => {
     if (!workingHours?.enabled) return false;
     return { startTime: workingHours.start, endTime: workingHours.end };
@@ -129,6 +137,7 @@ export function RequestCalendar({
       <div className="flex-1 min-h-0">
       <FullCalendar
         plugins={plugins}
+        locale={locale}
         initialView={initialView}
         initialDate={initialDate}
         headerToolbar={{

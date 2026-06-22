@@ -6,7 +6,7 @@ import {
 } from "@foundation/src/components/ui/popover";
 import { Calendar } from "@foundation/src/components/ui/calendar";
 import { cn } from "@foundation/src/lib/utils";
-import { format } from "date-fns";
+import { formatLocalized } from "@foundation/src/lib/formatters";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import type { TimeScale } from "./ScaleSelect";
 
@@ -28,19 +28,31 @@ export function TimeNavigator({
   onToday,
 }: TimeNavigatorProps) {
   const formatAnchor = () => {
+    // Locale-aware (date ordering + 12h/24h per the user's settings) — see formatLocalized.
     switch (scale) {
       case "year":
-        return format(anchorTs, "yyyy");
+        return formatLocalized(anchorTs, { year: "numeric" });
       case "month":
-        return format(anchorTs, "MMMM yyyy");
+        return formatLocalized(anchorTs, { month: "long", year: "numeric" });
       case "week":
-        return format(anchorTs, "MMM dd, yyyy");
+        return formatLocalized(anchorTs, { month: "short", day: "2-digit", year: "numeric" });
       case "day":
-        return format(anchorTs, "EEEE, MMM dd, yyyy");
+        return formatLocalized(anchorTs, {
+          weekday: "long",
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+        });
       case "hour":
-        return format(anchorTs, "MMM dd, yyyy HH:00");
+        return formatLocalized(anchorTs, {
+          month: "short",
+          day: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       default:
-        return format(anchorTs, "MMM dd, yyyy");
+        return formatLocalized(anchorTs, { month: "short", day: "2-digit", year: "numeric" });
     }
   };
 

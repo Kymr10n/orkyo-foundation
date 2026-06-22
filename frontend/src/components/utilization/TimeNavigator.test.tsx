@@ -72,7 +72,9 @@ describe('TimeNavigator', () => {
 
   it('formats hour scale with time', () => {
     renderNavigator({ scale: 'hour', anchorTs: new Date('2026-03-15T14:00:00') });
-    expect(screen.getByText(/Mar 15, 2026 14:00/)).toBeInTheDocument();
+    // Locale-aware: en-US (the jsdom test locale) renders 12-hour "02:00 PM";
+    // assert the date plus the localized hour/minute, tolerant of 12h/24h.
+    expect(screen.getByText(/Mar 15, 2026.*02:00/)).toBeInTheDocument();
   });
 
   it('calls onAnchorChange when calendar date is selected', async () => {

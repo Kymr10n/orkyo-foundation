@@ -27,3 +27,30 @@ export const DATE_FORMATS = {
 } as const;
 
 export type DateFormatKey = keyof typeof DATE_FORMATS;
+
+/**
+ * The user's locale, resolved from the browser. The single source of truth for
+ * locale-aware date/time formatting ({@link formatLocalized}) and for any library
+ * that takes a locale code (e.g. FullCalendar's `locale={{ code: USER_LOCALE }}`).
+ */
+export const USER_LOCALE =
+  typeof navigator !== "undefined" && navigator.language ? navigator.language : "en";
+
+const intlCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Locale-aware date/time formatting via the native `Intl` API. Unlike a fixed
+ * date-fns token string, this respects the user's local settings — 12h vs 24h
+ * time, date ordering, month/weekday names — per {@link USER_LOCALE}. Formatters
+ * are cached because constructing `Intl.DateTimeFormat` is comparatively expensive
+ * and these run per grid column / per render.
+ */
+export function formatLocalized(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const key = JSON.stringify(options);
+  let formatter = intlCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(USER_LOCALE, options);
+    intlCache.set(key, formatter);
+  }
+  return formatter.format(date);
+}

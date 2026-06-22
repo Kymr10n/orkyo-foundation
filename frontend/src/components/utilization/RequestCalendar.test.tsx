@@ -64,6 +64,13 @@ describe("RequestCalendar", () => {
     expect(capturedProps.initialView).toBe("timeGridWeek");
   });
 
+  it("localizes date/time formatting to the user's browser locale", () => {
+    renderCalendar();
+    // Driven by navigator.language (not FullCalendar's hardcoded `en` default).
+    // The inline { code } form formats via Intl without bundling all locale packs.
+    expect(capturedProps.locale).toEqual({ code: navigator.language });
+  });
+
   it("disables interaction for read-only users", () => {
     renderCalendar({ editable: false });
     expect(capturedProps.editable).toBe(false);
