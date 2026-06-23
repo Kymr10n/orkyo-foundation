@@ -57,10 +57,12 @@ public class NarrativeScaffoldTests
     }
 
     [Fact]
-    public void Calendar_SpansTwelveMonths_AndSkipsWeekendsHolidaysShutdowns()
+    public void Calendar_SpansEighteenMonths_AndSkipsWeekendsHolidaysShutdowns()
     {
         var cal = new YearCalendar(new DateTime(2026, 6, 7, 0, 0, 0, DateTimeKind.Utc));
-        Assert.Equal(cal.Start.AddMonths(12), cal.End);
+        // 6 months of history + 12 months ahead.
+        Assert.Equal(cal.Start.AddMonths(18), cal.End);
+        Assert.Equal(new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc), cal.Start);
 
         // A Saturday is never a working day.
         var sat = cal.MonthStarts().SelectMany(m => Enumerable.Range(0, 28).Select(i => m.AddDays(i)))

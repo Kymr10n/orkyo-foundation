@@ -7,8 +7,12 @@ import {
 } from "@foundation/src/components/ui/select";
 import type { InsightsBucket } from "@foundation/src/lib/api/insights-api";
 
-/** Period presets — a minimal date-range selector (this is a dashboard, not a report builder). */
-export type RangePreset = "30d" | "90d" | "12m" | "ytd";
+/**
+ * Period presets — a minimal date-range selector (this is a dashboard, not a report builder).
+ * Orkyo is a forward-planning scheduler, so presets span history *and* planned work rather than
+ * looking only backward like typical analytics — otherwise the upcoming schedule is invisible.
+ */
+export type RangePreset = "window" | "6m" | "90d" | "next12m";
 
 interface InsightsFiltersProps {
   range: RangePreset;
@@ -18,10 +22,10 @@ interface InsightsFiltersProps {
 }
 
 const RANGE_LABELS: Record<RangePreset, string> = {
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  "12m": "Last 12 months",
-  ytd: "This year",
+  window: "Last 6 / next 12 mo",
+  "6m": "Last 6 months",
+  "90d": "Next 90 days",
+  next12m: "Next 12 months",
 };
 
 const BUCKET_LABELS: Record<InsightsBucket, string> = {
@@ -59,15 +63,20 @@ export function InsightsFilters({ range, onRangeChange, bucket, onBucketChange }
   );
 }
 
-/** Resolves a preset to a concrete [from, to) window anchored at "now". */
+/**
+ * Resolves a preset to a concrete [from, to) window anchored at "now". Presets can extend into the
+ * future because scheduled work lives ahead of today; the default "window" shows recent history
+ * alongside the planning horizon.
+ */
 export function resolveRange(range: RangePreset): { from: Date; to: Date } {
-  const to = new Date();
-  const from = new Date(to);
+  const now = new Date();
+  const from = new Date(now);
+  const to = new Date(now);
   switch (range) {
-    case "30d": from.setDate(from.getDate() - 30); break;
-    case "90d": from.setDate(from.getDate() - 90); break;
-    case "12m": from.setMonth(from.getMonth() - 12); break;
-    case "ytd": from.setMonth(0, 1); from.setHours(0, 0, 0, 0); break;
+    case "window": from.setMonth(from.getMonth() - 6); to.setMonth(to.getMonth() + 12); break;
+    case "6m": from.setMonth(from.getMonth() - 6); break;
+    case "90d": to.setDate(to.getDate() + 90); break;
+    case "next12m": to.setMonth(to.getMonth() + 12); break;
   }
   return { from, to };
 }

@@ -6,7 +6,7 @@ describe("InsightsFilters", () => {
   beforeEach(() => vi.clearAllMocks());
 
   const props = {
-    range: "12m" as const,
+    range: "window" as const,
     onRangeChange: vi.fn(),
     bucket: "month" as const,
     onBucketChange: vi.fn(),
@@ -14,7 +14,7 @@ describe("InsightsFilters", () => {
 
   it("renders the current range and bucket", () => {
     render(<InsightsFilters {...props} />);
-    expect(screen.getByText("Last 12 months")).toBeInTheDocument();
+    expect(screen.getByText("Last 6 / next 12 mo")).toBeInTheDocument();
     expect(screen.getByText("Monthly")).toBeInTheDocument();
   });
 
@@ -28,24 +28,21 @@ describe("InsightsFilters", () => {
   it("calls onRangeChange when a different range is selected", () => {
     render(<InsightsFilters {...props} />);
     fireEvent.click(screen.getByRole("combobox", { name: "Date range" }));
-    fireEvent.click(screen.getByText("Last 30 days"));
-    expect(props.onRangeChange).toHaveBeenCalledWith("30d");
+    fireEvent.click(screen.getByText("Next 12 months"));
+    expect(props.onRangeChange).toHaveBeenCalledWith("next12m");
   });
 });
 
 describe("resolveRange", () => {
-  it("produces distinct, ordered windows per preset", () => {
-    const thirty = resolveRange("30d");
-    const year = resolveRange("12m");
-
-    expect(thirty.from.getTime()).toBeLessThan(thirty.to.getTime());
-    // A 30-day window starts later (nearer to now) than a 12-month window.
-    expect(thirty.from.getTime()).toBeGreaterThan(year.from.getTime());
+  it("extends forward-looking presets past now", () => {
+    const next12 = resolveRange("next12m");
+    expect(next12.to.getTime()).toBeGreaterThan(Date.now());
+    expect(next12.from.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
   });
 
-  it("anchors year-to-date at January 1st", () => {
-    const { from } = resolveRange("ytd");
-    expect(from.getMonth()).toBe(0);
-    expect(from.getDate()).toBe(1);
+  it("centers the default window around now (history + planning horizon)", () => {
+    const { from, to } = resolveRange("window");
+    expect(from.getTime()).toBeLessThan(Date.now()); // ~6 months of history
+    expect(to.getTime()).toBeGreaterThan(Date.now()); // ~12 months ahead
   });
 });

@@ -22,7 +22,7 @@ const pct = (v: number | null) => (v == null ? "—" : `${v}%`);
 
 export function InsightsTab() {
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
-  const [range, setRange] = useState<RangePreset>("12m");
+  const [range, setRange] = useState<RangePreset>("window");
   const [bucket, setBucket] = useState<InsightsBucket>("month");
 
   // Anchor the window when the preset (or site) changes — not on every render, so query keys
