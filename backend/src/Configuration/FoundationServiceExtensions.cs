@@ -129,6 +129,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ITenantUserService, TenantUserService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
+        services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
 
         // ── Reporting ─────────────────────────────────────────────────────────
         services.AddScoped<IReportingTokenService, ReportingTokenService>();

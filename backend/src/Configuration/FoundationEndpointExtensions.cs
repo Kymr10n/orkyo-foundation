@@ -39,6 +39,7 @@ public static class FoundationEndpointExtensions
         app.MapFeedbackEndpoints();
         app.MapFloorplanEndpoints();
         app.MapGroupCapabilityEndpoints();
+        app.MapInsightsEndpoints();
         app.MapJobTitleEndpoints();
         app.MapPersonProfileEndpoints();
         app.MapPresetEndpoints();

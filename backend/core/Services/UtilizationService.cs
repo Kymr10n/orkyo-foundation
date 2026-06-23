@@ -274,6 +274,8 @@ public class UtilizationService(
                 "hour" => current.AddHours(1),
                 "week" => current.AddDays(7),
                 "month" => current.AddMonths(1),
+                "quarter" => current.AddMonths(3),
+                "year" => current.AddYears(1),
                 _ => current.AddDays(1), // day
             };
             if (next > to) next = to;

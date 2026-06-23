@@ -16,6 +16,14 @@ export const API_PATHS = {
     TOS_ACCEPT: '/api/session/tos/accept',
   },
 
+  // Insights (built-in dashboard — session-auth, tenant-scoped, aggregated)
+  INSIGHTS: {
+    OVERVIEW: '/api/insights/overview',
+    UTILIZATION: '/api/insights/utilization',
+    CONFLICTS: '/api/insights/conflicts',
+    REQUESTS: '/api/insights/requests',
+  },
+
   // Search
   SEARCH: '/api/search',
 

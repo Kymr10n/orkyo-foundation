@@ -325,6 +325,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         builder.Services.AddScoped<IUtilizationService, UtilizationService>();
+        builder.Services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
@@ -499,6 +500,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapSpaceEndpoints();
         app.MapResourceGroupEndpoints();
         app.MapGroupCapabilityEndpoints();
+        app.MapInsightsEndpoints();
         app.MapCriteriaEndpoints();
         app.MapRequestEndpoints();
         app.MapConflictsEndpoints();

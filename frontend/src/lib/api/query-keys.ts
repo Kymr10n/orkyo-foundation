@@ -70,6 +70,19 @@ export const qk = {
     availabilityEvents: (siteId: string) => ["availability-events", siteId] as const,
   },
 
+  insights: {
+    /** Broad prefix — every insights query (use for invalidation). */
+    all: () => ["insights"] as const,
+    overview: (siteId: string | null, from: Date, to: Date) =>
+      ["insights", "overview", siteId, iso(from), iso(to)] as const,
+    utilization: (resourceType: string, siteId: string | null, from: Date, to: Date, bucket: string) =>
+      ["insights", "utilization", resourceType, siteId, iso(from), iso(to), bucket] as const,
+    conflicts: (siteId: string | null, from: Date, to: Date, bucket: string) =>
+      ["insights", "conflicts", siteId, iso(from), iso(to), bucket] as const,
+    requests: (siteId: string | null, from: Date, to: Date, bucket: string) =>
+      ["insights", "requests", siteId, iso(from), iso(to), bucket] as const,
+  },
+
   // Platform-admin surfaces (saas). Listed here because the admin-api they query
   // lives in foundation; consumed by saas via `@kymr10n/foundation/src/lib/api/query-keys`.
   // The bare-prefix helpers (e.g. `tenants()`) are for invalidation; the *Search /
