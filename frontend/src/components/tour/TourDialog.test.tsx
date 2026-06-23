@@ -12,23 +12,26 @@ vi.mock("@foundation/src/lib/api/session-api", () => ({
   markTourSeen: () => mockMarkTourSeen(),
 }));
 
-// Control the auth context so we can assert the tour reflects completion locally.
+// Control auth completion state and edit permission. useCanEdit is mocked directly (mocking useAuth
+// underneath it doesn't reach usePermissions through the @foundation self-alias).
 const { authState, mockSetAppUser } = vi.hoisted(() => ({
-  authState: { appUser: { hasSeenTour: false } as { hasSeenTour: boolean } | null },
+  authState: {
+    appUser: { hasSeenTour: false } as { hasSeenTour: boolean } | null,
+    canEdit: true,
+  },
   mockSetAppUser: vi.fn(),
 }));
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => ({ appUser: authState.appUser, setAppUser: mockSetAppUser }),
 }));
+vi.mock("@foundation/src/hooks/usePermissions", () => ({
+  useCanEdit: () => authState.canEdit,
+}));
 
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
-  const actual =
-    await vi.importActual<typeof ReactRouterDom>("react-router-dom");
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
+  const actual = await vi.importActual<typeof ReactRouterDom>("react-router-dom");
+  return { ...actual, useNavigate: () => mockNavigate };
 });
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -43,8 +46,10 @@ function renderTour(props: { open?: boolean; onClose?: () => void } = {}) {
   return { onClose };
 }
 
-// Total number of STEPS defined in TourDialog
-const TOTAL_STEPS = 7;
+const next = () => fireEvent.click(screen.getByRole("button", { name: /next/i }));
+
+// Steps as an editor sees them (Welcome + 9). Viewers drop the two editor-only steps.
+const TOTAL_STEPS = 10;
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
@@ -52,162 +57,125 @@ describe("TourDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.appUser = { hasSeenTour: false };
+    authState.canEdit = true;
   });
 
   // ── visibility ───────────────────────────────────────────────────────────────
 
-  it("renders first step content when open", () => {
+  it("renders the welcome step when open", () => {
     renderTour();
-
-    expect(screen.getByText("Criteria")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to Orkyo")).toBeInTheDocument();
     expect(screen.getByText(`1 / ${TOTAL_STEPS}`)).toBeInTheDocument();
   });
 
   it("does not render content when closed", () => {
     renderTour({ open: false });
-
-    expect(screen.queryByText("Criteria")).not.toBeInTheDocument();
+    expect(screen.queryByText("Welcome to Orkyo")).not.toBeInTheDocument();
   });
 
-  // ── navigation ───────────────────────────────────────────────────────────────
+  // ── navigation through steps ───────────────────────────────────────────────────
 
   it("Back button is disabled on the first step", () => {
     renderTour();
-
-    const back = screen.getByRole("button", { name: /back/i });
-    expect(back).toBeDisabled();
+    expect(screen.getByRole("button", { name: /back/i })).toBeDisabled();
   });
 
-  it("Next button advances to step 2", () => {
+  it("Next advances to the Criteria step", () => {
     renderTour();
-
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
-
-    expect(screen.getByText("Space Templates")).toBeInTheDocument();
+    next();
+    expect(screen.getByText("Criteria")).toBeInTheDocument();
     expect(screen.getByText(`2 / ${TOTAL_STEPS}`)).toBeInTheDocument();
   });
 
-  it("Back button returns from step 2 to step 1", () => {
+  it("Back returns to the welcome step", () => {
     renderTour();
-
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    next();
     fireEvent.click(screen.getByRole("button", { name: /back/i }));
-
-    expect(screen.getByText("Criteria")).toBeInTheDocument();
-    expect(screen.getByText(`1 / ${TOTAL_STEPS}`)).toBeInTheDocument();
+    expect(screen.getByText("Welcome to Orkyo")).toBeInTheDocument();
   });
 
-  it("dot indicator navigates directly to the clicked step", () => {
+  it("dot indicator jumps directly to a step", () => {
     renderTour();
-
-    // Dots are labeled "Go to step N" — click dot 4 for "Spaces" (index 3)
-    const dots = screen.getAllByRole("button", { name: /go to step/i });
-    fireEvent.click(dots[3]);
-
-    expect(screen.getByText("Spaces")).toBeInTheDocument();
+    // [Welcome, Criteria, Templates, Groups, ...] → dot index 3 = "Groups"
+    fireEvent.click(screen.getAllByRole("button", { name: /go to step/i })[3]);
+    expect(screen.getByText("Groups")).toBeInTheDocument();
     expect(screen.getByText(`4 / ${TOTAL_STEPS}`)).toBeInTheDocument();
   });
 
-  it(`shows Done button and hides Next on the last step (step ${TOTAL_STEPS})`, () => {
+  it("shows Done and hides Next on the last step", () => {
     renderTour();
-
-    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    }
-
+    for (let i = 0; i < TOTAL_STEPS - 1; i++) next();
     expect(screen.getByRole("button", { name: /done/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /next/i })).not.toBeInTheDocument();
+  });
+
+  // ── browse: auto-navigation ──────────────────────────────────────────────────
+
+  it("does not navigate when opened on the welcome step", () => {
+    renderTour();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("navigates the app to each step's page as you advance", () => {
+    renderTour();
+    next(); // Criteria
+    expect(mockNavigate).toHaveBeenLastCalledWith("/settings/criteria");
+    next(); // Templates
+    expect(mockNavigate).toHaveBeenLastCalledWith("/settings/templates");
+  });
+
+  it("last step navigates to the Insights tab", () => {
+    renderTour();
+    for (let i = 0; i < TOTAL_STEPS - 1; i++) next();
+    expect(screen.getByText("Insights")).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenLastCalledWith("/?tab=insights");
+  });
+
+  // ── permission-aware steps ───────────────────────────────────────────────────
+
+  it("hides editor-only steps (Criteria/Templates) for viewers and never navigates to Settings", () => {
+    authState.canEdit = false;
+    renderTour();
+
+    expect(screen.getByText(`1 / 8`)).toBeInTheDocument(); // Welcome + 7 viewer-visible steps
+    next(); // first step after Welcome is Groups, not Criteria
+    expect(screen.getByText("Groups")).toBeInTheDocument();
+    expect(screen.queryByText("Criteria")).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalledWith("/settings/criteria");
   });
 
   // ── close / markTourSeen ─────────────────────────────────────────────────────
 
   it("clicking Done calls markTourSeen and onClose", async () => {
     const { onClose } = renderTour();
-
-    // Navigate to last step
-    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    }
-
+    for (let i = 0; i < TOTAL_STEPS - 1; i++) next();
     fireEvent.click(screen.getByRole("button", { name: /done/i }));
-
     await waitFor(() => {
       expect(mockMarkTourSeen).toHaveBeenCalledTimes(1);
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("closing the tour reflects completion in local auth state (survives remounts)", async () => {
+  it("closing reflects completion in local auth state (survives remounts)", async () => {
     renderTour();
-
-    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    }
-    fireEvent.click(screen.getByRole("button", { name: /done/i }));
-
-    await waitFor(() => {
-      expect(mockSetAppUser).toHaveBeenCalledWith(
-        expect.objectContaining({ hasSeenTour: true }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: /close tour/i }));
+    await waitFor(() =>
+      expect(mockSetAppUser).toHaveBeenCalledWith(expect.objectContaining({ hasSeenTour: true })),
+    );
   });
 
   it("does not re-update auth state when the tour was already seen", async () => {
     authState.appUser = { hasSeenTour: true };
     renderTour();
-
-    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    }
-    fireEvent.click(screen.getByRole("button", { name: /done/i }));
-
+    fireEvent.click(screen.getByRole("button", { name: /close tour/i }));
     await waitFor(() => expect(mockMarkTourSeen).toHaveBeenCalled());
     expect(mockSetAppUser).not.toHaveBeenCalled();
   });
 
-  it("markTourSeen is called even if it throws (non-fatal)", async () => {
+  it("markTourSeen failure is non-fatal (still closes)", async () => {
     mockMarkTourSeen.mockRejectedValueOnce(new Error("Network error"));
     const { onClose } = renderTour();
-
-    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    }
-
-    fireEvent.click(screen.getByRole("button", { name: /done/i }));
-
-    // onClose still called despite markTourSeen throwing
-    await waitFor(() => {
-      expect(onClose).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  // ── action buttons ───────────────────────────────────────────────────────────
-
-  it("action button on step 1 navigates to the correct path", async () => {
-    const { onClose } = renderTour();
-
-    fireEvent.click(screen.getByRole("button", { name: /go to criteria/i }));
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/settings?tab=criteria");
-      expect(onClose).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("each step that has an action shows the action button", () => {
-    renderTour();
-
-    // Step 1 "Criteria" has action "Go to Criteria"
-    expect(
-      screen.getByRole("button", { name: /go to criteria/i }),
-    ).toBeInTheDocument();
-
-    // Step 7 "Utilization" should also have action "Go to Utilization"
-    for (let i = 0; i < TOTAL_STEPS - 1; i++) {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    }
-    expect(
-      screen.getByRole("button", { name: /go to utilization/i }),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /close tour/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 });
