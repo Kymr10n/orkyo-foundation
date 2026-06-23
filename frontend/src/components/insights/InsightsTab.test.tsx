@@ -99,7 +99,7 @@ describe("InsightsTab", () => {
 
     render(<InsightsTab />);
 
-    expect(screen.getByText("No requests in this period.")).toBeInTheDocument();
+    expect(screen.getByText("No scheduled requests in this period.")).toBeInTheDocument();
     expect(screen.getByText("No conflicts in this period.")).toBeInTheDocument();
     expect(screen.getAllByText("No capacity configured for this period.")).toHaveLength(2); // space + people
   });

@@ -18,7 +18,9 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import { format, parseISO } from "date-fns";
 import { useMemo, useState } from "react";
 
-const pct = (v: number | null) => (v == null ? "—" : `${v}%`);
+// Overbooked utilization can exceed 100%; clamp the headline display to 100% (overbooking is
+// surfaced via the conflict KPIs/charts instead). API value stays truthful.
+const pct = (v: number | null) => (v == null ? "—" : `${Math.min(v, 100)}%`);
 
 export function InsightsTab() {
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);

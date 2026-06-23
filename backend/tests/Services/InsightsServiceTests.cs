@@ -10,37 +10,46 @@ using Xunit;
 namespace Api.Tests.Services;
 
 /// <summary>
-/// Unit tests for the parts of <see cref="InsightsService"/> that aggregate the live conflict and
-/// utilization services (no analytics view → no DB needed; the view-backed request paths are covered
-/// by the endpoint integration tests). Verifies conflict-kind→category mapping, site filtering,
-/// bucketing, and the capacity/used-minute utilization math.
+/// Unit tests for the parts of <see cref="InsightsService"/> that aggregate the live conflict service
+/// and compute time-based utilization (no analytics view → no DB needed; the view-backed request paths
+/// are covered by the endpoint integration tests). Verifies conflict-kind→category mapping, site
+/// filtering, bucketing, and — crucially — that utilization is time-based occupancy, not the grid's
+/// "occupied at all → 100%" per-slot view.
 /// </summary>
 public class InsightsServiceTests
 {
     private readonly Mock<IOrgDbConnectionFactory> _db = new();
     private readonly Mock<IConflictService> _conflicts = new();
-    private readonly Mock<IUtilizationService> _utilization = new();
     private readonly Mock<IRequestRepository> _requests = new();
+    private readonly Mock<IResourceRepository> _resources = new();
+    private readonly Mock<IResourceAssignmentRepository> _assignments = new();
+    private readonly Mock<IAvailabilityResolver> _availability = new();
     private readonly InsightsService _service;
 
     public InsightsServiceTests()
     {
         var org = new OrgContext { OrgId = Guid.NewGuid(), OrgSlug = "test", DbConnectionString = "unused" };
-        _service = new InsightsService(org, _db.Object, _conflicts.Object, _utilization.Object, _requests.Object);
+        _service = new InsightsService(
+            org, _db.Object, _conflicts.Object, _requests.Object,
+            _resources.Object, _assignments.Object, _availability.Object);
 
         // Sensible empties — individual tests override.
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        _utilization.Setup(u => u.GetUtilizationByResourceAsync(
-                It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<string>(),
-                It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+        _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _assignments.Setup(a => a.GetByResourceAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _availability.Setup(a => a.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
     }
 
     private static readonly DateTime Jan = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Feb = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime Mar = new(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+    private const int JanMinutes = 31 * 24 * 60; // 44640
 
     private static RequestInfo Scheduled(Guid id, DateTime start, Guid? siteId) => new()
     {
@@ -67,14 +76,47 @@ public class InsightsServiceTests
         Message = kind,
     };
 
-    private static UtilizationBucket Bucket(decimal availPercent, decimal allocPercent) => new()
+    private static ResourceInfo SpaceResource(Guid id, int availability = 100) => new()
     {
-        Start = Jan,
-        End = Jan, // unused by the service (it uses its own bucket spans)
-        AllocatedPercent = allocPercent,
-        EffectiveAvailabilityPercent = availPercent,
-        IsExclusiveOccupied = false,
+        Id = id,
+        ResourceTypeId = Guid.NewGuid(),
+        ResourceTypeKey = ResourceTypeKeys.Space,
+        Name = "Room",
+        AllocationMode = AllocationModes.Exclusive,
+        BaseAvailabilityPercent = availability,
+        IsActive = true,
     };
+
+    private static ResourceAssignmentInfo Assignment(Guid resourceId, DateTime start, DateTime end, decimal? allocPct = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        RequestId = Guid.NewGuid(),
+        ResourceId = resourceId,
+        ResourceTypeKey = ResourceTypeKeys.Space,
+        StartUtc = start,
+        EndUtc = end,
+        AssignmentStatus = AssignmentStatuses.Planned,
+        AllocationPercent = allocPct,
+        CreatedAt = start,
+        UpdatedAt = start,
+    };
+
+    private static BlockedPeriod Block(DateTime start, DateTime end) => new()
+    {
+        Id = Guid.NewGuid(),
+        StartTs = start,
+        EndTs = end,
+        Title = "Shutdown",
+        Source = BlockedPeriodSource.AvailabilityEvent,
+    };
+
+    private void SetupResource(ResourceInfo resource, params ResourceAssignmentInfo[] assignments)
+    {
+        _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([resource]);
+        _assignments.Setup(a => a.GetByResourceAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([.. assignments]);
+    }
 
     // ── Conflict mapping + bucketing ──────────────────────────────────────────
 
@@ -97,8 +139,7 @@ public class InsightsServiceTests
             new InsightsFilter { From = Jan, To = Mar, Bucket = "month" });
 
         Assert.Equal(2, result.Series.Count); // Jan, Feb
-        var jan = result.Series[0];
-        Assert.Equal(0, jan.Total);
+        Assert.Equal(0, result.Series[0].Total);
         var feb = result.Series[1];
         Assert.Equal(6, feb.Total);
         Assert.Equal(2, feb.Overbooking);                 // overlap + capacity_exceeded
@@ -125,53 +166,91 @@ public class InsightsServiceTests
         Assert.All(result.Series, s => Assert.Equal(0, s.Total));
     }
 
-    // ── Utilization minutes math ──────────────────────────────────────────────
+    [Fact]
+    public async Task ConflictTrend_KeepsSiteNeutralConflictsUnderAnySite()
+    {
+        var reqId = Guid.NewGuid();
+        _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
+        // Site-neutral request (no site) is schedulable anywhere → kept under a specific site filter.
+        _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc), siteId: null)]);
+
+        var result = await _service.GetConflictTrendAsync(
+            new InsightsFilter { From = Jan, To = Mar, Bucket = "month", SiteId = Guid.NewGuid() });
+
+        Assert.Equal(1, result.Series.Sum(s => s.Total));
+    }
+
+    // ── Utilization: time-based occupancy ─────────────────────────────────────
 
     [Fact]
-    public async Task UtilizationTrend_AggregatesCapacityAndUsedMinutesPerBucket()
+    public async Task UtilizationTrend_PartialBooking_IsTimeBased_NotPinnedAt100()
     {
-        // One resource: Jan @ 100% avail / 50% alloc, Feb @ 100% avail / 25% alloc.
-        _utilization.Setup(u => u.GetUtilizationByResourceAsync(
-                "space", It.IsAny<DateTime>(), It.IsAny<DateTime>(), "month", It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new ResourceUtilizationResponse
-            {
-                ResourceId = Guid.NewGuid(),
-                Buckets = [Bucket(100m, 50m), Bucket(100m, 25m)],
-            }]);
+        // The regression: an Exclusive room booked for just 4 hours in a month must read ~0.5%,
+        // NOT 100% (which the grid's per-slot occupied-flag would have produced).
+        var room = Guid.NewGuid();
+        SetupResource(SpaceResource(room),
+            Assignment(room, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc),
+                             new DateTime(2026, 1, 10, 13, 0, 0, DateTimeKind.Utc)));
 
         var result = await _service.GetUtilizationTrendAsync(
             new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "space" });
 
-        Assert.Equal(2, result.Series.Count);
-        var jan = result.Series[0]; // 31 days = 44640 min
-        Assert.Equal(44640, jan.TotalCapacityMinutes);
-        Assert.Equal(22320, jan.UsedCapacityMinutes);
-        Assert.Equal(22320, jan.AvailableCapacityMinutes);
-        Assert.Equal(50m, jan.UtilizationPercent);
-        var feb = result.Series[1]; // 28 days = 40320 min
-        Assert.Equal(40320, feb.TotalCapacityMinutes);
-        Assert.Equal(10080, feb.UsedCapacityMinutes);
-        Assert.Equal(25m, feb.UtilizationPercent);
+        var jan = result.Series[0];
+        Assert.Equal(JanMinutes, jan.TotalCapacityMinutes);
+        Assert.Equal(240, jan.UsedCapacityMinutes);                 // 4 hours
+        Assert.NotNull(jan.UtilizationPercent);
+        Assert.InRange(jan.UtilizationPercent!.Value, 0.01m, 5m);   // ≈ 0.54%, emphatically not 100
+        Assert.Equal(0m, result.Series[1].UtilizationPercent);      // Feb: capacity but no usage → 0%
+    }
+
+    [Fact]
+    public async Task UtilizationTrend_Overbooking_CapsAtFullCapacity()
+    {
+        // Two assignments each spanning all of January on one Exclusive room. Raw overlap is 2× the
+        // month, but a room can't be more than 100% occupied — overbooking is a conflict, not >100%.
+        var room = Guid.NewGuid();
+        SetupResource(SpaceResource(room),
+            Assignment(room, Jan, Feb),
+            Assignment(room, Jan, Feb));
+
+        var result = await _service.GetUtilizationTrendAsync(
+            new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "space" });
+
+        var jan = result.Series[0];
+        Assert.Equal(JanMinutes, jan.TotalCapacityMinutes);
+        Assert.Equal(JanMinutes, jan.UsedCapacityMinutes); // capped at capacity
+        Assert.Equal(100m, jan.UtilizationPercent);
+    }
+
+    [Fact]
+    public async Task UtilizationTrend_BlockedTimeReducesCapacity()
+    {
+        // First half of January is blocked (shutdown) → capacity is the open minutes only.
+        var room = Guid.NewGuid();
+        _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SpaceResource(room)]);
+        _availability.Setup(a => a.GetBlockedPeriodsAsync(room, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Block(Jan, new DateTime(2026, 1, 16, 0, 0, 0, DateTimeKind.Utc))]); // 15 days
+
+        var result = await _service.GetUtilizationTrendAsync(
+            new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "space" });
+
+        Assert.Equal(JanMinutes - 15 * 24 * 60, result.Series[0].TotalCapacityMinutes); // 44640 - 21600
     }
 
     [Fact]
     public async Task UtilizationTrend_NullPercentWhenNoCapacityConfigured()
     {
-        _utilization.Setup(u => u.GetUtilizationByResourceAsync(
-                "tool", It.IsAny<DateTime>(), It.IsAny<DateTime>(), "month", It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new ResourceUtilizationResponse
-            {
-                ResourceId = Guid.NewGuid(),
-                Buckets = [Bucket(0m, 0m), Bucket(0m, 0m)],
-            }]);
-
+        // No resources of this type → no capacity → honest null, not a fake 0%.
         var result = await _service.GetUtilizationTrendAsync(
             new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "tool" });
 
         Assert.All(result.Series, s =>
         {
             Assert.Equal(0, s.TotalCapacityMinutes);
-            Assert.Null(s.UtilizationPercent); // honest null, not a fake 0%
+            Assert.Null(s.UtilizationPercent);
         });
     }
 
@@ -179,13 +258,6 @@ public class InsightsServiceTests
     public async Task UtilizationTrend_CountsConflictsPerBucket()
     {
         var reqId = Guid.NewGuid();
-        _utilization.Setup(u => u.GetUtilizationByResourceAsync(
-                "space", It.IsAny<DateTime>(), It.IsAny<DateTime>(), "month", It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new ResourceUtilizationResponse
-            {
-                ResourceId = Guid.NewGuid(),
-                Buckets = [Bucket(100m, 50m), Bucket(100m, 50m)],
-            }]);
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
         _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))

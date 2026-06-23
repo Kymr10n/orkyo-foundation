@@ -113,14 +113,19 @@ public record InsightsConflicts
     public required InsightsMetadata Metadata { get; init; }
 }
 
+/// <summary>
+/// Request status counts for one time bucket, keyed on scheduled date (start_ts) and grouped by the
+/// real domain statuses. Backlog (no start_ts) is timeless and excluded from the series — it surfaces
+/// in the overview <see cref="RequestCounts.Unscheduled"/> KPI instead.
+/// </summary>
 public record RequestSeriesPoint
 {
     public required DateTime BucketStart { get; init; }
     public required DateTime BucketEnd { get; init; }
     public required int Total { get; init; }
-    public required int Scheduled { get; init; }
-    public required int Unscheduled { get; init; }
-    public required int Completed { get; init; }
+    public required int Planned { get; init; }
+    public required int InProgress { get; init; }
+    public required int Done { get; init; }
     public required int Cancelled { get; init; }
 }
 

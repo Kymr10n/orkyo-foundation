@@ -16,7 +16,10 @@ SELECT
     r.id                                          AS request_id,
     r.site_id,                                    -- NULL = site-neutral (schedulable anywhere)
     r.status,
+    r.planning_mode,                              -- 'leaf' = schedulable unit; summary/container = grouping
     r.created_at,
+    r.start_ts,                                   -- scheduled window start (NULL = backlog)
+    r.end_ts,
     (
         r.start_ts IS NOT NULL
         AND r.end_ts IS NOT NULL

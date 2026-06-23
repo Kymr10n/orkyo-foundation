@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Models;
 using Api.Models.Insights;
 using Api.Repositories;
 using Npgsql;
@@ -12,7 +13,10 @@ namespace Api.Services.Insights;
 /// <see cref="IUtilizationService"/> rather than reimplementing that business logic in SQL. All series
 /// share one calendar-aligned bucketing strategy (<see cref="InsightsBuckets"/>).
 ///
-/// Tenant scoping is implicit: every read goes through the per-request tenant/org connection.
+/// The request dimension is anchored on scheduled date (<c>start_ts</c>): time-bound work is scoped
+/// and bucketed by when it happens, while backlog (no <c>start_ts</c>) is a timeless count. Tenant
+/// scoping is implicit (per-request org/tenant connection); site-neutral requests (no site) are
+/// schedulable anywhere and therefore counted under every site.
 /// </summary>
 public interface IInsightsService
 {
@@ -26,33 +30,39 @@ public class InsightsService(
     OrgContext orgContext,
     IOrgDbConnectionFactory connectionFactory,
     IConflictService conflictService,
-    IUtilizationService utilizationService,
-    IRequestRepository requestRepository) : IInsightsService
+    IRequestRepository requestRepository,
+    IResourceRepository resourceRepository,
+    IResourceAssignmentRepository assignmentRepository,
+    IAvailabilityResolver availabilityResolver) : IInsightsService
 {
     // The in-app dashboard reports "live": request facts come from the live view and conflict/
     // utilization from live services. This is the swap point — a snapshot-backed view would carry
     // source_mode='snapshot', read here, without changing the API or UI.
     private const string SourceMode = "live";
 
-    private static readonly string[] AllResourceTypes =
-        [ResourceTypeKeys.Space, ResourceTypeKeys.Person, ResourceTypeKeys.Tool];
+    // Site-neutral requests (site_id NULL) are schedulable anywhere → counted under any site.
+    private const string SiteFilter = "(@siteId::uuid IS NULL OR site_id = @siteId OR site_id IS NULL)";
 
     public async Task<InsightsOverview> GetOverviewAsync(InsightsFilter filter, CancellationToken ct = default)
     {
-        var facts = await FetchRequestFactsAsync(filter.From, filter.To, filter.SiteId, ct);
+        var inWindow = await FetchInWindowFactsAsync(filter.From, filter.To, filter.SiteId, ct);
+        var backlog = await FetchBacklogCountAsync(filter.SiteId, ct);
         var conflicts = await LoadConflictTimelineAsync(filter.From, filter.To, filter.SiteId, ct);
 
         return new InsightsOverview
         {
             Period = new InsightsPeriod { From = filter.From, To = filter.To },
             SiteId = filter.SiteId,
-            Requests = CountRequests(facts),
+            Requests = CountRequests(inWindow, backlog),
             Conflicts = CountConflicts(conflicts.Select(c => c.Kind)),
             Utilization = new UtilizationSummary
             {
-                SpacesPercent = await ComputeUtilizationPercentAsync(ResourceTypeKeys.Space, filter, ct),
-                PeoplePercent = await ComputeUtilizationPercentAsync(ResourceTypeKeys.Person, filter, ct),
-                ToolsPercent = await ComputeUtilizationPercentAsync(ResourceTypeKeys.Tool, filter, ct),
+                SpacesPercent = AggregatePercent(await ComputeUtilizationSeriesAsync(
+                    ResourceTypeKeys.Space, filter.From, filter.To, "month", filter.SiteId, ct)),
+                PeoplePercent = AggregatePercent(await ComputeUtilizationSeriesAsync(
+                    ResourceTypeKeys.Person, filter.From, filter.To, "month", filter.SiteId, ct)),
+                ToolsPercent = AggregatePercent(await ComputeUtilizationSeriesAsync(
+                    ResourceTypeKeys.Tool, filter.From, filter.To, "month", filter.SiteId, ct)),
             },
             Metadata = Metadata(),
         };
@@ -63,21 +73,22 @@ public class InsightsService(
         var bucket = filter.Bucket!;
         var buckets = InsightsBuckets.Generate(filter.From, filter.To, bucket);
         var (rangeFrom, rangeTo) = Bounds(buckets, filter);
-        var facts = await FetchRequestFactsAsync(rangeFrom, rangeTo, filter.SiteId, ct);
+        // Anchored on scheduled date: only time-bound work appears in the trend. Backlog (no start_ts)
+        // is timeless → it lives in the overview Unscheduled KPI, not here.
+        var facts = await FetchInWindowFactsAsync(rangeFrom, rangeTo, filter.SiteId, ct);
 
         var series = buckets.Select(b =>
         {
-            var inBucket = facts.Where(f => f.CreatedAt >= b.Start && f.CreatedAt < b.End).ToList();
-            var counts = CountRequests(inBucket);
+            var inBucket = facts.Where(f => f.StartTs >= b.Start && f.StartTs < b.End).ToList();
             return new RequestSeriesPoint
             {
                 BucketStart = b.Start,
                 BucketEnd = b.End,
-                Total = counts.Total,
-                Scheduled = counts.Scheduled,
-                Unscheduled = counts.Unscheduled,
-                Completed = counts.Completed,
-                Cancelled = counts.Cancelled,
+                Total = inBucket.Count,
+                Planned = inBucket.Count(f => f.Status == "planned"),
+                InProgress = inBucket.Count(f => f.Status == "in_progress"),
+                Done = inBucket.Count(f => f.Status == "done"),
+                Cancelled = inBucket.Count(f => f.Status == "cancelled"),
             };
         }).ToList();
 
@@ -115,38 +126,24 @@ public class InsightsService(
     {
         var bucket = filter.Bucket!;
         var resourceType = filter.ResourceType!;
-        var buckets = InsightsBuckets.Generate(filter.From, filter.To, bucket);
-        var rangeFrom = buckets.Count > 0 ? buckets[0].Start : filter.From;
-        var rangeTo = buckets.Count > 0 ? buckets[^1].End : filter.To;
-
-        // Per-resource buckets align by index with `buckets` (same aligned range + bucket grain).
-        var byResource = await utilizationService.GetUtilizationByResourceAsync(
-            resourceType, rangeFrom, rangeTo, bucket, filter.SiteId, ct);
+        var series = await ComputeUtilizationSeriesAsync(resourceType, filter.From, filter.To, bucket, filter.SiteId, ct);
+        var rangeFrom = series.Count > 0 ? series[0].Start : filter.From;
+        var rangeTo = series.Count > 0 ? series[^1].End : filter.To;
         var timeline = await LoadConflictTimelineAsync(rangeFrom, rangeTo, filter.SiteId, ct);
 
-        var series = buckets.Select((b, i) =>
+        var points = series.Select(s =>
         {
-            var span = (b.End - b.Start).TotalMinutes;
-            double totalCap = 0, used = 0;
-            foreach (var r in byResource)
-            {
-                if (i >= r.Buckets.Count) continue;
-                var rb = r.Buckets[i];
-                totalCap += (double)rb.EffectiveAvailabilityPercent / 100.0 * span;
-                used += (double)rb.AllocatedPercent / 100.0 * span;
-            }
-
-            var totalMin = (long)Math.Round(totalCap);
-            var usedMin = (long)Math.Round(used);
+            var totalMin = (long)Math.Round(s.CapMinutes);
+            var usedMin = (long)Math.Round(s.UsedMinutes);
             return new UtilizationSeriesPoint
             {
-                BucketStart = b.Start,
-                BucketEnd = b.End,
+                BucketStart = s.Start,
+                BucketEnd = s.End,
                 TotalCapacityMinutes = totalMin,
                 UsedCapacityMinutes = usedMin,
                 AvailableCapacityMinutes = Math.Max(totalMin - usedMin, 0),
-                UtilizationPercent = totalCap > 0 ? Math.Round((decimal)(used / totalCap * 100.0), 2) : null,
-                ConflictCount = timeline.Count(c => c.StartTs >= b.Start && c.StartTs < b.End),
+                UtilizationPercent = s.CapMinutes > 0 ? Math.Round((decimal)(s.UsedMinutes / s.CapMinutes * 100.0), 2) : null,
+                ConflictCount = timeline.Count(c => c.StartTs >= s.Start && c.StartTs < s.End),
             };
         }).ToList();
 
@@ -154,26 +151,27 @@ public class InsightsService(
         {
             ResourceType = resourceType,
             Bucket = bucket,
-            Series = series,
+            Series = points,
             Metadata = Metadata(),
         };
     }
 
-    // ── Request facts (from the analytics view) ───────────────────────────────
+    // ── Request facts (from the analytics view, anchored on start_ts) ──────────
 
-    private sealed record RequestFact(Guid Id, Guid? SiteId, string Status, bool IsScheduled, DateTime CreatedAt);
+    private sealed record RequestFact(string Status, bool IsScheduled, DateTime StartTs);
 
-    private async Task<List<RequestFact>> FetchRequestFactsAsync(
+    /// <summary>Time-bound requests whose scheduled window starts in [from, to). Site-neutral included.</summary>
+    private async Task<List<RequestFact>> FetchInWindowFactsAsync(
         DateTime from, DateTime to, Guid? siteId, CancellationToken ct)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT request_id, site_id, status, is_scheduled, created_at
+        await using var cmd = new NpgsqlCommand($@"
+            SELECT status, is_scheduled, start_ts
             FROM analytics_request_summary_v
-            WHERE created_at >= @from AND created_at < @to
-              AND (@siteId::uuid IS NULL OR site_id = @siteId)", db);
+            WHERE start_ts >= @from AND start_ts < @to
+              AND {SiteFilter}", db);
         cmd.Parameters.AddWithValue("from", from);
         cmd.Parameters.AddWithValue("to", to);
         cmd.Parameters.AddWithValue("siteId", (object?)siteId ?? DBNull.Value);
@@ -181,22 +179,38 @@ public class InsightsService(
         var facts = new List<RequestFact>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            facts.Add(new RequestFact(
-                reader.GetGuid(0),
-                reader.IsDBNull(1) ? null : reader.GetGuid(1),
-                reader.GetString(2),
-                reader.GetBoolean(3),
-                reader.GetDateTime(4)));
+            facts.Add(new RequestFact(reader.GetString(0), reader.GetBoolean(1), reader.GetDateTime(2)));
         return facts;
     }
 
-    private static RequestCounts CountRequests(IReadOnlyCollection<RequestFact> facts) => new()
+    /// <summary>
+    /// Current backlog size: leaf requests with no scheduled window (excludes summary/container
+    /// parents, which also lack a start_ts but are not schedulable work). Site-neutral included.
+    /// Cancelled requests are not backlog.
+    /// </summary>
+    private async Task<int> FetchBacklogCountAsync(Guid? siteId, CancellationToken ct)
     {
-        Total = facts.Count,
-        Scheduled = facts.Count(f => f.IsScheduled && f.Status != "cancelled"),
-        Unscheduled = facts.Count(f => !f.IsScheduled && f.Status != "cancelled"),
-        Completed = facts.Count(f => f.Status == "done"),
-        Cancelled = facts.Count(f => f.Status == "cancelled"),
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        await db.OpenAsync(ct);
+
+        await using var cmd = new NpgsqlCommand($@"
+            SELECT COUNT(*)
+            FROM analytics_request_summary_v
+            WHERE start_ts IS NULL
+              AND planning_mode = 'leaf'
+              AND status <> 'cancelled'
+              AND {SiteFilter}", db);
+        cmd.Parameters.AddWithValue("siteId", (object?)siteId ?? DBNull.Value);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct) ?? 0);
+    }
+
+    private static RequestCounts CountRequests(IReadOnlyCollection<RequestFact> inWindow, int backlog) => new()
+    {
+        Total = inWindow.Count + backlog,
+        Scheduled = inWindow.Count(f => f.IsScheduled && f.Status != "cancelled"),
+        Unscheduled = backlog,
+        Completed = inWindow.Count(f => f.Status == "done"),
+        Cancelled = inWindow.Count(f => f.Status == "cancelled"),
     };
 
     // ── Conflicts (from the live conflict service) ────────────────────────────
@@ -206,7 +220,8 @@ public class InsightsService(
     /// <summary>
     /// Flattens the live conflict registry into (scheduled-start, kind) points so conflicts can be
     /// bucketed by when they occur. Joins each conflict's request back to its start_ts/site via the
-    /// scheduled-request set (the conflict registry itself carries no timestamp). Site-filtered here.
+    /// scheduled-request set (the conflict registry itself carries no timestamp). Site-filtered here —
+    /// site-neutral requests (no site) are kept under every site.
     /// </summary>
     private async Task<List<ConflictPoint>> LoadConflictTimelineAsync(
         DateTime from, DateTime to, Guid? siteId, CancellationToken ct)
@@ -221,7 +236,8 @@ public class InsightsService(
         foreach (var rc in registry)
         {
             if (!scheduled.TryGetValue(rc.RequestId, out var request)) continue;
-            if (siteId.HasValue && request.SiteId != siteId) continue;
+            // Exclude only when the request is bound to a *different* site; site-neutral stays in.
+            if (siteId.HasValue && request.SiteId.HasValue && request.SiteId != siteId) continue;
             if (request.StartTs is not { } start) continue;
             foreach (var c in rc.Conflicts)
                 points.Add(new ConflictPoint(start, c.Kind));
@@ -263,30 +279,95 @@ public class InsightsService(
         };
     }
 
-    // ── Utilization (from the live utilization service) ───────────────────────
+    // ── Utilization (time-based occupancy) ────────────────────────────────────
+
+    /// <summary>One bucket's raw capacity/used minutes (pre-rounding) — the single computation the
+    /// trend chart and the overview KPI both consume, so the headline can't disagree with the chart.</summary>
+    private sealed record UtilBucket(DateTime Start, DateTime End, double CapMinutes, double UsedMinutes);
 
     /// <summary>
-    /// Aggregate utilization for one resource type over the period: Σ used-minutes / Σ capacity-minutes
-    /// across all in-scope resources. Capacity-minutes derive from each resource's effective
-    /// availability percent × bucket span; used-minutes from its allocated percent × span. Returns
-    /// null when no capacity is configured (e.g. tools without an availability model) — never a fake 0%.
+    /// Per-bucket capacity/used minutes for one resource type, computed as *time-based occupancy* — the
+    /// share of available time actually booked over the bucket. This deliberately differs from the
+    /// scheduler grid's per-slot view (<see cref="IUtilizationService"/>), where an Exclusive resource
+    /// reads 100% if occupied at all in a slot: at month/quarter granularity that pins utilization at
+    /// 100% for any month with a single booking. Here:
+    ///   capacity_r = base availability × the bucket's open (non-blocked) minutes
+    ///   used_r     = Σ (allocation% × overlap minutes), capped at capacity_r so overbooking surfaces
+    ///                as a conflict, not as &gt;100% utilization
+    /// Resource selection (incl. site resolution) and blocked periods reuse the same repositories the
+    /// grid uses, so only the metric — not the data sourcing — is bespoke.
     /// </summary>
-    private async Task<decimal?> ComputeUtilizationPercentAsync(
-        string resourceType, InsightsFilter filter, CancellationToken ct)
+    private async Task<List<UtilBucket>> ComputeUtilizationSeriesAsync(
+        string resourceType, DateTime from, DateTime to, string bucket, Guid? siteId, CancellationToken ct)
     {
-        var byResource = await utilizationService.GetUtilizationByResourceAsync(
-            resourceType, filter.From, filter.To, "month", filter.SiteId, ct);
+        var buckets = InsightsBuckets.Generate(from, to, bucket);
+        if (buckets.Count == 0) return [];
+        var rangeFrom = buckets[0].Start;
+        var rangeTo = buckets[^1].End;
 
-        double totalCap = 0, used = 0;
-        foreach (var r in byResource)
-            foreach (var b in r.Buckets)
+        var resources = await resourceRepository.GetAllAsync(new ResourceListFilter
+        {
+            IsActive = true,
+            ResourceTypeKey = resourceType,
+            SiteId = siteId,
+            SiteWindowFrom = siteId.HasValue ? rangeFrom : null,
+            SiteWindowTo = siteId.HasValue ? rangeTo : null,
+        }, ct);
+
+        var cap = new double[buckets.Count];
+        var used = new double[buckets.Count];
+
+        foreach (var resource in resources)
+        {
+            var assignments = await assignmentRepository.GetByResourceAsync(resource.Id, rangeFrom, rangeTo, ct);
+            var blocked = await availabilityResolver.GetBlockedPeriodsAsync(resource.Id, ct);
+
+            for (var i = 0; i < buckets.Count; i++)
             {
-                var span = (b.End - b.Start).TotalMinutes;
-                totalCap += (double)b.EffectiveAvailabilityPercent / 100.0 * span;
-                used += (double)b.AllocatedPercent / 100.0 * span;
-            }
+                var (bs, be) = buckets[i];
+                var span = (be - bs).TotalMinutes;
 
-        return totalCap > 0 ? Math.Round((decimal)(used / totalCap * 100.0), 2) : null;
+                var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be));
+                var openMin = Math.Max(0, span - blockedMin);
+                var capacityR = resource.BaseAvailabilityPercent / 100.0 * openMin;
+
+                var occupied = 0.0;
+                foreach (var a in assignments)
+                {
+                    if (a.AssignmentStatus == AssignmentStatuses.Cancelled) continue;
+                    var overlap = OverlapMinutes(a.StartUtc, a.EndUtc, bs, be);
+                    if (overlap <= 0) continue;
+                    occupied += (double)(a.AllocationPercent ?? 100m) / 100.0 * overlap;
+                }
+
+                cap[i] += capacityR;
+                used[i] += Math.Min(occupied, capacityR);
+            }
+        }
+
+        var result = new List<UtilBucket>(buckets.Count);
+        for (var i = 0; i < buckets.Count; i++)
+            result.Add(new UtilBucket(buckets[i].Start, buckets[i].End, cap[i], used[i]));
+        return result;
+    }
+
+    private static double OverlapMinutes(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
+    {
+        var start = aStart > bStart ? aStart : bStart;
+        var end = aEnd < bEnd ? aEnd : bEnd;
+        return end > start ? (end - start).TotalMinutes : 0;
+    }
+
+    /// <summary>
+    /// Aggregate utilization over a series: Σ used / Σ capacity. Bucket-granularity-invariant, so the
+    /// overview KPI equals the total the trend chart sums to (and therefore ≤ the chart's peak bucket).
+    /// Null when no capacity is configured (e.g. tools without an availability model) — never a fake 0%.
+    /// </summary>
+    private static decimal? AggregatePercent(IReadOnlyCollection<UtilBucket> series)
+    {
+        var cap = series.Sum(s => s.CapMinutes);
+        var used = series.Sum(s => s.UsedMinutes);
+        return cap > 0 ? Math.Round((decimal)(used / cap * 100.0), 2) : null;
     }
 
     // ── Shared ────────────────────────────────────────────────────────────────

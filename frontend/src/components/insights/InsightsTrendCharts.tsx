@@ -28,10 +28,16 @@ const COLORS = {
   criteriaMismatch: "#f59e0b",
   resourceUnavailable: "#8b5cf6",
   scheduleOutsideAvailability: "#0ea5e9",
-  scheduled: "#2563eb",
-  unscheduled: "#94a3b8",
+  planned: "#2563eb",
+  inProgress: "#0ea5e9",
+  done: "#10b981",
   cancelled: "#ef4444",
 };
+
+// Utilization can exceed 100% when resources are overbooked; the dashboard clamps the display to
+// 100% (the overbooking signal is surfaced by the conflict charts/counts instead).
+const UTILIZATION_MAX = 100;
+const clampUtilization = (v: number | null) => (v == null ? null : Math.min(v, UTILIZATION_MAX));
 
 function bucketLabel(iso: string, bucket: InsightsBucket): string {
   const d = parseISO(iso);
@@ -94,7 +100,7 @@ export function UtilizationTrendChart({
     || series.every((p) => p.utilizationPercent == null && p.totalCapacityMinutes === 0);
   const chartData = series.map((p) => ({
     label: bucketLabel(p.bucketStart, bucket),
-    utilization: p.utilizationPercent,
+    utilization: clampUtilization(p.utilizationPercent),
   }));
 
   return (
@@ -108,7 +114,7 @@ export function UtilizationTrendChart({
       <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis dataKey="label" fontSize={12} />
-        <YAxis fontSize={12} unit="%" />
+        <YAxis fontSize={12} unit="%" domain={[0, UTILIZATION_MAX]} />
         <Tooltip formatter={(v) => (v == null ? "—" : `${v}%`)} />
         <Line
           type="monotone"
@@ -179,12 +185,13 @@ export function RequestStatusTrendChart({
 }) {
   const series = data?.series ?? [];
   const isEmpty = series.length === 0 || series.every((p) => p.total === 0);
-  // Scheduled + Unscheduled + Cancelled partition the total (Completed is a status view of Scheduled,
-  // so it is omitted from the stack to avoid double-counting).
+  // Bucketed by scheduled date and stacked by real domain status. Backlog (no scheduled date) isn't
+  // on a timeline, so it's not in this chart — it's the overview "Unscheduled" KPI.
   const chartData = series.map((p) => ({
     label: bucketLabel(p.bucketStart, bucket),
-    Scheduled: p.scheduled,
-    Unscheduled: p.unscheduled,
+    Planned: p.planned,
+    "In progress": p.inProgress,
+    Done: p.done,
     Cancelled: p.cancelled,
   }));
 
@@ -194,7 +201,7 @@ export function RequestStatusTrendChart({
       isLoading={isLoading}
       error={error}
       isEmpty={isEmpty}
-      emptyMessage="No requests in this period."
+      emptyMessage="No scheduled requests in this period."
     >
       <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -202,8 +209,9 @@ export function RequestStatusTrendChart({
         <YAxis fontSize={12} allowDecimals={false} />
         <Tooltip />
         <Legend />
-        <Bar dataKey="Scheduled" stackId="r" fill={COLORS.scheduled} />
-        <Bar dataKey="Unscheduled" stackId="r" fill={COLORS.unscheduled} />
+        <Bar dataKey="Planned" stackId="r" fill={COLORS.planned} />
+        <Bar dataKey="In progress" stackId="r" fill={COLORS.inProgress} />
+        <Bar dataKey="Done" stackId="r" fill={COLORS.done} />
         <Bar dataKey="Cancelled" stackId="r" fill={COLORS.cancelled} />
       </BarChart>
     </ChartCard>

@@ -29,7 +29,10 @@ const util = (bucket: InsightsBucket): InsightsUtilization => ({
   bucket,
   series: [
     { bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", totalCapacityMinutes: 1000, usedCapacityMinutes: 500, availableCapacityMinutes: 500, utilizationPercent: 50, conflictCount: 1 },
-    { bucketStart: "2026-04-01T00:00:00Z", bucketEnd: "2026-05-01T00:00:00Z", totalCapacityMinutes: 1000, usedCapacityMinutes: 250, availableCapacityMinutes: 750, utilizationPercent: 25, conflictCount: 0 },
+    // null %, but capacity > 0 → not "empty"; exercises the null branch of the display clamp.
+    { bucketStart: "2026-02-01T00:00:00Z", bucketEnd: "2026-03-01T00:00:00Z", totalCapacityMinutes: 1000, usedCapacityMinutes: 0, availableCapacityMinutes: 1000, utilizationPercent: null, conflictCount: 0 },
+    // overbooked > 100% → display clamps to 100%.
+    { bucketStart: "2026-04-01T00:00:00Z", bucketEnd: "2026-05-01T00:00:00Z", totalCapacityMinutes: 1000, usedCapacityMinutes: 1500, availableCapacityMinutes: 0, utilizationPercent: 150, conflictCount: 0 },
   ],
   metadata: meta,
 });
@@ -86,11 +89,21 @@ describe("InsightsTrendCharts", () => {
   it("renders the request status stacked bars with data", () => {
     const data: InsightsRequests = {
       bucket: "month",
-      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 10, scheduled: 6, unscheduled: 3, completed: 4, cancelled: 1 }],
+      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 10, planned: 4, inProgress: 2, done: 3, cancelled: 1 }],
       metadata: meta,
     };
     render(<RequestStatusTrendChart data={data} bucket="month" isLoading={false} error={null} />);
     expect(screen.getByText("Request status trend")).toBeInTheDocument();
-    expect(screen.queryByText(/No requests/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No scheduled requests/)).not.toBeInTheDocument();
+  });
+
+  it("shows the request empty state when all buckets are zero", () => {
+    const data: InsightsRequests = {
+      bucket: "month",
+      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 0, planned: 0, inProgress: 0, done: 0, cancelled: 0 }],
+      metadata: meta,
+    };
+    render(<RequestStatusTrendChart data={data} bucket="month" isLoading={false} error={null} />);
+    expect(screen.getByText("No scheduled requests in this period.")).toBeInTheDocument();
   });
 });

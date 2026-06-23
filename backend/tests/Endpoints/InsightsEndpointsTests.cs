@@ -103,13 +103,15 @@ public class InsightsEndpointsTests
     public async Task Overview_EmptyPeriod_ReturnsZeroCountsAndLiveSource()
     {
         var siteId = await SeedSiteAsync();
-        // No requests seeded for this site → all zeros, never null.
+        // No scheduled work for this fresh site → the in-window-derived counts are zero. (Unscheduled
+        // is not asserted to 0: site-neutral backlog from the shared DB legitimately shows under every
+        // site now, so it's exercised by its own delta test instead.)
         var overview = await GetAsync<InsightsOverview>(
             $"/api/insights/overview?from={From}&to={To}&siteId={siteId}");
 
-        overview.Requests.Total.Should().Be(0);
         overview.Requests.Scheduled.Should().Be(0);
-        overview.Requests.Unscheduled.Should().Be(0);
+        overview.Requests.Completed.Should().Be(0);
+        overview.Requests.Cancelled.Should().Be(0);
         overview.Conflicts.Total.Should().Be(0);
         overview.Metadata.SourceMode.Should().Be("live");
     }
@@ -125,58 +127,85 @@ public class InsightsEndpointsTests
         trend.Series.Should().OnlyContain(p => p.Total == 0);
     }
 
-    // ── Request counts ────────────────────────────────────────────────────────
+    // ── Request counts (anchored on scheduled date) ───────────────────────────
 
     [Fact]
-    public async Task Overview_CountsRequestsByStatusForTheSite()
+    public async Task Overview_CountsScheduledWorkByStartTs()
     {
         var siteId = await SeedSiteAsync();
-        await SeedRequestAsync(siteId, "planned");
-        await SeedRequestAsync(siteId, "in_progress");
-        await SeedRequestAsync(siteId, "done");
-        await SeedRequestAsync(siteId, "cancelled");
+        await SeedRequestAsync(siteId, "done", StartJan);
+        await SeedRequestAsync(siteId, "cancelled", StartJan);
+        await SeedRequestAsync(siteId, "planned", StartJan);
 
         var overview = await GetAsync<InsightsOverview>(
             $"/api/insights/overview?from={From}&to={To}&siteId={siteId}");
 
-        overview.Requests.Total.Should().Be(4);
-        overview.Requests.Cancelled.Should().Be(1);
-        overview.Requests.Completed.Should().Be(1);              // done
-        overview.Requests.Scheduled.Should().Be(0);              // no space assignments
-        overview.Requests.Unscheduled.Should().Be(3);           // planned + in_progress + done
+        // Site-specific + far-future window → isolated from other tests.
+        overview.Requests.Completed.Should().Be(1); // in-window done
+        overview.Requests.Cancelled.Should().Be(1); // in-window cancelled
+        overview.Requests.Total.Should().BeGreaterThanOrEqualTo(3);
     }
 
     [Fact]
-    public async Task Overview_SiteFilter_ExcludesOtherSites()
+    public async Task Overview_SiteNeutralBacklogCountedUnderSpecificSite()
     {
-        var siteA = await SeedSiteAsync();
-        var siteB = await SeedSiteAsync();
-        await SeedRequestAsync(siteA, "planned");
-        await SeedRequestAsync(siteA, "planned");
+        // Regression: a site-neutral (site_id NULL) backlog request must appear under a specific site,
+        // because it's schedulable anywhere. Delta-based so it's immune to other tests' data.
+        var siteId = await SeedSiteAsync();
+        var before = (await GetAsync<InsightsOverview>(
+            $"/api/insights/overview?from={From}&to={To}&siteId={siteId}")).Requests.Unscheduled;
 
-        var a = await GetAsync<InsightsOverview>($"/api/insights/overview?from={From}&to={To}&siteId={siteA}");
-        var b = await GetAsync<InsightsOverview>($"/api/insights/overview?from={From}&to={To}&siteId={siteB}");
+        await SeedRequestAsync(siteId: null, "planned", startTs: null); // site-neutral backlog
 
-        a.Requests.Total.Should().Be(2);
-        b.Requests.Total.Should().Be(0);
+        var after = (await GetAsync<InsightsOverview>(
+            $"/api/insights/overview?from={From}&to={To}&siteId={siteId}")).Requests.Unscheduled;
+
+        after.Should().Be(before + 1);
     }
 
     [Fact]
-    public async Task RequestTrend_PlacesRequestsInTheCreatedAtBucket()
+    public async Task RequestTrend_BucketsByScheduledDate_ExcludesBacklog()
     {
         var siteId = await SeedSiteAsync();
-        await SeedRequestAsync(siteId, "planned"); // created 2099-01-15
-        await SeedRequestAsync(siteId, "cancelled");
+        await SeedRequestAsync(siteId, "planned", StartJan);
+        await SeedRequestAsync(siteId, "done", StartJan);
+        await SeedRequestAsync(siteId, "planned", StartFeb);
+        await SeedRequestAsync(siteId, "planned", startTs: null); // backlog → not on the timeline
 
         var trend = await GetAsync<InsightsRequests>(
             $"/api/insights/requests?from={From}&to={To}&bucket=month&siteId={siteId}");
 
-        trend.Series[0].Total.Should().Be(2);     // January
-        trend.Series[0].Cancelled.Should().Be(1);
-        trend.Series[1].Total.Should().Be(0);     // February
+        trend.Series[0].Total.Should().Be(2);   // January (planned + done)
+        trend.Series[0].Done.Should().Be(1);
+        trend.Series[1].Total.Should().Be(1);   // February
+    }
+
+    // ── Utilization KPI reconciles with its trend chart (regression #2) ────────
+
+    [Fact]
+    public async Task Overview_SpaceUtilization_NeverExceedsTrendPeak()
+    {
+        var siteId = await SeedSiteAsync();
+        var requestId = await SeedRequestAsync(siteId, "planned", StartJan);
+        var resourceId = await SeedSpaceResourceAsync();
+        await SeedAssignmentAsync(requestId, resourceId, StartJan, StartJan.AddHours(4));
+
+        var ov = await GetAsync<InsightsOverview>($"/api/insights/overview?from={From}&to={To}");
+        var ut = await GetAsync<InsightsUtilization>(
+            $"/api/insights/utilization?from={From}&to={To}&bucket=month&resourceType=space");
+
+        var peak = ut.Series.Where(p => p.UtilizationPercent.HasValue)
+            .Select(p => p.UtilizationPercent!.Value).DefaultIfEmpty(0m).Max();
+
+        ov.Utilization.SpacesPercent.Should().NotBeNull();
+        // The headline aggregate must lie within the chart it sits above — the exact bug we're guarding.
+        ov.Utilization.SpacesPercent!.Value.Should().BeLessThanOrEqualTo(peak + 0.01m);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static readonly DateTime StartJan = new(2099, 1, 15, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime StartFeb = new(2099, 2, 15, 9, 0, 0, DateTimeKind.Utc);
 
     private async Task<T> GetAsync<T>(string url)
     {
@@ -199,19 +228,54 @@ public class InsightsEndpointsTests
         return id;
     }
 
-    private async Task SeedRequestAsync(Guid siteId, string status)
+    private async Task<Guid> SeedRequestAsync(Guid? siteId, string status, DateTime? startTs)
     {
+        var id = Guid.NewGuid();
         await using var conn = new NpgsqlConnection(_tenantCs);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO requests
-                (id, name, site_id, status, minimal_duration_value, minimal_duration_unit, planning_mode, created_at, updated_at)
+                (id, name, site_id, status, start_ts, end_ts, minimal_duration_value, minimal_duration_unit,
+                 planning_mode, created_at, updated_at)
             VALUES
-                (gen_random_uuid(), @name, @siteId, @status, 60, 'minutes', 'leaf', @createdAt, @createdAt)", conn);
-        cmd.Parameters.AddWithValue("name", $"Req {Guid.NewGuid().ToString()[..8]}");
-        cmd.Parameters.AddWithValue("siteId", siteId);
+                (@id, @name, @siteId, @status, @startTs, @endTs, 60, 'minutes', 'leaf', @createdAt, @createdAt)", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("name", $"Req {id.ToString()[..8]}");
+        cmd.Parameters.AddWithValue("siteId", (object?)siteId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("status", status);
+        cmd.Parameters.AddWithValue("startTs", (object?)startTs ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("endTs", (object?)startTs?.AddHours(1) ?? DBNull.Value);
         cmd.Parameters.AddWithValue("createdAt", CreatedAt);
+        await cmd.ExecuteNonQueryAsync();
+        return id;
+    }
+
+    private async Task<Guid> SeedSpaceResourceAsync()
+    {
+        var id = Guid.NewGuid();
+        await using var conn = new NpgsqlConnection(_tenantCs);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active)
+            SELECT @id, rt.id, @name, 'Exclusive', 100, true
+            FROM resource_types rt WHERE rt.key = 'space'", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("name", $"Space {id.ToString()[..8]}");
+        await cmd.ExecuteNonQueryAsync();
+        return id;
+    }
+
+    private async Task SeedAssignmentAsync(Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc)
+    {
+        await using var conn = new NpgsqlConnection(_tenantCs);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO resource_assignments (id, request_id, resource_id, start_utc, end_utc, assignment_status)
+            VALUES (gen_random_uuid(), @requestId, @resourceId, @start, @end, 'Planned')", conn);
+        cmd.Parameters.AddWithValue("requestId", requestId);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+        cmd.Parameters.AddWithValue("start", startUtc);
+        cmd.Parameters.AddWithValue("end", endUtc);
         await cmd.ExecuteNonQueryAsync();
     }
 }
