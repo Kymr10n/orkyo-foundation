@@ -3,10 +3,11 @@ using Bogus;
 namespace Orkyo.Foundation.Seed.Narrative;
 
 /// <summary>
-/// The 12-month time scaffold around the reference date (~1 month of history → ~11 months ahead, so
-/// the demo shows a schedule that is mostly upcoming/planned rather than all-done). Provides
-/// working-day logic (Mon–Fri, minus public holidays and plant shutdowns), two shifts, job-slot
-/// generation, per-facility campaign windows, and time→status. All times UTC.
+/// The 18-month time scaffold around the reference date (~6 months of history → ~12 months ahead),
+/// so the demo shows real completed history AND upcoming/planned work — letting the Insights
+/// dashboard populate both backward- and forward-looking ranges. Provides working-day logic
+/// (Mon–Fri, minus public holidays and plant shutdowns), two shifts, job-slot generation,
+/// per-facility campaign windows, and time→status. All times UTC.
 /// </summary>
 public sealed class YearCalendar
 {
@@ -21,8 +22,9 @@ public sealed class YearCalendar
     public YearCalendar(DateTime referenceDate)
     {
         ReferenceDate = DateTime.SpecifyKind(referenceDate, DateTimeKind.Utc);
-        Start = new DateTime(ReferenceDate.Year, ReferenceDate.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-1);
-        End = Start.AddMonths(12);
+        // 6 months of history → 12 months ahead, anchored on the first of the reference month.
+        Start = new DateTime(ReferenceDate.Year, ReferenceDate.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-6);
+        End = Start.AddMonths(18);
 
         Holidays = BuildHolidays();
         Shutdowns = BuildShutdowns();
@@ -103,10 +105,12 @@ public sealed class YearCalendar
     /// <summary>Each facility's seasonal campaign window (clipped to the calendar window).</summary>
     public (DateTime Start, DateTime End) CampaignWindow(string siteCode)
     {
-        // Stagger campaigns: PMF is active now (started last month), FWF kicks off in 2 months,
-        // PPF's holiday surge is planned 5 months out. Offsets from Start (= ReferenceDate - 1 month).
-        var offsetMonths = siteCode switch { "PMF" => 0, "FWF" => 2, _ => 5 };
-        var s = Start.AddMonths(offsetMonths);
+        // Stagger campaigns relative to *now* (not the window edge, which is 6 months back):
+        // PMF is active now (started last month), FWF kicks off in 2 months, PPF's holiday surge
+        // is planned 5 months out.
+        var monthBase = new DateTime(ReferenceDate.Year, ReferenceDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var offsetMonths = siteCode switch { "PMF" => -1, "FWF" => 2, _ => 5 };
+        var s = monthBase.AddMonths(offsetMonths);
         var e = s.AddMonths(3);
         return (s < Start ? Start : s, e > End ? End : e);
     }
