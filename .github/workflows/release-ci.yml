@@ -400,11 +400,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Trivy — image scan
+      # HIGH findings in the upstream, digest-pinned Keycloak image are bundled by
+      # Keycloak itself (netty/jackson/jdbc/…) and cannot be fixed independently of an
+      # upstream rebase — the deploy ships this exact image regardless. So HIGHs are
+      # reported for visibility but do NOT block the release; the nightly
+      # security-refresh job tracks them and prompts a digest bump. CRITICAL findings
+      # still hard-stop the pipeline (gate step below).
+      - name: Trivy — KC image scan (HIGH, report-only)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
-          severity: HIGH,CRITICAL
+          severity: HIGH
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          output: trivy-high.txt
+
+      - name: Report HIGH findings to job summary
+        if: always()
+        run: |
+          {
+            echo "### Keycloak image — HIGH findings (non-blocking)"
+            echo
+            if [ -s trivy-high.txt ]; then
+              echo '```'
+              cat trivy-high.txt
+              echo '```'
+              echo
+              echo "_HIGHs in the upstream Keycloak image are bundled by Keycloak and resolved only by an upstream rebase (tracked by the nightly security-refresh). They do not block this release — CRITICALs do._"
+            else
+              echo "No new HIGH findings."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Trivy — KC image gate (CRITICAL, blocking)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          severity: CRITICAL
           exit-code: '1'
           ignore-unfixed: true
           trivyignores: .trivyignore

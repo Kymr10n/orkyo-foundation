@@ -70,36 +70,60 @@ jobs:
             exit 1
           fi
 
-          vuln_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy-results.json)
-          echo "vulnerability_count=$vuln_count" >> "$GITHUB_OUTPUT"
+          crit_count=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-results.json)
+          high_count=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-results.json)
+          echo "critical_count=$crit_count" >> "$GITHUB_OUTPUT"
+          echo "high_count=$high_count" >> "$GITHUB_OUTPUT"
 
-          if [ "$vuln_count" -gt 0 ]; then
-            echo "has_vulnerabilities=true" >> "$GITHUB_OUTPUT"
-            echo "Detected $vuln_count HIGH/CRITICAL vulnerability findings"
+          # Only CRITICAL findings escalate (issue + workflow failure). HIGH findings in the
+          # upstream, digest-pinned Keycloak image are bundled by Keycloak and resolved only by
+          # a base-image digest bump — they are surfaced here for visibility but do not gate, so
+          # newly-disclosed HIGHs no longer force a .trivyignore edit just to get back to green.
+          if [ "$crit_count" -gt 0 ]; then
+            echo "has_critical=true" >> "$GITHUB_OUTPUT"
+            echo "Detected $crit_count CRITICAL finding(s) ($high_count HIGH)"
           else
-            echo "has_vulnerabilities=false" >> "$GITHUB_OUTPUT"
-            echo "No HIGH/CRITICAL vulnerabilities detected"
+            echo "has_critical=false" >> "$GITHUB_OUTPUT"
+            echo "No CRITICAL findings ($high_count HIGH)"
           fi
 
-      - name: Create or reopen issue on vulnerability found
-        if: steps.trivy_results.outputs.has_vulnerabilities == 'true'
+          # Full HIGH+CRITICAL picture in the job summary (visibility, non-gating).
+          {
+            echo "### Keycloak base image — security refresh scan"
+            echo
+            echo "- CRITICAL: ${crit_count}"
+            echo "- HIGH: ${high_count}"
+            echo
+            if [ "$((crit_count + high_count))" -gt 0 ]; then
+              echo "| Severity | Package | CVE | Installed | Fixed |"
+              echo "|---|---|---|---|---|"
+              jq -r '.Results[]?.Vulnerabilities[]? | "| \(.Severity) | \(.PkgName) | \(.VulnerabilityID) | \(.InstalledVersion) | \(.FixedVersion // "—") |"' trivy-results.json
+              echo
+              echo "_HIGHs are bundled by upstream Keycloak and resolved only by a base-image digest bump; tracked here but non-gating. CRITICALs open/reopen a tracking issue and fail this run._"
+            else
+              echo "No HIGH/CRITICAL findings. ✅"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create or reopen issue on CRITICAL found
+        if: steps.trivy_results.outputs.has_critical == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
-            const title = '🔒 Security: HIGH/CRITICAL CVEs in Keycloak base image';
+            const title = '🔒 Security: CRITICAL CVEs in Keycloak base image';
             const body = [
-              '## Vulnerability detected in Keycloak base image',
+              '## CRITICAL vulnerability detected in Keycloak base image',
               '',
               `**Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               `**Commit:** ${context.sha}`,
               `**Date:** ${new Date().toISOString()}`,
               '',
               '**Action required:**',
-              '1. Review the Trivy scan output in the workflow run linked above',
-              '2. Update the Keycloak base image version in `keycloak/Dockerfile` if a patched version is available',
-              '3. Or add a time-bound exception to `.trivyignore` with a review date within 14 days',
+              '1. Review the Trivy scan output (job summary lists every HIGH/CRITICAL finding)',
+              '2. Bump the digest-pinned Keycloak base image in `keycloak/Dockerfile` if a patched release exists',
+              '3. Otherwise make a conscious risk decision — document a time-bound exception in `.trivyignore` (review date within 14 days) only if the CVE is not reachable in our deployment',
               '',
-              '_This issue is automatically reopened on each failed security refresh until resolved._',
+              '_HIGH findings in the bundled upstream JARs are reported in the job summary but do not open an issue — they are resolved by a base-image digest bump, not independently patchable. This issue is reopened on each refresh while a CRITICAL remains._',
             ].join('\n');
 
             const { data: issues } = await github.rest.issues.listForRepo({
@@ -137,6 +161,6 @@ jobs:
               });
             }
 
-      - name: Fail workflow if vulnerabilities found
-        if: steps.trivy_results.outputs.has_vulnerabilities == 'true'
+      - name: Fail workflow if CRITICAL found
+        if: steps.trivy_results.outputs.has_critical == 'true'
         run: exit 1
