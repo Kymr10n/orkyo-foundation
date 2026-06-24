@@ -18,6 +18,28 @@ public interface IEmailService
     Task<bool> SendEmailChangeConfirmationAsync(string toEmail, string displayName, string confirmationToken, CancellationToken ct = default);
     Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default);
     Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail, CancellationToken ct = default);
+
+    // Tenant lifecycle (worker) + owner welcome
+    Task<bool> SendTenantInactivityWarningAsync(string toEmail, string tenantName, string loginUrl, int daysUntilSuspend, CancellationToken ct = default);
+    Task<bool> SendTenantSuspendedAsync(string toEmail, string tenantName, string reactivateUrl, int deleteAfterDays, CancellationToken ct = default);
+    Task<bool> SendTenantDeletingWarningAsync(string toEmail, string tenantName, string restoreUrl, int daysUntilDelete, CancellationToken ct = default);
+    Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default);
+    Task<bool> SendTenantReactivatedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default);
+    Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default);
+
+    // Membership / role / ownership / quota / tier
+    Task<bool> SendRoleChangedAsync(string toEmail, string tenantName, string newRole, string appUrl, CancellationToken ct = default);
+    Task<bool> SendMemberRemovedAsync(string toEmail, string tenantName, CancellationToken ct = default);
+    Task<bool> SendOwnershipReceivedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default);
+    Task<bool> SendOwnershipTransferredAsync(string toEmail, string tenantName, string newOwnerEmail, CancellationToken ct = default);
+    Task<bool> SendQuotaLimitReachedAsync(string toEmail, string tenantName, string resourceLabel, long limit, string manageUrl, CancellationToken ct = default);
+    Task<bool> SendTierChangedAsync(string toEmail, string tenantName, string newPlan, string appUrl, CancellationToken ct = default);
+
+    // Security events
+    Task<bool> SendPasswordChangedAsync(string toEmail, string displayName, CancellationToken ct = default);
+    Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default);
+    Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
+    Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
 }
 
 public class EmailService : IEmailService
@@ -184,6 +206,60 @@ public class EmailService : IEmailService
         SendAdminAlertAsync(
             EmailTemplates.GetNewTenantAlertEmail(tenantSlug, tenantDisplayName, ownerEmail, EmailBranding.Default),
             logContext: tenantSlug);
+
+    public Task<bool> SendTenantInactivityWarningAsync(string toEmail, string tenantName, string loginUrl, int daysUntilSuspend, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetTenantInactivityWarningEmail(tenantName, loginUrl, daysUntilSuspend, b), ct);
+
+    public Task<bool> SendTenantSuspendedAsync(string toEmail, string tenantName, string reactivateUrl, int deleteAfterDays, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetTenantSuspendedEmail(tenantName, reactivateUrl, deleteAfterDays, b), ct);
+
+    public Task<bool> SendTenantDeletingWarningAsync(string toEmail, string tenantName, string restoreUrl, int daysUntilDelete, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetTenantDeletingWarningEmail(tenantName, restoreUrl, daysUntilDelete, b), ct);
+
+    public Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetTenantDeletedEmail(tenantName, b), ct);
+
+    public Task<bool> SendTenantReactivatedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetTenantReactivatedEmail(tenantName, appUrl, b), ct);
+
+    public Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail,
+            b => EmailTemplates.GetTenantWelcomeEmail(tenantName, appUrl, b), ct);
+
+    public Task<bool> SendRoleChangedAsync(string toEmail, string tenantName, string newRole, string appUrl, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail, b => EmailTemplates.GetRoleChangedEmail(tenantName, newRole, appUrl, b), ct);
+
+    public Task<bool> SendMemberRemovedAsync(string toEmail, string tenantName, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail, b => EmailTemplates.GetMemberRemovedEmail(tenantName, b), ct);
+
+    public Task<bool> SendOwnershipReceivedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail, b => EmailTemplates.GetOwnershipReceivedEmail(tenantName, appUrl, b), ct);
+
+    public Task<bool> SendOwnershipTransferredAsync(string toEmail, string tenantName, string newOwnerEmail, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail, b => EmailTemplates.GetOwnershipTransferredEmail(tenantName, newOwnerEmail, b), ct);
+
+    public Task<bool> SendQuotaLimitReachedAsync(string toEmail, string tenantName, string resourceLabel, long limit, string manageUrl, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail, b => EmailTemplates.GetQuotaLimitReachedEmail(tenantName, resourceLabel, limit, manageUrl, b), ct);
+
+    public Task<bool> SendTierChangedAsync(string toEmail, string tenantName, string newPlan, string appUrl, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, toEmail, b => EmailTemplates.GetTierChangedEmail(tenantName, newPlan, appUrl, b), ct);
+
+    public Task<bool> SendPasswordChangedAsync(string toEmail, string displayName, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetPasswordChangedEmail(displayName, b), ct);
+
+    public Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetMfaChangedEmail(displayName, enabled, b), ct);
+
+    public Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetEmailChangeRequestedOldAddressEmail(displayName, newEmail, b), ct);
+
+    public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetEmailChangedEmail(displayName, newEmail, b), ct);
 
     private async Task SendAdminAlertAsync((string subject, string htmlBody, string textBody) template, string logContext)
     {

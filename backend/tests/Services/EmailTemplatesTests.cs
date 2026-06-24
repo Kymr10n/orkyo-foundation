@@ -112,4 +112,154 @@ public class EmailTemplatesTests
         textBody.Should().Contain("your Acme account");
         textBody.Should().Contain("The Acme Team");
     }
+
+    // ── Lifecycle / admin / security templates (added 2026-06) ──────────────────
+
+    private static void AssertBranded(string subject, string html, string text)
+    {
+        subject.Should().NotBeNullOrWhiteSpace();
+        html.Should().Contain("Acme");        // branding product name substituted
+        html.Should().Contain("#111111");     // primary colour substituted
+        text.Should().Contain("Acme");
+        text.Should().Contain("Best regards");
+    }
+
+    [Fact]
+    public void TenantInactivityWarning_hasLoginCtaAndDays()
+    {
+        var (s, h, t) = EmailTemplates.GetTenantInactivityWarningEmail("Acme HQ", "https://app/x", 7, CustomBranding);
+        s.Should().Contain("Acme HQ");
+        h.Should().Contain("https://app/x").And.Contain("7 days");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void TenantSuspended_hasReactivateLink()
+    {
+        var (s, h, t) = EmailTemplates.GetTenantSuspendedEmail("Acme HQ", "https://app/react", 90, CustomBranding);
+        s.Should().Contain("suspended");
+        h.Should().Contain("https://app/react").And.Contain("90 days");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void TenantDeletingWarning_hasRestoreLinkAndFooter()
+    {
+        var (s, h, t) = EmailTemplates.GetTenantDeletingWarningEmail("Acme HQ", "https://app/restore", 7, CustomBranding);
+        s.Should().Contain("permanently deleted");
+        h.Should().Contain("https://app/restore").And.Contain("7 days");
+        h.Should().Contain("no action is needed"); // footer branch
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void TenantDeleted_isInformational()
+    {
+        var (s, h, t) = EmailTemplates.GetTenantDeletedEmail("Acme HQ", CustomBranding);
+        s.Should().Contain("deleted");
+        h.Should().Contain("contact support");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void TenantReactivated_hasOpenCta()
+    {
+        var (s, h, t) = EmailTemplates.GetTenantReactivatedEmail("Acme HQ", "https://app", CustomBranding);
+        s.Should().Contain("active again");
+        h.Should().Contain("https://app");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void TenantWelcome_hasOpenCta()
+    {
+        var (s, h, t) = EmailTemplates.GetTenantWelcomeEmail("Acme HQ", "https://app", CustomBranding);
+        s.Should().Contain("Acme HQ");
+        h.Should().Contain("https://app").And.Contain("owner");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void RoleChanged_namesTheNewRole()
+    {
+        var (s, h, t) = EmailTemplates.GetRoleChangedEmail("Acme HQ", "editor", "https://app", CustomBranding);
+        s.Should().Contain("role");
+        h.Should().Contain("editor").And.Contain("https://app");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void MemberRemoved_isInformational()
+    {
+        var (s, h, t) = EmailTemplates.GetMemberRemovedEmail("Acme HQ", CustomBranding);
+        s.Should().Contain("removed");
+        h.Should().Contain("Acme HQ");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void Ownership_receivedAndTransferred()
+    {
+        var (s1, h1, t1) = EmailTemplates.GetOwnershipReceivedEmail("Acme HQ", "https://app", CustomBranding);
+        s1.Should().Contain("owner");
+        h1.Should().Contain("https://app");
+        AssertBranded(s1, h1, t1);
+
+        var (s2, h2, t2) = EmailTemplates.GetOwnershipTransferredEmail("Acme HQ", "new@x.com", CustomBranding);
+        s2.Should().Contain("transferred");
+        h2.Should().Contain("new@x.com");
+        AssertBranded(s2, h2, t2);
+    }
+
+    [Fact]
+    public void QuotaLimitReached_hasLimitAndManageLink()
+    {
+        var (s, h, t) = EmailTemplates.GetQuotaLimitReachedEmail("Acme HQ", "active seats", 25, "https://app/limits", CustomBranding);
+        s.Should().Contain("active seats");
+        h.Should().Contain("25").And.Contain("https://app/limits");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void TierChanged_namesPlan()
+    {
+        var (s, h, t) = EmailTemplates.GetTierChangedEmail("Acme HQ", "professional", "https://app", CustomBranding);
+        s.Should().Contain("plan");
+        h.Should().Contain("professional").And.Contain("https://app");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void PasswordChanged_hasSecurityFooter()
+    {
+        var (s, h, t) = EmailTemplates.GetPasswordChangedEmail("Dana", CustomBranding);
+        s.Should().Contain("password");
+        h.Should().Contain("Dana").And.Contain("contact support");
+        AssertBranded(s, h, t);
+    }
+
+    [Theory]
+    [InlineData(true, "enabled")]
+    [InlineData(false, "disabled")]
+    public void MfaChanged_reflectsState(bool enabled, string word)
+    {
+        var (s, h, t) = EmailTemplates.GetMfaChangedEmail("Dana", enabled, CustomBranding);
+        s.Should().Contain(word);
+        h.Should().Contain(word).And.Contain("Dana");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
+    public void EmailChange_requestedOldAddressAndChanged()
+    {
+        var (s1, h1, t1) = EmailTemplates.GetEmailChangeRequestedOldAddressEmail("Dana", "new@x.com", CustomBranding);
+        s1.Should().Contain("email change");
+        h1.Should().Contain("new@x.com").And.Contain("contact support");
+        AssertBranded(s1, h1, t1);
+
+        var (s2, h2, t2) = EmailTemplates.GetEmailChangedEmail("Dana", "new@x.com", CustomBranding);
+        s2.Should().Contain("changed");
+        h2.Should().Contain("new@x.com");
+        AssertBranded(s2, h2, t2);
+    }
 }

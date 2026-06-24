@@ -246,6 +246,8 @@ public sealed class InvitationService : IInvitationService
             catch { /* ignore audit failures */ }
 
             _logger.LogInformation("User {Email} accepted invitation and joined tenant {TenantId}", email, tenantId);
+            // Welcome the new member (best-effort).
+            _ = _emailService.SendWelcomeEmailAsync(email, displayName);
             return (user, null);
         }
         catch (Exception ex)

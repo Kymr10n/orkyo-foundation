@@ -641,4 +641,257 @@ The {b.ProductName} Team";
 
         return (subject, htmlBody, textBody);
     }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // Lifecycle / admin / security notifications (added 2026-06). These share one
+    // branded layout helper to stay consistent and avoid repeating the HTML scaffold.
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Branded layout: gradient header, body paragraphs, optional CTA button, optional footer note.</summary>
+    private static (string html, string text) Layout(
+        EmailBranding b, string heading, IReadOnlyList<string> paragraphs,
+        (string label, string url)? cta = null, string? footerNote = null)
+    {
+        var paras = string.Join("\n        ", paragraphs.Select(p =>
+            $@"<p style=""font-size: 16px; margin-bottom: 20px;"">{p}</p>"));
+
+        var ctaHtml = cta is { } c ? $@"
+        <div style=""text-align: center; margin: 30px 0;"">
+            <a href=""{c.url}"" style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">{c.label}</a>
+        </div>
+        <p style=""font-size: 14px; color: #666;"">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">{c.url}</p>" : "";
+
+        var footerHtml = footerNote is null ? "" : $@"
+        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
+        <p style=""font-size: 13px; color: #999;"">{footerNote}</p>";
+
+        var html = $@"<!DOCTYPE html>
+<html>
+<head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><title>{heading}</title></head>
+<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
+    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
+        <h1 style=""color: white; margin: 0; font-size: 26px;"">{heading}</h1>
+    </div>
+    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
+        {paras}{ctaHtml}{footerHtml}
+        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">Best regards,<br>The {b.ProductName} Team</p>
+    </div>
+</body>
+</html>";
+
+        var ctaText = cta is { } ct ? $"\n\n{ct.label}: {ct.url}" : "";
+        var footerText = footerNote is null ? "" : $"\n\n{footerNote}";
+        var text = $"{heading}\n\n{string.Join("\n\n", paragraphs)}{ctaText}{footerText}\n\nBest regards,\nThe {b.ProductName} Team";
+
+        return (html, text);
+    }
+
+    // ── Tenant lifecycle (W1) ───────────────────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetTenantInactivityWarningEmail(
+        string tenantName, string loginUrl, int daysUntilSuspend, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"Your {tenantName} workspace is going idle",
+            [
+                $"We haven't seen any activity in your <strong>{tenantName}</strong> workspace recently.",
+                $"To keep it active, just sign in within the next {daysUntilSuspend} days. Otherwise the workspace will be automatically suspended to free up resources — it can still be reactivated afterwards.",
+            ],
+            cta: ("Open " + tenantName, loginUrl));
+        return ($"Action needed: keep your {tenantName} workspace active", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetTenantSuspendedEmail(
+        string tenantName, string reactivateUrl, int deleteAfterDays, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"{tenantName} has been suspended",
+            [
+                $"Your <strong>{tenantName}</strong> workspace has been suspended after a period of inactivity. Your data is safe and nothing has been deleted.",
+                $"You can reactivate it any time. If left suspended, the workspace and its data will be permanently deleted after {deleteAfterDays} days.",
+            ],
+            cta: ("Reactivate workspace", reactivateUrl));
+        return ($"Your {tenantName} workspace has been suspended", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetTenantDeletingWarningEmail(
+        string tenantName, string restoreUrl, int daysUntilDelete, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"Final notice: {tenantName} will be deleted",
+            [
+                $"Your suspended <strong>{tenantName}</strong> workspace is scheduled for <strong>permanent deletion in {daysUntilDelete} days</strong>.",
+                "Reactivate now to keep your data. After deletion this cannot be undone.",
+            ],
+            cta: ("Restore workspace", restoreUrl),
+            footerNote: "If you intended to delete this workspace, no action is needed.");
+        return ($"Final notice: {tenantName} will be permanently deleted", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetTenantDeletedEmail(
+        string tenantName, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"{tenantName} has been deleted",
+            [
+                $"Your <strong>{tenantName}</strong> workspace and its data have now been permanently deleted, as scheduled after the suspension grace period.",
+                "If you believe this was a mistake, please contact support as soon as possible.",
+            ]);
+        return ($"Your {tenantName} workspace has been deleted", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetTenantReactivatedEmail(
+        string tenantName, string appUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"{tenantName} is active again",
+            [$"Welcome back — your <strong>{tenantName}</strong> workspace has been reactivated and is ready to use."],
+            cta: ("Open " + tenantName, appUrl));
+        return ($"Your {tenantName} workspace is active again", html, text);
+    }
+
+    // ── Owner welcome (W2) ────────────────────────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetTenantWelcomeEmail(
+        string tenantName, string appUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"Welcome to {b.ProductName}",
+            [
+                $"Your <strong>{tenantName}</strong> workspace is ready. You're the owner — invite your team, set up resources, and start scheduling.",
+            ],
+            cta: ("Open your workspace", appUrl));
+        return ($"Welcome to {b.ProductName} — {tenantName} is ready", html, text);
+    }
+
+    // ── Membership / role / ownership (W3) ──────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetRoleChangedEmail(
+        string tenantName, string newRole, string appUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"Your role in {tenantName} changed",
+            [$"An administrator updated your role in <strong>{tenantName}</strong>. You are now a <strong>{newRole}</strong>."],
+            cta: ("Open " + tenantName, appUrl));
+        return ($"Your role in {tenantName} changed", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetMemberRemovedEmail(
+        string tenantName, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"You've been removed from {tenantName}",
+            [
+                $"Your access to the <strong>{tenantName}</strong> workspace has been removed by an administrator.",
+                "If you think this was a mistake, contact a workspace administrator.",
+            ]);
+        return ($"You've been removed from {tenantName}", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetOwnershipReceivedEmail(
+        string tenantName, string appUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"You're now the owner of {tenantName}",
+            [$"Ownership of the <strong>{tenantName}</strong> workspace has been transferred to you. You now have full control, including billing and deletion."],
+            cta: ("Open " + tenantName, appUrl));
+        return ($"You're now the owner of {tenantName}", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetOwnershipTransferredEmail(
+        string tenantName, string newOwnerEmail, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"Ownership of {tenantName} was transferred",
+            [$"Ownership of the <strong>{tenantName}</strong> workspace has been transferred to {newOwnerEmail}. You are no longer the owner."],
+            footerNote: "If you did not authorise this, contact support immediately.");
+        return ($"Ownership of {tenantName} was transferred", html, text);
+    }
+
+    // ── Quota (W4) ──────────────────────────────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetQuotaLimitReachedEmail(
+        string tenantName, string resourceLabel, long limit, string manageUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"You've reached your {resourceLabel} limit",
+            [$"Your <strong>{tenantName}</strong> workspace has reached its {resourceLabel} limit ({limit}). To add more, upgrade your plan or adjust your limits."],
+            cta: ("Manage limits", manageUrl));
+        return ($"You've reached your {resourceLabel} limit in {tenantName}", html, text);
+    }
+
+    // ── Tier change (W5) ──────────────────────────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetTierChangedEmail(
+        string tenantName, string newPlan, string appUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            $"Your {tenantName} plan changed",
+            [$"The plan for your <strong>{tenantName}</strong> workspace is now <strong>{newPlan}</strong>. Your limits and features have been updated accordingly."],
+            cta: ("Open " + tenantName, appUrl));
+        return ($"Your {tenantName} plan changed", html, text);
+    }
+
+    // ── Security events (W6) ────────────────────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetPasswordChangedEmail(
+        string displayName, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            "Your password was changed",
+            [$"Hi {displayName}, the password on your {b.ProductName} account was just changed."],
+            footerNote: "If you didn't make this change, reset your password and contact support immediately.");
+        return ($"Your {b.ProductName} password was changed", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetMfaChangedEmail(
+        string displayName, bool enabled, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var what = enabled ? "enabled" : "disabled";
+        var (html, text) = Layout(b,
+            $"Two-factor authentication {what}",
+            [$"Hi {displayName}, two-factor authentication was just {what} on your {b.ProductName} account."],
+            footerNote: "If you didn't make this change, contact support immediately.");
+        return ($"Two-factor authentication {what} on your {b.ProductName} account", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetEmailChangeRequestedOldAddressEmail(
+        string displayName, string newEmail, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            "Email change requested",
+            [
+                $"Hi {displayName}, a request was made to change the email on your {b.ProductName} account to <strong>{newEmail}</strong>.",
+                "This address stays active until the new one is confirmed.",
+            ],
+            footerNote: "If you didn't request this, change your password and contact support immediately.");
+        return ($"An email change was requested on your {b.ProductName} account", html, text);
+    }
+
+    public static (string subject, string htmlBody, string textBody) GetEmailChangedEmail(
+        string displayName, string newEmail, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            "Your email was changed",
+            [$"Hi {displayName}, the email address on your {b.ProductName} account is now <strong>{newEmail}</strong>."],
+            footerNote: "If you didn't make this change, contact support immediately.");
+        return ($"Your {b.ProductName} email address was changed", html, text);
+    }
 }

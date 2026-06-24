@@ -235,6 +235,9 @@ public static class AccountEmailChangeEndpoints
                     statusCode: StatusCodes.Status502BadGateway);
             }
 
+            // Security: tell the CURRENT address that a change was requested (best-effort).
+            _ = emailService.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail);
+
             logger.LogInformation("Email change requested for user {UserId}: pending={NewEmail}", userId, newEmail);
             return Results.Ok(new { message = "Confirmation email sent. Check your new inbox and click the link to complete the change." });
         })
@@ -249,6 +252,7 @@ public static class AccountEmailChangeEndpoints
             string? token,
             IDbConnectionFactory dbFactory,
             IKeycloakAdminService keycloakAdmin,
+            IEmailService emailService,
             IConfiguration configuration,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -362,6 +366,8 @@ public static class AccountEmailChangeEndpoints
                 await tx.CommitAsync(ct);
 
                 logger.LogInformation("Email change confirmed for user {UserId}: new email={PendingEmail}", userId, pendingEmail);
+                // Confirm completion to the new address (best-effort).
+                _ = emailService.SendEmailChangedAsync(pendingEmail, pendingEmail, pendingEmail);
                 return Results.Redirect(Redirect("confirmed"));
             }
             catch (Exception ex)

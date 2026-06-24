@@ -116,6 +116,59 @@ public class MockEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    // ── Lifecycle / admin / security (added 2026-06) ──────────────────────────
+    public int SendTenantInactivityWarningCallCount { get; private set; }
+    public int SendTenantSuspendedCallCount { get; private set; }
+    public int SendTenantDeletingWarningCallCount { get; private set; }
+    public int SendTenantDeletedCallCount { get; private set; }
+    public int SendTenantReactivatedCallCount { get; private set; }
+    public int SendTenantWelcomeCallCount { get; private set; }
+    public int SendRoleChangedCallCount { get; private set; }
+    public int SendMemberRemovedCallCount { get; private set; }
+    public int SendOwnershipReceivedCallCount { get; private set; }
+    public int SendOwnershipTransferredCallCount { get; private set; }
+    public int SendQuotaLimitReachedCallCount { get; private set; }
+    public int SendTierChangedCallCount { get; private set; }
+    public int SendPasswordChangedCallCount { get; private set; }
+    public int SendMfaChangedCallCount { get; private set; }
+    public int SendEmailChangeRequestedOldAddressCallCount { get; private set; }
+    public int SendEmailChangedCallCount { get; private set; }
+    /// <summary>Recipient emails captured across the tenant/account notification sends, for assertions.</summary>
+    public List<string> Recipients { get; } = new();
+
+    public Task<bool> SendTenantInactivityWarningAsync(string toEmail, string tenantName, string loginUrl, int daysUntilSuspend, CancellationToken ct = default)
+    { SendTenantInactivityWarningCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendTenantSuspendedAsync(string toEmail, string tenantName, string reactivateUrl, int deleteAfterDays, CancellationToken ct = default)
+    { SendTenantSuspendedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendTenantDeletingWarningAsync(string toEmail, string tenantName, string restoreUrl, int daysUntilDelete, CancellationToken ct = default)
+    { SendTenantDeletingWarningCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default)
+    { SendTenantDeletedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendTenantReactivatedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
+    { SendTenantReactivatedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
+    { SendTenantWelcomeCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendRoleChangedAsync(string toEmail, string tenantName, string newRole, string appUrl, CancellationToken ct = default)
+    { SendRoleChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendMemberRemovedAsync(string toEmail, string tenantName, CancellationToken ct = default)
+    { SendMemberRemovedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendOwnershipReceivedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
+    { SendOwnershipReceivedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendOwnershipTransferredAsync(string toEmail, string tenantName, string newOwnerEmail, CancellationToken ct = default)
+    { SendOwnershipTransferredCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendQuotaLimitReachedAsync(string toEmail, string tenantName, string resourceLabel, long limit, string manageUrl, CancellationToken ct = default)
+    { SendQuotaLimitReachedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendTierChangedAsync(string toEmail, string tenantName, string newPlan, string appUrl, CancellationToken ct = default)
+    { SendTierChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendPasswordChangedAsync(string toEmail, string displayName, CancellationToken ct = default)
+    { SendPasswordChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default)
+    { SendMfaChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
+    { SendEmailChangeRequestedOldAddressCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
+    { SendEmailChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+
     // ── Reset ─────────────────────────────────────────────────────────────────
     public void Reset()
     {
@@ -131,5 +184,22 @@ public class MockEmailService : IEmailService
         FailNextEmailChangeConfirmation = false;
         SendNewUserAlertCallCount = 0;
         SendNewTenantAlertCallCount = 0;
+        SendTenantInactivityWarningCallCount = 0;
+        SendTenantSuspendedCallCount = 0;
+        SendTenantDeletingWarningCallCount = 0;
+        SendTenantDeletedCallCount = 0;
+        SendTenantReactivatedCallCount = 0;
+        SendTenantWelcomeCallCount = 0;
+        SendRoleChangedCallCount = 0;
+        SendMemberRemovedCallCount = 0;
+        SendOwnershipReceivedCallCount = 0;
+        SendOwnershipTransferredCallCount = 0;
+        SendQuotaLimitReachedCallCount = 0;
+        SendTierChangedCallCount = 0;
+        SendPasswordChangedCallCount = 0;
+        SendMfaChangedCallCount = 0;
+        SendEmailChangeRequestedOldAddressCallCount = 0;
+        SendEmailChangedCallCount = 0;
+        Recipients.Clear();
     }
 }

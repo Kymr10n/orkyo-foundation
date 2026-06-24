@@ -23,6 +23,7 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
             ITenantSettingsService settingsService,
+            IEmailService emailService,
             ChangePasswordRequest request,
             IValidator<ChangePasswordRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
@@ -37,6 +38,8 @@ public static class SecurityEndpoints
 
                 await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword, ct);
                 logger.LogInformation("Password changed for user {Sub}", sub);
+                // Security confirmation (best-effort, non-blocking).
+                _ = emailService.SendPasswordChangedAsync(principal.Email, principal.DisplayName ?? principal.Email);
                 return Results.Ok(new { message = "Password changed successfully" });
             }, logger, "change password");
         })
@@ -158,6 +161,7 @@ public static class SecurityEndpoints
         security.MapPost("/mfa", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
+            IEmailService emailService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
@@ -167,6 +171,7 @@ public static class SecurityEndpoints
                 if (status.TotpEnabled)
                     return ErrorResponses.BadRequest("MFA is already enabled");
                 await keycloakService.EnableMfaAsync(sub, ct);
+                _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true);
                 return Results.Ok(new { message = "MFA enrollment enabled. You will be prompted to set up TOTP on your next login." });
             }, logger, "enable MFA");
         })
@@ -177,6 +182,7 @@ public static class SecurityEndpoints
         security.MapDelete("/mfa", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
+            IEmailService emailService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             return await EndpointHelpers.ExecuteAsync(async () =>
@@ -192,6 +198,7 @@ public static class SecurityEndpoints
                     catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
                 }
                 logger.LogInformation("MFA removed for user {Sub}", sub);
+                _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
                 return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
             }, logger, "remove MFA");
         })

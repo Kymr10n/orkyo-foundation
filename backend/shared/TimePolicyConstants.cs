@@ -29,6 +29,8 @@ public static class LifecyclePolicyConstants
 {
     public const int TenantSuspendAfterDormantDays = 30;
     public const int TenantDeleteGraceDays = 7;
+    // Warn the owner/admins this many days before auto-suspension kicks in.
+    public const int TenantSuspendWarnBeforeDays = 7;
 
     public const int UserInactiveWarningAfterMonths = 12;
     public const int UserWarningReminderDays = 14;
@@ -41,6 +43,8 @@ public static class LifecyclePolicyConstants
     public const int UserConfirmTokenValidityDays = 30;
 
     public const string TenantSuspendAfterDormantSqlInterval = "30 days";
+    // Idle threshold at which the pre-suspension warning fires = (suspend - warn-before) days.
+    public const string TenantSuspendWarnAfterDormantSqlInterval = "23 days";
     public const string TenantDeleteGraceSqlInterval = "7 days";
     public const string UserInactiveWarningSqlInterval = "12 months";
     public const string UserWarningReminderSqlInterval = "14 days";

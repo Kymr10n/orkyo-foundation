@@ -215,6 +215,31 @@ public class EmailServiceTests
         var act = async () => await service.SendNewTenantAlertAsync("my-slug", "My Tenant", "owner@example.com");
         await act.Should().NotThrowAsync();
     }
+
+    [Fact]
+    public async Task NewLifecycleAndAdminSends_WhenSmtpUnreachable_ReturnFalse()
+    {
+        // Exercises the template-build + dispatch path for every email added 2026-06 (covers the
+        // EmailService delegations). Unreachable SMTP → false, deterministic in CI.
+        var s = CreateUnreachableSmtpService();
+        (await s.SendTenantInactivityWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();
+        (await s.SendTenantSuspendedAsync("a@x.com", "Acme", "https://app", 90)).Should().BeFalse();
+        (await s.SendTenantDeletingWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();
+        (await s.SendTenantDeletedAsync("a@x.com", "Acme")).Should().BeFalse();
+        (await s.SendTenantReactivatedAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
+        (await s.SendTenantWelcomeAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
+        (await s.SendRoleChangedAsync("a@x.com", "Acme", "editor", "https://app")).Should().BeFalse();
+        (await s.SendMemberRemovedAsync("a@x.com", "Acme")).Should().BeFalse();
+        (await s.SendOwnershipReceivedAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
+        (await s.SendOwnershipTransferredAsync("a@x.com", "Acme", "new@x.com")).Should().BeFalse();
+        (await s.SendQuotaLimitReachedAsync("a@x.com", "Acme", "active seats", 25, "https://app")).Should().BeFalse();
+        (await s.SendTierChangedAsync("a@x.com", "Acme", "professional", "https://app")).Should().BeFalse();
+        (await s.SendPasswordChangedAsync("a@x.com", "Dana")).Should().BeFalse();
+        (await s.SendMfaChangedAsync("a@x.com", "Dana", true)).Should().BeFalse();
+        (await s.SendMfaChangedAsync("a@x.com", "Dana", false)).Should().BeFalse();
+        (await s.SendEmailChangeRequestedOldAddressAsync("a@x.com", "Dana", "new@x.com")).Should().BeFalse();
+        (await s.SendEmailChangedAsync("a@x.com", "Dana", "new@x.com")).Should().BeFalse();
+    }
 }
 
 public class EmailTemplatesTests
