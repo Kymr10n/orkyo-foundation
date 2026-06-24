@@ -16,6 +16,9 @@
 # removed CVE-2026-4282/4634/4636 (KC app), CVE-2026-42579/42583/42584/42587 (netty
 # 4.1.133) and CVE-2026-34282 (openjdk). Remaining netty CVEs require 4.1.135.
 # Verified by a Trivy 0.70.0 scan of the 26.6.3 image.
+# Reviewed 2026-06-24: added CVE-2026-54512/54513 (jackson-databind 2.21.2 PolymorphicTypeValidator
+# bypasses) newly appearing in Trivy Java DB. KC 26.6.3 bundles jackson-databind 2.21.2; fix requires
+# 2.21.4, not yet shipped in a Keycloak release. Revisit the pinned digest when one lands.
 
 # ── Keycloak embedded JARs — KC 26.6.3 ships netty 4.1.133; fix requires 4.1.135 ──
 CVE-2026-44893 # HIGH | netty-codec-haproxy: HAProxy SSL TLV parsing leaks retained slice — KC 26.6.3 ships 4.1.133; fix requires 4.1.135 | Added: 2026-06-09 | Review: 2026-06-23
@@ -25,6 +28,10 @@ CVE-2026-45674 # HIGH | netty-resolver-dns: DNS cache poisoning via missing bail
 CVE-2026-47691 # HIGH | netty-resolver-dns: insufficient bailiwick validation for NS records — KC 26.6.3 ships 4.1.133; fix requires 4.1.135 | Added: 2026-06-09 | Review: 2026-06-23
 CVE-2026-48059 # HIGH | netty-codec-haproxy: PROXY protocol v2 codec DoS via memory exhaustion — KC 26.6.3 ships 4.1.133; fix requires 4.1.135 | Added: 2026-06-14 | Review: 2026-06-28
 CVE-2026-50010 # HIGH | netty-handler: improper trust manager handling leads to hostname verification bypass — KC 26.6.3 ships 4.1.133; fix requires 4.1.135 | Added: 2026-06-16 | Review: 2026-06-30
+
+# ── Keycloak embedded JARs — KC 26.6.3 ships jackson-databind 2.21.2; fix requires 2.21.4 ──
+CVE-2026-54512 # HIGH | jackson-databind: PolymorphicTypeValidator bypass via generic type parameters — bundled in KC 26.6.3 (admin-cli + server); exploit requires polymorphic deserialization of untrusted input; fix requires 2.21.4 | Added: 2026-06-24 | Review: 2026-07-08
+CVE-2026-54513 # HIGH | jackson-databind: array-subtype allowlist bypass in BasicPolymorphicTypeValidator (allowIfSubTypeIsArray) — bundled in KC 26.6.3; same exploit precondition; fix requires 2.21.4 | Added: 2026-06-24 | Review: 2026-07-08
 
 # ── Trivy false positive ───────────────────────────────────────────────────────
 CVE-2025-59250 # HIGH | mssql-jdbc: improper input validation — Trivy lists fix as 12.6.5 but KC ships 13.2.1.jre11 (newer); false positive | Added: 2026-04-28 | Review: 2026-06-23
