@@ -48,6 +48,9 @@ public class ResourceAssignmentValidatorTests
         _schedulingRepoMock
             .Setup(s => s.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, Guid>());
+        _availabilityResolverMock
+            .Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, List<BlockedPeriod>>());
 
         _validator = new ResourceAssignmentValidator(
             _resourceRepoMock.Object,
@@ -599,6 +602,35 @@ public class ResourceAssignmentValidatorTests
         _assignmentRepoMock.Verify(
             a => a.GetActiveByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_BlockedPeriods_BulkLoadedOnce_NotPerResource()
+    {
+        // Blocked periods for all sited resources must be resolved in ONE bulk call, not by looping
+        // the single-resource resolver per resource (the N+1 that dominated the insights dashboard).
+        var resources = Enumerable.Range(0, 4).Select(_ => CreateResource()).ToList();
+        var siteId = Guid.NewGuid();
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resources);
+        _schedulingRepoMock
+            .Setup(s => s.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resources.ToDictionary(r => r.Id, _ => siteId));
+        _availabilityResolverMock
+            .Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resources.ToDictionary(r => r.Id, _ => new List<BlockedPeriod>()));
+
+        var requests = resources.Select(r => CreateValidationRequest(resourceId: r.Id)).ToList();
+
+        await _validator.ValidateBatchAsync(requests);
+
+        _availabilityResolverMock.Verify(
+            r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _availabilityResolverMock.Verify(
+            r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

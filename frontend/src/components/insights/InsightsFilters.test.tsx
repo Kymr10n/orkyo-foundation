@@ -45,4 +45,20 @@ describe("resolveRange", () => {
     expect(from.getTime()).toBeLessThan(Date.now()); // ~6 months of history
     expect(to.getTime()).toBeGreaterThan(Date.now()); // ~12 months ahead
   });
+
+  it("floors the window to the start of the day so the cache key stays stable across loads", () => {
+    const { from, to } = resolveRange("window");
+    // No sub-day precision — otherwise the millisecond-anchored window produced a unique cache
+    // key on every load (0% insights-cache hits).
+    for (const d of [from, to]) {
+      expect(d.getHours()).toBe(0);
+      expect(d.getMinutes()).toBe(0);
+      expect(d.getSeconds()).toBe(0);
+      expect(d.getMilliseconds()).toBe(0);
+    }
+    // Two calls within the same day are byte-identical → React-Query and server cache keys repeat.
+    const again = resolveRange("window");
+    expect(again.from.getTime()).toBe(from.getTime());
+    expect(again.to.getTime()).toBe(to.getTime());
+  });
 });

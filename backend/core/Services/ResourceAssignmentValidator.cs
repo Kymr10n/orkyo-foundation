@@ -86,11 +86,12 @@ public class ResourceAssignmentValidator(
             .ToDictionary(g => g.Key, g => (IReadOnlyList<ResourceAssignmentInfo>)g.ToList());
 
         // Off-times only apply to sited resources (matches the single path's early-return).
-        // Reuse the single-resource resolver per distinct resource for exact parity.
-        var blockedByResource = new Dictionary<Guid, List<BlockedPeriod>>();
-        foreach (var rid in resourceIds)
-            if (siteByResource.ContainsKey(rid))
-                blockedByResource[rid] = await availabilityResolver.GetBlockedPeriodsAsync(rid, ct);
+        // Bulk-resolve in one pass over the sited subset (was N+1: ~4 DB round-trips per resource);
+        // the bulk method over the same ids returns absences+events identical to the per-resource path.
+        var sited = resourceIds.Where(siteByResource.ContainsKey).ToList();
+        var blockedByResource = sited.Count > 0
+            ? await availabilityResolver.GetBlockedPeriodsForResourcesAsync(sited, ct)
+            : new Dictionary<Guid, List<BlockedPeriod>>();
 
         // Settings per distinct site (only a few sites).
         var settingsBySite = new Dictionary<Guid, SchedulingSettingsInfo?>();

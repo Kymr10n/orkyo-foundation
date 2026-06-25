@@ -69,7 +69,12 @@ export function InsightsFilters({ range, onRangeChange, bucket, onBucketChange }
  * alongside the planning horizon.
  */
 export function resolveRange(range: RangePreset): { from: Date; to: Date } {
+  // Anchor to the start of the day, not the exact instant: the window only needs day precision, and
+  // a stable [from, to) lets the React-Query and server insights caches actually hit across loads
+  // (millisecond-precision anchors produced a unique cache key every load → 0% hits) and stops the
+  // KPI numbers jittering between refreshes.
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
   const from = new Date(now);
   const to = new Date(now);
   switch (range) {
