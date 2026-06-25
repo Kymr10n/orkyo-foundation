@@ -6,31 +6,20 @@
 
 export type SolverKind = "Greedy" | "OrToolsCpSat";
 
-export type SolverStatus =
-  | "Optimal"
-  | "Feasible"
-  | "Infeasible"
-  | "Unknown"
-  | "Error";
+export type SolverStatus = "Optimal" | "Feasible" | "Infeasible" | "Unknown";
 
 export type SchedulingReasonCode =
-  | "None"
   | "NoCompatibleSpace"
-  | "DateWindowTooTight"
   | "InsufficientCapacity"
   | "BlockedByFixedAssignments"
   | "InvalidDuration"
-  | "MissingRequiredData"
   | "InternalSolverLimit";
 
 export const SchedulingReasonLabels: Record<SchedulingReasonCode, string> = {
-  None: "None",
   NoCompatibleSpace: "No compatible space",
-  DateWindowTooTight: "Date window too tight",
   InsufficientCapacity: "Insufficient capacity",
   BlockedByFixedAssignments: "Blocked by existing assignments",
   InvalidDuration: "Invalid duration",
-  MissingRequiredData: "Missing required data",
   InternalSolverLimit: "Solver limit reached",
 };
 

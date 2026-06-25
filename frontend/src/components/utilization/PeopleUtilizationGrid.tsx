@@ -21,11 +21,12 @@ import {
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { Input } from '@foundation/src/components/ui/input';
 import { PersonTimelineRow } from './PersonTimelineRow';
 import { PersonAssignmentDialog } from './PersonAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
 import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
-import type { PeopleByGroup } from './scheduler-types';
+import { groupRowsByResourceGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
   CONFLICT_CHECK_DELAY_MS,
@@ -245,62 +246,36 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     staleTime: 60_000,
   });
 
-  // Build groups → people mapping. Mirrors SchedulerGrid's sort logic: groups
-  // sorted by displayOrder, ungrouped bucket last.
-  const peopleByGroup: PeopleByGroup[] = useMemo(() => {
-    if (people.length === 0) return [];
-
-    // Map groupId → resource IDs that belong to it
-    const groupIdToMemberIds = new Map<string, Set<string>>();
+  // Membership is many-to-many (resolved via per-group member queries), so map
+  // each person → the group ids they belong to. The grouping helper places a
+  // person in the first matching group by displayOrder, preserving the original
+  // first-wins dedup.
+  const groupIdsByPerson = useMemo(() => {
+    const map = new Map<string, string[]>();
     groups.forEach((g, idx) => {
       const members = memberQueries[idx]?.data?.members ?? [];
-      groupIdToMemberIds.set(g.id, new Set(members.map((m) => m.id)));
+      for (const m of members) {
+        const list = map.get(m.id);
+        if (list) list.push(g.id);
+        else map.set(m.id, [g.id]);
+      }
     });
+    return map;
+  }, [groups, memberQueries]);
 
-    // Track which people are unassigned (in no group)
-    const assignedPersonIds = new Set<string>();
-    groupIdToMemberIds.forEach((set) => set.forEach((id) => assignedPersonIds.add(id)));
-
-    const peopleById = new Map(people.map((p) => [p.id, p]));
-
-    const sortedGroups = [...groups].sort(
-      (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
+  // Build groups → people mapping. Groups sorted by displayOrder, empty groups
+  // kept (includeEmpty: true) so users see their structure, ungrouped last.
+  const shellGroups: ShellGroup<ResourceInfo>[] = useMemo(() => {
+    const filtered = people.filter((p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()),
     );
-
-    const filterFn = (p: ResourceInfo) =>
-      p.name.toLowerCase().includes(search.toLowerCase());
-
-    const result: PeopleByGroup[] = [];
-    const addedPersonIds = new Set<string>();
-    for (const g of sortedGroups) {
-      const ids = groupIdToMemberIds.get(g.id) ?? new Set();
-      const members = Array.from(ids)
-        .map((id) => peopleById.get(id))
-        .filter((p): p is ResourceInfo => Boolean(p))
-        .filter((p) => !addedPersonIds.has(p.id))
-        .filter(filterFn);
-      members.forEach((p) => addedPersonIds.add(p.id));
-      // Show empty groups too, so users see their structure — match Spaces grid.
-      result.push({
-        groupId: g.id,
-        groupName: g.name,
-        groupColor: g.color,
-        people: members,
-      });
-    }
-
-    const ungrouped = people
-      .filter((p) => !assignedPersonIds.has(p.id))
-      .filter(filterFn);
-    if (ungrouped.length > 0) {
-      result.push({
-        groupId: 'ungrouped',
-        groupName: 'Ungrouped',
-        people: ungrouped,
-      });
-    }
-    return result;
-  }, [people, groups, memberQueries, search]);
+    return groupRowsByResourceGroup(
+      filtered,
+      groups,
+      (p) => groupIdsByPerson.get(p.id) ?? [],
+      { includeEmpty: true },
+    );
+  }, [people, groups, groupIdsByPerson, search]);
 
   // When a site is selected the visible row set is derived from the utilization buckets
   // (see `people` below), so rendering before they arrive shows a misleading "No people"
@@ -337,13 +312,6 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     );
   }
 
-  const shellGroups: ShellGroup<ResourceInfo>[] = peopleByGroup.map((g) => ({
-    id: g.groupId,
-    name: g.groupName,
-    color: g.groupColor,
-    rows: g.people,
-  }));
-
   const toolbar = (
     <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -353,12 +321,12 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
         <LegendDot status="overbooked"   label="Overbooked" />
         <LegendDot status="non-working"  label="Off" />
       </div>
-      <input
+      <Input
         type="search"
         placeholder="Search people…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="h-8 w-48 rounded-md border bg-background px-3 text-sm outline-hidden focus:ring-1 focus:ring-ring"
+        className="h-8 w-48"
       />
     </div>
   );

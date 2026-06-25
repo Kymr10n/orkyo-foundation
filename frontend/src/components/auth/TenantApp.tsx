@@ -23,6 +23,8 @@ import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 import { Toaster } from '@foundation/src/components/ui/sonner';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoundary';
+import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
@@ -135,9 +137,9 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             session expires on a tenant subdomain — the user can sign back in
             and be returned to the same subdomain context. */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
-        <Route path="/account" element={<RequireAuth requireMembership={false}><AccountPage accountTabs={accountTabs} /></RequireAuth>} />
-        <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+        <Route path="/about" element={<RequireAuth><RouteErrorBoundary label="page"><AboutPage /></RouteErrorBoundary></RequireAuth>} />
+        <Route path="/account" element={<RequireAuth requireMembership={false}><RouteErrorBoundary label="page"><AccountPage accountTabs={accountTabs} /></RouteErrorBoundary></RequireAuth>} />
+        <Route path="/messages" element={<RequireAuth><RouteErrorBoundary label="page"><MessagesPage /></RouteErrorBoundary></RequireAuth>} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
           <Route path="requests" element={<RequestsPage />} />
@@ -207,6 +209,9 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="settings/integrations"  element={<Navigate to="/tenant-admin/integrations" replace />} />
           <Route path="settings/usage-limits"  element={<Navigate to="/tenant-admin/usage-limits" replace />} />
         </Route>
+
+        {/* Catch-all: unknown URLs render a recoverable 404 instead of a blank screen. */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
       <Toaster />

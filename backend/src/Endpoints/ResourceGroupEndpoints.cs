@@ -18,22 +18,17 @@ public static class ResourceGroupEndpoints
             .RequireAuthorization()
             .RequireMemberReadEditorWrite();
 
-        group.MapGet("/", async (string resourceTypeKey, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/", async (string resourceTypeKey, IResourceGroupRepository repo, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await repo.GetByTypeKeyAsync(resourceTypeKey)),
-            logger, "list resource groups", new { resourceTypeKey });
+            return Results.Ok(await repo.GetByTypeKeyAsync(resourceTypeKey));
         })
         .WithName("GetResourceGroups")
         .WithSummary("List resource groups for a given resource type");
 
-        group.MapGet("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var result = await repo.GetByIdAsync(id);
-                return EndpointHelpers.OkOrNotFound(result, "Resource group", id);
-            }, logger, "get resource group", new { id });
+            var result = await repo.GetByIdAsync(id);
+            return EndpointHelpers.OkOrNotFound(result, "Resource group", id);
         })
         .WithName("GetResourceGroup")
         .WithSummary("Get a resource group by ID");
@@ -60,13 +55,10 @@ public static class ResourceGroupEndpoints
         .WithName("UpdateResourceGroup")
         .WithSummary("Update a resource group");
 
-        group.MapDelete("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await repo.DeleteAsync(id);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Resource group", id);
-            }, logger, "delete resource group", new { id });
+            var deleted = await repo.DeleteAsync(id);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Resource group", id);
         })
         .WithName("DeleteResourceGroup")
         .WithSummary("Delete a resource group");

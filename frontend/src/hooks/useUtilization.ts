@@ -2,7 +2,6 @@ import {
     fetchRequests,
     fetchScheduledRequests,
     fetchBacklogRequests,
-    fetchSpaces,
     scheduleRequest,
     type ScheduleRequestData,
 } from "@foundation/src/lib/api/utilization-api";
@@ -11,16 +10,22 @@ import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { errorMessage } from "./mutation-utils";
 import { toast } from "sonner";
+
+// Canonical spaces hook lives in useSpaces.ts. Re-exported here (not redefined) so
+// existing `useUtilization` importers (e.g. UtilizationPage) keep resolving against
+// the single source of truth. See F051 dedup.
+export { useSpaces } from "@foundation/src/hooks/useSpaces";
 
 // Fetch all requests (tenant-wide). Kept for non-grid callers; the utilization grid uses the
 // scoped hooks below so it never pulls the whole tenant.
+// (Standard 5-minute freshness + no focus-refetch are inherited from the global defaults;
+// mutations update the cache directly via onSuccess.)
 export function useRequests() {
   return useQuery({
     queryKey: qk.requests.all(),
     queryFn: fetchRequests,
-    staleTime: 5 * 60 * 1000, // 5 minutes — mutations update cache directly via onSuccess
-    refetchOnWindowFocus: false,
   });
 }
 
@@ -30,8 +35,6 @@ export function useScheduledRequests(siteId: string | null, from: Date, to: Date
     queryKey: qk.requests.scheduled(siteId, from, to),
     queryFn: () => fetchScheduledRequests(siteId!, from, to),
     enabled: !!siteId,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
   });
 }
 
@@ -40,19 +43,6 @@ export function useBacklogRequests() {
   return useQuery({
     queryKey: qk.requests.backlog(),
     queryFn: fetchBacklogRequests,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-}
-
-// Fetch all spaces for selected site
-export function useSpaces(siteId: string | null) {
-  return useQuery({
-    queryKey: qk.spaces.list(siteId),
-    queryFn: () => fetchSpaces(siteId!),
-    enabled: !!siteId,
-    staleTime: 5 * 60 * 1000, // Spaces change infrequently
-    refetchOnWindowFocus: false,
   });
 }
 
@@ -105,7 +95,7 @@ export function useScheduleRequest() {
         queryClient.setQueryData(key, snapshot);
       }
       toast.error("Failed to schedule request", {
-        description: err instanceof Error ? err.message : String(err),
+        description: errorMessage(err),
       });
     },
 

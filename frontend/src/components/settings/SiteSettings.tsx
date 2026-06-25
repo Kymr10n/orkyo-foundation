@@ -6,6 +6,7 @@ import type { CreateSiteRequest } from "@foundation/src/types/site";
 import { AlertCircle, Edit, MapPin, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState } from "react";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { CreateSiteDialog } from "./CreateSiteDialog";
 import { EditSiteDialog } from "./EditSiteDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
@@ -17,6 +18,7 @@ import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/Or
 export function SiteSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [deletingSite, setDeletingSite] = useState<Site | null>(null);
 
   // Load sites with React Query
   const {
@@ -61,15 +63,14 @@ export function SiteSettings() {
     setEditingSite(null);
   };
 
-  const handleDelete = async (site: Site) => {
-    if (!confirm(`Delete site "${site.name}"? This action cannot be undone.`)) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
+    if (!deletingSite) return;
     try {
-      await deleteMutation.mutateAsync(site.id);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete site");
+      await deleteMutation.mutateAsync(deletingSite.id);
+      setDeletingSite(null);
+    } catch {
+      // Error toast is surfaced by the mutation's meta handler; the dialog stays
+      // open so the user can retry.
     }
   };
 
@@ -89,7 +90,7 @@ export function SiteSettings() {
       <Button
         variant="ghost"
         size="icon"
-        onClick={(e) => { e.stopPropagation(); handleDelete(site); }}
+        onClick={(e) => { e.stopPropagation(); setDeletingSite(site); }}
         className="text-destructive hover:text-destructive"
         aria-label={`Delete ${site.name}`}
         title="Delete site"
@@ -231,6 +232,21 @@ export function SiteSettings() {
           onSuccess={handleUpdateSuccess}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingSite}
+        onOpenChange={(open) => !open && setDeletingSite(null)}
+        title="Delete site"
+        description={
+          deletingSite
+            ? `Delete site "${deletingSite.name}"? This action cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

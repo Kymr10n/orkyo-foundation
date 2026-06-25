@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foun
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
+import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import {
   Megaphone,
   AlertCircle,
@@ -116,10 +117,10 @@ export function MessagesTab() {
         </CardHeader>
         <CardContent>
           {announcements.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Megaphone className="h-8 w-8 mx-auto mb-3 opacity-40" />
-              <p>No messages at this time.</p>
-            </div>
+            <EmptyState
+              icon={<Megaphone className="h-8 w-8 mx-auto mb-3 opacity-40" />}
+              message={<p>No messages at this time.</p>}
+            />
           ) : (
             <div className="space-y-2">
               {announcements.map((a) => {

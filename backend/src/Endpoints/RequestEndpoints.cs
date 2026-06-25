@@ -16,41 +16,35 @@ public static class RequestEndpoints
     {
         var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
+        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            if (conflicted)
             {
-                if (conflicted)
-                {
-                    // Tenant-wide / all-time: requests that currently have ≥1 conflict (the registry decides).
-                    var registry = await conflictService.GetAllAsync(ct: ct);
-                    var ids = registry.Select(r => r.RequestId).ToList();
-                    return Results.Ok(await requestService.GetByIdsAsync(ids, includeRequirements, ct));
-                }
-                if (scheduled == false)
-                {
-                    // The unscheduled backlog (drag-to-schedule source). When a site is given it is
-                    // scoped to that site plus site-neutral rows; otherwise tenant-wide.
-                    return Results.Ok(await requestService.GetUnscheduledAsync(siteId, includeSiteNeutral: true, ct));
-                }
-                if (page.HasValue || pageSize.HasValue)
-                {
-                    var paged = await requestService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, includeRequirements, ct);
-                    return Results.Ok(paged);
-                }
-                return Results.Ok(await requestService.GetAllAsync(includeRequirements, ct));
-            }, logger, "list requests");
+                // Tenant-wide / all-time: requests that currently have ≥1 conflict (the registry decides).
+                var registry = await conflictService.GetAllAsync(ct: ct);
+                var ids = registry.Select(r => r.RequestId).ToList();
+                return Results.Ok(await requestService.GetByIdsAsync(ids, includeRequirements, ct));
+            }
+            if (scheduled == false)
+            {
+                // The unscheduled backlog (drag-to-schedule source). When a site is given it is
+                // scoped to that site plus site-neutral rows; otherwise tenant-wide.
+                return Results.Ok(await requestService.GetUnscheduledAsync(siteId, includeSiteNeutral: true, ct));
+            }
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var paged = await requestService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, includeRequirements, ct);
+                return Results.Ok(paged);
+            }
+            return Results.Ok(await requestService.GetAllAsync(includeRequirements, ct));
         })
         .WithName("GetRequests")
         .WithSummary("Get all requests");
 
-        group.MapGet("/{id:guid}", async (Guid id, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct, bool includeRequirements = true) =>
+        group.MapGet("/{id:guid}", async (Guid id, IRequestService requestService, CancellationToken ct, bool includeRequirements = true) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var request = await requestService.GetByIdAsync(id, includeRequirements, ct);
-                return EndpointHelpers.OkOrNotFound(request, "Request", id);
-            }, logger, "get request", new { id });
+            var request = await requestService.GetByIdAsync(id, includeRequirements, ct);
+            return EndpointHelpers.OkOrNotFound(request, "Request", id);
         })
         .WithName("GetRequestById")
         .WithSummary("Get a specific request by ID");
@@ -79,13 +73,10 @@ public static class RequestEndpoints
         .WithName("UpdateRequest")
         .WithSummary("Update an existing request");
 
-        group.MapDelete("/{id:guid}", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}", async (Guid id, IRequestService requestService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await requestService.DeleteAsync(id, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Request", id);
-            }, logger, "delete request", new { id });
+            var deleted = await requestService.DeleteAsync(id, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Request", id);
         })
         .WithName("DeleteRequest")
         .WithSummary("Delete a request");
@@ -102,35 +93,26 @@ public static class RequestEndpoints
         .WithName("ScheduleRequest")
         .WithSummary("Schedule or unschedule a request");
 
-        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement, IRequestService requestService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var created = await requestService.AddRequirementAsync(id, requirement, ct);
-                return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
-            }, logger, "add request requirement", new { id, criterionId = requirement.CriterionId });
+            var created = await requestService.AddRequirementAsync(id, requirement, ct);
+            return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
         })
         .WithName("AddRequestRequirement")
         .WithSummary("Add a requirement to a request");
 
-        group.MapDelete("/{id:guid}/requirements/{requirementId:guid}", async (Guid id, Guid requirementId, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}/requirements/{requirementId:guid}", async (Guid id, Guid requirementId, IRequestService requestService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await requestService.DeleteRequirementAsync(id, requirementId, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Requirement", requirementId);
-            }, logger, "delete request requirement", new { id, requirementId });
+            var deleted = await requestService.DeleteRequirementAsync(id, requirementId, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Requirement", requirementId);
         })
         .WithName("DeleteRequestRequirement")
         .WithSummary("Remove a requirement from a request");
 
-        group.MapGet("/{id:guid}/children", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}/children", async (Guid id, IRequestService requestService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
-                return Results.Ok(await requestService.GetChildrenAsync(id, ct));
-            }, logger, "get request children", new { id });
+            if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+            return Results.Ok(await requestService.GetChildrenAsync(id, ct));
         })
         .WithName("GetRequestChildren")
         .WithSummary("Get child requests");
@@ -146,25 +128,19 @@ public static class RequestEndpoints
         .WithName("MoveRequest")
         .WithSummary("Move or reparent a request in the tree");
 
-        group.MapDelete("/{id:guid}/subtree", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}/subtree", async (Guid id, IRequestService requestService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
-                var deletedCount = await requestService.DeleteSubtreeAsync(id, ct);
-                return Results.Ok(new DeleteSubtreeResponse { DeletedCount = deletedCount });
-            }, logger, "delete request subtree", new { id });
+            if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+            var deletedCount = await requestService.DeleteSubtreeAsync(id, ct);
+            return Results.Ok(new DeleteSubtreeResponse { DeletedCount = deletedCount });
         })
         .WithName("DeleteRequestSubtree")
         .WithSummary("Delete a request and all its descendants");
 
-        group.MapGet("/{id:guid}/descendants/count", async (Guid id, IRequestService requestService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}/descendants/count", async (Guid id, IRequestService requestService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
-                return Results.Ok(new { count = await requestService.GetDescendantCountAsync(id, ct) });
-            }, logger, "get descendant count", new { id });
+            if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+            return Results.Ok(new { count = await requestService.GetDescendantCountAsync(id, ct) });
         })
         .WithName("GetDescendantCount")
         .WithSummary("Get count of all descendants");
@@ -173,10 +149,8 @@ public static class RequestEndpoints
         var siteRequests = app.MapGroup("/api/sites/{siteId:guid}/requests")
             .WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        siteRequests.MapGet("/", async (Guid siteId, DateTime from, DateTime to, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, CancellationToken ct) =>
-            await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, from, to, ct)),
-                logger, "list site scheduled requests in window", new { siteId }))
+        siteRequests.MapGet("/", async (Guid siteId, DateTime from, DateTime to, IRequestService requestService, CancellationToken ct) =>
+            Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, from, to, ct)))
             .WithName("GetSiteScheduledRequests")
             .WithSummary("Scheduled requests for a site whose bar overlaps [from,to]");
     }

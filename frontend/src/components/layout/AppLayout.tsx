@@ -7,6 +7,7 @@ import { FeedbackButton } from "./FeedbackButton";
 import { SidebarNav } from "./SidebarNav";
 import { TopBar } from "./TopBar";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { RouteErrorBoundary } from "@foundation/src/components/ui/RouteErrorBoundary";
 import {
   Sheet,
   SheetContent,
@@ -119,7 +120,9 @@ export function AppLayout() {
           <SidebarNav forceCollapsed={isTablet ? true : undefined} />
         )}
         <main className="flex-1 overflow-auto p-4">
-          <Outlet />
+          <RouteErrorBoundary label="page">
+            <Outlet />
+          </RouteErrorBoundary>
         </main>
       </div>
       <FeedbackButton />

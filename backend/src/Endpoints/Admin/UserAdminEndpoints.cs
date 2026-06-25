@@ -162,7 +162,6 @@ public static class UserAdminEndpoints
             }
         }
 
-        logger.LogInformation("Admin listed {Count} users", users.Count);
         return Results.Ok(new { users });
     }
 

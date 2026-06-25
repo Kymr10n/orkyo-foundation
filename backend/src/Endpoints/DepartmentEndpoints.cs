@@ -22,32 +22,27 @@ public static class DepartmentEndpoints
         group.MapGet("/", async (
             bool? includeInactive,
             IDepartmentRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await repo.GetAllAsync(includeInactive ?? false)),
-                logger, "list departments"))
+            CancellationToken ct) =>
+            Results.Ok(await repo.GetAllAsync(includeInactive ?? false)))
             .WithName("GetDepartments")
             .WithSummary("List all departments (flat)");
 
         group.MapGet("/tree", async (
             bool? includeInactive,
             IDepartmentRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await repo.GetTreeAsync(includeInactive ?? false)),
-                logger, "list departments as tree"))
+            CancellationToken ct) =>
+            Results.Ok(await repo.GetTreeAsync(includeInactive ?? false)))
             .WithName("GetDepartmentTree")
             .WithSummary("List all departments as a nested tree");
 
         group.MapGet("/{id:guid}", async (
             Guid id,
             IDepartmentRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            CancellationToken ct) =>
             {
                 var d = await repo.GetByIdAsync(id);
                 return EndpointHelpers.OkOrNotFound(d, "Department", id);
-            }, logger, "get department", new { id }))
+            })
             .WithName("GetDepartment");
 
         group.MapPost("/", async (
@@ -78,12 +73,11 @@ public static class DepartmentEndpoints
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IDepartmentRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            CancellationToken ct) =>
             {
                 var deleted = await repo.DeleteAsync(id);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Department", id);
-            }, logger, "delete department", new { id }))
+            })
             .WithName("DeleteDepartment");
     }
 }

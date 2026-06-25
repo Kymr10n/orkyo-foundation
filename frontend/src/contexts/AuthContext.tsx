@@ -25,10 +25,13 @@ import {
 } from '@foundation/src/constants/auth';
 import type { AuthStage } from '@foundation/src/constants/auth';
 import { logger } from '@foundation/src/lib/core/logger';
+import type { ServiceTier } from '@foundation/src/lib/api/admin-api';
 
 // ── Re-exported types (consumed by pages, components, api-utils) ──────────────
 
-export type ServiceTier = 'free' | 'professional' | 'enterprise';
+// Single ServiceTier definition lives in lib/api/admin-api (alongside SERVICE_TIER).
+// Re-exported here for the auth/membership consumers that import it from this module.
+export type { ServiceTier };
 
 export interface TenantMembership {
   tenantId: string;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useAppStore } from '@foundation/src/store/app-store';
 import { useSpaces, useDeleteSpace } from '@foundation/src/hooks/useSpaces';
 import type { Space } from '@foundation/src/types/space';
@@ -6,7 +7,8 @@ import { EditSpaceDialog } from './EditSpaceDialog';
 import { SpaceCapabilitiesEditor } from './SpaceCapabilitiesEditor';
 import { logger } from '@foundation/src/lib/core/logger';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
-import { Button } from '@foundation/src/components/ui/button';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { Edit, Trash2, Settings } from 'lucide-react';
 
@@ -21,6 +23,7 @@ export function SpaceListView() {
 
   const [editingSpace, setEditingSpace] = useState<Space | null>(null);
   const [capabilitiesSpace, setCapabilitiesSpace] = useState<Space | null>(null);
+  const [deletingSpace, setDeletingSpace] = useState<Space | null>(null);
   const canEdit = useCanEdit();
 
   if (!selectedSiteId) {
@@ -31,13 +34,16 @@ export function SpaceListView() {
     );
   }
 
-  const handleDelete = async (resourceId: string) => {
-    if (!confirm('Delete this space? This cannot be undone.')) return;
+  const handleConfirmDelete = async () => {
+    if (!deletingSpace) return;
     try {
-      await deleteSpaceMutation.mutateAsync(resourceId);
+      await deleteSpaceMutation.mutateAsync(deletingSpace.id);
+      setDeletingSpace(null);
     } catch (err) {
       logger.error('Failed to delete space:', err);
-      alert('Failed to delete space');
+      toast.error('Failed to delete space', {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
 
@@ -54,41 +60,30 @@ export function SpaceListView() {
   );
 
   const renderActions = (space: Space) => (
-    <div className="flex justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); setCapabilitiesSpace(space); }}
-        title="Edit Capabilities"
-        aria-label={`Edit capabilities for ${space.name}`}
-      >
-        <Settings className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); setEditingSpace(space); }}
-        title="Edit Space"
-        aria-label={`Edit space ${space.name}`}
-      >
-        <Edit className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 text-destructive hover:text-destructive"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); handleDelete(space.id); }}
-        title="Delete Space"
-        aria-label={`Delete space ${space.name}`}
-      >
-        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-      </Button>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${space.name}`}
+      actions={[
+        {
+          label: 'Edit Capabilities',
+          icon: Settings,
+          onSelect: () => setCapabilitiesSpace(space),
+          disabled: !canEdit,
+        },
+        {
+          label: 'Edit Space',
+          icon: Edit,
+          onSelect: () => setEditingSpace(space),
+          disabled: !canEdit,
+        },
+        {
+          label: 'Delete Space',
+          icon: Trash2,
+          onSelect: () => setDeletingSpace(space),
+          disabled: !canEdit,
+          destructive: true,
+        },
+      ]}
+    />
   );
 
   const columns: ColumnDef<Space>[] = [
@@ -109,7 +104,7 @@ export function SpaceListView() {
     {
       id: 'actions',
       header: () => null,
-      size: 120,
+      size: 60,
       cell: ({ row }) => renderActions(row.original),
     },
   ];
@@ -159,6 +154,21 @@ export function SpaceListView() {
           spaceName={capabilitiesSpace.name}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingSpace}
+        onOpenChange={(open) => !open && setDeletingSpace(null)}
+        title="Delete space"
+        description={
+          deletingSpace
+            ? `Delete "${deletingSpace.name}"? This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteSpaceMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

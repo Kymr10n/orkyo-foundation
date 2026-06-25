@@ -85,10 +85,10 @@ public class InsightsService(
                 BucketStart = b.Start,
                 BucketEnd = b.End,
                 Total = inBucket.Count,
-                Planned = inBucket.Count(f => f.Status == "planned"),
-                InProgress = inBucket.Count(f => f.Status == "in_progress"),
-                Done = inBucket.Count(f => f.Status == "done"),
-                Cancelled = inBucket.Count(f => f.Status == "cancelled"),
+                Planned = inBucket.Count(f => f.Status == RequestStatuses.Planned),
+                InProgress = inBucket.Count(f => f.Status == RequestStatuses.InProgress),
+                Done = inBucket.Count(f => f.Status == RequestStatuses.Done),
+                Cancelled = inBucket.Count(f => f.Status == RequestStatuses.Cancelled),
             };
         }).ToList();
 
@@ -197,8 +197,8 @@ public class InsightsService(
             SELECT COUNT(*)
             FROM analytics_request_summary_v
             WHERE start_ts IS NULL
-              AND planning_mode = 'leaf'
-              AND status <> 'cancelled'
+              AND planning_mode = '{PlanningModes.Leaf}'
+              AND status <> '{RequestStatuses.Cancelled}'
               AND {SiteFilter}", db);
         cmd.Parameters.AddWithValue("siteId", (object?)siteId ?? DBNull.Value);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct) ?? 0);
@@ -207,10 +207,10 @@ public class InsightsService(
     private static RequestCounts CountRequests(IReadOnlyCollection<RequestFact> inWindow, int backlog) => new()
     {
         Total = inWindow.Count + backlog,
-        Scheduled = inWindow.Count(f => f.IsScheduled && f.Status != "cancelled"),
+        Scheduled = inWindow.Count(f => f.IsScheduled && f.Status != RequestStatuses.Cancelled),
         Unscheduled = backlog,
-        Completed = inWindow.Count(f => f.Status == "done"),
-        Cancelled = inWindow.Count(f => f.Status == "cancelled"),
+        Completed = inWindow.Count(f => f.Status == RequestStatuses.Done),
+        Cancelled = inWindow.Count(f => f.Status == RequestStatuses.Cancelled),
     };
 
     // ── Conflicts (from the live conflict service) ────────────────────────────

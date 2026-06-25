@@ -20,50 +20,39 @@ public static class PresetEndpoints
             .RequireMemberReadEditorWrite()
             .WithTags("Presets");
 
-        group.MapPost("/validate", async ([FromBody] Preset preset, IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/validate", async ([FromBody] Preset preset, IPresetService presetService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var result = await presetService.ValidateAsync(preset, ct);
-                return Results.Ok(result);
-            }, logger, "validate preset", new { presetId = preset.PresetId });
+            var result = await presetService.ValidateAsync(preset, ct);
+            return Results.Ok(result);
         })
         .WithName("ValidatePreset")
         .WithDescription("Validates a preset JSON without applying it")
         .Produces<PresetValidationResult>(200)
         .AllowMemberWrite();
 
-        group.MapPost("/apply", async ([FromBody] Preset preset, ICurrentPrincipal principal, IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/apply", async ([FromBody] Preset preset, ICurrentPrincipal principal, IPresetService presetService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var userId = principal.RequireUserId();
-                var result = await presetService.ApplyAsync(preset, userId, ct);
-                return result.Success ? Results.Ok(result) : ErrorResponses.BadRequest(result.Error ?? "Preset application failed");
-            }, logger, "apply preset", new { presetId = preset.PresetId });
+            var userId = principal.RequireUserId();
+            var result = await presetService.ApplyAsync(preset, userId, ct);
+            return result.Success ? Results.Ok(result) : ErrorResponses.BadRequest(result.Error ?? "Preset application failed");
         })
         .WithName("ApplyPreset")
         .WithDescription("Applies a preset to the current tenant")
         .Produces<PresetApplicationResult>(200);
 
-        group.MapGet("/export", async ([FromQuery] string presetId, [FromQuery] string name, [FromQuery] string? description, IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/export", async ([FromQuery] string presetId, [FromQuery] string name, [FromQuery] string? description, IPresetService presetService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (string.IsNullOrWhiteSpace(presetId) || string.IsNullOrWhiteSpace(name))
-                    return ErrorResponses.BadRequest("presetId and name are required");
-                var preset = await presetService.ExportAsync(presetId, name, description, ct);
-                return Results.Json(preset, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            }, logger, "export preset", new { presetId, name });
+            if (string.IsNullOrWhiteSpace(presetId) || string.IsNullOrWhiteSpace(name))
+                return ErrorResponses.BadRequest("presetId and name are required");
+            var preset = await presetService.ExportAsync(presetId, name, description, ct);
+            return Results.Json(preset, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         })
         .WithName("ExportPreset")
         .WithDescription("Exports the current tenant configuration as a preset JSON");
 
-        group.MapGet("/applications", async (IPresetService presetService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/applications", async (IPresetService presetService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await presetService.GetApplicationsAsync(ct)),
-            logger, "get preset applications");
+            return Results.Ok(await presetService.GetApplicationsAsync(ct));
         })
         .WithName("GetPresetApplications")
         .WithDescription("Gets the history of presets applied to this tenant");

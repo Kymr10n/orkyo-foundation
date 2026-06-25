@@ -16,35 +16,29 @@ public static class CriteriaEndpoints
     {
         var group = app.MapGroup("/api/criteria").WithTags("Criteria").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        group.MapGet("/", async (ICriteriaService criteriaService, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize, string? resourceType, CancellationToken ct) =>
+        group.MapGet("/", async (ICriteriaService criteriaService, int? page, int? pageSize, string? resourceType, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            if (!string.IsNullOrWhiteSpace(resourceType))
             {
-                if (!string.IsNullOrWhiteSpace(resourceType))
-                {
-                    if (!ResourceTypeKeys.IsKnown(resourceType))
-                        return ErrorResponses.BadRequest(
-                            $"Unknown resource type '{resourceType}'. Allowed: {string.Join(", ", ResourceTypeKeys.All)}.");
-                    return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType, ct));
-                }
-                if (page.HasValue || pageSize.HasValue)
-                {
-                    var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
-                    return Results.Ok(paged);
-                }
-                return Results.Ok(await criteriaService.GetAllAsync(ct));
-            }, logger, "list criteria", new { resourceType });
+                if (!ResourceTypeKeys.IsKnown(resourceType))
+                    return ErrorResponses.BadRequest(
+                        $"Unknown resource type '{resourceType}'. Allowed: {string.Join(", ", ResourceTypeKeys.All)}.");
+                return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType, ct));
+            }
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
+                return Results.Ok(paged);
+            }
+            return Results.Ok(await criteriaService.GetAllAsync(ct));
         })
         .WithName("GetCriteria")
         .WithSummary("Get all criteria");
 
-        group.MapGet("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapGet("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var criterion = await criteriaService.GetByIdAsync(id, ct);
-                return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
-            }, logger, "get criterion", new { id });
+            var criterion = await criteriaService.GetByIdAsync(id, ct);
+            return EndpointHelpers.OkOrNotFound(criterion, "Criterion", id);
         })
         .WithName("GetCriterionById")
         .WithSummary("Get a specific criterion by ID");
@@ -77,13 +71,10 @@ public static class CriteriaEndpoints
         .WithName("UpdateCriterion")
         .WithSummary("Update an existing criterion");
 
-        group.MapDelete("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapDelete("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await criteriaService.DeleteAsync(id, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Criterion", id);
-            }, logger, "delete criterion", new { id });
+            var deleted = await criteriaService.DeleteAsync(id, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Criterion", id);
         })
         .WithName("DeleteCriterion")
         .WithSummary("Delete a criterion");

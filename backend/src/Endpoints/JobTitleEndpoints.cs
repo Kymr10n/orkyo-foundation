@@ -22,22 +22,19 @@ public static class JobTitleEndpoints
         group.MapGet("/", async (
             bool? includeInactive,
             IJobTitleRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await repo.GetAllAsync(includeInactive ?? false)),
-                logger, "list job titles"))
+            CancellationToken ct) =>
+            Results.Ok(await repo.GetAllAsync(includeInactive ?? false)))
             .WithName("GetJobTitles")
             .WithSummary("List all job titles");
 
         group.MapGet("/{id:guid}", async (
             Guid id,
             IJobTitleRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            CancellationToken ct) =>
             {
                 var jt = await repo.GetByIdAsync(id);
                 return EndpointHelpers.OkOrNotFound(jt, "JobTitle", id);
-            }, logger, "get job title", new { id }))
+            })
             .WithName("GetJobTitle");
 
         group.MapPost("/", async (
@@ -68,12 +65,11 @@ public static class JobTitleEndpoints
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IJobTitleRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            CancellationToken ct) =>
             {
                 var deleted = await repo.DeleteAsync(id);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("JobTitle", id);
-            }, logger, "delete job title", new { id }))
+            })
             .WithName("DeleteJobTitle");
     }
 }

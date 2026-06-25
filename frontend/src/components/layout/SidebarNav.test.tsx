@@ -79,6 +79,34 @@ describe('SidebarNav', () => {
     expect(labels.indexOf('Administration')).toBe(labels.indexOf('Settings') + 1);
   });
 
+  describe('active state', () => {
+    const activeLink = () =>
+      screen
+        .getAllByRole('link')
+        .find((l) => l.className.includes('bg-accent') && l.className.includes('font-medium'));
+
+    it('highlights a section when on one of its index-redirect sub-tabs', () => {
+      renderSidebar('/spaces/floorplan');
+      expect(activeLink()?.getAttribute('href')).toBe('/spaces');
+    });
+
+    it('highlights a section on its exact path', () => {
+      renderSidebar('/insights');
+      expect(activeLink()?.getAttribute('href')).toBe('/insights');
+    });
+
+    it('keeps the root item active only on exact "/" (not on sub-routes)', () => {
+      renderSidebar('/spaces/floorplan');
+      // Root item must NOT be the active one when we are under /spaces.
+      expect(activeLink()?.getAttribute('href')).not.toBe('/');
+    });
+
+    it('highlights the root item on "/"', () => {
+      renderSidebar('/');
+      expect(activeLink()?.getAttribute('href')).toBe('/');
+    });
+  });
+
   describe('forced presentations (tablet rail / phone drawer)', () => {
     it('hides labels and the collapse toggle when forceCollapsed is true (rail)', () => {
       renderSidebar('/', { forceCollapsed: true });

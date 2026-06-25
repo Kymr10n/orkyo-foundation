@@ -42,20 +42,8 @@ public static class SettingsAdminEndpoints
         // Build redacted deployment info
         var deployment = deploymentConfig.Redacted();
 
-        // Probe DB status (lightweight — reuses existing connection factory)
-        string dbStatus;
-        try
-        {
-            await using var conn = connectionFactory.CreateControlPlaneConnection();
-            await conn.OpenAsync();
-            await using var cmd = new Npgsql.NpgsqlCommand("SELECT 1", conn);
-            await cmd.ExecuteScalarAsync();
-            dbStatus = "healthy";
-        }
-        catch
-        {
-            dbStatus = "unreachable";
-        }
+        // Probe DB status (shared lightweight reachability check)
+        var dbStatus = await DbHealthProbe.ProbeControlPlaneAsync(connectionFactory, ct);
 
         return Results.Ok(new AdminSettingsResponse
         {

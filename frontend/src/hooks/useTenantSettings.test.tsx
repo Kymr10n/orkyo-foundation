@@ -9,8 +9,19 @@ import {
 } from "@foundation/src/hooks/useTenantSettings";
 import * as settingsApi from "@foundation/src/lib/api/tenant-settings-api";
 import { createTestQueryWrapper } from "@foundation/src/test-utils";
+import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
 
 vi.mock("@foundation/src/lib/api/tenant-settings-api");
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+// Settings mutations invalidate through the meta-driven MutationCache.
+function makeFeedbackClient() {
+  const client: QueryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    mutationCache: createFeedbackMutationCache(() => client),
+  });
+  return client;
+}
 
 const mockResponse: settingsApi.TenantSettingsResponse = {
   settings: [
@@ -122,12 +133,7 @@ describe("useTenantSettings", () => {
 
   describe("useUpdateTenantSettings", () => {
     it("calls updateTenantSettings and invalidates cache", async () => {
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
-      });
+      const queryClient = makeFeedbackClient();
       const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
       const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -155,6 +161,7 @@ describe("useTenantSettings", () => {
       await waitFor(() => {
         expect(invalidateSpy).toHaveBeenCalledWith({
           queryKey: ["tenant-settings"],
+          exact: false,
         });
       });
     });
@@ -162,12 +169,7 @@ describe("useTenantSettings", () => {
 
   describe("useResetTenantSetting", () => {
     it("calls resetTenantSetting and invalidates cache", async () => {
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
-      });
+      const queryClient = makeFeedbackClient();
       const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
       const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -192,6 +194,7 @@ describe("useTenantSettings", () => {
       await waitFor(() => {
         expect(invalidateSpy).toHaveBeenCalledWith({
           queryKey: ["tenant-settings"],
+          exact: false,
         });
       });
     });

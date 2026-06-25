@@ -3,10 +3,7 @@ import { toast } from "sonner";
 import { createSpace, deleteSpace, getSpaces, updateSpace } from "@foundation/src/lib/api/space-api";
 import type { CreateSpaceRequest, SpaceGeometry, Space as SpaceType, UpdateSpaceRequest } from "@foundation/src/types/space";
 import { qk } from "@foundation/src/lib/api/query-keys";
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
+import { errorMessage } from "./mutation-utils";
 
 // Query hook
 export function useSpaces(siteId: string | null) {
@@ -14,52 +11,44 @@ export function useSpaces(siteId: string | null) {
     queryKey: qk.spaces.list(siteId),
     queryFn: () => getSpaces(siteId!),
     enabled: !!siteId,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
   });
 }
 
-// Factory for space mutations with automatic cache invalidation
-function useSpaceMutation(siteId: string) {
-  const queryClient = useQueryClient();
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: qk.spaces.list(siteId) });
-    queryClient.invalidateQueries({ queryKey: qk.requests.all() });
-  };
-  return { queryClient, invalidate };
-}
+// Space mutations invalidate the site's spaces and the request feed (assignments).
+const spaceInvalidates = (siteId: string) =>
+  [qk.spaces.list(siteId), qk.requests.all()] as const;
 
 export function useCreateSpace(siteId: string) {
-  const { invalidate } = useSpaceMutation(siteId);
   return useMutation({
     mutationFn: (data: CreateSpaceRequest) => createSpace(siteId, data),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Space created");
-    },
-    onError: (err) => {
-      toast.error("Failed to create space", { description: errorMessage(err) });
+    meta: {
+      successMessage: "Space created",
+      errorMessage: "Failed to create space",
+      invalidates: spaceInvalidates(siteId),
     },
   });
 }
 
 export function useUpdateSpace(siteId: string) {
-  const { invalidate } = useSpaceMutation(siteId);
   return useMutation({
     mutationFn: ({ resourceId, data }: { resourceId: string; data: UpdateSpaceRequest }) =>
       updateSpace(siteId, resourceId, data),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Space updated");
-    },
-    onError: (err) => {
-      toast.error("Failed to update space", { description: errorMessage(err) });
+    meta: {
+      successMessage: "Space updated",
+      errorMessage: "Failed to update space",
+      invalidates: spaceInvalidates(siteId),
     },
   });
 }
 
 export function useDeleteSpace(siteId: string) {
-  const { queryClient, invalidate } = useSpaceMutation(siteId);
+  // Optimistic: kept hand-rolled because the meta convention can't express onMutate
+  // rollback. Invalidation is fired manually in onSettled to mirror the meta hooks.
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: qk.spaces.list(siteId) });
+    queryClient.invalidateQueries({ queryKey: qk.requests.all() });
+  };
   return useMutation({
     mutationFn: (resourceId: string) => deleteSpace(siteId, resourceId),
     onMutate: async (resourceId: string) => {
@@ -88,7 +77,6 @@ export function useDeleteSpace(siteId: string) {
 }
 
 export function useMoveSpace(siteId: string) {
-  const { invalidate } = useSpaceMutation(siteId);
   return useMutation({
     mutationFn: ({ resourceId, space, newGeometry }: {
       resourceId: string;
@@ -101,10 +89,11 @@ export function useMoveSpace(siteId: string) {
       isPhysical: space.isPhysical,
       geometry: newGeometry,
     }),
-    onSuccess: invalidate,
-    // Move/resize is a visible drag — silent on success. Surface failure.
-    onError: (err) => {
-      toast.error("Failed to move space", { description: errorMessage(err) });
+    // Move/resize is a visible drag — silent on success, so no successMessage. The
+    // error toast still routes through the meta convention (errorMessage opts in).
+    meta: {
+      errorMessage: "Failed to move space",
+      invalidates: spaceInvalidates(siteId),
     },
   });
 }

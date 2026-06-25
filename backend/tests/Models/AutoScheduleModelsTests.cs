@@ -12,13 +12,6 @@ public class AutoScheduleModelsTests
     // ── Enum values ────────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(AutoScheduleMode.FillGapsOnly)]
-    public void AutoScheduleMode_AllValues_AreDefined(AutoScheduleMode mode)
-    {
-        Enum.IsDefined(mode).Should().BeTrue();
-    }
-
-    [Theory]
     [InlineData(SolverKind.Greedy)]
     [InlineData(SolverKind.OrToolsCpSat)]
     public void SolverKind_AllValues_AreDefined(SolverKind kind)
@@ -31,20 +24,16 @@ public class AutoScheduleModelsTests
     [InlineData(SolverStatus.Feasible)]
     [InlineData(SolverStatus.Infeasible)]
     [InlineData(SolverStatus.Unknown)]
-    [InlineData(SolverStatus.Error)]
     public void SolverStatus_AllValues_AreDefined(SolverStatus status)
     {
         Enum.IsDefined(status).Should().BeTrue();
     }
 
     [Theory]
-    [InlineData(SchedulingReasonCode.None)]
     [InlineData(SchedulingReasonCode.NoCompatibleSpace)]
-    [InlineData(SchedulingReasonCode.DateWindowTooTight)]
     [InlineData(SchedulingReasonCode.InsufficientCapacity)]
     [InlineData(SchedulingReasonCode.BlockedByFixedAssignments)]
     [InlineData(SchedulingReasonCode.InvalidDuration)]
-    [InlineData(SchedulingReasonCode.MissingRequiredData)]
     [InlineData(SchedulingReasonCode.InternalSolverLimit)]
     public void SchedulingReasonCode_AllValues_AreDefined(SchedulingReasonCode code)
     {
@@ -248,12 +237,10 @@ public class AutoScheduleModelsTests
             Spaces: new List<SpaceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
-            BlockedPeriodsByResource: null,
-            Mode: AutoScheduleMode.FillGapsOnly);
+            BlockedPeriodsByResource: null);
 
         problem.SiteId.Should().Be(siteId);
         problem.HorizonStart.Should().Be(start);
-        problem.Mode.Should().Be(AutoScheduleMode.FillGapsOnly);
     }
 
     // ── SchedulingCandidate ────────────────────────────────────────────────
@@ -304,7 +291,7 @@ public class AutoScheduleModelsTests
         var rejection = new CandidateRejection(
             RequestId: reqId,
             ResourceId: null,
-            ReasonCode: SchedulingReasonCode.MissingRequiredData);
+            ReasonCode: SchedulingReasonCode.InvalidDuration);
 
         rejection.ResourceId.Should().BeNull();
         rejection.Message.Should().BeNull();
@@ -327,8 +314,7 @@ public class AutoScheduleModelsTests
             Spaces: new List<SpaceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
-            BlockedPeriodsByResource: null,
-            Mode: AutoScheduleMode.FillGapsOnly);
+            BlockedPeriodsByResource: null);
 
         var analyzed = new AnalyzedSchedulingProblem(
             Problem: problem,
@@ -370,7 +356,7 @@ public class AutoScheduleModelsTests
             RequestId: reqId,
             ReasonCodes: new List<SchedulingReasonCode>
             {
-                SchedulingReasonCode.DateWindowTooTight,
+                SchedulingReasonCode.InsufficientCapacity,
                 SchedulingReasonCode.NoCompatibleSpace
             });
 

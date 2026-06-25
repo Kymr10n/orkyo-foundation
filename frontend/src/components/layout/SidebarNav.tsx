@@ -67,7 +67,15 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
       <div className="flex-1 py-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.to;
+          // Sections with index-redirect sub-tabs (e.g. Spaces → /spaces/floorplan)
+          // need a prefix match so the parent item stays highlighted. The root
+          // item ('/') is special-cased to an exact match so it is not active
+          // on every route.
+          const isActive =
+            item.to === "/"
+              ? location.pathname === "/"
+              : location.pathname === item.to ||
+                location.pathname.startsWith(item.to + "/");
 
           return (
             <Link

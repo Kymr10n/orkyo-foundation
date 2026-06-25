@@ -30,77 +30,69 @@ public static class SessionEndpoints
             ISessionService sessionService,
             CancellationToken ct, ILogger<Log> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () =>
-                {
-                    // Extract token profile from the authenticated user (Keycloak token)
-                    var tokenProfile = KeycloakTokenProfile.FromPrincipal(ctx.User);
+            // Extract token profile from the authenticated user (Keycloak token)
+            var tokenProfile = KeycloakTokenProfile.FromPrincipal(ctx.User);
 
-                    if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
-                    {
-                        logger.LogWarning("Bootstrap called without valid Keycloak token");
-                        return ProblemDetailsHelper.AuthProblem(
-                            ProblemDetailsHelper.AuthCodes.InvalidToken,
-                            "Invalid authentication token",
-                            "Missing 'sub' claim in token");
-                    }
+            if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
+            {
+                logger.LogWarning("Bootstrap called without valid Keycloak token");
+                return ProblemDetailsHelper.AuthProblem(
+                    ProblemDetailsHelper.AuthCodes.InvalidToken,
+                    "Invalid authentication token",
+                    "Missing 'sub' claim in token");
+            }
 
-                    logger.LogInformation(
-                        "Session bootstrap for sub={Sub}, email={Email}",
-                        tokenProfile.Subject,
-                        tokenProfile.Email);
+            logger.LogInformation(
+                "Session bootstrap for sub={Sub}, email={Email}",
+                tokenProfile.Subject,
+                tokenProfile.Email);
 
-                    // Link identity (idempotent - will return existing user if already linked)
-                    var externalToken = tokenProfile.ToExternalIdentityToken();
-                    if (externalToken == null)
-                    {
-                        return ProblemDetailsHelper.AuthProblem(
-                            ProblemDetailsHelper.AuthCodes.InvalidToken,
-                            "Invalid authentication token",
-                            "Could not extract identity from token");
-                    }
+            // Link identity (idempotent - will return existing user if already linked)
+            var externalToken = tokenProfile.ToExternalIdentityToken();
+            if (externalToken == null)
+            {
+                return ProblemDetailsHelper.AuthProblem(
+                    ProblemDetailsHelper.AuthCodes.InvalidToken,
+                    "Invalid authentication token",
+                    "Could not extract identity from token");
+            }
 
-                    var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
+            var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
 
-                    if (!linkResult.Success || !linkResult.UserId.HasValue)
-                    {
-                        logger.LogWarning("Identity link failed: {Error}", linkResult.Error);
-                        return ProblemDetailsHelper.AuthProblem(
-                            linkResult.ErrorCode ?? ProblemDetailsHelper.AuthCodes.IdentityNotLinked,
-                            "Authentication failed",
-                            linkResult.Error);
-                    }
+            if (!linkResult.Success || !linkResult.UserId.HasValue)
+            {
+                logger.LogWarning("Identity link failed: {Error}", linkResult.Error);
+                return ProblemDetailsHelper.AuthProblem(
+                    linkResult.ErrorCode ?? ProblemDetailsHelper.AuthCodes.IdentityNotLinked,
+                    "Authentication failed",
+                    linkResult.Error);
+            }
 
-                    // Sync display name from Keycloak token if it changed since last login
-                    if (!string.IsNullOrEmpty(externalToken.DisplayName)
-                        && externalToken.DisplayName != linkResult.DisplayName)
-                    {
-                        await sessionService.UpdateDisplayNameAsync(
-                            linkResult.UserId.Value, externalToken.DisplayName, ct);
-                    }
+            // Sync display name from Keycloak token if it changed since last login
+            if (!string.IsNullOrEmpty(externalToken.DisplayName)
+                && externalToken.DisplayName != linkResult.DisplayName)
+            {
+                await sessionService.UpdateDisplayNameAsync(
+                    linkResult.UserId.Value, externalToken.DisplayName, ct);
+            }
 
-                    // Build session response
-                    var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value, ct);
+            // Build session response
+            var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value, ct);
 
-                    // Add site-admin flag from token (realm role, not from DB)
-                    var responseWithAdmin = result != null
-                        ? result with { IsSiteAdmin = tokenProfile.IsSiteAdmin }
-                        : null;
+            // Add site-admin flag from token (realm role, not from DB)
+            var responseWithAdmin = result != null
+                ? result with { IsSiteAdmin = tokenProfile.IsSiteAdmin }
+                : null;
 
-                    logger.LogInformation(
-                        "Bootstrap response for user {UserId}: TosRequired={TosRequired}, RequiredVersion={RequiredVersion}, TenantsCount={TenantsCount}, IsSiteAdmin={IsSiteAdmin}",
-                        linkResult.UserId.Value,
-                        result?.TosRequired ?? false,
-                        result?.RequiredTosVersion ?? "null",
-                        result?.Tenants?.Count ?? 0,
-                        tokenProfile.IsSiteAdmin);
+            logger.LogInformation(
+                "Bootstrap response for user {UserId}: TosRequired={TosRequired}, RequiredVersion={RequiredVersion}, TenantsCount={TenantsCount}, IsSiteAdmin={IsSiteAdmin}",
+                linkResult.UserId.Value,
+                result?.TosRequired ?? false,
+                result?.RequiredTosVersion ?? "null",
+                result?.Tenants?.Count ?? 0,
+                tokenProfile.IsSiteAdmin);
 
-                    return Results.Ok(responseWithAdmin);
-                },
-                logger,
-                "session bootstrap",
-                new { sub = KeycloakTokenProfile.FromPrincipal(ctx.User).Subject }
-            );
+            return Results.Ok(responseWithAdmin);
         })
         .WithName("SessionBootstrap")
         .WithSummary("Bootstrap session after Keycloak login")
@@ -112,37 +104,30 @@ public static class SessionEndpoints
         session.MapGet("/me", async (
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
-            CancellationToken ct, ILogger<Log> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () =>
-                {
-                    if (!currentPrincipal.IsAuthenticated)
-                    {
-                        return Results.Unauthorized();
-                    }
+            if (!currentPrincipal.IsAuthenticated)
+            {
+                return Results.Unauthorized();
+            }
 
-                    var sessionInfo = await sessionService.GetSessionByUserIdAsync(currentPrincipal.UserId, ct);
-                    if (sessionInfo == null)
-                    {
-                        return ErrorResponses.NotFound("User");
-                    }
-                    var me = new MeResponse
-                    {
-                        Id = sessionInfo.User.Id,
-                        Email = sessionInfo.User.Email,
-                        DisplayName = sessionInfo.User.DisplayName,
-                        KeycloakId = sessionInfo.User.KeycloakId,
-                        HasSeenTour = sessionInfo.User.HasSeenTour,
-                        CreatedAt = sessionInfo.User.CreatedAt,
-                        LastLoginAt = sessionInfo.User.LastLoginAt,
-                        Tenants = sessionInfo.Tenants
-                    };
-                    return Results.Ok(me);
-                },
-                logger,
-                "get current user"
-            );
+            var sessionInfo = await sessionService.GetSessionByUserIdAsync(currentPrincipal.UserId, ct);
+            if (sessionInfo == null)
+            {
+                return ErrorResponses.NotFound("User");
+            }
+            var me = new MeResponse
+            {
+                Id = sessionInfo.User.Id,
+                Email = sessionInfo.User.Email,
+                DisplayName = sessionInfo.User.DisplayName,
+                KeycloakId = sessionInfo.User.KeycloakId,
+                HasSeenTour = sessionInfo.User.HasSeenTour,
+                CreatedAt = sessionInfo.User.CreatedAt,
+                LastLoginAt = sessionInfo.User.LastLoginAt,
+                Tenants = sessionInfo.Tenants
+            };
+            return Results.Ok(me);
         })
         .WithName("SessionMe")
         .WithSummary("Get current user information")
@@ -153,20 +138,13 @@ public static class SessionEndpoints
         session.MapPost("/tour/seen", async (
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
-            CancellationToken ct, ILogger<Log> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () =>
-                {
-                    if (!currentPrincipal.IsAuthenticated)
-                        return Results.Unauthorized();
+            if (!currentPrincipal.IsAuthenticated)
+                return Results.Unauthorized();
 
-                    await sessionService.MarkTourSeenAsync(currentPrincipal.UserId, ct);
-                    return Results.Ok(new { marked = true });
-                },
-                logger,
-                "mark tour seen"
-            );
+            await sessionService.MarkTourSeenAsync(currentPrincipal.UserId, ct);
+            return Results.Ok(new { marked = true });
         })
         .WithName("MarkTourSeen")
         .WithSummary("Mark onboarding tour as seen")
@@ -179,43 +157,36 @@ public static class SessionEndpoints
             TosAcceptRequest request,
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
-            CancellationToken ct, ILogger<Log> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () =>
-                {
-                    if (!currentPrincipal.IsAuthenticated)
-                    {
-                        return Results.Unauthorized();
-                    }
+            if (!currentPrincipal.IsAuthenticated)
+            {
+                return Results.Unauthorized();
+            }
 
-                    // Validate version matches required
-                    var requiredVersion = sessionService.GetRequiredTosVersion();
-                    if (string.IsNullOrEmpty(requiredVersion))
-                    {
-                        return ErrorResponses.BadRequest("No ToS version required");
-                    }
+            // Validate version matches required
+            var requiredVersion = sessionService.GetRequiredTosVersion();
+            if (string.IsNullOrEmpty(requiredVersion))
+            {
+                return ErrorResponses.BadRequest("No ToS version required");
+            }
 
-                    if (request.TosVersion != requiredVersion)
-                    {
-                        return ErrorResponses.BadRequest($"Invalid ToS version. Required: {requiredVersion}");
-                    }
+            if (request.TosVersion != requiredVersion)
+            {
+                return ErrorResponses.BadRequest($"Invalid ToS version. Required: {requiredVersion}");
+            }
 
-                    // Get IP and user agent for audit
-                    var ipAddress = ctx.Connection.RemoteIpAddress?.ToString();
-                    var userAgent = ctx.Request.Headers.UserAgent.FirstOrDefault();
+            // Get IP and user agent for audit
+            var ipAddress = ctx.Connection.RemoteIpAddress?.ToString();
+            var userAgent = ctx.Request.Headers.UserAgent.FirstOrDefault();
 
-                    await sessionService.AcceptTosAsync(
-                        currentPrincipal.UserId,
-                        request.TosVersion,
-                        ipAddress,
-                        userAgent, ct);
+            await sessionService.AcceptTosAsync(
+                currentPrincipal.UserId,
+                request.TosVersion,
+                ipAddress,
+                userAgent, ct);
 
-                    return Results.Ok(new { accepted = true, tosVersion = request.TosVersion });
-                },
-                logger,
-                "accept ToS"
-            );
+            return Results.Ok(new { accepted = true, tosVersion = request.TosVersion });
         })
         .WithName("AcceptToS")
         .WithSummary("Accept Terms of Service")

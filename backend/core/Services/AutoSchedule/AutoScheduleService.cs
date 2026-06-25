@@ -78,7 +78,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         var preview = await PreviewAsync(
             new AutoSchedulePreviewRequest(
                 request.SiteId, request.HorizonStart, request.HorizonEnd,
-                request.Mode, request.RequestIds, request.RespectSchedulingSettings),
+                request.RequestIds, request.RespectSchedulingSettings),
             cancellationToken);
 
         if (!string.IsNullOrEmpty(request.PreviewFingerprint) &&

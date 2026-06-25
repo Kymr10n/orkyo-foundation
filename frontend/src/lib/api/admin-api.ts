@@ -35,6 +35,15 @@ export const TIER_DISPLAY_NAMES: Record<ServiceTier, string> = {
   enterprise: 'Enterprise',
 };
 
+/**
+ * Single source of truth for the "Professional tier or above" gate.
+ * Consumers (reporting API, auto-schedule, …) must use this so a tier rename
+ * is a compile error everywhere rather than a silently-stale string literal.
+ */
+export function isProfessionalOrAbove(tier: ServiceTier): boolean {
+  return tier === SERVICE_TIER.PROFESSIONAL || tier === SERVICE_TIER.ENTERPRISE;
+}
+
 export interface AdminTenant {
   id: string;
   slug: string;

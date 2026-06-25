@@ -1,5 +1,4 @@
 import type { Request } from "@foundation/src/types/requests";
-import type { Space } from "@foundation/src/types/space";
 import { durationToMs } from "@foundation/src/domain/scheduling/schedule-model";
 import { apiGet, apiPatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
@@ -23,11 +22,6 @@ export async function fetchScheduledRequests(siteId: string, from: Date, to: Dat
 // Unscheduled backlog (tenant-wide) — drag-to-schedule source for the panel.
 export async function fetchBacklogRequests(): Promise<Request[]> {
   return (await apiGet<Request[]>(`${API_PATHS.REQUESTS}?scheduled=false`)).map(withDurationMin);
-}
-
-// Get all spaces for a site
-export async function fetchSpaces(siteId: string): Promise<Space[]> {
-  return apiGet<Space[]>(API_PATHS.spaces(siteId));
 }
 
 // Update request scheduling

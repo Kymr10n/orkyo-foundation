@@ -52,25 +52,22 @@ public static class SecurityEndpoints
             HttpContext ctx,
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            var sub = principal.RequireExternalSubject();
+            var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
+            var tokenProfile = KeycloakTokenProfile.FromPrincipal(ctx.User);
+            var currentSessionId = tokenProfile.SessionId;
+            var response = sessions.Select(s => new SessionResponse
             {
-                var sub = principal.RequireExternalSubject();
-                var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
-                var tokenProfile = KeycloakTokenProfile.FromPrincipal(ctx.User);
-                var currentSessionId = tokenProfile.SessionId;
-                var response = sessions.Select(s => new SessionResponse
-                {
-                    Id = s.Id,
-                    IpAddress = s.IpAddress,
-                    StartTime = s.StartTime,
-                    LastAccessTime = s.LastAccessTime,
-                    IsCurrent = s.Id == currentSessionId,
-                    Clients = s.Clients?.Values.ToList() ?? new List<string>()
-                }).ToList();
-                return Results.Ok(response);
-            }, logger, "list sessions");
+                Id = s.Id,
+                IpAddress = s.IpAddress,
+                StartTime = s.StartTime,
+                LastAccessTime = s.LastAccessTime,
+                IsCurrent = s.Id == currentSessionId,
+                Clients = s.Clients?.Values.ToList() ?? new List<string>()
+            }).ToList();
+            return Results.Ok(response);
         })
         .WithName("ListSessions")
         .WithSummary("List active sessions")
@@ -82,16 +79,13 @@ public static class SecurityEndpoints
             IKeycloakAdminService keycloakService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var sub = principal.RequireExternalSubject();
-                var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
-                if (!sessions.Any(s => s.Id == sessionId))
-                    return ErrorResponses.NotFoundMessage("Session not found");
-                await keycloakService.RevokeSessionAsync(sessionId, ct);
-                logger.LogInformation("Session {SessionId} revoked by user {Sub}", sessionId, sub);
-                return Results.Ok(new { message = "Session revoked" });
-            }, logger, "revoke session", new { sessionId });
+            var sub = principal.RequireExternalSubject();
+            var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
+            if (!sessions.Any(s => s.Id == sessionId))
+                return ErrorResponses.NotFoundMessage("Session not found");
+            await keycloakService.RevokeSessionAsync(sessionId, ct);
+            logger.LogInformation("Session {SessionId} revoked by user {Sub}", sessionId, sub);
+            return Results.Ok(new { message = "Session revoked" });
         })
         .WithName("RevokeSession")
         .WithSummary("Revoke a specific session")
@@ -102,13 +96,10 @@ public static class SecurityEndpoints
             IKeycloakAdminService keycloakService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var sub = principal.RequireExternalSubject();
-                await keycloakService.LogoutAllSessionsAsync(sub, ct);
-                logger.LogInformation("All sessions terminated for user {Sub}", sub);
-                return Results.Ok(new { message = "Logged out from all sessions" });
-            }, logger, "logout all sessions");
+            var sub = principal.RequireExternalSubject();
+            await keycloakService.LogoutAllSessionsAsync(sub, ct);
+            logger.LogInformation("All sessions terminated for user {Sub}", sub);
+            return Results.Ok(new { message = "Logged out from all sessions" });
         })
         .WithName("LogoutAll")
         .WithSummary("Logout from all sessions")
@@ -117,19 +108,16 @@ public static class SecurityEndpoints
         security.MapGet("/security-info", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            var sub = principal.RequireExternalSubject();
+            var federation = await keycloakService.GetUserFederationStatusAsync(sub, ct);
+            return Results.Ok(new SecurityInfoResponse
             {
-                var sub = principal.RequireExternalSubject();
-                var federation = await keycloakService.GetUserFederationStatusAsync(sub, ct);
-                return Results.Ok(new SecurityInfoResponse
-                {
-                    IsFederated = federation.IsFederated,
-                    IdentityProvider = federation.IdentityProvider,
-                    CanChangePassword = !federation.IsFederated
-                });
-            }, logger, "get security info");
+                IsFederated = federation.IsFederated,
+                IdentityProvider = federation.IdentityProvider,
+                CanChangePassword = !federation.IsFederated
+            });
         })
         .WithName("GetSecurityInfo")
         .WithSummary("Get security settings info")
@@ -138,21 +126,18 @@ public static class SecurityEndpoints
         security.MapGet("/mfa-status", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            var sub = principal.RequireExternalSubject();
+            var status = await keycloakService.GetMfaStatusAsync(sub, ct);
+            return Results.Ok(new MfaStatusResponse
             {
-                var sub = principal.RequireExternalSubject();
-                var status = await keycloakService.GetMfaStatusAsync(sub, ct);
-                return Results.Ok(new MfaStatusResponse
-                {
-                    TotpEnabled = status.TotpEnabled,
-                    TotpCredentialId = status.TotpCredentialId,
-                    TotpCreatedDate = status.TotpCreatedDate,
-                    TotpLabel = status.TotpLabel,
-                    RecoveryCodesConfigured = status.RecoveryCodesConfigured,
-                });
-            }, logger, "get MFA status");
+                TotpEnabled = status.TotpEnabled,
+                TotpCredentialId = status.TotpCredentialId,
+                TotpCreatedDate = status.TotpCreatedDate,
+                TotpLabel = status.TotpLabel,
+                RecoveryCodesConfigured = status.RecoveryCodesConfigured,
+            });
         })
         .WithName("GetMfaStatus")
         .WithSummary("Get MFA status")
@@ -162,18 +147,15 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
             IEmailService emailService,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var sub = principal.RequireExternalSubject();
-                var status = await keycloakService.GetMfaStatusAsync(sub, ct);
-                if (status.TotpEnabled)
-                    return ErrorResponses.BadRequest("MFA is already enabled");
-                await keycloakService.EnableMfaAsync(sub, ct);
-                _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true);
-                return Results.Ok(new { message = "MFA enrollment enabled. You will be prompted to set up TOTP on your next login." });
-            }, logger, "enable MFA");
+            var sub = principal.RequireExternalSubject();
+            var status = await keycloakService.GetMfaStatusAsync(sub, ct);
+            if (status.TotpEnabled)
+                return ErrorResponses.BadRequest("MFA is already enabled");
+            await keycloakService.EnableMfaAsync(sub, ct);
+            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true);
+            return Results.Ok(new { message = "MFA enrollment enabled. You will be prompted to set up TOTP on your next login." });
         })
         .WithName("EnableMfa")
         .WithSummary("Enable MFA enrollment")
@@ -185,22 +167,19 @@ public static class SecurityEndpoints
             IEmailService emailService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            var sub = principal.RequireExternalSubject();
+            var status = await keycloakService.GetMfaStatusAsync(sub, ct);
+            if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
+                return ErrorResponses.BadRequest("MFA is not enabled");
+            await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
+            if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
             {
-                var sub = principal.RequireExternalSubject();
-                var status = await keycloakService.GetMfaStatusAsync(sub, ct);
-                if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
-                    return ErrorResponses.BadRequest("MFA is not enabled");
-                await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
-                if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
-                {
-                    try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
-                    catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
-                }
-                logger.LogInformation("MFA removed for user {Sub}", sub);
-                _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
-                return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
-            }, logger, "remove MFA");
+                try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
+                catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
+            }
+            logger.LogInformation("MFA removed for user {Sub}", sub);
+            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
+            return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
         })
         .WithName("RemoveMfa")
         .WithSummary("Remove MFA")
@@ -209,20 +188,17 @@ public static class SecurityEndpoints
         security.MapGet("/profile", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            var sub = principal.RequireExternalSubject();
+            var profile = await keycloakService.GetUserProfileAsync(sub, ct);
+            return Results.Ok(new UserProfileResponse
             {
-                var sub = principal.RequireExternalSubject();
-                var profile = await keycloakService.GetUserProfileAsync(sub, ct);
-                return Results.Ok(new UserProfileResponse
-                {
-                    Email = profile.Email,
-                    FirstName = profile.FirstName,
-                    LastName = profile.LastName,
-                    EmailVerified = profile.EmailVerified,
-                });
-            }, logger, "get user profile");
+                Email = profile.Email,
+                FirstName = profile.FirstName,
+                LastName = profile.LastName,
+                EmailVerified = profile.EmailVerified,
+            });
         })
         .WithName("GetUserProfile")
         .WithSummary("Get user profile")
@@ -235,19 +211,16 @@ public static class SecurityEndpoints
             UpdateProfileRequest request,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var sub = principal.RequireExternalSubject();
-                if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
-                    return ErrorResponses.BadRequest("At least one name field is required");
-                var firstName = request.FirstName?.Trim() ?? string.Empty;
-                var lastName = request.LastName?.Trim() ?? string.Empty;
-                await keycloakService.UpdateUserProfileAsync(sub, firstName, lastName, ct);
-                var displayName = $"{firstName} {lastName}".Trim();
-                await sessionService.UpdateDisplayNameAsync(principal.RequireUserId(), displayName, ct);
-                logger.LogInformation("Profile updated for user {Sub}", sub);
-                return Results.Ok(new { message = "Profile updated successfully", displayName });
-            }, logger, "update user profile");
+            var sub = principal.RequireExternalSubject();
+            if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
+                return ErrorResponses.BadRequest("At least one name field is required");
+            var firstName = request.FirstName?.Trim() ?? string.Empty;
+            var lastName = request.LastName?.Trim() ?? string.Empty;
+            await keycloakService.UpdateUserProfileAsync(sub, firstName, lastName, ct);
+            var displayName = $"{firstName} {lastName}".Trim();
+            await sessionService.UpdateDisplayNameAsync(principal.RequireUserId(), displayName, ct);
+            logger.LogInformation("Profile updated for user {Sub}", sub);
+            return Results.Ok(new { message = "Profile updated successfully", displayName });
         })
         .WithName("UpdateUserProfile")
         .WithSummary("Update user profile")

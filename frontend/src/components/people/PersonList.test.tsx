@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { PersonList } from './PersonList';
@@ -98,6 +99,7 @@ vi.mock('./PersonAbsenceList', () => ({
 }));
 
 import { getResources, deleteResource } from '@foundation/src/lib/api/resources-api';
+import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { toast } from 'sonner';
 
 const mockPerson = (id: string, name: string): ResourceInfo => ({
@@ -122,8 +124,11 @@ const populatedResponse: ResourcesResponse = {
 };
 
 function renderList(initialEntries: string[] = ['/']) {
-  const queryClient = new QueryClient({
+  // Delete feedback now flows through the meta-driven MutationCache (matching
+  // prod), so wire the same cache here for the success/error toast assertions.
+  const queryClient: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
   });
   return render(
     <MemoryRouter initialEntries={initialEntries}>
@@ -134,9 +139,37 @@ function renderList(initialEntries: string[] = ['/']) {
   );
 }
 
+// Actions live behind a labelled kebab menu (RowActions). Radix's dropdown needs
+// real pointer events, so use userEvent to open the row's menu and click items.
+// A single user instance is shared per test (a second setup() dispatches a
+// pointerdown Radix reads as an outside-click, closing the menu).
+let user: ReturnType<typeof userEvent.setup>;
+
+async function openRowMenu(name: string) {
+  // The profile/job-title queries resolve after first paint and re-render the
+  // table, which would dismiss a freshly-opened menu. Retry the open until a
+  // menu item sticks so the test isn't racing that settle.
+  await waitFor(async () => {
+    if (screen.queryAllByRole('menuitem').length === 0) {
+      await user.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+    }
+    expect(screen.getAllByRole('menuitem').length).toBeGreaterThan(0);
+  });
+}
+
+async function clickMenuItem(name: RegExp) {
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
+// Confirm a destructive ConfirmDialog by clicking its confirm button.
+async function confirmDelete(label = 'Deactivate') {
+  fireEvent.click(await screen.findByRole('button', { name: label }));
+}
+
 describe('PersonList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    user = userEvent.setup();
     vi.mocked(getResources).mockResolvedValue(populatedResponse);
     vi.mocked(deleteResource).mockResolvedValue(undefined);
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
@@ -198,21 +231,23 @@ describe('PersonList', () => {
     expect(screen.getByTestId('person-edit-dialog')).toBeInTheDocument();
   });
 
-  it('renders edit, manage-skills, and delete actions for each person', async () => {
+  it('renders a labelled actions menu for each person', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    expect(screen.getByRole('button', { name: 'Edit Alice' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Manage skills for Alice' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Deactivate Alice' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit Bob' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Manage skills for Bob' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Deactivate Bob' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Bob' })).toBeInTheDocument();
+    await openRowMenu('Alice');
+    expect(await screen.findByRole('menuitem', { name: /Edit Person/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Manage Skills/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Manage Absences/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Deactivate Person/ })).toBeInTheDocument();
   });
 
   it('opens the edit dialog with the correct person when edit is clicked', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Edit Person/);
     const dialog = screen.getByTestId('person-edit-dialog');
     expect(dialog).toHaveAttribute('data-person-id', 'person-1');
   });
@@ -226,12 +261,13 @@ describe('PersonList', () => {
     expect(dialog).toHaveAttribute('data-person-id', 'person-2');
   });
 
-  it('does not open the edit dialog when a row action button is clicked', async () => {
-    // The actions cell stops propagation so its buttons never trigger the
+  it('does not open the edit dialog when a row action is clicked', async () => {
+    // The actions menu wrapper stops propagation so its items never trigger the
     // row-level click that would open the edit dialog.
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Manage skills for Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Manage Skills/);
     expect(screen.getByTestId('person-skills-editor')).toBeInTheDocument();
     expect(screen.queryByTestId('person-edit-dialog')).not.toBeInTheDocument();
   });
@@ -239,7 +275,8 @@ describe('PersonList', () => {
   it('opens the skills editor with the correct person when manage-skills is clicked', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Manage skills for Bob' }));
+    await openRowMenu('Bob');
+    await clickMenuItem(/Manage Skills/);
     const editor = screen.getByTestId('person-skills-editor');
     expect(editor).toHaveAttribute('data-resource-id', 'person-2');
     expect(editor).toHaveAttribute('data-person-name', 'Bob');
@@ -248,7 +285,8 @@ describe('PersonList', () => {
   it('closes the skills editor when its onOpenChange fires', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Manage skills for Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Manage Skills/);
     expect(screen.getByTestId('person-skills-editor')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('skills-close'));
     expect(screen.queryByTestId('person-skills-editor')).not.toBeInTheDocument();
@@ -273,60 +311,62 @@ describe('PersonList', () => {
   });
 
   it('calls deleteResource when delete is confirmed', async () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Deactivate Person/);
+    await confirmDelete();
     await waitFor(() =>
       expect(deleteResource).toHaveBeenCalledWith('person-1'),
     );
-    vi.unstubAllGlobals();
   });
 
   it('does not call deleteResource when delete is cancelled', async () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(false));
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Deactivate Person/);
+    // Dismiss the confirm dialog via its Cancel action.
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(deleteResource).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
   });
 
   it('shows a success toast after deactivating a person', async () => {
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Deactivate Person/);
+    await confirmDelete();
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Person deactivated'));
-    vi.unstubAllGlobals();
   });
 
   it('shows an error toast when deactivation fails', async () => {
     vi.mocked(deleteResource).mockRejectedValue(new Error('Network error'));
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Deactivate Person/);
+    await confirmDelete();
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
         'Failed to deactivate person',
         expect.objectContaining({ description: 'Network error' }),
       ),
     );
-    vi.unstubAllGlobals();
   });
 
   it('renders manage-absences action for each person', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    expect(screen.getByRole('button', { name: 'Manage absences for Alice' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Manage absences for Bob' })).toBeInTheDocument();
+    await openRowMenu('Alice');
+    expect(await screen.findByRole('menuitem', { name: /Manage Absences/ })).toBeInTheDocument();
   });
 
-  it('opens the absence list with the correct person when the absence button is clicked', async () => {
+  it('opens the absence list with the correct person when the absence action is clicked', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Manage absences for Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Manage Absences/);
     const panel = screen.getByTestId('person-absence-list');
     expect(panel).toHaveAttribute('data-person-id', 'person-1');
     expect(panel).toHaveAttribute('data-person-name', 'Alice');
@@ -335,7 +375,8 @@ describe('PersonList', () => {
   it('closes the absence list when its onOpenChange fires', async () => {
     renderList();
     await waitFor(() => screen.getByText('Alice'));
-    fireEvent.click(screen.getByRole('button', { name: 'Manage absences for Alice' }));
+    await openRowMenu('Alice');
+    await clickMenuItem(/Manage Absences/);
     expect(screen.getByTestId('person-absence-list')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('absence-close'));
     expect(screen.queryByTestId('person-absence-list')).not.toBeInTheDocument();
@@ -345,9 +386,19 @@ describe('PersonList', () => {
     vi.mocked(useCanEdit).mockReturnValue(false);
     renderList();
 
-    const deactivate = await screen.findByRole('button', { name: 'Deactivate Alice' });
-    expect(deactivate).toBeDisabled();
+    await screen.findByText('Alice');
+    // Assert the (always-visible) Add button before opening the menu — an open
+    // Radix menu aria-hides the rest of the page.
     expect(screen.getByRole('button', { name: /Add Person/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Manage skills for Alice' })).toBeDisabled();
+
+    await openRowMenu('Alice');
+    expect(await screen.findByRole('menuitem', { name: /Deactivate Person/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('menuitem', { name: /Manage Skills/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 });

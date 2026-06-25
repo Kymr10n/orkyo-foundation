@@ -1,6 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { STALE } from "@foundation/src/lib/core/query-client";
 import {
   getSchedulingSettings,
   upsertSchedulingSettings,
@@ -22,27 +23,26 @@ export function useSchedulingSettings(siteId: string | undefined) {
     queryKey: qk.scheduling.settings(siteId!),
     queryFn: () => getSchedulingSettings(siteId!),
     enabled: !!siteId,
-    staleTime: 60_000,
+    staleTime: STALE.OPERATIONAL,
   });
 }
 
 export function useUpsertSchedulingSettings(siteId: string) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (settings: Omit<SchedulingSettings, "siteId">) =>
       upsertSchedulingSettings(siteId, settings),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.scheduling.settings(siteId) });
-      qc.invalidateQueries({ queryKey: qk.requests.all() });
+    meta: {
+      invalidates: [qk.scheduling.settings(siteId), qk.requests.all()],
     },
   });
 }
 
 export function useDeleteSchedulingSettings(siteId: string) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: () => deleteSchedulingSettings(siteId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.scheduling.settings(siteId) }),
+    meta: {
+      invalidates: [qk.scheduling.settings(siteId)],
+    },
   });
 }
 
@@ -53,7 +53,7 @@ export function useAvailabilityEvents(siteId: string | undefined) {
     queryKey: qk.scheduling.availabilityEvents(siteId!),
     queryFn: () => getAvailabilityEvents(siteId!),
     enabled: !!siteId,
-    staleTime: 60_000,
+    staleTime: STALE.OPERATIONAL,
   });
 }
 

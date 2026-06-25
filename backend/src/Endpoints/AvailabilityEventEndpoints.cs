@@ -22,10 +22,8 @@ public static class AvailabilityEventEndpoints
         events.MapGet("/", async (
             Guid siteId,
             IAvailabilityEventRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await repo.GetBySiteAsync(siteId, ct)),
-            logger, "list availability events", new { siteId }))
+            CancellationToken ct) =>
+            Results.Ok(await repo.GetBySiteAsync(siteId, ct)))
             .WithName("GetAvailabilityEvents")
             .WithSummary("List all availability events for a site");
 
@@ -33,14 +31,13 @@ public static class AvailabilityEventEndpoints
             Guid siteId,
             Guid eventId,
             IAvailabilityEventRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var result = await repo.GetByIdAsync(eventId, ct);
-                return result is null || result.SiteId != siteId
-                    ? ErrorResponses.NotFound("AvailabilityEvent", eventId)
-                    : Results.Ok(result);
-            }, logger, "get availability event", new { siteId, eventId }))
+            CancellationToken ct) =>
+        {
+            var result = await repo.GetByIdAsync(eventId, ct);
+            return result is null || result.SiteId != siteId
+                ? ErrorResponses.NotFound("AvailabilityEvent", eventId)
+                : Results.Ok(result);
+        })
             .WithName("GetAvailabilityEventById")
             .WithSummary("Get a specific availability event");
 
@@ -80,15 +77,14 @@ public static class AvailabilityEventEndpoints
             Guid siteId,
             Guid eventId,
             IAvailabilityEventRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var existing = await repo.GetByIdAsync(eventId, ct);
-                if (existing is null || existing.SiteId != siteId)
-                    return ErrorResponses.NotFound("AvailabilityEvent", eventId);
-                var deleted = await repo.DeleteAsync(eventId, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("AvailabilityEvent", eventId);
-            }, logger, "delete availability event", new { siteId, eventId }))
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(eventId, ct);
+            if (existing is null || existing.SiteId != siteId)
+                return ErrorResponses.NotFound("AvailabilityEvent", eventId);
+            var deleted = await repo.DeleteAsync(eventId, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("AvailabilityEvent", eventId);
+        })
             .WithName("DeleteAvailabilityEvent")
             .WithSummary("Delete an availability event");
 
@@ -117,15 +113,14 @@ public static class AvailabilityEventEndpoints
             Guid eventId,
             Guid scopeId,
             IAvailabilityEventRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var existing = await repo.GetByIdAsync(eventId, ct);
-                if (existing is null || existing.SiteId != siteId)
-                    return ErrorResponses.NotFound("AvailabilityEvent", eventId);
-                var deleted = await repo.DeleteScopeAsync(eventId, scopeId, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Scope", scopeId);
-            }, logger, "delete event scope", new { siteId, eventId, scopeId }))
+            CancellationToken ct) =>
+        {
+            var existing = await repo.GetByIdAsync(eventId, ct);
+            if (existing is null || existing.SiteId != siteId)
+                return ErrorResponses.NotFound("AvailabilityEvent", eventId);
+            var deleted = await repo.DeleteScopeAsync(eventId, scopeId, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Scope", scopeId);
+        })
             .WithName("DeleteAvailabilityEventScope")
             .WithSummary("Remove a scoped override");
     }

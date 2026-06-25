@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
+import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
 import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
 interface ResourceGroupEditDialogProps {
@@ -59,11 +60,37 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
     saveMutation.mutate();
   };
 
+  // Mirror EditSpaceDialog: a single isDirty convention (current form vs. the
+  // group's persisted values, or vs. empty when creating) feeds the discard guard.
+  const isDirty = useMemo(() => {
+    if (group) {
+      return (
+        name !== group.name ||
+        description !== (group.description ?? '') ||
+        defaultAvailabilityPercent !== group.defaultAvailabilityPercent
+      );
+    }
+    return name !== '' || description !== '' || defaultAvailabilityPercent !== 100;
+  }, [group, name, description, defaultAvailabilityPercent]);
+
+  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+    isDirty,
+    onOpenChange: (o) => { if (!o) onClose(); },
+  });
+
+  const errorMessage = saveMutation.error
+    ? saveMutation.error instanceof Error
+      ? saveMutation.error.message
+      : `Failed to ${group ? 'update' : 'create'} ${entityLabel.toLowerCase()}`
+    : null;
+
   return (
+    <>
     <FormDialog
       open={isOpen}
-      onOpenChange={(o) => { if (!o) onClose(); }}
+      onOpenChange={guardedOnOpenChange}
       title={group ? `Edit ${entityLabel}` : `Add ${entityLabel}`}
+      error={errorMessage}
       onSubmit={handleSubmit}
       isSubmitting={saveMutation.isPending}
       submitLabel="Save"
@@ -101,5 +128,7 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
         />
       </div>
     </FormDialog>
+    {ConfirmDiscardDialog}
+    </>
   );
 }

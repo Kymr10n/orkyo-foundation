@@ -26,11 +26,8 @@ public static class ConflictsEndpoints
             DateTime? from,
             DateTime? to,
             [FromServices] IConflictService conflictService,
-            ILogger<EndpointLoggerCategory> logger,
             CancellationToken ct) =>
-            await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await conflictService.GetAllAsync(from, to, ct)),
-                logger, "list conflicts"))
+            Results.Ok(await conflictService.GetAllAsync(from, to, ct)))
             .WithName("ListConflicts")
             .WithSummary("Tenant-wide conflicts registry — all-time, or scoped to [from,to] when supplied");
     }

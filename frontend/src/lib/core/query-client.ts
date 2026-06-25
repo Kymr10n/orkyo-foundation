@@ -54,10 +54,30 @@ export function createFeedbackMutationCache(
   });
 }
 
+/**
+ * Named query-freshness tiers. The global default below is the "standard" 5-minute
+ * staleTime; hooks that match it should omit `staleTime` and inherit. These constants
+ * exist so the genuinely-intentional deviations read by intent rather than a bare
+ * magic number, and so a tier's value is defined once.
+ */
+export const STALE = {
+  /** Near-real-time operational data (conflicts registry, quotas). */
+  REALTIME: 30 * 1000,
+  /** Settings/feeds that change on the minute scale (scheduling settings, availability events). */
+  OPERATIONAL: 60 * 1000,
+  /** Standard tier — the global default; hooks at this freshness omit `staleTime`. */
+  STANDARD: 5 * 60 * 1000,
+  /** Slow-moving analytics (insights dashboards). */
+  ANALYTICS: 15 * 60 * 1000,
+} as const;
+
 export const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: STALE.STANDARD,
+      // Most hooks opt out of focus refetching; make it the global default so they
+      // stop repeating it. The few that genuinely want focus refetch can override.
+      refetchOnWindowFocus: false,
       retry: 1,
     },
   },

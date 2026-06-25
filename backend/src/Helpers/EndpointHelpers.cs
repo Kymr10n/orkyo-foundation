@@ -15,31 +15,6 @@ namespace Api.Helpers;
 public static class EndpointHelpers
 {
     /// <summary>
-    /// Execute an async handler with standard error handling and logging
-    /// </summary>
-    public static async Task<IResult> ExecuteAsync(
-        Func<Task<IResult>> handler,
-        ILogger logger,
-        string operationName,
-        object? context = null)
-    {
-        return await handler();
-    }
-
-    /// <summary>
-    /// Execute an async handler that returns data, mapping null to 404.
-    /// </summary>
-    public static async Task<IResult> ExecuteAsync<T>(
-        Func<Task<T?>> handler,
-        ILogger logger,
-        string operationName,
-        object? context = null) where T : class
-    {
-        var result = await handler();
-        return result != null ? Results.Ok(result) : Results.NotFound();
-    }
-
-    /// <summary>
     /// Return <c>200 OK</c> with <paramref name="value"/>, or a standard <c>404 Not Found</c>
     /// (via <see cref="ErrorResponses.NotFound(string, Guid?)"/>) when it is null. Replaces the
     /// repeated <c>value is null ? ErrorResponses.NotFound(...) : Results.Ok(value)</c> ternary.

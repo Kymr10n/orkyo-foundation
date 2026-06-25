@@ -32,18 +32,12 @@ public class RequestRepository : IRequestRepository
     public async Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var requests = new List<RequestInfo>();
-        var cmd = new NpgsqlCommand(
+        var requests = await db.QueryListAsync(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
-            db);
-
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-                requests.Add(RequestMapper.MapFromReader(reader));
-        }
+            bind: null,
+            RequestMapper.MapFromReader,
+            ct);
 
         if (includeRequirements && requests.Count > 0)
             await LoadRequirementsForRequests(requests, db);
@@ -76,9 +70,8 @@ public class RequestRepository : IRequestRepository
     public async Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand($@"
+        return await db.QueryListAsync($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE scheduling_settings_apply = true
@@ -92,16 +85,15 @@ public class RequestRepository : IRequestRepository
                   AND rt.key = @spaceKey
                   AND ra.assignment_status != @cancelled
                   AND s.site_id = @siteId
-              )", db);
-        cmd.Parameters.AddWithValue("siteId", siteId);
-        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-
-        var requests = new List<RequestInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            requests.Add(RequestMapper.MapFromReader(reader));
-        return requests;
+              )",
+            p =>
+            {
+                p.AddWithValue("siteId", siteId);
+                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            RequestMapper.MapFromReader,
+            ct);
     }
 
     public Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default)
@@ -113,7 +105,6 @@ public class RequestRepository : IRequestRepository
     private async Task<List<RequestInfo>> GetScheduledCoreAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
         // All scheduled requests with a (non-cancelled) space assignment, tenant-wide. When a
         // [from,to] window is supplied (utilization grid) only bars overlapping it are returned;
@@ -121,8 +112,7 @@ public class RequestRepository : IRequestRepository
         // — the registry mirrors what the grid surfaces for every scheduled bar.
         var windowed = from.HasValue && to.HasValue;
         var windowClause = windowed ? " AND start_ts <= @to AND end_ts >= @from" : "";
-        var requests = new List<RequestInfo>();
-        var cmd = new NpgsqlCommand($@"
+        var requests = await db.QueryListAsync($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE start_ts IS NOT NULL{windowClause}
@@ -133,18 +123,19 @@ public class RequestRepository : IRequestRepository
                 WHERE ra.request_id = v_requests_with_assignments.id
                   AND rt.key = @spaceKey
                   AND ra.assignment_status != @cancelled
-              )", db);
-        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-        if (windowed)
-        {
-            cmd.Parameters.AddWithValue("from", from!.Value);
-            cmd.Parameters.AddWithValue("to", to!.Value);
-        }
-
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-            while (await reader.ReadAsync(ct))
-                requests.Add(RequestMapper.MapFromReader(reader));
+              )",
+            p =>
+            {
+                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                if (windowed)
+                {
+                    p.AddWithValue("from", from!.Value);
+                    p.AddWithValue("to", to!.Value);
+                }
+            },
+            RequestMapper.MapFromReader,
+            ct);
 
         if (requests.Count > 0)
             await LoadRequirementsForRequests(requests, db, ct);
@@ -156,13 +147,11 @@ public class RequestRepository : IRequestRepository
         Guid siteId, DateTime from, DateTime to, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
         // Scheduled requests for this site whose bar overlaps [from,to]: start_ts <= to AND end_ts >= from.
         // A request belongs to the site if it is scoped to it (site_id) OR placed into one of its
         // spaces. The site_id arm makes a scheduled, space-less request appear on its site's calendar.
-        var requests = new List<RequestInfo>();
-        var cmd = new NpgsqlCommand($@"
+        var requests = await db.QueryListAsync($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE start_ts IS NOT NULL
@@ -179,16 +168,17 @@ public class RequestRepository : IRequestRepository
                     AND ra.assignment_status != @cancelled
                     AND s.site_id = @siteId
                 )
-              )", db);
-        cmd.Parameters.AddWithValue("siteId", siteId);
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-            while (await reader.ReadAsync(ct))
-                requests.Add(RequestMapper.MapFromReader(reader));
+              )",
+            p =>
+            {
+                p.AddWithValue("siteId", siteId);
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            RequestMapper.MapFromReader,
+            ct);
 
         if (requests.Count > 0)
             await LoadRequirementsForRequests(requests, db, ct);
@@ -200,7 +190,6 @@ public class RequestRepository : IRequestRepository
         Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
         // Only leaf requests are directly schedulable (see RequestService.UpdateAsync), so the
         // drag-to-schedule backlog excludes groups — their null start_ts is a derived state, not an
@@ -216,37 +205,31 @@ public class RequestRepository : IRequestRepository
                 ? "AND (site_id = @siteId OR site_id IS NULL) "
                 : "AND site_id = @siteId ";
 
-        var requests = new List<RequestInfo>();
-        var cmd = new NpgsqlCommand(
+        return await db.QueryListAsync(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
-            "WHERE start_ts IS NULL AND planning_mode = 'leaf' " +
+            $"WHERE start_ts IS NULL AND planning_mode = '{PlanningModes.Leaf}' " +
             siteFilter +
-            "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC", db);
-        if (siteId is not null) cmd.Parameters.AddWithValue("siteId", siteId.Value);
-
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-            while (await reader.ReadAsync(ct))
-                requests.Add(RequestMapper.MapFromReader(reader));
-
-        return requests;
+            "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
+            p =>
+            {
+                if (siteId is not null) p.AddWithValue("siteId", siteId.Value);
+            },
+            RequestMapper.MapFromReader,
+            ct);
     }
 
     public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
+        var request = await db.QuerySingleOrDefaultAsync<RequestInfo?>(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = @id",
-            db);
-        cmd.Parameters.AddWithValue("id", id);
+            p => p.AddWithValue("id", id),
+            RequestMapper.MapFromReader,
+            ct);
 
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
+        if (request is null)
             return null;
-
-        var request = RequestMapper.MapFromReader(reader);
-        reader.Close();
 
         if (includeRequirements)
             request = request with { Requirements = await LoadRequirements(id, db) };
@@ -260,18 +243,12 @@ public class RequestRepository : IRequestRepository
         if (ids.Count == 0) return [];
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var requests = new List<RequestInfo>();
-        var cmd = new NpgsqlCommand(
-            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = ANY(@ids)", db);
-        cmd.Parameters.AddWithValue("ids", ids.ToArray());
-
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-                requests.Add(RequestMapper.MapFromReader(reader));
-        }
+        var requests = await db.QueryListAsync(
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE id = ANY(@ids)",
+            p => p.AddWithValue("ids", ids.ToArray()),
+            RequestMapper.MapFromReader,
+            ct);
 
         if (includeRequirements && requests.Count > 0)
             await LoadRequirementsForRequests(requests, db, ct);
@@ -637,7 +614,6 @@ public class RequestRepository : IRequestRepository
     public async Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
         if (!await db.ExistsAsync("requests", requestId, ct))
             throw new NotFoundException("Request", requestId);
@@ -646,46 +622,44 @@ public class RequestRepository : IRequestRepository
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");
 
         // Phase 3: Validate criterion is applicable to requests
-        await using (var checkCmd = new NpgsqlCommand(
-            "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId", db))
-        {
-            checkCmd.Parameters.AddWithValue("criterionId", requirement.CriterionId);
-            var applicableToRequests = (bool?)await checkCmd.ExecuteScalarAsync(ct);
-            if (applicableToRequests == false)
-                throw new InvalidOperationException(
-                    $"Criterion {requirement.CriterionId} is not applicable to requests");
-        }
+        var applicableToRequests = await db.ExecuteScalarAsync<bool?>(
+            "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId",
+            p => p.AddWithValue("criterionId", requirement.CriterionId), ct);
+        if (applicableToRequests == false)
+            throw new InvalidOperationException(
+                $"Criterion {requirement.CriterionId} is not applicable to requests");
 
-        var cmd = new NpgsqlCommand(@"
+        return (await db.QuerySingleOrDefaultAsync(@"
             INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
             VALUES (@request_id, @criterion_id, @value::jsonb, @operator, @allowed_values::jsonb)
             ON CONFLICT (request_id, criterion_id) DO UPDATE SET
                 value = EXCLUDED.value,
                 operator = EXCLUDED.operator,
                 allowed_values = EXCLUDED.allowed_values
-            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at", db);
-
-        cmd.Parameters.AddWithValue("request_id", requestId);
-        cmd.Parameters.AddWithValue("criterion_id", requirement.CriterionId);
-        cmd.Parameters.AddWithValue("value", requirement.Value.GetRawText());
-        cmd.Parameters.AddWithValue("operator", requirement.Operator is null ? (object)DBNull.Value : requirement.Operator);
-        cmd.Parameters.AddWithValue("allowed_values", requirement.AllowedValues is null ? (object)DBNull.Value : requirement.AllowedValues.Value.GetRawText());
-
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-        return RequestMapper.MapRequirementFromReader(reader);
+            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at",
+            p =>
+            {
+                p.AddWithValue("request_id", requestId);
+                p.AddWithValue("criterion_id", requirement.CriterionId);
+                p.AddWithValue("value", requirement.Value.GetRawText());
+                p.AddWithValue("operator", requirement.Operator is null ? (object)DBNull.Value : requirement.Operator);
+                p.AddWithValue("allowed_values", requirement.AllowedValues is null ? (object)DBNull.Value : requirement.AllowedValues.Value.GetRawText());
+            },
+            RequestMapper.MapRequirementFromReader,
+            ct))!;
     }
 
     public async Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
-            "DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id", db);
-        cmd.Parameters.AddWithValue("id", requirementId);
-        cmd.Parameters.AddWithValue("request_id", requestId);
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+        return await db.ExecuteAsync(
+            "DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id",
+            p =>
+            {
+                p.AddWithValue("id", requirementId);
+                p.AddWithValue("request_id", requestId);
+            }, ct) > 0;
     }
 
     // ── Resource assignment helpers ───────────────────────────────────────────
@@ -694,12 +668,15 @@ public class RequestRepository : IRequestRepository
         NpgsqlConnection conn, NpgsqlTransaction? tx,
         Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
     {
-        await using var cmd = new NpgsqlCommand(@"
+        // The ON CONFLICT predicate MUST stay byte-identical to the migration's partial unique
+        // index predicate (uq_resource_assignments_active). AssignmentStatuses.Cancelled == 'Cancelled',
+        // so interpolating it yields the same SQL while keeping the literal traceable to the constant.
+        await using var cmd = new NpgsqlCommand($@"
             INSERT INTO resource_assignments
                 (request_id, resource_id, start_utc, end_utc)
             VALUES (@requestId, @resourceId, @startUtc, @endUtc)
             ON CONFLICT (request_id, resource_id)
-                WHERE assignment_status != 'Cancelled'
+                WHERE assignment_status != '{AssignmentStatuses.Cancelled}'
             DO UPDATE SET start_utc = EXCLUDED.start_utc,
                           end_utc   = EXCLUDED.end_utc,
                           updated_at = NOW()", conn, tx);
@@ -732,9 +709,8 @@ public class RequestRepository : IRequestRepository
     public async Task<List<(RequestInfo Request, Guid? AssignmentId)>> GetCandidatesOverlappingAsync(Guid resourceId, DateTime start, DateTime end, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand($@"
+        var rows = await db.QueryListAsync<(RequestInfo, Guid?)>($@"
             SELECT {SelectFromView},
                    (SELECT ra.id FROM resource_assignments ra
                     WHERE ra.request_id = v_requests_with_assignments.id
@@ -742,28 +718,28 @@ public class RequestRepository : IRequestRepository
                       AND ra.assignment_status != @cancelled
                     LIMIT 1) AS assignment_id
             FROM v_requests_with_assignments
-            WHERE status IN ('planned', 'in_progress')
+            WHERE status IN ('{RequestStatuses.Planned}', '{RequestStatuses.InProgress}')
               AND start_ts IS NOT NULL
               AND end_ts IS NOT NULL
               AND start_ts < @end
               AND end_ts > @start
-            ORDER BY start_ts, name", db);
-        cmd.Parameters.AddWithValue("resourceId", resourceId);
-        cmd.Parameters.AddWithValue("start", start);
-        cmd.Parameters.AddWithValue("end", end);
-        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
-
-        var rows = new List<(RequestInfo, Guid?)>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            var req = RequestMapper.MapFromReader(reader);
-            var assignmentId = reader.IsDBNull(reader.GetOrdinal("assignment_id"))
-                ? (Guid?)null
-                : reader.GetGuid(reader.GetOrdinal("assignment_id"));
-            rows.Add((req, assignmentId));
-        }
-        await reader.CloseAsync();
+            ORDER BY start_ts, name",
+            p =>
+            {
+                p.AddWithValue("resourceId", resourceId);
+                p.AddWithValue("start", start);
+                p.AddWithValue("end", end);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            reader =>
+            {
+                var req = RequestMapper.MapFromReader(reader);
+                var assignmentId = reader.IsDBNull(reader.GetOrdinal("assignment_id"))
+                    ? (Guid?)null
+                    : reader.GetGuid(reader.GetOrdinal("assignment_id"));
+                return (req, assignmentId);
+            },
+            ct);
 
         if (rows.Count > 0)
         {
@@ -781,21 +757,17 @@ public class RequestRepository : IRequestRepository
 
     private async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection db, CancellationToken ct = default)
     {
-        var requirements = new List<RequestRequirementInfo>();
-        var cmd = new NpgsqlCommand(@"
+        return await db.QueryListAsync(@"
             SELECT rr.id, rr.request_id, rr.criterion_id, rr.value, rr.created_at,
                    rr.operator, rr.allowed_values,
                    c.id, c.name, c.data_type, c.unit, c.enum_values
             FROM request_requirements rr
             JOIN criteria c ON rr.criterion_id = c.id
             WHERE rr.request_id = @request_id
-            ORDER BY c.name", db);
-        cmd.Parameters.AddWithValue("request_id", requestId);
-
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            requirements.Add(RequestMapper.MapRequirementWithCriterionFromReader(reader));
-        return requirements;
+            ORDER BY c.name",
+            p => p.AddWithValue("request_id", requestId),
+            RequestMapper.MapRequirementWithCriterionFromReader,
+            ct);
     }
 
     private async Task LoadRequirementsForRequests(List<RequestInfo> requests, NpgsqlConnection db, CancellationToken ct = default)
@@ -874,36 +846,29 @@ public class RequestRepository : IRequestRepository
     public async Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
+        return await db.QueryListAsync(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments WHERE parent_request_id = @parent_id ORDER BY sort_order, created_at",
-            db);
-        cmd.Parameters.AddWithValue("parent_id", parentId);
-
-        var results = new List<RequestInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            results.Add(RequestMapper.MapFromReader(reader));
-        return results;
+            p => p.AddWithValue("parent_id", parentId),
+            RequestMapper.MapFromReader,
+            ct);
     }
 
     public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
+        var updatedId = await db.ExecuteScalarAsync<Guid?>(
             $@"UPDATE requests
                SET parent_request_id = @parent_id, sort_order = @sort_order, updated_at = NOW()
                WHERE id = @id
                RETURNING id",
-            db);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("parent_id", (object?)newParentId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("sort_order", sortOrder);
-
-        var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
+            p =>
+            {
+                p.AddWithValue("id", id);
+                p.AddWithValue("parent_id", (object?)newParentId ?? DBNull.Value);
+                p.AddWithValue("sort_order", sortOrder);
+            }, ct);
         if (!updatedId.HasValue)
             return null;
 
@@ -914,18 +879,15 @@ public class RequestRepository : IRequestRepository
     public async Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
+        return await db.ExecuteScalarAsync<int>(
             @"WITH RECURSIVE subtree AS (
                 SELECT id FROM requests WHERE parent_request_id = @id
                 UNION ALL
                 SELECT r.id FROM requests r JOIN subtree s ON r.parent_request_id = s.id
               )
               SELECT COUNT(*)::int FROM subtree",
-            db);
-        cmd.Parameters.AddWithValue("id", id);
-        return (int)(await cmd.ExecuteScalarAsync(ct))!;
+            p => p.AddWithValue("id", id), ct);
     }
 
     public async Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId, CancellationToken ct = default)
@@ -933,9 +895,8 @@ public class RequestRepository : IRequestRepository
         if (requestId == newParentId) return true;
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
+        return await db.ExecuteScalarAsync<bool>(
             @"WITH RECURSIVE ancestors AS (
                 SELECT parent_request_id FROM requests WHERE id = @new_parent_id
                 UNION ALL
@@ -943,45 +904,40 @@ public class RequestRepository : IRequestRepository
                 WHERE r.parent_request_id IS NOT NULL
               )
               SELECT EXISTS(SELECT 1 FROM ancestors WHERE parent_request_id = @request_id)",
-            db);
-        cmd.Parameters.AddWithValue("request_id", requestId);
-        cmd.Parameters.AddWithValue("new_parent_id", newParentId);
-        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
+            p =>
+            {
+                p.AddWithValue("request_id", requestId);
+                p.AddWithValue("new_parent_id", newParentId);
+            }, ct);
     }
 
     public async Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand("SELECT planning_mode FROM requests WHERE id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-
-        var result = await cmd.ExecuteScalarAsync(ct);
-        if (result is null or DBNull) return null;
-        return EnumMapper.ToPlanningMode((string)result);
+        var result = await db.ExecuteScalarAsync<string>(
+            "SELECT planning_mode FROM requests WHERE id = @id",
+            p => p.AddWithValue("id", id), ct);
+        if (result is null) return null;
+        return EnumMapper.ToPlanningMode(result);
     }
 
     public async Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
-        var cmd = new NpgsqlCommand(
-            "SELECT EXISTS(SELECT 1 FROM requests WHERE parent_request_id = @id)", db);
-        cmd.Parameters.AddWithValue("id", id);
-        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
+        return await db.ExecuteScalarAsync<bool>(
+            "SELECT EXISTS(SELECT 1 FROM requests WHERE parent_request_id = @id)",
+            p => p.AddWithValue("id", id), ct);
     }
 
     public async Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
 
         var count = await GetDescendantCountAsync(id);
-        var cmd = new NpgsqlCommand("DELETE FROM requests WHERE id = @id", db);
-        cmd.Parameters.AddWithValue("id", id);
-        var deleted = await cmd.ExecuteNonQueryAsync(ct);
+        var deleted = await db.ExecuteAsync("DELETE FROM requests WHERE id = @id",
+            p => p.AddWithValue("id", id), ct);
         return deleted > 0 ? count + 1 : 0;
     }
 }

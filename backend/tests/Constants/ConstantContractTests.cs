@@ -1,4 +1,6 @@
 using Api.Constants;
+using Api.Helpers;
+using Api.Models;
 using Api.Security;
 
 namespace Orkyo.Foundation.Tests.Constants;
@@ -104,4 +106,26 @@ public class ConstantContractTests
     [InlineData("  admin  ")]
     public void IsValidRole_ShouldReturnFalse_ForInvalidOrNullInput(string? input) =>
         RoleConstants.IsValidRole(input).Should().BeFalse();
+
+    // --- RequestStatuses ↔ RequestStatus enum (DB string == JsonStringEnumMemberName) ---
+    // The catalog constants must equal the enum's DB string values, since the SQL/in-memory
+    // comparisons in RequestRepository / InsightsService / ReportingQueryService use the constants
+    // while the DB stores the enum's JsonStringEnumMemberName value.
+
+    [Theory]
+    [InlineData(RequestStatuses.Planned, RequestStatus.Planned)]
+    [InlineData(RequestStatuses.InProgress, RequestStatus.InProgress)]
+    [InlineData(RequestStatuses.Done, RequestStatus.Done)]
+    [InlineData(RequestStatuses.Cancelled, RequestStatus.Cancelled)]
+    public void RequestStatuses_ShouldEqualEnumDbValue(string constant, RequestStatus value) =>
+        constant.Should().Be(EnumMapper.ToDbValue(value));
+
+    // --- PlanningModes ↔ PlanningMode enum (DB string == JsonStringEnumMemberName) ---
+
+    [Theory]
+    [InlineData(PlanningModes.Leaf, PlanningMode.Leaf)]
+    [InlineData(PlanningModes.Summary, PlanningMode.Summary)]
+    [InlineData(PlanningModes.Container, PlanningMode.Container)]
+    public void PlanningModes_ShouldEqualEnumDbValue(string constant, PlanningMode value) =>
+        constant.Should().Be(EnumMapper.ToDbValue(value));
 }

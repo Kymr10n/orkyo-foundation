@@ -18,7 +18,11 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
 }));
 
 import { getResourceGroups, deleteResourceGroup } from '@foundation/src/lib/api/resource-groups-api';
+import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockGroups: ResourceGroupInfo[] = [
   {
@@ -44,14 +48,28 @@ const mockGroups: ResourceGroupInfo[] = [
 ];
 
 function renderList(resourceTypeKey = 'person') {
-  const queryClient = new QueryClient({
+  // Delete feedback flows through the meta-driven MutationCache (matching prod).
+  const queryClient: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <ResourceGroupList resourceTypeKey={resourceTypeKey} />
     </QueryClientProvider>,
   );
+}
+
+// Row actions live behind a labelled kebab menu (RowActions). The groups query
+// resolves after first paint and re-renders the table, which would dismiss a
+// freshly-opened menu — retry the open until an item sticks.
+async function openRowMenu(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await waitFor(async () => {
+    if (screen.queryAllByRole('menuitem').length === 0) {
+      await user.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+    }
+    expect(screen.getAllByRole('menuitem').length).toBeGreaterThan(0);
+  });
 }
 
 describe('ResourceGroupList', () => {
@@ -64,13 +82,15 @@ describe('ResourceGroupList', () => {
   });
 
   it('disables all edit affordances for a viewer who cannot edit', async () => {
+    const user = userEvent.setup();
     vi.mocked(useCanEdit).mockReturnValue(false);
     renderList();
     await waitFor(() => expect(screen.getByText('Engineering')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /Add Group/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Edit Engineering' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Delete Engineering' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Manage members of Engineering' })).toBeDisabled();
+    await openRowMenu(user, 'Engineering');
+    expect(screen.getByRole('menuitem', { name: /^Edit/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: /^Delete/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: /Manage members/ })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('renders Add Group button', async () => {
@@ -113,11 +133,12 @@ describe('ResourceGroupList', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('opens Edit dialog when edit button clicked', async () => {
+  it('opens Edit dialog when edit action clicked', async () => {
     const user = userEvent.setup();
     renderList();
     await waitFor(() => screen.getByText('Engineering'));
-    await user.click(screen.getByRole('button', { name: /Edit Engineering/i }));
+    await openRowMenu(user, 'Engineering');
+    await user.click(screen.getByRole('menuitem', { name: /^Edit/ }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
@@ -130,13 +151,14 @@ describe('ResourceGroupList', () => {
     expect(screen.getByDisplayValue('Engineering')).toBeInTheDocument();
   });
 
-  it('does not trigger the row edit-click when an action button is clicked', async () => {
+  it('does not trigger the row edit-click when an action is invoked', async () => {
     const user = userEvent.setup();
     renderList();
     await waitFor(() => screen.getByText('Engineering'));
-    await user.click(screen.getByRole('button', { name: /Delete Engineering/i }));
-    await waitFor(() => expect(deleteResourceGroup).toHaveBeenCalledWith('g-1', expect.anything()));
-    // stopPropagation on the action cell means the row's edit-onClick never fired.
+    await openRowMenu(user, 'Engineering');
+    await user.click(screen.getByRole('menuitem', { name: /^Delete/ }));
+    // The action menu's stopPropagation means the row's edit-onClick never fired,
+    // so the only dialog present is the delete confirmation (an alertdialog).
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -149,22 +171,27 @@ describe('ResourceGroupList', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('calls deleteResourceGroup when delete button clicked', async () => {
+  it('confirms before deleting, then calls deleteResourceGroup', async () => {
     const user = userEvent.setup();
     renderList();
     await waitFor(() => screen.getByText('Engineering'));
-    await user.click(screen.getByRole('button', { name: /Delete Engineering/i }));
+    await openRowMenu(user, 'Engineering');
+    await user.click(screen.getByRole('menuitem', { name: /^Delete/ }));
+    // Delete is now guarded by the shared ConfirmDialog (closes the data-loss
+    // footgun where deletion fired immediately with no confirmation).
+    expect(deleteResourceGroup).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(deleteResourceGroup).toHaveBeenCalledWith('g-1', expect.anything()));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Group deleted'));
   });
 
-  it('opens the Manage Members editor when the Users icon is clicked', async () => {
+  it('opens the Manage Members editor when the action is clicked', async () => {
     const user = userEvent.setup();
     renderList();
     await waitFor(() => screen.getByText('Engineering'));
 
-    await user.click(
-      screen.getByRole('button', { name: /Manage members of Engineering/i }),
-    );
+    await openRowMenu(user, 'Engineering');
+    await user.click(screen.getByRole('menuitem', { name: /Manage members/ }));
 
     await waitFor(() =>
       expect(screen.getByText(/Manage Members in/i)).toBeInTheDocument(),

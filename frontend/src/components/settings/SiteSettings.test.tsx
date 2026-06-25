@@ -155,28 +155,18 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    // Get all icon buttons (non-text buttons) - skip the "Add Site" button at the top
-    const allButtons = screen.getAllByRole('button');
-    // Filter out the main action buttons (Add Site, Import, Export which have text)
-    const iconButtons = allButtons.filter(btn =>
-      !btn.textContent || btn.textContent.trim() === ''
-    );
-
-    // First site has 2 icon buttons (Edit, Delete), click the 2nd one (Delete)
-    if (iconButtons.length >= 2) {
-      await user.click(iconButtons[1]); // First site's Delete button
-    }
+    // Delete now opens the shared ConfirmDialog instead of a native confirm().
+    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Building A');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('Building A')
-      );
       expect(mockDeleteMutation.mutateAsync).toHaveBeenCalledWith('1');
     });
   });
 
   it('does not delete if confirmation declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
 
     render(
@@ -189,20 +179,9 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    // Get all icon buttons (non-text buttons)
-    const allButtons = screen.getAllByRole('button');
-    const iconButtons = allButtons.filter(btn =>
-      !btn.textContent || btn.textContent.trim() === ''
-    );
-
-    // First site has 2 icon buttons (Edit, Delete), click the 2nd one (Delete)
-    if (iconButtons.length >= 2) {
-      await user.click(iconButtons[1]); // First site's Delete button
-    }
-
-    await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled();
-    });
+    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     expect(mockDeleteMutation.mutateAsync).not.toHaveBeenCalled();
   });
@@ -291,17 +270,15 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    // Find the table row containing Building A
-    const buildingAText = screen.getByText('Building A');
-    const buildingARow = buildingAText.closest('tr');
-    expect(buildingARow).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-    // Get all buttons in that row (Edit and Delete)
-    const buttons = within(buildingARow as HTMLElement).getAllByRole('button');
-    await user.click(buttons[1]); // Edit is 0, Delete is 1
-
+    // The delete failed. The component swallows the rejection (error feedback is
+    // surfaced by the mutation's meta handler in prod) rather than calling the
+    // old native alert().
     await waitFor(() => {
-      expect(global.alert).toHaveBeenCalledWith(expect.stringContaining('Delete failed'));
+      expect(mockDeleteMutation.mutateAsync).toHaveBeenCalledWith('1');
     });
   });
 

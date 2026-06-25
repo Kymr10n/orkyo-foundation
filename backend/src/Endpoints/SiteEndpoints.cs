@@ -16,30 +16,24 @@ public static class SiteEndpoints
     {
         var sites = app.MapGroup("/api/sites").RequireAuthorization().RequireMemberReadAdminWrite();
 
-        sites.MapGet("/", async (ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, int? page, int? pageSize) =>
+        sites.MapGet("/", async (ISiteService siteService, CancellationToken ct, int? page, int? pageSize) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
+            if (page.HasValue || pageSize.HasValue)
             {
-                if (page.HasValue || pageSize.HasValue)
-                {
-                    var paged = await siteService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
-                    return Results.Ok(paged);
-                }
-                var sitesList = await siteService.GetAllAsync(ct);
-                return Results.Ok(sitesList);
-            }, logger, "list sites");
+                var paged = await siteService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
+                return Results.Ok(paged);
+            }
+            var sitesList = await siteService.GetAllAsync(ct);
+            return Results.Ok(sitesList);
         })
         .WithName("GetSites")
         .WithDescription("Retrieves all sites for the current tenant. Supports ?page=1&pageSize=50 for pagination.")
         .Produces<PagedResult<SiteInfo>>(StatusCodes.Status200OK);
 
-        sites.MapGet("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        sites.MapGet("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var site = await siteService.GetByIdAsync(siteId, ct);
-                return EndpointHelpers.OkOrNotFound(site, "Site", siteId);
-            }, logger, "get site", new { siteId });
+            var site = await siteService.GetByIdAsync(siteId, ct);
+            return EndpointHelpers.OkOrNotFound(site, "Site", siteId);
         })
         .WithName("GetSiteById")
         .WithDescription("Retrieves a specific site by its ID")
@@ -74,13 +68,10 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
-        sites.MapDelete("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        sites.MapDelete("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await siteService.DeleteAsync(siteId, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Site", siteId);
-            }, logger, "delete site", new { siteId });
+            var deleted = await siteService.DeleteAsync(siteId, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Site", siteId);
         })
         .WithName("DeleteSite")
         .WithDescription("Deletes a site and all its associated spaces")

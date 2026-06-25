@@ -5,8 +5,9 @@
  * are purely organizational.
  */
 
-import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
+import { apiGet } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { createCrudApi } from './create-crud-api';
 
 export interface DepartmentInfo {
   id: string;
@@ -49,13 +50,17 @@ export interface UpdateDepartmentRequest {
   isActive?: boolean;
 }
 
-export async function getDepartments(includeInactive = false): Promise<DepartmentInfo[]> {
-  const path = includeInactive
-    ? `${API_PATHS.DEPARTMENTS}?includeInactive=true`
-    : API_PATHS.DEPARTMENTS;
-  return apiGet<DepartmentInfo[]>(path);
+const departmentsApi = createCrudApi<DepartmentInfo, CreateDepartmentRequest, UpdateDepartmentRequest>({
+  collectionPath: API_PATHS.DEPARTMENTS,
+  itemPath: API_PATHS.department,
+});
+
+export function getDepartments(includeInactive = false): Promise<DepartmentInfo[]> {
+  return departmentsApi.list(includeInactive ? { includeInactive: 'true' } : undefined);
 }
 
+// Tree view is a distinct read-only collection endpoint (not part of the CRUD shape),
+// so it stays explicit.
 export async function getDepartmentTree(includeInactive = false): Promise<DepartmentTreeNode[]> {
   const path = includeInactive
     ? `${API_PATHS.DEPARTMENTS_TREE}?includeInactive=true`
@@ -63,23 +68,23 @@ export async function getDepartmentTree(includeInactive = false): Promise<Depart
   return apiGet<DepartmentTreeNode[]>(path);
 }
 
-export async function getDepartment(id: string): Promise<DepartmentInfo> {
-  return apiGet<DepartmentInfo>(API_PATHS.department(id));
+export function getDepartment(id: string): Promise<DepartmentInfo> {
+  return departmentsApi.get(id);
 }
 
-export async function createDepartment(
+export function createDepartment(
   request: CreateDepartmentRequest,
 ): Promise<DepartmentInfo> {
-  return apiPost<DepartmentInfo>(API_PATHS.DEPARTMENTS, request);
+  return departmentsApi.create(request);
 }
 
-export async function updateDepartment(
+export function updateDepartment(
   id: string,
   request: UpdateDepartmentRequest,
 ): Promise<DepartmentInfo> {
-  return apiPut<DepartmentInfo>(API_PATHS.department(id), request);
+  return departmentsApi.update(id, request);
 }
 
-export async function deleteDepartment(id: string): Promise<void> {
-  return apiDelete(API_PATHS.department(id));
+export function deleteDepartment(id: string): Promise<void> {
+  return departmentsApi.remove(id);
 }

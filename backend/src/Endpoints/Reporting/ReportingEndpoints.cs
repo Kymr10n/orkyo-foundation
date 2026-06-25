@@ -133,24 +133,20 @@ public static class ReportingEndpoints
         IReportingQueryService qs,
         ICurrentTenant tenant,
         TenantContext tenantCtx,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to, DateTime? updatedSince,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? sort = null, string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, updatedSince, page, pageSize, sort, format);
-            ValidateDateRange(q);
-            ValidatePageSize(pageSize);
+        var q = BuildQuery(from, to, updatedSince, page, pageSize, sort, format);
+        ValidateDateRange(q);
+        ValidatePageSize(pageSize);
 
-            var result = await qs.GetSpaceUtilizationAsync(
-                tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
+        var result = await qs.GetSpaceUtilizationAsync(
+            tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "space-utilization.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/spaces/utilization");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "space-utilization.csv")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetResourceUtilization(
@@ -158,24 +154,20 @@ public static class ReportingEndpoints
         IReportingQueryService qs,
         ICurrentTenant tenant,
         TenantContext tenantCtx,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to, DateTime? updatedSince,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? sort = null, string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, updatedSince, page, pageSize, sort, format);
-            ValidateDateRange(q);
-            ValidatePageSize(pageSize);
+        var q = BuildQuery(from, to, updatedSince, page, pageSize, sort, format);
+        ValidateDateRange(q);
+        ValidatePageSize(pageSize);
 
-            var result = await qs.GetResourceUtilizationAsync(
-                tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
+        var result = await qs.GetResourceUtilizationAsync(
+            tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "resource-utilization.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/resources/utilization");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "resource-utilization.csv")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetAllocations(
@@ -183,24 +175,20 @@ public static class ReportingEndpoints
         IReportingQueryService qs,
         ICurrentTenant tenant,
         TenantContext tenantCtx,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to, DateTime? updatedSince,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? sort = null, string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, updatedSince, page, pageSize, sort, format);
-            ValidateDateRange(q);
-            ValidatePageSize(pageSize);
+        var q = BuildQuery(from, to, updatedSince, page, pageSize, sort, format);
+        ValidateDateRange(q);
+        ValidatePageSize(pageSize);
 
-            var result = await qs.GetAllocationsAsync(
-                tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
+        var result = await qs.GetAllocationsAsync(
+            tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "allocations.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/allocations");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "allocations.csv")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetRequestThroughput(
@@ -208,23 +196,19 @@ public static class ReportingEndpoints
         IReportingQueryService qs,
         ICurrentTenant tenant,
         TenantContext tenantCtx,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, null, page, pageSize, null, format);
-            ValidateDateRange(q);
+        var q = BuildQuery(from, to, null, page, pageSize, null, format);
+        ValidateDateRange(q);
 
-            var result = await qs.GetRequestThroughputAsync(
-                tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
+        var result = await qs.GetRequestThroughputAsync(
+            tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "request-throughput.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/requests/throughput");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "request-throughput.csv")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetConflicts(
@@ -232,24 +216,20 @@ public static class ReportingEndpoints
         IReportingQueryService qs,
         ICurrentTenant tenant,
         TenantContext tenantCtx,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? sort = null, string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, null, page, pageSize, sort, format);
-            ValidateDateRange(q);
-            ValidatePageSize(pageSize);
+        var q = BuildQuery(from, to, null, page, pageSize, sort, format);
+        ValidateDateRange(q);
+        ValidatePageSize(pageSize);
 
-            var result = await qs.GetConflictsAsync(
-                tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
+        var result = await qs.GetConflictsAsync(
+            tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "conflicts.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/conflicts");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "conflicts.csv")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetAbsences(
@@ -258,28 +238,24 @@ public static class ReportingEndpoints
         ICurrentTenant tenant,
         TenantContext tenantCtx,
         ITenantSettingsRepository settingsRepo,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? sort = null, string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, null, page, pageSize, sort, format);
-            ValidateDateRange(q);
-            ValidatePageSize(pageSize);
+        var q = BuildQuery(from, to, null, page, pageSize, sort, format);
+        ValidateDateRange(q);
+        ValidatePageSize(pageSize);
 
-            var allSettings = await settingsRepo.GetAllAsync(ctx.RequestAborted);
-            var peopleLevelEnabled = allSettings.TryGetValue("reporting.people_level_enabled", out var v)
-                && string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
+        var allSettings = await settingsRepo.GetAllAsync(ctx.RequestAborted);
+        var peopleLevelEnabled = allSettings.TryGetValue("reporting.people_level_enabled", out var v)
+            && string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
 
-            var result = await qs.GetAbsencesAsync(
-                tenant.TenantId, tenantCtx, q, peopleLevelEnabled, ctx.RequestAborted);
+        var result = await qs.GetAbsencesAsync(
+            tenant.TenantId, tenantCtx, q, peopleLevelEnabled, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "absences.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/absences");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "absences.csv")
+            : Results.Ok(result);
     }
 
     private static async Task<IResult> GetCapacityVsDemand(
@@ -287,24 +263,20 @@ public static class ReportingEndpoints
         IReportingQueryService qs,
         ICurrentTenant tenant,
         TenantContext tenantCtx,
-        ILogger<EndpointLoggerCategory> logger,
         DateTime? from, DateTime? to,
         int page = 1, int pageSize = ReportingPageRequest.DefaultPageSize,
         string? granularity = "month", string? format = null)
     {
-        return await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var q = BuildQuery(from, to, null, page, pageSize, null, format) with { Granularity = granularity };
-            ValidateDateRange(q);
-            ValidatePageSize(pageSize);
+        var q = BuildQuery(from, to, null, page, pageSize, null, format) with { Granularity = granularity };
+        ValidateDateRange(q);
+        ValidatePageSize(pageSize);
 
-            var result = await qs.GetCapacityVsDemandAsync(
-                tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
+        var result = await qs.GetCapacityVsDemandAsync(
+            tenant.TenantId, tenantCtx, q, ctx.RequestAborted);
 
-            return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
-                ? ReportingCsvSerializer.ToCsvResult(result, "capacity-vs-demand.csv")
-                : Results.Ok(result);
-        }, logger, "reporting/capacity-vs-demand");
+        return ReportingCsvSerializer.IsCsvRequested(ctx.Request, format)
+            ? ReportingCsvSerializer.ToCsvResult(result, "capacity-vs-demand.csv")
+            : Results.Ok(result);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

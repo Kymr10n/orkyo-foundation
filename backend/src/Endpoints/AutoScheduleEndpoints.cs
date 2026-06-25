@@ -17,22 +17,18 @@ public static class AutoScheduleEndpoints
             .RequireAuthorization()
             .RequireMemberReadEditorWrite();
 
-        group.MapPost("/preview", async (AutoSchedulePreviewRequest request, IAutoScheduleService service, ILogger<EndpointLoggerCategory> logger, CancellationToken cancellationToken) =>
+        group.MapPost("/preview", async (AutoSchedulePreviewRequest request, IAutoScheduleService service, CancellationToken cancellationToken) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await service.PreviewAsync(request, cancellationToken)),
-                logger, "auto-schedule preview");
+            return Results.Ok(await service.PreviewAsync(request, cancellationToken));
         })
         .WithName("AutoSchedulePreview")
         .WithSummary("Compute auto-schedule proposal without persisting")
         .Produces<AutoSchedulePreviewResponse>(StatusCodes.Status200OK)
         .AllowMemberWrite();
 
-        group.MapPost("/apply", async (AutoScheduleApplyRequest request, IAutoScheduleService service, ILogger<EndpointLoggerCategory> logger, CancellationToken cancellationToken) =>
+        group.MapPost("/apply", async (AutoScheduleApplyRequest request, IAutoScheduleService service, CancellationToken cancellationToken) =>
         {
-            return await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await service.ApplyAsync(request, cancellationToken)),
-                logger, "auto-schedule apply");
+            return Results.Ok(await service.ApplyAsync(request, cancellationToken));
         })
         .WithName("AutoScheduleApply")
         .WithSummary("Apply auto-schedule proposal")

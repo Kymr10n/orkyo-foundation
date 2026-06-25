@@ -1,6 +1,7 @@
 import { apiGet, apiPut } from "@foundation/src/lib/core/api-client";
 import { API_PATHS } from "@foundation/src/lib/core/api-paths";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 export interface UserPreferences {
   spaceOrder?: string[];
@@ -14,20 +15,16 @@ const updatePreferences = (preferences: UserPreferences) =>
 
 export function usePreferences() {
   return useQuery({
-    queryKey: ["preferences"],
+    queryKey: qk.preferences.all(),
     queryFn: fetchPreferences,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 1,
   });
 }
 
 export function useUpdatePreferences() {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: updatePreferences,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["preferences"] });
+    meta: {
+      invalidates: [qk.preferences.all()],
     },
   });
 }

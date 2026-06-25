@@ -8,13 +8,10 @@ import { describe, expect, it } from "vitest";
 describe("Auto-schedule contract", () => {
   it("covers every scheduling reason code with a label", () => {
     const allCodes: SchedulingReasonCode[] = [
-      "None",
       "NoCompatibleSpace",
-      "DateWindowTooTight",
       "InsufficientCapacity",
       "BlockedByFixedAssignments",
       "InvalidDuration",
-      "MissingRequiredData",
       "InternalSolverLimit",
     ];
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchRequests, fetchSpaces, scheduleRequest, type ScheduleRequestData } from './utilization-api';
+import { fetchRequests, scheduleRequest, type ScheduleRequestData } from './utilization-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
@@ -15,13 +15,6 @@ const mockRequest = {
   minimalDurationUnit: 'hours',
   startTs: null,
   endTs: null,
-};
-
-const mockSpace = {
-  id: 'space-456',
-  name: 'Conference Room A',
-  siteId: 'site-1',
-  capacity: 10,
 };
 
 describe('utilization-api', () => {
@@ -143,40 +136,6 @@ describe('utilization-api', () => {
       vi.mocked(apiClient.apiGet).mockRejectedValue(error);
 
       await expect(fetchRequests()).rejects.toThrow('Network error');
-    });
-  });
-
-  describe('fetchSpaces', () => {
-    it('calls apiGet with correct endpoint including siteId', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([mockSpace]);
-
-      await fetchSpaces('site-123');
-
-      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.spaces('site-123'));
-    });
-
-    it('returns spaces array', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([mockSpace]);
-
-      const result = await fetchSpaces('site-1');
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(mockSpace);
-    });
-
-    it('handles empty spaces list', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([]);
-
-      const result = await fetchSpaces('site-1');
-
-      expect(result).toHaveLength(0);
-    });
-
-    it('propagates API errors', async () => {
-      const error = new Error('Site not found');
-      vi.mocked(apiClient.apiGet).mockRejectedValue(error);
-
-      await expect(fetchSpaces('invalid-site')).rejects.toThrow('Site not found');
     });
   });
 

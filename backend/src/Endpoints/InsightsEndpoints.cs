@@ -47,70 +47,66 @@ public static class InsightsEndpoints
     private static async Task<IResult> GetOverview(
         DateTime? from, DateTime? to, Guid? siteId,
         IInsightsService svc, ISiteRepository sites,
-        ILogger<EndpointLoggerCategory> logger, CancellationToken ct)
-        => await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-            if ((t - f).TotalDays > OverviewMaxRangeDays)
-                return ErrorResponses.BadRequest("Date range too large.");
-            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+        CancellationToken ct)
+    {
+        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
+        if ((t - f).TotalDays > OverviewMaxRangeDays)
+            return ErrorResponses.BadRequest("Date range too large.");
+        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
 
-            var filter = new InsightsFilter { SiteId = siteId, From = f, To = t };
-            return Results.Ok(await svc.GetOverviewAsync(filter, ct));
-        }, logger, "insights overview");
+        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t };
+        return Results.Ok(await svc.GetOverviewAsync(filter, ct));
+    }
 
     private static async Task<IResult> GetUtilization(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket, string? resourceType,
         IInsightsService svc, ISiteRepository sites,
-        ILogger<EndpointLoggerCategory> logger, CancellationToken ct)
-        => await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-            if (ValidateBucket(bucket) is { } bErr) return bErr;
-            if (ValidateResourceType(resourceType) is { } rErr) return rErr;
-            if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
-            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+        CancellationToken ct)
+    {
+        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
+        if (ValidateBucket(bucket) is { } bErr) return bErr;
+        if (ValidateResourceType(resourceType) is { } rErr) return rErr;
+        if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
+        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
 
-            var filter = new InsightsFilter
-            {
-                SiteId = siteId,
-                From = f,
-                To = t,
-                Bucket = bucket,
-                ResourceType = resourceType,
-            };
-            return Results.Ok(await svc.GetUtilizationTrendAsync(filter, ct));
-        }, logger, "insights utilization");
+        var filter = new InsightsFilter
+        {
+            SiteId = siteId,
+            From = f,
+            To = t,
+            Bucket = bucket,
+            ResourceType = resourceType,
+        };
+        return Results.Ok(await svc.GetUtilizationTrendAsync(filter, ct));
+    }
 
     private static async Task<IResult> GetConflicts(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket,
         IInsightsService svc, ISiteRepository sites,
-        ILogger<EndpointLoggerCategory> logger, CancellationToken ct)
-        => await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-            if (ValidateBucket(bucket) is { } bErr) return bErr;
-            if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
-            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+        CancellationToken ct)
+    {
+        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
+        if (ValidateBucket(bucket) is { } bErr) return bErr;
+        if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
+        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
 
-            var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, Bucket = bucket };
-            return Results.Ok(await svc.GetConflictTrendAsync(filter, ct));
-        }, logger, "insights conflicts");
+        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, Bucket = bucket };
+        return Results.Ok(await svc.GetConflictTrendAsync(filter, ct));
+    }
 
     private static async Task<IResult> GetRequests(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket,
         IInsightsService svc, ISiteRepository sites,
-        ILogger<EndpointLoggerCategory> logger, CancellationToken ct)
-        => await EndpointHelpers.ExecuteAsync(async () =>
-        {
-            if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-            if (ValidateBucket(bucket) is { } bErr) return bErr;
-            if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
-            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+        CancellationToken ct)
+    {
+        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
+        if (ValidateBucket(bucket) is { } bErr) return bErr;
+        if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
+        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
 
-            var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, Bucket = bucket };
-            return Results.Ok(await svc.GetRequestTrendAsync(filter, ct));
-        }, logger, "insights requests");
+        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, Bucket = bucket };
+        return Results.Ok(await svc.GetRequestTrendAsync(filter, ct));
+    }
 
     // ── Validation (fail fast, no silent defaults) ────────────────────────────
 

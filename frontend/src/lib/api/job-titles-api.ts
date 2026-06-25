@@ -3,8 +3,8 @@
  * Job titles are tenant-wide reference data assigned to person resources.
  */
 
-import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { createCrudApi } from './create-crud-api';
 
 export interface JobTitleInfo {
   id: string;
@@ -26,28 +26,30 @@ export interface UpdateJobTitleRequest {
   isActive?: boolean;
 }
 
-export async function getJobTitles(includeInactive = false): Promise<JobTitleInfo[]> {
-  const path = includeInactive
-    ? `${API_PATHS.JOB_TITLES}?includeInactive=true`
-    : API_PATHS.JOB_TITLES;
-  return apiGet<JobTitleInfo[]>(path);
+const jobTitlesApi = createCrudApi<JobTitleInfo, CreateJobTitleRequest, UpdateJobTitleRequest>({
+  collectionPath: API_PATHS.JOB_TITLES,
+  itemPath: API_PATHS.jobTitle,
+});
+
+export function getJobTitles(includeInactive = false): Promise<JobTitleInfo[]> {
+  return jobTitlesApi.list(includeInactive ? { includeInactive: 'true' } : undefined);
 }
 
-export async function getJobTitle(id: string): Promise<JobTitleInfo> {
-  return apiGet<JobTitleInfo>(API_PATHS.jobTitle(id));
+export function getJobTitle(id: string): Promise<JobTitleInfo> {
+  return jobTitlesApi.get(id);
 }
 
-export async function createJobTitle(request: CreateJobTitleRequest): Promise<JobTitleInfo> {
-  return apiPost<JobTitleInfo>(API_PATHS.JOB_TITLES, request);
+export function createJobTitle(request: CreateJobTitleRequest): Promise<JobTitleInfo> {
+  return jobTitlesApi.create(request);
 }
 
-export async function updateJobTitle(
+export function updateJobTitle(
   id: string,
   request: UpdateJobTitleRequest,
 ): Promise<JobTitleInfo> {
-  return apiPut<JobTitleInfo>(API_PATHS.jobTitle(id), request);
+  return jobTitlesApi.update(id, request);
 }
 
-export async function deleteJobTitle(id: string): Promise<void> {
-  return apiDelete(API_PATHS.jobTitle(id));
+export function deleteJobTitle(id: string): Promise<void> {
+  return jobTitlesApi.remove(id);
 }

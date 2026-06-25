@@ -9,7 +9,6 @@ export {
 } from "./useCriteria";
 export { useExportHandler, useImportHandler } from "./useImportExport";
 export { useCanEdit, useIsTenantAdmin, TENANT_ROLE } from "./usePermissions";
-export { createCrudHooks } from "./useMutations";
 export {
   usePreferences,
   useUpdatePreferences,

@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { getTenantQuotas } from "@foundation/src/lib/api/quotas-api";
-
-const QUOTAS_QUERY_KEY = ["tenant-quotas"] as const;
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { STALE } from "@foundation/src/lib/core/query-client";
 
 export function useQuotas() {
   return useQuery({
-    queryKey: QUOTAS_QUERY_KEY,
+    queryKey: qk.quotas.tenant(),
     queryFn: getTenantQuotas,
-    staleTime: 30 * 1000,
+    staleTime: STALE.REALTIME,
   });
 }

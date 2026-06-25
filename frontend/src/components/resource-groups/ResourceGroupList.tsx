@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Plus, Pencil, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
@@ -21,6 +23,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [managingMembersFor, setManagingMembersFor] = useState<ResourceGroupInfo | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<ResourceGroupInfo | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ['resource-groups', resourceTypeKey],
@@ -29,8 +32,17 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
 
   const deleteMutation = useMutation({
     mutationFn: deleteResourceGroup,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource-groups', resourceTypeKey] }),
+    meta: {
+      successMessage: `${entityLabel} deleted`,
+      errorMessage: `Failed to delete ${entityLabel.toLowerCase()}`,
+      invalidates: [['resource-groups', resourceTypeKey]],
+    },
+    onSuccess: () => setDeletingGroup(null),
   });
+
+  const handleConfirmDelete = () => {
+    if (deletingGroup) deleteMutation.mutate(deletingGroup.id);
+  };
 
   const handleAdd = () => {
     setEditingGroup(null);
@@ -75,22 +87,18 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
     {
       id: 'actions',
       header: () => null,
-      size: 120,
+      size: 60,
       cell: ({ row }) => {
         const group = row.original;
         return (
-          // Stop propagation so the action icons don't also trigger the row's edit-onClick.
-          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" onClick={() => setManagingMembersFor(group)} disabled={!canEdit} aria-label={`Manage members of ${group.name}`} title="Manage members">
-              <MembersIcon className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => handleEdit(group)} disabled={!canEdit} aria-label={`Edit ${group.name}`}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(group.id)} disabled={!canEdit || deleteMutation.isPending} aria-label={`Delete ${group.name}`}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <RowActions
+            triggerLabel={`Actions for ${group.name}`}
+            actions={[
+              { label: 'Manage members', icon: MembersIcon, onSelect: () => setManagingMembersFor(group), disabled: !canEdit },
+              { label: 'Edit', icon: Pencil, onSelect: () => handleEdit(group), disabled: !canEdit },
+              { label: 'Delete', icon: Trash2, onSelect: () => setDeletingGroup(group), disabled: !canEdit, destructive: true },
+            ]}
+          />
         );
       },
     },
@@ -134,6 +142,21 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
           resourceTypeKey={resourceTypeKey}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingGroup}
+        onOpenChange={(open) => !open && setDeletingGroup(null)}
+        title={`Delete ${entityLabel.toLowerCase()}`}
+        description={
+          deletingGroup
+            ? `Delete "${deletingGroup.name}"? This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

@@ -134,19 +134,18 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> DeleteUser(
         HttpContext context, IUserManagementService userManagementService,
-        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid userId,
-        CancellationToken ct = default) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var tc = context.GetTenantContext();
-                var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
-                var currentUserId = currentPrincipal.RequireUserId();
-                if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
-                var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
-                if (error != null) return ErrorResponses.BadRequest(error);
-                if (!success) throw new KeyNotFoundException("User not found");
-                return Results.Ok(new { message = "User deleted successfully" });
-            }, logger, "DeleteUser");
+        ICurrentPrincipal currentPrincipal, Guid userId,
+        CancellationToken ct = default)
+    {
+        var tc = context.GetTenantContext();
+        var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+        var currentUserId = currentPrincipal.RequireUserId();
+        if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
+        var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
+        if (error != null) return ErrorResponses.BadRequest(error);
+        if (!success) throw new KeyNotFoundException("User not found");
+        return Results.Ok(new { message = "User deleted successfully" });
+    }
 
     private static async Task<IResult> GetPendingInvitations(HttpContext context, IInvitationService invitationService, CancellationToken ct = default)
     {
@@ -167,15 +166,14 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> RevokeInvitation(
         HttpContext context, IInvitationService invitationService,
-        ICurrentPrincipal currentPrincipal, ILogger<EndpointLoggerCategory> logger, Guid invitationId,
-        CancellationToken ct = default) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var tc = context.GetTenantContext();
-                var userId = currentPrincipal.RequireUserId();
-                var success = await invitationService.RevokeInvitationAsync(tc, invitationId, userId, ct);
-                if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
-                return Results.Ok(new { message = "Invitation revoked successfully" });
-            }, logger, "RevokeInvitation");
+        ICurrentPrincipal currentPrincipal, Guid invitationId,
+        CancellationToken ct = default)
+    {
+        var tc = context.GetTenantContext();
+        var userId = currentPrincipal.RequireUserId();
+        var success = await invitationService.RevokeInvitationAsync(tc, invitationId, userId, ct);
+        if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
+        return Results.Ok(new { message = "Invitation revoked successfully" });
+    }
 }
 // InviteUserRequest, AcceptInvitationRequest, UpdateUserRoleRequest moved to Api.Models (Core)

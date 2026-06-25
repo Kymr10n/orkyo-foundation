@@ -77,6 +77,16 @@ export function formatDateDisplay(dateStr?: string | null): string {
 }
 
 /**
+ * Format an ISO date string as a time-only display.
+ * e.g. "2026-04-02T10:30:00Z" → "10:30"
+ */
+export function formatTimeDisplay(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
  * Get Tailwind color classes for request status badges.
  */
 export function getStatusColor(status: string): string {

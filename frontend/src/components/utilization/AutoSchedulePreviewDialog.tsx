@@ -22,11 +22,9 @@ interface Props {
 
 const REASON_LABELS: Record<string, string> = {
   NoCompatibleSpace: "No compatible space",
-  DateWindowTooTight: "Date window too tight",
   InsufficientCapacity: "Insufficient capacity",
   BlockedByFixedAssignments: "Blocked by existing assignments",
   InvalidDuration: "Invalid duration",
-  MissingRequiredData: "Missing required data",
   InternalSolverLimit: "Solver limit reached",
 };
 

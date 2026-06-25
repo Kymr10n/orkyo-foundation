@@ -1,5 +1,5 @@
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { SERVICE_TIER } from "@foundation/src/lib/api/admin-api";
+import { SERVICE_TIER, isProfessionalOrAbove } from "@foundation/src/lib/api/admin-api";
 
 /**
  * Whether the current tenant's tier includes reporting API access.
@@ -17,5 +17,5 @@ export function useReportingApiAvailable(): boolean {
   if (isSiteAdmin || membership?.isBreakGlass) return true;
 
   const tier = membership?.tier ?? SERVICE_TIER.FREE;
-  return tier === SERVICE_TIER.PROFESSIONAL || tier === SERVICE_TIER.ENTERPRISE;
+  return isProfessionalOrAbove(tier);
 }

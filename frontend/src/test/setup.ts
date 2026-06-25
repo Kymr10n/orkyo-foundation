@@ -36,7 +36,7 @@ globalThis.ResizeObserver = class implements ResizeObserver {
 
 // happy-dom has no layout engine, so window.matchMedia is unreliable. Provide a
 // width-based polyfill defaulting to a desktop viewport (1280px) so existing tests
-// keep their desktop behavior and responsive units (useBreakpoint, ResponsiveDialog,
+// keep their desktop behavior and responsive units (useBreakpoint,
 // DetailDrawer, mobile nav) are testable. Tests drive a specific breakpoint by
 // overriding window.matchMedia (see useBreakpoint.test.tsx). writable/configurable so
 // those overrides — and the theme tests in app-store.test.ts — still work.

@@ -11,58 +11,6 @@ namespace Orkyo.Foundation.Tests.Helpers;
 public class EndpointHelpersTests
 {
     [Fact]
-    public async Task ExecuteAsync_ShouldReturnHandlerResult_WhenNoException()
-    {
-        var logger = Mock.Of<ILogger>();
-
-        var result = await EndpointHelpers.ExecuteAsync(
-            () => Task.FromResult<IResult>(Results.Ok(new { ok = true })),
-            logger,
-            "test operation");
-
-        var context = CreateHttpContext();
-        await result.ExecuteAsync(context);
-        var payload = await ReadJsonAsync(context);
-
-        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
-        payload.GetProperty("ok").GetBoolean().Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncOfT_ShouldReturnNotFound_WhenHandlerReturnsNull()
-    {
-        var logger = Mock.Of<ILogger>();
-
-        var result = await EndpointHelpers.ExecuteAsync<object>(
-            () => Task.FromResult<object?>(null),
-            logger,
-            "load optional");
-
-        var context = CreateHttpContext();
-        await result.ExecuteAsync(context);
-
-        context.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-    }
-
-    [Fact]
-    public async Task ExecuteAsyncOfT_ShouldReturnOk_WhenHandlerReturnsValue()
-    {
-        var logger = Mock.Of<ILogger>();
-
-        var result = await EndpointHelpers.ExecuteAsync<object>(
-            () => Task.FromResult<object?>(new { value = 42 }),
-            logger,
-            "load item");
-
-        var context = CreateHttpContext();
-        await result.ExecuteAsync(context);
-        var payload = await ReadJsonAsync(context);
-
-        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
-        payload.GetProperty("value").GetInt32().Should().Be(42);
-    }
-
-    [Fact]
     public async Task ExecuteAsyncWithValidator_ShouldReturnValidationProblem_WhenRequestInvalid()
     {
         var logger = Mock.Of<ILogger>();

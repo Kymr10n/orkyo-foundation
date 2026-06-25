@@ -8,6 +8,7 @@ import type {
   AutoScheduleApplyRequest,
 } from "@foundation/src/lib/api/auto-schedule-api";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { SERVICE_TIER, isProfessionalOrAbove } from "@foundation/src/lib/api/admin-api";
 import { useTenantSettings } from "@foundation/src/hooks/useTenantSettings";
 
 export function usePreviewAutoSchedule() {
@@ -32,9 +33,7 @@ export function useAutoScheduleAvailable(): boolean {
   const { membership } = useAuth();
   const { data } = useTenantSettings();
 
-  const tier = membership?.tier ?? "free";
-  const isProfessionalOrAbove =
-    tier === "professional" || tier === "enterprise";
+  const tier = membership?.tier ?? SERVICE_TIER.FREE;
 
   const autoScheduleSetting = data?.settings.find(
     (s) => s.key === "scheduling.auto_schedule_enabled",
@@ -43,5 +42,5 @@ export function useAutoScheduleAvailable(): boolean {
     autoScheduleSetting?.currentValue === "True" ||
     autoScheduleSetting?.currentValue === "true";
 
-  return isProfessionalOrAbove && isEnabled;
+  return isProfessionalOrAbove(tier) && isEnabled;
 }

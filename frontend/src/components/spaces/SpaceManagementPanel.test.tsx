@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SpaceManagementPanel } from './SpaceManagementPanel';
 
@@ -303,8 +303,11 @@ describe('SpaceManagementPanel', () => {
     const deleteFloorplanBtn = screen.getByTitle(/Delete floorplan/i);
     await user.click(deleteFloorplanBtn);
 
+    // Native confirm() is replaced by the shared ConfirmDialog.
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled();
       expect(mockDeleteFloorplan).toHaveBeenCalledWith('site-1');
     });
   });

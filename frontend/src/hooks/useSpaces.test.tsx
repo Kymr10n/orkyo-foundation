@@ -11,11 +11,29 @@ import {
 } from './useSpaces';
 import * as spaceApi from '@foundation/src/lib/api/space-api';
 import type { Space, SpaceGeometry } from '@foundation/src/types/space';
+import type { ReactNode } from 'react';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 
 vi.mock('@foundation/src/lib/api/space-api');
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
+
+// Non-optimistic space mutations route toast + invalidation through the meta-driven
+// MutationCache; wire it (like production) so those fire in tests.
+function makeFeedbackClient() {
+  const client: QueryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    mutationCache: createFeedbackMutationCache(() => client),
+  });
+  return client;
+}
+
+function feedbackWrapper(client: QueryClient) {
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+}
 
 const mockSpace: Space = {
   id: 'space-1',
@@ -86,7 +104,7 @@ describe('useSpaces', () => {
         .mockResolvedValueOnce([mockSpace])  // Initial fetch
         .mockResolvedValueOnce([mockSpace, newSpace]);  // After create
 
-      const wrapper = createTestQueryWrapper();
+      const wrapper = feedbackWrapper(makeFeedbackClient());
       const { result: createResult } = renderHook(() => useCreateSpace('site-1'), { wrapper });
       const { result: queryResult } = renderHook(() => useSpaces('site-1'), { wrapper });
 
@@ -131,7 +149,7 @@ describe('useSpaces', () => {
       vi.mocked(spaceApi.getSpaces).mockResolvedValueOnce([mockSpace])
         .mockResolvedValueOnce([updatedSpace]);
 
-      const wrapper = createTestQueryWrapper();
+      const wrapper = feedbackWrapper(makeFeedbackClient());
       const { result: updateResult } = renderHook(() => useUpdateSpace('site-1'), { wrapper });
       const { result: queryResult } = renderHook(() => useSpaces('site-1'), { wrapper });
 
@@ -241,18 +259,9 @@ describe('useSpaces', () => {
 
   describe('cache invalidation', () => {
     it('invalidates both spaces and requests queries after mutation', async () => {
-      const queryClient = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
-      });
-
+      const queryClient = makeFeedbackClient();
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      );
+      const wrapper = feedbackWrapper(queryClient);
 
       vi.mocked(spaceApi.createSpace).mockResolvedValue(mockSpace);
 
@@ -265,8 +274,8 @@ describe('useSpaces', () => {
       });
 
       await waitFor(() => {
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spaces', 'site-1'] });
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'] });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['spaces', 'site-1'], exact: false });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
       });
     });
   });
@@ -299,7 +308,7 @@ describe('useSpaces', () => {
     it('shows error toast when move fails', async () => {
       vi.mocked(spaceApi.updateSpace).mockRejectedValueOnce(new Error('Move failed'));
       const { result } = renderHook(() => useMoveSpace('site-1'), {
-        wrapper: createTestQueryWrapper(),
+        wrapper: feedbackWrapper(makeFeedbackClient()),
       });
 
       await result.current.mutateAsync({

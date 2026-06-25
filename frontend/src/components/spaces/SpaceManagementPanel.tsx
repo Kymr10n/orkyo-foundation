@@ -31,7 +31,9 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportSpaces, importSpaces } from "@foundation/src/lib/utils/export-handlers";
@@ -76,6 +78,8 @@ export function SpaceManagementPanel({
     null,
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deleteFloorplanOpen, setDeleteFloorplanOpen] = useState(false);
+  const [isDeletingFloorplan, setIsDeletingFloorplan] = useState(false);
   const [editingSpace, setEditingSpace] = useState<SpaceType | null>(null);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   // Master edit switch — view mode (pan/zoom only) by default; protects against
@@ -114,10 +118,12 @@ export function SpaceManagementPanel({
       for (const space of importedSpaces) {
         await createSpaceMutation.mutateAsync(space as CreateSpaceRequest);
       }
-      alert(`Successfully imported ${importedSpaces.length} spaces`);
+      toast.success(`Successfully imported ${importedSpaces.length} spaces`);
     } catch (error) {
       logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import spaces');
+      toast.error('Failed to import spaces', {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   });
 
@@ -154,19 +160,21 @@ export function SpaceManagementPanel({
     setFloorplanMetadata(metadata);
   };
 
-  const handleDeleteFloorplan = async () => {
-    if (!confirm("Are you sure you want to delete the floorplan image?")) {
-      return;
-    }
-
+  const handleConfirmDeleteFloorplan = async () => {
+    setIsDeletingFloorplan(true);
     try {
       await deleteFloorplan(siteId);
       await queryClient.invalidateQueries({ queryKey: ['floorplan-view-data', siteId] });
       setFloorplanMetadata(null);
       setFloorplanBlobUrl(null);
+      setDeleteFloorplanOpen(false);
     } catch (error) {
       logger.error("Failed to delete floorplan:", error);
-      alert("Failed to delete floorplan");
+      toast.error("Failed to delete floorplan", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setIsDeletingFloorplan(false);
     }
   };
 
@@ -237,7 +245,9 @@ export function SpaceManagementPanel({
       await moveSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
     } catch (error) {
       logger.error("Failed to move space:", error);
-      alert("Failed to move space");
+      toast.error("Failed to move space", {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
@@ -252,7 +262,9 @@ export function SpaceManagementPanel({
       await resizeSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
     } catch (error) {
       logger.error("Failed to resize space:", error);
-      alert("Failed to resize space");
+      toast.error("Failed to resize space", {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
@@ -296,7 +308,7 @@ export function SpaceManagementPanel({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleDeleteFloorplan}
+                  onClick={() => setDeleteFloorplanOpen(true)}
                   disabled={!canEdit || !editEnabled}
                   title="Delete floorplan"
                   aria-label="Delete floorplan"
@@ -445,6 +457,17 @@ export function SpaceManagementPanel({
             onSuccess={handleUpdateSpace}
           />
         )}
+
+        <ConfirmDialog
+          open={deleteFloorplanOpen}
+          onOpenChange={setDeleteFloorplanOpen}
+          title="Delete floorplan"
+          description="Are you sure you want to delete the floorplan image?"
+          confirmLabel="Delete"
+          destructive
+          isPending={isDeletingFloorplan}
+          onConfirm={handleConfirmDeleteFloorplan}
+        />
       </div>
     </div>
   );

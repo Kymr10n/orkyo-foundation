@@ -21,10 +21,8 @@ public static class ResourceGroupMemberEndpoints
         group.MapGet("/{id:guid}/members", async (
             Guid id,
             IResourceGroupMemberRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await repo.GetMembersAsync(id)),
-            logger, "get resource group members", new { id }))
+            CancellationToken ct) =>
+            Results.Ok(await repo.GetMembersAsync(id)))
             .WithName("GetResourceGroupMembers")
             .WithSummary("Get all members of a resource group");
 
@@ -32,12 +30,11 @@ public static class ResourceGroupMemberEndpoints
             Guid id,
             [FromBody] SetResourceGroupMembersRequest request,
             IResourceGroupMemberRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                await repo.SetMembersAsync(id, request.ResourceIds);
-                return Results.Ok(await repo.GetMembersAsync(id));
-            }, logger, "set resource group members", new { id }))
+            CancellationToken ct) =>
+        {
+            await repo.SetMembersAsync(id, request.ResourceIds);
+            return Results.Ok(await repo.GetMembersAsync(id));
+        })
             .WithName("SetResourceGroupMembers")
             .WithSummary("Replace all members of a resource group");
     }

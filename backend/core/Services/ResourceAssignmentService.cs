@@ -6,8 +6,7 @@ namespace Api.Services;
 public interface IResourceAssignmentService
 {
     Task<(ResourceAssignmentInfo? Assignment, ResourceConflict? Conflict)> CreateAsync(
-        CreateResourceAssignmentRequest request,
-        IResourceRequirement? requirement = null, CancellationToken ct = default);
+        CreateResourceAssignmentRequest request, CancellationToken ct = default);
 
     Task<bool> CancelAsync(Guid id, CancellationToken ct = default);
     Task<List<ResourceAssignmentInfo>> GetByRequestAsync(Guid requestId, CancellationToken ct = default);
@@ -54,8 +53,7 @@ public class ResourceAssignmentService(
     };
 
     public async Task<(ResourceAssignmentInfo? Assignment, ResourceConflict? Conflict)> CreateAsync(
-        CreateResourceAssignmentRequest request,
-        IResourceRequirement? requirement = null, CancellationToken ct = default)
+        CreateResourceAssignmentRequest request, CancellationToken ct = default)
     {
         var validationRequest = new ValidateResourceAssignmentRequest
         {

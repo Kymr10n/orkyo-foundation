@@ -46,6 +46,12 @@ const spaces = [
   { id: 's-2', name: 'Lab 1' },
 ];
 
+// Row actions live behind a labelled kebab menu (RowActions).
+async function openRowMenu(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+  await screen.findByRole('menuitem', { name: /Edit Space/ });
+}
+
 describe('SpaceListView', () => {
   let mutateAsync: ReturnType<typeof vi.fn>;
 
@@ -55,6 +61,7 @@ describe('SpaceListView', () => {
     mutateAsync = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useDeleteSpace).mockReturnValue({
       mutateAsync,
+      isPending: false,
     } as unknown as ReturnType<typeof useDeleteSpace>);
     vi.mocked(useSpaces).mockReturnValue({
       data: spaces,
@@ -64,12 +71,14 @@ describe('SpaceListView', () => {
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
-  it('disables the row edit/delete/capabilities actions for a viewer', () => {
+  it('disables the row edit/delete/capabilities actions for a viewer', async () => {
+    const user = userEvent.setup();
     vi.mocked(useCanEdit).mockReturnValue(false);
     render(<SpaceListView />, { wrapper: createWrapper() });
-    expect(screen.getByRole('button', { name: 'Edit space Lobby' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Delete space Lobby' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Edit capabilities for Lobby' })).toBeDisabled();
+    await openRowMenu(user, 'Lobby');
+    expect(screen.getByRole('menuitem', { name: /Edit Space/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: /Delete Space/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: /Edit Capabilities/ })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('prompts for site when none selected', () => {
@@ -87,48 +96,35 @@ describe('SpaceListView', () => {
   it('opens EditSpaceDialog when the row Edit action fires', async () => {
     const user = userEvent.setup();
     render(<SpaceListView />, { wrapper: createWrapper() });
-    // SpaceList renders Edit icon buttons per row — pick the first
-    const editButtons = screen
-      .getAllByRole('button')
-      .filter((b) => b.querySelector('.lucide-edit, .lucide-pencil, .lucide-square-pen'));
-    expect(editButtons.length).toBeGreaterThan(0);
-    await user.click(editButtons[0]);
+    await openRowMenu(user, 'Lobby');
+    await user.click(screen.getByRole('menuitem', { name: /Edit Space/ }));
     await waitFor(() => expect(screen.getByTestId('edit-dialog').textContent).toBe('edit:Lobby'));
   });
 
   it('opens SpaceCapabilitiesEditor when the row Settings action fires', async () => {
     const user = userEvent.setup();
     render(<SpaceListView />, { wrapper: createWrapper() });
-    const capsButtons = screen
-      .getAllByRole('button')
-      .filter((b) => b.querySelector('.lucide-settings'));
-    expect(capsButtons.length).toBeGreaterThan(0);
-    await user.click(capsButtons[0]);
+    await openRowMenu(user, 'Lobby');
+    await user.click(screen.getByRole('menuitem', { name: /Edit Capabilities/ }));
     await waitFor(() => expect(screen.getByTestId('capabilities-editor').textContent).toBe('caps:Lobby'));
   });
 
   it('confirms then deletes when the row Delete action fires', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('confirm', vi.fn(() => true));
     render(<SpaceListView />, { wrapper: createWrapper() });
-    const trashButtons = screen
-      .getAllByRole('button')
-      .filter((b) => b.querySelector('.lucide-trash-2'));
-    expect(trashButtons.length).toBeGreaterThan(0);
-    await user.click(trashButtons[0]);
+    await openRowMenu(user, 'Lobby');
+    await user.click(screen.getByRole('menuitem', { name: /Delete Space/ }));
+    // The shared ConfirmDialog replaces the native confirm() prompt.
+    await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith('s-1'));
-    vi.unstubAllGlobals();
   });
 
   it('does not call delete when the confirm prompt is cancelled', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('confirm', vi.fn(() => false));
     render(<SpaceListView />, { wrapper: createWrapper() });
-    const trashButtons = screen
-      .getAllByRole('button')
-      .filter((b) => b.querySelector('.lucide-trash-2'));
-    await user.click(trashButtons[0]);
+    await openRowMenu(user, 'Lobby');
+    await user.click(screen.getByRole('menuitem', { name: /Delete Space/ }));
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mutateAsync).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
   });
 });

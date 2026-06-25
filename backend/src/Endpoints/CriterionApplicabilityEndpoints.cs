@@ -22,12 +22,11 @@ public static class CriterionApplicabilityEndpoints
         group.MapGet("/{id:guid}/applicability", async (
             Guid id,
             ICriterionApplicabilityRepository repo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var info = await repo.GetByCriterionAsync(id);
-                return EndpointHelpers.OkOrNotFound(info, "Criterion", id);
-            }, logger, "get criterion applicability", new { id }))
+            CancellationToken ct) =>
+        {
+            var info = await repo.GetByCriterionAsync(id);
+            return EndpointHelpers.OkOrNotFound(info, "Criterion", id);
+        })
             .WithName("GetCriterionApplicability")
             .WithSummary("Get applicability settings for a criterion");
 
@@ -37,32 +36,31 @@ public static class CriterionApplicabilityEndpoints
             ICriterionApplicabilityRepository applicabilityRepo,
             IResourceTypeRepository resourceTypeRepo,
             ICriteriaRepository criteriaRepo,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
+            CancellationToken ct) =>
+        {
+            var criterion = await criteriaRepo.GetByIdAsync(id);
+            if (criterion is null)
+                return ErrorResponses.NotFound("Criterion", id);
+
+            if (request.ApplicableToRequests.HasValue)
+                await applicabilityRepo.SetApplicableToRequestsAsync(id, request.ApplicableToRequests.Value);
+
+            if (request.ResourceTypeKeys is not null)
             {
-                var criterion = await criteriaRepo.GetByIdAsync(id);
-                if (criterion is null)
-                    return ErrorResponses.NotFound("Criterion", id);
-
-                if (request.ApplicableToRequests.HasValue)
-                    await applicabilityRepo.SetApplicableToRequestsAsync(id, request.ApplicableToRequests.Value);
-
-                if (request.ResourceTypeKeys is not null)
+                var typeIds = new List<Guid>();
+                foreach (var key in request.ResourceTypeKeys)
                 {
-                    var typeIds = new List<Guid>();
-                    foreach (var key in request.ResourceTypeKeys)
-                    {
-                        var rt = await resourceTypeRepo.GetByKeyAsync(key);
-                        if (rt is null)
-                            return ErrorResponses.BadRequest($"Unknown resource type key '{key}'");
-                        typeIds.Add(rt.Id);
-                    }
-                    await applicabilityRepo.SetResourceTypeApplicabilityAsync(id, typeIds);
+                    var rt = await resourceTypeRepo.GetByKeyAsync(key);
+                    if (rt is null)
+                        return ErrorResponses.BadRequest($"Unknown resource type key '{key}'");
+                    typeIds.Add(rt.Id);
                 }
+                await applicabilityRepo.SetResourceTypeApplicabilityAsync(id, typeIds);
+            }
 
-                var updated = await applicabilityRepo.GetByCriterionAsync(id);
-                return Results.Ok(updated);
-            }, logger, "update criterion applicability", new { id }))
+            var updated = await applicabilityRepo.GetByCriterionAsync(id);
+            return Results.Ok(updated);
+        })
             .WithName("UpdateCriterionApplicability")
             .WithSummary("Update applicability settings for a criterion");
     }

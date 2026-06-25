@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Plus, Pencil, Trash2, Sliders, CalendarOff } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
@@ -18,6 +19,7 @@ export function PersonList() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [skillsPerson, setSkillsPerson] = useState<ResourceInfo | null>(null);
   const [absencePerson, setAbsencePerson] = useState<ResourceInfo | null>(null);
+  const [deletingPerson, setDeletingPerson] = useState<ResourceInfo | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: people, isLoading, error } = useQuery({
@@ -58,14 +60,12 @@ export function PersonList() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteResource(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resources', 'person'] });
-      toast.success('Person deactivated');
+    meta: {
+      successMessage: 'Person deactivated',
+      errorMessage: 'Failed to deactivate person',
+      invalidates: [['resources', 'person']],
     },
-    onError: (err) => {
-      const message = err instanceof Error ? err.message : 'Failed to deactivate person';
-      toast.error('Failed to deactivate person', { description: message });
-    },
+    onSuccess: () => setDeletingPerson(null),
   });
 
   const handleEdit = (person: ResourceInfo | null) => {
@@ -73,10 +73,8 @@ export function PersonList() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to deactivate this person?')) {
-      deleteMutation.mutate(id);
-    }
+  const handleConfirmDelete = () => {
+    if (deletingPerson) deleteMutation.mutate(deletingPerson.id);
   };
 
   const handleDialogClose = () => {
@@ -92,20 +90,15 @@ export function PersonList() {
   // Shared row actions — used by the desktop table cell and the phone card. The
   // wrapper stops propagation so taps never trigger the row/card edit-onClick.
   const renderActions = (person: ResourceInfo) => (
-    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-      <Button variant="ghost" size="sm" onClick={() => handleEdit(person)} aria-label={`Edit ${person.name}`} title="Edit Person">
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => setSkillsPerson(person)} disabled={!canEdit} aria-label={`Manage skills for ${person.name}`} title="Manage Skills">
-        <Sliders className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => setAbsencePerson(person)} disabled={!canEdit} aria-label={`Manage absences for ${person.name}`} title="Manage Absences">
-        <CalendarOff className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => handleDelete(person.id)} disabled={!canEdit} aria-label={`Deactivate ${person.name}`} title="Deactivate Person">
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${person.name}`}
+      actions={[
+        { label: 'Edit Person', icon: Pencil, onSelect: () => handleEdit(person) },
+        { label: 'Manage Skills', icon: Sliders, onSelect: () => setSkillsPerson(person), disabled: !canEdit },
+        { label: 'Manage Absences', icon: CalendarOff, onSelect: () => setAbsencePerson(person), disabled: !canEdit },
+        { label: 'Deactivate Person', icon: Trash2, onSelect: () => setDeletingPerson(person), disabled: !canEdit, destructive: true },
+      ]}
+    />
   );
 
   // profileByPersonId is rebuilt when the batched profiles query resolves, so
@@ -137,7 +130,7 @@ export function PersonList() {
     {
       id: 'actions',
       header: () => null,
-      size: 160,
+      size: 60,
       cell: ({ row }) => renderActions(row.original),
     },
   ];
@@ -206,6 +199,21 @@ export function PersonList() {
           personName={absencePerson.name}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingPerson}
+        onOpenChange={(open) => !open && setDeletingPerson(null)}
+        title="Deactivate person"
+        description={
+          deletingPerson
+            ? `Are you sure you want to deactivate "${deletingPerson.name}"?`
+            : ''
+        }
+        confirmLabel="Deactivate"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

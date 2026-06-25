@@ -23,15 +23,13 @@ public class AutoScheduleServiceTests
             Mock.Of<ISpaceRepository>(),
             Mock.Of<IResourceCapabilityRepository>(),
             Mock.Of<ISchedulingRepository>(),
-            Mock.Of<IResourceRepository>(),
             Mock.Of<IAvailabilityResolver>());
 
         var problem = new SchedulingProblem(
             Guid.NewGuid(),
             new DateOnly(2026, 4, 14),
             new DateOnly(2026, 7, 14),
-            [], [], [], null, null,
-            AutoScheduleMode.FillGapsOnly);
+            [], [], [], null, null);
 
         mockProblemBuilder
             .Setup(x => x.BuildAsync(It.IsAny<AutoSchedulePreviewRequest>(), It.IsAny<CancellationToken>()))

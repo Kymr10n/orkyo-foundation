@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { Input } from '@foundation/src/components/ui/input';
 import { Button } from '@foundation/src/components/ui/button';
 import {
@@ -212,7 +213,7 @@ export function OrkyoDataTable<TData>({
       ) : error ? (
         <div className="text-center py-8 text-destructive">{error}</div>
       ) : table.getRowModel().rows.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">{emptyMessage}</div>
+        <EmptyState message={emptyMessage} />
       ) : showCards ? (
         <div className="space-y-2">
           {table.getRowModel().rows.map((row) => (

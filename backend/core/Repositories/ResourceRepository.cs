@@ -24,13 +24,13 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     // places them, else their home site. Read-only — never stored. On concurrent (fractional)
     // assignments the most recently started one wins, so the value is deterministic.
     private const string CurrentSiteExpr =
-        @"COALESCE(
+        $@"COALESCE(
             (SELECT sp.site_id FROM spaces sp WHERE sp.id = r.id),
             (SELECT req.site_id
                FROM resource_assignments ra
                JOIN requests req ON req.id = ra.request_id
               WHERE ra.resource_id = r.id
-                AND ra.assignment_status <> 'Cancelled'
+                AND ra.assignment_status <> '{AssignmentStatuses.Cancelled}'
                 AND ra.start_utc <= now() AND ra.end_utc > now()
                 AND req.site_id IS NOT NULL
               ORDER BY ra.start_utc DESC
@@ -41,11 +41,11 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
     // at the site overlaps [@siteFrom, @siteTo). Mirrors the assignment→request→site join in
     // CurrentSiteExpr, but window-based (the People utilization grid filters by the visible window).
     private const string SiteWindowMembershipExpr =
-        @"(r.home_site_id = @siteId
+        $@"(r.home_site_id = @siteId
            OR EXISTS (SELECT 1 FROM resource_assignments ra
                         JOIN requests req ON req.id = ra.request_id
                        WHERE ra.resource_id = r.id
-                         AND ra.assignment_status <> 'Cancelled'
+                         AND ra.assignment_status <> '{AssignmentStatuses.Cancelled}'
                          AND ra.start_utc < @siteTo AND ra.end_utc > @siteFrom
                          AND req.site_id = @siteId))";
 

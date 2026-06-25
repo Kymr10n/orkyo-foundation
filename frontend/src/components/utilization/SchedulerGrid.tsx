@@ -15,7 +15,7 @@ import type { Space } from "@foundation/src/types/space";
 const EMPTY_REQUESTS: Request[] = [];
 import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import type { TimeScale } from "./ScaleSelect";
-import type { SpacesByGroup } from "./scheduler-types";
+import { groupRowsByResourceGroup } from "./scheduler-types";
 import { SpaceRow } from "./SpaceRow";
 import { TimelineGridShell, type ShellGroup } from "./TimelineGridShell";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
@@ -146,8 +146,10 @@ export function SchedulerGrid({
     });
   }, []);
 
-  // Memoize sorting + grouping — expensive with 50+ spaces (#5)
-  const groupedSpaces = useMemo(() => {
+  // Memoize sorting + grouping — expensive with 50+ spaces (#5). Spaces are
+  // sorted (manual order, then code) before bucketing so each group keeps that
+  // order. Empty groups are dropped (includeEmpty: false).
+  const shellGroups = useMemo<ShellGroup<Space>[]>(() => {
     const sortedSpaces = [...spaces].sort((a, b) => {
       if (spaceOrder.length > 0) {
         const indexA = spaceOrder.indexOf(a.id);
@@ -161,64 +163,13 @@ export function SchedulerGrid({
       return codeA.localeCompare(codeB);
     });
 
-    const groupMap = new Map<string, ResourceGroupInfo>();
-    groups.forEach((g) => groupMap.set(g.id, g));
-
-    const spacesByGroupId = new Map<string | null, Space[]>();
-    sortedSpaces.forEach((space) => {
-      const groupId = space.groupId || null;
-      if (!spacesByGroupId.has(groupId)) {
-        spacesByGroupId.set(groupId, []);
-      }
-      spacesByGroupId.get(groupId)!.push(space);
-    });
-
-    const sortedGroupIds = Array.from(spacesByGroupId.keys()).sort((a, b) => {
-      if (a === null) return 1;
-      if (b === null) return -1;
-      const groupA = groupMap.get(a);
-      const groupB = groupMap.get(b);
-      if (!groupA || !groupB) return 0;
-      return (groupA.displayOrder ?? 0) - (groupB.displayOrder ?? 0);
-    });
-
-    const result: SpacesByGroup[] = [];
-    sortedGroupIds.forEach((groupId) => {
-      const spacesInGroup = spacesByGroupId.get(groupId) || [];
-      if (spacesInGroup.length === 0) return;
-
-      if (groupId === null) {
-        result.push({
-          groupId: "ungrouped",
-          groupName: "Ungrouped",
-          spaces: spacesInGroup,
-        });
-      } else {
-        const group = groupMap.get(groupId);
-        if (group) {
-          result.push({
-            groupId: group.id,
-            groupName: group.name,
-            groupColor: group.color,
-            spaces: spacesInGroup,
-          });
-        }
-      }
-    });
-    return result;
+    return groupRowsByResourceGroup(
+      sortedSpaces,
+      groups,
+      (space) => (space.groupId ? [space.groupId] : []),
+      { includeEmpty: false },
+    );
   }, [spaces, spaceOrder, groups]);
-
-  // Adapt to the shell's generic group shape.
-  const shellGroups = useMemo<ShellGroup<Space>[]>(
-    () =>
-      groupedSpaces.map((g) => ({
-        id: g.groupId || "ungrouped",
-        name: g.groupName,
-        color: g.groupColor,
-        rows: g.spaces,
-      })),
-    [groupedSpaces],
-  );
 
   // ---------------------------------------------------------------------------
   // Draggable time cursor + edge-scroll (Spaces-only). Rendered as bodyOverlay.

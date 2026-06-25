@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ScrollableDialogBody } from '@foundation/src/components/ui/dialog';
 import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
 import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
 import {
   Tabs,
   TabsContent,
@@ -143,6 +145,9 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const isMultiSite = useIsMultiSite();
   const canEdit = useCanEdit();
   const [form, setForm] = useState<FormState>(emptyForm);
+  // Snapshot of the form as last synced from the server/empty defaults. The
+  // dirty guard compares the live form against this to detect unsaved edits.
+  const [baseline, setBaseline] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tab, setTab] = useState<'details' | 'allocation' | 'location'>('details');
 
@@ -175,12 +180,20 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   useEffect(() => {
     if (!isOpen) return;
     setTab('details');
-    if (!person) {
-      setForm(emptyForm);
-      return;
-    }
-    setForm(fromResourceAndProfile(person, profile ?? null));
+    const next = person ? fromResourceAndProfile(person, profile ?? null) : emptyForm;
+    setForm(next);
+    setBaseline(next);
   }, [person, isOpen, profile]);
+
+  const isDirty = useMemo(
+    () => JSON.stringify(form) !== JSON.stringify(baseline),
+    [form, baseline],
+  );
+
+  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+    isDirty,
+    onOpenChange: (open) => { if (!open) onClose(); },
+  });
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -281,15 +294,26 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   ];
   const allStatusItems = detailsItems;
 
+  const saveError = saveMutation.error
+    ? saveMutation.error instanceof Error
+      ? saveMutation.error.message
+      : (isEditing ? 'Failed to update person' : 'Failed to create person')
+    : null;
+
   return (
     <>
       <ScaffoldDialog
         open={isOpen}
-        onOpenChange={onClose}
+        onOpenChange={guardedOnOpenChange}
         contentClassName="sm:max-w-[520px] h-[600px] max-h-[85dvh]"
         title={person ? 'Edit Person' : 'Add Person'}
       >
         <StatusBanner items={allStatusItems} className="mx-6 mb-2 shrink-0" />
+        {saveError && (
+          <div className="mx-6 mb-2 shrink-0">
+            <ErrorAlert message={saveError} />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <Tabs
@@ -493,13 +517,15 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
           <Separator className="shrink-0" />
           <DialogFormFooter
             className="px-6 py-4 shrink-0"
-            onCancel={onClose}
+            onCancel={() => guardedOnOpenChange(false)}
             isSubmitting={isSubmitting}
             submitLabel="Save"
             submitDisabled={!form.name.trim()}
           />
         </form>
       </ScaffoldDialog>
+
+      {ConfirmDiscardDialog}
 
       {/* Inline-create sub-dialogs. When the user saves a new job title or
           department, we auto-select it in the form so they don't have to find

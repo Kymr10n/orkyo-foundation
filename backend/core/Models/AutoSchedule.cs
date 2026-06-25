@@ -5,16 +5,6 @@ using System.Text.Json.Serialization;
 namespace Api.Models;
 
 /// <summary>
-/// Mode for auto-scheduling.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum AutoScheduleMode
-{
-    /// <summary>Fill gaps only — existing scheduled items remain fixed.</summary>
-    FillGapsOnly = 0
-}
-
-/// <summary>
 /// Which solver engine was used.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -33,8 +23,7 @@ public enum SolverStatus
     Optimal = 0,
     Feasible = 1,
     Infeasible = 2,
-    Unknown = 3,
-    Error = 4
+    Unknown = 3
 }
 
 /// <summary>
@@ -43,13 +32,10 @@ public enum SolverStatus
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SchedulingReasonCode
 {
-    None = 0,
     NoCompatibleSpace = 1,
-    DateWindowTooTight = 2,
     InsufficientCapacity = 3,
     BlockedByFixedAssignments = 4,
     InvalidDuration = 5,
-    MissingRequiredData = 6,
     InternalSolverLimit = 7
 }
 
@@ -59,7 +45,6 @@ public sealed record AutoSchedulePreviewRequest(
     Guid SiteId,
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
-    AutoScheduleMode Mode = AutoScheduleMode.FillGapsOnly,
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true);
 
@@ -67,7 +52,6 @@ public sealed record AutoScheduleApplyRequest(
     Guid SiteId,
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
-    AutoScheduleMode Mode = AutoScheduleMode.FillGapsOnly,
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
     string? PreviewFingerprint = null);
@@ -117,11 +101,7 @@ public sealed record SchedulingProblem(
     IReadOnlyList<SpaceNode> Spaces,
     IReadOnlyList<FixedOccupancy> FixedAssignments,
     SchedulingSettingsInfo? Settings,
-    Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource,
-    AutoScheduleMode Mode,
-    // Non-Space resources available for multi-type requirements (Phase 4+).
-    // Empty for all existing single-Space problems — no behavioral change.
-    IReadOnlyList<ResourceNode> AdditionalResources = default!);
+    Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource);
 
 public sealed record RequestNode(
     Guid RequestId,
@@ -131,23 +111,11 @@ public sealed record RequestNode(
     int DurationDays,
     int Priority,
     bool RespectSchedulingSettings,
-    IReadOnlySet<Guid> RequiredCriterionIds,
-    // Additional resource requirements beyond the primary Space (Phase 4+).
-    // Empty for all existing requests — no behavioral change.
-    IReadOnlyList<IResourceRequirement> AdditionalRequirements = default!);
+    IReadOnlySet<Guid> RequiredCriterionIds);
 
 public sealed record SpaceNode(
     Guid ResourceId,
     string DisplayName,
-    IReadOnlySet<Guid> CriterionIds);
-
-/// <summary>
-/// A non-Space resource (Person, Tool) available for multi-type scheduling.
-/// </summary>
-public sealed record ResourceNode(
-    Guid ResourceId,
-    Guid ResourceTypeId,
-    string AllocationMode,
     IReadOnlySet<Guid> CriterionIds);
 
 public sealed record FixedOccupancy(
@@ -225,9 +193,7 @@ public sealed record ScheduledPlacement(
     DateOnly Start,
     DateOnly End,
     int DurationDays,
-    int Priority,
-    // Additional (non-Space) resources reserved for this placement (Phase 4+).
-    IReadOnlyList<Guid> AdditionalResourceIds = default!);
+    int Priority);
 
 public sealed record UnscheduledPlacement(
     Guid RequestId,

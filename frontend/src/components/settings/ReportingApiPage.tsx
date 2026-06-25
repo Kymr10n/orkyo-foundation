@@ -28,7 +28,7 @@ import {
 } from "@foundation/src/components/ui/alert-dialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import { Badge } from "@foundation/src/components/ui/badge";
+import { StatusBadge } from "@foundation/src/components/ui/status-badge";
 import { Calendar } from "@foundation/src/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@foundation/src/components/ui/popover";
 import {
@@ -97,10 +97,10 @@ function formatDate(iso: string | null): string {
 }
 
 function TokenStatusBadge({ token }: { token: ReportingTokenSummary }) {
-  if (token.revokedAtUtc) return <Badge variant="destructive">Revoked</Badge>;
+  if (token.revokedAtUtc) return <StatusBadge status="disabled" label="Revoked" />;
   if (token.expiresAtUtc && new Date(token.expiresAtUtc) < new Date())
-    return <Badge variant="secondary">Expired</Badge>;
-  return <Badge variant="default">Active</Badge>;
+    return <StatusBadge status="inactive" label="Expired" />;
+  return <StatusBadge status="active" label="Active" />;
 }
 
 function CopyButton({ text }: { text: string }) {

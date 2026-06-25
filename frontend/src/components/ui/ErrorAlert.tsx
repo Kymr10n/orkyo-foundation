@@ -1,3 +1,5 @@
+import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+
 interface ErrorAlertProps {
   message: string | null;
 }
@@ -5,8 +7,8 @@ interface ErrorAlertProps {
 export function ErrorAlert({ message }: ErrorAlertProps) {
   if (!message) return null;
   return (
-    <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-      {message}
-    </div>
+    <Alert variant="destructive">
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   );
 }

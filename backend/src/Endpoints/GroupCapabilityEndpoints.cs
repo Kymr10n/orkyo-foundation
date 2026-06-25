@@ -16,35 +16,26 @@ public static class GroupCapabilityEndpoints
             .RequireAuthorization()
             .RequireMemberReadEditorWrite();
 
-        capabilities.MapGet("/", async (Guid groupId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        capabilities.MapGet("/", async (Guid groupId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var capabilitiesList = await groupCapabilityRepository.GetAllAsync(groupId, ct);
-                return Results.Ok(capabilitiesList);
-            }, logger, "get group capabilities", new { groupId });
+            var capabilitiesList = await groupCapabilityRepository.GetAllAsync(groupId, ct);
+            return Results.Ok(capabilitiesList);
         })
         .WithName("GetGroupCapabilities")
         .WithSummary("Get all capabilities for a space group");
 
-        capabilities.MapPost("/", async (Guid groupId, AddGroupCapabilityRequest request, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        capabilities.MapPost("/", async (Guid groupId, AddGroupCapabilityRequest request, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var capability = await groupCapabilityRepository.CreateAsync(groupId, request.CriterionId, request.Value, ct);
-                return Results.Created($"/api/resource-groups/{groupId}/capabilities/{capability.Id}", capability);
-            }, logger, "add group capability", new { groupId, criterionId = request.CriterionId });
+            var capability = await groupCapabilityRepository.CreateAsync(groupId, request.CriterionId, request.Value, ct);
+            return Results.Created($"/api/resource-groups/{groupId}/capabilities/{capability.Id}", capability);
         })
         .WithName("AddGroupCapability")
         .WithSummary("Add a capability to a resource group");
 
-        capabilities.MapDelete("/{capabilityId:guid}", async (Guid groupId, Guid capabilityId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        capabilities.MapDelete("/{capabilityId:guid}", async (Guid groupId, Guid capabilityId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await groupCapabilityRepository.DeleteAsync(groupId, capabilityId, ct);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Group capability", capabilityId);
-            }, logger, "delete group capability", new { groupId, capabilityId });
+            var deleted = await groupCapabilityRepository.DeleteAsync(groupId, capabilityId, ct);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Group capability", capabilityId);
         })
         .WithName("DeleteGroupCapability")
         .WithSummary("Remove a capability from a space group");

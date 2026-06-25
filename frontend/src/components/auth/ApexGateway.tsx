@@ -37,7 +37,7 @@
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, type TenantMembership } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT, ROUTE_SITE_ADMIN } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT, ROUTE_SITE_ADMIN, isPublicPath } from '@foundation/src/constants/auth';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
 import { TosPage } from '@foundation/src/pages/TosPage';
 import { AccountPage } from '@foundation/src/pages/AccountPage';
@@ -86,14 +86,16 @@ function ApexGatewayInner({
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  // Public routes — no auth required, render before the pipeline.
-  // Paths kept in sync with PUBLIC_PATHS (constants/auth.ts), which the auth
-  // machine uses to skip the BFF login redirect for these same routes.
-  if (pathname === ROUTE_CREATE_ACCOUNT) {
-    return <RequestAccessPage />;
-  }
-  if (pathname === ROUTE_SIGNUP) {
-    return <SignupPage />;
+  // Public routes — no auth required, render before the pipeline. Matching is
+  // delegated to isPublicPath (constants/auth.ts) — the same helper the auth
+  // machine uses to skip the BFF login redirect — so the two never drift.
+  if (isPublicPath(pathname)) {
+    if (pathname === ROUTE_CREATE_ACCOUNT || pathname.startsWith(`${ROUTE_CREATE_ACCOUNT}/`)) {
+      return <RequestAccessPage />;
+    }
+    if (pathname === ROUTE_SIGNUP || pathname.startsWith(`${ROUTE_SIGNUP}/`)) {
+      return <SignupPage />;
+    }
   }
 
   const isAdminRoute   = pathname === ROUTE_SITE_ADMIN || pathname.startsWith(`${ROUTE_SITE_ADMIN}/`);
@@ -183,5 +185,11 @@ function ApexGatewayInner({
 
     case AUTH_STAGES.READY:
       return <LoadingSpinner message={AUTH_MESSAGES.REDIRECTING} />;
+
+    // Defensive default: an unrecognized stage (or an unknown non-public path
+    // that reached here) renders a loading state rather than a blank screen.
+    // All real stages are handled above, so this never alters gating behavior.
+    default:
+      return <LoadingSpinner message={AUTH_MESSAGES.LOADING} />;
   }
 }

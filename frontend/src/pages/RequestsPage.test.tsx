@@ -779,25 +779,31 @@ describe('RequestsPage', () => {
     await act(async () => {});
     await ioHandlers.importCb!(new File(['x'], 'requests.csv'), 'csv');
     expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({ name: 'Imported' }));
-    expect(global.alert).toHaveBeenCalledWith('Successfully imported 1 requests');
+    expect(toast.success).toHaveBeenCalledWith('Successfully imported 1 requests');
   });
 
-  it('alerts when the imported file contains no valid requests', async () => {
+  it('toasts when the imported file contains no valid requests', async () => {
     vi.mocked(importRequests).mockResolvedValueOnce([]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await act(async () => {});
     await ioHandlers.importCb!(new File(['x'], 'requests.csv'), 'csv');
-    expect(global.alert).toHaveBeenCalledWith('No valid requests found in file');
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to import requests',
+      expect.objectContaining({ description: 'No valid requests found in file' }),
+    );
   });
 
-  it('alerts with a fallback message when import throws a non-Error', async () => {
+  it('toasts with a fallback message when import throws a non-Error', async () => {
     vi.mocked(importRequests).mockRejectedValueOnce('boom');
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await act(async () => {});
     await ioHandlers.importCb!(new File(['x'], 'requests.csv'), 'csv');
-    expect(global.alert).toHaveBeenCalledWith('Failed to import requests');
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to import requests',
+      expect.objectContaining({ description: undefined }),
+    );
   });
 
   // ── ?edit query param ──────────────────────────────────────────────────────

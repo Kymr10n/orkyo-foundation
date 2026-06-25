@@ -3,25 +3,20 @@ import { API_PATHS } from "../core/api-paths";
 
 // ── Types ───────────────────────────────────────────────────────────
 
-export type AutoScheduleMode = "FillGapsOnly";
 export type SolverKind = "Greedy" | "OrToolsCpSat";
-export type SolverStatus = "Optimal" | "Feasible" | "Infeasible" | "Unknown" | "Error";
+export type SolverStatus = "Optimal" | "Feasible" | "Infeasible" | "Unknown";
 
 export type SchedulingReasonCode =
-  | "None"
   | "NoCompatibleSpace"
-  | "DateWindowTooTight"
   | "InsufficientCapacity"
   | "BlockedByFixedAssignments"
   | "InvalidDuration"
-  | "MissingRequiredData"
   | "InternalSolverLimit";
 
 export interface AutoSchedulePreviewRequest {
   siteId: string;
   horizonStart: string;
   horizonEnd: string;
-  mode?: AutoScheduleMode;
   requestIds?: string[];
   respectSchedulingSettings?: boolean;
 }

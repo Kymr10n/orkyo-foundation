@@ -61,24 +61,22 @@ public static class AnnouncementEndpoints
         CreateAnnouncementRequest request,
         IAnnouncementService service,
         CurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
-        CancellationToken ct = default) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var announcement = await service.CreateAsync(request, principal.UserId);
-                return Results.Created($"/api/admin/announcements/{announcement.Id}", announcement);
-            }, logger, "CreateAnnouncement");
+        CancellationToken ct = default)
+    {
+        var announcement = await service.CreateAsync(request, principal.UserId);
+        return Results.Created($"/api/admin/announcements/{announcement.Id}", announcement);
+    }
 
     private static async Task<IResult> Update(
         Guid id,
         UpdateAnnouncementRequest request,
         IAnnouncementService service,
         CurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
-        CancellationToken ct = default) =>
-            await EndpointHelpers.ExecuteAsync<AnnouncementDto>(async () =>
-                await service.UpdateAsync(id, request, principal.UserId),
-            logger, "UpdateAnnouncement");
+        CancellationToken ct = default)
+    {
+        var result = await service.UpdateAsync(id, request, principal.UserId);
+        return result != null ? Results.Ok(result) : Results.NotFound();
+    }
 
     private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {

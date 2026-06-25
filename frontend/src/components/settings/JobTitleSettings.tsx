@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
-import { Badge } from '@foundation/src/components/ui/badge';
+import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { JobTitleEditDialog } from './JobTitleEditDialog';
@@ -60,7 +60,7 @@ export function JobTitleSettings() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{row.original.name}</span>
-          {!row.original.isActive && <Badge variant="outline">Inactive</Badge>}
+          {!row.original.isActive && <StatusBadge status="inactive" label="Inactive" />}
         </div>
       ),
     },
@@ -87,7 +87,7 @@ export function JobTitleSettings() {
       <div className="min-w-0 space-y-1">
         <div className="flex items-center gap-2">
           <span className="font-medium truncate">{jt.name}</span>
-          {!jt.isActive && <Badge variant="outline">Inactive</Badge>}
+          {!jt.isActive && <StatusBadge status="inactive" label="Inactive" />}
         </div>
         <p className="text-sm text-muted-foreground">{jt.description || '—'}</p>
       </div>

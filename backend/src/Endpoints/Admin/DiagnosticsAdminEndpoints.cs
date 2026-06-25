@@ -57,33 +57,35 @@ public static class DiagnosticsAdminEndpoints
         CancellationToken ct = default)
     {
         // ── Database status ─────────────────────────────────────────────
-        string dbStatus;
+        // Reachability uses the shared probe; on success the same block also reports the
+        // migration/tenant counts (a count failure downgrades the status to unreachable).
+        var dbStatus = await DbHealthProbe.ProbeControlPlaneAsync(connectionFactory, ct);
         int migrationsApplied = 0;
         int tenantCount = 0;
 
-        try
+        if (dbStatus == DbHealthProbe.HealthyStatus)
         {
-            await using var conn = connectionFactory.CreateControlPlaneConnection();
-            await conn.OpenAsync();
+            try
+            {
+                await using var conn = connectionFactory.CreateControlPlaneConnection();
+                await conn.OpenAsync();
 
-            // DB is reachable
-            dbStatus = "healthy";
+                // Count applied migrations
+                await using var migCmd = new Npgsql.NpgsqlCommand("SELECT COUNT(*) FROM orkyo_schema_migrations", conn);
+                var migResult = await migCmd.ExecuteScalarAsync();
+                migrationsApplied = migResult is null or DBNull ? 0 : Convert.ToInt32(migResult);
 
-            // Count applied migrations
-            await using var migCmd = new Npgsql.NpgsqlCommand("SELECT COUNT(*) FROM orkyo_schema_migrations", conn);
-            var migResult = await migCmd.ExecuteScalarAsync();
-            migrationsApplied = migResult is null or DBNull ? 0 : Convert.ToInt32(migResult);
-
-            // Count active tenants
-            await using var tenantCmd = new Npgsql.NpgsqlCommand(
-                "SELECT COUNT(*) FROM tenants WHERE status != 'deleting'", conn);
-            var tenantResult = await tenantCmd.ExecuteScalarAsync();
-            tenantCount = Convert.ToInt32(tenantResult);
-        }
-        catch (Exception ex)
-        {
-            dbStatus = "unreachable";
-            logger.LogWarning(ex, "Diagnostics: database health check failed");
+                // Count active tenants
+                await using var tenantCmd = new Npgsql.NpgsqlCommand(
+                    "SELECT COUNT(*) FROM tenants WHERE status != 'deleting'", conn);
+                var tenantResult = await tenantCmd.ExecuteScalarAsync();
+                tenantCount = Convert.ToInt32(tenantResult);
+            }
+            catch (Exception ex)
+            {
+                dbStatus = DbHealthProbe.UnreachableStatus;
+                logger.LogWarning(ex, "Diagnostics: database health check failed");
+            }
         }
 
         // ── SMTP status ─────────────────────────────────────────────────

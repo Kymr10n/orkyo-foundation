@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
 import { Separator } from "@foundation/src/components/ui/separator";
-import { getDataTypeColor, formatDuration, formatMinutesHuman, getStatusColor } from "@foundation/src/lib/utils";
+import { getDataTypeColor, formatDateDisplay, formatDuration, formatMinutesHuman, formatTimeDisplay, getStatusColor } from "@foundation/src/lib/utils";
 import type { Request } from "@foundation/src/types/requests";
 import type { CriterionValue } from "@foundation/src/types/criterion";
 import { Calendar, Clock, MapPin, Tag, FileText } from "lucide-react";
@@ -26,27 +26,12 @@ export function RequestDetailsDialog({
 }: RequestDetailsDialogProps) {
   if (!request) return null;
 
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return "Not set";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, {
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (dateStr?: string | null) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-
+  // Shared formatters from lib/utils keep the panel and dialog in sync. The
+  // dialog renders these fields unconditionally, so it supplies its own
+  // "Not set" fallback for missing dates (formatDateDisplay returns "-").
+  const formatDate = (dateStr?: string | null) =>
+    dateStr ? formatDateDisplay(dateStr) : "Not set";
+  const formatTime = formatTimeDisplay;
 
   const formatRequirementValue = (value: CriterionValue | null | undefined, dataType?: string) => {
     if (value === null || value === undefined) return "Not set";

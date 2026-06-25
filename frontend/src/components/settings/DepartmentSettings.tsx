@@ -5,7 +5,7 @@ import { Plus, Pencil, Trash2, ChevronRight, ChevronDown, AlertCircle } from 'lu
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
-import { Badge } from '@foundation/src/components/ui/badge';
+import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
 import {
@@ -79,7 +79,7 @@ export function DepartmentSettings() {
             {node.code && (
               <span className="ml-2 text-xs text-muted-foreground">({node.code})</span>
             )}
-            {!node.isActive && <Badge variant="outline" className="ml-2">Inactive</Badge>}
+            {!node.isActive && <StatusBadge status="inactive" label="Inactive" className="ml-2" />}
             {node.description && (
               <p className="text-xs text-muted-foreground mt-0.5">{node.description}</p>
             )}

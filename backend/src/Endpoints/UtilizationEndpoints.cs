@@ -19,15 +19,13 @@ public static class UtilizationEndpoints
         resources.MapGet("/{id:guid}/utilization", async (
             Guid id,
             IUtilizationService service,
-            ILogger<EndpointLoggerCategory> logger,
             DateTime from,
             DateTime to,
             string granularity = "day") =>
-            await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var result = await service.GetResourceUtilizationAsync(id, from, to, granularity);
                 return EndpointHelpers.OkOrNotFound(result, "Resource", id);
-            }, logger, "get resource utilization", new { id, granularity }))
+            })
             .WithName("GetResourceUtilization")
             .WithSummary("Get utilization for a resource");
 
@@ -39,15 +37,13 @@ public static class UtilizationEndpoints
         groups.MapGet("/{id:guid}/utilization", async (
             Guid id,
             IUtilizationService service,
-            ILogger<EndpointLoggerCategory> logger,
             DateTime from,
             DateTime to,
             string granularity = "day") =>
-            await EndpointHelpers.ExecuteAsync(async () =>
             {
                 var result = await service.GetGroupUtilizationAsync(id, from, to, granularity);
                 return EndpointHelpers.OkOrNotFound(result, "Group", id);
-            }, logger, "get group utilization", new { id, granularity }))
+            })
             .WithName("GetGroupUtilization")
             .WithSummary("Get utilization for a resource group");
 
@@ -58,28 +54,22 @@ public static class UtilizationEndpoints
 
         tenant.MapGet("/", async (
             IUtilizationService service,
-            ILogger<EndpointLoggerCategory> logger,
             DateTime from,
             DateTime to,
             string? resourceTypeKey,
             string granularity = "day") =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await service.GetTenantUtilizationAsync(resourceTypeKey, from, to, granularity)),
-            logger, "get tenant utilization", new { resourceTypeKey, granularity }))
+            Results.Ok(await service.GetTenantUtilizationAsync(resourceTypeKey, from, to, granularity)))
             .WithName("GetTenantUtilization")
             .WithSummary("Get aggregate utilization across all resources");
 
         tenant.MapGet("/by-resource", async (
             IUtilizationService service,
-            ILogger<EndpointLoggerCategory> logger,
             DateTime from,
             DateTime to,
             string? resourceTypeKey,
             Guid? siteId,
             string granularity = "day") =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-                Results.Ok(await service.GetUtilizationByResourceAsync(resourceTypeKey, from, to, granularity, siteId)),
-            logger, "get utilization by resource", new { resourceTypeKey, granularity, siteId }))
+            Results.Ok(await service.GetUtilizationByResourceAsync(resourceTypeKey, from, to, granularity, siteId)))
             .WithName("GetUtilizationByResource")
             .WithSummary("Get per-resource utilization in one response (bulk)");
     }

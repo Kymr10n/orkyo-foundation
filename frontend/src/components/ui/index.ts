@@ -128,6 +128,24 @@ export { VisuallyHidden } from "./visually-hidden";
 export { OrkyoDataTable } from "./OrkyoDataTable";
 export type { OrkyoDataTableProps, ColumnDef } from "./OrkyoDataTable";
 
+// Dialog scaffolds
+export { FormDialog } from "./FormDialog";
+export type { FormDialogProps } from "./FormDialog";
+export { ScaffoldDialog } from "./ScaffoldDialog";
+export type { ScaffoldDialogProps } from "./ScaffoldDialog";
+export { ConfirmDialog } from "./ConfirmDialog";
+export type { ConfirmDialogProps } from "./ConfirmDialog";
+
 // Form utilities
 export { DialogFormFooter } from "./DialogFormFooter";
 export { ErrorAlert } from "./ErrorAlert";
+
+// Empty state
+export { EmptyState } from "./EmptyState";
+
+// Status badge
+export { StatusBadge, statusToVariant } from "./status-badge";
+
+// Row actions
+export { RowActions } from "./RowActions";
+export type { RowAction } from "./RowActions";

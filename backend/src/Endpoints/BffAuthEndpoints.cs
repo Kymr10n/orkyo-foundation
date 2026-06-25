@@ -84,7 +84,7 @@ public static class BffAuthEndpoints
 
     // ── Handlers ─────────────────────────────────────────────────────────────
 
-    private static Task<IResult> HandleLogin(
+    private static async Task<IResult> HandleLogin(
         string? returnTo,
         // The SPA sends the OIDC-standard `login_hint` query key; bind it explicitly
         // since the parameter name (loginHint) would otherwise not match.
@@ -94,45 +94,42 @@ public static class BffAuthEndpoints
         IBffPkceStateStore pkceStore,
         ILogger<Log> logger)
     {
-        return EndpointHelpers.ExecuteAsync(async () =>
+        var bffOptions = bffOpts.Value;
+
+        returnTo ??= $"{bffOptions.GetDefaultReturnToBase()}/";
+
+        if (!bffOptions.IsReturnToAllowed(returnTo))
         {
-            var bffOptions = bffOpts.Value;
+            logger.LogWarning("BFF login rejected: invalid returnTo={ReturnTo}", returnTo);
+            return ErrorResponses.BadRequest("Invalid returnTo URL");
+        }
 
-            returnTo ??= $"{bffOptions.GetDefaultReturnToBase()}/";
+        var codeVerifier = GenerateRandomBase64Url(PkceVerifierLength);
+        var codeChallenge = ComputeCodeChallenge(codeVerifier);
+        var state = GenerateRandomHex(StateLength);
 
-            if (!bffOptions.IsReturnToAllowed(returnTo))
-            {
-                logger.LogWarning("BFF login rejected: invalid returnTo={ReturnTo}", returnTo);
-                return ErrorResponses.BadRequest("Invalid returnTo URL");
-            }
+        await pkceStore.SetAsync(state, new PkceStateData(codeVerifier, returnTo), StateTtl);
 
-            var codeVerifier = GenerateRandomBase64Url(PkceVerifierLength);
-            var codeChallenge = ComputeCodeChallenge(codeVerifier);
-            var state = GenerateRandomHex(StateLength);
+        var queryParams = new Dictionary<string, string?>
+        {
+            ["response_type"] = "code",
+            ["client_id"] = keycloakOptions.BackendClientId,
+            ["redirect_uri"] = bffOptions.RedirectUri,
+            ["scope"] = bffOptions.Scopes,
+            ["state"] = state,
+            ["code_challenge"] = codeChallenge,
+            ["code_challenge_method"] = "S256",
+        };
+        // Forward `login_hint` if provided — pre-fills the email in the
+        // Keycloak login form (used after invite signup so the user doesn't
+        // have to re-type the email they just registered).
+        if (!string.IsNullOrWhiteSpace(loginHint))
+            queryParams["login_hint"] = loginHint;
+        var authUrl = QueryHelpers.AddQueryString(
+            $"{keycloakOptions.Authority}/protocol/openid-connect/auth", queryParams);
 
-            await pkceStore.SetAsync(state, new PkceStateData(codeVerifier, returnTo), StateTtl);
-
-            var queryParams = new Dictionary<string, string?>
-            {
-                ["response_type"] = "code",
-                ["client_id"] = keycloakOptions.BackendClientId,
-                ["redirect_uri"] = bffOptions.RedirectUri,
-                ["scope"] = bffOptions.Scopes,
-                ["state"] = state,
-                ["code_challenge"] = codeChallenge,
-                ["code_challenge_method"] = "S256",
-            };
-            // Forward `login_hint` if provided — pre-fills the email in the
-            // Keycloak login form (used after invite signup so the user doesn't
-            // have to re-type the email they just registered).
-            if (!string.IsNullOrWhiteSpace(loginHint))
-                queryParams["login_hint"] = loginHint;
-            var authUrl = QueryHelpers.AddQueryString(
-                $"{keycloakOptions.Authority}/protocol/openid-connect/auth", queryParams);
-
-            logger.LogDebug("BFF login redirect to Keycloak, state={StatePrefix}…", state[..8]);
-            return Results.Redirect(authUrl);
-        }, logger, "BFF login");
+        logger.LogDebug("BFF login redirect to Keycloak, state={StatePrefix}…", state[..8]);
+        return Results.Redirect(authUrl);
     }
 
     // Covered by the E2E suite (requires a real Keycloak token exchange).
@@ -228,7 +225,7 @@ public static class BffAuthEndpoints
         }
     }
 
-    private static Task<IResult> HandleLogout(
+    private static async Task<IResult> HandleLogout(
         string? returnTo,
         HttpContext ctx,
         IOptions<BffOptions> bffOpts,
@@ -237,90 +234,83 @@ public static class BffAuthEndpoints
         IDataProtectionProvider dataProtection,
         ILogger<Log> logger)
     {
-        return EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var bffOptions = bffOpts.Value;
-            var cookieValue = ctx.Request.Cookies[bffOptions.CookieName];
-            string? idToken = null;
+        var bffOptions = bffOpts.Value;
+        var cookieValue = ctx.Request.Cookies[bffOptions.CookieName];
+        string? idToken = null;
 
-            if (!string.IsNullOrEmpty(cookieValue))
+        if (!string.IsNullOrEmpty(cookieValue))
+        {
+            try
             {
-                try
+                var protector = dataProtection.CreateProtector(DataProtectionPurpose);
+                var sessionId = protector.Unprotect(cookieValue);
+                var session = await sessionStore.GetAsync(sessionId);
+                if (session is not null)
                 {
-                    var protector = dataProtection.CreateProtector(DataProtectionPurpose);
-                    var sessionId = protector.Unprotect(cookieValue);
-                    var session = await sessionStore.GetAsync(sessionId);
-                    if (session is not null)
-                    {
-                        idToken = session.IdToken;
-                        await sessionStore.RemoveAsync(sessionId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug(ex, "Error reading session during logout");
+                    idToken = session.IdToken;
+                    await sessionStore.RemoveAsync(sessionId);
                 }
             }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Error reading session during logout");
+            }
+        }
 
-            var clearOptions = new CookieOptions { Domain = bffOptions.CookieDomain, Path = "/" };
-            ctx.Response.Cookies.Delete(bffOptions.CookieName, clearOptions);
-            ctx.Response.Cookies.Delete(bffOptions.CsrfCookieName, clearOptions);
+        var clearOptions = new CookieOptions { Domain = bffOptions.CookieDomain, Path = "/" };
+        ctx.Response.Cookies.Delete(bffOptions.CookieName, clearOptions);
+        ctx.Response.Cookies.Delete(bffOptions.CsrfCookieName, clearOptions);
 
-            returnTo ??= bffOptions.GetDefaultReturnToBase();
+        returnTo ??= bffOptions.GetDefaultReturnToBase();
 
-            var logoutParams = new Dictionary<string, string?>();
-            if (!string.IsNullOrEmpty(idToken))
-                logoutParams["id_token_hint"] = idToken;
-            if (returnTo != null && bffOptions.IsReturnToAllowed(returnTo))
-                logoutParams["post_logout_redirect_uri"] = returnTo;
+        var logoutParams = new Dictionary<string, string?>();
+        if (!string.IsNullOrEmpty(idToken))
+            logoutParams["id_token_hint"] = idToken;
+        if (returnTo != null && bffOptions.IsReturnToAllowed(returnTo))
+            logoutParams["post_logout_redirect_uri"] = returnTo;
 
-            var endSessionBase = $"{keycloakOptions.Authority}/protocol/openid-connect/logout";
-            var keycloakLogoutUrl = logoutParams.Count > 0
-                ? QueryHelpers.AddQueryString(endSessionBase, logoutParams)
-                : endSessionBase;
+        var endSessionBase = $"{keycloakOptions.Authority}/protocol/openid-connect/logout";
+        var keycloakLogoutUrl = logoutParams.Count > 0
+            ? QueryHelpers.AddQueryString(endSessionBase, logoutParams)
+            : endSessionBase;
 
-            // Server-side redirect — id_token_hint is in the HTTP Location header,
-            // never in a JSON response body where JS or logs could capture it.
-            return Results.Redirect(keycloakLogoutUrl);
-        }, logger, "BFF logout");
+        // Server-side redirect — id_token_hint is in the HTTP Location header,
+        // never in a JSON response body where JS or logs could capture it.
+        return Results.Redirect(keycloakLogoutUrl);
     }
 
-    private static Task<IResult> HandleMe(
+    private static async Task<IResult> HandleMe(
         HttpContext ctx,
         IIdentityLinkService identityLinkService,
         ISessionService sessionService,
-        ILogger<Log> logger,
         CancellationToken ct = default)
     {
-        return EndpointHelpers.ExecuteAsync(async () =>
-        {
-            var authResult = await ctx.AuthenticateAsync();
-            if (!authResult.Succeeded)
-                return Results.Ok(new { authenticated = false });
+        var authResult = await ctx.AuthenticateAsync();
+        if (!authResult.Succeeded)
+            return Results.Ok(new { authenticated = false });
 
-            var tokenProfile = KeycloakTokenProfile.FromPrincipal(authResult.Principal!);
+        var tokenProfile = KeycloakTokenProfile.FromPrincipal(authResult.Principal!);
 
-            if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
-                return Results.Ok(new { authenticated = false });
+        if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
+            return Results.Ok(new { authenticated = false });
 
-            var externalToken = tokenProfile.ToExternalIdentityToken();
-            if (externalToken is null)
-                return Results.Ok(new { authenticated = false });
+        var externalToken = tokenProfile.ToExternalIdentityToken();
+        if (externalToken is null)
+            return Results.Ok(new { authenticated = false });
 
-            // LinkIdentityAsync is intentionally called on this read endpoint.
-            // It is idempotent for existing users and ensures the internal user record
-            // exists for JWT-bearer callers (e.g. mobile / API clients) that have not
-            // gone through the BFF callback flow.
-            var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
-            if (!linkResult.Success || !linkResult.UserId.HasValue)
-                return Results.Ok(new { authenticated = false });
+        // LinkIdentityAsync is intentionally called on this read endpoint.
+        // It is idempotent for existing users and ensures the internal user record
+        // exists for JWT-bearer callers (e.g. mobile / API clients) that have not
+        // gone through the BFF callback flow.
+        var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
+        if (!linkResult.Success || !linkResult.UserId.HasValue)
+            return Results.Ok(new { authenticated = false });
 
-            var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value, ct);
-            if (result is null)
-                return Results.Ok(new { authenticated = false });
+        var result = await sessionService.BuildSessionResponseAsync(linkResult.UserId.Value, ct);
+        if (result is null)
+            return Results.Ok(new { authenticated = false });
 
-            return Results.Ok(result with { IsSiteAdmin = tokenProfile.IsSiteAdmin });
-        }, logger, "BFF me");
+        return Results.Ok(result with { IsSiteAdmin = tokenProfile.IsSiteAdmin });
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -1,4 +1,3 @@
-using Api.Constants;
 using Api.Models;
 
 namespace Api.Services.AutoSchedule;
@@ -28,15 +27,12 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
             .ThenByDescending(g => g.Max(c => c.Priority));
 
         var occupied = BuildOccupiedMap(problem.Problem.FixedAssignments);
-        var additionalResources = problem.Problem.AdditionalResources ?? [];
 
         foreach (var requestGroup in grouped)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var placed = false;
-            var request = problem.Problem.Requests.FirstOrDefault(r => r.RequestId == requestGroup.Key);
-            var additionalReqs = request?.AdditionalRequirements ?? [];
 
             foreach (var candidate in requestGroup.OrderBy(c => c.FeasibleStartDays.Count))
             {
@@ -46,22 +42,14 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
                     if (Conflicts(occupied, candidate.ResourceId, start, end))
                         continue;
 
-                    // Greedy-assign additional resources (one per requirement, first-fit).
-                    var additionalIds = ResolveAdditionalResources(
-                        additionalReqs, additionalResources, occupied, start, end);
-                    if (additionalIds is null) continue; // can't satisfy all requirements
-
                     Reserve(occupied, candidate.ResourceId, start, end);
-                    foreach (var rid in additionalIds)
-                        Reserve(occupied, rid, start, end);
 
                     assignments.Add(new ScheduledPlacement(
                         candidate.RequestId,
                         candidate.ResourceId,
                         start, end,
                         candidate.DurationDays,
-                        candidate.Priority,
-                        additionalIds));
+                        candidate.Priority));
 
                     placed = true;
                     break;
@@ -105,43 +93,6 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(x => (x.Start, x.End)).ToList());
-
-    /// <summary>
-    /// Returns one resource ID per requirement (first-fit), or null if any requirement can't be met.
-    /// Already-reserved IDs within this call are excluded from subsequent picks.
-    /// </summary>
-    private static IReadOnlyList<Guid>? ResolveAdditionalResources(
-        IReadOnlyList<IResourceRequirement> requirements,
-        IReadOnlyList<ResourceNode> pool,
-        Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> occupied,
-        DateOnly start, DateOnly end)
-    {
-        if (requirements.Count == 0) return [];
-
-        var picked = new List<Guid>();
-        var pickedSet = new HashSet<Guid>();
-
-        foreach (var req in requirements)
-        {
-            var found = false;
-            foreach (var node in pool)
-            {
-                if (pickedSet.Contains(node.ResourceId)) continue;
-                if (node.ResourceTypeId != req.ResourceTypeId) continue;
-                if (!req.RequiredCriterionIds.All(node.CriterionIds.Contains)) continue;
-                if (node.AllocationMode == AllocationModes.Exclusive &&
-                    Conflicts(occupied, node.ResourceId, start, end)) continue;
-
-                picked.Add(node.ResourceId);
-                pickedSet.Add(node.ResourceId);
-                found = true;
-                break;
-            }
-            if (!found) return null;
-        }
-
-        return picked;
-    }
 
     private static bool Conflicts(
         Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> occupied,

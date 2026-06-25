@@ -70,6 +70,40 @@ export const qk = {
     availabilityEvents: (siteId: string) => ["availability-events", siteId] as const,
   },
 
+  announcements: {
+    /** Broad prefix — every announcements query (use for invalidation). */
+    all: () => ["announcements"] as const,
+    /** Active announcements (with read state) for the current user. */
+    active: () => ["announcements"] as const,
+    /** Unread-count badge in the top bar. */
+    unread: () => ["unread-announcements"] as const,
+  },
+
+  departments: {
+    /** Broad prefix — every department query (use for invalidation). */
+    all: () => ["departments"] as const,
+    /** Department tree, scoped by the include-inactive toggle. */
+    tree: (includeInactive: boolean) =>
+      ["departments", "tree", { includeInactive }] as const,
+  },
+
+  tenantSettings: {
+    /** Broad prefix — every tenant-settings scope (use for invalidation). */
+    all: () => ["tenant-settings"] as const,
+    /** A single scope: "current", a tenant slug, or the "__site__" sentinel. */
+    scope: (cacheKey: string) => ["tenant-settings", cacheKey] as const,
+  },
+
+  preferences: {
+    /** The current user's preferences (also its own invalidation prefix). */
+    all: () => ["preferences"] as const,
+  },
+
+  quotas: {
+    /** The current tenant's quotas (also its own invalidation prefix). */
+    tenant: () => ["tenant-quotas"] as const,
+  },
+
   insights: {
     /** Broad prefix — every insights query (use for invalidation). */
     all: () => ["insights"] as const,

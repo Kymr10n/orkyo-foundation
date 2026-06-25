@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getConflicts } from "@foundation/src/lib/api/conflicts-api";
 import { getConflictedRequests } from "@foundation/src/lib/api/request-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { STALE } from "@foundation/src/lib/core/query-client";
 import type { Conflict } from "@foundation/src/types/requests";
 
 /**
@@ -29,7 +30,7 @@ export function useConflictRegistry(options?: UseConflictRegistryOptions) {
     // (qk.conflicts.all()) still match every windowed/all-time variant.
     queryKey: qk.conflicts.window(from, to),
     queryFn: () => getConflicts(windowed ? { from, to } : undefined),
-    staleTime: 30_000,
+    staleTime: STALE.REALTIME,
     enabled,
   });
 
@@ -47,6 +48,6 @@ export function useConflictedRequests() {
   return useQuery({
     queryKey: qk.requests.conflicted(),
     queryFn: () => getConflictedRequests(),
-    staleTime: 30_000,
+    staleTime: STALE.REALTIME,
   });
 }

@@ -6,7 +6,7 @@ import { cn } from "@foundation/src/lib/utils"
 
 /**
  * Shared dialog width vocabulary. Use the `size` prop on `FormDialog` /
- * `ResponsiveDialog` / `ScaffoldDialog` instead of hardcoding `max-w-*` strings,
+ * `ScaffoldDialog` instead of hardcoding `max-w-*` strings,
  * so the handful of dialog widths stay consistent across the app.
  */
 export type DialogSize = "sm" | "md" | "lg" | "xl"

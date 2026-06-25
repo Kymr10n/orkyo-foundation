@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Models.Reporting;
 using Npgsql;
@@ -29,17 +30,17 @@ public sealed class ReportingQueryService : IReportingQueryService
         await conn.OpenAsync(ct);
 
         // Count total distinct spaces with assignments
-        await using var countCmd = new NpgsqlCommand(@"
+        await using var countCmd = new NpgsqlCommand($@"
             SELECT COUNT(DISTINCT s.id)
             FROM spaces s
             JOIN resource_assignments ra ON ra.resource_id = s.id
             WHERE ra.start_utc < @to AND ra.end_utc > @from
-              AND ra.assignment_status != 'Cancelled'", conn);
+              AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'", conn);
         countCmd.Parameters.AddWithValue("from", from);
         countCmd.Parameters.AddWithValue("to", to);
         var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
 
-        await using var cmd = new NpgsqlCommand(@"
+        await using var cmd = new NpgsqlCommand($@"
             SELECT
                 si.name                                       AS site_name,
                 r.name                                        AS space_name,
@@ -60,7 +61,7 @@ public sealed class ReportingQueryService : IReportingQueryService
             LEFT JOIN resource_assignments ra
                    ON ra.resource_id = s.id
                   AND ra.start_utc < @to AND ra.end_utc > @from
-                  AND ra.assignment_status != 'Cancelled'
+                  AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
             GROUP BY si.name, s.id, r.name, rg.name
             ORDER BY si.name, r.name
             LIMIT @limit OFFSET @offset", conn);
@@ -105,18 +106,18 @@ public sealed class ReportingQueryService : IReportingQueryService
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
 
-        await using var countCmd = new NpgsqlCommand(@"
+        await using var countCmd = new NpgsqlCommand($@"
             SELECT COUNT(DISTINCT r.id)
             FROM resources r
             JOIN resource_types rt ON rt.id = r.resource_type_id
             JOIN resource_assignments ra ON ra.resource_id = r.id
             WHERE ra.start_utc < @to AND ra.end_utc > @from
-              AND ra.assignment_status != 'Cancelled'", conn);
+              AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'", conn);
         countCmd.Parameters.AddWithValue("from", from);
         countCmd.Parameters.AddWithValue("to", to);
         var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
 
-        await using var cmd = new NpgsqlCommand(@"
+        await using var cmd = new NpgsqlCommand($@"
             SELECT
                 rt.key                                        AS resource_type,
                 r.name                                        AS resource_name,
@@ -137,7 +138,7 @@ public sealed class ReportingQueryService : IReportingQueryService
             LEFT JOIN resource_assignments ra
                    ON ra.resource_id = r.id
                   AND ra.start_utc < @to AND ra.end_utc > @from
-                  AND ra.assignment_status != 'Cancelled'
+                  AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
             GROUP BY rt.key, r.id, r.name, r.base_availability_percent, rg.name
             ORDER BY rt.key, r.name
             LIMIT @limit OFFSET @offset", conn);
@@ -193,7 +194,7 @@ public sealed class ReportingQueryService : IReportingQueryService
             JOIN resources r ON r.id = ra.resource_id
             JOIN resource_types rt ON rt.id = r.resource_type_id
             WHERE ra.start_utc < @to AND ra.end_utc > @from
-              AND ra.assignment_status != 'Cancelled'
+              AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
               {updatedSinceFilter}", conn);
         countCmd.Parameters.AddWithValue("from", from);
         countCmd.Parameters.AddWithValue("to", to);
@@ -221,7 +222,7 @@ public sealed class ReportingQueryService : IReportingQueryService
             LEFT JOIN spaces sp ON sp.id = r.id
             LEFT JOIN sites si ON si.id = sp.site_id
             WHERE ra.start_utc < @to AND ra.end_utc > @from
-              AND ra.assignment_status != 'Cancelled'
+              AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
               {updatedSinceFilter}
             ORDER BY ra.start_utc DESC
             LIMIT @limit OFFSET @offset", conn);
@@ -266,17 +267,17 @@ public sealed class ReportingQueryService : IReportingQueryService
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
+        await using var cmd = new NpgsqlCommand($@"
             SELECT
                 COUNT(*) FILTER (WHERE created_at >= @from AND created_at < @to)          AS created,
-                COUNT(*) FILTER (WHERE status = 'in_progress'
+                COUNT(*) FILTER (WHERE status = '{RequestStatuses.InProgress}'
                                    AND updated_at >= @from AND updated_at < @to)          AS in_progress,
-                COUNT(*) FILTER (WHERE status = 'done'
+                COUNT(*) FILTER (WHERE status = '{RequestStatuses.Done}'
                                    AND updated_at >= @from AND updated_at < @to)          AS done,
-                COUNT(*) FILTER (WHERE status = 'cancelled'
+                COUNT(*) FILTER (WHERE status = '{RequestStatuses.Cancelled}'
                                    AND updated_at >= @from AND updated_at < @to)          AS cancelled,
                 AVG(EXTRACT(EPOCH FROM (start_ts - created_at)) / 3600)
-                    FILTER (WHERE start_ts IS NOT NULL AND status != 'planned'
+                    FILTER (WHERE start_ts IS NOT NULL AND status != '{RequestStatuses.Planned}'
                               AND created_at >= @from AND created_at < @to)              AS avg_lead_hours
             FROM requests", conn);
         cmd.Parameters.AddWithValue("from", from);
@@ -310,24 +311,24 @@ public sealed class ReportingQueryService : IReportingQueryService
         await conn.OpenAsync(ct);
 
         // Detect overbooking: same resource, overlapping non-cancelled assignments
-        await using var countCmd = new NpgsqlCommand(@"
+        await using var countCmd = new NpgsqlCommand($@"
             SELECT COUNT(*)
             FROM resource_assignments ra1
             JOIN LATERAL (
                 SELECT 1
                 FROM resource_assignments ra2
                 WHERE ra2.resource_id = ra1.resource_id
-                  AND ra2.assignment_status != 'Cancelled'
+                  AND ra2.assignment_status != '{AssignmentStatuses.Cancelled}'
                   AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
                   AND ra2.id > ra1.id
             ) ra2 ON true
-            WHERE ra1.assignment_status != 'Cancelled'
+            WHERE ra1.assignment_status != '{AssignmentStatuses.Cancelled}'
               AND ra1.start_utc < @to AND ra1.end_utc > @from", conn);
         countCmd.Parameters.AddWithValue("from", from);
         countCmd.Parameters.AddWithValue("to", to);
         var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
 
-        await using var cmd = new NpgsqlCommand(@"
+        await using var cmd = new NpgsqlCommand($@"
             SELECT
                 rt.key                                        AS resource_type,
                 res.name                                      AS resource_name,
@@ -343,14 +344,14 @@ public sealed class ReportingQueryService : IReportingQueryService
                 SELECT ra2.id, ra2.start_utc, ra2.end_utc
                 FROM resource_assignments ra2
                 WHERE ra2.resource_id = ra1.resource_id
-                  AND ra2.assignment_status != 'Cancelled'
+                  AND ra2.assignment_status != '{AssignmentStatuses.Cancelled}'
                   AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
                   AND ra2.id > ra1.id
             ) ra2 ON true
             JOIN resources res ON res.id = ra1.resource_id
             JOIN resource_types rt ON rt.id = res.resource_type_id
             JOIN requests req ON req.id = ra1.request_id
-            WHERE ra1.assignment_status != 'Cancelled'
+            WHERE ra1.assignment_status != '{AssignmentStatuses.Cancelled}'
               AND ra1.start_utc < @to AND ra1.end_utc > @from
             ORDER BY overlap_start DESC
             LIMIT @limit OFFSET @offset", conn);
@@ -473,7 +474,7 @@ public sealed class ReportingQueryService : IReportingQueryService
         // counted once per group it belongs to — NOT once per (group × assignment), which the previous
         // single-statement join did (Cartesian-inflating available_hours). allocated_hours and
         // demand_hours are unchanged: they were already one row per (resource, group, assignment).
-        await using var cmd = new NpgsqlCommand(@"
+        await using var cmd = new NpgsqlCommand($@"
             WITH resource_groups_expanded AS (
                 -- one row per (resource, group); group_name NULL when the resource is in no group
                 SELECT r.id                       AS resource_id,
@@ -500,7 +501,7 @@ public sealed class ReportingQueryService : IReportingQueryService
                 JOIN resource_types rt ON rt.id = rge.resource_type_id
                 JOIN resource_assignments ra
                        ON ra.resource_id = rge.resource_id
-                      AND ra.assignment_status != 'Cancelled'
+                      AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
                       AND ra.start_utc < @to AND ra.end_utc > @from
                 GROUP BY rt.key, rge.group_name
             ),
@@ -511,7 +512,7 @@ public sealed class ReportingQueryService : IReportingQueryService
                 JOIN resource_types rt ON rt.id = rge.resource_type_id
                 JOIN resource_assignments ra
                        ON ra.resource_id = rge.resource_id
-                      AND ra.assignment_status != 'Cancelled'
+                      AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
                       AND ra.start_utc < @to AND ra.end_utc > @from
                 JOIN requests req
                        ON req.id = ra.request_id

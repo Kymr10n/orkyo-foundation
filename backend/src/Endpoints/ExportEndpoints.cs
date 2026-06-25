@@ -21,14 +21,11 @@ public static class ExportEndpoints
             .RequireAdminArea()
             .WithTags("Export");
 
-        group.MapPost("/", async ([FromBody] ExportRequest request, IFeatureGate featureGate, IExportService exportService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        group.MapPost("/", async ([FromBody] ExportRequest request, IFeatureGate featureGate, IExportService exportService, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                await featureGate.EnsureEnabledAsync(FeatureKeys.DataExport, ct);
-                var payload = await exportService.ExportAsync(request, ct);
-                return Results.Json(payload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            }, logger, "export tenant data", new { siteIds = request.SiteIds, masterData = request.IncludeMasterData, planningData = request.IncludePlanningData });
+            await featureGate.EnsureEnabledAsync(FeatureKeys.DataExport, ct);
+            var payload = await exportService.ExportAsync(request, ct);
+            return Results.Json(payload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         })
         .WithName("ExportTenantData")
         .WithDescription("Exports tenant data as a canonical JSON payload")

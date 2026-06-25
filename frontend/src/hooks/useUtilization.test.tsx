@@ -2,10 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useRequests, useSpaces, useScheduleRequest } from "./useUtilization";
+import { useRequests, useScheduleRequest } from "./useUtilization";
 import { createTestQueryWrapper } from "@foundation/src/test-utils";
 import type { Request } from "@foundation/src/types/requests";
-import type { Space } from "@foundation/src/types/space";
 
 vi.mock("@foundation/src/lib/api/utilization-api");
 
@@ -60,44 +59,6 @@ const mockRequest2: Request = {
   sortOrder: 0,
   createdAt: "2026-03-21T11:00:00Z",
   updatedAt: "2026-03-21T11:00:00Z",
-};
-
-const mockSpace: Space = {
-  id: "space-A",
-  siteId: "site-001",
-  name: "Lab Alpha",
-  code: "LAB-A",
-  description: "Primary lab space",
-  isPhysical: true,
-  geometry: {
-    type: "rectangle",
-    coordinates: [
-      { x: 0, y: 0 },
-      { x: 10, y: 0 },
-      { x: 10, y: 5 },
-      { x: 0, y: 5 },
-    ],
-  },
-  properties: { capacity: 12 },
-  groupId: "group-001",
-  capacity: 12,
-  createdAt: "2026-01-10T08:00:00Z",
-  updatedAt: "2026-01-10T08:00:00Z",
-};
-
-const mockSpace2: Space = {
-  id: "space-B",
-  siteId: "site-001",
-  name: "Lab Beta",
-  code: "LAB-B",
-  description: "Secondary lab space",
-  isPhysical: true,
-  geometry: undefined,
-  properties: {},
-  groupId: undefined,
-  capacity: 1,
-  createdAt: "2026-01-11T08:00:00Z",
-  updatedAt: "2026-01-11T08:00:00Z",
 };
 
 // ---------------------------------------------------------------------------
@@ -180,68 +141,6 @@ describe("useRequests", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error!).message).toBe("API error");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// useSpaces
-// ---------------------------------------------------------------------------
-
-describe("useSpaces", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("fetches spaces for the given siteId", async () => {
-    vi.mocked(utilizationApi.fetchSpaces).mockResolvedValue([
-      mockSpace,
-      mockSpace2,
-    ]);
-
-    const { result } = renderHook(() => useSpaces("site-001"), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(utilizationApi.fetchSpaces).toHaveBeenCalledWith("site-001");
-    expect(result.current.data).toEqual([mockSpace, mockSpace2]);
-  });
-
-  it("is disabled (not called) when siteId is null", async () => {
-    vi.mocked(utilizationApi.fetchSpaces).mockResolvedValue([mockSpace]);
-
-    const { result } = renderHook(() => useSpaces(null), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    // Wait a tick to let any pending queries fire
-    await new Promise((r) => setTimeout(r, 50));
-
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.fetchStatus).toBe("idle");
-    expect(utilizationApi.fetchSpaces).not.toHaveBeenCalled();
-  });
-
-  it("refetches when siteId changes from null to a value", async () => {
-    vi.mocked(utilizationApi.fetchSpaces).mockResolvedValue([mockSpace]);
-
-    let siteId: string | null = null;
-
-    const { result, rerender } = renderHook(() => useSpaces(siteId), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    // Initially disabled
-    await new Promise((r) => setTimeout(r, 30));
-    expect(utilizationApi.fetchSpaces).not.toHaveBeenCalled();
-
-    // Enable by providing a siteId
-    siteId = "site-001";
-    rerender();
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(utilizationApi.fetchSpaces).toHaveBeenCalledWith("site-001");
   });
 });
 

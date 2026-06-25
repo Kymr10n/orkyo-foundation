@@ -15,79 +15,55 @@ public static class TemplateEndpoints
     {
         var group = app.MapGroup("/api/templates").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        group.MapGet("", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, string? entityType) =>
+        group.MapGet("", async (ITemplateRepository templateRepo, string? entityType) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (string.IsNullOrEmpty(entityType)) return ErrorResponses.BadRequest("entityType query parameter is required");
-                if (!TemplateEntityTypes.IsKnown(entityType)) return ErrorResponses.BadRequest($"Invalid entity type: {entityType}");
-                return Results.Ok(await templateRepo.GetAllAsync(entityType));
-            }, logger, "get templates", new { entityType });
+            if (string.IsNullOrEmpty(entityType)) return ErrorResponses.BadRequest("entityType query parameter is required");
+            if (!TemplateEntityTypes.IsKnown(entityType)) return ErrorResponses.BadRequest($"Invalid entity type: {entityType}");
+            return Results.Ok(await templateRepo.GetAllAsync(entityType));
         });
 
-        group.MapGet("{id:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id) =>
+        group.MapGet("{id:guid}", async (ITemplateRepository templateRepo, Guid id) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var template = await templateRepo.GetByIdAsync(id);
-                return EndpointHelpers.OkOrNotFound(template, "Template", id);
-            }, logger, "get template by id", new { id });
+            var template = await templateRepo.GetByIdAsync(id);
+            return EndpointHelpers.OkOrNotFound(template, "Template", id);
         });
 
-        group.MapPost("", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, CreateTemplateRequest request) =>
+        group.MapPost("", async (ITemplateRepository templateRepo, CreateTemplateRequest request) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var template = await templateRepo.CreateAsync(request);
-                return Results.Created($"/api/templates/{template.Id}", template);
-            }, logger, "create template", new { name = request.Name, entityType = request.EntityType });
+            var template = await templateRepo.CreateAsync(request);
+            return Results.Created($"/api/templates/{template.Id}", template);
         });
 
-        group.MapDelete("{id:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id) =>
+        group.MapDelete("{id:guid}", async (ITemplateRepository templateRepo, Guid id) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await templateRepo.DeleteAsync(id);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template", id);
-            }, logger, "delete template", new { id });
+            var deleted = await templateRepo.DeleteAsync(id);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template", id);
         });
 
-        group.MapPut("{id:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id, UpdateTemplateRequest request) =>
+        group.MapPut("{id:guid}", async (ITemplateRepository templateRepo, Guid id, UpdateTemplateRequest request) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var template = await templateRepo.UpdateAsync(id, request);
-                return EndpointHelpers.OkOrNotFound(template, "Template", id);
-            }, logger, "update template", new { id, name = request.Name });
+            var template = await templateRepo.UpdateAsync(id, request);
+            return EndpointHelpers.OkOrNotFound(template, "Template", id);
         });
 
-        group.MapGet("{id:guid}/items", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id) =>
+        group.MapGet("{id:guid}/items", async (ITemplateRepository templateRepo, Guid id) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var template = await templateRepo.GetByIdAsync(id);
-                if (template == null) return ErrorResponses.NotFound("Template", id);
-                return Results.Ok(await templateRepo.GetTemplateItemsAsync(id));
-            }, logger, "get template items", new { id });
+            var template = await templateRepo.GetByIdAsync(id);
+            if (template == null) return ErrorResponses.NotFound("Template", id);
+            return Results.Ok(await templateRepo.GetTemplateItemsAsync(id));
         });
 
-        group.MapPost("{id:guid}/items", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid id, CreateTemplateItemRequest request) =>
+        group.MapPost("{id:guid}/items", async (ITemplateRepository templateRepo, Guid id, CreateTemplateItemRequest request) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var item = new TemplateItem { TemplateId = id, CriterionId = request.CriterionId, Value = request.Value };
-                var created = await templateRepo.CreateTemplateItemAsync(item);
-                return Results.Created($"/api/templates/{id}/items/{created.Id}", created);
-            }, logger, "add template item", new { templateId = id, criterionId = request.CriterionId });
+            var item = new TemplateItem { TemplateId = id, CriterionId = request.CriterionId, Value = request.Value };
+            var created = await templateRepo.CreateTemplateItemAsync(item);
+            return Results.Created($"/api/templates/{id}/items/{created.Id}", created);
         });
 
-        group.MapDelete("{templateId:guid}/items/{itemId:guid}", async (ITemplateRepository templateRepo, ILogger<EndpointLoggerCategory> logger, Guid templateId, Guid itemId) =>
+        group.MapDelete("{templateId:guid}/items/{itemId:guid}", async (ITemplateRepository templateRepo, Guid templateId, Guid itemId) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var deleted = await templateRepo.DeleteTemplateItemAsync(itemId);
-                return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template item", itemId);
-            }, logger, "delete template item", new { templateId, itemId });
+            var deleted = await templateRepo.DeleteTemplateItemAsync(itemId);
+            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template item", itemId);
         });
     }
 }

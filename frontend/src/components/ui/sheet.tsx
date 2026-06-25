@@ -6,8 +6,8 @@ import { X } from "lucide-react"
 import { cn } from "@foundation/src/lib/utils"
 
 // A Sheet is a Radix Dialog rendered as an edge/bottom drawer. It is the
-// foundation's single drawer primitive — DetailDrawer and ResponsiveDialog
-// both build on it, so no separate drawer dependency (e.g. vaul) is needed.
+// foundation's single drawer primitive — DetailDrawer builds on it, so no
+// separate drawer dependency (e.g. vaul) is needed.
 const Sheet = SheetPrimitive.Root
 
 const SheetTrigger = SheetPrimitive.Trigger

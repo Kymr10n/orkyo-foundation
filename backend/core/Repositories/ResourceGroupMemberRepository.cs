@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -97,7 +98,7 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
                 "WHERE m.resource_group_id = g.id " +
                 "  AND m.resource_id = ANY(@ids) " +
                 "  AND m.resource_group_id <> @groupId " +
-                "  AND g.resource_type_id = (SELECT id FROM resource_types WHERE key = 'space')",
+                $"  AND g.resource_type_id = (SELECT id FROM resource_types WHERE key = '{ResourceTypeKeys.Space}')",
                 db, tx);
             move.Parameters.AddWithValue("groupId", groupId);
             move.Parameters.AddWithValue("ids", resourceIds.ToArray());

@@ -17,26 +17,20 @@ public static class UserPreferencesEndpoints
             .RequireAuthorization()
             .WithTags("User Preferences");
 
-        prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (!currentPrincipal.IsAuthenticated) return Results.Unauthorized();
-                var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId);
-                return preferences == null ? Results.Ok(new { }) : Results.Ok(preferences);
-            }, logger, "get user preferences");
+            if (!currentPrincipal.IsAuthenticated) return Results.Unauthorized();
+            var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId);
+            return preferences == null ? Results.Ok(new { }) : Results.Ok(preferences);
         })
         .WithName("GetUserPreferences")
         .WithSummary("Get current user preferences");
 
-        prefs.MapPut("/", async (ICurrentPrincipal currentPrincipal, JsonDocument body, IUserPreferencesRepository repo, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        prefs.MapPut("/", async (ICurrentPrincipal currentPrincipal, JsonDocument body, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            return await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                if (!currentPrincipal.IsAuthenticated) return Results.Unauthorized();
-                var success = await repo.UpdatePreferencesAsync(currentPrincipal.UserId, body);
-                return success ? Results.Ok(new { message = "Preferences updated successfully" }) : Results.Problem("Failed to update preferences");
-            }, logger, "update user preferences");
+            if (!currentPrincipal.IsAuthenticated) return Results.Unauthorized();
+            var success = await repo.UpdatePreferencesAsync(currentPrincipal.UserId, body);
+            return success ? Results.Ok(new { message = "Preferences updated successfully" }) : Results.Problem("Failed to update preferences");
         })
         .WithName("UpdateUserPreferences")
         .WithSummary("Update current user preferences");

@@ -29,10 +29,8 @@ public static class PersonProfileEndpoints
         group.MapPost("/job-titles", async (
             [FromBody] Guid[] resourceIds,
             IPersonProfileRepository profileRepository,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await profileRepository.GetJobTitlesByResourceIdsAsync(resourceIds, ct)),
-                logger, "list person job titles", new { count = resourceIds.Length }))
+            CancellationToken ct) =>
+            Results.Ok(await profileRepository.GetJobTitlesByResourceIdsAsync(resourceIds, ct)))
             .WithName("ListPersonJobTitles")
             .WithSummary("Bulk job-title labels by resource IDs for the utilization grid")
             .AllowMemberWrite();
@@ -44,10 +42,8 @@ public static class PersonProfileEndpoints
         group.MapPost("/batch", async (
             [FromBody] Guid[] resourceIds,
             IPersonProfileRepository profileRepository,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(
-                async () => Results.Ok(await profileRepository.GetByResourceIdsAsync(resourceIds, ct)),
-                logger, "list person profiles", new { count = resourceIds.Length }))
+            CancellationToken ct) =>
+            Results.Ok(await profileRepository.GetByResourceIdsAsync(resourceIds, ct)))
             .WithName("ListPersonProfiles")
             .WithSummary("Bulk person profiles by resource IDs for the People list")
             .AllowMemberWrite();
@@ -56,15 +52,14 @@ public static class PersonProfileEndpoints
             Guid resourceId,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
-                if (resolution.ErrorResult is not null) return resolution.ErrorResult;
+            CancellationToken ct) =>
+        {
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+            if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
-                var profile = await profileRepository.GetByResourceIdAsync(resourceId, ct);
-                return profile is null ? Results.NotFound() : Results.Ok(profile);
-            }, logger, "get person profile", new { resourceId }))
+            var profile = await profileRepository.GetByResourceIdAsync(resourceId, ct);
+            return profile is null ? Results.NotFound() : Results.Ok(profile);
+        })
             .WithName("GetPersonProfile")
             .WithSummary("Get a person profile by resource ID");
 
@@ -91,20 +86,19 @@ public static class PersonProfileEndpoints
             [FromBody] LinkUserToPersonProfileRequest request,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
-                if (resolution.ErrorResult is not null) return resolution.ErrorResult;
+            CancellationToken ct) =>
+        {
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+            if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
-                // Reject if the user is already linked to a different person resource (tenant-wide constraint).
-                var existingProfile = await profileRepository.GetByLinkedUserIdAsync(request.UserId, ct);
-                if (existingProfile is not null && existingProfile.ResourceId != resourceId)
-                    return ErrorResponses.Conflict("User is already linked to another person profile");
+            // Reject if the user is already linked to a different person resource (tenant-wide constraint).
+            var existingProfile = await profileRepository.GetByLinkedUserIdAsync(request.UserId, ct);
+            if (existingProfile is not null && existingProfile.ResourceId != resourceId)
+                return ErrorResponses.Conflict("User is already linked to another person profile");
 
-                var success = await profileRepository.LinkUserAsync(resourceId, request.UserId, ct);
-                return success ? Results.NoContent() : ErrorResponses.NotFound("PersonProfile", resourceId);
-            }, logger, "link user to person profile", new { resourceId }))
+            var success = await profileRepository.LinkUserAsync(resourceId, request.UserId, ct);
+            return success ? Results.NoContent() : ErrorResponses.NotFound("PersonProfile", resourceId);
+        })
             .WithName("LinkUserToPersonProfile")
             .WithSummary("Link a user to a person profile");
 
@@ -112,15 +106,14 @@ public static class PersonProfileEndpoints
             Guid resourceId,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(async () =>
-            {
-                var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
-                if (resolution.ErrorResult is not null) return resolution.ErrorResult;
+            CancellationToken ct) =>
+        {
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+            if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
-                var success = await profileRepository.UnlinkUserAsync(resourceId, ct);
-                return success ? Results.NoContent() : Results.NotFound();
-            }, logger, "unlink user from person profile", new { resourceId }))
+            var success = await profileRepository.UnlinkUserAsync(resourceId, ct);
+            return success ? Results.NoContent() : Results.NotFound();
+        })
             .WithName("UnlinkUserFromPersonProfile")
             .WithSummary("Unlink a user from a person profile");
     }

@@ -8,16 +8,7 @@ import { RequestListView } from "@foundation/src/components/requests/RequestList
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { AddExistingRequestsDialog } from "@foundation/src/components/requests/AddExistingRequestsDialog";
 import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@foundation/src/components/ui/alert-dialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Input } from "@foundation/src/components/ui/input";
@@ -129,10 +120,12 @@ export function RequestsPage() {
         await createRequest(req as CreateRequestRequest);
       }
       await loadRequests();
-      alert(`Successfully imported ${importedRequests.length} requests`);
+      toast.success(`Successfully imported ${importedRequests.length} requests`);
     } catch (error) {
       logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import requests');
+      toast.error('Failed to import requests', {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   });
 
@@ -663,33 +656,24 @@ export function RequestsPage() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog
+      <ConfirmDialog
         open={dialog?.kind === "delete"}
         onOpenChange={(open) => { if (!open) setDialog(null); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete request</AlertDialogTitle>
-            <AlertDialogDescription>
-              {dialog?.kind === "delete" && (() => {
+        title="Delete request"
+        description={
+          dialog?.kind === "delete"
+            ? (() => {
                 const descendantIds = getDescendantIds(dialog.request.id, requests);
                 return descendantIds.length > 0
                   ? `This will permanently delete "${dialog.request.name}" and ${descendantIds.length} child request${descendantIds.length === 1 ? '' : 's'}. This cannot be undone.`
                   : `This will permanently delete "${dialog.request.name}". This cannot be undone.`;
-              })()}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleConfirmDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              })()
+            : ''
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleConfirmDelete}
+      />
     </PageLayout>
     </TooltipProvider>
   );

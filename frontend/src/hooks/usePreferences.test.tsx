@@ -1,13 +1,30 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { usePreferences, useUpdatePreferences, type UserPreferences } from "./usePreferences";
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from "@foundation/src/test-utils";
+import { createTestQueryWrapper } from "@foundation/src/test-utils";
+import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
 
 vi.mock("@foundation/src/lib/core/api-client", () => ({
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+// The update mutation invalidates through the meta-driven MutationCache.
+function createFeedbackClientWithSpy() {
+  const client: QueryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    mutationCache: createFeedbackMutationCache(() => client),
+  });
+  const spy = vi.spyOn(client, "invalidateQueries");
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { client, spy, wrapper };
+}
 
 import * as apiClient from "@foundation/src/lib/core/api-client";
 
@@ -87,7 +104,7 @@ describe("usePreferences", () => {
     it("calls apiPut with the correct path and payload", async () => {
       vi.mocked(apiClient.apiPut).mockResolvedValue(undefined);
 
-      const { queryClient, wrapper } = createTestQueryClientWithSpy();
+      const { wrapper } = createFeedbackClientWithSpy();
 
       const { result } = renderHook(() => useUpdatePreferences(), { wrapper });
 
@@ -99,29 +116,26 @@ describe("usePreferences", () => {
       await result.current.mutateAsync(updates);
 
       expect(apiClient.apiPut).toHaveBeenCalledWith("/api/preferences", updates);
-
-      // suppress unused variable warning
-      void queryClient;
     });
 
     it("invalidates the preferences query key on success", async () => {
       vi.mocked(apiClient.apiPut).mockResolvedValue(undefined);
 
-      const { spy, wrapper } = createTestQueryClientWithSpy();
+      const { spy, wrapper } = createFeedbackClientWithSpy();
 
       const { result } = renderHook(() => useUpdatePreferences(), { wrapper });
 
       await result.current.mutateAsync({ spaceOrder: ["space-1"] });
 
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ["preferences"] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ["preferences"], exact: false });
       });
     });
 
     it("does not invalidate if apiPut rejects", async () => {
       vi.mocked(apiClient.apiPut).mockRejectedValue(new Error("Save failed"));
 
-      const { spy, wrapper } = createTestQueryClientWithSpy();
+      const { spy, wrapper } = createFeedbackClientWithSpy();
 
       const { result } = renderHook(() => useUpdatePreferences(), { wrapper });
 

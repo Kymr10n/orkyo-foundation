@@ -23,8 +23,7 @@ internal static class AutoScheduleTestHelpers
             Spaces: spaces,
             FixedAssignments: fixedAssignments ?? [],
             Settings: settings,
-            BlockedPeriodsByResource: blockedPeriodsByResource,
-            Mode: AutoScheduleMode.FillGapsOnly);
+            BlockedPeriodsByResource: blockedPeriodsByResource);
 
     internal static AnalyzedSchedulingProblem MakeAnalyzed(
         IReadOnlyList<SchedulingCandidate> candidates,
@@ -41,8 +40,7 @@ internal static class AutoScheduleTestHelpers
                 Spaces: [],
                 FixedAssignments: fixedAssignments ?? [],
                 Settings: null,
-                BlockedPeriodsByResource: null,
-                Mode: AutoScheduleMode.FillGapsOnly),
+                BlockedPeriodsByResource: null),
             Candidates: candidates,
             Rejections: rejections ?? [],
             Diagnostics: []);
