@@ -44,6 +44,14 @@ public class InsightsServiceTests
             .ReturnsAsync([]);
         _availability.Setup(a => a.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        // Bulk preloading paths (utilization series): empty by default; individual tests override.
+        _assignments.Setup(a => a.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _availability.Setup(a => a.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
+                ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
     }
 
     private static readonly DateTime Jan = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -115,6 +123,9 @@ public class InsightsServiceTests
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([resource]);
         _assignments.Setup(a => a.GetByResourceAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([.. assignments]);
+        _assignments.Setup(a => a.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([.. assignments]);
     }
 
@@ -231,8 +242,13 @@ public class InsightsServiceTests
         var room = Guid.NewGuid();
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([SpaceResource(room)]);
-        _availability.Setup(a => a.GetBlockedPeriodsAsync(room, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Block(Jan, new DateTime(2026, 1, 16, 0, 0, 0, DateTimeKind.Utc))]); // 15 days
+        _availability.Setup(a => a.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(
+                id => id,
+                id => id == room
+                    ? new List<BlockedPeriod> { Block(Jan, new DateTime(2026, 1, 16, 0, 0, 0, DateTimeKind.Utc)) } // 15 days
+                    : []));
 
         var result = await _service.GetUtilizationTrendAsync(
             new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "space" });

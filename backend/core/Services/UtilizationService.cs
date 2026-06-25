@@ -54,6 +54,31 @@ public class UtilizationService(
         return ComputeBuckets(resource, assignments, blockedPeriods, from, to, granularity);
     }
 
+    /// <summary>
+    /// Bulk equivalent of <see cref="ComputeResourceBucketsAsync"/> for many resources: preloads all
+    /// assignments and blocked periods in two queries (was two DB round-trips <em>per resource</em>),
+    /// then runs the identical per-resource bucket math. Returns buckets keyed by resource id.
+    /// </summary>
+    private async Task<Dictionary<Guid, List<UtilizationBucket>>> ComputeBucketsForResourcesAsync(
+        IReadOnlyList<ResourceInfo> resources, DateTime from, DateTime to, string granularity, CancellationToken ct)
+    {
+        if (resources.Count == 0) return [];
+
+        var resourceIds = resources.Select(r => r.Id).ToList();
+        var assignmentsByResource = (await assignmentRepository.GetActiveByResourcesAsync(resourceIds, from, to, ct))
+            .GroupBy(a => a.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var blockedByResource = await resolver.GetBlockedPeriodsForResourcesAsync(resourceIds, ct);
+
+        return resources.ToDictionary(
+            r => r.Id,
+            r => ComputeBuckets(
+                r,
+                assignmentsByResource.GetValueOrDefault(r.Id, []),
+                blockedByResource.GetValueOrDefault(r.Id, []),
+                from, to, granularity));
+    }
+
     public async Task<UtilizationResponse?> GetGroupUtilizationAsync(
         Guid groupId, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
@@ -77,14 +102,11 @@ public class UtilizationService(
                     }).ToList(),
             };
 
-        // Compute per-member then average
-        var memberBuckets = new List<List<UtilizationBucket>>();
-        foreach (var member in activeMembers)
-        {
-            var memberUtil = await GetResourceUtilizationAsync(member.Id, from, to, granularity);
-            if (memberUtil is not null)
-                memberBuckets.Add(memberUtil.Buckets);
-        }
+        // Compute per-member then average. Bulk-load the member resources + their assignments/blocked
+        // periods (was N+1: a full per-resource compute — two DB round-trips — per member).
+        var memberResources = await resourceRepository.GetByIdsAsync(activeMembers.Select(m => m.Id).ToList(), ct);
+        var memberBucketsById = await ComputeBucketsForResourcesAsync(memberResources, from, to, granularity, ct);
+        var memberBuckets = memberResources.Select(r => memberBucketsById[r.Id]).ToList();
 
         var shells = BuildBucketShells(from, to, granularity);
         var averaged = shells.Select((shell, i) =>
@@ -139,9 +161,8 @@ public class UtilizationService(
                     }).ToList(),
             };
 
-        var allBuckets = new List<List<UtilizationBucket>>();
-        foreach (var resource in resources)
-            allBuckets.Add(await ComputeResourceBucketsAsync(resource, from, to, granularity, ct));
+        var bucketsById = await ComputeBucketsForResourcesAsync(resources, from, to, granularity, ct);
+        var allBuckets = resources.Select(r => bucketsById[r.Id]).ToList();
 
         var shells = BuildBucketShells(from, to, granularity);
         var averaged = shells.Select((shell, i) =>
@@ -184,15 +205,12 @@ public class UtilizationService(
         };
         var resources = await resourceRepository.GetAllAsync(filter);
 
-        var result = new List<ResourceUtilizationResponse>(resources.Count);
-        foreach (var resource in resources)
-            result.Add(new ResourceUtilizationResponse
-            {
-                ResourceId = resource.Id,
-                Buckets = await ComputeResourceBucketsAsync(resource, from, to, granularity, ct),
-            });
-
-        return result;
+        var bucketsById = await ComputeBucketsForResourcesAsync(resources, from, to, granularity, ct);
+        return resources.Select(resource => new ResourceUtilizationResponse
+        {
+            ResourceId = resource.Id,
+            Buckets = bucketsById[resource.Id],
+        }).ToList();
     }
 
     // ── Core computation ────────────────────────────────────────────────────

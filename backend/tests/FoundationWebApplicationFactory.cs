@@ -325,6 +325,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         builder.Services.AddScoped<IUtilizationService, UtilizationService>();
+        // NB: integration tests bind IInsightsService directly to the real service (no caching
+        // decorator) so seed→assert stays deterministic — a process-wide 60s cache keyed on the
+        // shared test OrgId would leak data between tests. The decorator is covered by its own unit
+        // test (CachingInsightsServiceTests); production wiring lives in FoundationServiceExtensions.
         builder.Services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();

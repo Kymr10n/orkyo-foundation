@@ -129,7 +129,12 @@ public static class FoundationServiceExtensions
         services.AddScoped<ITenantUserService, TenantUserService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
-        services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
+        // Insights is wrapped in a short-TTL read-through cache (dashboard hot path).
+        services.AddScoped<Api.Services.Insights.InsightsService>();
+        services.AddScoped<Api.Services.Insights.IInsightsService>(sp =>
+            new Api.Services.Insights.CachingInsightsService(
+                sp.GetRequiredService<Api.Services.Insights.InsightsService>(),
+                sp.GetRequiredService<OrgContext>()));
 
         // ── Reporting ─────────────────────────────────────────────────────────
         services.AddScoped<IReportingTokenService, ReportingTokenService>();

@@ -317,10 +317,18 @@ public class InsightsService(
         var cap = new double[buckets.Count];
         var used = new double[buckets.Count];
 
+        // Bulk-preload assignments + blocked periods for all resources up front (was N+1: two DB
+        // round-trips per resource). The per-bucket math below is unchanged.
+        var resourceIds = resources.Select(r => r.Id).ToList();
+        var assignmentsByResource = (await assignmentRepository.GetActiveByResourcesAsync(resourceIds, rangeFrom, rangeTo, ct))
+            .GroupBy(a => a.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var blockedByResource = await availabilityResolver.GetBlockedPeriodsForResourcesAsync(resourceIds, ct);
+
         foreach (var resource in resources)
         {
-            var assignments = await assignmentRepository.GetByResourceAsync(resource.Id, rangeFrom, rangeTo, ct);
-            var blocked = await availabilityResolver.GetBlockedPeriodsAsync(resource.Id, ct);
+            var assignments = assignmentsByResource.GetValueOrDefault(resource.Id, []);
+            var blocked = blockedByResource.GetValueOrDefault(resource.Id, []);
 
             for (var i = 0; i < buckets.Count; i++)
             {

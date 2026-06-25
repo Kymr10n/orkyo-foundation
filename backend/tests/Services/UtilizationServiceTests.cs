@@ -61,8 +61,15 @@ public class UtilizationServiceTests
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>()))
             .ReturnsAsync([resource]);
 
+        resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([resource]);
+
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();
         assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(assignments ?? []);
+        // Bulk path (tenant/by-resource/group): one query for all resources' assignments.
+        assignmentRepo.Setup(r => r.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(assignments ?? []);
 
         var groupRepo = new Mock<IResourceGroupMemberRepository>();
@@ -72,6 +79,11 @@ public class UtilizationServiceTests
         var resolver = new Mock<IAvailabilityResolver>();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(blockedPeriods ?? []);
+        // Bulk path: blocked periods for all resources keyed by id.
+        resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
+                ids.ToDictionary(id => id, _ => blockedPeriods ?? []));
 
         return new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
     }
@@ -269,9 +281,14 @@ public class UtilizationServiceTests
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();
         assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        assignmentRepo.Setup(r => r.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         var groupRepo = new Mock<IResourceGroupMemberRepository>();
         var resolver = new Mock<IAvailabilityResolver>();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
         var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
 
         await service.GetUtilizationByResourceAsync("person", from, to, "day", siteId);
@@ -296,8 +313,13 @@ public class UtilizationServiceTests
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();
         assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        assignmentRepo.Setup(r => r.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         var resolver = new Mock<IAvailabilityResolver>();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
         var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, new Mock<IResourceGroupMemberRepository>().Object, resolver.Object);
 
         await service.GetUtilizationByResourceAsync("person", from, from.AddDays(7), "day");
@@ -338,13 +360,14 @@ public class UtilizationServiceTests
         resourceRepo.Setup(r => r.GetByIdAsync(resource2.Id)).ReturnsAsync(resource2);
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>()))
             .ReturnsAsync([resource1, resource2]);
+        resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([resource1, resource2]);
 
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();
-        // resource1 occupied, resource2 free
-        assignmentRepo.Setup(r => r.GetByResourceAsync(resource1.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+        // resource1 occupied, resource2 free — bulk-loaded for the whole group in one call.
+        assignmentRepo.Setup(r => r.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([MakeAssignment(resource1.Id, from, to)]);
-        assignmentRepo.Setup(r => r.GetByResourceAsync(resource2.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-            .ReturnsAsync([]);
 
         var groupRepo = new Mock<IResourceGroupMemberRepository>();
         groupRepo.Setup(r => r.GetMembersAsync(GroupId))
@@ -353,11 +376,56 @@ public class UtilizationServiceTests
         var resolver = new Mock<IAvailabilityResolver>();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
 
         var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
         var result = await service.GetGroupUtilizationAsync(GroupId, from, to, "day");
 
         Assert.Single(result!.Buckets);
         Assert.Equal(50m, result.Buckets[0].AllocatedPercent); // (100+0)/2
+    }
+
+    // ── N+1 elimination (bulk preloading) ─────────────────────────────────
+
+    [Fact]
+    public async Task ByResource_MultipleResources_BulkLoadsOnce_NoPerResourceQueries()
+    {
+        var r1 = MakeResource(AllocationModes.Exclusive) with { Id = Guid.NewGuid() };
+        var r2 = MakeResource(AllocationModes.Exclusive) with { Id = Guid.NewGuid() };
+        var from = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = from.AddDays(1);
+
+        var resourceRepo = new Mock<IResourceRepository>();
+        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([r1, r2]);
+
+        var assignmentRepo = new Mock<IResourceAssignmentRepository>();
+        assignmentRepo.Setup(r => r.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([MakeAssignment(r1.Id, from, to)]);
+
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
+
+        var service = new UtilizationService(
+            resourceRepo.Object, assignmentRepo.Object, new Mock<IResourceGroupMemberRepository>().Object, resolver.Object);
+
+        var result = await service.GetUtilizationByResourceAsync("tool", from, to, "day");
+
+        // Correct per-resource output: r1 occupied, r2 free — same as the per-resource path produced.
+        Assert.Equal(2, result.Count);
+        Assert.True(result.Single(x => x.ResourceId == r1.Id).Buckets[0].IsExclusiveOccupied);
+        Assert.False(result.Single(x => x.ResourceId == r2.Id).Buckets[0].IsExclusiveOccupied);
+
+        // Bulk-loaded exactly once for all resources — NOT once per resource (the removed N+1).
+        assignmentRepo.Verify(r => r.GetActiveByResourcesAsync(
+            It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        resolver.Verify(r => r.GetBlockedPeriodsForResourcesAsync(
+            It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()), Times.Once);
+        assignmentRepo.Verify(r => r.GetByResourceAsync(
+            It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+        resolver.Verify(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

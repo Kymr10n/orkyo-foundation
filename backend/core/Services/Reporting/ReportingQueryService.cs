@@ -313,11 +313,14 @@ public sealed class ReportingQueryService : IReportingQueryService
         await using var countCmd = new NpgsqlCommand(@"
             SELECT COUNT(*)
             FROM resource_assignments ra1
-            JOIN resource_assignments ra2
-                ON ra2.resource_id = ra1.resource_id
-               AND ra2.id > ra1.id
-               AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
-               AND ra2.assignment_status != 'Cancelled'
+            JOIN LATERAL (
+                SELECT 1
+                FROM resource_assignments ra2
+                WHERE ra2.resource_id = ra1.resource_id
+                  AND ra2.assignment_status != 'Cancelled'
+                  AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
+                  AND ra2.id > ra1.id
+            ) ra2 ON true
             WHERE ra1.assignment_status != 'Cancelled'
               AND ra1.start_utc < @to AND ra1.end_utc > @from", conn);
         countCmd.Parameters.AddWithValue("from", from);
@@ -336,11 +339,14 @@ public sealed class ReportingQueryService : IReportingQueryService
                     GREATEST(ra1.start_utc, ra2.start_utc)
                 )) / 3600                                     AS overlap_hours
             FROM resource_assignments ra1
-            JOIN resource_assignments ra2
-                ON ra2.resource_id = ra1.resource_id
-               AND ra2.id > ra1.id
-               AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
-               AND ra2.assignment_status != 'Cancelled'
+            JOIN LATERAL (
+                SELECT ra2.id, ra2.start_utc, ra2.end_utc
+                FROM resource_assignments ra2
+                WHERE ra2.resource_id = ra1.resource_id
+                  AND ra2.assignment_status != 'Cancelled'
+                  AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
+                  AND ra2.id > ra1.id
+            ) ra2 ON true
             JOIN resources res ON res.id = ra1.resource_id
             JOIN resource_types rt ON rt.id = res.resource_type_id
             JOIN requests req ON req.id = ra1.request_id
@@ -463,32 +469,72 @@ public sealed class ReportingQueryService : IReportingQueryService
 
         var periodHours = (to - from).TotalHours;
 
+        // Each side is pre-aggregated in its own CTE before joining, so a resource's availability is
+        // counted once per group it belongs to — NOT once per (group × assignment), which the previous
+        // single-statement join did (Cartesian-inflating available_hours). allocated_hours and
+        // demand_hours are unchanged: they were already one row per (resource, group, assignment).
         await using var cmd = new NpgsqlCommand(@"
+            WITH resource_groups_expanded AS (
+                -- one row per (resource, group); group_name NULL when the resource is in no group
+                SELECT r.id                       AS resource_id,
+                       r.resource_type_id,
+                       r.base_availability_percent,
+                       rg.name                     AS group_name
+                FROM resources r
+                LEFT JOIN resource_group_members rgm ON rgm.resource_id = r.id
+                LEFT JOIN resource_groups rg ON rg.id = rgm.resource_group_id
+            ),
+            capacity AS (
+                SELECT rt.key AS resource_type, rge.group_name,
+                       SUM(COALESCE(rge.base_availability_percent, 100.0) / 100.0 * @periodHours) AS available_hours
+                FROM resource_groups_expanded rge
+                JOIN resource_types rt ON rt.id = rge.resource_type_id
+                GROUP BY rt.key, rge.group_name
+            ),
+            allocated AS (
+                SELECT rt.key AS resource_type, rge.group_name,
+                       SUM(EXTRACT(EPOCH FROM (
+                           LEAST(ra.end_utc, @to) - GREATEST(ra.start_utc, @from)
+                       )) / 3600) AS allocated_hours
+                FROM resource_groups_expanded rge
+                JOIN resource_types rt ON rt.id = rge.resource_type_id
+                JOIN resource_assignments ra
+                       ON ra.resource_id = rge.resource_id
+                      AND ra.assignment_status != 'Cancelled'
+                      AND ra.start_utc < @to AND ra.end_utc > @from
+                GROUP BY rt.key, rge.group_name
+            ),
+            demand AS (
+                SELECT rt.key AS resource_type, rge.group_name,
+                       SUM(EXTRACT(EPOCH FROM (req.end_ts - req.start_ts)) / 3600) AS demand_hours
+                FROM resource_groups_expanded rge
+                JOIN resource_types rt ON rt.id = rge.resource_type_id
+                JOIN resource_assignments ra
+                       ON ra.resource_id = rge.resource_id
+                      AND ra.assignment_status != 'Cancelled'
+                      AND ra.start_utc < @to AND ra.end_utc > @from
+                JOIN requests req
+                       ON req.id = ra.request_id
+                      AND req.start_ts IS NOT NULL AND req.end_ts IS NOT NULL
+                      AND req.start_ts >= @from AND req.end_ts <= @to
+                GROUP BY rt.key, rge.group_name
+            )
             SELECT
-                rt.key                                        AS resource_type,
-                rg.name                                       AS group_name,
+                c.resource_type                               AS resource_type,
+                c.group_name                                  AS group_name,
                 @from                                         AS period_start,
                 @to                                           AS period_end,
-                SUM(COALESCE(r.base_availability_percent, 100.0) / 100.0 * @periodHours) AS available_hours,
-                COALESCE(SUM(
-                    EXTRACT(EPOCH FROM (
-                        LEAST(ra.end_utc, @to) - GREATEST(ra.start_utc, @from)
-                    )) / 3600
-                ) FILTER (WHERE ra.id IS NOT NULL AND ra.assignment_status != 'Cancelled'), 0) AS allocated_hours,
-                COALESCE(SUM(
-                    EXTRACT(EPOCH FROM (req.end_ts - req.start_ts)) / 3600
-                ) FILTER (WHERE req.id IS NOT NULL AND req.start_ts >= @from AND req.end_ts <= @to), 0) AS demand_hours
-            FROM resources r
-            JOIN resource_types rt ON rt.id = r.resource_type_id
-            LEFT JOIN resource_group_members rgm ON rgm.resource_id = r.id
-            LEFT JOIN resource_groups rg ON rg.id = rgm.resource_group_id
-            LEFT JOIN resource_assignments ra
-                   ON ra.resource_id = r.id
-                  AND ra.start_utc < @to AND ra.end_utc > @from
-            LEFT JOIN requests req
-                   ON req.id = ra.request_id AND req.start_ts IS NOT NULL AND req.end_ts IS NOT NULL
-            GROUP BY rt.key, rg.name
-            ORDER BY rt.key, rg.name
+                c.available_hours                             AS available_hours,
+                COALESCE(a.allocated_hours, 0)                AS allocated_hours,
+                COALESCE(d.demand_hours, 0)                   AS demand_hours
+            FROM capacity c
+            LEFT JOIN allocated a
+                   ON a.resource_type = c.resource_type
+                  AND a.group_name IS NOT DISTINCT FROM c.group_name
+            LEFT JOIN demand d
+                   ON d.resource_type = c.resource_type
+                  AND d.group_name IS NOT DISTINCT FROM c.group_name
+            ORDER BY c.resource_type, c.group_name
             LIMIT @limit OFFSET @offset", conn);
 
         cmd.Parameters.AddWithValue("from", from);

@@ -23,6 +23,17 @@ public interface IAvailabilityResolver
     /// </summary>
     Task<Dictionary<Guid, List<BlockedPeriod>>> GetBlockedPeriodsForResourcesAsync(
         Guid siteId, IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns blocked periods for every resource in <paramref name="resourceIds"/>, resolving each
+    /// resource's anchoring site individually. Unlike the single-site overload (auto-scheduler), this
+    /// supports resources spanning multiple sites and people with no site at all — the shape the
+    /// insights/utilization aggregates need. Semantically identical to calling
+    /// <see cref="GetBlockedPeriodsAsync"/> per resource, but loads absences, site resolution,
+    /// group/type metadata, and each distinct site's events in bulk instead of per resource.
+    /// </summary>
+    Task<Dictionary<Guid, List<BlockedPeriod>>> GetBlockedPeriodsForResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 }
 
 public class AvailabilityResolver(
@@ -73,6 +84,48 @@ public class AvailabilityResolver(
 
         foreach (var resourceId in resourceIds)
         {
+            var groupIds = groupMembershipMap.GetValueOrDefault(resourceId, []);
+            var resourceTypeId = resourceTypeMap.GetValueOrDefault(resourceId);
+            foreach (var ev in events)
+            {
+                var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
+                if (effect == ScopeEffect.Closed || (effect == null && ev.DefaultEffect == DefaultEffect.Closed))
+                    result[resourceId].Add(EventToBlockedPeriod(ev));
+            }
+        }
+
+        return result;
+    }
+
+    public async Task<Dictionary<Guid, List<BlockedPeriod>>> GetBlockedPeriodsForResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        var result = resourceIds.ToDictionary(id => id, _ => new List<BlockedPeriod>());
+        if (resourceIds.Count == 0) return result;
+
+        // Absences apply to every resource regardless of site (people are governed solely by these).
+        var absenceMap = await absenceRepository.GetEnabledByResourcesAsync(resourceIds, ct);
+        foreach (var (resourceId, absences) in absenceMap)
+            result[resourceId].AddRange(AbsencesToBlockedPeriods(absences));
+
+        // Availability events are site-bound; resolve each resource's anchoring site. Unsited
+        // resources (people without a home site, etc.) are omitted here → governed by absences only.
+        var siteMap = await schedulingRepository.GetSiteIdsForResourcesAsync(resourceIds, ct);
+        if (siteMap.Count == 0) return result;
+
+        var groupMembershipMap = await groupMemberRepository.GetGroupIdsForResourcesAsync(resourceIds, ct);
+        var resourceTypeMap = await schedulingRepository.GetResourceTypeIdsAsync(resourceIds, ct);
+
+        // Load each distinct site's enabled events once (sites ≪ resources).
+        var eventsBySite = new Dictionary<Guid, List<AvailabilityEventInfo>>();
+        foreach (var siteId in siteMap.Values.Distinct())
+            eventsBySite[siteId] = await eventRepository.GetEnabledBySiteWithScopesAsync(siteId, ct);
+
+        foreach (var (resourceId, siteId) in siteMap)
+        {
+            var events = eventsBySite[siteId];
+            if (events.Count == 0) continue;
+
             var groupIds = groupMembershipMap.GetValueOrDefault(resourceId, []);
             var resourceTypeId = resourceTypeMap.GetValueOrDefault(resourceId);
             foreach (var ev in events)
