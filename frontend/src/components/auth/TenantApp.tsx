@@ -34,7 +34,10 @@ const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m =>
 const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
 const SpacesPage = lazy(() => import('@foundation/src/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
 const PeoplePage = lazy(() => import('@foundation/src/pages/PeoplePage').then(m => ({ default: m.PeoplePage })));
-const ConflictsPage = lazy(() => import('@foundation/src/pages/ConflictsPage').then(m => ({ default: m.ConflictsPage })));
+const InsightsPage = lazy(() => import('@foundation/src/pages/InsightsPage').then(m => ({ default: m.InsightsPage })));
+const OverviewTab = lazy(() => import('@foundation/src/components/insights/OverviewTab').then(m => ({ default: m.OverviewTab })));
+const UtilizationTab = lazy(() => import('@foundation/src/components/insights/UtilizationTab').then(m => ({ default: m.UtilizationTab })));
+const ConflictsTab = lazy(() => import('@foundation/src/components/insights/ConflictsTab').then(m => ({ default: m.ConflictsTab })));
 const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const TenantAdminPage = lazy(() => import('@foundation/src/pages/TenantAdminPage').then(m => ({ default: m.TenantAdminPage })));
@@ -61,7 +64,7 @@ const FloorplanView = lazy(() => import('@foundation/src/components/spaces/Floor
 const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/conflicts", "/settings", "/tenant-admin"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -138,7 +141,14 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
           <Route path="requests" element={<RequestsPage />} />
-          <Route path="conflicts" element={<ConflictsPage />} />
+          <Route path="insights" element={<InsightsPage />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<OverviewTab />} />
+            <Route path="utilization" element={<UtilizationTab />} />
+            <Route path="conflicts" element={<ConflictsTab />} />
+          </Route>
+          {/* Back-compat: the old top-level Conflicts page is now the Insights → Conflicts tab. */}
+          <Route path="conflicts" element={<Navigate to="/insights/conflicts" replace />} />
 
           {/* Settings — editor-open content. Viewers are redirected to root. */}
           <Route path="settings" element={<RequireEditor><SettingsPage /></RequireEditor>}>

@@ -128,7 +128,7 @@ describe("TourDialog", () => {
     renderTour();
     for (let i = 0; i < TOTAL_STEPS - 1; i++) next();
     expect(screen.getByText("Insights")).toBeInTheDocument();
-    expect(mockNavigate).toHaveBeenLastCalledWith("/?tab=insights");
+    expect(mockNavigate).toHaveBeenLastCalledWith("/insights/overview");
   });
 
   // ── permission-aware steps ───────────────────────────────────────────────────

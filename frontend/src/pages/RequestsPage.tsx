@@ -442,7 +442,7 @@ export function RequestsPage() {
         params.set("conflictId", targetConflictId);
       }
 
-      navigate(`/conflicts?${params.toString()}`);
+      navigate(`/insights/conflicts?${params.toString()}`);
     },
     [navigate, requests, storeConflicts],
   );

@@ -19,7 +19,6 @@ import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule 
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
-import { InsightsTab } from "@foundation/src/components/insights/InsightsTab";
 import { UtilizationAgenda } from "@foundation/src/components/utilization/UtilizationAgenda";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
@@ -109,7 +108,7 @@ export function UtilizationPage() {
 
   // Tab state — persisted in URL so the view is bookmarkable
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') ?? 'calendar') as 'space' | 'people' | 'calendar' | 'insights';
+  const activeTab = (searchParams.get('tab') ?? 'calendar') as 'space' | 'people' | 'calendar';
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', tab);
@@ -531,7 +530,6 @@ export function UtilizationPage() {
     { value: 'calendar', label: 'Calendar' },
     { value: 'space', label: 'Spaces' },
     { value: 'people', label: 'People' },
-    { value: 'insights', label: 'Insights' },
   ];
 
   return (
@@ -548,8 +546,8 @@ export function UtilizationPage() {
                 disabled={!selectedSiteId}
               />
             )}
-            {/* Calendar uses FullCalendar's own toolbar; Insights has its own period/bucket filters. */}
-            {activeTab !== 'calendar' && activeTab !== 'insights' && (
+            {/* Calendar uses FullCalendar's own toolbar. */}
+            {activeTab !== 'calendar' && (
               <>
                 <ScaleSelect value={scale} onChange={setScale} />
                 <TimeNavigator
@@ -678,10 +676,6 @@ export function UtilizationPage() {
             weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
             siteId={selectedSiteId}
           />
-        </TabsContent>
-
-        <TabsContent value="insights" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <InsightsTab />
         </TabsContent>
 
       </PageTabs>

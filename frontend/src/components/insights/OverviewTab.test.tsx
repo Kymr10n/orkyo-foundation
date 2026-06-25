@@ -1,22 +1,15 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { InsightsTab } from "./InsightsTab";
-import {
-  useInsightsConflicts,
-  useInsightsOverview,
-  useInsightsRequests,
-  useInsightsUtilization,
-} from "@foundation/src/hooks/useInsights";
+import { OverviewTab } from "./OverviewTab";
+import { useInsightsOverview, useInsightsRequests } from "@foundation/src/hooks/useInsights";
 import type { InsightsOverview } from "@foundation/src/lib/api/insights-api";
 
-// Site comes from the global store — pin it to "all sites".
-vi.mock("@foundation/src/store/app-store", () => ({
-  useAppStore: (selector: (s: { selectedSiteId: string | null }) => unknown) =>
-    selector({ selectedSiteId: null }),
+// Window comes from the router <Outlet context> — pin it.
+vi.mock("@foundation/src/components/insights/insightsTabContext", () => ({
+  useInsightsTabContext: () => ({ from: new Date("2026-01-01"), to: new Date("2026-12-31"), bucket: "month", siteId: null }),
 }));
 
-// Recharts needs a real layout box (absent in happy-dom); stub to passthroughs so the
-// component's own scaffolding (titles, empty states, KPI values) is what we assert.
+// Recharts needs a real layout box (absent in happy-dom); stub to passthroughs.
 vi.mock("recharts", () => {
   const Pass = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Noop = () => null;
@@ -28,8 +21,6 @@ vi.mock("recharts", () => {
 
 vi.mock("@foundation/src/hooks/useInsights", () => ({
   useInsightsOverview: vi.fn(),
-  useInsightsUtilization: vi.fn(),
-  useInsightsConflicts: vi.fn(),
   useInsightsRequests: vi.fn(),
 }));
 
@@ -50,16 +41,14 @@ function overviewData(overrides?: Partial<InsightsOverview>): InsightsOverview {
 beforeEach(() => {
   vi.clearAllMocks();
   (useInsightsOverview as Mock).mockReturnValue(idle);
-  (useInsightsUtilization as Mock).mockReturnValue(idle);
-  (useInsightsConflicts as Mock).mockReturnValue(idle);
   (useInsightsRequests as Mock).mockReturnValue(idle);
 });
 
-describe("InsightsTab", () => {
+describe("OverviewTab", () => {
   it("renders KPI cards from overview data", () => {
     (useInsightsOverview as Mock).mockReturnValue({ data: overviewData(), isLoading: false, error: null });
 
-    render(<InsightsTab />);
+    render(<OverviewTab />);
 
     expect(screen.getByText("Total requests")).toBeInTheDocument();
     expect(screen.getByText("120")).toBeInTheDocument();   // total
@@ -72,35 +61,25 @@ describe("InsightsTab", () => {
 
   it("shows the loading state while the overview is pending", () => {
     (useInsightsOverview as Mock).mockReturnValue({ data: undefined, isLoading: true, error: null });
-    render(<InsightsTab />);
+    render(<OverviewTab />);
     expect(screen.getByText("Loading insights…")).toBeInTheDocument();
   });
 
   it("shows an error message when the overview fails", () => {
     (useInsightsOverview as Mock).mockReturnValue({ data: undefined, isLoading: false, error: new Error("boom") });
-    render(<InsightsTab />);
+    render(<OverviewTab />);
     expect(screen.getByText(/Could not load insights/)).toBeInTheDocument();
   });
 
-  it("renders chart empty states when series are empty", () => {
+  it("renders the request-status chart empty state when the series is empty", () => {
     (useInsightsOverview as Mock).mockReturnValue({ data: overviewData(), isLoading: false, error: null });
-    (useInsightsUtilization as Mock).mockReturnValue({
-      data: { resourceType: "space", bucket: "month", series: [], metadata: { calculatedAt: "x", sourceMode: "live" } },
-      isLoading: false, error: null,
-    });
-    (useInsightsConflicts as Mock).mockReturnValue({
-      data: { bucket: "month", series: [], metadata: { calculatedAt: "x", sourceMode: "live" } },
-      isLoading: false, error: null,
-    });
     (useInsightsRequests as Mock).mockReturnValue({
       data: { bucket: "month", series: [], metadata: { calculatedAt: "x", sourceMode: "live" } },
       isLoading: false, error: null,
     });
 
-    render(<InsightsTab />);
+    render(<OverviewTab />);
 
     expect(screen.getByText("No scheduled requests in this period.")).toBeInTheDocument();
-    expect(screen.getByText("No conflicts in this period.")).toBeInTheDocument();
-    expect(screen.getAllByText("No capacity configured for this period.")).toHaveLength(2); // space + people
   });
 });

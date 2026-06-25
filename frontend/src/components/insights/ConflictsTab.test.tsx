@@ -1,9 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ConflictsPage } from '@foundation/src/pages/ConflictsPage';
+import { ConflictsTab } from '@foundation/src/components/insights/ConflictsTab';
 import { useConflictRegistry, useConflictedRequests } from '@foundation/src/hooks/useConflictRegistry';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
+
+// The tab reads its window from the router <Outlet context> and renders a conflict-trend chart.
+// Pin both so the tests focus on the conflict-list behaviour moved over from ConflictsPage.
+vi.mock('@foundation/src/components/insights/insightsTabContext', () => ({
+  useInsightsTabContext: () => ({ from: new Date('2026-01-01'), to: new Date('2026-12-31'), bucket: 'month', siteId: null }),
+}));
+vi.mock('@foundation/src/hooks/useInsights', () => ({
+  useInsightsConflicts: () => ({ data: undefined, isLoading: false, error: null }),
+}));
+// Recharts needs a real layout box (absent in happy-dom); stub to passthroughs.
+vi.mock('recharts', () => {
+  const Pass = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
+  const Noop = () => null;
+  return {
+    ResponsiveContainer: Pass, LineChart: Pass, BarChart: Pass,
+    Line: Noop, Bar: Noop, XAxis: Noop, YAxis: Noop, Tooltip: Noop, Legend: Noop, CartesianGrid: Noop,
+  };
+});
 
 const mockRequests: Request[] = [
   {
@@ -34,13 +52,13 @@ const mockConflicts = new Map<string, Conflict[]>([
   ]],
 ]);
 
-// Mock the tenant-wide conflicts registry — ConflictsPage's source of conflicts + rows.
+// Mock the tenant-wide conflicts registry — the tab's source of conflicts + rows.
 vi.mock('@foundation/src/hooks/useConflictRegistry', () => ({
   useConflictRegistry: vi.fn(() => ({ conflictsByRequest: mockConflicts })),
   useConflictedRequests: vi.fn(() => ({ data: mockRequests, isLoading: false })),
 }));
 
-// Only `conflictsByRequest` is consumed by ConflictsPage; cast past the full UseQueryResult shape.
+// Only `conflictsByRequest` is consumed; cast past the full UseQueryResult shape.
 const mockRegistry = (conflictsByRequest: Map<string, Conflict[]>) =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   vi.mocked(useConflictRegistry).mockReturnValue({ conflictsByRequest } as any);
@@ -57,52 +75,47 @@ const createWrapper = () => {
   );
 };
 
-describe('ConflictsPage', () => {
+describe('ConflictsTab', () => {
   beforeEach(() => {
     mockOpen.mockClear();
     mockRegistry(mockConflicts);
   });
 
   describe('with conflicts', () => {
-    it('should render conflicts page with title', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
-      expect(screen.getByText('Conflicts')).toBeInTheDocument();
-    });
-
     it('should display conflict count in description', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText(/3 conflicts found/i)).toBeInTheDocument();
     });
 
     it('should render all conflict items', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText('Conference Room Request')).toBeInTheDocument();
       expect(screen.getAllByText('Workshop Space Request')).toHaveLength(2);
     });
 
     it('should display conflict messages', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText('Capacity: Space has 30, but requires 50')).toBeInTheDocument();
       expect(screen.getByText('Projector: Required but not available')).toBeInTheDocument();
       expect(screen.getByText('Seating: Space has "Classroom", but requires "Theater"')).toBeInTheDocument();
     });
 
     it('should display severity badges', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       // "error"/"warning" severities render as "violation"/"advisory" (see getSeverityLabel).
       expect(screen.getAllByText('violation')).toHaveLength(2);
       expect(screen.getAllByText('advisory')).toHaveLength(1);
     });
 
     it('should display conflict kind badges', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText('Load Exceeded')).toBeInTheDocument();
       expect(screen.getByText('Capability Mismatch')).toBeInTheDocument();
       expect(screen.getByText('Size Mismatch')).toBeInTheDocument();
     });
 
     it('should display scheduled time information', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getAllByText(/Jan 28,/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Jan 29,/).length).toBeGreaterThan(0);
     });
@@ -112,17 +125,17 @@ describe('ConflictsPage', () => {
     beforeEach(() => mockRegistry(new Map()));
 
     it('should display empty state message', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText('No conflicts to display')).toBeInTheDocument();
     });
 
     it('should display success message in description', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText(/No conflicts detected. All scheduled requests meet their requirements./i)).toBeInTheDocument();
     });
 
     it('should not render any conflict items', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.queryByText('Conference Room Request')).not.toBeInTheDocument();
     });
   });
@@ -140,7 +153,7 @@ describe('ConflictsPage', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(useConflictedRequests).mockReturnValue({ data: [], isPending: true, isError: false, refetch: vi.fn() } as any);
 
-      const { container } = render(<ConflictsPage />, { wrapper: createWrapper() });
+      const { container } = render(<ConflictsTab />, { wrapper: createWrapper() });
 
       expect(container.querySelector('.animate-spin')).toBeInTheDocument();
       // Must NOT show the misleading "all good" empty state while loading.
@@ -156,9 +169,9 @@ describe('ConflictsPage', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(useConflictedRequests).mockReturnValue({ data: [], isPending: false, isError: true, refetch: refetchRequests } as any);
 
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
 
-      // Shown in both the header subtitle and the error card body.
+      // Shown in both the description line and the error card body.
       expect(screen.getAllByText(/Couldn't load conflicts/i).length).toBeGreaterThan(0);
       expect(screen.queryByText('No conflicts to display')).not.toBeInTheDocument();
 
@@ -171,14 +184,14 @@ describe('ConflictsPage', () => {
   describe('partial conflicts', () => {
     it('should use singular form for single conflict', () => {
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded', severity: 'error', message: 'Single conflict' }]]]));
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText(/1 conflict found/i)).toBeInTheDocument();
     });
   });
 
   describe('severity icons', () => {
     it('should display error icon for error severity', () => {
-      const { container } = render(<ConflictsPage />, { wrapper: createWrapper() });
+      const { container } = render(<ConflictsTab />, { wrapper: createWrapper() });
       const errorIcons = container.querySelectorAll('.text-destructive');
       expect(errorIcons.length).toBeGreaterThan(0);
     });
@@ -186,13 +199,13 @@ describe('ConflictsPage', () => {
 
   describe('styling', () => {
     it('should apply hover effect to conflict items', () => {
-      const { container } = render(<ConflictsPage />, { wrapper: createWrapper() });
+      const { container } = render(<ConflictsTab />, { wrapper: createWrapper() });
       const conflictItems = container.querySelectorAll('[class*="hover:bg-accent"]');
       expect(conflictItems.length).toBeGreaterThan(0);
     });
 
     it('should apply error badge styling', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       // "error" severity renders the "violation" display label (see getSeverityLabel).
       const errorBadges = screen.getAllByText('violation');
       errorBadges.forEach((badge) => {
@@ -203,14 +216,14 @@ describe('ConflictsPage', () => {
 
   describe('interaction', () => {
     it('conflict rows have role="button"', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       const buttons = screen.getAllByRole('button');
       // 3 conflicts from mockConflicts, all rendered as buttons
       expect(buttons.length).toBeGreaterThanOrEqual(3);
     });
 
     it('clicking a conflict row calls open with the associated request', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -220,7 +233,7 @@ describe('ConflictsPage', () => {
     });
 
     it('pressing Enter on a conflict row calls open', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -229,7 +242,7 @@ describe('ConflictsPage', () => {
     });
 
     it('pressing Space on a conflict row calls open', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -238,7 +251,7 @@ describe('ConflictsPage', () => {
     });
 
     it('other keys do not trigger open', () => {
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -260,7 +273,7 @@ describe('ConflictsPage', () => {
       beforeEach(() => mockRegistry(overlapConflicts));
 
       it('renders "View other request" link when peerRequestId is set', () => {
-        render(<ConflictsPage />, { wrapper: createWrapper() });
+        render(<ConflictsTab />, { wrapper: createWrapper() });
         expect(
           screen.getByText(/View other request: Workshop Space Request/)
         ).toBeInTheDocument();
@@ -268,18 +281,18 @@ describe('ConflictsPage', () => {
 
       it('does not render a peer link for non-overlap conflicts', () => {
         mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'error' as const, message: 'Capacity exceeded' }]]]));
-        render(<ConflictsPage />, { wrapper: createWrapper() });
+        render(<ConflictsTab />, { wrapper: createWrapper() });
         expect(screen.queryByText(/View other request/)).not.toBeInTheDocument();
       });
 
       it('clicking "View other request" calls open with the peer request', () => {
-        render(<ConflictsPage />, { wrapper: createWrapper() });
+        render(<ConflictsTab />, { wrapper: createWrapper() });
         fireEvent.click(screen.getByText(/View other request:/));
         expect(mockOpen).toHaveBeenCalledWith(mockRequests[1], expect.any(Array));
       });
 
       it('clicking "View other request" calls open exactly once (stopPropagation prevents row click)', () => {
-        render(<ConflictsPage />, { wrapper: createWrapper() });
+        render(<ConflictsTab />, { wrapper: createWrapper() });
         fireEvent.click(screen.getByText(/View other request:/));
         expect(mockOpen).toHaveBeenCalledTimes(1);
         expect(mockOpen).toHaveBeenCalledWith(mockRequests[1], expect.any(Array));
@@ -299,7 +312,7 @@ describe('ConflictsPage', () => {
     it.each(kindCases)('kind "%s" renders label "%s"', (kind, label) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: kind as any, severity: 'error' as const, message: 'msg' }]]]));
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText(label)).toBeInTheDocument();
     });
   });
@@ -307,7 +320,7 @@ describe('ConflictsPage', () => {
   describe('getSeverityIcon — default (info) case', () => {
     it('renders content for unknown severity without crashing', () => {
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'info' as unknown as 'error', message: 'info msg' }]]]));
-      render(<ConflictsPage />, { wrapper: createWrapper() });
+      render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getByText('info msg')).toBeInTheDocument();
     });
   });

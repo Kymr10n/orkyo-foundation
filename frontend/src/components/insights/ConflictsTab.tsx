@@ -8,10 +8,12 @@ import type { Conflict, Request } from "@foundation/src/types/requests";
 import React, { useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { logger } from "@foundation/src/lib/core/logger";
-import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { Button } from "@foundation/src/components/ui/button";
+import { ConflictTrendChart } from "@foundation/src/components/insights/InsightsTrendCharts";
+import { useInsightsConflicts } from "@foundation/src/hooks/useInsights";
+import { useInsightsTabContext } from "@foundation/src/components/insights/insightsTabContext";
 
 type ConflictWithRequest = Conflict & { request: Request };
 
@@ -97,7 +99,10 @@ const ConflictItem = React.memo(function ConflictItem({
   );
 });
 
-export function ConflictsPage() {
+export function ConflictsTab() {
+  const { from, to, bucket, siteId } = useInsightsTabContext();
+  const conflictsTrend = useInsightsConflicts(siteId, from, to, bucket);
+
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   // Tenant-wide authoritative registry + just the conflicted requests (not the whole tenant).
   const {
@@ -113,9 +118,8 @@ export function ConflictsPage() {
     refetch: refetchRequests,
   } = useConflictedRequests();
 
-  // The page joins both queries, so it is only "ready" once both have settled.
-  // Until then we must not show the empty ("no conflicts") state — that would be a
-  // misleading false-negative while data is still loading.
+  // The tab joins both queries, so it is only "ready" once both have settled. Until then we must
+  // not show the empty ("no conflicts") state — that would be a misleading false-negative.
   const isLoading = conflictsPending || requestsPending;
   const isError = conflictsError || requestsError;
 
@@ -229,10 +233,17 @@ export function ConflictsPage() {
         : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`;
 
   return (
-    <PageLayout>
-      <PageHeader title="Conflicts" description={description} />
+    <div className="flex h-full flex-col gap-4 p-1">
+      <ConflictTrendChart
+        data={conflictsTrend.data}
+        bucket={bucket}
+        isLoading={conflictsTrend.isLoading}
+        error={conflictsTrend.error}
+      />
+
+      <p className="text-sm text-muted-foreground">{description}</p>
       {targetRequestId && (
-        <p className="text-xs text-muted-foreground -mt-4 mb-4">
+        <p className="-mt-3 text-xs text-muted-foreground">
           Filtered to request {targetRequestId}
         </p>
       )}
@@ -294,6 +305,6 @@ export function ConflictsPage() {
         </ScrollArea>
       )}
       {requestEditorDialogs}
-    </PageLayout>
+    </div>
   );
 }

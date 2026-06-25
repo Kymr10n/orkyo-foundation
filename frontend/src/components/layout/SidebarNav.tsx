@@ -4,11 +4,11 @@ import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { cn } from "@foundation/src/lib/utils";
 import {
-  AlertTriangle,
   Box,
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
+  LineChart,
   Package,
   Settings,
   ShieldCheck,
@@ -21,7 +21,7 @@ const coreNavItems = [
   { to: "/spaces", label: "Spaces", icon: Box },
   { to: "/people", label: "People", icon: Users },
   { to: "/requests", label: "Requests", icon: Package },
-  { to: "/conflicts", label: "Conflicts", icon: AlertTriangle },
+  { to: "/insights", label: "Insights", icon: LineChart },
 ];
 
 // Settings visible to editors and admins; Administration to tenant admins only.

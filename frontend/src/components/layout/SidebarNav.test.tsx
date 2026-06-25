@@ -42,7 +42,7 @@ describe('SidebarNav', () => {
     expect(screen.getByText('Utilization')).toBeInTheDocument();
     expect(screen.getByText('Spaces')).toBeInTheDocument();
     expect(screen.getByText('Requests')).toBeInTheDocument();
-    expect(screen.getByText('Conflicts')).toBeInTheDocument();
+    expect(screen.getByText('Insights')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
@@ -58,7 +58,7 @@ describe('SidebarNav', () => {
     expect(hrefs).toContain('/');
     expect(hrefs).toContain('/spaces');
     expect(hrefs).toContain('/requests');
-    expect(hrefs).toContain('/conflicts');
+    expect(hrefs).toContain('/insights');
     expect(hrefs).toContain('/settings');
   });
 

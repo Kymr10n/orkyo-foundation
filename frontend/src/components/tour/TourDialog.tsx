@@ -98,7 +98,7 @@ const STEPS: TourStep[] = [
     description: "Spot and resolve scheduling problems automatically.",
     detail:
       "The Conflicts view surfaces overbooking, criteria mismatches, and availability clashes in real time. Review and resolve them before they cause disruption.",
-    path: "/conflicts",
+    path: "/insights/conflicts",
   },
   {
     icon: LayoutDashboard,
@@ -114,7 +114,7 @@ const STEPS: TourStep[] = [
     description: "Track utilization, conflicts, and requests at a glance.",
     detail:
       "The Insights dashboard summarises your operation: KPI cards plus utilization, conflict, and request-status trends across a period you choose. A quick health check without leaving the app.",
-    path: "/?tab=insights",
+    path: "/insights/overview",
   },
 ];
 

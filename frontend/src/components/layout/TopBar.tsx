@@ -105,7 +105,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
     if (path === '/' || path === '/utilization') return 'utilization';
     if (path === '/spaces') return 'spaces';
     if (path === '/requests') return 'requests';
-    if (path === '/conflicts') return 'conflicts';
+    if (path === '/insights/conflicts') return 'conflicts';
     if (path.startsWith('/settings')) {
       // For settings, we'll handle this specially based on active tab
       return null; // Will be handled by the settings page itself
