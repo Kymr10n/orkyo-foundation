@@ -79,7 +79,8 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
       cell: ({ row }) => {
         const group = row.original;
         return (
-          <div className="flex justify-end gap-1">
+          // Stop propagation so the action icons don't also trigger the row's edit-onClick.
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" onClick={() => setManagingMembersFor(group)} disabled={!canEdit} aria-label={`Manage members of ${group.name}`} title="Manage members">
               <MembersIcon className="h-4 w-4" />
             </Button>
@@ -112,6 +113,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         filterColumn="name"
         filterPlaceholder={`Search ${entityLabel.toLowerCase()}s...`}
         pageSize={25}
+        onRowClick={canEdit ? handleEdit : undefined}
       />
 
       <ResourceGroupEditDialog

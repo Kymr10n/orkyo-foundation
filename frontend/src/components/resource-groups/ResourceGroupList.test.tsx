@@ -121,6 +121,34 @@ describe('ResourceGroupList', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  it('opens the Edit dialog prefilled when a row is clicked', async () => {
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => screen.getByText('Engineering'));
+    await user.click(screen.getByText('Engineering'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Engineering')).toBeInTheDocument();
+  });
+
+  it('does not trigger the row edit-click when an action button is clicked', async () => {
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => screen.getByText('Engineering'));
+    await user.click(screen.getByRole('button', { name: /Delete Engineering/i }));
+    await waitFor(() => expect(deleteResourceGroup).toHaveBeenCalledWith('g-1', expect.anything()));
+    // stopPropagation on the action cell means the row's edit-onClick never fired.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('does not make rows clickable for a viewer who cannot edit', async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => screen.getByText('Engineering'));
+    await user.click(screen.getByText('Engineering'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('calls deleteResourceGroup when delete button clicked', async () => {
     const user = userEvent.setup();
     renderList();
