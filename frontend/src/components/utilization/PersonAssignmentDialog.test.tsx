@@ -3,7 +3,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { PersonAssignmentDialog } from "./PersonAssignmentDialog";
+import {
+  PersonAssignmentDialog,
+  assignmentWindow,
+  formatPeriod,
+  formatSpan,
+  timelineExtent,
+} from "./PersonAssignmentDialog";
+import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import type * as ResourceAssignmentsApi from "@foundation/src/lib/api/resource-assignments-api";
 import type { PersonAssignmentOption } from "@foundation/src/lib/api/person-candidate-requests-api";
 import type { ResourceAssignmentInfo, ValidationResult } from "@foundation/src/lib/api/resource-assignments-api";
@@ -201,11 +208,16 @@ describe("PersonAssignmentDialog", () => {
     const checkbox = screen.getByTestId("assignment-checkbox");
     await userEvent.click(checkbox);
     expect(cancelAssignment).toHaveBeenCalledWith("asgn-1");
+    // Cancelling an assignment routes through invalidateRequestData — refreshes the full
+    // request-derived set (occupancy grids, request lists, conflicts, insights).
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ["utilization-by-resource"] }),
       ),
     );
+    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+    }
   });
 
   it("add: blocker validation prevents assignment and shows inline issues", async () => {
@@ -358,7 +370,7 @@ describe("PersonAssignmentDialog", () => {
     expect(createAssignment).not.toHaveBeenCalled();
   });
 
-  it("add: successful create invalidates the utilization grid queries", async () => {
+  it("add: successful create invalidates all request-derived queries", async () => {
     vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
@@ -380,12 +392,11 @@ describe("PersonAssignmentDialog", () => {
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["resource-assignments-by-type"] }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["utilization-by-resource"] }),
-    );
+    // Routed through invalidateRequestData, so an assignment change now refreshes the request lists,
+    // conflict badges, and insights charts too — not just the occupancy grids it used to.
+    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+    }
   });
 
   it("filters the list by search input", async () => {
@@ -506,5 +517,66 @@ describe("PersonAssignmentDialog", () => {
     await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalled());
     expect(screen.queryByTestId("conflict-badge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("conflict-summary-badge")).not.toBeInTheDocument();
+  });
+});
+
+describe("PersonAssignmentDialog window/format helpers", () => {
+  it("assignmentWindow: uses the request's own window when scheduled", () => {
+    expect(assignmentWindow(ASSIGNED_OPTION, START, END)).toEqual({
+      startUtc: ASSIGNED_OPTION.startTs,
+      endUtc: ASSIGNED_OPTION.endTs,
+    });
+  });
+
+  it("assignmentWindow: falls back to the clicked segment when the request is unscheduled", () => {
+    // CLEAN_CANDIDATE has null startTs/endTs — the segment window must be used so an unscheduled
+    // request doesn't over-allocate the resource across the whole visible slice.
+    expect(assignmentWindow(CLEAN_CANDIDATE, START, END)).toEqual({
+      startUtc: START,
+      endUtc: END,
+    });
+  });
+
+  it("formatPeriod: returns empty string when either endpoint is missing", () => {
+    expect(formatPeriod("", END)).toBe("");
+    expect(formatPeriod(START, "")).toBe("");
+  });
+
+  it("formatPeriod: renders a range for valid endpoints", () => {
+    expect(formatPeriod(START, END)).toContain("–");
+  });
+
+  it("formatSpan: returns empty string for a non-positive or invalid span", () => {
+    expect(formatSpan(END, START)).toBe(""); // end before start
+    expect(formatSpan(START, START)).toBe(""); // zero-length
+    expect(formatSpan("not-a-date", END)).toBe(""); // unparseable
+  });
+
+  it("formatSpan: renders a human duration for a valid span", () => {
+    expect(formatSpan(START, END)).toMatch(/h|m/); // 2h between START and END
+  });
+
+  it("timelineExtent: returns null for an invalid or zero-length window", () => {
+    expect(timelineExtent(END, START, START, END)).toBeNull(); // negative span
+    expect(timelineExtent(START, START, START, END)).toBeNull(); // zero span
+  });
+
+  it("timelineExtent: keeps interior requests in-range and floors the width", () => {
+    const inside = timelineExtent(
+      START,
+      END,
+      "2026-01-06T08:30:00Z",
+      "2026-01-06T09:30:00Z",
+    );
+    expect(inside).not.toBeNull();
+    expect(inside!.leftPct).toBeGreaterThanOrEqual(0);
+    expect(inside!.leftPct).toBeLessThanOrEqual(100);
+    expect(inside!.widthPct).toBeGreaterThanOrEqual(2);
+  });
+
+  it("timelineExtent: clamps a request overflowing both edges to the full bar", () => {
+    expect(
+      timelineExtent(START, END, "2026-01-06T06:00:00Z", "2026-01-06T12:00:00Z"),
+    ).toEqual({ leftPct: 0, widthPct: 100 });
   });
 });

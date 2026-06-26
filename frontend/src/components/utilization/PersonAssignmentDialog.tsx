@@ -31,7 +31,7 @@ import {
 import { ValidationIssueList } from "../requests/ValidationIssueList";
 import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
 import { formatMinutesHuman } from "@foundation/src/lib/utils";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
 export interface PersonAssignmentDialogProps {
   open: boolean;
@@ -52,7 +52,8 @@ export interface PersonAssignmentDialogProps {
  * request over-allocates the resource (a 4h request would span the whole visible slice,
  * inflating its time-weighted utilization), so the request window is preferred.
  */
-function assignmentWindow(
+// Exported for unit testing — pure window/format helpers with edge-case guards.
+export function assignmentWindow(
   option: PersonAssignmentOption,
   segmentStart: string,
   segmentEnd: string,
@@ -82,7 +83,7 @@ type ItemStatus =
   | { kind: "removing" }
   | { kind: "feedback"; result: ValidationResult; isBlocker: boolean };
 
-function formatPeriod(start: string, end: string): string {
+export function formatPeriod(start: string, end: string): string {
   if (!start || !end) return "";
   const fmt = new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -94,7 +95,7 @@ function formatPeriod(start: string, end: string): string {
 }
 
 /** Compact duration between two ISO datetimes, e.g. "45m", "5h", "1h 30m". Empty when invalid. */
-function formatSpan(start: string, end: string): string {
+export function formatSpan(start: string, end: string): string {
   const totalMinutes = Math.round(
     (new Date(end).getTime() - new Date(start).getTime()) / 60_000,
   );
@@ -108,7 +109,7 @@ function formatSpan(start: string, end: string): string {
  * still render at the edges, and floors the width so a near-instant request stays visible.
  * Returns null for an invalid/zero-length window.
  */
-function timelineExtent(
+export function timelineExtent(
   winStart: string,
   winEnd: string,
   reqStart: string,
@@ -150,16 +151,6 @@ export function PersonAssignmentDialog({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
-
-  // Refresh the utilization grid after an assignment changes. The grid keys its
-  // data by window + granularity (see PeopleUtilizationGrid); a prefix-match
-  // invalidation catches every active variant so the availability % and segment
-  // badges refetch. The capability-conflicts query keys off the assignments and
-  // refetches transitively.
-  const invalidateGridQueries = () => {
-    queryClient.invalidateQueries({ queryKey: qk.utilization.byResourceAll() });
-    queryClient.invalidateQueries({ queryKey: qk.utilization.assignmentsByTypeAll() });
-  };
 
   useEffect(() => {
     if (!open) return;
@@ -270,7 +261,7 @@ export function PersonAssignmentDialog({
           ),
         );
         patchConflict(option.requestId, null);
-        invalidateGridQueries();
+        invalidateRequestData(queryClient);
       } catch {
         // Silently reset — assignment may already be cancelled
       }
@@ -323,7 +314,7 @@ export function PersonAssignmentDialog({
             o.requestId === option.requestId ? { ...o, assignmentId: created.id } : o,
           ),
         );
-        invalidateGridQueries();
+        invalidateRequestData(queryClient);
         // Persist any conflict (capability / overbook) on the now-assigned row so the
         // badge + reasons survive — one source of truth with the on-load conflicts map.
         patchConflict(option.requestId, conflictIssuesOf(effectiveResult));
