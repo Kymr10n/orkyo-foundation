@@ -168,6 +168,8 @@ export interface UpdateRequestRequest {
   planningMode?: PlanningMode;
   sortOrder?: number;
   siteId?: string | null;
+  /** When true, a null siteId is applied (clears to "any site") rather than preserved. */
+  changeSiteId?: boolean;
   resourceId?: string;
   requestItemId?: string;
   icon?: string | null;

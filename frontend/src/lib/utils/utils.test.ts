@@ -203,19 +203,30 @@ describe('Request payload builders — icon plumbing', () => {
     expect(out.siteId).toBeUndefined();
   });
 
-  it('buildUpdatePayload omits siteId when unchanged from the original', () => {
+  it('buildUpdatePayload omits siteId and changeSiteId when unchanged from the original', () => {
     const out = buildUpdatePayload({ ...base, siteId: 'site-A' }, undefined, 'site-A');
     expect(out.siteId).toBeUndefined();
+    expect(out.changeSiteId).toBeUndefined();
   });
 
-  it('buildUpdatePayload sends siteId when the user re-scoped', () => {
+  it('buildUpdatePayload sends siteId and changeSiteId when the user re-scoped', () => {
     const out = buildUpdatePayload({ ...base, siteId: 'site-B' }, undefined, 'site-A');
     expect(out.siteId).toBe('site-B');
+    expect(out.changeSiteId).toBe(true);
   });
 
-  it('buildUpdatePayload omits siteId when no original is provided (safe default)', () => {
+  it('buildUpdatePayload sends a null siteId with changeSiteId when cleared to any-site', () => {
+    // The regression: clearing a site-scoped request back to "any site" must send an explicit null
+    // plus the flag, so the backend can distinguish "clear" from "absent" and NULL the column.
+    const out = buildUpdatePayload({ ...base, siteId: null }, undefined, 'site-A');
+    expect(out.siteId).toBeNull();
+    expect(out.changeSiteId).toBe(true);
+  });
+
+  it('buildUpdatePayload omits siteId and changeSiteId when no original is provided (safe default)', () => {
     const out = buildUpdatePayload({ ...base, siteId: 'site-A' });
     expect(out.siteId).toBeUndefined();
+    expect(out.changeSiteId).toBeUndefined();
   });
 });
 

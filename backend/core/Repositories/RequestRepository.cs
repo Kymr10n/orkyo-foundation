@@ -417,6 +417,7 @@ public class RequestRepository : IRequestRepository
         if (request.PlanningMode.HasValue) update.Set("planning_mode", EnumMapper.ToDbValue(request.PlanningMode.Value));
         if (request.SortOrder.HasValue) update.Set("sort_order", request.SortOrder.Value);
         if (request.SiteId.HasValue) update.Set("site_id", request.SiteId.Value);
+        else if (request.ChangeSiteId) update.Set("site_id", (object)DBNull.Value);
         update.SetIfNotNull("request_item_id", request.RequestItemId);
         update.SetIfNotNull("icon", request.Icon);
         if (request.StartTs.HasValue) update.Set("start_ts", request.StartTs.Value);

@@ -161,9 +161,10 @@ export function buildUpdatePayload(
 ): UpdateRequestRequest {
   const planningModeChanged =
     originalPlanningMode === undefined || data.planningMode !== originalPlanningMode;
-  // Same omit-on-unchanged treatment as planningMode: only send siteId when the user
-  // actually re-scoped, so unrelated edits don't re-assert it. (The backend keeps the
-  // existing value when siteId is absent.)
+  // Same omit-on-unchanged treatment as planningMode: only send siteId when the user actually
+  // re-scoped, so unrelated edits don't re-assert it. When re-scoped, send an explicit null plus
+  // changeSiteId so the backend can clear it to "any site" — it can't otherwise distinguish an
+  // absent siteId from an explicit null.
   const siteChanged =
     originalSiteId !== undefined && (data.siteId ?? null) !== (originalSiteId ?? null);
   return {
@@ -171,7 +172,8 @@ export function buildUpdatePayload(
     description: data.description,
     icon: data.icon,
     planningMode: planningModeChanged ? data.planningMode : undefined,
-    siteId: siteChanged ? (data.siteId ?? undefined) : undefined,
+    siteId: siteChanged ? (data.siteId ?? null) : undefined,
+    changeSiteId: siteChanged ? true : undefined,
     resourceId: data.resourceId,
     startTs: data.startTs,
     endTs: data.endTs,

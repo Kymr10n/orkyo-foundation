@@ -262,6 +262,47 @@ public class RequestRepositoryTests
     }
 
     [Fact]
+    public async Task Update_ClearSiteWithChangeSiteId_ResetsToSiteNeutral()
+    {
+        // Re-scoping a site-scoped request back to "any site" (NULL): the FE sends siteId=null with
+        // changeSiteId=true so the backend can distinguish "clear" from "absent". Without the flag a
+        // null siteId is preserved (the omit-on-unchanged contract — see buildUpdatePayload).
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var createResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"ClearSite-{Guid.NewGuid():N}"[..20],
+            SiteId = siteId,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = false,
+        });
+        createResp.EnsureSuccessStatusCode();
+        var id = (await createResp.Content.ReadFromJsonAsync<RequestInfo>())!.Id;
+
+        // A null SiteId WITHOUT the flag preserves the existing site (here paired with a name edit so
+        // the update isn't empty).
+        var preserve = await _client.PutAsJsonAsync($"/api/requests/{id}", new UpdateRequestRequest
+        {
+            Name = $"Renamed-{Guid.NewGuid():N}"[..20],
+            SiteId = null,
+            ChangeSiteId = false,
+        });
+        preserve.EnsureSuccessStatusCode();
+        var afterPreserve = await (await _client.GetAsync($"/api/requests/{id}")).Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.Equal(siteId, afterPreserve!.SiteId);
+
+        // A null SiteId WITH the flag clears it to site-neutral.
+        var cleared = await _client.PutAsJsonAsync($"/api/requests/{id}", new UpdateRequestRequest
+        {
+            SiteId = null,
+            ChangeSiteId = true,
+        });
+        cleared.EnsureSuccessStatusCode();
+        var afterClear = await (await _client.GetAsync($"/api/requests/{id}")).Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.Null(afterClear!.SiteId);
+    }
+
+    [Fact]
     public async Task GetUnscheduled_WithSite_IncludesSiteScopedAndNeutral()
     {
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);

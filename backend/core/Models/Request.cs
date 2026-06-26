@@ -211,8 +211,16 @@ public record UpdateRequestRequest
     public PlanningMode? PlanningMode { get; init; }
     public int? SortOrder { get; init; }
 
-    /// <summary>Site scope. Provide to (re)scope; null/omitted keeps the existing value.</summary>
+    /// <summary>Site scope. A non-null value (re)scopes the request. To clear it back to "any site"
+    /// (NULL), send null together with <see cref="ChangeSiteId"/> = true.</summary>
     public Guid? SiteId { get; init; }
+
+    /// <summary>
+    /// Distinguishes "do not change site" from "set site to NULL (any site)".
+    /// When true, a null SiteId is honored (cleared); when false, a null SiteId is preserved.
+    /// A non-null SiteId always applies regardless of this flag.
+    /// </summary>
+    public bool ChangeSiteId { get; init; }
 
     public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }

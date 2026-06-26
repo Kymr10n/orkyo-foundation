@@ -407,6 +407,7 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "planningMode"
     | "sortOrder"
     | "siteId"
+    | "changeSiteId"
     | "resourceId"
     | "requestItemId"
     | "icon"
