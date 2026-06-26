@@ -21,7 +21,7 @@ import {
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@foundation/src/components/ui/tabs";
+import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import {
@@ -41,13 +41,15 @@ import {
   Crown,
   AlertCircle,
   ChevronLeft,
-  Shield,
   User,
   Pencil,
   Check,
 } from "lucide-react";
 import { useAuth, type AppUser, type TenantMembership as AuthTenantMembership } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
+import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
+import { PageHeader } from "@foundation/src/components/layout/PageHeader";
+import { PageTabs } from "@foundation/src/components/layout/PageTabs";
 import {
   getTenantMemberships,
   leaveTenant,
@@ -366,35 +368,17 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   }
 
   return (
-    <div className="container max-w-3xl py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-        <div className="flex items-center gap-4 flex-1">
-          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-semibold text-primary">
-              {appUser?.displayName
-                ? appUser.displayName
-                    .split(" ")
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase()
-                : "?"}
-            </span>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">
-              {appUser?.displayName || "Account"}
-            </h1>
-            {appUser?.email && (
-              <p className="text-muted-foreground">{appUser.email}</p>
-            )}
-          </div>
-        </div>
-      </div>
+    <FocusedPageLayout>
+      <PageHeader
+        title="Account"
+        description="Manage your profile, organizations, and security."
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        }
+      />
 
       {error && (
         <Alert variant="destructive">
@@ -403,32 +387,37 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         </Alert>
       )}
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger
-            value="organizations"
-            className="flex items-center gap-2"
-          >
-            <Building2 className="h-4 w-4" />
-            Organizations
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Security
-          </TabsTrigger>
-          {visibleAccountTabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-2">
-              {tab.icon}
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
+      <PageTabs
+        tabs={[
+          { value: "profile", label: "Profile" },
+          { value: "organizations", label: "Organizations" },
+          { value: "security", label: "Security" },
+          ...visibleAccountTabs.map((tab) => ({ value: tab.value, label: tab.label })),
+        ]}
+        value={activeTab}
+        onChange={handleTabChange}
+      >
         <TabsContent value="profile" className="mt-6">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg font-semibold text-primary">
+                {appUser?.displayName
+                  ? appUser.displayName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()
+                  : "?"}
+              </span>
+            </div>
+            <div>
+              <p className="font-semibold">{appUser?.displayName || "Account"}</p>
+              {appUser?.email && (
+                <p className="text-sm text-muted-foreground">{appUser.email}</p>
+              )}
+            </div>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -776,7 +765,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             {tab.render(extraTabContext)}
           </TabsContent>
         ))}
-      </Tabs>
+      </PageTabs>
 
       {/* Leave Confirmation Dialog */}
       <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
@@ -844,6 +833,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </FocusedPageLayout>
   );
 }

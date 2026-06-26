@@ -7,25 +7,27 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@foundation/src/components/ui/button";
 import { ChevronLeft } from "lucide-react";
+import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
+import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { MessagesTab } from "@foundation/src/components/account/MessagesTab";
 
 export function MessagesPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="container max-w-3xl py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Messages</h1>
-          <p className="text-muted-foreground">Stay up to date with platform news</p>
-        </div>
-      </div>
+    <FocusedPageLayout>
+      <PageHeader
+        title="Messages"
+        description="Stay up to date with platform news"
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        }
+      />
 
       <MessagesTab />
-    </div>
+    </FocusedPageLayout>
   );
 }

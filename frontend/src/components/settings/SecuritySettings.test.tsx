@@ -57,7 +57,6 @@ describe('SecuritySettings', () => {
       error: null,
     };
     render(<SecuritySettings />);
-    expect(screen.getByText('Security')).toBeInTheDocument();
     expect(screen.getByTestId('password-section')).toBeInTheDocument();
     expect(screen.getByTestId('mfa-section')).toBeInTheDocument();
     expect(screen.getByTestId('sessions-section')).toBeInTheDocument();

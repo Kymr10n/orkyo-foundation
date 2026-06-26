@@ -172,11 +172,11 @@ describe("AccountPage", () => {
     );
 
     await waitFor(() => {
-      // The h1 header should show the display name
-      const heading = screen.getByRole("heading", { level: 1 });
-      expect(heading).toHaveTextContent("Alex Johnson");
+      // The page header now uses the standard "Account" title
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Account");
     });
-    // Email appears in both header and profile tab, verify at least one exists
+    // Name + email now shown in the profile identity summary
+    expect(screen.getAllByText("Alex Johnson").length).toBeGreaterThanOrEqual(1);
     expect(
       screen.getAllByText("test@example.com").length,
     ).toBeGreaterThanOrEqual(1);
@@ -677,7 +677,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alex Johnson");
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Account");
     });
 
     // Click the Edit button on the profile card (it contains Pencil icon)
@@ -696,7 +696,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alex Johnson");
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Account");
     });
 
     fireEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -914,7 +914,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Alex Johnson");
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Account");
     });
 
     fireEvent.click(screen.getByRole("button", { name: /edit/i }));

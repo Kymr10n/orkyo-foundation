@@ -1,5 +1,4 @@
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { SettingsPageHeader } from "./SettingsPageHeader";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
@@ -41,11 +40,6 @@ export function SecuritySettings() {
 
   return (
     <div className="space-y-6">
-      <SettingsPageHeader
-        title="Security"
-        description="Manage your password, multi-factor authentication, and active sessions."
-      />
-
       <PasswordSection
         isFederated={securityInfo?.isFederated ?? false}
         identityProvider={securityInfo?.identityProvider}
