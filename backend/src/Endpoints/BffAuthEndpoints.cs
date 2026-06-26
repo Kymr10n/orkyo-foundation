@@ -28,7 +28,6 @@ public static class BffAuthEndpoints
 {
     private const int PkceVerifierLength = 32;
     private const int StateLength = 32;
-    private const int CsrfTokenLength = 32;
     private static readonly TimeSpan StateTtl = TimePolicyConstants.BffPkceStateTtl;
     private const string DataProtectionPurpose = "BffSession";
 
@@ -141,8 +140,7 @@ public static class BffAuthEndpoints
         IOptions<BffOptions> bffOpts,
         KeycloakOptions keycloakOptions,
         IBffPkceStateStore pkceStore,
-        IBffSessionStore sessionStore,
-        IDataProtectionProvider dataProtection,
+        IBffSessionEstablisher sessionEstablisher,
         IIdentityLinkService identityLinkService,
         ISessionService sessionService,
         IHttpClientFactory httpClientFactory,
@@ -199,9 +197,8 @@ public static class BffAuthEndpoints
                 return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=identity_link_failed");
             }
 
-            await EstablishBffSessionAsync(
-                ctx, linkResult.UserId.Value, tokenProfile, tokenResponse,
-                bffOptions, sessionStore, dataProtection);
+            await sessionEstablisher.EstablishAsync(
+                ctx, linkResult.UserId.Value, tokenProfile, tokenResponse);
 
             var returnTo = await ResolvePostLoginRedirectAsync(
                 pkceState.ReturnTo,
@@ -383,64 +380,6 @@ public static class BffAuthEndpoints
         var jwtHandler = new JwtSecurityTokenHandler { MapInboundClaims = false };
         var jwt = jwtHandler.ReadJwtToken(accessToken);
         return new ClaimsPrincipal(new ClaimsIdentity(jwt.Claims, "BffCallback"));
-    }
-
-    /// <summary>
-    /// Persists a BFF session for <paramref name="userId"/> and writes the session
-    /// + CSRF cookies. Shared by the OIDC callback and the demo-login handler so
-    /// session establishment is identical. <paramref name="sessionLifetimeOverride"/>
-    /// lets the demo path use a shorter lifetime than a normal login.
-    /// </summary>
-    public static async Task EstablishBffSessionAsync(
-        HttpContext ctx,
-        Guid userId,
-        KeycloakTokenProfile tokenProfile,
-        TokenResponse tokenResponse,
-        BffOptions bffOptions,
-        IBffSessionStore sessionStore,
-        IDataProtectionProvider dataProtection,
-        TimeSpan? sessionLifetimeOverride = null)
-    {
-        var lifetime = sessionLifetimeOverride ?? bffOptions.SessionDuration;
-        var sessionId = Guid.NewGuid().ToString("N");
-        var now = DateTimeOffset.UtcNow;
-        var session = new BffSessionRecord
-        {
-            SessionId = sessionId,
-            UserId = userId.ToString(),
-            ExternalSubject = tokenProfile.Subject!,
-            AccessToken = tokenResponse.AccessToken,
-            RefreshToken = tokenResponse.RefreshToken,
-            IdToken = tokenResponse.IdToken,
-            ExpiresAt = now.Add(lifetime),
-            TokenExpiresAt = now.AddSeconds(tokenResponse.ExpiresInSeconds),
-            CreatedAt = now,
-            LastActivityAt = now,
-        };
-
-        await sessionStore.SetAsync(session);
-
-        var protector = dataProtection.CreateProtector(DataProtectionPurpose);
-        ctx.Response.Cookies.Append(bffOptions.CookieName, protector.Protect(sessionId), new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = bffOptions.CookieSecure,
-            SameSite = SameSiteMode.Lax,
-            Domain = bffOptions.CookieDomain,
-            Path = "/",
-            MaxAge = lifetime,
-        });
-
-        // 32-byte (256-bit) CSRF token — NOT HttpOnly so JS can read it
-        ctx.Response.Cookies.Append(bffOptions.CsrfCookieName, GenerateRandomHex(CsrfTokenLength), new CookieOptions
-        {
-            HttpOnly = false,
-            Secure = bffOptions.CookieSecure,
-            SameSite = SameSiteMode.Lax,
-            Domain = bffOptions.CookieDomain,
-            Path = "/",
-            MaxAge = lifetime,
-        });
     }
 
     [ExcludeFromCodeCoverage]

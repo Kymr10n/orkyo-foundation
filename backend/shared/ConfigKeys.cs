@@ -59,6 +59,15 @@ public static class ConfigKeys
     // ── Security / Challenge ────────────────────────────────────────────────
     public const string TurnstileSecretKey = "TURNSTILE_SECRET_KEY";
 
+    /// <summary>
+    /// Optional comma-separated CIDR list of trusted reverse-proxy networks whose
+    /// forwarded-IP headers (CF-Connecting-IP / X-Forwarded-For) may be believed.
+    /// When unset, only private (RFC1918) and loopback peers are trusted — which is
+    /// correct for the Docker/nginx topology where the backend is never exposed
+    /// publicly. Set explicitly to tighten beyond the private-range default.
+    /// </summary>
+    public const string SecurityTrustedProxyNetworks = "SECURITY_TRUSTED_PROXY_NETWORKS";
+
     /// <summary>Base64-encoded 32-byte AES-256 master key for application-level field/blob encryption.</summary>
     public const string MasterEncryptionKey = "ORKYO_MASTER_ENCRYPTION_KEY";
 

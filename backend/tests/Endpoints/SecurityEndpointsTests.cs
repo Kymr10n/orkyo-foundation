@@ -5,6 +5,7 @@ using Api.Integrations.Keycloak;
 using Api.Services;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 using Xunit;
@@ -329,6 +330,60 @@ public class SecurityEndpointsTests
         // First session should be marked as current
         var currentSession = sessions.EnumerateArray().First(s => s.GetProperty("id").GetString() == currentSessionId);
         currentSession.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetSessions_EnrichesWithCapturedDevice_FallsBackForUnmatched_AndPrunesStale()
+    {
+        // Arrange — a linked user so the endpoint resolves a real UserId.
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var currentSid = Guid.NewGuid().ToString();
+        var otherSid = Guid.NewGuid().ToString();
+        var staleSid = Guid.NewGuid().ToString();
+        var token = GetAuthToken(keycloakSub: sub, sessionId: currentSid, userId: userId);
+
+        // Capture device metadata for the current session + a stale row whose
+        // Keycloak session no longer exists (should be pruned on list).
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userSessions = scope.ServiceProvider.GetRequiredService<IUserSessionService>();
+            await userSessions.UpsertAsync(userId, currentSid, "203.0.113.7",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 Safari/537.36");
+            await userSessions.UpsertAsync(userId, staleSid, "203.0.113.9", "Chrome");
+        }
+
+        _mockKeycloak.MockSessions = new List<KeycloakSession>
+        {
+            MockKeycloakAdminService.CreateMockSession(currentSid, "172.16.0.1"), // proxy IP from Keycloak
+            MockKeycloakAdminService.CreateMockSession(otherSid, "10.0.0.1")      // no captured row
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert — enrichment + fallback
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var sessions = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var current = sessions.EnumerateArray().First(s => s.GetProperty("id").GetString() == currentSid);
+        current.GetProperty("deviceLabel").GetString().Should().Be("Chrome on Windows");
+        current.GetProperty("browser").GetString().Should().Be("Chrome");
+        current.GetProperty("operatingSystem").GetString().Should().Be("Windows");
+        current.GetProperty("deviceType").GetString().Should().Be("desktop");
+        current.GetProperty("ipAddress").GetString().Should().Be("203.0.113.7"); // real, not the proxy IP
+
+        var other = sessions.EnumerateArray().First(s => s.GetProperty("id").GetString() == otherSid);
+        other.GetProperty("deviceLabel").ValueKind.Should().Be(JsonValueKind.Null);
+        other.GetProperty("ipAddress").GetString().Should().Be("10.0.0.1"); // falls back to Keycloak's value
+
+        // Assert — the stale captured row was pruned
+        using var verifyScope = _factory.Services.CreateScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<IUserSessionService>();
+        var remaining = (await verify.GetByUserAsync(userId)).Select(r => r.KeycloakSessionId).ToList();
+        remaining.Should().Contain(currentSid);
+        remaining.Should().NotContain(staleSid);
     }
 
     [Fact]

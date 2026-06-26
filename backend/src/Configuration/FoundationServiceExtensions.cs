@@ -74,6 +74,10 @@ public static class FoundationServiceExtensions
         services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
         services.AddScoped<CurrentAuthorizationContext>();
         services.AddScoped<IAuthorizationContext>(sp => sp.GetRequiredService<CurrentAuthorizationContext>());
+        // Real-client-IP resolution behind the reverse-proxy chain (config-only, stateless).
+        services.AddSingleton<IClientIpAccessor, ClientIpAccessor>();
+        // Single seam for establishing a BFF session (record + cookies + device capture).
+        services.AddScoped<IBffSessionEstablisher, BffSessionEstablisher>();
 
         // ── Repositories ──────────────────────────────────────────────────────
         services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
@@ -121,6 +125,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<IUserSessionService, UserSessionService>();
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<ISiteSettingsService, SiteSettingsService>();
         services.AddScoped<ISpaceService, SpaceService>();

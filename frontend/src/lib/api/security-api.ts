@@ -20,6 +20,11 @@ interface Session {
   lastAccessTime: string;
   isCurrent: boolean;
   clients: string[];
+  // Captured device metadata (null/absent for sessions predating capture).
+  browser?: string | null;
+  operatingSystem?: string | null;
+  deviceType?: "desktop" | "mobile" | "tablet" | "unknown" | null;
+  deviceLabel?: string | null;
 }
 
 /**

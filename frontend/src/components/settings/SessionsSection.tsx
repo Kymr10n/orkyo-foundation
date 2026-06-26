@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Monitor, Smartphone, LogOut, Trash2, AlertCircle, Loader2 } from "lucide-react";
+import { Monitor, Smartphone, Tablet, LogOut, Trash2, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -10,15 +10,8 @@ import {
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { getSessions, revokeSession, logoutAllSessions } from "@foundation/src/lib/api/security-api";
 import { formatDistanceToNow } from "date-fns";
 
@@ -26,21 +19,33 @@ interface SessionsSectionProps {
   onLogoutAll: () => void;
 }
 
-function getDeviceIcon(clientInfo: string[]) {
-  const clientString = clientInfo.join(" ").toLowerCase();
-  if (
-    clientString.includes("mobile") ||
-    clientString.includes("android") ||
-    clientString.includes("ios")
-  ) {
-    return <Smartphone className="h-4 w-4" />;
+type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
+
+function getDeviceIcon(session: SessionItem) {
+  if (session.deviceType === "mobile") return <Smartphone className="h-4 w-4" />;
+  if (session.deviceType === "tablet") return <Tablet className="h-4 w-4" />;
+  if (!session.deviceType) {
+    // Fall back to client-string keyword matching for sessions predating capture.
+    const clientString = session.clients.join(" ").toLowerCase();
+    if (clientString.includes("mobile") || clientString.includes("android") || clientString.includes("ios")) {
+      return <Smartphone className="h-4 w-4" />;
+    }
   }
   return <Monitor className="h-4 w-4" />;
 }
 
+function getDeviceLabel(session: SessionItem): string {
+  if (session.deviceLabel) return session.deviceLabel;
+  if (session.browser && session.operatingSystem) return `${session.browser} on ${session.operatingSystem}`;
+  if (session.browser) return session.browser;
+  if (session.operatingSystem) return session.operatingSystem;
+  if (session.clients.length > 0) return session.clients.join(", ");
+  return "Unknown device";
+}
+
 export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
-  const queryClient = useQueryClient();
   const [logoutAllOpen, setLogoutAllOpen] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<SessionItem | null>(null);
 
   const {
     data: sessions = [],
@@ -53,14 +58,22 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
 
   const revokeSessionMutation = useMutation({
     mutationFn: revokeSession,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    meta: {
+      successMessage: "Session signed out",
+      errorMessage: "Failed to sign out session",
+      invalidates: [["sessions"]],
     },
+    onSuccess: () => setRevokeTarget(null),
   });
 
   const logoutAllMutation = useMutation({
     mutationFn: logoutAllSessions,
+    meta: {
+      successMessage: "Signed out everywhere",
+      errorMessage: "Failed to sign out everywhere",
+    },
     onSuccess: () => {
+      setLogoutAllOpen(false);
       onLogoutAll();
     },
   });
@@ -115,14 +128,12 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-full bg-muted">
-                      {getDeviceIcon(session.clients)}
+                      {getDeviceIcon(session)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm">
-                          {session.clients.length > 0
-                            ? session.clients.join(", ")
-                            : "Unknown Client"}
+                          {getDeviceLabel(session)}
                         </span>
                         {session.isCurrent && (
                           <Badge variant="secondary" className="text-xs">
@@ -142,9 +153,9 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => revokeSessionMutation.mutate(session.id)}
-                      disabled={revokeSessionMutation.isPending}
+                      onClick={() => setRevokeTarget(session)}
                       className="text-destructive hover:text-destructive"
+                      aria-label="Sign out session"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -156,32 +167,33 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
         </CardContent>
       </Card>
 
-      <Dialog open={logoutAllOpen} onOpenChange={setLogoutAllOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Sign Out Everywhere</DialogTitle>
-            <DialogDescription>
-              This will terminate all your sessions, including this one. You'll
-              need to log in again.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLogoutAllOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => logoutAllMutation.mutate()}
-              disabled={logoutAllMutation.isPending}
-            >
-              {logoutAllMutation.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Sign Out Everywhere
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={revokeTarget !== null}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+        title="Sign out this session?"
+        description={
+          revokeTarget
+            ? `This will sign out the session on ${getDeviceLabel(revokeTarget)} (${revokeTarget.ipAddress}).`
+            : ""
+        }
+        confirmLabel="Sign Out"
+        destructive
+        isPending={revokeSessionMutation.isPending}
+        onConfirm={() => {
+          if (revokeTarget) revokeSessionMutation.mutate(revokeTarget.id);
+        }}
+      />
+
+      <ConfirmDialog
+        open={logoutAllOpen}
+        onOpenChange={setLogoutAllOpen}
+        title="Sign Out Everywhere"
+        description="This will terminate all your sessions, including this one. You'll need to log in again."
+        confirmLabel="Sign Out Everywhere"
+        destructive
+        isPending={logoutAllMutation.isPending}
+        onConfirm={() => logoutAllMutation.mutate()}
+      />
     </>
   );
 }

@@ -52,20 +52,39 @@ public static class SecurityEndpoints
             HttpContext ctx,
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
+            IUserSessionService userSessionService,
             CancellationToken ct) =>
         {
             var sub = principal.RequireExternalSubject();
+            var userId = principal.RequireUserId();
+            // Keycloak stays the source of truth for what is live + revocable.
             var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
-            var tokenProfile = KeycloakTokenProfile.FromPrincipal(ctx.User);
-            var currentSessionId = tokenProfile.SessionId;
-            var response = sessions.Select(s => new SessionResponse
+            var currentSessionId = KeycloakTokenProfile.FromPrincipal(ctx.User).SessionId;
+
+            // Enrich with the real device/IP we captured at login, joined by sid.
+            var captured = (await userSessionService.GetByUserAsync(userId, ct))
+                .ToDictionary(r => r.KeycloakSessionId);
+
+            // Drop captured rows whose Keycloak session is gone (aged out / revoked elsewhere).
+            await userSessionService.PruneExceptAsync(userId, sessions.Select(s => s.Id).ToList(), ct);
+
+            var response = sessions.Select(s =>
             {
-                Id = s.Id,
-                IpAddress = s.IpAddress,
-                StartTime = s.StartTime,
-                LastAccessTime = s.LastAccessTime,
-                IsCurrent = s.Id == currentSessionId,
-                Clients = s.Clients?.Values.ToList() ?? new List<string>()
+                captured.TryGetValue(s.Id, out var meta);
+                return new SessionResponse
+                {
+                    Id = s.Id,
+                    // Real client IP when known; fall back to Keycloak's value for older sessions.
+                    IpAddress = meta?.IpAddress ?? s.IpAddress,
+                    StartTime = s.StartTime,
+                    LastAccessTime = s.LastAccessTime,
+                    IsCurrent = s.Id == currentSessionId,
+                    Clients = s.Clients?.Values.ToList() ?? new List<string>(),
+                    Browser = meta?.Browser,
+                    OperatingSystem = meta?.OperatingSystem,
+                    DeviceType = meta?.DeviceType,
+                    DeviceLabel = BuildDeviceLabel(meta),
+                };
             }).ToList();
             return Results.Ok(response);
         })
@@ -77,6 +96,7 @@ public static class SecurityEndpoints
             string sessionId,
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
+            IUserSessionService userSessionService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var sub = principal.RequireExternalSubject();
@@ -84,6 +104,7 @@ public static class SecurityEndpoints
             if (!sessions.Any(s => s.Id == sessionId))
                 return ErrorResponses.NotFoundMessage("Session not found");
             await keycloakService.RevokeSessionAsync(sessionId, ct);
+            await userSessionService.RemoveAsync(sessionId, ct);
             logger.LogInformation("Session {SessionId} revoked by user {Sub}", sessionId, sub);
             return Results.Ok(new { message = "Session revoked" });
         })
@@ -94,10 +115,12 @@ public static class SecurityEndpoints
         security.MapPost("/logout-all", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
+            IUserSessionService userSessionService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var sub = principal.RequireExternalSubject();
             await keycloakService.LogoutAllSessionsAsync(sub, ct);
+            await userSessionService.RemoveAllForUserAsync(principal.RequireUserId(), ct);
             logger.LogInformation("All sessions terminated for user {Sub}", sub);
             return Results.Ok(new { message = "Logged out from all sessions" });
         })
@@ -226,6 +249,19 @@ public static class SecurityEndpoints
         .WithSummary("Update user profile")
         .WithTags("Security");
     }
+
+    /// <summary>
+    /// Human-friendly device label from captured metadata, e.g. "Chrome on Windows".
+    /// Returns null when nothing was captured (the FE falls back to the client list).
+    /// </summary>
+    private static string? BuildDeviceLabel(UserSessionRow? meta)
+    {
+        if (meta is null)
+            return null;
+        if (meta.Browser is { Length: > 0 } b && meta.OperatingSystem is { Length: > 0 } o)
+            return $"{b} on {o}";
+        return meta.Browser ?? meta.OperatingSystem;
+    }
 }
 // ChangePasswordRequest moved to Api.Models (Core)
 
@@ -237,6 +273,12 @@ public record SessionResponse
     public DateTime LastAccessTime { get; init; }
     public bool IsCurrent { get; init; }
     public List<string> Clients { get; init; } = new();
+
+    // Captured device metadata (null for sessions predating capture).
+    public string? Browser { get; init; }
+    public string? OperatingSystem { get; init; }
+    public string? DeviceType { get; init; }
+    public string? DeviceLabel { get; init; }
 }
 
 public record SecurityInfoResponse

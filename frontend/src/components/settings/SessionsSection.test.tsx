@@ -64,11 +64,28 @@ describe('SessionsSection', () => {
     expect(screen.getByText('Current')).toBeInTheDocument();
   });
 
-  it('shows IP address and last access time', async () => {
-    vi.mocked(getSessions).mockResolvedValue([makeSession()]);
+  it('shows the captured device label, IP and last access time', async () => {
+    vi.mocked(getSessions).mockResolvedValue([
+      makeSession({
+        deviceLabel: 'Chrome on Windows',
+        browser: 'Chrome',
+        operatingSystem: 'Windows',
+        deviceType: 'desktop',
+        ipAddress: '203.0.113.7',
+      }),
+    ]);
     renderSessions();
     await waitFor(() => {
-      expect(screen.getByText(/192\.168\.1\.1/)).toBeInTheDocument();
+      expect(screen.getByText('Chrome on Windows')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/203\.0\.113\.7/)).toBeInTheDocument();
+  });
+
+  it('falls back to "Unknown device" when no metadata or clients', async () => {
+    vi.mocked(getSessions).mockResolvedValue([makeSession({ clients: [] })]);
+    renderSessions();
+    await waitFor(() => {
+      expect(screen.getByText('Unknown device')).toBeInTheDocument();
     });
   });
 
@@ -88,22 +105,32 @@ describe('SessionsSection', () => {
     expect(revokeButtons).toHaveLength(1);
   });
 
-  it('calls revokeSession on revoke button click', async () => {
+  it('confirms before revoking a session', async () => {
     vi.mocked(getSessions).mockResolvedValue([
       makeSession({ id: 's2', isCurrent: false, clients: ['Firefox'] }),
     ]);
-    vi.mocked(revokeSession).mockResolvedValue({ message: 'ok' } as never);
+    vi.mocked(revokeSession).mockResolvedValue(undefined as never);
     renderSessions();
     await waitFor(() => {
       expect(screen.getByText('Firefox')).toBeInTheDocument();
     });
+
+    // Clicking the trash icon opens a confirm dialog; it does NOT revoke yet.
     const revokeBtn = screen.getAllByRole('button').find(
       (btn) => btn.querySelector('.lucide-trash-2'),
     )!;
     fireEvent.click(revokeBtn);
     await waitFor(() => {
-      expect(revokeSession).toHaveBeenCalledWith('s2', expect.anything());
+      expect(screen.getByText('Sign out this session?')).toBeInTheDocument();
     });
+    expect(revokeSession).not.toHaveBeenCalled();
+
+    // Confirming triggers the revoke.
+    fireEvent.click(screen.getByRole('button', { name: /^Sign Out$/ }));
+    await waitFor(() => {
+      expect(revokeSession).toHaveBeenCalled();
+    });
+    expect(vi.mocked(revokeSession).mock.calls[0][0]).toBe('s2');
   });
 
   it('disables Sign Out Everywhere when only one session', async () => {
@@ -141,7 +168,7 @@ describe('SessionsSection', () => {
     await waitFor(() => {
       expect(screen.getByText(/terminate all your sessions/)).toBeInTheDocument();
     });
-    // Confirm the dialog - find the destructive button inside the dialog
+    // Confirm the dialog - find the destructive action button inside the dialog
     const confirmButtons = screen.getAllByRole('button', { name: /Sign Out Everywhere/ });
     const confirmBtn = confirmButtons[confirmButtons.length - 1];
     fireEvent.click(confirmBtn);
@@ -154,15 +181,5 @@ describe('SessionsSection', () => {
     vi.mocked(getSessions).mockResolvedValue([]);
     renderSessions();
     expect(screen.getByText('Active Sessions')).toBeInTheDocument();
-  });
-
-  it('shows Unknown Client when client list is empty', async () => {
-    vi.mocked(getSessions).mockResolvedValue([
-      makeSession({ clients: [] }),
-    ]);
-    renderSessions();
-    await waitFor(() => {
-      expect(screen.getByText('Unknown Client')).toBeInTheDocument();
-    });
   });
 });
