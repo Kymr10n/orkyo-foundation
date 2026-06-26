@@ -17,8 +17,10 @@ import {
 import { ValidationIssueList } from "./ValidationIssueList";
 import { ConflictIndicator } from "./ConflictIndicator";
 import type { Conflict } from "@foundation/src/types/requests";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface RequestPeopleSectionProps {
   /** ID of an existing request. Undefined when creating a new request. */
@@ -58,6 +60,7 @@ export function RequestPeopleSection({
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const queryClient = useQueryClient();
 
   // Load available people and existing assignments
   useEffect(() => {
@@ -188,6 +191,10 @@ export function RequestPeopleSection({
         allocationPercent: row.allocationPercent ?? undefined,
       });
       setAssignments((prev) => [...prev, created]);
+      // An assignment changes occupancy + conflicts — refresh the request-derived views (grids,
+      // conflict badges, insights). The host form is reducer-driven and doesn't read these keys, so
+      // this can't clobber the open dialog. Mirrors PersonAssignmentDialog.
+      invalidateRequestData(queryClient);
       removePendingRow(key);
     } catch (err) {
       updatePendingRow(key, { saving: false, error: err instanceof Error ? err.message : 'Failed to save' });
@@ -198,6 +205,7 @@ export function RequestPeopleSection({
     try {
       await cancelAssignment(id);
       setAssignments((prev) => prev.filter((a) => a.id !== id));
+      invalidateRequestData(queryClient);
     } catch {
       // Assignment may already be cancelled; refresh on next open
     }

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RequestPeopleSection } from './RequestPeopleSection';
-import type { ReactNode } from 'react';
+import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
+import type { ReactNode, ReactElement } from 'react';
 import type * as ResourceAssignmentsApi from '@foundation/src/lib/api/resource-assignments-api';
 
 // --- Mock UI components ---
@@ -59,6 +61,14 @@ import {
   cancelAssignment,
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { Conflict } from '@foundation/src/types/requests';
+
+// The component calls useQueryClient(), so every render needs a provider. This wrapper injects a
+// fresh client with zero call-site changes. Tests asserting invalidation create their own client +
+// spy and render with rtlRender directly.
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 const mockPeople = [
   { id: 'res-person-1', name: 'Alice', resourceTypeKey: 'person', isActive: true, resourceTypeId: 'rt-1', allocationMode: 'percent', baseAvailabilityPercent: 100, createdAt: '', updatedAt: '' },
@@ -451,5 +461,42 @@ describe('RequestPeopleSection', () => {
     ]);
     render(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => expect(screen.getByText('ghost-person')).toBeInTheDocument());
+  });
+
+  // ── Cache invalidation (assignments change occupancy + conflicts + insights) ──
+
+  it('invalidates request-derived queries after a successful assignment create', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    rtlRender(
+      <QueryClientProvider client={qc}>
+        <RequestPeopleSection {...defaultProps} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+    fireEvent.click(screen.getByTestId('save-row-btn'));
+    await waitFor(() => expect(createAssignment).toHaveBeenCalled());
+    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+    }
+  });
+
+  it('invalidates request-derived queries after removing an assignment', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    rtlRender(
+      <QueryClientProvider client={qc}>
+        <RequestPeopleSection {...defaultProps} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => screen.getByText('Alice'));
+    fireEvent.click(screen.getByLabelText('Remove assignment'));
+    await waitFor(() => expect(cancelAssignment).toHaveBeenCalledWith('assign-1'));
+    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+    }
   });
 });
