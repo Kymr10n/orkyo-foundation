@@ -242,6 +242,24 @@ public static class AuthorizationExtensions
         var authContext = httpContext.RequestServices.GetService<IAuthorizationContext>();
         var isTenantAdminMember = authContext != null && authContext.IsMember && authContext.Role == TenantRole.Admin;
 
+        // On a tenant-scoped request, a site-admin must NOT pass on the site-admin role alone:
+        // tenant data access is gated by break-glass. ContextEnrichmentMiddleware already folds an
+        // active break-glass session (and genuine Admin membership) into the authorization context as
+        // Role = Admin, so here we require that computed Admin membership and deny otherwise. A
+        // site-admin without an active session is routed back to /admin via BuildMembershipDenial
+        // (BreakGlassExpired); the control-plane path below keeps bare site-admin access.
+        var currentTenant = httpContext.RequestServices.GetService<ICurrentTenant>();
+        if (currentTenant?.HasTenant == true)
+        {
+            if (isTenantAdminMember)
+                return null;
+
+            logger.LogWarning(
+                "Admin access denied for user {UserId} on tenant {TenantSlug}: site-admin tenant access requires an active break-glass session",
+                principal.UserId, currentTenant.TenantSlug);
+            return BuildMembershipDenial(httpContext);
+        }
+
         if (AuthorizationPolicy.HasAdminAccess(principal.IsAuthenticated, principal.IsSiteAdmin, isTenantAdminMember))
             return null;
 

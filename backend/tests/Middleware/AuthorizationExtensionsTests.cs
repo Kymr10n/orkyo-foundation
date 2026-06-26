@@ -4,6 +4,7 @@ using System.Text.Json;
 using Api.Constants;
 using Api.Middleware;
 using Api.Security;
+using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
@@ -119,7 +120,19 @@ public class AuthorizationExtensionsTests
     private static async Task<int> InvokeFilteredEndpointAsync(
         Action<RouteHandlerBuilder> applyFilter,
         ICurrentPrincipal? principal = null,
-        IAuthorizationContext? authContext = null)
+        IAuthorizationContext? authContext = null,
+        ICurrentTenant? currentTenant = null)
+    {
+        var response = await InvokeFilteredEndpointResponseAsync(
+            applyFilter, principal, authContext, currentTenant);
+        return (int)response.StatusCode;
+    }
+
+    private static async Task<HttpResponseMessage> InvokeFilteredEndpointResponseAsync(
+        Action<RouteHandlerBuilder> applyFilter,
+        ICurrentPrincipal? principal = null,
+        IAuthorizationContext? authContext = null,
+        ICurrentTenant? currentTenant = null)
     {
         var builder = WebApplication.CreateBuilder(
             new WebApplicationOptions { EnvironmentName = "Testing" });
@@ -130,6 +143,8 @@ public class AuthorizationExtensionsTests
             builder.Services.AddSingleton<ICurrentPrincipal>(principal);
         if (authContext != null)
             builder.Services.AddSingleton<IAuthorizationContext>(authContext);
+        if (currentTenant != null)
+            builder.Services.AddSingleton<ICurrentTenant>(currentTenant);
 
         var app = builder.Build();
         var route = app.MapGet("/test", () => Results.Ok());
@@ -138,13 +153,26 @@ public class AuthorizationExtensionsTests
         await app.StartAsync();
         try
         {
-            return (int)(await app.GetTestClient().GetAsync("/test")).StatusCode;
+            return await app.GetTestClient().GetAsync("/test");
         }
         finally
         {
             await app.StopAsync();
             await app.DisposeAsync();
         }
+    }
+
+    private static CurrentTenant TenantScope(string slug = "acme")
+    {
+        var tenant = new CurrentTenant();
+        tenant.SetContext(new TenantContext
+        {
+            TenantId = Guid.NewGuid(),
+            TenantSlug = slug,
+            TenantDbConnectionString = "Host=localhost;Database=test",
+            Status = "active",
+        });
+        return tenant;
     }
 
     // ── RequireSiteAdmin ───────────────────────────────────────────────────
@@ -400,6 +428,113 @@ public class AuthorizationExtensionsTests
             route => route.RequireAdminAccess(),
             principal: principal,
             authContext: authCtx);
+
+        status.Should().Be((int)HttpStatusCode.OK);
+    }
+
+    // ── F001: site-admin tenant access requires break-glass ─────────────────
+
+    [Fact]
+    public async Task RequireAdminAccess_WhenSiteAdminTenantScopedWithoutBreakGlass_Returns403BreakGlass()
+    {
+        // Site-admin on a tenant subdomain with no active break-glass session: the middleware leaves
+        // the authorization context at Role=None, so the endpoint must deny and route back to /admin.
+        var principal = new CurrentPrincipal();
+        principal.SetContext(new PrincipalContext
+        {
+            UserId = Guid.NewGuid(),
+            Email = "admin@test.example",
+            AuthProvider = AuthProvider.Keycloak,
+            IsSiteAdmin = true,
+        });
+        var authCtx = new CurrentAuthorizationContext(); // no break-glass → Role=None
+
+        var response = await InvokeFilteredEndpointResponseAsync(
+            route => route.RequireAdminAccess(),
+            principal: principal,
+            authContext: authCtx,
+            currentTenant: TenantScope());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("code").GetString().Should().Be(ApiErrorCodes.BreakGlassExpired);
+    }
+
+    [Fact]
+    public async Task RequireAdminAccess_WhenSiteAdminTenantScopedWithBreakGlass_CallsNext()
+    {
+        // Active break-glass is folded into the authorization context as Role=Admin by the middleware.
+        var principal = new CurrentPrincipal();
+        principal.SetContext(new PrincipalContext
+        {
+            UserId = Guid.NewGuid(),
+            Email = "admin@test.example",
+            AuthProvider = AuthProvider.Keycloak,
+            IsSiteAdmin = true,
+        });
+        var authCtx = new CurrentAuthorizationContext();
+        authCtx.SetContext(new AuthorizationContext
+        {
+            TenantId = Guid.NewGuid(),
+            TenantSlug = "acme",
+            Role = TenantRole.Admin,
+        });
+
+        var status = await InvokeFilteredEndpointAsync(
+            route => route.RequireAdminAccess(),
+            principal: principal,
+            authContext: authCtx,
+            currentTenant: TenantScope());
+
+        status.Should().Be((int)HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task RequireAdminAccess_WhenSiteAdminControlPlane_CallsNext()
+    {
+        // No tenant resolved (apex/admin host): bare site-admin access is preserved.
+        var principal = new CurrentPrincipal();
+        principal.SetContext(new PrincipalContext
+        {
+            UserId = Guid.NewGuid(),
+            Email = "admin@test.example",
+            AuthProvider = AuthProvider.Keycloak,
+            IsSiteAdmin = true,
+        });
+
+        var status = await InvokeFilteredEndpointAsync(
+            route => route.RequireAdminAccess(),
+            principal: principal,
+            currentTenant: new CurrentTenant()); // HasTenant == false
+
+        status.Should().Be((int)HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task RequireAdminAccess_WhenGenuineTenantAdminTenantScoped_CallsNext()
+    {
+        // A real tenant Admin (not a site-admin) needs no break-glass.
+        var principal = new CurrentPrincipal();
+        principal.SetContext(new PrincipalContext
+        {
+            UserId = Guid.NewGuid(),
+            Email = "tenant-admin@test.example",
+            AuthProvider = AuthProvider.Keycloak,
+            IsSiteAdmin = false,
+        });
+        var authCtx = new CurrentAuthorizationContext();
+        authCtx.SetContext(new AuthorizationContext
+        {
+            TenantId = Guid.NewGuid(),
+            TenantSlug = "acme",
+            Role = TenantRole.Admin,
+        });
+
+        var status = await InvokeFilteredEndpointAsync(
+            route => route.RequireAdminAccess(),
+            principal: principal,
+            authContext: authCtx,
+            currentTenant: TenantScope());
 
         status.Should().Be((int)HttpStatusCode.OK);
     }
