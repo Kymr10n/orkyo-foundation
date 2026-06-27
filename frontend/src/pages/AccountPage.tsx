@@ -57,7 +57,7 @@ import {
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getUserProfile, updateUserProfile, requestEmailChange } from "@foundation/src/lib/api/security-api";
+import { getUserProfile, updateUserProfile, requestEmailChange, getSecurityInfo } from "@foundation/src/lib/api/security-api";
 import {
   navigateToTenantSubdomain,
   navigateToApex,
@@ -173,6 +173,13 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     queryKey: ["user-profile"],
     queryFn: getUserProfile,
   });
+
+  // A shared/locked identity (e.g. the public demo account) cannot edit its own profile.
+  const { data: securityInfo } = useQuery({
+    queryKey: ["security-info"],
+    queryFn: getSecurityInfo,
+  });
+  const accountLocked = securityInfo?.accountLocked ?? false;
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -487,14 +494,16 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                           <p className="text-sm font-medium">
                             {profile?.email || appUser?.email || "—"}
                           </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => { setIsEditingEmail(true); setNewEmail(""); }}
-                          >
-                            <Pencil className="h-3.5 w-3.5 mr-1" />
-                            Change
-                          </Button>
+                          {!accountLocked && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setIsEditingEmail(true); setNewEmail(""); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-1" />
+                              Change
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -575,14 +584,16 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                               .join(" ") || "Not set"}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleStartEditName}
-                        >
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
+                        {!accountLocked && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleStartEditName}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>

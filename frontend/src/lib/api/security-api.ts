@@ -8,6 +8,11 @@ interface SecurityInfo {
   isFederated: boolean;
   identityProvider?: string;
   canChangePassword: boolean;
+  /**
+   * True for a shared/locked identity (e.g. the public demo account) whose credentials and
+   * profile cannot be changed via self-service. The UI hides the edit affordances when set.
+   */
+  accountLocked?: boolean;
 }
 
 /**

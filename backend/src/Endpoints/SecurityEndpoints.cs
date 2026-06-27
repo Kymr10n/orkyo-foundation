@@ -21,6 +21,7 @@ public static class SecurityEndpoints
 
         security.MapPost("/password", async (
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             ITenantSettingsService settingsService,
             IEmailService emailService,
@@ -28,6 +29,7 @@ public static class SecurityEndpoints
             IValidator<ChangePasswordRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var sub = principal.RequireExternalSubject();
@@ -130,16 +132,20 @@ public static class SecurityEndpoints
 
         security.MapGet("/security-info", async (
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             CancellationToken ct) =>
         {
             var sub = principal.RequireExternalSubject();
             var federation = await keycloakService.GetUserFederationStatusAsync(sub, ct);
+            var accountLocked = accountGuard.IsAccountLocked(principal);
             return Results.Ok(new SecurityInfoResponse
             {
                 IsFederated = federation.IsFederated,
                 IdentityProvider = federation.IdentityProvider,
-                CanChangePassword = !federation.IsFederated
+                // A locked (shared demo) account cannot change its own password regardless of federation.
+                CanChangePassword = !federation.IsFederated && !accountLocked,
+                AccountLocked = accountLocked
             });
         })
         .WithName("GetSecurityInfo")
@@ -168,10 +174,12 @@ public static class SecurityEndpoints
 
         security.MapPost("/mfa", async (
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IEmailService emailService,
             CancellationToken ct) =>
         {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
             var sub = principal.RequireExternalSubject();
             var status = await keycloakService.GetMfaStatusAsync(sub, ct);
             if (status.TotpEnabled)
@@ -186,10 +194,12 @@ public static class SecurityEndpoints
 
         security.MapDelete("/mfa", async (
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IEmailService emailService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
             var sub = principal.RequireExternalSubject();
             var status = await keycloakService.GetMfaStatusAsync(sub, ct);
             if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
@@ -229,11 +239,13 @@ public static class SecurityEndpoints
 
         security.MapPut("/profile", async (
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             ISessionService sessionService,
             UpdateProfileRequest request,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
             var sub = principal.RequireExternalSubject();
             if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
                 return ErrorResponses.BadRequest("At least one name field is required");
@@ -286,6 +298,13 @@ public record SecurityInfoResponse
     public bool IsFederated { get; init; }
     public string? IdentityProvider { get; init; }
     public bool CanChangePassword { get; init; }
+
+    /// <summary>
+    /// True when this is a shared/locked identity (e.g. the public demo account) whose
+    /// credentials and profile cannot be changed via self-service. The frontend hides the
+    /// password/email/profile/MFA edit affordances when set.
+    /// </summary>
+    public bool AccountLocked { get; init; }
 }
 
 public record MfaStatusResponse

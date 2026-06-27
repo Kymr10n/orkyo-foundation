@@ -18,6 +18,8 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.BadRequest(bhr.Message),
             FeatureNotAvailableException fna
                 => ErrorResponses.Forbidden(message: fna.Message),
+            AccountLockedException ale
+                => ErrorResponses.Forbidden(code: Api.Constants.ApiErrorCodes.AccountLocked, message: ale.Message),
             QuotaExceededException qee
                 => ErrorResponses.QuotaExceeded(qee.ResourceType, qee.Limit, qee.Message),
             NotFoundException nfe

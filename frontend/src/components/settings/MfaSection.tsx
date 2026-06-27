@@ -30,7 +30,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMfaStatus, removeMfa, enableMfa } from "@foundation/src/lib/api/security-api";
 import { formatDistanceToNow } from "date-fns";
 
-export function MfaSection() {
+interface MfaSectionProps {
+  /** When true (shared/locked identity, e.g. the demo account), hide the MFA enable/remove actions. */
+  locked?: boolean;
+}
+
+export function MfaSection({ locked = false }: MfaSectionProps = {}) {
   const queryClient = useQueryClient();
   const [removeMfaOpen, setRemoveMfaOpen] = useState(false);
 
@@ -67,7 +72,14 @@ export function MfaSection() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {mfaLoading ? (
+          {locked ? (
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                Two-factor settings are disabled for the shared demo account.
+              </AlertDescription>
+            </Alert>
+          ) : mfaLoading ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>

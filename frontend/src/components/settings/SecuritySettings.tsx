@@ -1,6 +1,6 @@
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { AlertCircle, Loader2, Lock } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 import { getSecurityInfo } from "@foundation/src/lib/api/security-api";
 import { PasswordSection } from "./PasswordSection";
@@ -38,13 +38,26 @@ export function SecuritySettings() {
     );
   }
 
+  const accountLocked = securityInfo?.accountLocked ?? false;
+
   return (
     <div className="space-y-6">
+      {accountLocked && (
+        <Alert>
+          <Lock className="h-4 w-4" />
+          <AlertTitle>Shared demo account</AlertTitle>
+          <AlertDescription>
+            This is a shared demo account. Its password, email, profile, and two-factor
+            settings cannot be changed.
+          </AlertDescription>
+        </Alert>
+      )}
       <PasswordSection
         isFederated={securityInfo?.isFederated ?? false}
         identityProvider={securityInfo?.identityProvider}
+        locked={accountLocked}
       />
-      <MfaSection />
+      <MfaSection locked={accountLocked} />
       <SessionsSection onLogoutAll={() => send({ type: "LOGOUT" })} />
     </div>
   );

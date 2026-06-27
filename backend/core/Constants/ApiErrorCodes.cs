@@ -11,6 +11,7 @@ public static class ApiErrorCodes
     public const string BreakGlassExpired = "break_glass_expired";
     public const string BreakGlassHardCapReached = "break_glass_hard_cap_reached";
     public const string Forbidden = "forbidden";
+    public const string AccountLocked = "account_locked";
     public const string TenantSuspended = "tenant_suspended";
     public const string QuotaExceeded = "quota_exceeded";
 

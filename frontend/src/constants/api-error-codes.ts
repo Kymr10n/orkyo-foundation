@@ -13,6 +13,8 @@ export const API_ERROR_CODES = {
   BREAK_GLASS_HARD_CAP_REACHED: 'break_glass_hard_cap_reached',
   /** Generic permission denial — user is authenticated but not allowed. */
   FORBIDDEN: 'forbidden',
+  /** Self-service account change blocked for a shared/locked identity (e.g. the public demo account). */
+  ACCOUNT_LOCKED: 'account_locked',
   /** Tier/plan quota for a resource (sites, spaces, seats) has been reached. */
   QUOTA_EXCEEDED: 'quota_exceeded',
 } as const;

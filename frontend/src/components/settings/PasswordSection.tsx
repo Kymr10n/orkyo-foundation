@@ -25,9 +25,11 @@ import { changePassword } from "@foundation/src/lib/api/security-api";
 interface PasswordSectionProps {
   isFederated: boolean;
   identityProvider?: string | null;
+  /** When true (shared/locked identity, e.g. the demo account), hide the change-password action. */
+  locked?: boolean;
 }
 
-export function PasswordSection({ isFederated, identityProvider }: PasswordSectionProps) {
+export function PasswordSection({ isFederated, identityProvider, locked = false }: PasswordSectionProps) {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -89,7 +91,14 @@ export function PasswordSection({ isFederated, identityProvider }: PasswordSecti
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isFederated ? (
+          {locked ? (
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                Password changes are disabled for the shared demo account.
+              </AlertDescription>
+            </Alert>
+          ) : isFederated ? (
             <Alert>
               <Shield className="h-4 w-4" />
               <AlertDescription className="flex items-center justify-between">

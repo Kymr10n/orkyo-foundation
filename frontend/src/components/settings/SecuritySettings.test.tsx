@@ -71,4 +71,24 @@ describe('SecuritySettings', () => {
     render(<SecuritySettings />);
     expect(screen.getByTestId('password-section').textContent).toContain('federated=true');
   });
+
+  it('shows the shared-demo banner when the account is locked', () => {
+    mockQueryResult.current = {
+      data: { isFederated: false, accountLocked: true },
+      isLoading: false,
+      error: null,
+    };
+    render(<SecuritySettings />);
+    expect(screen.getByText(/Shared demo account/)).toBeInTheDocument();
+  });
+
+  it('does not show the shared-demo banner for a normal account', () => {
+    mockQueryResult.current = {
+      data: { isFederated: false, accountLocked: false },
+      isLoading: false,
+      error: null,
+    };
+    render(<SecuritySettings />);
+    expect(screen.queryByText(/Shared demo account/)).not.toBeInTheDocument();
+  });
 });
