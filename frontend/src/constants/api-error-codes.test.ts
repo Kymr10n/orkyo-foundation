@@ -3,8 +3,8 @@ import { API_ERROR_CODES } from "./api-error-codes";
 import type { ApiErrorBody } from "./api-error-codes";
 
 describe("API_ERROR_CODES", () => {
-  it("has 5 error codes", () => {
-    expect(Object.keys(API_ERROR_CODES)).toHaveLength(5);
+  it("has 6 error codes", () => {
+    expect(Object.keys(API_ERROR_CODES)).toHaveLength(6);
   });
 
   it("values are all lowercase snake_case", () => {
@@ -18,6 +18,7 @@ describe("API_ERROR_CODES", () => {
     expect(API_ERROR_CODES.BREAK_GLASS_EXPIRED).toBe("break_glass_expired");
     expect(API_ERROR_CODES.BREAK_GLASS_HARD_CAP_REACHED).toBe("break_glass_hard_cap_reached");
     expect(API_ERROR_CODES.FORBIDDEN).toBe("forbidden");
+    expect(API_ERROR_CODES.ACCOUNT_LOCKED).toBe("account_locked");
   });
 });
 

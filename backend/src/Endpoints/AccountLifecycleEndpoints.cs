@@ -136,11 +136,13 @@ public static class AccountEmailChangeEndpoints
         app.MapPost("/api/account/email", async (
             RequestEmailChangeRequest request,
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IDbConnectionFactory dbFactory,
             IKeycloakAdminService keycloakAdmin,
             IEmailService emailService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
             var userId = principal.RequireUserId();
             if (string.IsNullOrWhiteSpace(request.NewEmail))
                 return ErrorResponses.BadRequest("Email address is required.");

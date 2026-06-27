@@ -59,6 +59,9 @@ public static class FoundationServiceExtensions
         services.AddScoped<IFeatureGate, AllFeaturesEnabledGate>();
         services.AddScoped<ITenantPlanInfoProvider, SinglePlanInfoProvider>();
         services.AddScoped<IQuotaUsageRollup, NoOpQuotaUsageRollup>();
+        // Self-service account mutations are allowed by default; SaaS overrides this to lock
+        // the shared demo identity (see the demo-login flow). Community keeps the allow-all default.
+        services.AddScoped<IAccountMutationGuard, AllowAllAccountMutationGuard>();
 
         // ── Encryption (at-rest field/blob protection) ───────────────────────
         // Singleton, stateless. Reuses DeploymentConfig's validated master key so the
