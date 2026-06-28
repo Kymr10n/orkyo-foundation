@@ -62,13 +62,14 @@ describe("tenant-settings-api", () => {
       expect(result.settings[0].key).toBe("security.password_min_length");
     });
 
-    it("passes null slug as omitHeaders for site context", async () => {
+    it("routes null slug to the site-admin configuration endpoint", async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockSettingsResponse);
 
       await getTenantSettings(null);
 
+      // Site scope → control-plane endpoint (RequireSiteAdmin), tenant header stripped.
       expect(apiClient.apiGet).toHaveBeenCalledWith(
-        API_PATHS.SETTINGS,
+        API_PATHS.ADMIN_CONFIGURATION,
         expect.objectContaining({ omitHeaders: ["X-Tenant-Slug"] }),
       );
     });
@@ -111,6 +112,19 @@ describe("tenant-settings-api", () => {
         settings: updates,
       }, undefined);
     });
+
+    it("routes null slug to the site-admin configuration endpoint", async () => {
+      const updates = { "security.password_min_length": "12" };
+      vi.mocked(apiClient.apiPut).mockResolvedValue(mockSettingsResponse);
+
+      await updateTenantSettings(updates, null);
+
+      expect(apiClient.apiPut).toHaveBeenCalledWith(
+        API_PATHS.ADMIN_CONFIGURATION,
+        { settings: updates },
+        expect.objectContaining({ omitHeaders: ["X-Tenant-Slug"] }),
+      );
+    });
   });
 
   describe("resetTenantSetting", () => {
@@ -133,6 +147,17 @@ describe("tenant-settings-api", () => {
       expect(apiClient.apiDelete).toHaveBeenCalledWith(
         "/api/settings/branding.branding_product_name",
         undefined,
+      );
+    });
+
+    it("routes null slug to the site-admin configuration endpoint", async () => {
+      vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
+
+      await resetTenantSetting("security.password_min_length", null);
+
+      expect(apiClient.apiDelete).toHaveBeenCalledWith(
+        API_PATHS.adminConfigurationSetting("security.password_min_length"),
+        expect.objectContaining({ omitHeaders: ["X-Tenant-Slug"] }),
       );
     });
   });

@@ -192,9 +192,14 @@ export const API_PATHS = {
   AUTO_SCHEDULE_PREVIEW: '/api/scheduling/auto-schedule/preview',
   AUTO_SCHEDULE_APPLY: '/api/scheduling/auto-schedule/apply',
 
-  // Tenant Settings (admin-configurable)
+  // Tenant Settings (admin-configurable). The TENANT surface (membership-gated, current/explicit
+  // tenant context). The site-admin control-plane surface is ADMIN_CONFIGURATION below.
   SETTINGS: '/api/settings',
   setting: (key: string) => `/api/settings/${key}`,
+
+  // Site-admin configuration (control-plane, site-scoped settings — RequireSiteAdmin)
+  ADMIN_CONFIGURATION: '/api/admin/configuration',
+  adminConfigurationSetting: (key: string) => `/api/admin/configuration/${key}`,
 
   // Quota & Usage (tenant read-only)
   QUOTAS: '/api/settings/quotas',

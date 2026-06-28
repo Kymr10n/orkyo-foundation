@@ -203,6 +203,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
         builder.Services.AddScoped<CurrentAuthorizationContext>();
         builder.Services.AddScoped<IAuthorizationContext>(sp => sp.GetRequiredService<CurrentAuthorizationContext>());
+        builder.Services.AddScoped<IAccountMutationGuard, AllowAllAccountMutationGuard>();
 
         // ── DB connectivity ───────────────────────────────────────────────────
         var orgId = new Guid("00000000-0000-0000-0000-000000000001");
@@ -547,6 +548,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapFloorplanEndpoints();
         app.MapUserAdminEndpoints();
         app.MapSettingsAdminEndpoints();
+        app.MapConfigurationAdminEndpoints();
         app.MapDiagnosticsAdminEndpoints();
         app.MapAuditEndpoints();
 

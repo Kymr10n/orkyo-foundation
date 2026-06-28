@@ -35,15 +35,31 @@ export interface TenantSettingsResponse {
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-/** Build header options for settings requests.
- *  - `undefined` → use default tenant from auth context
- *  - `string`    → override to that specific tenant
- *  - `null`      → site context: strip tenant header entirely */
-function tenantHeaders(slug?: string | null): ApiRequestOptions | undefined {
+/**
+ * Resolve which settings surface a request targets, by slug:
+ *  - `null`      → SITE scope: the site-admin control-plane endpoint (`/api/admin/configuration`,
+ *                  RequireSiteAdmin). The tenant header is stripped so no tenant is resolved and the
+ *                  backend serves site-scoped overrides (TenantSettingsService.IsSiteContext).
+ *  - `string`    → a specific tenant (via the tenant header) on the tenant endpoint.
+ *  - `undefined` → the current auth tenant on the tenant endpoint.
+ */
+function settingsTarget(slug?: string | null): {
+  list: string;
+  item: (key: string) => string;
+  options?: ApiRequestOptions;
+} {
   if (slug === null) {
-    return { omitHeaders: [TENANT_HEADER_NAME] };
+    return {
+      list: API_PATHS.ADMIN_CONFIGURATION,
+      item: API_PATHS.adminConfigurationSetting,
+      options: { omitHeaders: [TENANT_HEADER_NAME] },
+    };
   }
-  return slug ? { headers: { [ApiHeaders.TenantSlug]: slug } } : undefined;
+  return {
+    list: API_PATHS.SETTINGS,
+    item: API_PATHS.setting,
+    options: slug ? { headers: { [ApiHeaders.TenantSlug]: slug } } : undefined,
+  };
 }
 
 // ── API calls ───────────────────────────────────────────────────────
@@ -51,11 +67,12 @@ function tenantHeaders(slug?: string | null): ApiRequestOptions | undefined {
 /** Get all settings descriptors with current values.
  *  - Omit `tenantSlug` to use current auth tenant context.
  *  - Pass a string to target a specific tenant.
- *  - Pass `null` for site-level settings (no tenant). */
+ *  - Pass `null` for site-level settings (site-admin control plane). */
 export async function getTenantSettings(
   tenantSlug?: string | null,
 ): Promise<TenantSettingsResponse> {
-  return apiGet<TenantSettingsResponse>(API_PATHS.SETTINGS, tenantHeaders(tenantSlug));
+  const target = settingsTarget(tenantSlug);
+  return apiGet<TenantSettingsResponse>(target.list, target.options);
 }
 
 /** Update one or more settings.
@@ -64,11 +81,8 @@ export async function updateTenantSettings(
   settings: Record<string, string>,
   tenantSlug?: string | null,
 ): Promise<TenantSettingsResponse> {
-  return apiPut<TenantSettingsResponse>(
-    API_PATHS.SETTINGS,
-    { settings },
-    tenantHeaders(tenantSlug),
-  );
+  const target = settingsTarget(tenantSlug);
+  return apiPut<TenantSettingsResponse>(target.list, { settings }, target.options);
 }
 
 /** Reset a single setting to its compiled default.
@@ -77,5 +91,6 @@ export async function resetTenantSetting(
   key: string,
   tenantSlug?: string | null,
 ): Promise<void> {
-  return apiDelete(API_PATHS.setting(key), tenantHeaders(tenantSlug));
+  const target = settingsTarget(tenantSlug);
+  return apiDelete(target.item(key), target.options);
 }
