@@ -46,6 +46,10 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
                 new(ClaimTypes.NameIdentifier, tokenData.UserId),
                 new(ClaimTypes.Email, tokenData.Email),
                 new(ClaimTypes.Name, tokenData.DisplayName),
+                // Keycloak-style "email" claim so the KeycloakTokenProfile resolution path (taken
+                // whenever a "sub" is present) populates ICurrentPrincipal.Email — the legacy
+                // ClaimTypes.Email is only read on the non-"sub" fallback path.
+                new("email", tokenData.Email),
                 new("user_id", tokenData.UserId),
                 new("tenant_id", tokenData.TenantId),
                 new("tenant_slug", tokenData.TenantSlug),
