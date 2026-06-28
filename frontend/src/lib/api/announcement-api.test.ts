@@ -79,6 +79,22 @@ describe("announcement-api", () => {
       expect(apiClient.apiPost).toHaveBeenCalledWith(BASE, data);
       expect(result.id).toBe(mockAnnouncement.id);
     });
+
+    it("forwards the selected delivery channels", async () => {
+      vi.mocked(apiClient.apiPost).mockResolvedValue(mockAnnouncement);
+
+      await createAnnouncement({
+        title: "New",
+        body: "Body",
+        isImportant: false,
+        channels: ["site", "email"],
+      });
+
+      expect(apiClient.apiPost).toHaveBeenCalledWith(
+        BASE,
+        expect.objectContaining({ channels: ["site", "email"] }),
+      );
+    });
   });
 
   // ========================================================================

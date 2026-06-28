@@ -94,6 +94,9 @@ vi.mock("@foundation/src/lib/api/security-api", () => ({
     Promise.resolve({ totpEnabled: false, recoveryCodesConfigured: false }),
   removeMfa: vi.fn(),
   enableMfa: vi.fn().mockResolvedValue({ message: "ok" }),
+  getNotificationPreferences: () =>
+    Promise.resolve({ announcementEmailOptOut: false }),
+  updateNotificationPreferences: vi.fn().mockResolvedValue({ message: "ok" }),
 }));
 
 const mockMemberships = [

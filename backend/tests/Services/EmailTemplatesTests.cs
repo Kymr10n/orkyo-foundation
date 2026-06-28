@@ -262,4 +262,34 @@ public class EmailTemplatesTests
         h2.Should().Contain("new@x.com");
         AssertBranded(s2, h2, t2);
     }
+    [Fact]
+    public void GetAnnouncementEmail_IncludesTitleBodyAndUnsubscribeLink()
+    {
+        var (subject, html, text) = EmailTemplates.GetAnnouncementEmail(
+            "Scheduled maintenance", "Servers down Friday.", isImportant: false,
+            "https://app.test/api/announcements/unsubscribe?token=abc");
+
+        subject.Should().Be("Scheduled maintenance");
+        html.Should().Contain("Servers down Friday.")
+            .And.Contain("https://app.test/api/announcements/unsubscribe?token=abc")
+            .And.Contain("Unsubscribe");
+        text.Should().Contain("Servers down Friday.")
+            .And.Contain("https://app.test/api/announcements/unsubscribe?token=abc");
+    }
+
+    [Fact]
+    public void GetAnnouncementEmail_ImportantPrefixesSubjectAndShowsMandatoryNotice()
+    {
+        var (subject, html, text) = EmailTemplates.GetAnnouncementEmail(
+            "Security notice", "Please reset your password.", isImportant: true,
+            "https://app.test/api/announcements/unsubscribe?token=x");
+
+        subject.Should().Be("[Important] Security notice");
+        // Important announcements are mandatory: no unsubscribe link, a mandatory-notice instead.
+        html.Should().Contain("regardless of email preferences")
+            .And.NotContain("Unsubscribe from announcement emails")
+            .And.NotContain("token=x");
+        text.Should().Contain("regardless of email preferences")
+            .And.NotContain("token=x");
+    }
 }

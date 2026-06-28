@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Npgsql;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -15,11 +17,16 @@ public class UserAnnouncementEndpointsTests
 {
     private readonly HttpClient _client;
     private readonly HttpClient _unauthenticatedClient;
+    private readonly HttpClient _noRedirect;
+    private readonly string _conn;
 
     public UserAnnouncementEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
+        _noRedirect = databaseFixture.Factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        _conn = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
     }
 
     #region GET /api/announcements
@@ -118,6 +125,68 @@ public class UserAnnouncementEndpointsTests
         var response = await _unauthenticatedClient.PostAsync(
             $"/api/announcements/{Guid.NewGuid()}/read", null);
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region GET /api/announcements/unsubscribe (public)
+
+    [Fact]
+    public async Task Unsubscribe_ValidToken_SetsOptOutAndShowsConfirmation()
+    {
+        var (userId, token) = await CreateUserWithUnsubscribeTokenAsync();
+
+        var response = await _noRedirect.GetAsync($"/api/announcements/unsubscribe?token={token}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("text/html", response.Content.Headers.ContentType!.ToString());
+        Assert.Contains("You're unsubscribed", html);
+        Assert.True(await IsOptedOutAsync(userId));
+    }
+
+    [Fact]
+    public async Task Unsubscribe_UnknownToken_ShowsInvalidPage()
+    {
+        var response = await _noRedirect.GetAsync($"/api/announcements/unsubscribe?token={Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Invalid link", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Unsubscribe_MalformedToken_ShowsInvalidPage()
+    {
+        var response = await _noRedirect.GetAsync("/api/announcements/unsubscribe?token=not-a-guid");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Invalid link", await response.Content.ReadAsStringAsync());
+    }
+
+    private async Task<(Guid UserId, Guid Token)> CreateUserWithUnsubscribeTokenAsync()
+    {
+        var userId = Guid.NewGuid();
+        var token = Guid.NewGuid();
+        await using var conn = new NpgsqlConnection(_conn);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO users (id, email, display_name, status, unsubscribe_token) " +
+            "VALUES (@id, @email, 'U', 'active', @token)", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        cmd.Parameters.AddWithValue("email", $"unsub-{userId}@test.com");
+        cmd.Parameters.AddWithValue("token", token);
+        await cmd.ExecuteNonQueryAsync();
+        return (userId, token);
+    }
+
+    private async Task<bool> IsOptedOutAsync(Guid userId)
+    {
+        await using var conn = new NpgsqlConnection(_conn);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT announcement_email_opt_out FROM users WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        return (bool)(await cmd.ExecuteScalarAsync())!;
     }
 
     #endregion

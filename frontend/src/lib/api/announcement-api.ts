@@ -12,11 +12,15 @@ import { API_BASE_URL } from '../core/api-utils';
 // Types
 // ============================================================================
 
+/** Delivery channels for an announcement. */
+export type AnnouncementChannel = 'site' | 'email';
+
 export interface Announcement {
   id: string;
   title: string;
   body: string;
   isImportant: boolean;
+  channels: AnnouncementChannel[];
   revision: number;
   createdAt: string;
   createdByEmail: string | null;
@@ -31,6 +35,8 @@ export interface CreateAnnouncementRequest {
   body: string;
   isImportant: boolean;
   retentionDays?: number;
+  /** Delivery channels (subset of {'site','email'}). Defaults to ['site'] if omitted. */
+  channels?: AnnouncementChannel[];
 }
 
 export interface UpdateAnnouncementRequest {

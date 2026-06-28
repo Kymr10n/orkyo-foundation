@@ -169,6 +169,22 @@ public class MockEmailService : IEmailService
     public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
     { SendEmailChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
 
+    // ── Announcements ─────────────────────────────────────────────────────────
+    // Broadcasts dispatch concurrently (Parallel.ForEachAsync), so guard the shared state.
+    private readonly object _announcementLock = new();
+    public int SendAnnouncementCallCount { get; private set; }
+    public bool FailNextAnnouncement { get; set; }
+    public Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default)
+    {
+        lock (_announcementLock)
+        {
+            SendAnnouncementCallCount++;
+            Recipients.Add(toEmail);
+            if (FailNextAnnouncement) { FailNextAnnouncement = false; return Task.FromResult(false); }
+            return Task.FromResult(true);
+        }
+    }
+
     // ── Reset ─────────────────────────────────────────────────────────────────
     public void Reset()
     {
@@ -200,6 +216,8 @@ public class MockEmailService : IEmailService
         SendMfaChangedCallCount = 0;
         SendEmailChangeRequestedOldAddressCallCount = 0;
         SendEmailChangedCallCount = 0;
+        SendAnnouncementCallCount = 0;
+        FailNextAnnouncement = false;
         Recipients.Clear();
     }
 }

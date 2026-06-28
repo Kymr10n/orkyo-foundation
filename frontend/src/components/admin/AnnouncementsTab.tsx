@@ -15,6 +15,7 @@ import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Switch } from '@foundation/src/components/ui/switch';
+import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { DateTimePicker } from '@foundation/src/components/ui/date-time-picker';
 import {
   Dialog,
@@ -37,6 +38,7 @@ import {
 import { Plus, Pencil, Trash2, Megaphone, AlertTriangle } from 'lucide-react';
 import {
   type Announcement,
+  type AnnouncementChannel,
   type CreateAnnouncementRequest,
   type UpdateAnnouncementRequest,
   getAnnouncements,
@@ -44,6 +46,12 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
 } from '@foundation/src/lib/api/announcement-api';
+
+/** Selectable delivery channels for new announcements (label + hint). */
+const CHANNEL_OPTIONS: { value: AnnouncementChannel; label: string; hint: string }[] = [
+  { value: 'site', label: 'In-app', hint: 'Shows in the notification center.' },
+  { value: 'email', label: 'Email', hint: 'Sends to all registered users.' },
+];
 
 // ============================================================================
 // Main Tab
@@ -284,10 +292,16 @@ function AnnouncementFormDialog({
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [isImportant, setIsImportant] = useState(false);
+  const [channels, setChannels] = useState<AnnouncementChannel[]>(['site']);
   const [retentionDays, setRetentionDays] = useState('90');
   const [expiresAt, setExpiresAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const toggleChannel = (channel: AnnouncementChannel, checked: boolean) =>
+    setChannels((prev) =>
+      checked ? [...new Set([...prev, channel])] : prev.filter((c) => c !== channel),
+    );
 
   // Populate form on open
   useEffect(() => {
@@ -302,6 +316,7 @@ function AnnouncementFormDialog({
         setTitle('');
         setBody('');
         setIsImportant(false);
+        setChannels(['site']);
         setRetentionDays('90');
         setExpiresAt('');
       }
@@ -329,6 +344,7 @@ function AnnouncementFormDialog({
           body,
           isImportant,
           retentionDays: isNaN(days) ? 90 : days,
+          channels,
         };
         await createAnnouncement(data);
       }
@@ -378,16 +394,39 @@ function AnnouncementFormDialog({
             <p className="text-xs text-muted-foreground text-right">{body.length} / 5000</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <Switch
               id="ann-important"
               checked={isImportant}
               onCheckedChange={setIsImportant}
+              className="mt-0.5"
             />
-            <Label htmlFor="ann-important" className="cursor-pointer">
+            <Label htmlFor="ann-important" className="cursor-pointer font-normal">
               Mark as important
+              <span className="block text-xs text-muted-foreground">
+                Emailed to all users, even those who opted out of announcement emails.
+              </span>
             </Label>
           </div>
+
+          {!isEdit && (
+            <div className="grid gap-2">
+              <Label>Delivery channels</Label>
+              {CHANNEL_OPTIONS.map((opt) => (
+                <div key={opt.value} className="flex items-center gap-3">
+                  <Checkbox
+                    id={`ann-channel-${opt.value}`}
+                    checked={channels.includes(opt.value)}
+                    onCheckedChange={(checked) => toggleChannel(opt.value, checked === true)}
+                  />
+                  <Label htmlFor={`ann-channel-${opt.value}`} className="cursor-pointer font-normal">
+                    {opt.label}
+                    <span className="ml-2 text-xs text-muted-foreground">{opt.hint}</span>
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
 
           {isEdit ? (
             <div className="grid gap-2">
@@ -423,7 +462,10 @@ function AnnouncementFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || !title.trim() || !body.trim()}>
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || !title.trim() || !body.trim() || (!isEdit && channels.length === 0)}
+          >
             {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create'}
           </Button>
         </DialogFooter>

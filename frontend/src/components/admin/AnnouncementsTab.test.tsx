@@ -205,6 +205,16 @@ describe('AnnouncementsTab', () => {
     expect(screen.getByLabelText(/body/i)).toBeInTheDocument();
   });
 
+  it('explains that important announcements email opted-out users', async () => {
+    const user = userEvent.setup();
+    render(<AnnouncementsTab />);
+
+    await waitFor(() => screen.getByText('New Announcement'));
+    await user.click(screen.getByText('New Announcement'));
+
+    expect(screen.getByText(/even those who opted out/i)).toBeInTheDocument();
+  });
+
   it('should call createAnnouncement with form values', async () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
@@ -232,6 +242,65 @@ describe('AnnouncementsTab', () => {
         })
       );
     });
+  });
+
+  // ── Delivery channels ────────────────────────────────────────────────────
+
+  it('defaults to the in-app channel and sends it in the create payload', async () => {
+    mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
+    const user = userEvent.setup();
+
+    render(<AnnouncementsTab />);
+    await waitFor(() => screen.getByText('New Announcement'));
+    await user.click(screen.getByText('New Announcement'));
+
+    expect(screen.getByRole('checkbox', { name: /in-app/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /email/i })).not.toBeChecked();
+
+    await user.type(screen.getByLabelText(/title/i), 'T');
+    await user.type(screen.getByLabelText(/body/i), 'B');
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(mockCreateAnnouncement).toHaveBeenCalledWith(
+        expect.objectContaining({ channels: ['site'] }),
+      ),
+    );
+  });
+
+  it('includes the email channel when checked', async () => {
+    mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
+    const user = userEvent.setup();
+
+    render(<AnnouncementsTab />);
+    await waitFor(() => screen.getByText('New Announcement'));
+    await user.click(screen.getByText('New Announcement'));
+
+    await user.type(screen.getByLabelText(/title/i), 'T');
+    await user.type(screen.getByLabelText(/body/i), 'B');
+    await user.click(screen.getByRole('checkbox', { name: /email/i }));
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
+
+    await waitFor(() => {
+      const payload = mockCreateAnnouncement.mock.calls[0][0];
+      expect(payload.channels).toEqual(expect.arrayContaining(['site', 'email']));
+      expect(payload.channels).toHaveLength(2);
+    });
+  });
+
+  it('disables Create when no channel is selected', async () => {
+    const user = userEvent.setup();
+
+    render(<AnnouncementsTab />);
+    await waitFor(() => screen.getByText('New Announcement'));
+    await user.click(screen.getByText('New Announcement'));
+
+    await user.type(screen.getByLabelText(/title/i), 'T');
+    await user.type(screen.getByLabelText(/body/i), 'B');
+    // Uncheck the only selected channel (in-app).
+    await user.click(screen.getByRole('checkbox', { name: /in-app/i }));
+
+    expect(screen.getByRole('button', { name: /^create$/i })).toBeDisabled();
   });
 
   // ========================================================================

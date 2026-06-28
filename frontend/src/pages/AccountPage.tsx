@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useAuth, type AppUser, type TenantMembership as AuthTenantMembership } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
+import { NotificationPreferencesSection } from "@foundation/src/components/settings/NotificationPreferencesSection";
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
@@ -601,6 +602,10 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
               )}
             </CardContent>
           </Card>
+
+          <div className="mt-6">
+            <NotificationPreferencesSection locked={accountLocked} />
+          </div>
 
           {/* Sign out button at the bottom of profile tab */}
           <Card className="mt-6">

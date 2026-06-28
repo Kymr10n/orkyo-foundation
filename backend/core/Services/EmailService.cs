@@ -40,6 +40,9 @@ public interface IEmailService
     Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default);
     Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
     Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
+
+    // Platform announcements
+    Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default);
 }
 
 public class EmailService : IEmailService
@@ -167,6 +170,15 @@ public class EmailService : IEmailService
     {
         return await SendTemplatedAsync(toEmail, displayName,
             b => EmailTemplates.GetWelcomeEmail(displayName, b), ct);
+    }
+
+    public async Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default)
+    {
+        // APP_BASE_URL proxies /api/* to the backend, so the unsubscribe link can target it directly.
+        var appBaseUrl = _configuration.GetRequired(ConfigKeys.AppBaseUrl).TrimEnd('/');
+        var unsubscribeUrl = $"{appBaseUrl}/api/announcements/unsubscribe?token={unsubscribeToken}";
+        return await SendTemplatedAsync(toEmail, displayName,
+            b => EmailTemplates.GetAnnouncementEmail(title, body, isImportant, unsubscribeUrl, b), ct);
     }
 
     public async Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default)

@@ -160,3 +160,31 @@ export async function updateUserProfile(
 export async function requestEmailChange(newEmail: string): Promise<{ message: string }> {
   return apiPost<{ message: string }>(API_PATHS.ACCOUNT.EMAIL, { newEmail });
 }
+
+/**
+ * Notification preferences for the current user.
+ * `announcementEmailOptOut === true` means the user has opted out of announcement emails
+ * (important announcements are still sent regardless).
+ */
+export interface NotificationPreferences {
+  announcementEmailOptOut: boolean;
+}
+
+/**
+ * Get the current user's notification preferences.
+ */
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return apiGet<NotificationPreferences>(API_PATHS.ACCOUNT.NOTIFICATION_PREFERENCES);
+}
+
+/**
+ * Update the current user's announcement-email opt-out preference.
+ */
+export async function updateNotificationPreferences(
+  announcementEmailOptOut: boolean
+): Promise<{ message: string }> {
+  return apiPut<{ message: string }>(
+    API_PATHS.ACCOUNT.NOTIFICATION_PREFERENCES,
+    { announcementEmailOptOut }
+  );
+}

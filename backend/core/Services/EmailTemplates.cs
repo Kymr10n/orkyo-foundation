@@ -894,4 +894,28 @@ The {b.ProductName} Team";
             footerNote: "If you didn't make this change, contact support immediately.");
         return ($"Your {b.ProductName} email address was changed", html, text);
     }
+
+    // ── Platform announcement broadcast ─────────────────────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetAnnouncementEmail(
+        string title, string body, bool isImportant, string unsubscribeUrl, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+
+        // Render each non-empty line of the announcement body as its own paragraph.
+        var paragraphs = body
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (paragraphs.Length == 0) paragraphs = [body];
+
+        // Important announcements are sent to everyone regardless of opt-out, so the unsubscribe link
+        // would be misleading — show a mandatory-notice instead. Normal announcements are unsubscribable.
+        var footerNote = isImportant
+            ? $"This is an important announcement and is sent to all {b.ProductName} users regardless of email preferences."
+            : $@"You're receiving this because you have a {b.ProductName} account. <a href=""{unsubscribeUrl}"" style=""color: #999;"">Unsubscribe from announcement emails</a> ({unsubscribeUrl}).";
+
+        var (html, text) = Layout(b, title, paragraphs, footerNote: footerNote);
+
+        var subject = isImportant ? $"[Important] {title}" : title;
+        return (subject, html, text);
+    }
 }

@@ -110,6 +110,7 @@ public static class FoundationServiceExtensions
 
         // ── Domain services ───────────────────────────────────────────────────
         services.AddScoped<IAnnouncementService, AnnouncementService>();
+        services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
         services.AddScoped<ICriteriaService, CriteriaService>();
         services.AddScoped<IEmailService, EmailService>();

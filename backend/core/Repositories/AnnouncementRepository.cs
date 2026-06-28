@@ -14,6 +14,11 @@ public interface IAnnouncementRepository
     Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default);
     Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default);
     Task MarkReadAsync(Guid announcementId, Guid userId, CancellationToken ct = default);
+
+    /// <summary>Active announcements with the 'email' channel whose broadcast hasn't run yet.</summary>
+    Task<List<AnnouncementDto>> GetPendingEmailBroadcastsAsync(CancellationToken ct = default);
+    /// <summary>Marks an announcement's email broadcast as completed (sets email_sent_at).</summary>
+    Task MarkEmailSentAsync(Guid announcementId, CancellationToken ct = default);
 }
 
 public class AnnouncementRepository : IAnnouncementRepository
@@ -26,7 +31,7 @@ public class AnnouncementRepository : IAnnouncementRepository
     }
 
     private const string SelectColumns = @"
-        a.id, a.title, a.body, a.is_important, a.revision,
+        a.id, a.title, a.body, a.is_important, a.channels, a.revision,
         a.created_at, a.updated_at, a.expires_at,
         cu.email AS created_by_email,
         uu.email AS updated_by_email";
@@ -62,12 +67,12 @@ public class AnnouncementRepository : IAnnouncementRepository
         // INSERT … RETURNING always yields a row on success.
         return (await conn.QuerySingleOrDefaultAsync(@"
             WITH inserted AS (
-                INSERT INTO announcements (id, title, body, is_important, revision,
+                INSERT INTO announcements (id, title, body, is_important, channels, revision,
                                            created_by_user_id, updated_by_user_id, expires_at)
-                VALUES (@id, @title, @body, @isImportant, 1, @userId, @userId, @expiresAt)
+                VALUES (@id, @title, @body, @isImportant, @channels, 1, @userId, @userId, @expiresAt)
                 RETURNING *
             )
-            SELECT i.id, i.title, i.body, i.is_important, i.revision,
+            SELECT i.id, i.title, i.body, i.is_important, i.channels, i.revision,
                    i.created_at, i.updated_at, i.expires_at,
                    cu.email AS created_by_email, uu.email AS updated_by_email
             FROM inserted i
@@ -79,6 +84,7 @@ public class AnnouncementRepository : IAnnouncementRepository
                 p.AddWithValue("title", announcement.Title);
                 p.AddWithValue("body", announcement.Body);
                 p.AddWithValue("isImportant", announcement.IsImportant);
+                p.AddWithValue("channels", announcement.Channels);
                 p.AddWithValue("userId", announcement.CreatedByUserId);
                 p.AddWithValue("expiresAt", announcement.ExpiresAt);
             }, MapDto, ct))!;
@@ -97,7 +103,7 @@ public class AnnouncementRepository : IAnnouncementRepository
                 WHERE id = @id
                 RETURNING *
             )
-            SELECT u.id, u.title, u.body, u.is_important, u.revision,
+            SELECT u.id, u.title, u.body, u.is_important, u.channels, u.revision,
                    u.created_at, u.updated_at, u.expires_at,
                    cu.email AS created_by_email, uu.email AS updated_by_email
             FROM updated u
@@ -131,7 +137,7 @@ public class AnnouncementRepository : IAnnouncementRepository
                    COALESCE(ar.read_revision >= a.revision, FALSE) AS is_read
             FROM announcements a
             LEFT JOIN announcement_reads ar ON ar.announcement_id = a.id AND ar.user_id = @userId
-            WHERE a.expires_at > now()
+            WHERE a.expires_at > now() AND 'site' = ANY(a.channels)
             ORDER BY a.created_at DESC",
             p => p.AddWithValue("userId", userId), MapUserAnnouncement, ct);
     }
@@ -143,7 +149,8 @@ public class AnnouncementRepository : IAnnouncementRepository
             SELECT COUNT(*)::int
             FROM announcements a
             LEFT JOIN announcement_reads ar ON ar.announcement_id = a.id AND ar.user_id = @userId
-            WHERE a.expires_at > now() AND COALESCE(ar.read_revision < a.revision, TRUE)",
+            WHERE a.expires_at > now() AND 'site' = ANY(a.channels)
+              AND COALESCE(ar.read_revision < a.revision, TRUE)",
             p => p.AddWithValue("userId", userId), ct);
     }
 
@@ -163,6 +170,24 @@ public class AnnouncementRepository : IAnnouncementRepository
             }, ct);
     }
 
+    public async Task<List<AnnouncementDto>> GetPendingEmailBroadcastsAsync(CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.QueryListAsync(
+            $"SELECT {SelectColumns} {FromJoins} "
+            + "WHERE 'email' = ANY(a.channels) AND a.email_sent_at IS NULL AND a.expires_at > now() "
+            + "ORDER BY a.created_at",
+            null, MapDto, ct);
+    }
+
+    public async Task MarkEmailSentAsync(Guid announcementId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        await conn.ExecuteAsync(
+            "UPDATE announcements SET email_sent_at = now() WHERE id = @id",
+            p => p.AddWithValue("id", announcementId), ct);
+    }
+
     private static UserAnnouncementDto MapUserAnnouncement(NpgsqlDataReader reader) => new()
     {
         Id = reader.GetGuid(reader.GetOrdinal("id")),
@@ -180,6 +205,7 @@ public class AnnouncementRepository : IAnnouncementRepository
         Title = reader.GetString(reader.GetOrdinal("title")),
         Body = reader.GetString(reader.GetOrdinal("body")),
         IsImportant = reader.GetBoolean(reader.GetOrdinal("is_important")),
+        Channels = reader.GetFieldValue<string[]>(reader.GetOrdinal("channels")),
         Revision = reader.GetInt32(reader.GetOrdinal("revision")),
         CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
         UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at")),

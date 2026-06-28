@@ -138,6 +138,7 @@ export const API_PATHS = {
     MFA: '/api/account/mfa',
     PROFILE: '/api/account/profile',
     EMAIL: '/api/account/email',
+    NOTIFICATION_PREFERENCES: '/api/account/notification-preferences',
     session: (sessionId: string) => `/api/account/sessions/${sessionId}`,
   },
 

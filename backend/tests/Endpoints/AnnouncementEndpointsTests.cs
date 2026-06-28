@@ -317,4 +317,57 @@ public class AnnouncementEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    // ── Delivery channels ──────────────────────────────────────────────────
+
+    private static string[] Channels(JsonElement dto) =>
+        dto.GetProperty("channels").EnumerateArray().Select(c => c.GetString()!).ToArray();
+
+    [Fact]
+    public async Task Create_NoChannels_DefaultsToSite()
+    {
+        var (_, token) = await CreateSiteAdminAsync();
+        var response = await _client.SendAsync(
+            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+                new { title = "Default", body = "Body" }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        Channels(await response.Content.ReadFromJsonAsync<JsonElement>()).Should().Equal("site");
+    }
+
+    [Fact]
+    public async Task Create_WithSiteAndEmail_PersistsBoth()
+    {
+        var (_, token) = await CreateSiteAdminAsync();
+        var response = await _client.SendAsync(
+            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+                new { title = "Both", body = "Body", channels = new[] { "site", "email" } }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        Channels(await response.Content.ReadFromJsonAsync<JsonElement>())
+            .Should().BeEquivalentTo("site", "email");
+    }
+
+    [Fact]
+    public async Task Create_EmailOnly_Persisted()
+    {
+        var (_, token) = await CreateSiteAdminAsync();
+        var response = await _client.SendAsync(
+            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+                new { title = "Email", body = "Body", channels = new[] { "email" } }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        Channels(await response.Content.ReadFromJsonAsync<JsonElement>()).Should().Equal("email");
+    }
+
+    [Fact]
+    public async Task Create_UnknownChannel_Returns400()
+    {
+        var (_, token) = await CreateSiteAdminAsync();
+        var response = await _client.SendAsync(
+            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+                new { title = "Bad", body = "Body", channels = new[] { "sms" } }));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
 }

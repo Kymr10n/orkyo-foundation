@@ -260,6 +260,51 @@ public static class SecurityEndpoints
         .WithName("UpdateUserProfile")
         .WithSummary("Update user profile")
         .WithTags("Security");
+
+        security.MapGet("/notification-preferences", async (
+            ICurrentPrincipal principal,
+            IDbConnectionFactory dbFactory,
+            CancellationToken ct) =>
+        {
+            var userId = principal.RequireUserId();
+            await using var db = dbFactory.CreateControlPlaneConnection();
+            await db.OpenAsync(ct);
+            await using var cmd = new Npgsql.NpgsqlCommand(
+                "SELECT announcement_email_opt_out FROM users WHERE id = @id", db);
+            cmd.Parameters.AddWithValue("id", userId);
+            var optOut = await cmd.ExecuteScalarAsync(ct);
+            if (optOut is null)
+                return ErrorResponses.NotFoundMessage("User not found");
+            return Results.Ok(new NotificationPreferencesResponse { AnnouncementEmailOptOut = (bool)optOut });
+        })
+        .WithName("GetNotificationPreferences")
+        .WithSummary("Get notification preferences")
+        .WithTags("Security");
+
+        security.MapPut("/notification-preferences", async (
+            ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
+            IDbConnectionFactory dbFactory,
+            UpdateNotificationPreferencesRequest request,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
+            var userId = principal.RequireUserId();
+            await using var db = dbFactory.CreateControlPlaneConnection();
+            await db.OpenAsync(ct);
+            await using var cmd = new Npgsql.NpgsqlCommand(@"
+                UPDATE users SET announcement_email_opt_out = @v, updated_at = NOW()
+                WHERE id = @id", db);
+            cmd.Parameters.AddWithValue("v", request.AnnouncementEmailOptOut);
+            cmd.Parameters.AddWithValue("id", userId);
+            await cmd.ExecuteNonQueryAsync(ct);
+            logger.LogInformation("Announcement email opt-out set to {OptOut} for user {UserId}",
+                request.AnnouncementEmailOptOut, userId);
+            return Results.Ok(new { message = "Notification preferences updated" });
+        })
+        .WithName("UpdateNotificationPreferences")
+        .WithSummary("Update notification preferences")
+        .WithTags("Security");
     }
 
     /// <summary>
@@ -328,4 +373,14 @@ public record UserProfileResponse
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
     public bool EmailVerified { get; init; }
+}
+
+public record NotificationPreferencesResponse
+{
+    public bool AnnouncementEmailOptOut { get; init; }
+}
+
+public record UpdateNotificationPreferencesRequest
+{
+    public bool AnnouncementEmailOptOut { get; init; }
 }

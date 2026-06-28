@@ -32,12 +32,15 @@ public class AnnouncementService : IAnnouncementService
         if (retentionDays < 1 || retentionDays > 3650)
             throw new ArgumentException("Retention must be between 1 and 3650 days.");
 
+        var channels = NormalizeChannels(request.Channels);
+
         var announcement = new Announcement
         {
             Id = Guid.NewGuid(),
             Title = request.Title.Trim(),
             Body = request.Body.Trim(),
             IsImportant = request.IsImportant,
+            Channels = channels,
             Revision = 1,
             CreatedByUserId = userId,
             UpdatedByUserId = userId,
@@ -72,5 +75,27 @@ public class AnnouncementService : IAnnouncementService
         if (string.IsNullOrWhiteSpace(body)) return "Body is required.";
         if (body.Length > MaxBodyLength) return $"Body must be {MaxBodyLength} characters or fewer.";
         return null;
+    }
+
+    /// <summary>Normalize + validate requested channels: lowercased, de-duped, non-empty subset of {site, email}.</summary>
+    private static string[] NormalizeChannels(string[]? requested)
+    {
+        if (requested == null || requested.Length == 0)
+            return AnnouncementChannels.Default;
+
+        var channels = requested
+            .Select(c => c?.Trim().ToLowerInvariant())
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct()
+            .ToArray();
+
+        if (channels.Length == 0)
+            return AnnouncementChannels.Default;
+
+        var invalid = channels.Where(c => !AnnouncementChannels.All.Contains(c!)).ToArray();
+        if (invalid.Length > 0)
+            throw new ArgumentException($"Unknown delivery channel(s): {string.Join(", ", invalid)}.");
+
+        return channels!;
     }
 }
