@@ -25,6 +25,7 @@ public static class FoundationEndpointExtensions
         app.MapAuditEndpoints();
         app.MapConfigurationAdminEndpoints();
         app.MapDiagnosticsAdminEndpoints();
+        app.MapFeedbackAdminEndpoints();
         app.MapSettingsAdminEndpoints();
         app.MapUserAdminEndpoints();
 

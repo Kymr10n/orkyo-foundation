@@ -79,4 +79,5 @@ public static class ConfigKeys
     // ── Notifications ───────────────────────────────────────────────────────
     public const string AlertEmailTo = "ALERT_EMAIL_TO";
     public const string ContactNotificationEmail = "CONTACT_NOTIFICATION_EMAIL";
+    public const string FeedbackNotificationEmail = "FEEDBACK_NOTIFICATION_EMAIL";
 }

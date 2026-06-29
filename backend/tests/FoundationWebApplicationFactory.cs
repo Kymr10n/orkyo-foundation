@@ -147,6 +147,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["SMTP_USE_SSL"] = "false",
             ["SMTP_FROM_EMAIL"] = "test@test.local",
             ["SMTP_FROM_NAME"] = "Test",
+            ["FEEDBACK_NOTIFICATION_EMAIL"] = "feedback@test.local",
             // BFF auth — enabled with test-friendly settings so BFF endpoints register.
             ["BFF_ENABLED"] = "true",
             ["BFF_COOKIE_SECURE"] = "false",
@@ -550,6 +551,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapSettingsAdminEndpoints();
         app.MapConfigurationAdminEndpoints();
         app.MapDiagnosticsAdminEndpoints();
+        app.MapFeedbackAdminEndpoints();
         app.MapAuditEndpoints();
 
         return app;

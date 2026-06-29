@@ -12,11 +12,13 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class FeedbackEndpointsTests
 {
+    private readonly DatabaseFixture _fixture;
     private readonly HttpClient _client;
     private readonly HttpClient _unauthenticatedClient;
 
     public FeedbackEndpointsTests(DatabaseFixture databaseFixture)
     {
+        _fixture = databaseFixture;
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
     }
@@ -142,6 +144,25 @@ public class FeedbackEndpointsTests
         var response = await _client.PostAsJsonAsync("/api/feedback", request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SubmitFeedback_WhenNotificationEmailConfigured_SendsNotification()
+    {
+        // FEEDBACK_NOTIFICATION_EMAIL is set in the test config, so a submit triggers one best-effort
+        // admin notification. The Database collection serializes tests, so the counter delta is stable.
+        var before = _fixture.Factory.MockEmailService.SendEmailCallCount;
+
+        var response = await _client.PostAsJsonAsync("/api/feedback", new CreateFeedbackRequest
+        {
+            FeedbackType = "bug",
+            Title = $"Notify {Guid.NewGuid():N}"[..28],
+            Description = "line one\nline two",
+            PageUrl = "/spaces"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(before + 1, _fixture.Factory.MockEmailService.SendEmailCallCount);
     }
 
     [Fact]
