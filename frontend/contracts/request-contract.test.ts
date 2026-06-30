@@ -94,13 +94,13 @@ describe("Contract - RequestStatus enum values", () => {
   it("should contain exactly the values from BE RequestStatus enum", () => {
     // Must match [JsonStringEnumMemberName] values in backend/api/Models/Request.cs
     const expectedValues: RequestStatus[] = [
-      "planned",
+      "new",
       "in_progress",
       "done",
       "cancelled",
     ];
     const feValues: RequestStatus[] = [
-      "planned",
+      "new",
       "in_progress",
       "done",
       "cancelled",
@@ -110,7 +110,7 @@ describe("Contract - RequestStatus enum values", () => {
 
   it("should have exactly 4 members (planned, in_progress, done, cancelled)", () => {
     const allValues: RequestStatus[] = [
-      "planned",
+      "new",
       "in_progress",
       "done",
       "cancelled",
@@ -211,7 +211,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       actualDurationValue: null,
       actualDurationUnit: null,
       schedulingSettingsApply: true,
-      status: "planned",
+      status: "new",
       requirements: [],
       createdAt: "2025-01-01T00:00:00Z",
       updatedAt: "2025-01-01T00:00:00Z",
@@ -249,7 +249,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       minimalDurationValue: 60,
       minimalDurationUnit: "minutes",
       schedulingSettingsApply: true,
-      status: "planned",
+      status: "new",
       createdAt: "2025-01-01T00:00:00Z",
       updatedAt: "2025-01-01T00:00:00Z",
       assignments: [],

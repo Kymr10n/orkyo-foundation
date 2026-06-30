@@ -149,7 +149,7 @@ describe('Export Handlers', () => {
         assignments: [spaceAssignment('space1')],
         minimalDurationValue: 60,
         minimalDurationUnit: 'minutes',
-        status: 'planned',
+        status: 'new',
         schedulingSettingsApply: true,
         planningMode: "leaf",
         sortOrder: 0,
@@ -176,7 +176,7 @@ describe('Export Handlers', () => {
 
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
-      expect(content).toContain('planned');
+      expect(content).toContain('new');
       expect(content).toContain('done');
       expect(filename).toMatch(/requests-.*\.csv$/);
     });

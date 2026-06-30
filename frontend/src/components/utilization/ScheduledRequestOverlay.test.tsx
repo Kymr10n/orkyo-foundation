@@ -38,7 +38,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     minimalDurationValue: 120,
     minimalDurationUnit: "minutes",
     schedulingSettingsApply: false,
-    status: "planned",
+    status: "new",
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,

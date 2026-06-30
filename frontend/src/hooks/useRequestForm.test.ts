@@ -196,7 +196,7 @@ describe('buildInitialState', () => {
       minimalDurationValue: 1,
       minimalDurationUnit: 'hours',
       schedulingSettingsApply: true,
-      status: 'planned',
+      status: 'new',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       assignments: [],
@@ -213,7 +213,7 @@ describe('buildInitialState', () => {
       minimalDurationValue: 1,
       minimalDurationUnit: 'hours',
       schedulingSettingsApply: true,
-      status: 'planned',
+      status: 'new',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       assignments: [],
@@ -250,7 +250,7 @@ describe('buildInitialState', () => {
       minimalDurationValue: 8,
       minimalDurationUnit: 'hours',
       schedulingSettingsApply: false,
-      status: 'planned',
+      status: 'new',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       requirements: [
@@ -277,7 +277,7 @@ describe('buildInitialState', () => {
       minimalDurationValue: 1,
       minimalDurationUnit: 'days',
       schedulingSettingsApply: true,
-      status: 'planned',
+      status: 'new',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       assignments: [],
@@ -354,7 +354,7 @@ describe('buildInitialState — defaultSchedule (calendar slot prefill)', () => 
       minimalDurationValue: 4,
       minimalDurationUnit: 'hours',
       schedulingSettingsApply: true,
-      status: 'planned',
+      status: 'new',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       assignments: [],
@@ -393,7 +393,7 @@ describe('buildInitialState — site scope', () => {
       id: 'r1', name: 'r', planningMode: 'leaf', sortOrder: 0,
       siteId: 'site-B',
       minimalDurationValue: 1, minimalDurationUnit: 'hours',
-      schedulingSettingsApply: true, status: 'planned',
+      schedulingSettingsApply: true, status: 'new',
       createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', assignments: [],
     };
     expect(buildInitialState(request, undefined, undefined, undefined, 'site-A').siteId).toBe('site-B');
@@ -405,7 +405,7 @@ describe('buildInitialState — site scope', () => {
     const request: Request = {
       id: 'r1', name: 'r', planningMode: 'leaf', sortOrder: 0,
       minimalDurationValue: 1, minimalDurationUnit: 'hours',
-      schedulingSettingsApply: true, status: 'planned',
+      schedulingSettingsApply: true, status: 'new',
       createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', assignments: [],
     };
     expect(buildInitialState(request, undefined, undefined, undefined, null, 'site-cal').siteId).toBe('site-cal');
@@ -416,7 +416,7 @@ describe('buildInitialState — site scope', () => {
       id: 'r1', name: 'r', planningMode: 'leaf', sortOrder: 0,
       siteId: 'site-B',
       minimalDurationValue: 1, minimalDurationUnit: 'hours',
-      schedulingSettingsApply: true, status: 'planned',
+      schedulingSettingsApply: true, status: 'new',
       createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', assignments: [],
     };
     expect(buildInitialState(request, undefined, undefined, undefined, null, 'site-cal').siteId).toBe('site-B');

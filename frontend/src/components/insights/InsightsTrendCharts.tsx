@@ -28,9 +28,10 @@ const COLORS = {
   criteriaMismatch: "#f59e0b",
   resourceUnavailable: "#8b5cf6",
   scheduleOutsideAvailability: "#0ea5e9",
-  planned: "#2563eb",
+  new: "#2563eb",
   inProgress: "#0ea5e9",
   done: "#10b981",
+  deferred: "#64748b",
   cancelled: "#ef4444",
 };
 
@@ -189,9 +190,10 @@ export function RequestStatusTrendChart({
   // on a timeline, so it's not in this chart — it's the overview "Unscheduled" KPI.
   const chartData = series.map((p) => ({
     label: bucketLabel(p.bucketStart, bucket),
-    Planned: p.planned,
+    New: p.new,
     "In progress": p.inProgress,
     Done: p.done,
+    Deferred: p.deferred,
     Cancelled: p.cancelled,
   }));
 
@@ -209,9 +211,10 @@ export function RequestStatusTrendChart({
         <YAxis fontSize={12} allowDecimals={false} />
         <Tooltip />
         <Legend />
-        <Bar dataKey="Planned" stackId="r" fill={COLORS.planned} />
+        <Bar dataKey="New" stackId="r" fill={COLORS.new} />
         <Bar dataKey="In progress" stackId="r" fill={COLORS.inProgress} />
         <Bar dataKey="Done" stackId="r" fill={COLORS.done} />
+        <Bar dataKey="Deferred" stackId="r" fill={COLORS.deferred} />
         <Bar dataKey="Cancelled" stackId="r" fill={COLORS.cancelled} />
       </BarChart>
     </ChartCard>

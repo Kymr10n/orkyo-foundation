@@ -91,12 +91,14 @@ export function formatTimeDisplay(dateStr?: string | null): string {
  */
 export function getStatusColor(status: string): string {
   switch (status) {
-    case REQUEST_STATUS.PLANNED:
+    case REQUEST_STATUS.NEW:
       return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
     case REQUEST_STATUS.IN_PROGRESS:
       return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
     case REQUEST_STATUS.DONE:
       return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
+    case REQUEST_STATUS.DEFERRED:
+      return "bg-slate-500/10 text-slate-700 dark:text-slate-400";
     case REQUEST_STATUS.CANCELLED:
       return "bg-muted text-muted-foreground line-through";
     default:
@@ -109,12 +111,14 @@ export function getStatusColor(status: string): string {
  */
 export function getStatusDotColor(status: string): string {
   switch (status) {
-    case REQUEST_STATUS.PLANNED:
+    case REQUEST_STATUS.NEW:
       return "bg-blue-500";
     case REQUEST_STATUS.IN_PROGRESS:
       return "bg-amber-500";
     case REQUEST_STATUS.DONE:
       return "bg-emerald-500";
+    case REQUEST_STATUS.DEFERRED:
+      return "bg-slate-400";
     case REQUEST_STATUS.CANCELLED:
       return "bg-gray-400";
     default:
@@ -127,12 +131,14 @@ export function getStatusDotColor(status: string): string {
  */
 export function formatStatusLabel(status: string): string {
   switch (status) {
-    case REQUEST_STATUS.PLANNED:
-      return "Planned";
+    case REQUEST_STATUS.NEW:
+      return "New";
     case REQUEST_STATUS.IN_PROGRESS:
       return "In Progress";
     case REQUEST_STATUS.DONE:
       return "Done";
+    case REQUEST_STATUS.DEFERRED:
+      return "Deferred";
     case REQUEST_STATUS.CANCELLED:
       return "Cancelled";
     default:

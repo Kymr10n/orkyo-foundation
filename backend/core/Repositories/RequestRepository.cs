@@ -719,7 +719,7 @@ public class RequestRepository : IRequestRepository
                       AND ra.assignment_status != @cancelled
                     LIMIT 1) AS assignment_id
             FROM v_requests_with_assignments
-            WHERE status IN ('{RequestStatuses.Planned}', '{RequestStatuses.InProgress}')
+            WHERE status IN ('{RequestStatuses.New}', '{RequestStatuses.InProgress}')
               AND start_ts IS NOT NULL
               AND end_ts IS NOT NULL
               AND start_ts < @end

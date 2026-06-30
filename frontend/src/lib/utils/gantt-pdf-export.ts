@@ -124,9 +124,10 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
 
       // Color based on status
       const colors: Record<string, [number, number, number]> = {
-        planned: [59, 130, 246],      // blue
+        new: [59, 130, 246],          // blue
         in_progress: [249, 115, 22],  // orange
         done: [34, 197, 94],          // green
+        deferred: [100, 116, 139],    // slate
       };
 
       const color = colors[request.status] || [150, 150, 150]; // default gray
@@ -161,9 +162,10 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   doc.setFontSize(8);
 
   const statuses: [string, string, [number, number, number]][] = [
-    ['Planned', 'planned', [59, 130, 246]],
+    ['New', 'new', [59, 130, 246]],
     ['In Progress', 'in_progress', [249, 115, 22]],
     ['Done', 'done', [34, 197, 94]],
+    ['Deferred', 'deferred', [100, 116, 139]],
   ];
 
   statuses.forEach(([label, , color], index) => {

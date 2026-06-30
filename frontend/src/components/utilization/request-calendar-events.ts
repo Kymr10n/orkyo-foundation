@@ -52,12 +52,14 @@ export function getEventConflictSeverity(
  */
 function getCalendarEventColor(status: RequestStatus): string {
   switch (status) {
-    case "planned":
+    case "new":
       return "bg-blue-100! dark:bg-blue-950! border-blue-200! dark:border-blue-800! text-blue-800! dark:text-blue-300!";
     case "in_progress":
       return "bg-amber-100! dark:bg-amber-950! border-amber-200! dark:border-amber-800! text-amber-800! dark:text-amber-300!";
     case "done":
       return "bg-emerald-100! dark:bg-emerald-950! border-emerald-200! dark:border-emerald-800! text-emerald-800! dark:text-emerald-300!";
+    case "deferred":
+      return "bg-slate-100! dark:bg-slate-900! border-slate-200! dark:border-slate-700! text-slate-700! dark:text-slate-300!";
     case "cancelled":
       return "bg-muted! border-muted-foreground/30! text-muted-foreground! line-through";
     default:

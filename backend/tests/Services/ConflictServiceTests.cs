@@ -75,7 +75,7 @@ public class ConflictServiceTests
             Id = id,
             Name = "R",
             PlanningMode = PlanningMode.Leaf,
-            Status = RequestStatus.Planned,
+            Status = RequestStatus.New,
             SchedulingSettingsApply = false,
             Assignments = [.. assignments],
             StartTs = start,

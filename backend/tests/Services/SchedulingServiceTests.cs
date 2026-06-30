@@ -33,7 +33,7 @@ public class SchedulingServiceTests
         Id = Guid.NewGuid(),
         Name = "Test",
         PlanningMode = PlanningMode.Leaf,
-        Status = RequestStatus.Planned,
+        Status = RequestStatus.New,
         SchedulingSettingsApply = applyScheduling,
         Requirements = new List<RequestRequirementInfo>(),
         Assignments = new List<ResourceAssignmentInfo>(),

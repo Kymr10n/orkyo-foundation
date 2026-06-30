@@ -28,7 +28,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     actualDurationUnit: null,
     durationMin: undefined,
     schedulingSettingsApply: true,
-    status: 'planned',
+    status: 'new',
     requirements: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -40,7 +40,7 @@ const unscheduledLeaf = makeRequest({
   id: 'u-1',
   name: 'Unscheduled Task',
   planningMode: 'leaf',
-  status: 'planned',
+  status: 'new',
 });
 
 const scheduledLeaf = makeRequest({
@@ -57,7 +57,7 @@ const parentReq = makeRequest({
   id: 'p-1',
   name: 'Container Group',
   planningMode: 'container',
-  status: 'planned',
+  status: 'new',
 });
 
 const childOfParent = makeRequest({
@@ -65,7 +65,7 @@ const childOfParent = makeRequest({
   name: 'Child of Container',
   planningMode: 'leaf',
   parentRequestId: 'p-1',
-  status: 'planned',
+  status: 'new',
 });
 
 const doneRequest = makeRequest({
@@ -169,8 +169,8 @@ describe('RequestsPanel', () => {
 
   it('shows request status badge', () => {
     renderPanel();
-    const plannedBadges = screen.getAllByText('planned');
-    expect(plannedBadges.length).toBeGreaterThanOrEqual(1);
+    const statusBadges = screen.getAllByText('New');
+    expect(statusBadges.length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows "Unscheduled" indicator for unscheduled requests', () => {
@@ -201,7 +201,7 @@ describe('RequestsPanel', () => {
     });
     renderPanel([req]);
     expect(screen.getByText('In Progress Task')).toBeInTheDocument();
-    expect(screen.getByText('in_progress')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
     expect(screen.getByText('• 2h')).toBeInTheDocument();
     expect(screen.getByText(/Gross:/)).toBeInTheDocument();
   });

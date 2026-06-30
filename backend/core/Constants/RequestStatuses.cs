@@ -8,8 +8,9 @@ namespace Api.Constants;
 /// </summary>
 public static class RequestStatuses
 {
-    public const string Planned = "planned";
+    public const string New = "new";
     public const string InProgress = "in_progress";
     public const string Done = "done";
     public const string Cancelled = "cancelled";
+    public const string Deferred = "deferred";
 }

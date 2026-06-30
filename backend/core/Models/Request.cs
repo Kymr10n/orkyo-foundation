@@ -51,8 +51,8 @@ public enum PlanningMode
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum RequestStatus
 {
-    [JsonStringEnumMemberName("planned")]
-    Planned,
+    [JsonStringEnumMemberName("new")]
+    New,
 
     [JsonStringEnumMemberName("in_progress")]
     InProgress,
@@ -61,7 +61,10 @@ public enum RequestStatus
     Done,
 
     [JsonStringEnumMemberName("cancelled")]
-    Cancelled
+    Cancelled,
+
+    [JsonStringEnumMemberName("deferred")]
+    Deferred
 }
 
 /// <summary>
@@ -190,7 +193,7 @@ public record CreateRequestRequest
     public int? ActualDurationValue { get; init; }
     public DurationUnit? ActualDurationUnit { get; init; }
 
-    public RequestStatus Status { get; init; } = RequestStatus.Planned;
+    public RequestStatus Status { get; init; } = RequestStatus.New;
 
     public bool SchedulingSettingsApply { get; init; } = true;
 

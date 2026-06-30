@@ -277,7 +277,7 @@ public sealed class ReportingQueryService : IReportingQueryService
                 COUNT(*) FILTER (WHERE status = '{RequestStatuses.Cancelled}'
                                    AND updated_at >= @from AND updated_at < @to)          AS cancelled,
                 AVG(EXTRACT(EPOCH FROM (start_ts - created_at)) / 3600)
-                    FILTER (WHERE start_ts IS NOT NULL AND status != '{RequestStatuses.Planned}'
+                    FILTER (WHERE start_ts IS NOT NULL AND status != '{RequestStatuses.New}'
                               AND created_at >= @from AND created_at < @to)              AS avg_lead_hours
             FROM requests", conn);
         cmd.Parameters.AddWithValue("from", from);

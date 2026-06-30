@@ -15,10 +15,10 @@ import type { FlatTreeEntry } from "@foundation/src/domain/request-tree";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
-import { getPlanningModeIcon, REQUEST_STATUS, PLANNING_MODE } from "@foundation/src/constants";
+import { getPlanningModeIcon, REQUEST_STATUS, REQUEST_STATUS_ORDER, PLANNING_MODE } from "@foundation/src/constants";
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
+import { formatMinutesHuman, getStatusColor, formatStatusLabel } from "@foundation/src/lib/utils/utils";
 
 interface RequestsPanelProps {
   requests: Request[];
@@ -139,17 +139,8 @@ const RequestCard = React.memo(function RequestCard({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               )}
-              <Badge
-              variant={
-                request.status === REQUEST_STATUS.DONE
-                  ? "default"
-                  : request.status === REQUEST_STATUS.IN_PROGRESS
-                    ? "secondary"
-                    : "outline"
-              }
-              className="text-xs flex-shrink-0"
-            >
-              {request.status}
+              <Badge className={`${getStatusColor(request.status)} text-xs flex-shrink-0`}>
+              {formatStatusLabel(request.status)}
             </Badge>
             </div>
           </div>
@@ -253,8 +244,13 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
         continue;
       }
 
-      // Status filter
-      if (statusFilter !== "all" && request.status !== statusFilter) {
+      // Status filter — 'deferred' is parked: hidden under "All Statuses", shown
+      // only when it is the explicitly selected filter.
+      if (statusFilter === "all") {
+        if (request.status === REQUEST_STATUS.DEFERRED) {
+          continue;
+        }
+      } else if (request.status !== statusFilter) {
         continue;
       }
 
@@ -324,9 +320,11 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value={REQUEST_STATUS.PLANNED}>Planned</SelectItem>
-              <SelectItem value={REQUEST_STATUS.IN_PROGRESS}>In Progress</SelectItem>
-              <SelectItem value={REQUEST_STATUS.DONE}>Done</SelectItem>
+              {REQUEST_STATUS_ORDER.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {formatStatusLabel(s)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 

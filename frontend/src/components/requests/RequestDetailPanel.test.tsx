@@ -27,7 +27,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     actualDurationUnit: null,
     durationMin: undefined,
     schedulingSettingsApply: true,
-    status: 'planned',
+    status: 'new',
     requirements: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -42,7 +42,7 @@ const leafRequest = makeRequest({
   planningMode: 'leaf',
   minimalDurationValue: 120,
   minimalDurationUnit: 'minutes',
-  status: 'planned',
+  status: 'new',
 });
 
 const scheduledLeaf = makeRequest({
@@ -173,7 +173,7 @@ describe('RequestDetailPanel', () => {
 
   it('shows status badge', () => {
     renderPanel();
-    expect(screen.getByText('planned')).toBeInTheDocument();
+    expect(screen.getByText('new')).toBeInTheDocument();
   });
 
   it('calls onEdit when edit button is clicked', () => {

@@ -36,7 +36,7 @@ describe("getEventConflictSeverity", () => {
 
 describe("getEventClassNames", () => {
   it("uses an opaque, self-contained status colour (planned → blue) with no ring when clean", () => {
-    const classes = getEventClassNames("planned", null);
+    const classes = getEventClassNames("new", null);
     // Calendar events are opaque (unlike the translucent status badges): solid bg + border.
     // The `!` suffix is the Tailwind v4 important modifier — needed so the utilities beat
     // FullCalendar's unlayered injected `.fc-event` colour rules.
@@ -66,7 +66,7 @@ describe("getEventClassNames", () => {
   // hue per status (the badge is translucent, the event opaque — only the shade
   // differs). If someone re-introduces yellow/green on one side, this fails.
   it.each([
-    ["planned", "blue"],
+    ["new", "blue"],
     ["in_progress", "amber"],
     ["done", "emerald"],
   ] as const)("shares the %s colour family with getStatusColor (%s)", (status, family) => {

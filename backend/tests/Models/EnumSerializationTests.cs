@@ -36,10 +36,11 @@ public class EnumSerializationTests
     }
 
     [Theory]
-    [InlineData(RequestStatus.Planned, "planned")]
+    [InlineData(RequestStatus.New, "new")]
     [InlineData(RequestStatus.InProgress, "in_progress")]
     [InlineData(RequestStatus.Done, "done")]
     [InlineData(RequestStatus.Cancelled, "cancelled")]
+    [InlineData(RequestStatus.Deferred, "deferred")]
     public void RequestStatus_SerializesToExpectedValue(RequestStatus value, string expected)
     {
         var json = JsonSerializer.Serialize(value, Options);

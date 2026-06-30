@@ -8,14 +8,14 @@ const early = makeRequest({
   name: "Morning install",
   startTs: "2026-06-15T08:00:00Z",
   endTs: "2026-06-15T10:00:00Z",
-  status: "planned",
+  status: "new",
 });
 const late = makeRequest({
   id: "r-late",
   name: "Afternoon service",
   startTs: "2026-06-15T14:00:00Z",
   endTs: "2026-06-15T16:00:00Z",
-  status: "planned",
+  status: "new",
 });
 const unscheduled = makeRequest({
   id: "r-none",

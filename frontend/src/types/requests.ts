@@ -31,7 +31,7 @@ export interface Duration {
   unit: DurationUnit;
 }
 
-export type RequestStatus = "planned" | "in_progress" | "done" | "cancelled";
+export type RequestStatus = "new" | "in_progress" | "done" | "cancelled" | "deferred";
 
 export interface Conflict {
   id: string;

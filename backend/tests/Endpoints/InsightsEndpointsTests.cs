@@ -135,7 +135,7 @@ public class InsightsEndpointsTests
         var siteId = await SeedSiteAsync();
         await SeedRequestAsync(siteId, "done", StartJan);
         await SeedRequestAsync(siteId, "cancelled", StartJan);
-        await SeedRequestAsync(siteId, "planned", StartJan);
+        await SeedRequestAsync(siteId, "new", StartJan);
 
         var overview = await GetAsync<InsightsOverview>(
             $"/api/insights/overview?from={From}&to={To}&siteId={siteId}");
@@ -155,7 +155,7 @@ public class InsightsEndpointsTests
         var before = (await GetAsync<InsightsOverview>(
             $"/api/insights/overview?from={From}&to={To}&siteId={siteId}")).Requests.Unscheduled;
 
-        await SeedRequestAsync(siteId: null, "planned", startTs: null); // site-neutral backlog
+        await SeedRequestAsync(siteId: null, "new", startTs: null); // site-neutral backlog
 
         var after = (await GetAsync<InsightsOverview>(
             $"/api/insights/overview?from={From}&to={To}&siteId={siteId}")).Requests.Unscheduled;
@@ -167,10 +167,10 @@ public class InsightsEndpointsTests
     public async Task RequestTrend_BucketsByScheduledDate_ExcludesBacklog()
     {
         var siteId = await SeedSiteAsync();
-        await SeedRequestAsync(siteId, "planned", StartJan);
+        await SeedRequestAsync(siteId, "new", StartJan);
         await SeedRequestAsync(siteId, "done", StartJan);
-        await SeedRequestAsync(siteId, "planned", StartFeb);
-        await SeedRequestAsync(siteId, "planned", startTs: null); // backlog → not on the timeline
+        await SeedRequestAsync(siteId, "new", StartFeb);
+        await SeedRequestAsync(siteId, "new", startTs: null); // backlog → not on the timeline
 
         var trend = await GetAsync<InsightsRequests>(
             $"/api/insights/requests?from={From}&to={To}&bucket=month&siteId={siteId}");
@@ -186,7 +186,7 @@ public class InsightsEndpointsTests
     public async Task Overview_SpaceUtilization_NeverExceedsTrendPeak()
     {
         var siteId = await SeedSiteAsync();
-        var requestId = await SeedRequestAsync(siteId, "planned", StartJan);
+        var requestId = await SeedRequestAsync(siteId, "new", StartJan);
         var resourceId = await SeedSpaceResourceAsync();
         await SeedAssignmentAsync(requestId, resourceId, StartJan, StartJan.AddHours(4));
 

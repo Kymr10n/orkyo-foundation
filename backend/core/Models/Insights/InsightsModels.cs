@@ -123,9 +123,10 @@ public record RequestSeriesPoint
     public required DateTime BucketStart { get; init; }
     public required DateTime BucketEnd { get; init; }
     public required int Total { get; init; }
-    public required int Planned { get; init; }
+    public required int New { get; init; }
     public required int InProgress { get; init; }
     public required int Done { get; init; }
+    public required int Deferred { get; init; }
     public required int Cancelled { get; init; }
 }
 

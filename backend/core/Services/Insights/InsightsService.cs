@@ -85,9 +85,10 @@ public class InsightsService(
                 BucketStart = b.Start,
                 BucketEnd = b.End,
                 Total = inBucket.Count,
-                Planned = inBucket.Count(f => f.Status == RequestStatuses.Planned),
+                New = inBucket.Count(f => f.Status == RequestStatuses.New),
                 InProgress = inBucket.Count(f => f.Status == RequestStatuses.InProgress),
                 Done = inBucket.Count(f => f.Status == RequestStatuses.Done),
+                Deferred = inBucket.Count(f => f.Status == RequestStatuses.Deferred),
                 Cancelled = inBucket.Count(f => f.Status == RequestStatuses.Cancelled),
             };
         }).ToList();

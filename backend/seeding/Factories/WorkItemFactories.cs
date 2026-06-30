@@ -38,7 +38,7 @@ public static class WorkItemFactories
             var noun = profile.RequestNameNouns[faker.Random.Int(0, profile.RequestNameNouns.Count - 1)];
             var name = $"{verb} {noun}";
             if (name.Length > 200) name = name[..200];
-            parentRows.Add((new SeededRequest(Guid.NewGuid(), null, null, "planned"), name));
+            parentRows.Add((new SeededRequest(Guid.NewGuid(), null, null, "new"), name));
         }
 
         // ── Phase 2: build leaf rows ──────────────────────────────────────────
@@ -86,7 +86,7 @@ public static class WorkItemFactories
                 await writer.WriteNullAsync();                                  // end_ts
                 await writer.WriteAsync(60, NpgsqlDbType.Integer);              // minimal_duration_value
                 await writer.WriteAsync("minutes", NpgsqlDbType.Varchar);       // minimal_duration_unit
-                await writer.WriteAsync("planned", NpgsqlDbType.Varchar);       // status
+                await writer.WriteAsync("new", NpgsqlDbType.Varchar);       // status
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(false, NpgsqlDbType.Boolean);           // scheduling_settings_apply

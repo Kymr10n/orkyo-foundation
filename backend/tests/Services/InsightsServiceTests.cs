@@ -64,7 +64,7 @@ public class InsightsServiceTests
         Id = id,
         Name = "R",
         PlanningMode = PlanningMode.Leaf,
-        Status = RequestStatus.Planned,
+        Status = RequestStatus.New,
         SchedulingSettingsApply = false,
         Assignments = [],
         SiteId = siteId,

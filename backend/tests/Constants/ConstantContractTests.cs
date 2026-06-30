@@ -113,10 +113,11 @@ public class ConstantContractTests
     // while the DB stores the enum's JsonStringEnumMemberName value.
 
     [Theory]
-    [InlineData(RequestStatuses.Planned, RequestStatus.Planned)]
+    [InlineData(RequestStatuses.New, RequestStatus.New)]
     [InlineData(RequestStatuses.InProgress, RequestStatus.InProgress)]
     [InlineData(RequestStatuses.Done, RequestStatus.Done)]
     [InlineData(RequestStatuses.Cancelled, RequestStatus.Cancelled)]
+    [InlineData(RequestStatuses.Deferred, RequestStatus.Deferred)]
     public void RequestStatuses_ShouldEqualEnumDbValue(string constant, RequestStatus value) =>
         constant.Should().Be(EnumMapper.ToDbValue(value));
 

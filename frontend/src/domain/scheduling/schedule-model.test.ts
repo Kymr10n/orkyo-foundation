@@ -11,7 +11,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
   return {
     id: 'req-1',
     name: 'Test request',
-    status: 'planned',
+    status: 'new',
     planningMode: 'leaf',
     sortOrder: 0,
     minimalDurationValue: 1,

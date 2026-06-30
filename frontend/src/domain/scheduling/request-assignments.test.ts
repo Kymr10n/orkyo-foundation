@@ -161,7 +161,7 @@ describe('request-assignments helpers', () => {
         id: 'req-1',
         name: 'Original Name',
         description: 'Original Description',
-        status: 'planned',
+        status: 'new',
         minimalDurationValue: 120,
         minimalDurationUnit: 'minutes',
       });
@@ -175,7 +175,7 @@ describe('request-assignments helpers', () => {
 
       expect(result.name).toBe('Original Name');
       expect(result.description).toBe('Original Description');
-      expect(result.status).toBe('planned');
+      expect(result.status).toBe('new');
       expect(result.minimalDurationValue).toBe(120);
       expect(result.minimalDurationUnit).toBe('minutes');
     });

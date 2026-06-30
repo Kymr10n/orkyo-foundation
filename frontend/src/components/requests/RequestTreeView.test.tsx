@@ -61,7 +61,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     actualDurationUnit: null,
     durationMin: undefined,
     schedulingSettingsApply: true,
-    status: 'planned',
+    status: 'new',
     requirements: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

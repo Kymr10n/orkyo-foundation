@@ -64,8 +64,8 @@ public sealed class RequestTimeDistribution
     {
         Slot.PastDone => "done",
         Slot.InProgress => "in_progress",
-        Slot.Future => "planned",
-        _ => "planned", // unscheduled is just planned + no times
+        Slot.Future => "new",
+        _ => "new", // unscheduled is just new + no times
     };
 
     private static (DateTime start, DateTime end) MakeRange(DateTime start, int durationMinutes)

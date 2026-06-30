@@ -89,7 +89,7 @@ describe("InsightsTrendCharts", () => {
   it("renders the request status stacked bars with data", () => {
     const data: InsightsRequests = {
       bucket: "month",
-      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 10, planned: 4, inProgress: 2, done: 3, cancelled: 1 }],
+      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 10, new: 4, inProgress: 2, done: 3, deferred: 0, cancelled: 1 }],
       metadata: meta,
     };
     render(<RequestStatusTrendChart data={data} bucket="month" isLoading={false} error={null} />);
@@ -100,7 +100,7 @@ describe("InsightsTrendCharts", () => {
   it("shows the request empty state when all buckets are zero", () => {
     const data: InsightsRequests = {
       bucket: "month",
-      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 0, planned: 0, inProgress: 0, done: 0, cancelled: 0 }],
+      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 0, new: 0, inProgress: 0, done: 0, deferred: 0, cancelled: 0 }],
       metadata: meta,
     };
     render(<RequestStatusTrendChart data={data} bucket="month" isLoading={false} error={null} />);

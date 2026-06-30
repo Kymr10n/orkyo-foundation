@@ -24,7 +24,7 @@ export function makeRequest(overrides: Partial<Request> = {}): Request {
     actualDurationValue: null,
     actualDurationUnit: null,
     schedulingSettingsApply: true,
-    status: 'planned',
+    status: 'new',
     requirements: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

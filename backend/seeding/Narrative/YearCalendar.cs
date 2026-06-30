@@ -127,6 +127,6 @@ public sealed class YearCalendar
             return faker.Random.Bool(0.04f) ? "cancelled" : "done";
         if (start <= ReferenceDate && end > ReferenceDate)
             return "in_progress";
-        return faker.Random.Bool(0.03f) ? "cancelled" : "planned";
+        return faker.Random.Bool(0.03f) ? "cancelled" : "new";
     }
 }

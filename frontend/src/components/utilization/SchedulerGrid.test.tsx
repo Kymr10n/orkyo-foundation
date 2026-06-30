@@ -97,7 +97,7 @@ const mockRequests: Request[] = [
     assignments: [spaceAssignment('space-1')],
     startTs: '2024-01-10T09:00:00Z',
     endTs: '2024-01-10T11:00:00Z',
-    status: 'planned',
+    status: 'new',
     minimalDurationValue: 120,
     minimalDurationUnit: 'minutes',
     createdAt: '2024-01-01T00:00:00Z',

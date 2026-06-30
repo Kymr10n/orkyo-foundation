@@ -124,7 +124,7 @@ const EXISTING: Request = {
   id: "req-1",
   name: "Existing Request",
   planningMode: "leaf",
-  status: "planned",
+  status: "new",
   minimalDurationValue: 2,
   minimalDurationUnit: "hours",
 } as Request;

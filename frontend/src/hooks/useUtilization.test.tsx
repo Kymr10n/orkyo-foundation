@@ -29,7 +29,7 @@ const mockRequest: Request = {
   actualDurationValue: 120,
   actualDurationUnit: "minutes",
   durationMin: 90,
-  status: "planned",
+  status: "new",
   requirements: [],
   schedulingSettingsApply: true,
   planningMode: "leaf",
@@ -52,7 +52,7 @@ const mockRequest2: Request = {
   actualDurationValue: null,
   actualDurationUnit: null,
   durationMin: 120,
-  status: "planned",
+  status: "new",
   requirements: [],
   schedulingSettingsApply: true,
   planningMode: "leaf",
@@ -231,7 +231,7 @@ describe("useScheduleRequest", () => {
     const cached = queryClient.getQueryData<Request[]>(["requests", "scheduled"]);
     const optimistic = cached?.find((r) => r.id === "req-001");
     expect(optimistic?.name).toBe("Deep-Sea Survey");
-    expect(optimistic?.status).toBe("planned");
+    expect(optimistic?.status).toBe("new");
 
     // Let the mutation complete
     resolve({

@@ -33,7 +33,7 @@ public class RequestModelsTests
     }
 
     [Theory]
-    [InlineData(RequestStatus.Planned)]
+    [InlineData(RequestStatus.New)]
     [InlineData(RequestStatus.InProgress)]
     [InlineData(RequestStatus.Done)]
     [InlineData(RequestStatus.Cancelled)]
@@ -269,7 +269,7 @@ public class RequestModelsTests
         PlanningMode = PlanningMode.Leaf,
         MinimalDurationValue = 1,
         MinimalDurationUnit = DurationUnit.Days,
-        Status = RequestStatus.Planned,
+        Status = RequestStatus.New,
         SchedulingSettingsApply = true,
         Assignments = assignments ?? Array.Empty<ResourceAssignmentInfo>(),
         StartTs = start,

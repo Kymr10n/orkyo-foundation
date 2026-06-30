@@ -41,7 +41,7 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     actualDurationUnit: null,
     durationMin: undefined,
     schedulingSettingsApply: true,
-    status: 'planned',
+    status: 'new',
     requirements: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -145,7 +145,7 @@ describe('RequestListView', () => {
 
   it('shows status badges', () => {
     renderListView();
-    const badges = screen.getAllByText('Planned');
+    const badges = screen.getAllByText('New');
     expect(badges).toHaveLength(3);
   });
 

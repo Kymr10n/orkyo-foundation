@@ -350,7 +350,7 @@ public static class NarrativeYearSeeder
                 await w.WriteNullAsync();
                 await w.WriteAsync(60, NpgsqlDbType.Integer);
                 await w.WriteAsync("minutes", NpgsqlDbType.Varchar);
-                await w.WriteAsync("planned", NpgsqlDbType.Varchar);
+                await w.WriteAsync("new", NpgsqlDbType.Varchar);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await w.WriteAsync(false, NpgsqlDbType.Boolean);
@@ -415,7 +415,7 @@ public static class NarrativeYearSeeder
             await w.WriteNullAsync();                                  // end_ts
             await w.WriteAsync(hours, NpgsqlDbType.Integer);          // minimal_duration_value
             await w.WriteAsync("hours", NpgsqlDbType.Varchar);        // minimal_duration_unit
-            await w.WriteAsync("planned", NpgsqlDbType.Varchar);      // status
+            await w.WriteAsync("new", NpgsqlDbType.Varchar);      // status
             await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
             await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
             await w.WriteAsync(true, NpgsqlDbType.Boolean);           // scheduling_settings_apply

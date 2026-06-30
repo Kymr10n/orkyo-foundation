@@ -51,7 +51,7 @@ public class RequestEndpointsTests
         Assert.Equal(request.ResourceId, created.Assignments.SingleOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId);
         Assert.Equal(4, created.MinimalDurationValue);
         Assert.Equal(DurationUnit.Days, created.MinimalDurationUnit);
-        Assert.Equal(RequestStatus.Planned, created.Status);
+        Assert.Equal(RequestStatus.New, created.Status);
     }
 
     [Fact]

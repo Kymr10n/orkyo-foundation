@@ -27,7 +27,7 @@ const event: CalendarEvent = {
   end: "2026-04-17T11:00:00Z",
   classNames: ["orkyo-cal-event"],
   editable: true,
-  extendedProps: { requestId: "r1", status: "planned", conflictSeverity: null },
+  extendedProps: { requestId: "r1", status: "new", conflictSeverity: null },
 };
 
 function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCalendar>> = {}) {
@@ -134,7 +134,7 @@ describe("RequestCalendar", () => {
 
   it("renders legend labels for all statuses and conflict indicators", () => {
     renderCalendar();
-    expect(screen.getByText("Planned")).toBeInTheDocument();
+    expect(screen.getByText("New")).toBeInTheDocument();
     expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(screen.getByText("Cancelled")).toBeInTheDocument();

@@ -35,7 +35,7 @@ public class SchedulingProblemBuilder
         var eligibleRequests = allRequests
             .Where(r => !r.IsScheduled)
             .Where(r => r.PlanningMode == PlanningMode.Leaf)
-            .Where(r => r.Status is RequestStatus.Planned or RequestStatus.InProgress)
+            .Where(r => r.Status is RequestStatus.New or RequestStatus.InProgress)
             .Where(r => r.MinimalDurationValue > 0);
 
         if (request.RequestIds is { Count: > 0 })

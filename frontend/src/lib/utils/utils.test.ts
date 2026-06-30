@@ -276,23 +276,26 @@ describe('status helpers', () => {
   // Status badges share the scheduling palette (amber/emerald) so a request
   // reads the same colour in a list badge as on the calendar / utilization grid.
   it('getStatusColor covers every known status plus the default', () => {
-    expect(getStatusColor('planned')).toContain('blue');
+    expect(getStatusColor('new')).toContain('blue');
     expect(getStatusColor('in_progress')).toContain('amber');
     expect(getStatusColor('done')).toContain('emerald');
+    expect(getStatusColor('deferred')).toContain('slate');
     expect(getStatusColor('cancelled')).toContain('line-through');
     expect(getStatusColor('???')).toBe('bg-muted text-muted-foreground');
   });
   it('getStatusDotColor covers every known status plus the default', () => {
-    expect(getStatusDotColor('planned')).toBe('bg-blue-500');
+    expect(getStatusDotColor('new')).toBe('bg-blue-500');
     expect(getStatusDotColor('in_progress')).toBe('bg-amber-500');
     expect(getStatusDotColor('done')).toBe('bg-emerald-500');
+    expect(getStatusDotColor('deferred')).toBe('bg-slate-400');
     expect(getStatusDotColor('cancelled')).toBe('bg-gray-400');
     expect(getStatusDotColor('???')).toBe('bg-gray-400');
   });
   it('formatStatusLabel humanizes known statuses and echoes unknown ones', () => {
-    expect(formatStatusLabel('planned')).toBe('Planned');
+    expect(formatStatusLabel('new')).toBe('New');
     expect(formatStatusLabel('in_progress')).toBe('In Progress');
     expect(formatStatusLabel('done')).toBe('Done');
+    expect(formatStatusLabel('deferred')).toBe('Deferred');
     expect(formatStatusLabel('cancelled')).toBe('Cancelled');
     expect(formatStatusLabel('custom')).toBe('custom');
   });

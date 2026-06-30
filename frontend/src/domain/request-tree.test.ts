@@ -24,7 +24,7 @@ function makeRequest(
     minimalDurationValue: 60,
     minimalDurationUnit: "minutes",
     schedulingSettingsApply: false,
-    status: "planned",
+    status: "new",
     planningMode: "leaf",
     sortOrder: 0,
     createdAt: "2025-01-01T00:00:00Z",

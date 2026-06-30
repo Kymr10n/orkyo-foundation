@@ -70,7 +70,7 @@ describe('gantt-pdf-export', () => {
       assignments: [spaceAssignment('space-1')],
       startTs: '2024-03-01T10:00:00Z',
       endTs: '2024-03-01T11:00:00Z',
-      status: 'planned',
+      status: 'new',
       minimalDurationValue: 1,
       minimalDurationUnit: 'hours',
       schedulingSettingsApply: true,
@@ -102,7 +102,7 @@ describe('gantt-pdf-export', () => {
       assignments: [],
       startTs: null,
       endTs: null,
-      status: 'planned',
+      status: 'new',
       minimalDurationValue: 2,
       minimalDurationUnit: 'hours',
       schedulingSettingsApply: true,
@@ -228,7 +228,7 @@ describe('gantt-pdf-export', () => {
     // Check legend text is rendered
     const textCalls = mockPDFInstance.text.mock.calls.map((call: any) => call[0]);
     expect(textCalls).toContain('Status Legend');
-    expect(textCalls).toContain('Planned');
+    expect(textCalls).toContain('New');
     expect(textCalls).toContain('In Progress');
     expect(textCalls).toContain('Done');
   });

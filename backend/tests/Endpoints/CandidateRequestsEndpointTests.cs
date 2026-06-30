@@ -30,7 +30,7 @@ public class CandidateRequestsEndpointTests
         return (await resp.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid();
     }
 
-    private async Task<Guid> CreateScheduledRequestAsync(DateTime start, DateTime end, string status = "planned")
+    private async Task<Guid> CreateScheduledRequestAsync(DateTime start, DateTime end, string status = "new")
     {
         // Create, then schedule it
         var createResp = await _client.PostAsJsonAsync("/api/requests", new

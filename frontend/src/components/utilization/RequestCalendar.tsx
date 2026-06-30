@@ -127,9 +127,10 @@ export function RequestCalendar({
   return (
     <div className="orkyo-calendar flex flex-col h-full">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
-        <LegendItem className="bg-blue-100 dark:bg-blue-950 border-blue-200 dark:border-blue-800" label="Planned" />
+        <LegendItem className="bg-blue-100 dark:bg-blue-950 border-blue-200 dark:border-blue-800" label="New" />
         <LegendItem className="bg-amber-100 dark:bg-amber-950 border-amber-200 dark:border-amber-800" label="In Progress" />
         <LegendItem className="bg-emerald-100 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800" label="Done" />
+        <LegendItem className="bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700" label="Deferred" />
         <LegendItem className="bg-muted border-muted-foreground/30" label="Cancelled" />
         <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
         <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />

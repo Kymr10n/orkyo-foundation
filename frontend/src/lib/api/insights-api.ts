@@ -79,9 +79,10 @@ export interface RequestSeriesPoint {
   bucketStart: string;
   bucketEnd: string;
   total: number;
-  planned: number;
+  new: number;
   inProgress: number;
   done: number;
+  deferred: number;
   cancelled: number;
 }
 

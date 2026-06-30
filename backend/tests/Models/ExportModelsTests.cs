@@ -261,13 +261,13 @@ public class ExportModelsTests
             SiteCode = "HQ",
             MinimalDurationValue = 2,
             MinimalDurationUnit = DurationUnit.Days,
-            Status = RequestStatus.Planned,
+            Status = RequestStatus.New,
             SchedulingSettingsApply = true
         };
 
         data.Name.Should().Be("Install HVAC");
         data.MinimalDurationValue.Should().Be(2);
-        data.Status.Should().Be(RequestStatus.Planned);
+        data.Status.Should().Be(RequestStatus.New);
         data.SchedulingSettingsApply.Should().BeTrue();
     }
 }
