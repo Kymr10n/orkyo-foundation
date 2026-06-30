@@ -29,6 +29,8 @@ import {
 } from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useNow } from "@foundation/src/hooks/useNow";
+import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import type {
     CreateRequestRequest,
     PlanningMode,
@@ -86,7 +88,12 @@ export function RequestsPage() {
   const canEdit = useCanEdit();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [requests, setRequests] = useState<Request[]>([]);
+  const [rawRequests, setRequests] = useState<Request[]>([]);
+  const nowMs = useNow();
+  // Recompute the time-derived lifecycle (new → in_progress → done) live so the list/tree/detail
+  // auto-update as the clock advances, matching the utilization view. cancelled/deferred pass through;
+  // withEffectiveStatus keeps the array ref stable until a real status flip.
+  const requests = useMemo(() => withEffectiveStatus(rawRequests, nowMs), [rawRequests, nowMs]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("tree");

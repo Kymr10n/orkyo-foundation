@@ -142,6 +142,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -163,6 +164,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -183,6 +185,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -204,6 +207,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-01')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -225,6 +229,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -260,6 +265,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -316,6 +322,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -343,6 +350,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -366,6 +374,7 @@ describe('SchedulerGrid', () => {
           scale="month"
           anchorTs={new Date('2024-01-15')}
           timeCursorTs={new Date()}
+          nowMs={Date.now()}
           onRequestClick={vi.fn()}
           onTimeCursorClick={vi.fn()}
         />
@@ -401,6 +410,7 @@ describe('SchedulerGrid', () => {
             scale="month"
             anchorTs={new Date('2024-01-15')}
             timeCursorTs={new Date()}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
           />
@@ -431,6 +441,7 @@ describe('SchedulerGrid', () => {
             scale="day"
             anchorTs={new Date('2024-01-15')}
             timeCursorTs={new Date()}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
           />
@@ -461,6 +472,7 @@ describe('SchedulerGrid', () => {
             scale="month"
             anchorTs={new Date('2024-01-01')}
             timeCursorTs={new Date()}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
           />
@@ -488,6 +500,7 @@ describe('SchedulerGrid', () => {
             scale="month"
             anchorTs={new Date('2024-01-01')}
             timeCursorTs={new Date()}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
           />
@@ -527,6 +540,7 @@ describe('SchedulerGrid', () => {
             scale="day"
             anchorTs={new Date('2024-01-10')}
             timeCursorTs={new Date('2024-01-10T12:00:00Z')}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
           />
@@ -608,6 +622,7 @@ describe('SchedulerGrid', () => {
             scale="week"
             anchorTs={new Date('2024-01-15')}
             timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={vi.fn()}
             onAnchorChange={onAnchorChange}
@@ -631,6 +646,7 @@ describe('SchedulerGrid', () => {
             scale="week"
             anchorTs={new Date('2024-01-15')}
             timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={onTimeCursorClick}
           />
@@ -656,6 +672,7 @@ describe('SchedulerGrid', () => {
             scale="day"
             anchorTs={new Date('2024-01-15')}
             timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={onTimeCursorClick}
           />
@@ -678,6 +695,7 @@ describe('SchedulerGrid', () => {
             scale="month"
             anchorTs={new Date('2024-01-15')}
             timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+            nowMs={Date.now()}
             onRequestClick={vi.fn()}
             onTimeCursorClick={onTimeCursorClick}
           />
@@ -735,6 +753,7 @@ describe('SchedulerGrid', () => {
               scale="month"
               anchorTs={new Date('2024-01-15')}
               timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+              nowMs={Date.now()}
               onRequestClick={vi.fn()}
               onTimeCursorClick={onTimeCursorClick}
               onAnchorChange={onAnchorChange}
@@ -793,6 +812,7 @@ describe('SchedulerGrid', () => {
               scale="month"
               anchorTs={new Date('2024-01-15')}
               timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+              nowMs={Date.now()}
               onRequestClick={vi.fn()}
               onTimeCursorClick={vi.fn()}
               onAnchorChange={onAnchorChange}
@@ -832,6 +852,7 @@ describe('SchedulerGrid', () => {
               scale={scale}
               anchorTs={new Date('2024-01-15')}
               timeCursorTs={new Date('2024-01-15T12:00:00Z')}
+              nowMs={Date.now()}
               onRequestClick={vi.fn()}
               onTimeCursorClick={vi.fn()}
               onAnchorChange={vi.fn()}

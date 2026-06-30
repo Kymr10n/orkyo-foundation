@@ -7,6 +7,7 @@ import {
   parseTimeToHour,
   resolveColumnStartMs,
   utilizationGranularityForScale,
+  viewPositionPercent,
 } from "./time-grid-utils";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 
@@ -188,5 +189,27 @@ describe("time-grid-utils", () => {
     const span = (w: { from: Date; to: Date }) => w.to.getTime() - w.from.getTime();
     expect(span(month)).toBeGreaterThan(span(week));
     expect(span(year)).toBeGreaterThan(span(month));
+  });
+
+  describe("viewPositionPercent", () => {
+    it("returns the percentage for an instant inside the range", () => {
+      expect(viewPositionPercent(25, 0, 100)).toBe(25);
+      expect(viewPositionPercent(50, 0, 100)).toBe(50);
+    });
+
+    it("returns 0 at the (inclusive) start", () => {
+      expect(viewPositionPercent(0, 0, 100)).toBe(0);
+    });
+
+    it("returns null before the start and at/after the (exclusive) end", () => {
+      expect(viewPositionPercent(-1, 0, 100)).toBeNull();
+      expect(viewPositionPercent(100, 0, 100)).toBeNull(); // end is exclusive
+      expect(viewPositionPercent(150, 0, 100)).toBeNull();
+    });
+
+    it("returns null for a non-positive span", () => {
+      expect(viewPositionPercent(0, 100, 100)).toBeNull();
+      expect(viewPositionPercent(0, 100, 50)).toBeNull();
+    });
   });
 });

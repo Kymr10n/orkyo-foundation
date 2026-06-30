@@ -9,6 +9,12 @@ public static class RequestMapper
 {
     public static RequestInfo MapFromReader(NpgsqlDataReader reader)
     {
+        var startTs = reader.GetNullableDateTime("start_ts");
+        var endTs = reader.GetNullableDateTime("end_ts");
+        // Status is EFFECTIVE: the active lifecycle (new → in_progress → done) is derived from the
+        // schedule vs now; cancelled/deferred stay as stored. See RequestStatusCalculator.
+        var storedStatus = EnumMapper.FromDbValue<RequestStatus>(reader.GetString("status"));
+
         return new RequestInfo
         {
             Id = reader.GetGuid("id"),
@@ -21,8 +27,8 @@ public static class RequestMapper
             RequestItemId = reader.GetNullableString("request_item_id"),
             Assignments = ParseAssignments(reader.GetString("assignments")),
             Icon = reader.GetNullableString("icon"),
-            StartTs = reader.GetNullableDateTime("start_ts"),
-            EndTs = reader.GetNullableDateTime("end_ts"),
+            StartTs = startTs,
+            EndTs = endTs,
             EarliestStartTs = reader.GetNullableDateTime("earliest_start_ts"),
             LatestEndTs = reader.GetNullableDateTime("latest_end_ts"),
             MinimalDurationValue = reader.GetInt32("minimal_duration_value"),
@@ -31,7 +37,7 @@ public static class RequestMapper
             ActualDurationUnit = reader.GetNullableString("actual_duration_unit") is { } actualUnit
                 ? EnumMapper.ParseEnum<DurationUnit>(actualUnit)
                 : null,
-            Status = EnumMapper.FromDbValue<RequestStatus>(reader.GetString("status")),
+            Status = RequestStatusCalculator.Effective(storedStatus, startTs, endTs, DateTime.UtcNow),
             SchedulingSettingsApply = reader.GetBoolean("scheduling_settings_apply"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),

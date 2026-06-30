@@ -175,9 +175,30 @@ public class InsightsEndpointsTests
         var trend = await GetAsync<InsightsRequests>(
             $"/api/insights/requests?from={From}&to={To}&bucket=month&siteId={siteId}");
 
-        trend.Series[0].Total.Should().Be(2);   // January (planned + done)
-        trend.Series[0].Done.Should().Be(1);
+        trend.Series[0].Total.Should().Be(2);   // January: both requests bucketed by their start date
+        // Status is EFFECTIVE: 2099 is in the future, so both (incl. the stored-"done" one) derive to "new".
+        trend.Series[0].New.Should().Be(2);
         trend.Series[1].Total.Should().Be(1);   // February
+    }
+
+    [Fact]
+    public async Task RequestTrend_CountsByEffectiveStatus_DerivedFromSchedule()
+    {
+        var siteId = await SeedSiteAsync();
+        var now = DateTime.UtcNow;
+        // Effective status is derived from the schedule window vs now (SeedRequestAsync sets end = start + 1h):
+        await SeedRequestAsync(siteId, "new", now.AddDays(-10));    // ended ~10d ago        → done
+        await SeedRequestAsync(siteId, "new", now.AddMinutes(-30)); // started 30m ago, ends in 30m → in_progress
+        await SeedRequestAsync(siteId, "new", now.AddDays(10));     // starts in 10d         → new
+
+        var from = now.AddMonths(-1).ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var to = now.AddMonths(2).ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var trend = await GetAsync<InsightsRequests>(
+            $"/api/insights/requests?from={from}&to={to}&bucket=month&siteId={siteId}");
+
+        trend.Series.Sum(s => s.Done).Should().Be(1);
+        trend.Series.Sum(s => s.InProgress).Should().Be(1);
+        trend.Series.Sum(s => s.New).Should().Be(1);
     }
 
     // ── Utilization KPI reconciles with its trend chart (regression #2) ────────

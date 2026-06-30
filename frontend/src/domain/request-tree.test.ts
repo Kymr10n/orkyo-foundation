@@ -73,6 +73,21 @@ describe("buildRequestTree", () => {
   it("handles empty list", () => {
     expect(buildRequestTree([])).toEqual([]);
   });
+
+  it("promotes orphans (parent absent from the set) to roots instead of dropping them", () => {
+    // Mirrors the utilization panel: a scheduled child whose unscheduled summary parent isn't loaded.
+    const orphans = [
+      makeRequest({ id: "absent-parent-child-a", parentRequestId: "summary-not-loaded", sortOrder: 1 }),
+      makeRequest({ id: "absent-parent-child-b", parentRequestId: "summary-not-loaded", sortOrder: 0 }),
+      makeRequest({ id: "real-root", sortOrder: 2 }),
+    ];
+    const tree = buildRequestTree(orphans);
+    const rootIds = tree.map((n) => n.request.id);
+
+    // All three appear as roots (orphans are not lost), ordered by sortOrder.
+    expect(rootIds).toEqual(["absent-parent-child-b", "absent-parent-child-a", "real-root"]);
+    expect(tree.every((n) => n.depth === 0)).toBe(true);
+  });
 });
 
 describe("flattenTree", () => {

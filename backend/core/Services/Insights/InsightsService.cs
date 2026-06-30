@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Models.Insights;
 using Api.Repositories;
@@ -77,19 +78,26 @@ public class InsightsService(
         // is timeless → it lives in the overview Unscheduled KPI, not here.
         var facts = await FetchInWindowFactsAsync(rangeFrom, rangeTo, filter.SiteId, ct);
 
+        var now = DateTime.UtcNow;
         var series = buckets.Select(b =>
         {
             var inBucket = facts.Where(f => f.StartTs >= b.Start && f.StartTs < b.End).ToList();
+            // Count by EFFECTIVE status (derived from schedule vs now), matching the read model:
+            // a scheduled request is in_progress while running and done once its window has passed.
+            var effective = inBucket
+                .Select(f => RequestStatusCalculator.Effective(
+                    EnumMapper.FromDbValue<RequestStatus>(f.Status), f.StartTs, f.EndTs, now))
+                .ToList();
             return new RequestSeriesPoint
             {
                 BucketStart = b.Start,
                 BucketEnd = b.End,
                 Total = inBucket.Count,
-                New = inBucket.Count(f => f.Status == RequestStatuses.New),
-                InProgress = inBucket.Count(f => f.Status == RequestStatuses.InProgress),
-                Done = inBucket.Count(f => f.Status == RequestStatuses.Done),
-                Deferred = inBucket.Count(f => f.Status == RequestStatuses.Deferred),
-                Cancelled = inBucket.Count(f => f.Status == RequestStatuses.Cancelled),
+                New = effective.Count(s => s == RequestStatus.New),
+                InProgress = effective.Count(s => s == RequestStatus.InProgress),
+                Done = effective.Count(s => s == RequestStatus.Done),
+                Deferred = effective.Count(s => s == RequestStatus.Deferred),
+                Cancelled = effective.Count(s => s == RequestStatus.Cancelled),
             };
         }).ToList();
 
@@ -159,7 +167,7 @@ public class InsightsService(
 
     // ── Request facts (from the analytics view, anchored on start_ts) ──────────
 
-    private sealed record RequestFact(string Status, bool IsScheduled, DateTime StartTs);
+    private sealed record RequestFact(string Status, bool IsScheduled, DateTime StartTs, DateTime? EndTs);
 
     /// <summary>Time-bound requests whose scheduled window starts in [from, to). Site-neutral included.</summary>
     private async Task<List<RequestFact>> FetchInWindowFactsAsync(
@@ -169,7 +177,7 @@ public class InsightsService(
         await db.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand($@"
-            SELECT status, is_scheduled, start_ts
+            SELECT status, is_scheduled, start_ts, end_ts
             FROM analytics_request_summary_v
             WHERE start_ts >= @from AND start_ts < @to
               AND {SiteFilter}", db);
@@ -180,7 +188,9 @@ public class InsightsService(
         var facts = new List<RequestFact>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            facts.Add(new RequestFact(reader.GetString(0), reader.GetBoolean(1), reader.GetDateTime(2)));
+            facts.Add(new RequestFact(
+                reader.GetString(0), reader.GetBoolean(1), reader.GetDateTime(2),
+                reader.IsDBNull(3) ? null : reader.GetDateTime(3)));
         return facts;
     }
 

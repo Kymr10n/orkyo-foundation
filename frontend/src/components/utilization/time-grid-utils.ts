@@ -57,6 +57,18 @@ export function getFetchWindow(scale: TimeScale, anchorTs: Date): { from: Date; 
   }
 }
 
+/**
+ * Position of an instant within a half-open `[startMs, endMs)` view range, as a 0–100 percentage for
+ * absolute placement over the time track. Returns `null` when the instant is outside the range so a
+ * caller (e.g. the "now" line) can hide its marker rather than clamp it to an edge.
+ */
+export function viewPositionPercent(tsMs: number, startMs: number, endMs: number): number | null {
+  const span = endMs - startMs;
+  if (span <= 0) return null;
+  if (tsMs < startMs || tsMs >= endMs) return null;
+  return ((tsMs - startMs) / span) * 100;
+}
+
 export function parseTimeToHour(time: string): number {
   const [hour] = time.split(":").map(Number);
   return hour;

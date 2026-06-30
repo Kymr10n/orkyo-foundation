@@ -63,7 +63,21 @@ export function buildRequestTree(requests: Request[]): RequestTreeNode[] {
     };
   }
 
-  const roots = childrenMap.get("__root__") ?? [];
+  // Roots = requests with no parent, PLUS "orphans" whose referenced parent is not in this dataset.
+  // The utilization panel loads only scheduled + backlog requests, so a scheduled child whose parent
+  // is an *unscheduled summary* (not loaded) would otherwise be silently dropped from the tree — and
+  // never appear in the list, even when it matches a filter. Promote such orphans to roots.
+  const roots: Request[] = [...(childrenMap.get("__root__") ?? [])];
+  for (const [parentId, children] of childrenMap) {
+    if (parentId !== "__root__" && !byId.has(parentId)) {
+      roots.push(...children);
+    }
+  }
+  roots.sort((a, b) => {
+    const so = a.sortOrder - b.sortOrder;
+    if (so !== 0) return so;
+    return a.createdAt.localeCompare(b.createdAt);
+  });
   return roots.map((r) => buildNode(r, 0));
 }
 

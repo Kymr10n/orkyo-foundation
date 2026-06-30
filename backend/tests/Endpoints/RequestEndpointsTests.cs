@@ -398,7 +398,8 @@ public class RequestEndpointsTests
         {
             Name = "Updated Name",
             Description = "Updated description",
-            Status = RequestStatus.InProgress
+            // new/in_progress/done are derived from the schedule; deferred is a manual state that persists.
+            Status = RequestStatus.Deferred
         };
 
         // Act
@@ -410,7 +411,7 @@ public class RequestEndpointsTests
         Assert.NotNull(updated);
         Assert.Equal("Updated Name", updated.Name);
         Assert.Equal("Updated description", updated.Description);
-        Assert.Equal(RequestStatus.InProgress, updated.Status);
+        Assert.Equal(RequestStatus.Deferred, updated.Status);
 
         // Unchanged fields should remain
         Assert.Equal(created.Assignments.SingleOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId,
@@ -439,8 +440,9 @@ public class RequestEndpointsTests
 
         var updateRequest = new UpdateRequestRequest
         {
-            Status = RequestStatus.Done
-            // Only updating status
+            // Only updating status — cancelled is a manual state that persists (unlike the
+            // derived new/in_progress/done lifecycle).
+            Status = RequestStatus.Cancelled
         };
 
         // Act
@@ -450,7 +452,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var updated = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(updated);
-        Assert.Equal(RequestStatus.Done, updated.Status);
+        Assert.Equal(RequestStatus.Cancelled, updated.Status);
         Assert.Equal(created.Name, updated.Name); // Unchanged
         Assert.Equal(created.Description, updated.Description); // Unchanged
     }

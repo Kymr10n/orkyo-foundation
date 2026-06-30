@@ -11,11 +11,10 @@ import {
 } from "@foundation/src/components/ui/select";
 import type { Request, RequestStatus } from "@foundation/src/types/requests";
 import { buildRequestTree, flattenTree, canBeScheduled, canHaveChildren } from "@foundation/src/domain/request-tree";
-import type { FlatTreeEntry } from "@foundation/src/domain/request-tree";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
-import { getPlanningModeIcon, REQUEST_STATUS, REQUEST_STATUS_ORDER, PLANNING_MODE } from "@foundation/src/constants";
+import { getPlanningModeIcon, REQUEST_STATUS_ORDER, PLANNING_MODE } from "@foundation/src/constants";
+import { filterPanelEntries } from "./request-panel-filter";
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatMinutesHuman, getStatusColor, formatStatusLabel } from "@foundation/src/lib/utils/utils";
@@ -53,7 +52,7 @@ const RequestCard = React.memo(function RequestCard({
   const isDraggable = canBeScheduled(request.planningMode);
   const isDropTarget = canHaveChildren(request.planningMode);
 
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } =
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } =
     useDraggable({
       id: request.id,
       data: request,
@@ -76,7 +75,12 @@ const RequestCard = React.memo(function RequestCard({
   }, [setDragRef, setDropTargetRef]);
 
   const style = {
-    transform: CSS.Translate.toString(transform),
+    // The drag visual is the lightweight <DragOverlay> clone in UtilizationPage.
+    // Deliberately do NOT translate the source card: it lives in an absolutely-
+    // positioned virtualizer slot (see the translateY wrapper below), so applying
+    // the drag delta here would slide the original out of its slot and over its
+    // neighbours while the clone also moves — the "items jump around the list"
+    // effect. Keep it in place and just dim it while dragging.
     opacity: isDragging ? 0.5 : 1,
     paddingLeft: `${depth * INDENT_PX + 12}px`,
   };
@@ -178,7 +182,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
   const [scheduledFilter, setScheduledFilter] = useState<
     "all" | "scheduled" | "unscheduled"
   >("unscheduled"); // Default to showing only unscheduled
-  const [collapsedIds, setCollapsedIds] = useState(new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
   const toggleCollapse = useCallback((requestId: string) => {
     setCollapsedIds((prev) => {
@@ -217,62 +221,12 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
     return flattenTree(tree);
   }, [requests]);
 
-  // Filter and prune collapsed subtrees
-  const visibleEntries = useMemo(() => {
-    const result: FlatTreeEntry[] = [];
-    // Track collapsed ancestors to hide children
-    const collapsedAncestorDepths: number[] = [];
-
-    for (const entry of flatEntries) {
-      // Skip children of collapsed nodes
-      while (
-        collapsedAncestorDepths.length > 0 &&
-        entry.depth <= collapsedAncestorDepths[collapsedAncestorDepths.length - 1]
-      ) {
-        collapsedAncestorDepths.pop();
-      }
-      if (collapsedAncestorDepths.length > 0) continue;
-
-      // Apply filters
-      const { request } = entry;
-
-      // Search filter
-      if (
-        searchQuery &&
-        !request.name.toLowerCase().includes(searchQuery.toLowerCase())
-      ) {
-        continue;
-      }
-
-      // Status filter — 'deferred' is parked: hidden under "All Statuses", shown
-      // only when it is the explicitly selected filter.
-      if (statusFilter === "all") {
-        if (request.status === REQUEST_STATUS.DEFERRED) {
-          continue;
-        }
-      } else if (request.status !== statusFilter) {
-        continue;
-      }
-
-      // Scheduled filter
-      const isScheduled = !!request.isScheduled;
-      if (scheduledFilter === "scheduled" && !isScheduled && request.planningMode !== PLANNING_MODE.CONTAINER) {
-        continue;
-      }
-      if (scheduledFilter === "unscheduled" && isScheduled) {
-        continue;
-      }
-
-      result.push(entry);
-
-      // Track if this node is collapsed to skip its children
-      if (entry.hasChildren && collapsedIds.has(request.id)) {
-        collapsedAncestorDepths.push(entry.depth);
-      }
-    }
-
-    return result;
-  }, [flatEntries, searchQuery, statusFilter, scheduledFilter, collapsedIds]);
+  // Filter to the entries the panel should show. A search or specific status filter reveals matches
+  // regardless of tree collapse (so an in_progress job nested under a collapsed summary still shows).
+  const visibleEntries = useMemo(
+    () => filterPanelEntries(flatEntries, { searchQuery, statusFilter, scheduledFilter, collapsedIds }),
+    [flatEntries, searchQuery, statusFilter, scheduledFilter, collapsedIds],
+  );
 
   const virtualizer = useVirtualizer({
     count: visibleEntries.length,

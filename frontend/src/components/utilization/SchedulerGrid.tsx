@@ -17,6 +17,7 @@ import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-
 import type { TimeScale } from "./ScaleSelect";
 import { groupRowsByResourceGroup } from "./scheduler-types";
 import { SpaceRow } from "./SpaceRow";
+import { NowLine } from "./NowLine";
 import { TimelineGridShell, type ShellGroup } from "./TimelineGridShell";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import {
@@ -32,6 +33,8 @@ interface SchedulerGridProps {
   scale: TimeScale;
   anchorTs: Date;
   timeCursorTs: Date;
+  /** Live wall-clock "now" (epoch ms) shared with the operational status recompute — drives the Now line. */
+  nowMs: number;
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
@@ -50,6 +53,7 @@ export function SchedulerGrid({
   scale,
   anchorTs,
   timeCursorTs,
+  nowMs,
   onRequestClick,
   onRequestDoubleClick,
   onRequestResize,
@@ -324,6 +328,14 @@ export function SchedulerGrid({
 
   const cursorOverlay = (
     <>
+      {/* Fixed real-now marker (distinct from the draggable blue scrubber); shows which instant the
+          clock-derived "In Progress" status refers to. Hidden when "now" is outside the visible range. */}
+      <NowLine
+        nowMs={nowMs}
+        viewStartMs={columns[0].start.getTime()}
+        viewEndMs={columns[columns.length - 1].end.getTime()}
+      />
+
       {/* Edge scroll indicators */}
       {isDraggingCursor && (
         <>

@@ -8,6 +8,8 @@ import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
+import { useNow } from "@foundation/src/hooks/useNow";
 import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
@@ -139,8 +141,14 @@ export function UtilizationPage() {
   // bars come from the scoped scheduled set.
   const { data: spaces = [], isLoading: spacesLoading } = useSpaces(selectedSiteId);
   const fetchWindow = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
-  const { data: scheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
-  const { data: backlog = [] } = useBacklogRequests();
+  const { data: rawScheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
+  const { data: rawBacklog = [] } = useBacklogRequests();
+  // Recompute the active lifecycle (new → in_progress → done) live on the client off one ticking clock,
+  // so the "In Progress" filter / badges track the grid's "Now" marker instead of the (frozen) fetch-time
+  // value. cancelled/deferred pass through. withEffectiveStatus keeps the array ref stable until a flip.
+  const nowMs = useNow();
+  const scheduled = useMemo(() => withEffectiveStatus(rawScheduled, nowMs), [rawScheduled, nowMs]);
+  const backlog = useMemo(() => withEffectiveStatus(rawBacklog, nowMs), [rawBacklog, nowMs]);
   const requests = useMemo(() => [...scheduled, ...backlog], [scheduled, backlog]);
   const requestsLoading = scheduledLoading;
   const scheduleMutation = useScheduleRequest();
@@ -637,6 +645,7 @@ export function UtilizationPage() {
                     scale={scale}
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
+                    nowMs={nowMs}
                     onRequestClick={setSelectedRequestId}
                     onRequestDoubleClick={handleRequestDoubleClick}
                     onRequestResize={handleResizeRequest}
