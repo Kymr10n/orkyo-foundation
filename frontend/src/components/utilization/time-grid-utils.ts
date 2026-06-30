@@ -4,13 +4,18 @@ import {
   addMinutes,
   addMonths,
   addWeeks,
-  format,
   isWeekend,
   startOfDay,
   startOfHour,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
+import {
+  formatCompactTime,
+  formatLocalized,
+  GRID_DAY_HEADER_OPTS,
+  GRID_WEEK_HEADER_OPTS,
+} from "@foundation/src/lib/formatters";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
@@ -205,23 +210,22 @@ export function utilizationGranularityForScale(scale: TimeScale): string {
 }
 
 export function formatTimeColumn(date: Date, granularity: string): string {
-  // Deliberately compact, fixed-format labels (not locale Intl): these are dense
-  // grid-column headers where Intl's locale ordering/separators ("08 Mon", "Jan 24",
-  // "08:00 AM") are ambiguous or too wide. The locale-aware surfaces are the calendar
-  // (FullCalendar) and the TimeNavigator header.
+  // Locale-aware labels (follow USER_LOCALE) so the grid matches the calendar in every locale:
+  // hour/minute share formatCompactTime with the calendar's slot-axis ("1am"/"13:00"); the day/week
+  // headers share GRID_DAY/WEEK_HEADER_OPTS with the calendar's dayHeaderFormat.
   switch (granularity) {
     case "month":
-      return format(date, "MMM ''yy");
+      return formatLocalized(date, { month: "short", year: "2-digit" });
     case "week":
-      return format(date, "MMM dd");
+      return formatLocalized(date, GRID_WEEK_HEADER_OPTS);
     case "day":
-      return format(date, "EEE dd");
+      return formatLocalized(date, GRID_DAY_HEADER_OPTS);
     case "hour":
-      return format(date, "HH:00");
+      return formatCompactTime(date, false);
     case "minute":
-      return format(date, "HH:mm");
+      return formatCompactTime(date, true);
     default:
-      return format(date, "MMM dd");
+      return formatLocalized(date, GRID_WEEK_HEADER_OPTS);
   }
 }
 

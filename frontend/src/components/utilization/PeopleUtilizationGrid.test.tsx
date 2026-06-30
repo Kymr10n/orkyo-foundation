@@ -288,7 +288,7 @@ describe('PeopleUtilizationGrid', () => {
   it('uses EEE dd column header format for day granularity (week scale)', async () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
-    expect(screen.getByText('Mon 11')).toBeInTheDocument();
+    expect(screen.getByText('11 Mon')).toBeInTheDocument();
   });
 
   it('renders column headers while utilization data is still loading', async () => {
@@ -297,16 +297,16 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
 
     await waitFor(() => screen.getByText('Alice Smith'));
-    expect(screen.getByText('Mon 11')).toBeInTheDocument();
-    expect(screen.getByText('Sun 17')).toBeInTheDocument();
+    expect(screen.getByText('11 Mon')).toBeInTheDocument();
+    expect(screen.getByText('17 Sun')).toBeInTheDocument();
     expect(screen.getByText('Person')).toBeInTheDocument();
   });
 
   it('renders 7 day-columns for week scale', async () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
-    await waitFor(() => screen.getByText('Mon 11'));
+    await waitFor(() => screen.getByText('11 Mon'));
 
-    const dayLabels = ['Mon 11', 'Tue 12', 'Wed 13', 'Thu 14', 'Fri 15', 'Sat 16', 'Sun 17'];
+    const dayLabels = ['11 Mon', '12 Tue', '13 Wed', '14 Thu', '15 Fri', '16 Sat', '17 Sun'];
     for (const label of dayLabels) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -316,19 +316,19 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid({ scale: 'day', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    expect(screen.getByText('00:00')).toBeInTheDocument();
-    expect(screen.getByText('12:00')).toBeInTheDocument();
-    expect(screen.getByText('23:00')).toBeInTheDocument();
+    expect(screen.getByText('12am')).toBeInTheDocument();
+    expect(screen.getByText('12pm')).toBeInTheDocument();
+    expect(screen.getByText('11pm')).toBeInTheDocument();
   });
 
   it('renders 4 quarter-hour columns for hour scale', async () => {
     renderGrid({ scale: 'hour', anchorTs: new Date(2026, 4, 11, 10, 20, 0) });
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    expect(screen.getByText('10:15')).toBeInTheDocument();
-    expect(screen.getByText('10:30')).toBeInTheDocument();
-    expect(screen.getByText('10:45')).toBeInTheDocument();
-    expect(screen.getByText('11:00')).toBeInTheDocument();
+    expect(screen.getByText('10:15am')).toBeInTheDocument();
+    expect(screen.getByText('10:30am')).toBeInTheDocument();
+    expect(screen.getByText('10:45am')).toBeInTheDocument();
+    expect(screen.getByText('11:00am')).toBeInTheDocument();
     expect(getUtilizationByResource).toHaveBeenCalledWith(
       expect.any(Date),
       expect.any(Date),
@@ -354,7 +354,7 @@ describe('PeopleUtilizationGrid', () => {
     await waitFor(() => screen.getByText('Alice Smith'));
 
     // Year scale = 12 monthly buckets starting at the anchor's month, with 2-digit year.
-    const monthLabels = ["May '26", "Jun '26", "Jul '26", "Aug '26", "Sep '26", "Oct '26", "Nov '26", "Dec '26", "Jan '27", "Feb '27", "Mar '27", "Apr '27"];
+    const monthLabels = ["May 26", "Jun 26", "Jul 26", "Aug 26", "Sep 26", "Oct 26", "Nov 26", "Dec 26", "Jan 27", "Feb 27", "Mar 27", "Apr 27"];
     for (const label of monthLabels) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -362,7 +362,7 @@ describe('PeopleUtilizationGrid', () => {
 
   it('column headers update immediately when anchorTs changes to a new week', async () => {
     const { rerender } = renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
-    await waitFor(() => screen.getByText('Mon 11'));
+    await waitFor(() => screen.getByText('11 Mon'));
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -373,8 +373,8 @@ describe('PeopleUtilizationGrid', () => {
       </QueryClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('Mon 18')).toBeInTheDocument());
-    expect(screen.queryByText('Mon 11')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('18 Mon')).toBeInTheDocument());
+    expect(screen.queryByText('11 Mon')).not.toBeInTheDocument();
   });
 
   // ── Legend color-consistency tests ──────────────────────────────────────────

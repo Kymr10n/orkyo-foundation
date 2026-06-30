@@ -153,21 +153,19 @@ describe("RequestCalendar", () => {
     renderCalendar();
     const { container } = render(
       capturedProps.eventContent({
-        event: { title: "Broken Task", extendedProps: { conflictSeverity: "error" } },
-        timeText: "9:00",
+        event: { title: "Broken Task", start: new Date(2026, 3, 17, 9, 0), extendedProps: { conflictSeverity: "error" } },
       }),
     );
     expect(container.querySelector("svg")).toBeTruthy();
     expect(container.textContent).toContain("Broken Task");
-    expect(container.textContent).toContain("9:00");
+    expect(container.textContent).toContain("9am");
   });
 
   it("eventContent renders warning icon for warning severity", () => {
     renderCalendar();
     const { container } = render(
       capturedProps.eventContent({
-        event: { title: "Warn Task", extendedProps: { conflictSeverity: "warning" } },
-        timeText: "",
+        event: { title: "Warn Task", start: null, extendedProps: { conflictSeverity: "warning" } },
       }),
     );
     expect(container.querySelector("svg")).toBeTruthy();
@@ -177,8 +175,7 @@ describe("RequestCalendar", () => {
     renderCalendar();
     const { container } = render(
       capturedProps.eventContent({
-        event: { title: "Fine Task", extendedProps: { conflictSeverity: null } },
-        timeText: "10:00",
+        event: { title: "Fine Task", start: new Date(2026, 3, 17, 10, 0), extendedProps: { conflictSeverity: null } },
       }),
     );
     expect(container.querySelector("svg")).toBeNull();

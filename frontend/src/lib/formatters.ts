@@ -54,3 +54,32 @@ export function formatLocalized(date: Date, options: Intl.DateTimeFormatOptions)
   }
   return formatter.format(date);
 }
+
+/**
+ * Compact clock label following {@link USER_LOCALE} — "1am"/"12pm"/"1:15pm" in 12h locales,
+ * "13"/"13:15" in 24h locales (e.g. de-DE). `withMinutes` includes the minutes (use it for sub-hour
+ * columns; omit for whole-hour columns).
+ *
+ * This is the single source of truth for the scheduler grid's hour/minute column labels AND the
+ * calendar's slot-axis + event-block times (via FullCalendar's `slotLabelContent`/`eventContent`
+ * callbacks) — so the two grids render byte-identical times in every locale. The meridiem is
+ * normalised to the calendar's compact lowercase style ("1 AM" → "1am"), handling the narrow no-break
+ * space `Intl` inserts before AM/PM; 24h locales have no meridiem and are unaffected.
+ */
+export function formatCompactTime(date: Date, withMinutes: boolean): string {
+  const options: Intl.DateTimeFormatOptions = withMinutes
+    ? { hour: "numeric", minute: "2-digit" }
+    : { hour: "numeric" };
+  // Normalise the meridiem to the calendar's compact lowercase style ("1 AM" -> "1am"). The class
+  // includes the no-break (U+00A0) / narrow no-break (U+202F) spaces Intl may insert before AM/PM;
+  // 24h locales have no meridiem, so this is a no-op there.
+  return formatLocalized(date, options).replace(
+    /[\s  ]*([AP]M)$/i,
+    (_, meridiem: string) => meridiem.toLowerCase(),
+  );
+}
+
+/** Shared day-column / week-day-header options so the grid and calendar headers can't drift. */
+export const GRID_DAY_HEADER_OPTS: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit" };
+/** Shared week-column header options (month + day). */
+export const GRID_WEEK_HEADER_OPTS: Intl.DateTimeFormatOptions = { month: "short", day: "2-digit" };

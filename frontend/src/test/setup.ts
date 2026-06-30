@@ -3,6 +3,10 @@ import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import type * as PermissionsModule from '@foundation/src/hooks/usePermissions';
 
+// Pin the locale so USER_LOCALE (captured once at module load in lib/formatters) is deterministic
+// across CI runners. Drives the 12h/24h + date formatting that the utilization grid/calendar render.
+Object.defineProperty(window.navigator, 'language', { value: 'en-US', configurable: true });
+
 // Default the permission gate to "can edit" so component tests render their write
 // affordances and submit buttons enabled, as before this hook existed. Tests that exercise
 // the Viewer / read-only state override with vi.mocked(useCanEdit).mockReturnValue(false).

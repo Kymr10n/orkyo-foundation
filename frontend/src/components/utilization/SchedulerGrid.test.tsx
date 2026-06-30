@@ -448,10 +448,11 @@ describe('SchedulerGrid', () => {
         </Wrapper>
       );
 
-      // Column headers should have a title with "EEEE, MMMM d, yyyy HH:mm" format
+      // Day/hour-scale column header tooltips show the full date AND a clock time (locale-aware, e.g.
+      // "Monday, May 11, 2026 at 10:00 AM"). Match on a year + a HH:MM time, robust to 12h/24h.
       const colHeaders = document.querySelectorAll<HTMLElement>('[title]');
       const dateTimeTooltips = Array.from(colHeaders).filter(
-        (el) => el.title && /^\w+, \w+ \d+, \d{4} \d{2}:\d{2}$/.test(el.title)
+        (el) => el.title && /\d{4}/.test(el.title) && /\d{1,2}:\d{2}/.test(el.title)
       );
       expect(dateTimeTooltips.length).toBeGreaterThan(0);
       await act(async () => {});

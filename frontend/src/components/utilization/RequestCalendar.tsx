@@ -4,7 +4,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
-import { USER_LOCALE } from "@foundation/src/lib/formatters";
+import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
 import { calendarViewToScale, SEVERITY_SWATCH } from "./request-calendar-events";
 import { AlertCircle, AlertTriangle } from "lucide-react";
@@ -151,6 +151,8 @@ export function RequestCalendar({
         expandRows
         nowIndicator
         firstDay={1}
+        // Axis time labels share the grid's formatCompactTime so both read identically per locale.
+        slotLabelContent={(arg) => formatCompactTime(arg.date, arg.date.getMinutes() !== 0)}
         businessHours={businessHoursConfig}
         editable={editable}
         eventStartEditable={editable}
@@ -160,8 +162,8 @@ export function RequestCalendar({
         dayMaxEvents
         views={{
           timeGridWeek: {
-            // "Mon 08" — matches the timeline grid's EEE dd label
-            dayHeaderFormat: { weekday: 'short', day: '2-digit' },
+            // "Mon 08" — shares GRID_DAY_HEADER_OPTS with the timeline grid's day label.
+            dayHeaderFormat: GRID_DAY_HEADER_OPTS,
           },
           timeGridDay: {
             // Single-column day view: show full context
@@ -178,8 +180,10 @@ export function RequestCalendar({
           const severity = arg.event.extendedProps?.conflictSeverity as ConflictSeverity | undefined;
           return (
             <div className="flex flex-col overflow-hidden h-full px-0.5 py-px gap-0">
-              {arg.timeText && (
-                <div className="text-[10px] leading-tight truncate opacity-80">{arg.timeText}</div>
+              {arg.event.start && (
+                <div className="text-[10px] leading-tight truncate opacity-80">
+                  {formatCompactTime(arg.event.start, arg.event.start.getMinutes() !== 0)}
+                </div>
               )}
               <div className="flex items-center gap-1 min-w-0">
                 {severity === 'error'   && <AlertCircle   className="h-3 w-3 flex-shrink-0 text-red-600" />}

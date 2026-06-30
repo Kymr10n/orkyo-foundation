@@ -15,10 +15,12 @@ describe("time-grid-utils", () => {
   it("generates aligned column labels and counts for each scale", () => {
     const anchor = new Date(2026, 4, 11, 10, 20, 0);
 
+    // Labels are locale-aware (pinned en-US in the test setup): dates stay compact, times are 12h
+    // and share the calendar's formatCompactTime ("10am"/"10:15am").
     const year = generateTimeColumns("year", anchor);
     expect(year).toHaveLength(12);
-    expect(year[0].label).toBe("May '26");
-    expect(year[8].label).toBe("Jan '27");
+    expect(year[0].label).toBe("May 26");
+    expect(year[8].label).toBe("Jan 27");
 
     const month = generateTimeColumns("month", anchor);
     expect(month).toHaveLength(5);
@@ -26,15 +28,16 @@ describe("time-grid-utils", () => {
 
     const week = generateTimeColumns("week", anchor);
     expect(week).toHaveLength(7);
-    expect(week[0].label).toBe("Mon 11");
+    // en-US Intl renders weekday+day as "11 Mon" — matches the calendar's day header ("29 Mon").
+    expect(week[0].label).toBe("11 Mon");
 
     const day = generateTimeColumns("day", anchor);
     expect(day).toHaveLength(24);
-    expect(day[0].label).toBe("10:00");
+    expect(day[0].label).toBe("10am");
 
     const hour = generateTimeColumns("hour", anchor);
     expect(hour).toHaveLength(4);
-    expect(hour.map((c) => c.label)).toEqual(["10:15", "10:30", "10:45", "11:00"]);
+    expect(hour.map((c) => c.label)).toEqual(["10:15am", "10:30am", "10:45am", "11:00am"]);
   });
 
   it("maps UI scales to API utilization granularities", () => {
