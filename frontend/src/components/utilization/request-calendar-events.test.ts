@@ -35,21 +35,21 @@ describe("getEventConflictSeverity", () => {
 });
 
 describe("getEventClassNames", () => {
-  it("uses an opaque, self-contained status colour (planned → blue) with no ring when clean", () => {
+  it("uses a translucent, self-contained status colour (new → blue) with no ring when clean", () => {
     const classes = getEventClassNames("new", null);
-    // Calendar events are opaque (unlike the translucent status badges): solid bg + border.
-    // The `!` suffix is the Tailwind v4 important modifier — needed so the utilities beat
-    // FullCalendar's unlayered injected `.fc-event` colour rules.
+    // Calendar events are translucent like the grids: alpha fill + colored border on
+    // neutral text. The `!` suffix is the Tailwind v4 important modifier — needed so the
+    // utilities beat FullCalendar's unlayered injected `.fc-event` colour rules.
     expect(classes).toContain("orkyo-cal-event");
-    expect(classes).toContain("bg-blue-100!");
-    expect(classes).toContain("border-blue-200!");
+    expect(classes).toContain("bg-blue-500/15!");
+    expect(classes).toContain("border-blue-500/40!");
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
   });
 
   it("overrides the status colour with a red background for error severity", () => {
     const classes = getEventClassNames("done", "error");
-    expect(classes).toContain("bg-red-100!");
-    expect(classes).toContain("border-red-300!");
+    expect(classes).toContain("bg-red-500/15!");
+    expect(classes).toContain("border-red-500/60!");
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
     // Status colour must not leak through — overridden
     expect(classes.some((c) => c.startsWith("bg-emerald"))).toBe(false);
@@ -57,14 +57,14 @@ describe("getEventClassNames", () => {
 
   it("overrides the status colour with an amber background for warning severity", () => {
     const classes = getEventClassNames("done", "warning");
-    expect(classes).toContain("bg-amber-100!");
-    expect(classes).toContain("border-amber-300!");
+    expect(classes).toContain("bg-amber-500/15!");
+    expect(classes).toContain("border-amber-500/60!");
     expect(classes.some((c) => c.startsWith("ring"))).toBe(false);
   });
 
   // Anti-drift: the calendar event colour and the list badge colour must agree on
-  // hue per status (the badge is translucent, the event opaque — only the shade
-  // differs). If someone re-introduces yellow/green on one side, this fails.
+  // hue per status (both translucent — only the shade/alpha differs). If someone
+  // re-introduces yellow/green on one side, this fails.
   it.each([
     ["new", "blue"],
     ["in_progress", "amber"],
