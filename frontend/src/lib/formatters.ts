@@ -56,27 +56,20 @@ export function formatLocalized(date: Date, options: Intl.DateTimeFormatOptions)
 }
 
 /**
- * Compact clock label following {@link USER_LOCALE} — "1am"/"12pm"/"1:15pm" in 12h locales,
- * "13"/"13:15" in 24h locales (e.g. de-DE). `withMinutes` includes the minutes (use it for sub-hour
- * columns; omit for whole-hour columns).
- *
- * This is the single source of truth for the scheduler grid's hour/minute column labels AND the
- * calendar's slot-axis + event-block times (via FullCalendar's `slotLabelContent`/`eventContent`
- * callbacks) — so the two grids render byte-identical times in every locale. The meridiem is
- * normalised to the calendar's compact lowercase style ("1 AM" → "1am"), handling the narrow no-break
- * space `Intl` inserts before AM/PM; 24h locales have no meridiem and are unaffected.
+ * Hour cycle for all time-of-day formatting. Defaults to 24h (`h23`) regardless of the locale's own
+ * 12h/24h convention. This is the single knob: a future per-user "time region" preference will resolve
+ * this (and {@link USER_LOCALE}) instead of the hardcoded default, so a user can opt into 12h.
  */
-export function formatCompactTime(date: Date, withMinutes: boolean): string {
-  const options: Intl.DateTimeFormatOptions = withMinutes
-    ? { hour: "numeric", minute: "2-digit" }
-    : { hour: "numeric" };
-  // Normalise the meridiem to the calendar's compact lowercase style ("1 AM" -> "1am"). The class
-  // includes the no-break (U+00A0) / narrow no-break (U+202F) spaces Intl may insert before AM/PM;
-  // 24h locales have no meridiem, so this is a no-op there.
-  return formatLocalized(date, options).replace(
-    /[\s  ]*([AP]M)$/i,
-    (_, meridiem: string) => meridiem.toLowerCase(),
-  );
+export const HOUR_CYCLE: "h23" | "h12" = "h23";
+
+/**
+ * Compact clock label for the scheduler grid's hour/minute column labels AND the calendar's slot-axis +
+ * event-block times (via FullCalendar's `slotLabelContent`/`eventContent` callbacks). Both grids call
+ * this so they render byte-identical times. Follows {@link HOUR_CYCLE} — "00:00"/"13:15" by default
+ * (24h); the locale still governs date parts elsewhere.
+ */
+export function formatCompactTime(date: Date): string {
+  return formatLocalized(date, { hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE });
 }
 
 /** Shared day-column / week-day-header options so the grid and calendar headers can't drift. */

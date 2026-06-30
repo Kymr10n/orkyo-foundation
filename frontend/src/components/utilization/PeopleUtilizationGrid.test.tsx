@@ -316,19 +316,19 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid({ scale: 'day', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    expect(screen.getByText('12am')).toBeInTheDocument();
-    expect(screen.getByText('12pm')).toBeInTheDocument();
-    expect(screen.getByText('11pm')).toBeInTheDocument();
+    expect(screen.getByText('00:00')).toBeInTheDocument();
+    expect(screen.getByText('12:00')).toBeInTheDocument();
+    expect(screen.getByText('23:00')).toBeInTheDocument();
   });
 
   it('renders 4 quarter-hour columns for hour scale', async () => {
     renderGrid({ scale: 'hour', anchorTs: new Date(2026, 4, 11, 10, 20, 0) });
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    expect(screen.getByText('10:15am')).toBeInTheDocument();
-    expect(screen.getByText('10:30am')).toBeInTheDocument();
-    expect(screen.getByText('10:45am')).toBeInTheDocument();
-    expect(screen.getByText('11:00am')).toBeInTheDocument();
+    expect(screen.getByText('10:15')).toBeInTheDocument();
+    expect(screen.getByText('10:30')).toBeInTheDocument();
+    expect(screen.getByText('10:45')).toBeInTheDocument();
+    expect(screen.getByText('11:00')).toBeInTheDocument();
     expect(getUtilizationByResource).toHaveBeenCalledWith(
       expect.any(Date),
       expect.any(Date),

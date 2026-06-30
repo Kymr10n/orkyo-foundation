@@ -1,5 +1,5 @@
 import { useRef, useMemo, type ReactNode } from "react";
-import { formatLocalized } from "@foundation/src/lib/formatters";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -119,7 +119,7 @@ export function TimelineGridShell<R>({
   const columnHeaders = useMemo(() => {
     const opts: Intl.DateTimeFormatOptions =
       scale === "day" || scale === "hour"
-        ? { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }
+        ? { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE }
         : { weekday: "long", month: "long", day: "numeric", year: "numeric" };
     return columns.map((col) => ({
       tint:

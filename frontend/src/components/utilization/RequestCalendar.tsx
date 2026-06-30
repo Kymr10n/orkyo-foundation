@@ -151,8 +151,8 @@ export function RequestCalendar({
         expandRows
         nowIndicator
         firstDay={1}
-        // Axis time labels share the grid's formatCompactTime so both read identically per locale.
-        slotLabelContent={(arg) => formatCompactTime(arg.date, arg.date.getMinutes() !== 0)}
+        // Axis time labels share the grid's formatCompactTime so both read identically (24h default).
+        slotLabelContent={(arg) => formatCompactTime(arg.date)}
         businessHours={businessHoursConfig}
         editable={editable}
         eventStartEditable={editable}
@@ -182,7 +182,7 @@ export function RequestCalendar({
             <div className="flex flex-col overflow-hidden h-full px-0.5 py-px gap-0">
               {arg.event.start && (
                 <div className="text-[10px] leading-tight truncate opacity-80">
-                  {formatCompactTime(arg.event.start, arg.event.start.getMinutes() !== 0)}
+                  {formatCompactTime(arg.event.start)}
                 </div>
               )}
               <div className="flex items-center gap-1 min-w-0">

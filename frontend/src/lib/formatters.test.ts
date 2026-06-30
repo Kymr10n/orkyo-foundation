@@ -1,20 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { formatCompactTime } from "./formatters";
 
-// USER_LOCALE is pinned to en-US in the test setup (src/test/setup.ts). Dates are constructed in local
-// time and Intl formats in local time, so these assertions are timezone-independent.
-describe("formatCompactTime (en-US)", () => {
+// Dates are constructed in local time and Intl formats in local time, so these are TZ-independent.
+describe("formatCompactTime (24h default)", () => {
   const at = (h: number, m = 0) => new Date(2026, 3, 17, h, m);
 
-  it("formats whole hours compactly with a lowercase meridiem and no minutes", () => {
-    expect(formatCompactTime(at(0), false)).toBe("12am");
-    expect(formatCompactTime(at(1), false)).toBe("1am");
-    expect(formatCompactTime(at(12), false)).toBe("12pm");
-    expect(formatCompactTime(at(13), false)).toBe("1pm");
-  });
-
-  it("includes minutes when requested", () => {
-    expect(formatCompactTime(at(13, 15), true)).toBe("1:15pm");
-    expect(formatCompactTime(at(9, 5), true)).toBe("9:05am");
+  it("formats the time of day as 24h HH:mm", () => {
+    expect(formatCompactTime(at(0))).toBe("00:00");
+    expect(formatCompactTime(at(1))).toBe("01:00");
+    expect(formatCompactTime(at(13))).toBe("13:00");
+    expect(formatCompactTime(at(13, 15))).toBe("13:15");
+    expect(formatCompactTime(at(9, 5))).toBe("09:05");
+    expect(formatCompactTime(at(23))).toBe("23:00");
   });
 });

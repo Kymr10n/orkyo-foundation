@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { formatLocalized } from "@foundation/src/lib/formatters";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
@@ -56,7 +56,7 @@ export function ScheduleSlotDialog({
   }, [open]);
 
   const rangeLabel = selection
-    ? `${formatLocalized(selection.start, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} – ${formatLocalized(selection.end, { hour: "2-digit", minute: "2-digit" })}`
+    ? `${formatLocalized(selection.start, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })} – ${formatLocalized(selection.end, { hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })}`
     : "";
 
   const handleScheduleExisting = () => {

@@ -221,9 +221,8 @@ export function formatTimeColumn(date: Date, granularity: string): string {
     case "day":
       return formatLocalized(date, GRID_DAY_HEADER_OPTS);
     case "hour":
-      return formatCompactTime(date, false);
     case "minute":
-      return formatCompactTime(date, true);
+      return formatCompactTime(date);
     default:
       return formatLocalized(date, GRID_WEEK_HEADER_OPTS);
   }

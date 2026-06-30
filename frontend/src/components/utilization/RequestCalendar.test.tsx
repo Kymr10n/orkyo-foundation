@@ -158,7 +158,7 @@ describe("RequestCalendar", () => {
     );
     expect(container.querySelector("svg")).toBeTruthy();
     expect(container.textContent).toContain("Broken Task");
-    expect(container.textContent).toContain("9am");
+    expect(container.textContent).toContain("09:00");
   });
 
   it("eventContent renders warning icon for warning severity", () => {
