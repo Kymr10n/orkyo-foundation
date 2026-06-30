@@ -149,6 +149,7 @@ export function RequestCalendar({
         buttonText={{ today: "Today", day: "Day", week: "Week", month: "Month" }}
         height="100%"
         expandRows
+        allDaySlot={false}
         nowIndicator
         firstDay={1}
         // Axis time labels share the grid's formatCompactTime so both read identically (24h default).
@@ -179,17 +180,15 @@ export function RequestCalendar({
         eventContent={(arg) => {
           const severity = arg.event.extendedProps?.conflictSeverity as ConflictSeverity | undefined;
           return (
-            <div className="flex flex-col overflow-hidden h-full px-0.5 py-px gap-0">
+            <div className="flex items-start gap-1 overflow-hidden h-full px-0.5 min-w-0">
+              {severity === 'error'   && <AlertCircle   className="h-3 w-3 flex-shrink-0 text-red-600" />}
+              {severity === 'warning' && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-amber-600" />}
               {arg.event.start && (
-                <div className="text-[10px] leading-tight truncate opacity-80">
+                <span className="text-[10px] flex-shrink-0 tabular-nums opacity-80 leading-4">
                   {formatCompactTime(arg.event.start)}
-                </div>
+                </span>
               )}
-              <div className="flex items-center gap-1 min-w-0">
-                {severity === 'error'   && <AlertCircle   className="h-3 w-3 flex-shrink-0 text-red-600" />}
-                {severity === 'warning' && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-amber-600" />}
-                <span className="truncate text-xs font-medium">{arg.event.title}</span>
-              </div>
+              <span className="truncate text-xs font-medium">{arg.event.title}</span>
             </div>
           );
         }}
