@@ -117,6 +117,45 @@ public class AvailabilityResolverTests
         blocked.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task GetBlockedPeriodsAsync_PublicHoliday_ExcludedWhenHolidaysDisabled()
+    {
+        // A closing public-holiday event must NOT block when the site keeps holidays off.
+        var siteId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
+        var ev = CreateEvent(DefaultEffect.Closed, [], AvailabilityEventType.PublicHoliday);
+
+        _schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(resourceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(siteId);
+        _eventRepo.Setup(r => r.GetEnabledBySiteWithScopesAsync(siteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ev]);
+        _schedulingRepo.Setup(r => r.GetSettingsAsync(siteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SchedulingSettingsInfo.Default(siteId) with { PublicHolidaysEnabled = false });
+
+        var blocked = await CreateResolver().GetBlockedPeriodsAsync(resourceId);
+
+        blocked.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetBlockedPeriodsAsync_PublicHoliday_IncludedWhenHolidaysEnabled()
+    {
+        var siteId = Guid.NewGuid();
+        var resourceId = Guid.NewGuid();
+        var ev = CreateEvent(DefaultEffect.Closed, [], AvailabilityEventType.PublicHoliday);
+
+        _schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(resourceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(siteId);
+        _eventRepo.Setup(r => r.GetEnabledBySiteWithScopesAsync(siteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ev]);
+        _schedulingRepo.Setup(r => r.GetSettingsAsync(siteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SchedulingSettingsInfo.Default(siteId) with { PublicHolidaysEnabled = true });
+
+        var blocked = await CreateResolver().GetBlockedPeriodsAsync(resourceId);
+
+        blocked.Should().ContainSingle(p => p.Id == ev.Id);
+    }
+
     private AvailabilityResolver CreateResolver() => new(
         _eventRepo.Object,
         _absenceRepo.Object,
@@ -125,12 +164,13 @@ public class AvailabilityResolverTests
 
     private static AvailabilityEventInfo CreateEvent(
         DefaultEffect defaultEffect,
-        List<AvailabilityEventScopeInfo> scopes) => new()
+        List<AvailabilityEventScopeInfo> scopes,
+        AvailabilityEventType eventType = AvailabilityEventType.Custom) => new()
         {
             Id = Guid.NewGuid(),
             SiteId = Guid.NewGuid(),
             Title = "Availability event",
-            EventType = AvailabilityEventType.Custom,
+            EventType = eventType,
             DefaultEffect = defaultEffect,
             StartTs = new DateTime(2026, 12, 24, 0, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2026, 12, 26, 0, 0, 0, DateTimeKind.Utc),

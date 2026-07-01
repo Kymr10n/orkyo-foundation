@@ -54,11 +54,12 @@ public class AvailabilityResolver(
             var groupIds = await groupMemberRepository.GetGroupIdsForResourceAsync(resourceId, ct);
             var resourceTypeIds = await schedulingRepository.GetResourceTypeIdsAsync([resourceId], ct);
             var resourceTypeId = resourceTypeIds.GetValueOrDefault(resourceId);
+            var holidaysEnabled = await HolidaysEnabledAsync(siteId.Value, ct);
 
             foreach (var ev in events)
             {
                 var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
-                if (effect == ScopeEffect.Closed || (effect == null && ev.DefaultEffect == DefaultEffect.Closed))
+                if (ShouldBlock(ev, effect, holidaysEnabled))
                     blocked.Add(EventToBlockedPeriod(ev));
             }
         }
@@ -77,6 +78,7 @@ public class AvailabilityResolver(
 
         var events = await eventRepository.GetEnabledBySiteWithScopesAsync(siteId, ct);
         if (events.Count == 0) return result;
+        var holidaysEnabled = await HolidaysEnabledAsync(siteId, ct);
 
         // Batch-load group memberships for all resources
         var groupMembershipMap = await groupMemberRepository.GetGroupIdsForResourcesAsync(resourceIds, ct);
@@ -89,7 +91,7 @@ public class AvailabilityResolver(
             foreach (var ev in events)
             {
                 var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
-                if (effect == ScopeEffect.Closed || (effect == null && ev.DefaultEffect == DefaultEffect.Closed))
+                if (ShouldBlock(ev, effect, holidaysEnabled))
                     result[resourceId].Add(EventToBlockedPeriod(ev));
             }
         }
@@ -116,27 +118,45 @@ public class AvailabilityResolver(
         var groupMembershipMap = await groupMemberRepository.GetGroupIdsForResourcesAsync(resourceIds, ct);
         var resourceTypeMap = await schedulingRepository.GetResourceTypeIdsAsync(resourceIds, ct);
 
-        // Load each distinct site's enabled events once (sites ≪ resources).
+        // Load each distinct site's enabled events + holiday setting once (sites ≪ resources).
         var eventsBySite = new Dictionary<Guid, List<AvailabilityEventInfo>>();
+        var holidaysEnabledBySite = new Dictionary<Guid, bool>();
         foreach (var siteId in siteMap.Values.Distinct())
+        {
             eventsBySite[siteId] = await eventRepository.GetEnabledBySiteWithScopesAsync(siteId, ct);
+            holidaysEnabledBySite[siteId] = await HolidaysEnabledAsync(siteId, ct);
+        }
 
         foreach (var (resourceId, siteId) in siteMap)
         {
             var events = eventsBySite[siteId];
             if (events.Count == 0) continue;
 
+            var holidaysEnabled = holidaysEnabledBySite[siteId];
             var groupIds = groupMembershipMap.GetValueOrDefault(resourceId, []);
             var resourceTypeId = resourceTypeMap.GetValueOrDefault(resourceId);
             foreach (var ev in events)
             {
                 var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
-                if (effect == ScopeEffect.Closed || (effect == null && ev.DefaultEffect == DefaultEffect.Closed))
+                if (ShouldBlock(ev, effect, holidaysEnabled))
                     result[resourceId].Add(EventToBlockedPeriod(ev));
             }
         }
 
         return result;
+    }
+
+    private async Task<bool> HolidaysEnabledAsync(Guid siteId, CancellationToken ct)
+        => (await schedulingRepository.GetSettingsAsync(siteId, ct))?.PublicHolidaysEnabled ?? false;
+
+    // A closing event blocks the resource — except public holidays, which apply only when the
+    // site opts into them. This is the single gate for holiday suppression: every consumer
+    // (conflicts, auto-scheduler, insights, utilization) sees the same filtered set.
+    private static bool ShouldBlock(AvailabilityEventInfo ev, ScopeEffect? effect, bool holidaysEnabled)
+    {
+        var closed = effect == ScopeEffect.Closed || (effect == null && ev.DefaultEffect == DefaultEffect.Closed);
+        if (!closed) return false;
+        return ev.EventType != AvailabilityEventType.PublicHoliday || holidaysEnabled;
     }
 
     // ── Precedence: resource scope > resource_group scope > resource_type scope > default ──
