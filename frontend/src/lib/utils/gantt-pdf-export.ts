@@ -4,10 +4,23 @@
  */
 
 import jsPDF from 'jspdf';
-import type { Request } from '@foundation/src/types/requests';
+import type { Request, RequestStatus } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
 import { format } from 'date-fns';
 import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
+import { REQUEST_STATUS_ORDER } from '@foundation/src/constants/request-status';
+import { formatStatusLabel } from '@foundation/src/lib/utils/utils';
+
+/** Single status→RGB(jsPDF) source for both the bars and the legend, keyed over every status so a
+ *  new/renamed status can't render unmapped or drop out of the legend. Order follows the canonical
+ *  REQUEST_STATUS_ORDER; labels come from the shared formatStatusLabel. */
+const STATUS_RGB: Record<RequestStatus, [number, number, number]> = {
+  new: [59, 130, 246],          // blue
+  in_progress: [249, 115, 22],  // orange
+  done: [34, 197, 94],          // green
+  deferred: [100, 116, 139],    // slate
+  cancelled: [156, 163, 175],   // gray
+};
 
 interface GanttExportOptions {
   requests: Request[];
@@ -122,15 +135,8 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
       const barX = chartX + startRatio * chartWidth;
       const barWidth = (endRatio - startRatio) * chartWidth;
 
-      // Color based on status
-      const colors: Record<string, [number, number, number]> = {
-        new: [59, 130, 246],          // blue
-        in_progress: [249, 115, 22],  // orange
-        done: [34, 197, 94],          // green
-        deferred: [100, 116, 139],    // slate
-      };
-
-      const color = colors[request.status] || [150, 150, 150]; // default gray
+      // Color based on status (shared STATUS_RGB source — see top of file)
+      const color = STATUS_RGB[request.status] ?? [150, 150, 150];
       doc.setFillColor(...color);
       doc.setDrawColor(...color);
       doc.roundedRect(barX, y, barWidth, barHeight, 1, 1, 'F');
@@ -161,23 +167,16 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
 
-  const statuses: [string, string, [number, number, number]][] = [
-    ['New', 'new', [59, 130, 246]],
-    ['In Progress', 'in_progress', [249, 115, 22]],
-    ['Done', 'done', [34, 197, 94]],
-    ['Deferred', 'deferred', [100, 116, 139]],
-  ];
-
-  statuses.forEach(([label, , color], index) => {
+  REQUEST_STATUS_ORDER.forEach((status, index) => {
     const y = legendY + 8 + index * 7;
 
     // Color box
-    doc.setFillColor(...color);
+    doc.setFillColor(...STATUS_RGB[status]);
     doc.roundedRect(legendX, y - 3, 5, 4, 0.5, 0.5, 'F');
 
     // Label
     doc.setTextColor(0, 0, 0);
-    doc.text(label, legendX + 7, y);
+    doc.text(formatStatusLabel(status), legendX + 7, y);
   });
 
   // Statistics

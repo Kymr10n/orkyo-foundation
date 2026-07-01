@@ -54,7 +54,7 @@ public class InsightsService(
         {
             Period = new InsightsPeriod { From = filter.From, To = filter.To },
             SiteId = filter.SiteId,
-            Requests = CountRequests(inWindow, backlog),
+            Requests = CountRequests(inWindow, backlog, DateTime.UtcNow),
             Conflicts = CountConflicts(conflicts.Select(c => c.Kind)),
             Utilization = new UtilizationSummary
             {
@@ -215,12 +215,16 @@ public class InsightsService(
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct) ?? 0);
     }
 
-    private static RequestCounts CountRequests(IReadOnlyCollection<RequestFact> inWindow, int backlog) => new()
+    private static RequestCounts CountRequests(IReadOnlyCollection<RequestFact> inWindow, int backlog, DateTime now) => new()
     {
         Total = inWindow.Count + backlog,
         Scheduled = inWindow.Count(f => f.IsScheduled && f.Status != RequestStatuses.Cancelled),
         Unscheduled = backlog,
-        Completed = inWindow.Count(f => f.Status == RequestStatuses.Done),
+        // Completed counts EFFECTIVE (schedule-vs-now) Done, matching the request-trend series and the
+        // read model — stored status is only ever new/cancelled/deferred; in_progress/done are derived
+        // on read, so a stored-status count here would always report 0 completions in production.
+        Completed = inWindow.Count(f => RequestStatusCalculator.Effective(
+            EnumMapper.FromDbValue<RequestStatus>(f.Status), f.StartTs, f.EndTs, now) == RequestStatus.Done),
         Cancelled = inWindow.Count(f => f.Status == RequestStatuses.Cancelled),
     };
 

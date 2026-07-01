@@ -141,9 +141,32 @@ public class InsightsEndpointsTests
             $"/api/insights/overview?from={From}&to={To}&siteId={siteId}");
 
         // Site-specific + far-future window → isolated from other tests.
-        overview.Requests.Completed.Should().Be(1); // in-window done
-        overview.Requests.Cancelled.Should().Be(1); // in-window cancelled
+        // Completed is EFFECTIVE (schedule-vs-now), matching the request-trend: the 2099-scheduled
+        // "done" seed hasn't run yet, so it derives to "new" and does NOT count as completed. The
+        // manual "cancelled" state is authoritative and still counts. Positive completed coverage
+        // lives in Overview_CompletedCountsEffectiveDone.
+        overview.Requests.Completed.Should().Be(0); // future-scheduled work is not yet done
+        overview.Requests.Cancelled.Should().Be(1); // in-window cancelled (manual state)
         overview.Requests.Total.Should().BeGreaterThanOrEqualTo(3);
+    }
+
+    [Fact]
+    public async Task Overview_CompletedCountsEffectiveDone()
+    {
+        // Overview.Completed uses the same effective (schedule-derived) status as the request-trend:
+        // a request whose scheduled window has already passed counts as completed even though its
+        // stored status was never manually advanced.
+        var siteId = await SeedSiteAsync();
+        var now = DateTime.UtcNow;
+        await SeedRequestAsync(siteId, "new", now.AddDays(-10)); // ended ~10d ago → effective "done"
+        await SeedRequestAsync(siteId, "new", now.AddDays(10));  // starts in 10d  → effective "new"
+
+        var from = now.AddMonths(-1).ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var to = now.AddMonths(2).ToString("yyyy-MM-ddTHH:mm:ssZ");
+        var overview = await GetAsync<InsightsOverview>(
+            $"/api/insights/overview?from={from}&to={to}&siteId={siteId}");
+
+        overview.Requests.Completed.Should().Be(1); // the past-window request
     }
 
     [Fact]

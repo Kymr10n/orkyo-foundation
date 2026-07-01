@@ -56,11 +56,10 @@ export function formatLocalized(date: Date, options: Intl.DateTimeFormatOptions)
 }
 
 /**
- * Hour cycle for all time-of-day formatting. Defaults to 24h (`h23`) regardless of the locale's own
- * 12h/24h convention. This is the single knob: a future per-user "time region" preference will resolve
- * this (and {@link USER_LOCALE}) instead of the hardcoded default, so a user can opt into 12h.
+ * Hour cycle for all time-of-day formatting — 24h everywhere, regardless of the locale's own 12h/24h
+ * convention. Shared so every grid/calendar time reads identically.
  */
-export const HOUR_CYCLE: "h23" | "h12" = "h23";
+export const HOUR_CYCLE = "h23" as const;
 
 /**
  * Compact clock label for the scheduler grid's hour/minute column labels AND the calendar's slot-axis +

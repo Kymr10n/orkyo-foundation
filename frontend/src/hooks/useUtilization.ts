@@ -6,11 +6,8 @@ import {
     type ScheduleRequestData,
 } from "@foundation/src/lib/api/utilization-api";
 import { applySpaceAssignmentOptimistic, clearSpaceAssignmentOptimistic } from "@foundation/src/domain/scheduling/request-assignments";
-import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useNow } from "@foundation/src/hooks/useNow";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { errorMessage } from "./mutation-utils";
@@ -18,7 +15,7 @@ import { toast } from "sonner";
 
 // Background refetch cadence for the operational request feeds. Keeps the server-derived status (and
 // any worker-sweeper / manual cancel-defer changes) flowing in; the client also recomputes the
-// time-derived lifecycle live between fetches (see useLiveRequests / withEffectiveStatus).
+// time-derived lifecycle live between fetches (each page applies withEffectiveStatus to its feed).
 const REQUESTS_REFETCH_MS = 30_000;
 
 // Canonical spaces hook lives in useSpaces.ts. Re-exported here (not redefined) so
@@ -36,19 +33,6 @@ export function useRequests() {
     queryFn: fetchRequests,
     refetchInterval: REQUESTS_REFETCH_MS,
   });
-}
-
-/**
- * Like {@link useRequests}, but the active lifecycle (new → in_progress → done) is recomputed live on
- * the client against a ticking clock — so status auto-updates as time advances without waiting for a
- * refetch. `withEffectiveStatus` returns the same array reference until a status actually flips, so this
- * doesn't thrash consumers. Use this anywhere request status is displayed/filtered.
- */
-export function useLiveRequests() {
-  const query = useRequests();
-  const nowMs = useNow();
-  const data = useMemo(() => withEffectiveStatus(query.data ?? [], nowMs), [query.data, nowMs]);
-  return { ...query, data };
 }
 
 // Scheduled requests for the selected site within a buffered window — the grid's bar feed.
