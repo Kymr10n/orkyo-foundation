@@ -18,13 +18,17 @@ public static class ControlPlaneAuditEventCommandFactory
         Guid? actorUserId,
         string? targetType,
         string? targetId,
-        object? metadata)
+        object? metadata,
+        Guid? tenantId = null)
     {
         var command = new NpgsqlCommand(ControlPlaneAuditEventQueryContract.BuildInsertAuditEventSql(), connection);
 
         command.Parameters.AddWithValue(
             ControlPlaneAuditEventQueryContract.IdParameterName,
             Guid.NewGuid());
+        command.Parameters.AddWithValue(
+            ControlPlaneAuditEventQueryContract.TenantIdParameterName,
+            tenantId.HasValue ? tenantId.Value : DBNull.Value);
         command.Parameters.AddWithValue(
             ControlPlaneAuditEventQueryContract.ActorUserIdParameterName,
             actorUserId.HasValue ? actorUserId.Value : DBNull.Value);

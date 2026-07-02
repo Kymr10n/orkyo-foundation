@@ -11,8 +11,8 @@ public class ControlPlaneAuditEventQueryContractTests
     {
         var sql = ControlPlaneAuditEventQueryContract.BuildInsertAuditEventSql();
 
-        sql.Should().Contain("INSERT INTO audit_events (id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)");
-        sql.Should().Contain("VALUES (@id, @actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())");
+        sql.Should().Contain("INSERT INTO audit_events (id, tenant_id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)");
+        sql.Should().Contain("VALUES (@id, @tenantId, @actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())");
     }
 
     [Fact]
@@ -32,6 +32,7 @@ public class ControlPlaneAuditEventCommandFactoryTests
     {
         using var connection = new NpgsqlConnection();
         var actorId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
 
         using var command = ControlPlaneAuditEventCommandFactory.CreateInsertAuditEventCommand(
             connection,
@@ -39,12 +40,14 @@ public class ControlPlaneAuditEventCommandFactoryTests
             actorUserId: actorId,
             targetType: "tenant",
             targetId: "abc-tenant",
-            metadata: new { foo = "bar" });
+            metadata: new { foo = "bar" },
+            tenantId: tenantId);
 
         command.CommandText.Should().Be(ControlPlaneAuditEventQueryContract.BuildInsertAuditEventSql());
 
         command.Parameters[ControlPlaneAuditEventQueryContract.IdParameterName].Value
             .Should().BeOfType<Guid>().Which.Should().NotBe(Guid.Empty);
+        command.Parameters[ControlPlaneAuditEventQueryContract.TenantIdParameterName].Value.Should().Be(tenantId);
         command.Parameters[ControlPlaneAuditEventQueryContract.ActorUserIdParameterName].Value.Should().Be(actorId);
         command.Parameters[ControlPlaneAuditEventQueryContract.ActorTypeParameterName].Value.Should().Be("user");
         command.Parameters[ControlPlaneAuditEventQueryContract.ActionParameterName].Value.Should().Be("tenant.created");
@@ -69,6 +72,7 @@ public class ControlPlaneAuditEventCommandFactoryTests
             targetId: null,
             metadata: null);
 
+        command.Parameters[ControlPlaneAuditEventQueryContract.TenantIdParameterName].Value.Should().Be(DBNull.Value);
         command.Parameters[ControlPlaneAuditEventQueryContract.ActorUserIdParameterName].Value.Should().Be(DBNull.Value);
         command.Parameters[ControlPlaneAuditEventQueryContract.ActorTypeParameterName].Value.Should().Be("system");
         command.Parameters[ControlPlaneAuditEventQueryContract.TargetTypeParameterName].Value.Should().Be(DBNull.Value);

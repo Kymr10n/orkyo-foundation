@@ -521,6 +521,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapTemplateEndpoints();
         app.MapAnnouncementEndpoints();
         app.MapUserAnnouncementEndpoints();
+        app.MapTenantAuditEndpoints();
         app.MapSessionEndpoints();
         app.MapSearchEndpoints();
         app.MapFeedbackEndpoints();

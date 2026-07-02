@@ -1,23 +1,24 @@
-using System.Text.Json;
+using Api.Security;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace Api.Services;
 
 /// <summary>
-/// Default <see cref="IAdminAuditService"/> that writes to <c>control_plane.audit_events</c>.
-/// Failures are logged but don't break the calling operation — audit logging is
-/// best-effort. The table-not-found path lets foundation-only deployments that
-/// haven't yet applied the audit migration still operate.
+/// Default <see cref="IAdminAuditService"/> that writes to <c>control_plane.audit_events</c>
+/// via the shared <see cref="ControlPlaneAuditEventCommandFactory"/>. Failures are logged but
+/// don't break the calling operation — audit logging is best-effort. The table-not-found path
+/// lets foundation-only deployments that haven't yet applied the audit migration still operate.
 /// </summary>
 public sealed class AdminAuditService : IAdminAuditService
 {
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AdminAuditService> _logger;
 
-    public AdminAuditService(IDbConnectionFactory connectionFactory, ILogger<AdminAuditService> logger)
+    public AdminAuditService(IDbConnectionFactory connectionFactory, ICurrentTenant currentTenant, ILogger<AdminAuditService> logger)
     {
         _connectionFactory = connectionFactory;
+        _currentTenant = currentTenant;
         _logger = logger;
     }
 
@@ -28,26 +29,17 @@ public sealed class AdminAuditService : IAdminAuditService
         string? targetId = null,
         object? metadata = null, CancellationToken ct = default)
     {
+        // Capture the tenant synchronously (before the first await) so fire-and-forget callers
+        // still stamp the right tenant even after the request scope unwinds. Events with no
+        // resolved tenant (platform/site-admin, SkipTenantResolution) stay NULL.
+        Guid? tenantId = _currentTenant.HasTenant ? _currentTenant.TenantId : null;
         try
         {
             await using var conn = _connectionFactory.CreateControlPlaneConnection();
             await conn.OpenAsync(ct);
 
-            await using var cmd = new NpgsqlCommand(
-                @"INSERT INTO audit_events (id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
-                  VALUES (@id, @actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())",
-                conn);
-
-            cmd.Parameters.AddWithValue("id", Guid.NewGuid());
-            cmd.Parameters.AddWithValue("actorUserId", actorUserId.HasValue ? (object)actorUserId.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("actorType", actorUserId.HasValue ? "user" : "system");
-            cmd.Parameters.AddWithValue("action", action);
-            cmd.Parameters.AddWithValue("targetType", (object?)targetType ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("targetId", (object?)targetId ?? DBNull.Value);
-
-            var metadataParam = new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb);
-            metadataParam.Value = metadata != null ? JsonSerializer.Serialize(metadata) : DBNull.Value;
-            cmd.Parameters.Add(metadataParam);
+            using var cmd = ControlPlaneAuditEventCommandFactory.CreateInsertAuditEventCommand(
+                conn, action, actorUserId, targetType, targetId, metadata, tenantId);
 
             await cmd.ExecuteNonQueryAsync(ct);
         }

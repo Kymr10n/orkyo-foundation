@@ -61,6 +61,7 @@ const OrganizationSettings = lazy(() => import('@foundation/src/components/setti
 const TenantConfigSettings = lazy(() => import('@foundation/src/components/settings/TenantConfigSettings').then(m => ({ default: m.TenantConfigSettings })));
 const SchedulingSettings = lazy(() => import('@foundation/src/components/settings/SchedulingSettings').then(m => ({ default: m.SchedulingSettings })));
 const ReportingApiPage = lazy(() => import('@foundation/src/components/settings/ReportingApiPage').then(m => ({ default: m.ReportingApiPage })));
+const AuditLogTab = lazy(() => import('@foundation/src/components/admin/AuditLogTab').then(m => ({ default: m.AuditLogTab })));
 const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
 const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
 const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
@@ -172,6 +173,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="organization" element={<OrganizationSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
             <Route path="integrations" element={<ReportingApiPage upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="usage-limits" element={<UsageLimitsSettings />} />
           </Route>
 

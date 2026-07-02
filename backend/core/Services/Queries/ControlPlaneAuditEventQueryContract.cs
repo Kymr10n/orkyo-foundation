@@ -13,6 +13,7 @@ namespace Api.Services;
 public static class ControlPlaneAuditEventQueryContract
 {
     public const string IdParameterName = "id";
+    public const string TenantIdParameterName = "tenantId";
     public const string ActorUserIdParameterName = "actorUserId";
     public const string ActorTypeParameterName = "actorType";
     public const string ActionParameterName = "action";
@@ -34,8 +35,8 @@ public static class ControlPlaneAuditEventQueryContract
     public static string BuildInsertAuditEventSql()
     {
         return @"
-            INSERT INTO audit_events (id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
-            VALUES (@id, @actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())
+            INSERT INTO audit_events (id, tenant_id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
+            VALUES (@id, @tenantId, @actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())
         ";
     }
 }

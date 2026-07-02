@@ -31,6 +31,7 @@ public static class FoundationEndpointExtensions
 
         // Features
         app.MapAnnouncementEndpoints();
+        app.MapTenantAuditEndpoints();
         app.MapAutoScheduleEndpoints();
         app.MapConflictsEndpoints();
         app.MapContactEndpoints();
