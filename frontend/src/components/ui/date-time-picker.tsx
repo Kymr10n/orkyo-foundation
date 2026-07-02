@@ -91,6 +91,7 @@ export function DateTimePicker({
         <Calendar
           mode="single"
           selected={date}
+          defaultMonth={date}
           onSelect={handleDateSelect}
           autoFocus
         />
