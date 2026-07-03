@@ -11,6 +11,21 @@ import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 
 const PAGE_SIZE = 25;
 
+/** Platform-sourced events (break-glass, staff tier/membership changes) carry this in metadata. */
+interface AuditMetadata {
+  source?: string;
+  actorEmail?: string | null;
+}
+
+function parseMetadata(raw: string | null): AuditMetadata | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuditMetadata;
+  } catch {
+    return null;
+  }
+}
+
 interface AuditLogTabProps {
   /** Plans/upgrade link shown in the tier-gate upsell (SaaS). */
   upgradeHref?: string;
@@ -67,6 +82,19 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
       header: 'Actor',
       cell: ({ row }) => {
         const e = row.original;
+        // Platform actions (site-admin break-glass, staff tier/membership changes) aren't tenant-DB
+        // users; the actor's email is denormalized into metadata and the row is labeled.
+        const meta = parseMetadata(e.metadata);
+        if (meta?.source === 'platform') {
+          return (
+            <span className="flex items-center gap-2">
+              <span>{meta.actorEmail || 'Orkyo Support'}</span>
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                Platform
+              </span>
+            </span>
+          );
+        }
         if (e.actorType !== 'user') return <span className="text-muted-foreground">System</span>;
         return <span>{e.actorDisplayName || e.actorEmail || 'Unknown user'}</span>;
       },

@@ -1,6 +1,8 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -29,14 +31,55 @@ public static class SettingsEndpoints
             .WithName("GetSettings")
             .WithDescription("Get all tenant settings with current values and metadata");
 
-        settings.MapPut("/", SettingsEndpointHandlers.UpdateSettings)
+        // Tenant PUT/DELETE wrap the shared handler with a tenant-context audit write. The
+        // site-admin /api/admin/configuration surface reuses SettingsEndpointHandlers directly and
+        // is intentionally NOT audited into the tenant trail (platform scope, not tenant scope).
+        settings.MapPut("/", TenantSettingsWrites.UpdateSettings)
             .WithName("UpdateSettings")
             .WithDescription("Update one or more tenant settings")
             .Accepts<UpdateSettingsRequest>("application/json");
 
-        settings.MapDelete("/{key}", SettingsEndpointHandlers.ResetSetting)
+        settings.MapDelete("/{key}", TenantSettingsWrites.ResetSetting)
             .WithName("ResetSetting")
             .WithDescription("Reset a single setting to its compiled default");
+    }
+}
+
+/// <summary>
+/// Tenant-surface settings writes — identical to <see cref="SettingsEndpointHandlers"/> but, on
+/// success, record a tenant-context audit event (<c>settings.updated</c> / <c>settings.reset</c>)
+/// into the tenant's own database. Kept separate so the shared site-admin configuration surface
+/// stays audit-free.
+/// </summary>
+internal static class TenantSettingsWrites
+{
+    public static async Task<IResult> UpdateSettings(
+        UpdateSettingsRequest request, HttpContext ctx, ICurrentPrincipal principal,
+        ITenantSettingsService settingsService, ITenantUserService tenantAudit, CancellationToken ct)
+    {
+        if (request.Settings == null || request.Settings.Count == 0)
+            return ErrorResponses.BadRequest("At least one setting is required");
+        var updated = await settingsService.UpdateSettingsAsync(request.Settings, ct);
+        await tenantAudit.RecordAuditEventAsync(
+            ctx.GetOrgContext(), TenantAuditActions.SettingsUpdated, principal.UserId, "settings", null,
+            new { keys = request.Settings.Keys.ToArray() }, ct);
+        return Results.Ok(new { settings = SettingsEndpointHandlers.Project(settingsService, updated) });
+    }
+
+    public static async Task<IResult> ResetSetting(
+        string key, HttpContext ctx, ICurrentPrincipal principal,
+        ITenantSettingsService settingsService, ITenantUserService tenantAudit, CancellationToken ct)
+    {
+        var descriptor = TenantSettingsService.GetAllDescriptors()
+            .FirstOrDefault(d => string.Equals(d.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (descriptor == null) return ErrorResponses.NotFoundMessage($"Unknown setting key: '{key}'");
+        var deleted = await settingsService.ResetSettingAsync(key, ct);
+        if (deleted)
+            await tenantAudit.RecordAuditEventAsync(
+                ctx.GetOrgContext(), TenantAuditActions.SettingsReset, principal.UserId, "settings", key, null, ct);
+        return deleted
+            ? Results.Ok(new { message = $"Setting '{key}' reset to default" })
+            : ErrorResponses.NotFoundMessage($"Setting '{key}' has no override to reset");
     }
 }
 
@@ -75,7 +118,7 @@ internal static class SettingsEndpointHandlers
             : ErrorResponses.NotFoundMessage($"Setting '{key}' has no override to reset");
     }
 
-    private static IEnumerable<object> Project(ITenantSettingsService settingsService, TenantSettings values) =>
+    internal static IEnumerable<object> Project(ITenantSettingsService settingsService, TenantSettings values) =>
         settingsService.GetDescriptors().Select(d => new
         {
             d.Key,

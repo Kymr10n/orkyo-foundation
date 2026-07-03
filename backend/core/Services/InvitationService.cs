@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Security.Quotas;
@@ -68,7 +69,7 @@ public sealed class InvitationService : IInvitationService
         checkUserCmd.Parameters.AddWithValue("email", email);
         var existingUserId = await checkUserCmd.ExecuteScalarAsync(ct) as Guid?;
 
-        var org = ToOrg(tenant);
+        var org = tenant.ToOrgContext();
 
         if (existingUserId.HasValue)
         {
@@ -83,7 +84,7 @@ public sealed class InvitationService : IInvitationService
 
             await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, existingUserId.Value, email, ct);
             _logger.LogInformation("Added existing user {Email} to tenant {TenantId} with role {Role}", email, tenant.TenantId, role);
-            await _tenantUserService.RecordAuditEventAsync(org, "user.added_to_tenant", invitedBy, "user", existingUserId.Value.ToString(), new { email, role = role.ToString() });
+            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserAddedToTenant, invitedBy, "user", existingUserId.Value.ToString(), new { email, role = role.ToString() });
             return null;
         }
 
@@ -108,7 +109,7 @@ public sealed class InvitationService : IInvitationService
         await reader.CloseAsync();
 
         await _emailService.SendInvitationEmailAsync(email, token, invitation.ExpiresAt);
-        await _tenantUserService.RecordAuditEventAsync(org, "user.invited", invitedBy, "invitation", invitation.Id.ToString(), new { email, role = role.ToString() });
+        await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvited, invitedBy, "invitation", invitation.Id.ToString(), new { email, role = role.ToString() });
 
         return (invitation, token);
     }
@@ -242,8 +243,7 @@ public sealed class InvitationService : IInvitationService
                 UpdatedAt = DateTime.UtcNow
             };
 
-            try { await _tenantUserService.RecordAuditEventAsync(org, "user.invitation_accepted", userId, "user", userId.ToString()); }
-            catch { /* ignore audit failures */ }
+            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvitationAccepted, userId, "user", userId.ToString());
 
             _logger.LogInformation("User {Email} accepted invitation and joined tenant {TenantId}", email, tenantId);
             // Welcome the new member (best-effort).
@@ -290,17 +290,10 @@ public sealed class InvitationService : IInvitationService
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
         if (rowsAffected > 0)
-            await _tenantUserService.RecordAuditEventAsync(ToOrg(tenant), "invitation.revoked", revokedBy, "invitation", invitationId.ToString());
+            await _tenantUserService.RecordAuditEventAsync(tenant.ToOrgContext(), TenantAuditActions.InvitationRevoked, revokedBy, "invitation", invitationId.ToString());
 
         return rowsAffected > 0;
     }
-
-    private static OrgContext ToOrg(TenantContext t) => new()
-    {
-        OrgId = t.TenantId,
-        OrgSlug = t.TenantSlug,
-        DbConnectionString = t.TenantDbConnectionString
-    };
 
     private static Models.Invitation MapInvitation(NpgsqlDataReader reader) => new()
     {

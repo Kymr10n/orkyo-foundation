@@ -341,6 +341,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ITenantUserService, TenantUserService>();
+        builder.Services.AddScoped<IPlatformTenantAuditWriter, PlatformTenantAuditWriter>();
+        builder.Services.AddScoped<ISignInAuditRecorder, SignInAuditRecorder>();
+        // The platform audit writer resolves the target tenant's DB via ITenantResolver. Tests run a
+        // single tenant, so a stub that returns the ambient TenantContext for any slug is sufficient.
+        builder.Services.AddScoped<ITenantResolver>(sp => new TestTenantResolver(sp.GetRequiredService<TenantContext>()));
         builder.Services.AddScoped<IUserManagementService, UserManagementService>();
         builder.Services.AddScoped<IAssetStorageService, AssetStorageService>();
         builder.Services.AddScoped<UserLifecycleService>();
@@ -575,5 +580,17 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         public NpgsqlConnection CreateTenantConnection(TenantContext tenant) => new(tenant.TenantDbConnectionString);
         public NpgsqlConnection CreateConnectionForDatabase(string dbIdentifier) => new(_tenantCs);
         public NpgsqlConnection CreateOrgConnection(OrgContext org) => new(org.DbConnectionString);
+    }
+
+    // ── Test tenant resolver (single test tenant) ─────────────────────────────
+    private sealed class TestTenantResolver : ITenantResolver
+    {
+        private readonly TenantContext _tenant;
+        public TestTenantResolver(TenantContext tenant) => _tenant = tenant;
+
+        public Task<TenantContext?> ResolveTenantAsync(string? subdomain, string? tenantHeader, CancellationToken ct = default)
+            => Task.FromResult<TenantContext?>(_tenant);
+
+        public void InvalidateCache(string slug) { }
     }
 }

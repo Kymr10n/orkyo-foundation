@@ -136,6 +136,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         services.AddScoped<ITenantUserService, TenantUserService>();
+        services.AddScoped<IPlatformTenantAuditWriter, PlatformTenantAuditWriter>();
+        services.AddScoped<ISignInAuditRecorder, SignInAuditRecorder>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
         // Insights is wrapped in a short-TTL read-through cache (dashboard hot path).

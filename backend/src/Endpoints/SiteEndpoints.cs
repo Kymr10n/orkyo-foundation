@@ -1,6 +1,8 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Security;
 using Api.Services;
 using Api.Validators;
 using FluentValidation;
@@ -40,11 +42,14 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
-        sites.MapPost("/", async (CreateSiteRequest request, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<CreateSiteRequest> validator) =>
+        sites.MapPost("/", async (CreateSiteRequest request, HttpContext ctx, ICurrentPrincipal principal, ISiteService siteService, ITenantUserService tenantAudit, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<CreateSiteRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var site = await siteService.CreateAsync(request.Code, request.Name, request.Description, request.Address, ct);
+                await tenantAudit.RecordAuditEventAsync(
+                    ctx.GetOrgContext(), TenantAuditActions.SiteCreated, principal.UserId, "site", site.Id.ToString(),
+                    new { site.Code, site.Name }, ct);
                 return Results.Created($"/sites/{site.Id}", site);
             }, logger, "create site", new { code = request.Code });
         })
@@ -54,11 +59,15 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status201Created)
         .Produces(StatusCodes.Status400BadRequest);
 
-        sites.MapPut("/{siteId:guid}", async (Guid siteId, UpdateSiteRequest request, ISiteService siteService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSiteRequest> validator) =>
+        sites.MapPut("/{siteId:guid}", async (Guid siteId, UpdateSiteRequest request, HttpContext ctx, ICurrentPrincipal principal, ISiteService siteService, ITenantUserService tenantAudit, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSiteRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var site = await siteService.UpdateAsync(siteId, request.Code, request.Name, request.Description, request.Address, ct);
+                if (site is not null)
+                    await tenantAudit.RecordAuditEventAsync(
+                        ctx.GetOrgContext(), TenantAuditActions.SiteUpdated, principal.UserId, "site", siteId.ToString(),
+                        new { site.Code, site.Name }, ct);
                 return EndpointHelpers.OkOrNotFound(site, "Site", siteId);
             }, logger, "update site", new { siteId });
         })
@@ -68,9 +77,12 @@ public static class SiteEndpoints
         .Produces<SiteInfo>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound);
 
-        sites.MapDelete("/{siteId:guid}", async (Guid siteId, ISiteService siteService, CancellationToken ct) =>
+        sites.MapDelete("/{siteId:guid}", async (Guid siteId, HttpContext ctx, ICurrentPrincipal principal, ISiteService siteService, ITenantUserService tenantAudit, CancellationToken ct) =>
         {
             var deleted = await siteService.DeleteAsync(siteId, ct);
+            if (deleted)
+                await tenantAudit.RecordAuditEventAsync(
+                    ctx.GetOrgContext(), TenantAuditActions.SiteDeleted, principal.UserId, "site", siteId.ToString(), null, ct);
             return deleted ? Results.NoContent() : ErrorResponses.NotFound("Site", siteId);
         })
         .WithName("DeleteSite")

@@ -99,5 +99,11 @@ public class TenantUserService : ITenantUserService
         {
             _logger.LogWarning("Audit events table does not exist - skipping audit logging");
         }
+        catch (Exception ex)
+        {
+            // Best-effort: auditing must never fail the operation it documents (site/settings/invite
+            // writes, and the platform mirror all await this directly). Log — don't propagate.
+            _logger.LogError(ex, "Failed to record audit event {Action} for org {OrgId}", action, org.OrgId);
+        }
     }
 }

@@ -37,6 +37,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
     private readonly IDataProtectionProvider _dataProtection;
     private readonly IUserSessionService _userSessionService;
     private readonly IClientIpAccessor _clientIpAccessor;
+    private readonly ISignInAuditRecorder _signInAudit;
     private readonly BffOptions _bffOptions;
     private readonly ILogger<BffSessionEstablisher> _logger;
 
@@ -45,6 +46,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         IDataProtectionProvider dataProtection,
         IUserSessionService userSessionService,
         IClientIpAccessor clientIpAccessor,
+        ISignInAuditRecorder signInAudit,
         IOptions<BffOptions> bffOptions,
         ILogger<BffSessionEstablisher> logger)
     {
@@ -52,6 +54,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         _dataProtection = dataProtection;
         _userSessionService = userSessionService;
         _clientIpAccessor = clientIpAccessor;
+        _signInAudit = signInAudit;
         _bffOptions = bffOptions.Value;
         _logger = logger;
     }
@@ -106,6 +109,10 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
             });
 
         await CaptureDeviceAsync(ctx, userId, tokenProfile);
+
+        // Audit the sign-in once, here at the single session-creation seam, so every login path (OIDC
+        // callback and SaaS demo login) is covered. Best-effort — the recorder swallows its own failures.
+        await _signInAudit.RecordAsync(userId, tokenProfile.Email);
     }
 
     /// <summary>

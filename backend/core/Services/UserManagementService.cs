@@ -96,7 +96,7 @@ public class UserManagementService : IUserManagementService
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
         if (rowsAffected > 0)
-            await _tenantUserService.RecordAuditEventAsync(org, "user.role_updated", updatedBy, "user", userId.ToString(), new { newRole = role.ToString() });
+            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRoleUpdated, updatedBy, "user", userId.ToString(), new { newRole = role.ToString() });
 
         return (rowsAffected > 0, null);
     }
@@ -126,7 +126,7 @@ public class UserManagementService : IUserManagementService
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
         if (rowsAffected > 0)
-            await _tenantUserService.RecordAuditEventAsync(org, "user.removed_from_tenant", deletedBy, "user", userId.ToString());
+            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString());
 
         return (rowsAffected > 0, null);
     }

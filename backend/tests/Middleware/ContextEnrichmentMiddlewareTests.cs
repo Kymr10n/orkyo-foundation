@@ -14,7 +14,6 @@ public class ContextEnrichmentMiddlewareTests
     private readonly Mock<ILogger<ContextEnrichmentMiddleware>> _mockLogger = new();
     private readonly Mock<IIdentityLinkService> _mockIdentityLinkService = new();
     private readonly Mock<ITenantUserService> _mockTenantUserService = new();
-    private readonly Mock<IAdminAuditService> _mockAuditService = new();
     private readonly Mock<IBreakGlassSessionStore> _mockBreakGlass = new();
     private readonly CurrentPrincipal _currentPrincipal = new();
     private readonly CurrentTenant _currentTenant = new();
@@ -24,8 +23,6 @@ public class ContextEnrichmentMiddlewareTests
     {
         // Default: no active break-glass session
         _mockBreakGlass.Setup(s => s.HasActiveSession(It.IsAny<Guid>(), It.IsAny<string>())).Returns(false);
-        _mockAuditService.Setup(s => s.RecordEventAsync(It.IsAny<Guid>(), It.IsAny<string>(),
-            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<object?>())).Returns(Task.CompletedTask);
     }
 
     private ContextEnrichmentMiddleware CreateMiddleware(RequestDelegate next) =>
@@ -68,7 +65,7 @@ public class ContextEnrichmentMiddlewareTests
         CreateMiddleware(_ => Task.CompletedTask).InvokeAsync(
             context, _currentPrincipal, _currentTenant, _currentAuthContext,
             _mockIdentityLinkService.Object, _mockTenantUserService.Object,
-            _mockBreakGlass.Object, _mockAuditService.Object);
+            _mockBreakGlass.Object);
 
     [Fact]
     public async Task AnonymousUser_SetsPrincipalToAnonymous()
@@ -190,7 +187,8 @@ public class ContextEnrichmentMiddlewareTests
         _currentPrincipal.IsSiteAdmin.Should().BeTrue();
         _currentAuthContext.Role.Should().Be(TenantRole.Admin);
         _mockIdentityLinkService.Verify(s => s.GetUserTenantRoleAsync(It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
-        _mockAuditService.Verify(s => s.RecordEventAsync(internalUserId, "break_glass_access", "tenant", tenant.TenantId.ToString(), It.IsAny<object>()), Times.Once);
+        // Auditing moved out of the per-request middleware into the break-glass endpoints
+        // (break_glass.granted/.revoked) — the middleware no longer writes audit events.
     }
 
     [Fact]
@@ -235,12 +233,12 @@ public class ContextEnrichmentMiddlewareTests
         var middleware = new ContextEnrichmentMiddleware(_ => Task.CompletedTask, _mockLogger.Object);
 
         await middleware.InvokeAsync(CreateHttpContext(user, tenant), new CurrentPrincipal(), new CurrentTenant(), new CurrentAuthorizationContext(),
-            _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object, _mockAuditService.Object);
+            _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object);
 
         ContextEnrichmentMiddleware.ClearCache();
 
         await middleware.InvokeAsync(CreateHttpContext(user, tenant), new CurrentPrincipal(), new CurrentTenant(), new CurrentAuthorizationContext(),
-            _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object, _mockAuditService.Object);
+            _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object);
 
         _mockIdentityLinkService.Verify(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject), Times.Exactly(2));
     }

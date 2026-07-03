@@ -91,6 +91,24 @@ public sealed class TenantUserServiceIntegrationTests
         recorded.Value.actorUserId.Should().BeNull();
     }
 
+    [Fact]
+    public async Task RecordAuditEvent_ShouldSwallow_WhenActorFkViolated_BestEffort()
+    {
+        // The service is best-effort: an audit-write failure must never propagate and break the
+        // operation it documents. A phantom actor id (no matching tenant users row) triggers an
+        // actor_user_id FK violation (SqlState 23503) — the service should catch it, not throw.
+        var service = BuildService();
+        var org = BuildOrgContextForTestTenant();
+        var phantomActor = Guid.NewGuid();
+        var uniqueAction = $"fk.violation.{Guid.NewGuid():N}";
+
+        var act = async () => await service.RecordAuditEventAsync(
+            org, uniqueAction, actorUserId: phantomActor, targetType: "tenant", targetId: "x");
+
+        await act.Should().NotThrowAsync();
+        (await ReadAuditEventByActionAsync(uniqueAction)).Should().BeNull("the FK violation prevented the insert");
+    }
+
     // ── composition ──────────────────────────────────────────────────────────
 
     private TenantUserService BuildService()

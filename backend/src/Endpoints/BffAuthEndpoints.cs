@@ -382,7 +382,7 @@ public static class BffAuthEndpoints
         return new ClaimsPrincipal(new ClaimsIdentity(jwt.Claims, "BffCallback"));
     }
 
-    [ExcludeFromCodeCoverage]
+
     public static async Task<string> ResolvePostLoginRedirectAsync(
         string returnTo,
         Guid userId,

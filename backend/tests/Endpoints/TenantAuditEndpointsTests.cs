@@ -6,33 +6,34 @@ using Npgsql;
 namespace Orkyo.Foundation.Tests.Endpoints;
 
 /// <summary>
-/// Integration tests for GET /api/audit (tenant-admin, tenant-scoped, audit_log feature).
-/// The site-admin /api/admin/audit is covered separately in <see cref="AuditEndpointsTests"/>.
+/// Integration tests for GET /api/audit (tenant-admin, audit_log feature). The endpoint reads
+/// the current tenant's OWN database — <c>audit_events</c> there IS the tenant trail, isolated
+/// physically (no tenant_id filter). The site-admin /api/admin/audit (control-plane, all
+/// tenants) is covered separately in <see cref="AuditEndpointsTests"/>.
 /// </summary>
 [Collection("Database collection")]
 public class TenantAuditEndpointsTests
 {
-    private static readonly Guid TestTenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
     private readonly DatabaseFixture _fixture;
-    private readonly string _connString;
+    private readonly string _tenantConnString;
 
     public TenantAuditEndpointsTests(DatabaseFixture fixture)
     {
         _fixture = fixture;
-        _connString = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _tenantConnString = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
     }
 
-    private async Task SeedEventAsync(Guid? tenantId, string action)
+    // Seeds directly into the tenant database (the tenant audit_events has no tenant_id column).
+    private async Task SeedEventAsync(string action, string actorType = "system", string? metadata = null)
     {
-        await using var conn = new NpgsqlConnection(_connString);
+        await using var conn = new NpgsqlConnection(_tenantConnString);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
-            @"INSERT INTO audit_events (id, tenant_id, actor_type, action, created_at)
-              VALUES (@id, @tenantId, 'system', @action, NOW())", conn);
-        cmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        cmd.Parameters.AddWithValue("tenantId", tenantId.HasValue ? tenantId.Value : DBNull.Value);
+            @"INSERT INTO audit_events (actor_type, action, metadata, created_at)
+              VALUES (@actorType, @action, @metadata::jsonb, NOW())", conn);
+        cmd.Parameters.AddWithValue("actorType", actorType);
         cmd.Parameters.AddWithValue("action", action);
+        cmd.Parameters.AddWithValue("metadata", (object?)metadata ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -60,33 +61,31 @@ public class TenantAuditEndpointsTests
     }
 
     [Fact]
-    public async Task Get_TenantAdmin_OnlyReturnsOwnTenantEvents_NoLeakage()
+    public async Task Get_TenantAdmin_ReturnsTenantDbEvents()
     {
         var marker = Guid.NewGuid().ToString("N");
-        var mine = $"audit.mine.{marker}";
-        var otherTenants = $"audit.other.{marker}";
+        var member = $"audit.member.{marker}";
         var platform = $"audit.platform.{marker}";
 
-        await SeedEventAsync(TestTenantId, mine);
-        await SeedEventAsync(Guid.NewGuid(), otherTenants); // different tenant
-        await SeedEventAsync(null, platform);               // platform/site-admin event
+        await SeedEventAsync(member, actorType: "user");
+        await SeedEventAsync(platform, metadata: "{\"source\":\"platform\"}");
 
         using var client = _fixture.CreateClientWithRole("admin");
         // Large page to be sure our seeded rows are in the result set.
         var response = await client.GetAsync("/api/audit/?pageSize=200");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+        // Both member and platform-sourced events live in the tenant DB and surface here.
         var actions = await ActionsOf(response);
-        Assert.Contains(mine, actions);
-        Assert.DoesNotContain(otherTenants, actions); // no cross-tenant leakage
-        Assert.DoesNotContain(platform, actions);     // untagged platform events excluded
+        Assert.Contains(member, actions);
+        Assert.Contains(platform, actions);
     }
 
     [Fact]
     public async Task Get_TenantAdmin_OmitsSensitiveFields()
     {
         var action = $"audit.fields.{Guid.NewGuid():N}";
-        await SeedEventAsync(TestTenantId, action);
+        await SeedEventAsync(action);
 
         using var client = _fixture.CreateClientWithRole("admin");
         var response = await client.GetAsync($"/api/audit/?action={action}");

@@ -11,11 +11,17 @@ using Npgsql;
 namespace Api.Endpoints;
 
 /// <summary>
-/// Tenant-scoped audit log for tenant admins (<c>GET /api/audit</c>). Unlike the site-admin
-/// <c>/api/admin/audit</c> (all tenants, sensitive fields), this returns ONLY the current
-/// tenant's events (<c>tenant_id = current tenant</c>) with <c>ip_address</c>/<c>request_id</c>
-/// omitted, and is gated behind the <c>audit_log</c> feature (Professional+ in SaaS; always
-/// on in Community via the allow-all feature gate).
+/// Tenant-scoped audit log for tenant admins (<c>GET /api/audit</c>). Reads the current
+/// tenant's OWN database — <c>audit_events</c> there IS the tenant audit trail, so isolation
+/// is physical (no <c>tenant_id</c> filter) rather than a shared-table predicate. This is the
+/// canonical store for both SaaS tenants and single-tenant Community. Unlike the site-admin
+/// <c>/api/admin/audit</c> (control-plane, all tenants, sensitive fields), this omits
+/// <c>ip_address</c>/<c>request_id</c> and is gated behind the <c>audit_log</c> feature
+/// (Professional+ in SaaS; always on in Community via the allow-all feature gate).
+///
+/// Platform actors (site-admin break-glass, BFF sign-in) aren't tenant-DB users, so the
+/// <c>users</c> join won't resolve them; those events carry <c>metadata.source = "platform"</c>
+/// and a denormalized actor email for the UI.
 /// </summary>
 public static class TenantAuditEndpoints
 {
@@ -55,11 +61,12 @@ public static class TenantAuditEndpoints
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 200) pageSize = 200;
 
-        var tenantId = currentTenant.RequireTenantId();
+        // The connection targets THIS tenant's database, so every row already belongs to it —
+        // no tenant_id predicate (and the tenant DB's audit_events has no such column).
+        var org = currentTenant.ToOrgContext();
 
-        // Always tenant-scoped — tenant_id filter guarantees no cross-tenant leakage.
-        var clauses = new List<string> { "a.tenant_id = @tenantId" };
-        var parameters = new List<NpgsqlParameter> { new("tenantId", tenantId) };
+        var clauses = new List<string>();
+        var parameters = new List<NpgsqlParameter>();
         if (!string.IsNullOrWhiteSpace(action))
         { clauses.Add("a.action = @action"); parameters.Add(new("action", action)); }
         if (Guid.TryParse(actorId, out var actorGuid))
@@ -70,9 +77,9 @@ public static class TenantAuditEndpoints
         { clauses.Add("a.created_at >= @from"); parameters.Add(new("from", from.Value.ToUniversalTime())); }
         if (to.HasValue)
         { clauses.Add("a.created_at <= @to"); parameters.Add(new("to", to.Value.ToUniversalTime())); }
-        var where = "WHERE " + string.Join(" AND ", clauses);
+        var where = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : string.Empty;
 
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
+        await using var conn = connectionFactory.CreateOrgConnection(org);
         await conn.OpenAsync(ct);
 
         await using var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM audit_events a {where}", conn);

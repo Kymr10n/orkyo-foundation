@@ -69,8 +69,7 @@ public sealed class ContextEnrichmentMiddleware
         CurrentAuthorizationContext currentAuthContext,
         IIdentityLinkService identityLinkService,
         ITenantUserService tenantUserService,
-        IBreakGlassSessionStore breakGlassSessionService,
-        IAdminAuditService auditService)
+        IBreakGlassSessionStore breakGlassSessionService)
     {
         // Step 1: Resolve principal from Keycloak token
         var principal = await ResolvePrincipalAsync(context, identityLinkService);
@@ -88,7 +87,6 @@ public sealed class ContextEnrichmentMiddleware
                 var authContext = await ResolveAuthorizationContextAsync(
                     identityLinkService,
                     breakGlassSessionService,
-                    auditService,
                     principal.UserId,
                     tenantContext,
                     principal.IsSiteAdmin);
@@ -239,7 +237,6 @@ public sealed class ContextEnrichmentMiddleware
     private async Task<AuthorizationContext> ResolveAuthorizationContextAsync(
         IIdentityLinkService identityLinkService,
         IBreakGlassSessionStore breakGlassSessionService,
-        IAdminAuditService auditService,
         Guid userId,
         TenantContext tenant,
         bool isSiteAdmin)
@@ -250,18 +247,9 @@ public sealed class ContextEnrichmentMiddleware
         {
             if (breakGlassSessionService.HasActiveSession(userId, tenant.TenantSlug))
             {
-                _logger.LogInformation(
-                    "AUDIT: Break-glass tenant access used — AdminId={AdminId}, TenantSlug={TenantSlug}",
-                    userId, tenant.TenantSlug);
-
-                // Persist to audit_events table for compliance
-                _ = auditService.RecordEventAsync(
-                    userId,
-                    "break_glass_access",
-                    targetType: "tenant",
-                    targetId: tenant.TenantId.ToString(),
-                    metadata: new { tenantSlug = tenant.TenantSlug });
-
+                // Break-glass access is audited once per session at grant/revoke time in the
+                // break-glass endpoints (break_glass.granted / .revoked), NOT here — this middleware
+                // runs on every request and would otherwise write one audit row per request.
                 return new AuthorizationContext
                 {
                     TenantId = tenant.TenantId,
