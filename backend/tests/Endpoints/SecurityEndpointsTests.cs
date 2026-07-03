@@ -808,4 +808,135 @@ public class SecurityEndpointsTests
     }
 
     #endregion
+
+    #region Shared/locked account session privacy
+
+    // On the shared demo identity every visitor is the same Keycloak user, so exposing or affecting
+    // other sessions leaks IPs and lets one visitor sign out others. When IAccountMutationGuard reports
+    // the account locked, the session endpoints restrict to the caller's own current session. The guard
+    // is toggled here (see TestAccountMutationGuard); the demo -> locked detection is covered by the
+    // SaaS DemoAccountLockTests. Locked is always reset in a finally so it can't bleed across tests.
+    private static System.Net.Http.Headers.AuthenticationHeaderValue Bearer(string token) => new("Bearer", token);
+
+    [Fact]
+    public async Task GetSessions_LockedAccount_ReturnsOnlyCurrentSession()
+    {
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var currentSid = Guid.NewGuid().ToString();
+        var token = GetAuthToken(keycloakSub: sub, sessionId: currentSid, userId: userId);
+
+        _mockKeycloak.MockSessions = new List<KeycloakSession>
+        {
+            MockKeycloakAdminService.CreateMockSession(currentSid, "203.0.113.7"),              // the caller's own
+            MockKeycloakAdminService.CreateMockSession(Guid.NewGuid().ToString(), "10.0.0.1"),  // another visitor
+            MockKeycloakAdminService.CreateMockSession(Guid.NewGuid().ToString(), "172.16.0.1"),// another visitor
+        };
+
+        _factory.AccountGuard.Locked = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
+            request.Headers.Authorization = Bearer(token);
+            var response = await _client.SendAsync(request);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var sessions = await response.Content.ReadFromJsonAsync<JsonElement>();
+            sessions.GetArrayLength().Should().Be(1, "a shared/locked account must not see other visitors' sessions");
+            sessions[0].GetProperty("id").GetString().Should().Be(currentSid);
+            sessions[0].GetProperty("isCurrent").GetBoolean().Should().BeTrue();
+        }
+        finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    [Fact]
+    public async Task RevokeSession_LockedAccount_CannotRevokeAnotherVisitorsSession_Returns404()
+    {
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var currentSid = Guid.NewGuid().ToString();
+        var otherSid = Guid.NewGuid().ToString();
+        var token = GetAuthToken(keycloakSub: sub, sessionId: currentSid, userId: userId);
+
+        _mockKeycloak.MockSessions = new List<KeycloakSession>
+        {
+            MockKeycloakAdminService.CreateMockSession(currentSid, "203.0.113.7"),
+            MockKeycloakAdminService.CreateMockSession(otherSid, "10.0.0.1"),
+        };
+
+        _factory.AccountGuard.Locked = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/account/sessions/{otherSid}");
+            request.Headers.Authorization = Bearer(token);
+            var response = await _client.SendAsync(request);
+
+            response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            _mockKeycloak.RevokeSessionCallCount.Should().Be(0, "another visitor's session must never be revocable");
+        }
+        finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    [Fact]
+    public async Task RevokeSession_LockedAccount_CanRevokeOwnCurrentSession()
+    {
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var currentSid = Guid.NewGuid().ToString();
+        var token = GetAuthToken(keycloakSub: sub, sessionId: currentSid, userId: userId);
+
+        _mockKeycloak.MockSessions = new List<KeycloakSession>
+        {
+            MockKeycloakAdminService.CreateMockSession(currentSid, "203.0.113.7"),
+            MockKeycloakAdminService.CreateMockSession(Guid.NewGuid().ToString(), "10.0.0.1"),
+        };
+
+        _factory.AccountGuard.Locked = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/account/sessions/{currentSid}");
+            request.Headers.Authorization = Bearer(token);
+            var response = await _client.SendAsync(request);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            _mockKeycloak.LastRevokedSessionId.Should().Be(currentSid);
+        }
+        finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    [Fact]
+    public async Task LogoutAll_LockedAccount_ScopesToCurrentSessionOnly()
+    {
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var currentSid = Guid.NewGuid().ToString();
+        var token = GetAuthToken(keycloakSub: sub, sessionId: currentSid, userId: userId);
+
+        _factory.AccountGuard.Locked = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
+            request.Headers.Authorization = Bearer(token);
+            var response = await _client.SendAsync(request);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            // Must NOT globally sign out every visitor -- only the caller's own current session.
+            _mockKeycloak.LogoutAllCallCount.Should().Be(0);
+            _mockKeycloak.RevokeSessionCallCount.Should().Be(1);
+            _mockKeycloak.LastRevokedSessionId.Should().Be(currentSid);
+        }
+        finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    [Fact]
+    public async Task LogoutAll_NormalAccount_SignsOutGloballyAsBefore()
+    {
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var token = GetAuthToken(keycloakSub: sub, userId: userId);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
+        request.Headers.Authorization = Bearer(token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _mockKeycloak.LogoutAllCallCount.Should().Be(1, "non-locked accounts keep the global sign-out-everywhere");
+    }
+
+    #endregion
 }

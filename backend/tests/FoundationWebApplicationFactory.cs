@@ -43,6 +43,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     private readonly IHost _host;
     private readonly MockKeycloakAdminService _mockKeycloak;
     private readonly MockEmailService _mockEmail;
+    private readonly Mocks.TestAccountMutationGuard _accountGuard;
 
     /// <summary>Shared Keycloak mock — tests can inspect calls and configure responses.</summary>
     public MockKeycloakAdminService MockKeycloakAdminService => _mockKeycloak;
@@ -50,14 +51,18 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     /// <summary>Shared email mock — tests can inspect calls and configure responses.</summary>
     public MockEmailService MockEmailService => _mockEmail;
 
+    /// <summary>Toggleable account-lock guard — flip <c>Locked</c> to exercise shared/demo-account paths.</summary>
+    public Mocks.TestAccountMutationGuard AccountGuard => _accountGuard;
+
     /// <summary>Exposes the application's service provider for advanced test scenarios.</summary>
     public IServiceProvider Services => ((WebApplication)_host).Services;
 
-    private FoundationWebApplicationFactory(IHost host, MockKeycloakAdminService mockKeycloak, MockEmailService mockEmail)
+    private FoundationWebApplicationFactory(IHost host, MockKeycloakAdminService mockKeycloak, MockEmailService mockEmail, Mocks.TestAccountMutationGuard accountGuard)
     {
         _host = host;
         _mockKeycloak = mockKeycloak;
         _mockEmail = mockEmail;
+        _accountGuard = accountGuard;
     }
 
     // ── Public surface ────────────────────────────────────────────────────────
@@ -118,9 +123,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     {
         var mockKeycloak = new MockKeycloakAdminService();
         var mockEmail = new MockEmailService();
-        var app = BuildWebApplication(tenantConnectionString, controlPlaneConnectionString, mockKeycloak, mockEmail);
+        var accountGuard = new Mocks.TestAccountMutationGuard();
+        var app = BuildWebApplication(tenantConnectionString, controlPlaneConnectionString, mockKeycloak, mockEmail, accountGuard);
         await app.StartAsync();
-        return new FoundationWebApplicationFactory(app, mockKeycloak, mockEmail);
+        return new FoundationWebApplicationFactory(app, mockKeycloak, mockEmail, accountGuard);
     }
 
     // ── App bootstrap ─────────────────────────────────────────────────────────
@@ -129,7 +135,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         string tenantCs,
         string controlPlaneCs,
         MockKeycloakAdminService mockKeycloak,
-        MockEmailService mockEmail)
+        MockEmailService mockEmail,
+        Mocks.TestAccountMutationGuard accountGuard)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -204,7 +211,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
         builder.Services.AddScoped<CurrentAuthorizationContext>();
         builder.Services.AddScoped<IAuthorizationContext>(sp => sp.GetRequiredService<CurrentAuthorizationContext>());
-        builder.Services.AddScoped<IAccountMutationGuard, AllowAllAccountMutationGuard>();
+        // Toggleable guard (singleton) so tests can flip the account-locked paths (session privacy) on;
+        // defaults to unlocked, matching the foundation allow-all behavior so other tests are unaffected.
+        builder.Services.AddSingleton<IAccountMutationGuard>(accountGuard);
 
         // ── DB connectivity ───────────────────────────────────────────────────
         var orgId = new Guid("00000000-0000-0000-0000-000000000001");

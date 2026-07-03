@@ -53,6 +53,7 @@ public static class SecurityEndpoints
         security.MapGet("/sessions", async (
             HttpContext ctx,
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IUserSessionService userSessionService,
             CancellationToken ct) =>
@@ -88,6 +89,13 @@ public static class SecurityEndpoints
                     DeviceLabel = BuildDeviceLabel(meta),
                 };
             }).ToList();
+
+            // Shared/locked accounts (the demo identity) must never expose other visitors' sessions —
+            // their IPs/devices belong to different people. Return only the caller's own current session.
+            // (No resolvable current sid → empty, which fails safe rather than leaking strangers.)
+            if (accountGuard.IsAccountLocked(principal))
+                response = response.Where(r => r.IsCurrent).ToList();
+
             return Results.Ok(response);
         })
         .WithName("ListSessions")
@@ -96,12 +104,21 @@ public static class SecurityEndpoints
 
         security.MapDelete("/sessions/{sessionId}", async (
             string sessionId,
+            HttpContext ctx,
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IUserSessionService userSessionService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var sub = principal.RequireExternalSubject();
+            // On a shared/locked account, other visitors' sessions are invisible and untouchable —
+            // only the caller's own current session may be revoked (report others as not found so their
+            // existence isn't confirmed).
+            if (accountGuard.IsAccountLocked(principal)
+                && sessionId != KeycloakTokenProfile.FromPrincipal(ctx.User).SessionId)
+                return ErrorResponses.NotFoundMessage("Session not found");
+
             var sessions = await keycloakService.GetUserSessionsAsync(sub, ct);
             if (!sessions.Any(s => s.Id == sessionId))
                 return ErrorResponses.NotFoundMessage("Session not found");
@@ -115,12 +132,29 @@ public static class SecurityEndpoints
         .WithTags("Security");
 
         security.MapPost("/logout-all", async (
+            HttpContext ctx,
             ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IUserSessionService userSessionService,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var sub = principal.RequireExternalSubject();
+
+            // On a shared/locked account a global logout would sign out every other visitor. Scope it to
+            // the caller's own current session so "sign out everywhere" only signs out themselves.
+            if (accountGuard.IsAccountLocked(principal))
+            {
+                var currentSessionId = KeycloakTokenProfile.FromPrincipal(ctx.User).SessionId;
+                if (!string.IsNullOrEmpty(currentSessionId))
+                {
+                    await keycloakService.RevokeSessionAsync(currentSessionId, ct);
+                    await userSessionService.RemoveAsync(currentSessionId, ct);
+                }
+                logger.LogInformation("Locked account: scoped logout to current session for user {Sub}", sub);
+                return Results.Ok(new { message = "Logged out from all sessions" });
+            }
+
             await keycloakService.LogoutAllSessionsAsync(sub, ct);
             await userSessionService.RemoveAllForUserAsync(principal.RequireUserId(), ct);
             logger.LogInformation("All sessions terminated for user {Sub}", sub);
