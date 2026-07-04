@@ -1,3 +1,4 @@
+using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -21,7 +22,7 @@ public static class ReportingEndpoints
     {
         var group = app.MapGroup("/api/reporting/v1")
             .RequireAuthorization("ReportingToken")
-            .RequireRateLimiting("reporting-api")
+            .RequireRateLimiting(FoundationRateLimitPolicies.ReportingApi)
             .WithTags("Reporting API");
 
         // Verify token tenant matches resolved tenant (prevents cross-tenant token reuse)

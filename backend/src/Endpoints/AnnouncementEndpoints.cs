@@ -1,3 +1,4 @@
+using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -15,7 +16,7 @@ public static class AnnouncementEndpoints
     {
         var group = app.MapGroup("/api/admin/announcements")
             .RequireAuthorization()
-            .RequireRateLimiting("admin-operations")
+            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
             .WithTags("Announcements")
             .WithMetadata(new SkipTenantResolutionAttribute());
 

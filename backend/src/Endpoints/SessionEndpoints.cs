@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Api.Configuration;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
@@ -98,7 +99,7 @@ public static class SessionEndpoints
         .WithSummary("Bootstrap session after Keycloak login")
         .WithDescription("Links Keycloak identity to internal user and returns tenant memberships and ToS status.")
         .WithTags("Session")
-        .RequireRateLimiting("session-bootstrap");
+        .RequireRateLimiting(FoundationRateLimitPolicies.SessionBootstrap);
 
         // GET /api/session/me - Get current user info
         session.MapGet("/me", async (

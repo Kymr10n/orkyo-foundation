@@ -50,13 +50,13 @@ public static class BffAuthEndpoints
         // drive Keycloak token exchange and populate the PKCE state store, so they need
         // their own abuse ceiling independent of the authenticated-user limits.
         bff.MapGet("/login", HandleLogin)
-            .RequireRateLimiting("bff-auth")
+            .RequireRateLimiting(FoundationRateLimitPolicies.BffAuth)
             .WithName("BffLogin")
             .WithSummary("Initiate BFF OIDC login");
 
         // GET /api/auth/bff/callback?code=&state=
         bff.MapGet("/callback", HandleCallback)
-            .RequireRateLimiting("bff-auth")
+            .RequireRateLimiting(FoundationRateLimitPolicies.BffAuth)
             .WithName("BffCallback")
             .WithSummary("OIDC callback handler for BFF flow");
 
@@ -65,7 +65,7 @@ public static class BffAuthEndpoints
         // end-session endpoint directly. id_token_hint stays in the server-generated
         // redirect header and never surfaces in a JSON response visible to JS.
         bff.MapGet("/logout", HandleLogout)
-            .RequireRateLimiting("bff-auth")
+            .RequireRateLimiting(FoundationRateLimitPolicies.BffAuth)
             .WithName("BffLogout")
             .WithSummary("Logout: clears BFF session and redirects to Keycloak end-session");
 

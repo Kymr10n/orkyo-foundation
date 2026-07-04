@@ -1,3 +1,4 @@
+using Api.Configuration;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
@@ -48,7 +49,7 @@ public static class SecurityEndpoints
         .WithName("ChangePassword")
         .WithSummary("Change user password")
         .WithTags("Security")
-        .RequireRateLimiting("password-change");
+        .RequireRateLimiting(FoundationRateLimitPolicies.PasswordChange);
 
         security.MapGet("/sessions", async (
             HttpContext ctx,

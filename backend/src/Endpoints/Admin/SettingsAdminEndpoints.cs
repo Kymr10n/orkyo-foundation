@@ -15,7 +15,7 @@ public static class SettingsAdminEndpoints
     {
         var group = app.MapGroup("/api/admin")
             .RequireAuthorization()
-            .RequireRateLimiting("admin-operations")
+            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
             .WithTags("Admin")
             .WithMetadata(new SkipTenantResolutionAttribute());
 

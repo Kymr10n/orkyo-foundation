@@ -1,3 +1,4 @@
+using Api.Configuration;
 using Api.Middleware;
 using Api.Security;
 using Microsoft.AspNetCore.Builder;
@@ -19,7 +20,7 @@ public static class ConfigurationAdminEndpoints
     {
         var group = app.MapGroup("/api/admin/configuration")
             .RequireAuthorization()
-            .RequireRateLimiting("admin-operations")
+            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
             .WithTags("Admin")
             .WithMetadata(new SkipTenantResolutionAttribute());
 

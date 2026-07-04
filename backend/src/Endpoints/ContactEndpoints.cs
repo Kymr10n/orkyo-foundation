@@ -79,6 +79,6 @@ public static class ContactEndpoints
         })
         .WithName("SubmitContactForm")
         .WithSummary("Submit the marketing contact form")
-        .RequireRateLimiting("contact-form");
+        .RequireRateLimiting(FoundationRateLimitPolicies.ContactForm);
     }
 }

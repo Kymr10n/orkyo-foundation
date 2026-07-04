@@ -40,7 +40,7 @@ public static class DiagnosticsAdminEndpoints
         // Admin diagnostics endpoint
         var group = app.MapGroup("/api/admin")
             .RequireAuthorization()
-            .RequireRateLimiting("admin-operations")
+            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
             .WithTags("Admin")
             .WithMetadata(new SkipTenantResolutionAttribute());
 
