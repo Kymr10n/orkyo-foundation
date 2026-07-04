@@ -153,16 +153,19 @@ public class DeploymentConfigTests
     }
 
     [Theory]
-    [InlineData("not valid base64 !!!")]            // not base64
+    [InlineData("not valid base64 !!!")]              // not base64
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAAA")]           // 43 chars, missing padding — the prod incident
     [InlineData("AAAAAAAAAAAAAAAAAAAAAA==")]          // valid base64, but only 16 bytes
-    public void DecodeMasterEncryptionKey_Throws_ForInvalidKey(string badKey)
+    public void FromConfiguration_Throws_ForInvalidMasterKey(string badKey)
     {
-        var config = DeploymentConfig.FromConfiguration(
+        // The master-key base64/length check runs eagerly during FromConfiguration (called at boot in
+        // each edition's Program.cs), so a bad key fails fast at startup rather than as a lazy runtime
+        // 500 on the first encrypt/asset request.
+        var act = () => DeploymentConfig.FromConfiguration(
             BuildConfig(RequiredValues(new Dictionary<string, string?>
             {
                 [ConfigKeys.MasterEncryptionKey] = badKey,
             })));
-        var act = () => config.DecodeMasterEncryptionKey();
         act.Should().Throw<InvalidOperationException>();
     }
 

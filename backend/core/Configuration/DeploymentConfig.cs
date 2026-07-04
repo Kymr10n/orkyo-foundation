@@ -100,7 +100,7 @@ public sealed record DeploymentConfig
             configuration[key]
             ?? throw new InvalidOperationException($"DeploymentConfig: required key '{key}' is not set");
 
-        return new DeploymentConfig
+        var config = new DeploymentConfig
         {
             PublicUrl = Require(ConfigKeys.AppBaseUrl),
             AuthPublicUrl = configuration[ConfigKeys.OidcAuthority] ?? Require(ConfigKeys.KeycloakUrl),
@@ -129,6 +129,14 @@ public sealed record DeploymentConfig
             LogLevel = configuration["Logging:LogLevel:Default"] ?? "Information",
             Version = configuration["ORKYO_VERSION"],
         };
+
+        // Fail fast at startup on a malformed master key (invalid base64 / not 32 bytes) — matches the
+        // intent documented on DecodeMasterEncryptionKey. FromConfiguration is called eagerly in each
+        // edition's Program.cs, so a bad key now crashes the container at boot instead of surfacing
+        // later as a runtime 500 on the first encrypt/asset request.
+        config.DecodeMasterEncryptionKey();
+
+        return config;
     }
 
     // ── Redaction ────────────────────────────────────────────────────────
