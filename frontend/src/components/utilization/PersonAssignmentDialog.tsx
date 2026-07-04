@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
@@ -158,6 +159,7 @@ export function PersonAssignmentDialog({
   const [ineligible, setIneligible] = useState<Set<string>>(new Set());
   const [eligibilityLoaded, setEligibilityLoaded] = useState(false);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
+  const [eligibilityError, setEligibilityError] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -170,6 +172,7 @@ export function PersonAssignmentDialog({
     setIneligible(new Set());
     setEligibilityLoaded(false);
     setEligibilityLoading(false);
+    setEligibilityError(false);
     setLoadError(null);
     setIsLoading(true);
     getPersonAssignmentOptions(personId, start, end)
@@ -260,8 +263,11 @@ export function PersonAssignmentDialog({
       }
       setIneligible(blocked);
       setEligibilityLoaded(true);
+      setEligibilityError(false);
     } catch {
-      // Fail-open: leave eligibility unknown so the filter hides nothing.
+      // Fail-open — but signal it: the filter hides nothing and the toggle shows a "couldn't check"
+      // note, rather than silently pretending everything is eligible.
+      setEligibilityError(true);
     } finally {
       setEligibilityLoading(false);
     }
@@ -323,7 +329,8 @@ export function PersonAssignmentDialog({
         patchConflict(option.requestId, null);
         invalidateRequestData(queryClient);
       } catch {
-        // Silently reset — assignment may already be cancelled
+        // The remove did not land — tell the planner so they don't assume it's gone.
+        toast.error(`Couldn't remove ${personName} from “${option.name}”. Please try again.`);
       }
       patchStatus(option.requestId, { kind: "idle" });
     } else {
@@ -340,6 +347,9 @@ export function PersonAssignmentDialog({
           allocationPercent,
         });
       } catch {
+        // Validation call itself failed (network/server) — not a blocker result. Nothing was
+        // assigned; say so rather than leaving the click looking like a no-op.
+        toast.error(`Couldn't check the assignment for “${option.name}”. Please try again.`);
         patchStatus(option.requestId, { kind: "idle" });
         return;
       }
@@ -380,6 +390,8 @@ export function PersonAssignmentDialog({
         patchConflict(option.requestId, conflictIssuesOf(effectiveResult));
         patchStatus(option.requestId, { kind: "idle" });
       } catch {
+        // The assignment did not save — the row reverts to unchecked; surface why.
+        toast.error(`Couldn't assign ${personName} to “${option.name}”. Please try again.`);
         patchStatus(option.requestId, { kind: "idle" });
       }
     }
@@ -410,6 +422,11 @@ export function PersonAssignmentDialog({
               />
               Eligible only
               {eligibilityLoading && <span className="text-xs">checking…</span>}
+              {eligibilityError && !eligibilityLoading && (
+                <span className="text-xs text-destructive" data-testid="eligible-check-error">
+                  couldn’t check
+                </span>
+              )}
             </label>
           </div>
         )}
@@ -422,8 +439,10 @@ export function PersonAssignmentDialog({
               <ErrorAlert message={loadError} />
             ) : options.length === 0 ? (
               <div className="text-center py-8 border rounded-lg border-dashed">
-                <p className="text-sm text-muted-foreground">
-                  No active requests overlap this period.
+                <p className="text-sm text-muted-foreground" data-testid="no-options-message">
+                  {new Date(end).getTime() <= Date.now()
+                    ? "This period has already passed — completed work isn’t assignable here."
+                    : "No open requests overlap this period."}
                 </p>
               </div>
             ) : (

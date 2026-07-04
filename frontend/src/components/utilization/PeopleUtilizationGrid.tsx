@@ -92,9 +92,9 @@ function overallPercent(
 
 // ── Legend dot ───────────────────────────────────────────────────────────────
 
-function LegendDot({ status, label }: { status: BucketStatus; label: string }) {
+function LegendDot({ status, label, title }: { status: BucketStatus; label: string; title?: string }) {
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1" title={title}>
       <span className={`inline-block h-2.5 w-4 rounded-sm border ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]}`} />
       {label}
     </span>
@@ -316,9 +316,9 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <LegendDot status="available"    label="Available" />
-        <LegendDot status="partial"      label="Booked" />
+        <LegendDot status="partial"      label="Booked" title="Booked % = share of this period the person is allocated (time-weighted)." />
         <LegendDot status="assigned"     label="Assigned" />
-        <LegendDot status="overbooked"   label="Overbooked" />
+        <LegendDot status="overbooked"   label="Overbooked" title="Allocated beyond capacity (>100%) in this period." />
         <LegendDot status="non-working"  label="Off" />
       </div>
       <Input

@@ -372,6 +372,7 @@ export function UtilizationPage() {
       invalidateRequestData(queryClient);
     } catch (error) {
       logger.error("Failed to reparent request:", error);
+      toast.error("Couldn't move the request. Please try again.");
     }
   }, [requests, queryClient]);
 

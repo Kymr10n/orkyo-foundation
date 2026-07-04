@@ -15,6 +15,10 @@ import type * as ResourceAssignmentsApi from "@foundation/src/lib/api/resource-a
 import type { PersonAssignmentOption } from "@foundation/src/lib/api/person-candidate-requests-api";
 import type { ResourceAssignmentInfo, ValidationResult } from "@foundation/src/lib/api/resource-assignments-api";
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 vi.mock("@foundation/src/lib/api/person-candidate-requests-api", () => ({
   getPersonAssignmentOptions: vi.fn(),
   mismatchCount: vi.fn((o: PersonAssignmentOption) =>
@@ -34,6 +38,7 @@ vi.mock("@foundation/src/lib/api/resource-assignments-api", async (importActual)
   validateAssignmentsBatch: vi.fn(),
 }));
 
+import { toast } from "sonner";
 import { getPersonAssignmentOptions } from "@foundation/src/lib/api/person-candidate-requests-api";
 import {
   createAssignment,
@@ -232,6 +237,39 @@ describe("PersonAssignmentDialog", () => {
     expect(await screen.findByText("Request Beta")).toBeInTheDocument();
   });
 
+  it("'Eligible only' shows an error note (does not silently fail open) when the check fails", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    vi.mocked(validateAssignmentsBatch).mockRejectedValue(new Error("network"));
+    renderDialog();
+    await screen.findByText("Request Beta");
+
+    await userEvent.click(screen.getByTestId("eligible-only-toggle"));
+
+    // Fail-open: the candidate is still shown, but the failure is signalled.
+    expect(await screen.findByTestId("eligible-check-error")).toBeInTheDocument();
+    expect(screen.getByText("Request Beta")).toBeInTheDocument();
+  });
+
+  it("surfaces a toast when assigning fails instead of silently reverting", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
+    vi.mocked(createAssignment).mockRejectedValue(new Error("boom"));
+    renderDialog();
+
+    await userEvent.click(await screen.findByText("Request Gamma"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("explains an empty past period instead of the terse 'no requests' message", async () => {
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([]);
+    // end is in the past relative to now → the dialog should say the period has passed.
+    renderDialog({ start: "2000-01-01T08:00:00Z", end: "2000-01-01T10:00:00Z" });
+
+    const msg = await screen.findByTestId("no-options-message");
+    expect(msg.textContent).toMatch(/already passed/i);
+  });
+
   it("remove: unchecking an assigned row calls cancelAssignment and invalidates cache", async () => {
     vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(cancelAssignment).mockResolvedValue(undefined);
@@ -340,10 +378,11 @@ describe("PersonAssignmentDialog", () => {
 
   it("shows empty state when no options are returned", async () => {
     vi.mocked(getPersonAssignmentOptions).mockResolvedValue([]);
-    renderDialog();
+    // Future period → the general "no open requests" empty state (the past-period copy is tested below).
+    renderDialog({ start: "2999-01-01T08:00:00Z", end: "2999-01-01T10:00:00Z" });
     await waitFor(() =>
       expect(
-        screen.getByText("No active requests overlap this period."),
+        screen.getByText("No open requests overlap this period."),
       ).toBeInTheDocument(),
     );
   });
