@@ -186,6 +186,52 @@ describe("PersonAssignmentDialog", () => {
     expect(screen.queryByTestId("mismatch-badge")).not.toBeInTheDocument();
   });
 
+  it("'Eligible only' hides hard-blocked candidates but keeps assignable (incl. soft-blocker) ones", async () => {
+    const ELIGIBLE_CANDIDATE: PersonAssignmentOption = {
+      requestId: "req-4",
+      name: "Request Delta",
+      startTs: "2026-01-06T09:00:00Z",
+      endTs: "2026-01-06T11:00:00Z",
+      requirements: [],
+      assignmentId: null,
+    };
+    const SOFT_ONLY_CANDIDATE: PersonAssignmentOption = {
+      requestId: "req-5",
+      name: "Request Epsilon",
+      startTs: "2026-01-06T09:00:00Z",
+      endTs: "2026-01-06T11:00:00Z",
+      requirements: [{ label: "CPR", satisfied: false }],
+      assignmentId: null,
+    };
+    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+      CANDIDATE_OPTION, // req-2 — hard blocker → filtered out
+      ELIGIBLE_CANDIDATE, // req-4 — clean → kept
+      SOFT_ONLY_CANDIDATE, // req-5 — capability missing (soft) → kept
+    ]);
+    vi.mocked(validateAssignmentsBatch).mockResolvedValue([
+      { requestId: "req-2", resourceId: "person-1", result: BLOCKER_RESULT }, // offtime.overlap — hard
+      { requestId: "req-4", resourceId: "person-1", result: OK_RESULT },
+      { requestId: "req-5", resourceId: "person-1", result: CAPABILITY_MISSING_RESULT }, // soft only — assignable
+    ]);
+    renderDialog();
+
+    // All three visible before filtering.
+    expect(await screen.findByText("Request Beta")).toBeInTheDocument();
+    expect(screen.getByText("Request Delta")).toBeInTheDocument();
+    expect(screen.getByText("Request Epsilon")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("eligible-only-toggle"));
+
+    // Hard-blocked one is hidden; clean + soft-blocker ones remain.
+    await waitFor(() => expect(screen.queryByText("Request Beta")).not.toBeInTheDocument());
+    expect(screen.getByText("Request Delta")).toBeInTheDocument();
+    expect(screen.getByText("Request Epsilon")).toBeInTheDocument();
+
+    // Toggling off restores the hard-blocked candidate.
+    await userEvent.click(screen.getByTestId("eligible-only-toggle"));
+    expect(await screen.findByText("Request Beta")).toBeInTheDocument();
+  });
+
   it("remove: unchecking an assigned row calls cancelAssignment and invalidates cache", async () => {
     vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(cancelAssignment).mockResolvedValue(undefined);

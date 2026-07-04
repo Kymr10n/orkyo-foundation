@@ -20,6 +20,7 @@ import {
   cancelAssignment,
   validateAssignment,
   validateAssignmentsBatch,
+  hardBlockers,
   SOFT_BLOCKER_CODES,
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
@@ -150,6 +151,13 @@ export function PersonAssignmentDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // "Eligible only": hide unassigned candidates the person can't actually take (hard blockers).
+  // Eligibility is validated lazily on first enable and cached (`ineligible` = requestIds with a hard
+  // blocker); fail-open — an errored/absent check hides nothing.
+  const [eligibleOnly, setEligibleOnly] = useState(false);
+  const [ineligible, setIneligible] = useState<Set<string>>(new Set());
+  const [eligibilityLoaded, setEligibilityLoaded] = useState(false);
+  const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -158,6 +166,10 @@ export function PersonAssignmentDialog({
     setSearch("");
     setItemStatus(new Map());
     setConflicts(new Map());
+    setEligibleOnly(false);
+    setIneligible(new Set());
+    setEligibilityLoaded(false);
+    setEligibilityLoading(false);
     setLoadError(null);
     setIsLoading(true);
     getPersonAssignmentOptions(personId, start, end)
@@ -219,11 +231,59 @@ export function PersonAssignmentDialog({
     }
   };
 
+  // Validate the unassigned candidates once (lazily, on first "Eligible only" toggle) to learn which
+  // carry a hard blocker. Same window/allocation params as handleToggle; fail-open on error.
+  const ensureEligibilityLoaded = async () => {
+    if (eligibilityLoaded || eligibilityLoading) return;
+    const candidates = options.filter((o) => o.assignmentId === null && o.startTs && o.endTs);
+    if (candidates.length === 0) {
+      setEligibilityLoaded(true);
+      return;
+    }
+    setEligibilityLoading(true);
+    try {
+      const results = await validateAssignmentsBatch(
+        candidates.map((o) => {
+          const win = assignmentWindow(o, start, end);
+          return {
+            requestId: o.requestId,
+            resourceId: personId,
+            startUtc: win.startUtc,
+            endUtc: win.endUtc,
+            allocationPercent,
+          };
+        }),
+      );
+      const blocked = new Set<string>();
+      for (const item of results) {
+        if (item.requestId && hardBlockers(item.result).length > 0) blocked.add(item.requestId);
+      }
+      setIneligible(blocked);
+      setEligibilityLoaded(true);
+    } catch {
+      // Fail-open: leave eligibility unknown so the filter hides nothing.
+    } finally {
+      setEligibilityLoading(false);
+    }
+  };
+
+  const handleEligibleToggle = (checked: boolean) => {
+    setEligibleOnly(checked);
+    if (checked) void ensureEligibilityLoaded();
+  };
+
   const filteredOptions = useMemo(() => {
-    if (!search.trim()) return options;
-    const q = search.toLowerCase();
-    return options.filter((o) => o.name.toLowerCase().includes(q));
-  }, [options, search]);
+    let list = options;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((o) => o.name.toLowerCase().includes(q));
+    }
+    // Assigned rows always stay (current state); only unassigned candidates are eligibility-filtered.
+    if (eligibleOnly && eligibilityLoaded) {
+      list = list.filter((o) => o.assignmentId !== null || !ineligible.has(o.requestId));
+    }
+    return list;
+  }, [options, search, eligibleOnly, eligibilityLoaded, ineligible]);
 
   const assignedCount = useMemo(
     () => options.filter((o) => o.assignmentId !== null).length,
@@ -334,13 +394,24 @@ export function PersonAssignmentDialog({
         </DialogHeader>
 
         {!isLoading && options.length > 0 && (
-          <Input
-            placeholder="Filter by request name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 text-sm shrink-0"
-            data-testid="request-filter-input"
-          />
+          <div className="flex items-center gap-3 shrink-0">
+            <Input
+              placeholder="Filter by request name…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 text-sm"
+              data-testid="request-filter-input"
+            />
+            <label className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap cursor-pointer select-none">
+              <Checkbox
+                checked={eligibleOnly}
+                onCheckedChange={(v) => handleEligibleToggle(v === true)}
+                data-testid="eligible-only-toggle"
+              />
+              Eligible only
+              {eligibilityLoading && <span className="text-xs">checking…</span>}
+            </label>
+          </div>
         )}
 
         <ScrollableDialogBody className="pr-1">
@@ -501,9 +572,11 @@ export function PersonAssignmentDialog({
                       </div>
                     );
                   })}
-                  {filteredOptions.length === 0 && search && (
+                  {filteredOptions.length === 0 && (search || eligibleOnly) && (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No results for &ldquo;{search}&rdquo;
+                      {search
+                        ? `No results for “${search}”`
+                        : "No eligible requests in this period."}
                     </p>
                   )}
                 </div>
