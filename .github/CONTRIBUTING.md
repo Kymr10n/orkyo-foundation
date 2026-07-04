@@ -39,6 +39,16 @@ Run the downstream test script before opening a PR for any public API change:
 
 The npm package (`@kymr10n/foundation`) is published from `frontend/`. See [`frontend/ARCHITECTURE.md`](../frontend/ARCHITECTURE.md) for the rendering split and routing conventions.
 
+## How changes land
+
+`main` is protected — no direct pushes. Every change lands through a pull request:
+
+1. Fork (external contributors) or branch (maintainers), then commit your change.
+2. Open a PR against `main`.
+3. CI must pass and a code owner (@Kymr10n) must approve; keep review threads resolved. New pushes
+   dismiss stale approvals.
+4. A maintainer merges. Maintainers/admins may bypass this only for emergency fixes.
+
 ## Pull Request Checklist
 
 Use the PR template — it covers the key checks. The short version:
