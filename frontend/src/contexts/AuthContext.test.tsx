@@ -103,7 +103,7 @@ describe("AuthContext BFF session", () => {
     localStorage.clear();
     // Ensure no URL error params by default
     Object.defineProperty(window, 'location', {
-      value: { href: 'http://localhost:5173/', pathname: '/', search: '', protocol: 'http:', hostname: 'localhost' },
+      value: { href: 'http://localhost:5173/', pathname: '/', search: '', protocol: 'http:', hostname: 'localhost', replace: vi.fn() },
       writable: true,
       configurable: true,
     });
@@ -247,7 +247,7 @@ describe("AuthContext BFF session", () => {
 
     it("transitions to unauthenticated with error when URL has ?error= param", async () => {
       Object.defineProperty(window, 'location', {
-        value: { href: 'http://localhost:5173/?error=identity_link_failed', pathname: '/', search: '?error=identity_link_failed', protocol: 'http:', hostname: 'localhost' },
+        value: { href: 'http://localhost:5173/?error=identity_link_failed', pathname: '/', search: '?error=identity_link_failed', protocol: 'http:', hostname: 'localhost', replace: vi.fn() },
         writable: true,
         configurable: true,
       });
@@ -547,8 +547,9 @@ describe("AuthContext BFF session", () => {
   describe("actions", () => {
     it("login() redirects to BFF login endpoint", async () => {
       // Start from unauthenticated (URL error param) so LOGIN event is accepted
+      const replaceSpy = vi.fn();
       Object.defineProperty(window, 'location', {
-        value: { href: 'http://localhost:5173/?error=test', pathname: '/', search: '?error=test', protocol: 'http:', hostname: 'localhost' },
+        value: { href: 'http://localhost:5173/?error=test', pathname: '/', search: '?error=test', protocol: 'http:', hostname: 'localhost', replace: replaceSpy },
         writable: true,
         configurable: true,
       });
@@ -564,7 +565,9 @@ describe("AuthContext BFF session", () => {
       act(() => { getAuth().login("/dashboard"); });
 
       await waitFor(() =>
-        expect(window.location.href).toContain("/api/auth/bff/login"),
+        expect(replaceSpy).toHaveBeenCalledWith(
+          expect.stringContaining("/api/auth/bff/login"),
+        ),
       );
     });
 
