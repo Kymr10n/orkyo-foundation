@@ -244,7 +244,9 @@ export const authMachine = setup({
       const returnTo =
         loginEvent?.returnTo ??
         (isMarketingRoot ? `${window.location.origin}/login?auto=1` : window.location.href);
-      window.location.href = buildBffLoginUrl({ returnTo });
+      // replace() (not href=) so the transient BFF /login intermediate isn't left in
+      // history — otherwise back/forward can re-enter a stale, already-consumed auth URL.
+      window.location.replace(buildBffLoginUrl({ returnTo }));
     },
 
     // Full-page redirect to the tenant subdomain. In local dev, navigateToTenantSubdomain

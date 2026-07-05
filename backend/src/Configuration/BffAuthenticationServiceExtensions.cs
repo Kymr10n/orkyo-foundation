@@ -46,6 +46,10 @@ public static class BffAuthenticationServiceExtensions
 
                 opts.RedirectUri = config[ConfigKeys.BffRedirectUri] ?? string.Empty;
 
+                // Canonical public app origin (carries the port) — the preferred base for
+                // default/error redirects so they don't fall back to the port-less host list.
+                opts.AppBaseUrl = config[ConfigKeys.AppBaseUrl] ?? string.Empty;
+
                 var allowedHosts = config[ConfigKeys.BffAllowedHosts];
                 if (!string.IsNullOrEmpty(allowedHosts))
                     opts.AllowedReturnToHosts = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

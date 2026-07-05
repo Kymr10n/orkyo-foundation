@@ -38,7 +38,9 @@ export function LoginPage() {
   useEffect(() => {
     if (isLoading) return;
     if (isAuthenticated) {
-      navigate("/");
+      // replace so /login isn't left in history behind the authenticated home —
+      // pressing back would otherwise land here and re-trigger the OIDC flow.
+      navigate("/", { replace: true });
       return;
     }
     if (error || loginAttempted.current) return;

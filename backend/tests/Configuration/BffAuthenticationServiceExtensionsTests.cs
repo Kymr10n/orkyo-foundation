@@ -199,6 +199,19 @@ public class BffAuthenticationServiceExtensionsTests
     }
 
     [Fact]
+    public void AddBffAuthentication_BffOptions_SetsAppBaseUrl_WhenConfigured()
+    {
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
+        {
+            [ConfigKeys.AppBaseUrl] = "http://localhost:5174"
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.AppBaseUrl.Should().Be("http://localhost:5174");
+    }
+
+    [Fact]
     public void AddBffAuthentication_BffOptions_SetsAllowedHosts_WhenConfigured()
     {
         var provider = BuildProvider(valkeyConnection: null, extra: new()

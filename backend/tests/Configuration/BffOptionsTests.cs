@@ -83,4 +83,73 @@ public class BffOptionsTests
         var options = new BffOptions { AllowedReturnToHosts = [] };
         options.IsReturnToAllowed("https://orkyo.com/").Should().BeFalse();
     }
+
+    // ── GetDefaultReturnToBase ────────────────────────────────────────────────
+
+    [Fact]
+    public void GetDefaultReturnToBase_PrefersAppBaseUrl_PreservingPort()
+    {
+        // Regression: the host-only AllowedReturnToHosts list drops the port, producing
+        // http://localhost (a dead port-80 URL). AppBaseUrl carries the port.
+        var options = new BffOptions
+        {
+            AppBaseUrl = "http://localhost:5174",
+            AllowedReturnToHosts = ["localhost", "*.localhost"],
+            RedirectUri = "http://localhost:5002/api/auth/bff/callback",
+        };
+
+        options.GetDefaultReturnToBase().Should().Be("http://localhost:5174");
+    }
+
+    [Fact]
+    public void GetDefaultReturnToBase_TrimsTrailingSlashFromAppBaseUrl()
+    {
+        var options = new BffOptions { AppBaseUrl = "https://orkyo.com/" };
+
+        options.GetDefaultReturnToBase().Should().Be("https://orkyo.com");
+    }
+
+    [Fact]
+    public void GetDefaultReturnToBase_FallsBackToHttpsHost_WhenAppBaseUrlEmpty()
+    {
+        var options = new BffOptions
+        {
+            AllowedReturnToHosts = ["orkyo.com", "*.orkyo.com"],
+            RedirectUri = "https://orkyo.com/api/auth/bff/callback",
+        };
+
+        options.GetDefaultReturnToBase().Should().Be("https://orkyo.com");
+    }
+
+    [Fact]
+    public void GetDefaultReturnToBase_FallbackDerivesHttpScheme_InDev()
+    {
+        var options = new BffOptions
+        {
+            AllowedReturnToHosts = ["localhost:5173"],
+            RedirectUri = "http://localhost:5002/api/auth/bff/callback",
+        };
+
+        options.GetDefaultReturnToBase().Should().Be("http://localhost:5173");
+    }
+
+    [Fact]
+    public void GetDefaultReturnToBase_ReturnsNull_WhenOnlyWildcardHostsAndNoAppBaseUrl()
+    {
+        var options = new BffOptions
+        {
+            AllowedReturnToHosts = ["*.orkyo.com"],
+            RedirectUri = "https://orkyo.com/api/auth/bff/callback",
+        };
+
+        options.GetDefaultReturnToBase().Should().BeNull();
+    }
+
+    [Fact]
+    public void GetDefaultReturnToBase_ReturnsNull_WhenNoHostsAndNoAppBaseUrl()
+    {
+        var options = new BffOptions { AllowedReturnToHosts = [] };
+
+        options.GetDefaultReturnToBase().Should().BeNull();
+    }
 }

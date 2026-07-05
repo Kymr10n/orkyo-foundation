@@ -43,6 +43,14 @@ public sealed class BffOptions
     public string[] AllowedReturnToHosts { get; set; } = [];
 
     /// <summary>
+    /// The canonical public app origin (<c>APP_BASE_URL</c>), e.g. <c>https://orkyo.com</c>
+    /// or <c>http://localhost:5174</c>. Preferred base for default/error redirects because it
+    /// carries the PORT, which the host-only <see cref="AllowedReturnToHosts"/> list drops
+    /// (the cause of the <c>http://localhost/login</c> dead-end).
+    /// </summary>
+    public string AppBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>
     /// OIDC scopes requested during authorization.
     /// Defaults to <c>openid profile email</c>.
     /// Override via <c>BFF_SCOPES</c> environment variable to add scopes
@@ -87,13 +95,19 @@ public sealed class BffOptions
     }
 
     /// <summary>
-    /// Derives a default base URL (scheme + host) from the <see cref="RedirectUri"/>
-    /// and <see cref="AllowedReturnToHosts"/>. Used as a fallback for returnTo
-    /// when no explicit value is provided. Returns null if not derivable.
+    /// The default base URL for building default/error redirects (e.g. the SPA login page).
+    /// Prefers <see cref="AppBaseUrl"/> because it carries the port; otherwise derives
+    /// scheme + host from <see cref="RedirectUri"/> and <see cref="AllowedReturnToHosts"/>.
+    /// Returns null if not derivable.
     /// </summary>
     public string? GetDefaultReturnToBase()
     {
-        // Derive scheme from the redirect URI (http in dev, https in prod)
+        // Prefer the configured public app origin — it carries the port, which the host-only
+        // AllowedReturnToHosts list drops (the cause of the http://localhost/login dead-end).
+        if (!string.IsNullOrEmpty(AppBaseUrl))
+            return AppBaseUrl.TrimEnd('/');
+
+        // Fallback: derive scheme from the redirect URI (http in dev, https in prod)
         var scheme = "https";
         if (Uri.TryCreate(RedirectUri, UriKind.Absolute, out var redirectUri))
             scheme = redirectUri.Scheme;

@@ -30,7 +30,7 @@ vi.stubGlobal('localStorage', {
 // Prevent full-page redirects. Writable so individual tests can swap in a
 // location with a specific pathname/origin to exercise performLogin.
 Object.defineProperty(window, 'location', {
-  value: { href: 'http://localhost:5173', search: '', pathname: '/', origin: 'http://localhost:5173' },
+  value: { href: 'http://localhost:5173', search: '', pathname: '/', origin: 'http://localhost:5173', replace: vi.fn() },
   writable: true,
 });
 
@@ -83,15 +83,21 @@ vi.mock('@foundation/src/constants/auth', () => ({
 // Import after mocks are set up
 import { authMachine, getUrlAuthError } from './authMachine';
 
+/** The current window.location.replace spy — captured here (rather than read back off
+ *  window.location) to avoid the unbound-method lint on the DOM method reference. */
+let locationReplace = vi.fn<(url: string) => void>();
+
 /** Reset window.location to a known shape for a given path. */
 function setLocation(opts: { pathname?: string; href?: string; search?: string } = {}) {
   const pathname = opts.pathname ?? '/';
+  locationReplace = vi.fn<(url: string) => void>();
   Object.defineProperty(window, 'location', {
     value: {
       origin: 'http://localhost:5173',
       href: opts.href ?? `http://localhost:5173${pathname}`,
       search: opts.search ?? '',
       pathname,
+      replace: locationReplace,
     },
     writable: true,
     configurable: true,
@@ -591,7 +597,8 @@ describe('performLogin (redirecting_login entry)', () => {
     actor.start();
 
     await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
-    // href must be untouched — the page renders itself instead of redirecting.
+    // Location must be untouched — the page renders itself instead of redirecting.
+    expect(locationReplace).not.toHaveBeenCalled();
     expect(window.location.href).toBe('http://localhost:5173/signup');
     actor.stop();
   });
@@ -602,8 +609,9 @@ describe('performLogin (redirecting_login entry)', () => {
     actor.start();
 
     await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
-    expect(window.location.href).toContain('/api/auth/bff/login?returnTo=');
-    expect(window.location.href).toContain(
+    const redirectUrl = locationReplace.mock.calls[0]?.[0];
+    expect(redirectUrl).toContain('/api/auth/bff/login?returnTo=');
+    expect(redirectUrl).toContain(
       encodeURIComponent('http://localhost:5173/login?auto=1'),
     );
     actor.stop();
@@ -615,7 +623,8 @@ describe('performLogin (redirecting_login entry)', () => {
     actor.start();
 
     await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
-    expect(window.location.href).toContain(
+    const redirectUrl = locationReplace.mock.calls[0]?.[0];
+    expect(redirectUrl).toContain(
       encodeURIComponent('http://localhost:5173/account'),
     );
     actor.stop();

@@ -69,7 +69,7 @@ describe('LoginPage', () => {
     mockUseAuth.mockReturnValue(authState({ isAuthenticated: true }));
     renderLoginPage();
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/');
+      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
     });
     expect(mockLogin).not.toHaveBeenCalled();
   });
