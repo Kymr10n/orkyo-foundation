@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & API/placement discussion
+    url: https://github.com/Kymr10n/orkyo-foundation/discussions
+    about: Ask questions or discuss placement and API design — issues are for bugs in the shared library.
+  - name: Using or self-hosting Orkyo?
+    url: https://github.com/Kymr10n/orkyo-community
+    about: For install help and product issues, use the Community edition, not this shared library.
+  - name: Security vulnerability
+    url: https://github.com/Kymr10n/orkyo-foundation/security/policy
+    about: Report vulnerabilities privately — do not open a public issue.
