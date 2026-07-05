@@ -11,7 +11,7 @@ import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-as
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import { useNow } from "@foundation/src/hooks/useNow";
 import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
-import { getFetchWindow } from "@foundation/src/components/utilization/time-grid-utils";
+import { getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
@@ -140,6 +140,32 @@ export function UtilizationPage() {
   // the tenant-wide unscheduled backlog (drag source). The panel/lookups use the union; the grid
   // bars come from the scoped scheduled set.
   const { data: spaces = [], isLoading: spacesLoading } = useSpaces(selectedSiteId);
+  const handleToday = useCallback(() => {
+    setAnchorTs(new Date());
+    setTimeCursorTs(new Date());
+  }, [setAnchorTs, setTimeCursorTs]);
+
+  // The store's default anchor is a `new Date()` frozen at module load; a tab left open across midnight
+  // (or a long-lived HMR dev tab) drifts from the real today. Refresh a *stale* (past-day) anchor to now
+  // — mirroring "Today" — on open and each time the tab regains focus/visibility (the natural signal that
+  // the user returned), while leaving a current/future week the user navigated to untouched. Read the live
+  // store anchor via getState() so the listeners never close over a stale value.
+  useEffect(() => {
+    const snapIfStale = () => {
+      if (isAnchorStale(useAppStore.getState().anchorTs, new Date())) handleToday();
+    };
+    snapIfStale();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") snapIfStale();
+    };
+    window.addEventListener("focus", snapIfStale);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", snapIfStale);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [handleToday]);
+
   const fetchWindow = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
   const { data: rawScheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
   const { data: rawBacklog = [] } = useBacklogRequests();
@@ -304,11 +330,6 @@ export function UtilizationPage() {
 
   const handlePrevious = () => setAnchorTs(navigateTime(anchorTs, scale, -1));
   const handleNext = () => setAnchorTs(navigateTime(anchorTs, scale, 1));
-
-  const handleToday = () => {
-    setAnchorTs(new Date());
-    setTimeCursorTs(new Date());
-  };
 
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {

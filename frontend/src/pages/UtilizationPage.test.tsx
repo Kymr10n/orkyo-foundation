@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
@@ -48,35 +48,34 @@ const mockSetIsFloorplanCollapsed = vi.fn();
 const mockSetSelectedRequestId = vi.fn();
 const mockSetConflicts = vi.fn();
 
+// Single source of truth for the mocked store state, shared by the hook selector and getState()
+// (the stale-anchor reconcile effect reads the live anchor via useAppStore.getState()).
+const buildMockState = (): any => ({
+  selectedSiteId: "site-1",
+  conflicts: new Map(),
+  scale: "month" as const,
+  setScale: vi.fn(),
+  anchorTs: new Date("2024-01-15"),
+  setAnchorTs: mockSetAnchorTs,
+  timeCursorTs: new Date(),
+  setTimeCursorTs: mockSetTimeCursorTs,
+  isFloorplanCollapsed: false,
+  setIsFloorplanCollapsed: mockSetIsFloorplanCollapsed,
+  selectedRequestId: null,
+  setSelectedRequestId: mockSetSelectedRequestId,
+  setConflicts: mockSetConflicts,
+  spaceOrder: [],
+  setSpaceOrder: mockSetSpaceOrder,
+  ...mockStoreOverrides,
+});
+
 vi.mock("@foundation/src/store/app-store", () => ({
   useAppStore: Object.assign(
     vi.fn((selector: any) => {
-      const mockState: any = {
-        selectedSiteId: "site-1",
-        conflicts: new Map(),
-        scale: "month" as const,
-        setScale: vi.fn(),
-        anchorTs: new Date("2024-01-15"),
-        setAnchorTs: mockSetAnchorTs,
-        timeCursorTs: new Date(),
-        setTimeCursorTs: mockSetTimeCursorTs,
-        isFloorplanCollapsed: false,
-        setIsFloorplanCollapsed: mockSetIsFloorplanCollapsed,
-        selectedRequestId: null,
-        setSelectedRequestId: mockSetSelectedRequestId,
-        setConflicts: mockSetConflicts,
-        spaceOrder: [],
-        setSpaceOrder: mockSetSpaceOrder,
-        ...mockStoreOverrides,
-      };
+      const mockState = buildMockState();
       return selector ? selector(mockState) : mockState;
     }),
-    {
-      getState: () => ({
-        spaceOrder: mockStoreOverrides.spaceOrder ?? [],
-        setSpaceOrder: mockSetSpaceOrder,
-      }),
-    },
+    { getState: () => buildMockState() },
   ),
 }));
 
@@ -439,6 +438,53 @@ describe("UtilizationPage", () => {
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("nav-today"));
     expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+
+  // --- Stale-anchor reconcile (frozen default anchor drifts on a long-lived tab) ---
+  // The store default is a `new Date()` frozen at module load; the effect snaps a *past-day* anchor to
+  // today on open and whenever the tab regains focus/visibility, while preserving a future navigation.
+
+  const lastSnappedToToday = (mock: typeof mockSetAnchorTs) => {
+    // The snap passes `new Date()`; assert the most recent arg is the current calendar day
+    // (not the stale 2024 default).
+    const arg = mock.mock.calls.at(-1)?.[0];
+    return arg instanceof Date && arg.toDateString() === new Date().toDateString();
+  };
+
+  it("snaps a stale anchor to today on open", () => {
+    // Default mock anchor is 2024-01-15 → stale relative to now.
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    expect(lastSnappedToToday(mockSetAnchorTs)).toBe(true);
+    expect(lastSnappedToToday(mockSetTimeCursorTs)).toBe(true);
+  });
+
+  it("re-snaps a stale anchor when the window regains focus", () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    mockSetAnchorTs.mockClear(); // ignore the on-open snap; isolate the focus listener
+    act(() => { window.dispatchEvent(new Event("focus")); });
+    expect(mockSetAnchorTs).toHaveBeenCalled();
+    expect(lastSnappedToToday(mockSetAnchorTs)).toBe(true);
+  });
+
+  it("re-snaps a stale anchor when the tab becomes visible", () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    mockSetAnchorTs.mockClear();
+    // jsdom defaults document.visibilityState to "visible".
+    act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+    expect(mockSetAnchorTs).toHaveBeenCalled();
+    expect(lastSnappedToToday(mockSetAnchorTs)).toBe(true);
+  });
+
+  it("preserves a current/future anchor (no snap on open or focus)", () => {
+    mockStoreOverrides = { anchorTs: new Date(Date.now() + 7 * 86_400_000) }; // next week
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    act(() => { window.dispatchEvent(new Event("focus")); });
+    expect(mockSetAnchorTs).not.toHaveBeenCalled();
+    expect(mockSetTimeCursorTs).not.toHaveBeenCalled();
   });
 
   // --- Floorplan toggle ---

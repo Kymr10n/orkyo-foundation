@@ -3,6 +3,7 @@ import {
   coversOffTimeRange,
   generateTimeColumns,
   getFetchWindow,
+  isAnchorStale,
   overlapsOffTimeRange,
   parseTimeToHour,
   resolveColumnStartMs,
@@ -192,6 +193,22 @@ describe("time-grid-utils", () => {
     const span = (w: { from: Date; to: Date }) => w.to.getTime() - w.from.getTime();
     expect(span(month)).toBeGreaterThan(span(week));
     expect(span(year)).toBeGreaterThan(span(month));
+  });
+
+  describe("isAnchorStale", () => {
+    // Local-time constructors (month is 0-indexed → 6 = July) so `startOfDay` (local) is timezone-stable.
+    const now = new Date(2026, 6, 5, 9, 30);
+    it("is true when the anchor's day is before today", () => {
+      expect(isAnchorStale(new Date(2026, 6, 4, 23, 59), now)).toBe(true);
+      expect(isAnchorStale(new Date(2026, 5, 29), now)).toBe(true);
+    });
+    it("is false earlier the same day (only the calendar day matters)", () => {
+      expect(isAnchorStale(new Date(2026, 6, 5, 0, 0), now)).toBe(false);
+      expect(isAnchorStale(new Date(2026, 6, 5, 9, 29), now)).toBe(false);
+    });
+    it("is false for a future anchor", () => {
+      expect(isAnchorStale(new Date(2026, 6, 6), now)).toBe(false);
+    });
   });
 
   describe("viewPositionPercent", () => {

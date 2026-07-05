@@ -63,6 +63,15 @@ export function getFetchWindow(scale: TimeScale, anchorTs: Date): { from: Date; 
 }
 
 /**
+ * True when the stored view anchor's calendar day is before `now` — i.e. a default `new Date()` that was
+ * frozen on a prior day (a tab left open across midnight, or a long-lived HMR dev tab) and should refresh
+ * to today when the board is re-opened. A same-day or future anchor is preserved.
+ */
+export function isAnchorStale(anchorTs: Date, now: Date): boolean {
+  return startOfDay(anchorTs).getTime() < startOfDay(now).getTime();
+}
+
+/**
  * Position of an instant within a half-open `[startMs, endMs)` view range, as a 0–100 percentage for
  * absolute placement over the time track. Returns `null` when the instant is outside the range so a
  * caller (e.g. the "now" line) can hide its marker rather than clamp it to an edge.
