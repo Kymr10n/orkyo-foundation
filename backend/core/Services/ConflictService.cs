@@ -107,7 +107,7 @@ public class ConflictService(
                 yield return new ConflictInfo
                 {
                     Id = $"{request.Id}-{requirement.CriterionId}-capability",
-                    Kind = "connector_mismatch",
+                    Kind = ConflictKinds.ConnectorMismatch,
                     Severity = "error",
                     Message = $"No assigned resource provides '{requirement.Criterion?.Name ?? "a required capability"}'",
                     CriterionId = requirement.CriterionId,
@@ -155,7 +155,7 @@ public class ConflictService(
                     return new ConflictInfo
                     {
                         Id = $"{requestId}-overlap-{caId}",
-                        Kind = "overlap",
+                        Kind = ConflictKinds.Overlap,
                         Severity = "error",
                         Message = issue.Message,
                         PeerRequestId = peer == Guid.Empty ? null : peer,
@@ -165,7 +165,7 @@ public class ConflictService(
                 return new ConflictInfo
                 {
                     Id = $"{requestId}-{issue.ResourceId}-capacity-exceeded",
-                    Kind = "capacity_exceeded",
+                    Kind = ConflictKinds.CapacityExceeded,
                     Severity = "error",
                     Message = issue.Message,
                     ResourceId = issue.ResourceId,
@@ -177,7 +177,7 @@ public class ConflictService(
                 return new ConflictInfo
                 {
                     Id = $"{requestId}-{issue.ResourceId}-{issue.Code}-offtime",
-                    Kind = "starts_in_off_time",
+                    Kind = ConflictKinds.StartsInOffTime,
                     Severity = "warning",
                     Message = issue.Message,
                     ResourceId = issue.ResourceId,
@@ -189,7 +189,7 @@ public class ConflictService(
                 return new ConflictInfo
                 {
                     Id = $"{requestId}-{issue.ResourceId}-site",
-                    Kind = "site_mismatch",
+                    Kind = ConflictKinds.SiteMismatch,
                     // Cross-site-allowed person mismatch is advisory; space/not-allowed are errors.
                     Severity = issue.Code == ValidationReasonCode.SiteMismatchPerson ? "warning" : "error",
                     Message = issue.Message,
@@ -214,7 +214,7 @@ public class ConflictService(
             yield return new ConflictInfo
             {
                 Id = $"{request.Id}-below-min-duration",
-                Kind = "below_min_duration",
+                Kind = ConflictKinds.BelowMinDuration,
                 Severity = "error",
                 Message = "Duration is below the required minimum",
             };
@@ -223,7 +223,7 @@ public class ConflictService(
             yield return new ConflictInfo
             {
                 Id = $"{request.Id}-before-earliest-start",
-                Kind = "before_earliest_start",
+                Kind = ConflictKinds.BeforeEarliestStart,
                 Severity = "error",
                 Message = "Starts before the earliest allowed start",
             };
@@ -232,7 +232,7 @@ public class ConflictService(
             yield return new ConflictInfo
             {
                 Id = $"{request.Id}-after-latest-end",
-                Kind = "after_latest_end",
+                Kind = ConflictKinds.AfterLatestEnd,
                 Severity = "error",
                 Message = "Ends after the latest allowed end",
             };

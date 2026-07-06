@@ -1,4 +1,5 @@
 using Api.Helpers;
+using Api.Constants;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Models;
@@ -339,7 +340,7 @@ public static class UserAdminEndpoints
             }
         }
 
-        await userService.SetGlobalStatusAsync(userId, "disabled", ct);
+        await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Disabled, ct);
         logger.LogInformation("Admin {AdminId} deactivated user {UserId}", principal.UserId, userId);
         return Results.NoContent();
     }
@@ -366,7 +367,7 @@ public static class UserAdminEndpoints
             }
         }
 
-        await userService.SetGlobalStatusAsync(userId, "active");
+        await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Active);
         logger.LogInformation("Admin {AdminId} reactivated user {UserId}", principal.UserId, userId);
         return Results.NoContent();
     }

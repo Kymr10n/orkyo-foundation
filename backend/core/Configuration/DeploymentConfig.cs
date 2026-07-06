@@ -71,7 +71,7 @@ public sealed record DeploymentConfig
         ConfigKeys.KeycloakBackendClientSecret,
 
         // Database
-        "ConnectionStrings:Postgres",
+        ConfigKeys.ConnectionStringPostgresPath,
 
         // Encryption
         ConfigKeys.MasterEncryptionKey,
@@ -122,12 +122,12 @@ public sealed record DeploymentConfig
             KeycloakBackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
             KeycloakBackendClientSecret = Require(ConfigKeys.KeycloakBackendClientSecret),
 
-            PostgresConnectionString = Require("ConnectionStrings:Postgres"),
+            PostgresConnectionString = Require(ConfigKeys.ConnectionStringPostgresPath),
 
             MasterEncryptionKey = Require(ConfigKeys.MasterEncryptionKey),
 
-            LogLevel = configuration["Logging:LogLevel:Default"] ?? "Information",
-            Version = configuration["ORKYO_VERSION"],
+            LogLevel = configuration[ConfigKeys.LoggingLevelDefault] ?? "Information",
+            Version = configuration[ConfigKeys.OrkyoVersion],
         };
 
         // Fail fast at startup on a malformed master key (invalid base64 / not 32 bytes) — matches the
@@ -172,6 +172,15 @@ public sealed record DeploymentConfig
                 $"{ConfigKeys.MasterEncryptionKey} must decode to exactly 32 bytes (got {key.Length}).");
         return key;
     }
+
+    /// <summary>
+    /// The record-generated ToString would print every property, secrets included —
+    /// one careless <c>logger.LogInformation("{Config}", config)</c> would dump the
+    /// Keycloak client secret, SMTP password, master key, and connection string to the
+    /// log sink. Render the redacted view instead so the object is safe to log wholesale.
+    /// </summary>
+    public override string ToString() =>
+        $"DeploymentConfig {{ {string.Join(", ", Redacted().Select(kv => $"{kv.Key} = {kv.Value}"))} }}";
 
     /// <summary>
     /// Returns a dictionary of all properties with secrets masked as "***".

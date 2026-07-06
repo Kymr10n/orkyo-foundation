@@ -78,7 +78,7 @@ public class SessionService : ISessionService
             TosRequired = tosRequired,
             RequiredTosVersion = requiredTosVersion,
             Tenants = memberships,
-            SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == "active")?.Slug
+            SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == MembershipStatusConstants.Active)?.Slug
         };
     }
 
@@ -122,7 +122,7 @@ public class SessionService : ISessionService
             TosRequired = tosRequired,
             RequiredTosVersion = requiredTosVersion,
             Tenants = memberships,
-            SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == "active")?.Slug
+            SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == MembershipStatusConstants.Active)?.Slug
         };
     }
 

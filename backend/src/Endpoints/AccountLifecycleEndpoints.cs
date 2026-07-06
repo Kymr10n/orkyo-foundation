@@ -72,7 +72,8 @@ public static class AccountLifecycleEndpoints
 
                 if (record is null)
                 {
-                    logger.LogWarning("confirm-activity: token not found or already used: {Token}", token);
+                    logger.LogWarning("confirm-activity: token not found or already used: {TokenPrefix}",
+                        token.Length > 8 ? token[..8] : "***");
                     return Results.Redirect($"{appBaseUrl}?lifecycle=expired");
                 }
 

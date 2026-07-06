@@ -4,6 +4,7 @@ using Api.Models;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
+using Orkyo.Shared;
 
 namespace Api.Services.Reporting;
 
@@ -97,8 +98,8 @@ public sealed class ReportingTokenService : IReportingTokenService
     {
         _db = db;
         _logger = logger;
-        var pepperValue = configuration["REPORTING_TOKEN_PEPPER"]
-            ?? configuration["KEYCLOAK_BACKEND_CLIENT_SECRET"]
+        var pepperValue = configuration[ConfigKeys.ReportingTokenPepper]
+            ?? configuration[ConfigKeys.KeycloakBackendClientSecret]
             ?? "dev-only-insecure-pepper-change-in-prod";
         _pepper = Encoding.UTF8.GetBytes(pepperValue);
     }

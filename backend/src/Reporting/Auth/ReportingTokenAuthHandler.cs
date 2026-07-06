@@ -14,6 +14,10 @@ namespace Api.Reporting.Auth;
 public sealed class ReportingTokenAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "ReportingToken";
+
+    /// <summary>Authorization policy name gating reporting endpoints (same literal as the scheme).</summary>
+    public const string PolicyName = SchemeName;
+
     public const string TokenPrefix = "orkyo_rpt_";
 
     private readonly IReportingTokenService _tokenService;

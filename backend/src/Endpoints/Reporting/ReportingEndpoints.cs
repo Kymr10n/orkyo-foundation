@@ -21,7 +21,7 @@ public static class ReportingEndpoints
     public static void MapReportingEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/reporting/v1")
-            .RequireAuthorization("ReportingToken")
+            .RequireAuthorization(ReportingTokenAuthHandler.PolicyName)
             .RequireRateLimiting(FoundationRateLimitPolicies.ReportingApi)
             .WithTags("Reporting API");
 

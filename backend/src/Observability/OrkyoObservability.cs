@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.Grafana.Loki;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Observability;
 
@@ -43,7 +44,7 @@ public static class OrkyoObservability
                .Enrich.WithProperty("service", serviceName)
                .WriteTo.Console();
 
-            var lokiUrl = Environment.GetEnvironmentVariable("LOKI_URL");
+            var lokiUrl = Environment.GetEnvironmentVariable(ConfigKeys.LokiUrl);
             if (!string.IsNullOrWhiteSpace(lokiUrl))
             {
                 cfg.WriteTo.GrafanaLoki(

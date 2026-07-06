@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Orkyo.Shared;
 
 namespace Api.Middleware;
 
@@ -7,7 +8,7 @@ public static class TenantMiddlewareOptionsFactory
     public static TenantMiddlewareOptions FromConfiguration(IConfiguration configuration)
     {
         var options = new TenantMiddlewareOptions();
-        configuration.GetSection("TenantResolution").Bind(options);
+        configuration.GetSection(ConfigKeys.TenantResolutionSection).Bind(options);
         return options;
     }
 }

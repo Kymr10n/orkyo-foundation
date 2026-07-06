@@ -1,4 +1,6 @@
 using Api.Endpoints;
+using Api.Constants;
+using Api.Integrations.Keycloak;
 using Api.Reporting.Auth;
 using Api.Security;
 using Microsoft.AspNetCore.Authentication;
@@ -64,7 +66,7 @@ public static class AuthenticationServiceExtensions
             options.Authority = oidcAuthority;
             // Disable claim type remapping so JWT claim names (sub, email, etc.)
             // are preserved as-is. Without this, ASP.NET Core maps "sub" to
-            // ClaimTypes.NameIdentifier, breaking FindFirst("sub").
+            // ClaimTypes.NameIdentifier, breaking FindFirst(KeycloakClaims.Subject).
             options.MapInboundClaims = false;
 
             if (!string.IsNullOrEmpty(metadataAddress))
@@ -89,8 +91,8 @@ public static class AuthenticationServiceExtensions
                 ValidAudiences = [oidcClientId, "account"],
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                NameClaimType = "preferred_username",
-                RoleClaimType = "realm_access.roles",
+                NameClaimType = KeycloakClaims.PreferredUsername,
+                RoleClaimType = KeycloakClaims.RealmRolesClaim,
                 ClockSkew = TimeSpan.FromSeconds(30),
             };
 
@@ -108,7 +110,7 @@ public static class AuthenticationServiceExtensions
                 {
                     var logger = context.HttpContext.RequestServices
                         .GetRequiredService<ILogger<EndpointLoggerCategory>>();
-                    var sub = context.Principal?.FindFirst("sub")?.Value ?? "(none)";
+                    var sub = context.Principal?.FindFirst(KeycloakClaims.Subject)?.Value ?? "(none)";
                     logger.LogDebug("Token validated for subject {Sub}", sub);
                     return Task.CompletedTask;
                 }
@@ -123,7 +125,7 @@ public static class AuthenticationServiceExtensions
                     options.ForwardDefaultSelector = context =>
                     {
                         // Authorization header present → use JWT Bearer
-                        if (context.Request.Headers.ContainsKey("Authorization"))
+                        if (context.Request.Headers.ContainsKey(HeaderConstants.Authorization))
                             return JwtBearerDefaults.AuthenticationScheme;
 
                         // BFF session cookie present → use BFF cookie handler
@@ -144,7 +146,7 @@ public static class AuthenticationServiceExtensions
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy("ReportingToken", policy =>
+            options.AddPolicy(ReportingTokenAuthHandler.PolicyName, policy =>
             {
                 policy.AddAuthenticationSchemes(ReportingTokenAuthHandler.SchemeName);
                 policy.RequireAuthenticatedUser();

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Api.Constants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 
@@ -18,14 +19,14 @@ public sealed class SecurityHeadersMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var headers = context.Response.Headers;
-        headers["X-Content-Type-Options"] = "nosniff";
-        headers["X-Frame-Options"] = "DENY";
-        headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        headers["X-Permitted-Cross-Domain-Policies"] = "none";
-        headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
-        headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
+        headers[HeaderConstants.XContentTypeOptions] = "nosniff";
+        headers[HeaderConstants.XFrameOptions] = "DENY";
+        headers[HeaderConstants.ReferrerPolicy] = "strict-origin-when-cross-origin";
+        headers[HeaderConstants.XPermittedCrossDomainPolicies] = "none";
+        headers[HeaderConstants.ContentSecurityPolicy] = "default-src 'none'; frame-ancestors 'none'";
+        headers[HeaderConstants.PermissionsPolicy] = "camera=(), microphone=(), geolocation=(), payment=()";
         if (_isProduction)
-            headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+            headers[HeaderConstants.StrictTransportSecurity] = "max-age=31536000; includeSubDomains";
 
         await _next(context);
     }

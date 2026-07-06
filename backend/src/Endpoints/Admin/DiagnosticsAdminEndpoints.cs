@@ -6,6 +6,7 @@ using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Orkyo.Shared;
 
 namespace Api.Endpoints.Admin;
 
@@ -18,7 +19,7 @@ public static class DiagnosticsAdminEndpoints
             Results.Ok(new
             {
                 version = deploymentConfig.Version ?? "unknown",
-                build = Environment.GetEnvironmentVariable("ORKYO_BUILD_SHA") ?? "unknown",
+                build = Environment.GetEnvironmentVariable(ConfigKeys.OrkyoBuildSha) ?? "unknown",
             }))
             .AsInfrastructureEndpoint()
             .WithTags("Infrastructure")
@@ -145,14 +146,14 @@ public static class DiagnosticsAdminEndpoints
 
         // ── Modules ─────────────────────────────────────────────────────
         var observabilityEnabled = !string.IsNullOrWhiteSpace(
-            Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT"));
+            Environment.GetEnvironmentVariable(ConfigKeys.OtelExporterOtlpEndpoint));
         var lokiEnabled = !string.IsNullOrWhiteSpace(
-            Environment.GetEnvironmentVariable("LOKI_URL"));
+            Environment.GetEnvironmentVariable(ConfigKeys.LokiUrl));
 
         return Results.Ok(new DiagnosticsResponse
         {
             Version = deploymentConfig.Version ?? "unknown",
-            Build = Environment.GetEnvironmentVariable("ORKYO_BUILD_SHA") ?? "unknown",
+            Build = Environment.GetEnvironmentVariable(ConfigKeys.OrkyoBuildSha) ?? "unknown",
             DeploymentMode = "self-hosted",
             LogLevel = deploymentConfig.LogLevel,
             Database = new DatabaseStatus

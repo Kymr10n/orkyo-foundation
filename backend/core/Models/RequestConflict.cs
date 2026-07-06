@@ -3,8 +3,9 @@ namespace Api.Models;
 /// <summary>
 /// One conflict on a request, shaped to match the frontend `Conflict` type so the conflicts
 /// registry can be consumed directly. <see cref="Kind"/> / <see cref="Severity"/> are the FE
-/// string unions (e.g. "connector_mismatch", "overlap", "capacity_exceeded", "starts_in_off_time",
-/// "below_min_duration", "before_earliest_start", "after_latest_end"; "warning" | "error").
+/// string unions. <see cref="Kind"/> values are the <c>Api.Constants.ConflictKinds</c> constants
+/// (connector_mismatch, overlap, capacity_exceeded, starts_in_off_time, site_mismatch,
+/// below_min_duration, before_earliest_start, after_latest_end); severity is "warning" | "error".
 /// </summary>
 public record ConflictInfo
 {

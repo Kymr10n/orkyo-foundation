@@ -10,8 +10,18 @@ public static class ConfigKeys
     public const string AspNetCoreEnvironment = "ASPNETCORE_ENVIRONMENT";
 
     // ── Connection strings ──────────────────────────────────────────────────
+    // Three shapes per connection, by consumer:
+    //  - short name           → configuration.GetConnectionString(...)
+    //  - "ConnectionStrings:" → configuration[...] indexer / Require(...)
+    //  - "ConnectionStrings__"→ Environment.GetEnvironmentVariable(...) (ASP.NET env-var convention)
     public const string ConnectionStringPostgres = "Postgres";
     public const string ConnectionStringControlPlane = "ControlPlane";
+    public const string ConnectionStringPostgresPath = "ConnectionStrings:Postgres";
+    public const string ConnectionStringControlPlanePath = "ConnectionStrings:ControlPlane";
+    public const string ConnectionStringPostgresEnvVar = "ConnectionStrings__Postgres";
+    public const string ConnectionStringControlPlaneEnvVar = "ConnectionStrings__ControlPlane";
+    /// <summary>Legacy alias for <see cref="ConnectionStringControlPlaneEnvVar"/> still honored by the migrator.</summary>
+    public const string ControlPlaneConnectionLegacyEnvVar = "CONTROL_PLANE_CONNECTION_STRING";
     public const string ConnectionStringValkey = "ConnectionStrings:Valkey";
     public const string ValkeyConnection = "VALKEY_CONNECTION";
 
@@ -49,6 +59,7 @@ public static class ConfigKeys
     public const string InitialAdminEmail = "INITIAL_ADMIN_EMAIL";
 
     // ── Tenant resolution ───────────────────────────────────────────────────
+    public const string TenantResolutionSection = "TenantResolution";
     public const string TenantResolutionBaseDomain = "TenantResolution:BaseDomain";
     public const string TenantResolutionSubdomainPrefix = "TenantResolution:SubdomainPrefix";
     public const string TenantResolutionAllowTenantHeader = "TenantResolution:AllowTenantHeader";
@@ -71,10 +82,21 @@ public static class ConfigKeys
     /// <summary>Base64-encoded 32-byte AES-256 master key for application-level field/blob encryption.</summary>
     public const string MasterEncryptionKey = "ORKYO_MASTER_ENCRYPTION_KEY";
 
+    /// <summary>Pepper for reporting-token hashing; falls back to <see cref="KeycloakBackendClientSecret"/>.</summary>
+    public const string ReportingTokenPepper = "REPORTING_TOKEN_PEPPER";
+
+    /// <summary>Disables the rate limiter (test/dev only). Read by both product Program.cs and test factories.</summary>
+    public const string DisableRateLimiting = "DISABLE_RATE_LIMITING";
+
     // ── Observability ───────────────────────────────────────────────────────
     public const string OtelExporterOtlpEndpoint = "OTEL_EXPORTER_OTLP_ENDPOINT";
     public const string LokiUrl = "LOKI_URL";
     public const string MetricsToken = "METRICS_TOKEN";
+    public const string LoggingLevelDefault = "Logging:LogLevel:Default";
+
+    // ── Version / build info ────────────────────────────────────────────────
+    public const string OrkyoVersion = "ORKYO_VERSION";
+    public const string OrkyoBuildSha = "ORKYO_BUILD_SHA";
 
     // ── Notifications ───────────────────────────────────────────────────────
     public const string AlertEmailTo = "ALERT_EMAIL_TO";
