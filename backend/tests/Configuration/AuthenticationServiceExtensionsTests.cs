@@ -124,9 +124,52 @@ public class AuthenticationServiceExtensionsTests
         options.TokenValidationParameters.ValidIssuer.Should().Be("https://auth.example.com/realms/orkyo");
     }
 
+    // ── Idempotency ───────────────────────────────────────────────────────────
+    // Products call AddOrkyoAuthentication explicitly in Program.cs (per their
+    // explicit-registration rule) while AddFoundationServices also calls it. The
+    // guard makes the second call a no-op instead of re-adding the Bearer scheme.
+
+    [Fact]
+    public void AddOrkyoAuthentication_SecondCallIsNoOp()
+    {
+        var config = BuildConfig(
+            oidcAuthority: "https://auth.example.com/realms/orkyo",
+            internalAuthority: null);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(config);
+
+        services.AddOrkyoAuthentication(config);
+        var countAfterFirstCall = services.Count;
+        services.AddOrkyoAuthentication(config);
+
+        services.Count.Should().Be(countAfterFirstCall);
+    }
+
+    [Fact]
+    public async Task AddOrkyoAuthentication_CalledTwice_BearerSchemeStillResolves()
+    {
+        // Without the guard the second call re-adds the Bearer scheme and the
+        // scheme provider throws "Scheme already exists: Bearer" at resolution.
+        var config = BuildConfig(
+            oidcAuthority: "https://auth.example.com/realms/orkyo",
+            internalAuthority: null);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(config);
+        services.AddOrkyoAuthentication(config);
+        services.AddOrkyoAuthentication(config);
+
+        var provider = services.BuildServiceProvider();
+        var schemeProvider = provider.GetRequiredService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>();
+        var scheme = await schemeProvider.GetSchemeAsync(JwtBearerDefaults.AuthenticationScheme);
+
+        scheme.Should().NotBeNull();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static JwtBearerOptions BuildJwtOptions(string oidcAuthority, string? internalAuthority)
+    private static IConfiguration BuildConfig(string oidcAuthority, string? internalAuthority)
     {
         var values = new Dictionary<string, string?>
         {
@@ -136,9 +179,14 @@ public class AuthenticationServiceExtensionsTests
         if (internalAuthority != null)
             values[ConfigKeys.OidcInternalAuthority] = internalAuthority;
 
-        var config = new ConfigurationBuilder()
+        return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
+    }
+
+    private static JwtBearerOptions BuildJwtOptions(string oidcAuthority, string? internalAuthority)
+    {
+        var config = BuildConfig(oidcAuthority, internalAuthority);
 
         var services = new ServiceCollection();
         services.AddLogging();
