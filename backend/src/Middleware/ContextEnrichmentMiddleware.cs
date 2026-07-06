@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Api.Constants;
 using Api.Integrations.Keycloak;
 using Api.Security;
 using Api.Services;
@@ -76,7 +77,7 @@ public sealed class ContextEnrichmentMiddleware
         currentPrincipal.SetContext(principal);
 
         // Step 2: Get tenant context (already resolved by TenantMiddleware)
-        var tenantContext = context.Items["TenantContext"] as TenantContext;
+        var tenantContext = context.Items[HttpContextItemKeys.TenantContext] as TenantContext;
         if (tenantContext != null)
         {
             currentTenant.SetContext(tenantContext);

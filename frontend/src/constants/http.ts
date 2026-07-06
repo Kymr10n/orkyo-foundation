@@ -15,4 +15,8 @@ export const CORRELATION_ID_HEADER_NAME = ApiHeaders.CorrelationId;
 export const COOKIE_NAMES = {
   /** Shares resolved theme (dark/light) with Keycloak login pages */
   THEME: 'orkyo-theme',
+  /** CSRF double-submit token set by the BFF callback (NOT HttpOnly) */
+  CSRF: 'orkyo-csrf',
+  /** Short-lived cross-subdomain cookie carrying a break-glass session */
+  BREAK_GLASS: 'orkyo-break-glass',
 } as const;

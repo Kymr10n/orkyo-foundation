@@ -8,6 +8,7 @@ import {
   getResourceCapabilities,
   upsertResourceCapability,
 } from '@foundation/src/lib/api/resource-capabilities-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import type { Criterion, CriterionValue } from '@foundation/src/types/criterion';
 import { logger } from '@foundation/src/lib/core/logger';
 import { CreateCriterionDialog } from '../settings/CreateCriterionDialog';
@@ -40,7 +41,7 @@ export function PersonSkillsEditor({
   const queryClient = useQueryClient();
 
   const { data: caps, isLoading: capsLoading, error: capsError } = useQuery({
-    queryKey: ['resource-capabilities', resourceId],
+    queryKey: qk.resources.capabilities(resourceId),
     queryFn: () => getResourceCapabilities(resourceId),
     enabled: open,
   });
@@ -73,7 +74,7 @@ export function PersonSkillsEditor({
     meta: {
       successMessage: 'Skills saved',
       errorMessage: 'Failed to save skills',
-      invalidates: [['resource-capabilities', resourceId]],
+      invalidates: [qk.resources.capabilities(resourceId)],
     },
     onSuccess: () => {
       setSaveError(null);

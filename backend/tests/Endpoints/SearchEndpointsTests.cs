@@ -232,7 +232,7 @@ public class SearchEndpointsTests
     {
         // RequireAuthorization() rejects requests with no Bearer token.
         var clientWithoutBearer = _fixture.Factory.CreateClient();
-        clientWithoutBearer.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        clientWithoutBearer.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         // No Authorization header
 
         var response = await clientWithoutBearer.GetAsync("/api/search?q=test");

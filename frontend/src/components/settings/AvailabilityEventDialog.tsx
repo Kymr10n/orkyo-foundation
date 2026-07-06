@@ -41,6 +41,7 @@ import {
   type CreateAvailabilityEventRequest,
   type UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 interface ScopeDraft {
   targetType: ScopeTargetType;
@@ -103,12 +104,12 @@ function toDateTimeLocal(iso: string): string {
 
 function useScopePickerOptions() {
   const { data: resources } = useQuery({
-    queryKey: ["resources-all"],
+    queryKey: qk.resources.allFlat(),
     queryFn: () => getResources({ isActive: true }).then((r) => r.data),
     staleTime: 60_000,
   });
   const { data: groups } = useQuery({
-    queryKey: ["resource-groups-all"],
+    queryKey: qk.resourceGroups.allFlat(),
     queryFn: async () => {
       const types = await apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES);
       const allGroups = await Promise.all(
@@ -489,7 +490,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
   };
 
   const invalidateEvent = () => {
-    void queryClient.invalidateQueries({ queryKey: ["availability-events"] });
+    void queryClient.invalidateQueries({ queryKey: qk.scheduling.availabilityEventsAll() });
   };
 
   return (

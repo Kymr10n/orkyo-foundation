@@ -18,6 +18,7 @@ import {
   type DepartmentInfo,
   type DepartmentTreeNode,
 } from '@foundation/src/lib/api/departments-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 /** Structural subset shared by DepartmentInfo and DepartmentTreeNode. */
 type EditableDepartment = Pick<
@@ -97,7 +98,7 @@ export function DepartmentEditDialog({
   const [error, setError] = useState<string | null>(null);
 
   const { data: tree = [] } = useQuery({
-    queryKey: ['departments', 'tree', { includeInactive: false }],
+    queryKey: qk.departments.tree(false),
     queryFn: () => getDepartmentTree(false),
     enabled: open,
   });
@@ -140,7 +141,7 @@ export function DepartmentEditDialog({
     meta: {
       successMessage: department ? 'Department updated' : 'Department created',
       errorMessage: department ? 'Failed to update department' : 'Failed to create department',
-      invalidates: [['departments']],
+      invalidates: [qk.departments.all()],
     },
     onSuccess: (saved) => {
       setError(null);

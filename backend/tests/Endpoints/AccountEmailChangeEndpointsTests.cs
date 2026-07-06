@@ -33,7 +33,7 @@ public class AccountEmailChangeEndpointsTests
             AllowAutoRedirect = false
         });
         _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", TestConstants.TenantSlug);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ public class AccountEmailChangeEndpointsTests
             new HttpRequestMessage(HttpMethod.Post, "/api/account/email")
             {
                 Content = JsonContent.Create(new { newEmail = "new@example.com" }),
-                Headers = { { "X-Tenant-Slug", TestConstants.TenantSlug } }
+                Headers = { { HeaderConstants.TenantSlug, TestConstants.TenantSlug } }
             });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

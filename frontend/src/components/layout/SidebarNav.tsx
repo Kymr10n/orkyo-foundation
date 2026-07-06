@@ -2,6 +2,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
 import {
   Box,
@@ -25,8 +26,8 @@ const coreNavItems = [
 ];
 
 // Settings visible to editors and admins; Administration to tenant admins only.
-const settingsNavItem = { to: "/settings", label: "Settings", icon: Settings };
-const adminNavItem = { to: "/tenant-admin", label: "Administration", icon: ShieldCheck };
+const settingsNavItem = { to: ROUTE_SETTINGS, label: "Settings", icon: Settings };
+const adminNavItem = { to: ROUTE_TENANT_ADMIN, label: "Administration", icon: ShieldCheck };
 
 interface SidebarNavProps {
   /**

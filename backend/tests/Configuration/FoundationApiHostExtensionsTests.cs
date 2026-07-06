@@ -46,7 +46,7 @@ public class FoundationApiHostCorsTests
 
     private static CorsPolicy ResolvePolicy(
         Dictionary<string, string?> settings,
-        string environmentName = "Production",
+        string environmentName = EnvironmentNames.Production,
         bool allowBaseDomainSubdomains = true)
     {
         var provider = BuildProvider(settings, environmentName, allowBaseDomainSubdomains);
@@ -66,7 +66,7 @@ public class FoundationApiHostCorsTests
     {
         var configuration = new ConfigurationBuilder().Build();
         var env = new Mock<IWebHostEnvironment>();
-        env.SetupGet(e => e.EnvironmentName).Returns("Development");
+        env.SetupGet(e => e.EnvironmentName).Returns(EnvironmentNames.Development);
         var services = new ServiceCollection();
 
         var returned = services.AddOrkyoApiCors(configuration, env.Object);
@@ -103,7 +103,7 @@ public class FoundationApiHostCorsTests
 
         policy.SupportsCredentials.Should().BeTrue();
         policy.Methods.Should().Contain(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
-        policy.Headers.Should().Contain("Authorization");
+        policy.Headers.Should().Contain(HeaderConstants.Authorization);
     }
 
     // ── Wildcard subdomain matching (base domain) ──────────────────────────────
@@ -186,7 +186,7 @@ public class FoundationApiHostCorsTests
     [Fact]
     public void Production_NoOriginsAndNoBaseDomain_ThrowsAtStartup()
     {
-        var provider = BuildProvider(new Dictionary<string, string?>(), "Production", allowBaseDomainSubdomains: true);
+        var provider = BuildProvider(new Dictionary<string, string?>(), EnvironmentNames.Production, allowBaseDomainSubdomains: true);
 
         Action act = () => _ = provider.GetRequiredService<IOptions<CorsOptions>>().Value;
 
@@ -197,7 +197,7 @@ public class FoundationApiHostCorsTests
     [Fact]
     public void NonProduction_NoOriginsAndNoBaseDomain_AllowsAnyOrigin()
     {
-        var policy = ResolvePolicy(new Dictionary<string, string?>(), environmentName: "Development");
+        var policy = ResolvePolicy(new Dictionary<string, string?>(), environmentName: EnvironmentNames.Development);
 
         policy.AllowAnyOrigin.Should().BeTrue();
     }

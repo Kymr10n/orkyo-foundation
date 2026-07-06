@@ -129,4 +129,35 @@ public class ConstantContractTests
     [InlineData(PlanningModes.Container, PlanningMode.Container)]
     public void PlanningModes_ShouldEqualEnumDbValue(string constant, PlanningMode value) =>
         constant.Should().Be(EnumMapper.ToDbValue(value));
+
+    // --- UserStatusConstants ↔ UserStatus enum (DB string == ParseUserStatus mapping) ---
+    // The constants are the canonical users.status DB strings; UserHelper.ParseUserStatus
+    // owns the mapping back to the enum, so each constant must parse to its enum member
+    // and All must cover exactly the enum members.
+
+    [Theory]
+    [InlineData(UserStatusConstants.Active, UserStatus.Active)]
+    [InlineData(UserStatusConstants.Disabled, UserStatus.Disabled)]
+    [InlineData(UserStatusConstants.PendingVerification, UserStatus.PendingVerification)]
+    public void UserStatusConstants_ShouldParseToEnumValue(string constant, UserStatus value) =>
+        UserHelper.ParseUserStatus(constant).Should().Be(value);
+
+    [Fact]
+    public void UserStatusConstants_All_ShouldCoverExactlyTheEnumMembers() =>
+        UserStatusConstants.All.Select(UserHelper.ParseUserStatus)
+            .Should().BeEquivalentTo(Enum.GetValues<UserStatus>());
+
+    // --- ConflictKinds (backend ↔ frontend conflicts registry) ---
+
+    [Theory]
+    [InlineData(ConflictKinds.ConnectorMismatch, "connector_mismatch")]
+    [InlineData(ConflictKinds.Overlap, "overlap")]
+    [InlineData(ConflictKinds.CapacityExceeded, "capacity_exceeded")]
+    [InlineData(ConflictKinds.StartsInOffTime, "starts_in_off_time")]
+    [InlineData(ConflictKinds.SiteMismatch, "site_mismatch")]
+    [InlineData(ConflictKinds.BelowMinDuration, "below_min_duration")]
+    [InlineData(ConflictKinds.BeforeEarliestStart, "before_earliest_start")]
+    [InlineData(ConflictKinds.AfterLatestEnd, "after_latest_end")]
+    public void ConflictKinds_ShouldMatchContract(string constant, string expected) =>
+        constant.Should().Be(expected);
 }

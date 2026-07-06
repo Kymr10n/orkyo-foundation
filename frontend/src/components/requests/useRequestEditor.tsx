@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import {
   RequestFormDialog,
@@ -32,8 +33,10 @@ interface UseRequestEditorResult {
 export function useRequestEditor(): UseRequestEditorResult {
   const queryClient = useQueryClient();
   const { membership } = useAuth();
+  // Deliberately NOT useCanEdit(): that hook also grants site admins (break-glass)
+  // and tenant admins whose membership role differs — this gate is role-only.
   const userCanEdit =
-    membership?.role === "admin" || membership?.role === "editor";
+    membership?.role === TENANT_ROLE.Admin || membership?.role === TENANT_ROLE.Editor;
 
   const [request, setRequest] = useState<Request | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);

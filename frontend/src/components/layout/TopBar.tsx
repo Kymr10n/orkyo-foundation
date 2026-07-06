@@ -6,9 +6,10 @@ import {
 } from "@foundation/src/components/ui/popover";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
+import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT } from "@foundation/src/constants/auth";
 import { getSites } from "@foundation/src/lib/api/site-api";
 import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
@@ -91,7 +92,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   // visibility). refetchOnWindowFocus runs a single refetch when the tab is
   // refocused, which is cheaper than burning a poll cycle while hidden.
   const { data: unreadData } = useQuery({
-    queryKey: ["unread-announcements"],
+    queryKey: qk.announcements.unread(),
     queryFn: getUnreadAnnouncementCount,
     refetchInterval: 60_000,
     staleTime: 30_000,
@@ -283,7 +284,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => navigate("/account")}
+                  onClick={() => navigate(ROUTE_ACCOUNT)}
                 >
                   <UserCog className="h-4 w-4 mr-2" />
                   Account

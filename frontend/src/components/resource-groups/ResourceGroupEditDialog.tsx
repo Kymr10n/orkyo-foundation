@@ -6,6 +6,7 @@ import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
 import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 interface ResourceGroupEditDialogProps {
   resourceTypeKey: string;
@@ -50,7 +51,7 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
     meta: {
       successMessage: `${entityLabel} ${group ? 'updated' : 'created'}`,
       errorMessage: `Failed to ${group ? 'update' : 'create'} ${entityLabel.toLowerCase()}`,
-      invalidates: [['resource-groups', resourceTypeKey]],
+      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
     },
     onSuccess: onSaved,
   });

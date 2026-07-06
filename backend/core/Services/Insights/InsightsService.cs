@@ -269,17 +269,17 @@ public class InsightsService(
             total++;
             switch (kind)
             {
-                case "overlap":
-                case "capacity_exceeded":
+                case ConflictKinds.Overlap:
+                case ConflictKinds.CapacityExceeded:
                     overbooking++; break;
-                case "connector_mismatch":
+                case ConflictKinds.ConnectorMismatch:
                     criteria++; break;
-                case "starts_in_off_time":
-                case "site_mismatch":
+                case ConflictKinds.StartsInOffTime:
+                case ConflictKinds.SiteMismatch:
                     unavailable++; break;
-                case "below_min_duration":
-                case "before_earliest_start":
-                case "after_latest_end":
+                case ConflictKinds.BelowMinDuration:
+                case ConflictKinds.BeforeEarliestStart:
+                case ConflictKinds.AfterLatestEnd:
                     outside++; break;
             }
         }

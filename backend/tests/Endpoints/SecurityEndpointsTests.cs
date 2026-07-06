@@ -35,7 +35,7 @@ public class SecurityEndpointsTests
         {
             AllowAutoRedirect = false
         });
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
     private string GetAuthToken(string? keycloakSub = null, string? sessionId = null, Guid? userId = null)

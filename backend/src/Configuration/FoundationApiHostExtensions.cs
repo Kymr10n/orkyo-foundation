@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Middleware;
+using Api.Reporting.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
@@ -122,7 +123,7 @@ public static class FoundationApiHostExtensions
                               "Authenticate with an orkyo_rpt_* reporting token in the Authorization header. " +
                               "Tenant isolation is enforced server-side — no tenantId parameter accepted.",
             });
-            c.AddSecurityDefinition("ReportingToken", new OpenApiSecurityScheme
+            c.AddSecurityDefinition(ReportingTokenAuthHandler.SchemeName, new OpenApiSecurityScheme
             {
                 Name = "Authorization",
                 Type = SecuritySchemeType.Http,
@@ -134,7 +135,7 @@ public static class FoundationApiHostExtensions
             c.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
             {
                 {
-                    new OpenApiSecuritySchemeReference("ReportingToken"),
+                    new OpenApiSecuritySchemeReference(ReportingTokenAuthHandler.SchemeName),
                     []
                 }
             });

@@ -1,3 +1,5 @@
+using Api.Constants;
+
 namespace Api.Configuration;
 
 /// <summary>
@@ -16,7 +18,7 @@ public sealed class BffOptions
     public string CsrfCookieName { get; set; } = "orkyo-csrf";
 
     /// <summary>CSRF header name that must match the cookie value.</summary>
-    public string CsrfHeaderName { get; set; } = "X-CSRF-Token";
+    public string CsrfHeaderName { get; set; } = HeaderConstants.CsrfToken;
 
     /// <summary>
     /// Cookie domain (e.g. <c>.orkyo.com</c>). Null in dev so cookies

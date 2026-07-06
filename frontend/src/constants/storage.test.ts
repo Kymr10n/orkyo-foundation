@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { STORAGE_KEYS } from "./storage";
 
 describe("STORAGE_KEYS", () => {
-  it("has 5 keys", () => {
-    expect(Object.keys(STORAGE_KEYS)).toHaveLength(5);
+  it("has 6 keys", () => {
+    expect(Object.keys(STORAGE_KEYS)).toHaveLength(6);
   });
 
   it("values are all non-empty strings", () => {
@@ -24,5 +24,6 @@ describe("STORAGE_KEYS", () => {
     expect(STORAGE_KEYS.THEME).toBe("theme");
     expect(STORAGE_KEYS.SELECTED_SITE_ID).toBe("selectedSiteId");
     expect(STORAGE_KEYS.SIDEBAR_COLLAPSED).toBe("sidebar-collapsed");
+    expect(STORAGE_KEYS.REQUEST_TREE_EXPANDED).toBe("requestTree.expandedIds");
   });
 });

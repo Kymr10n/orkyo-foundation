@@ -6,6 +6,7 @@ import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Upload, X, FileImage } from 'lucide-react';
 import { cn } from '@foundation/src/lib/utils';
 import { uploadFloorplan, type FloorplanMetadata } from '@foundation/src/lib/api/floorplan-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 interface FloorplanUploadDialogProps {
   siteId: string;
@@ -96,7 +97,7 @@ export function FloorplanUploadDialog({
 
     try {
       const metadata = await uploadFloorplan(siteId, selectedFile, setProgress);
-      await queryClient.invalidateQueries({ queryKey: ['floorplan-view-data', siteId] });
+      await queryClient.invalidateQueries({ queryKey: qk.floorplan.viewData(siteId) });
       onUploadComplete(metadata);
       onOpenChange(false);
       // Reset state

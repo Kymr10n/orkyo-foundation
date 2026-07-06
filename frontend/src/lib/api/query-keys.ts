@@ -40,6 +40,39 @@ export const qk = {
     list: (siteId: string | null) => ["spaces", siteId] as const,
   },
 
+  resources: {
+    /** Resources of one type (e.g. the People list; also its own invalidation prefix). */
+    byType: (resourceTypeKey: string) => ["resources", resourceTypeKey] as const,
+    /** Absences recorded for one resource. */
+    absences: (resourceId: string) => ["resource-absences", resourceId] as const,
+    /** Capability/skill assignments for one resource. */
+    capabilities: (resourceId: string) => ["resource-capabilities", resourceId] as const,
+    /**
+     * Flat list of ALL active resources across types (availability-event scope picker).
+     * Deliberately a distinct key from `byType` — different fetch/payload; do not fold
+     * into the `["resources", …]` namespace (that would change invalidation semantics).
+     */
+    allFlat: () => ["resources-all"] as const,
+  },
+
+  resourceGroups: {
+    /** Broad prefix — every resource-group query (use for invalidation). */
+    all: () => ["resource-groups"] as const,
+    /** Groups of one resource type (person teams, space groups, …). */
+    byType: (typeKey: string) => ["resource-groups", typeKey] as const,
+    /**
+     * Flat list of groups across ALL resource types (availability-event scope picker).
+     * Deliberately a distinct key from `byType` — different fetch/payload; do not fold
+     * into the `["resource-groups", …]` namespace (that would change invalidation semantics).
+     */
+    allFlat: () => ["resource-groups-all"] as const,
+  },
+
+  floorplan: {
+    /** Floorplan view data (metadata + image) for one site. */
+    viewData: (siteId: string | null) => ["floorplan-view-data", siteId] as const,
+  },
+
   conflicts: {
     /** Broad prefix — the tenant-wide conflict registry (use for invalidation). */
     all: () => ["conflicts"] as const,
@@ -68,6 +101,8 @@ export const qk = {
   scheduling: {
     settings: (siteId: string) => ["scheduling-settings", siteId] as const,
     availabilityEvents: (siteId: string) => ["availability-events", siteId] as const,
+    /** Prefix matching every site's availability events (invalidation). */
+    availabilityEventsAll: () => ["availability-events"] as const,
   },
 
   announcements: {
@@ -85,6 +120,36 @@ export const qk = {
     /** Department tree, scoped by the include-inactive toggle. */
     tree: (includeInactive: boolean) =>
       ["departments", "tree", { includeInactive }] as const,
+  },
+
+  jobTitles: {
+    /** Broad prefix — every job-title query (use for invalidation). */
+    all: () => ["job-titles"] as const,
+    /** Job-title list, scoped by the include-inactive toggle. */
+    list: (includeInactive: boolean) => ["job-titles", { includeInactive }] as const,
+  },
+
+  /**
+   * Templates for one entity type (request/space/group). The single-element
+   * `templates-${entityType}` shape is historical — a future improvement is
+   * `["templates", entityType]` with a broad `["templates"]` prefix, but that
+   * changes invalidation semantics, so the shape is kept byte-identical here.
+   */
+  templates: (entityType: string) => [`templates-${entityType}`] as const,
+
+  users: {
+    /** The tenant's user list (also its own invalidation prefix). */
+    all: () => ["users"] as const,
+  },
+
+  invitations: {
+    /** The tenant's pending invitations (also its own invalidation prefix). */
+    all: () => ["invitations"] as const,
+  },
+
+  security: {
+    /** The current user's security info (lock state, federation, MFA). */
+    info: () => ["security-info"] as const,
   },
 
   tenantSettings: {

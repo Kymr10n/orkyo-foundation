@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import {
@@ -96,7 +97,7 @@ export function OrganizationSettings() {
         // Filter to active admins, excluding current user if they're the owner
         const adminUsers = users.filter(
           (u) =>
-            u.role === "admin" &&
+            u.role === TENANT_ROLE.Admin &&
             u.status === "active" &&
             u.id !== currentUserId,
         );

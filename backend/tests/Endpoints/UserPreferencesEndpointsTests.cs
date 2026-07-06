@@ -21,7 +21,7 @@ public class UserPreferencesEndpointsTests
         {
             AllowAutoRedirect = false
         });
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
     private async Task<string> GetAuthTokenAsync()

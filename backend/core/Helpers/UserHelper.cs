@@ -22,9 +22,9 @@ public static class UserHelper
     {
         return dbStatus.ToLowerInvariant() switch
         {
-            "active" => UserStatus.Active,
-            "disabled" => UserStatus.Disabled,
-            "pending_verification" => UserStatus.PendingVerification,
+            UserStatusConstants.Active => UserStatus.Active,
+            UserStatusConstants.Disabled => UserStatus.Disabled,
+            UserStatusConstants.PendingVerification => UserStatus.PendingVerification,
             _ => throw new ArgumentException($"Unknown user status: {dbStatus}")
         };
     }

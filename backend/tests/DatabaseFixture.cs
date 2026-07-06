@@ -46,7 +46,7 @@ public class DatabaseFixture : IAsyncLifetime
     private HttpClient CreateClient(string bearerToken, string tenantSlug)
     {
         var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", tenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, tenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearerToken}");
         return client;
     }

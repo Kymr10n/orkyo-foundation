@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { markTourSeen } from "@foundation/src/lib/api/session-api";
+import { ROUTE_SETTINGS } from "@foundation/src/constants/auth";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -48,7 +49,7 @@ const STEPS: TourStep[] = [
     description: "Define what properties matter for your resources.",
     detail:
       "Criteria are the attributes you track per resource — capacity for a space, skills for a person, specs for a tool. Set these up first so you can match the right resources to each request.",
-    path: "/settings/criteria",
+    path: `${ROUTE_SETTINGS}/criteria`,
     requiresEditor: true,
   },
   {
@@ -57,7 +58,7 @@ const STEPS: TourStep[] = [
     description: "Standardise resource definitions with reusable templates.",
     detail:
       "Templates bundle a set of criteria into a reusable blueprint. New resources can inherit from a template, saving time and keeping your data consistent.",
-    path: "/settings/templates",
+    path: `${ROUTE_SETTINGS}/templates`,
     requiresEditor: true,
   },
   {

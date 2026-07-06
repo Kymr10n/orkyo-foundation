@@ -4,6 +4,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useSites } from '@foundation/src/hooks/useSites';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
+import { ROUTE_TENANT_ADMIN } from '@foundation/src/constants/auth';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
 
@@ -53,7 +54,7 @@ export function TenantAdminPage() {
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`/tenant-admin/${v}`, { replace: true })}
+        onChange={(v) => navigate(`${ROUTE_TENANT_ADMIN}/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>

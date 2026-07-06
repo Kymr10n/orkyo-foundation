@@ -54,7 +54,7 @@ public class ResourceTypeEndpointTests
     public async Task GetResourceTypes_RequiresAuthentication()
     {
         var anon = _fixture.Factory.CreateClient();
-        anon.DefaultRequestHeaders.Add("X-Tenant-Slug", TestConstants.TenantSlug);
+        anon.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
         var response = await anon.GetAsync("/api/resource-types");
         Assert.True(
             response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,

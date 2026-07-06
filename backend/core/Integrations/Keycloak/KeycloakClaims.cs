@@ -65,6 +65,12 @@ public static class KeycloakClaims
     /// <summary>Realm access (contains realm roles)</summary>
     public const string RealmAccess = "realm_access";
 
+    /// <summary>
+    /// Flattened role-claim path (<c>realm_access.roles</c>) used as the
+    /// <c>RoleClaimType</c> for JWT bearer and BFF cookie identities.
+    /// </summary>
+    public const string RealmRolesClaim = "realm_access.roles";
+
     // Well-known realm role names
 
     /// <summary>Site administrator role</summary>

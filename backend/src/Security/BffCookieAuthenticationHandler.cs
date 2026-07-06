@@ -124,7 +124,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             claims.Add(new Claim(claim.Type, claim.Value, claim.ValueType));
         }
 
-        var identity = new ClaimsIdentity(claims, SchemeName, "preferred_username", "realm_access.roles");
+        var identity = new ClaimsIdentity(claims, SchemeName, KeycloakClaims.PreferredUsername, KeycloakClaims.RealmRolesClaim);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);
 

@@ -53,6 +53,8 @@ import {
   getDepartmentTree,
   type DepartmentTreeNode,
 } from '@foundation/src/lib/api/departments-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
+import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { JobTitleEditDialog } from '@foundation/src/components/settings/JobTitleEditDialog';
 import { DepartmentEditDialog } from '@foundation/src/components/settings/DepartmentEditDialog';
 import { isValidEmail } from '@foundation/src/lib/utils/validation';
@@ -158,12 +160,12 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
   // Reference data
   const { data: jobTitles = [], isLoading: jobTitlesLoading } = useQuery({
-    queryKey: ['job-titles', { includeInactive: false }],
+    queryKey: qk.jobTitles.list(false),
     queryFn: () => getJobTitles(false),
     enabled: isOpen,
   });
   const { data: deptTree = [], isLoading: deptTreeLoading } = useQuery({
-    queryKey: ['departments', 'tree', { includeInactive: false }],
+    queryKey: qk.departments.tree(false),
     queryFn: () => getDepartmentTree(false),
     enabled: isOpen,
   });
@@ -228,7 +230,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
     meta: {
       successMessage: isEditing ? 'Person updated' : 'Person created',
       errorMessage: isEditing ? 'Failed to update person' : 'Failed to create person',
-      invalidates: [['resources', 'person'], ['person-profile']],
+      invalidates: [qk.resources.byType(RESOURCE_TYPE_KEY.PERSON), ['person-profile']],
     },
     onSettled: () => setIsSubmitting(false),
     onSuccess: () => onSaved(),

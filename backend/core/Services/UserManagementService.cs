@@ -12,7 +12,7 @@ public interface IUserManagementService
     Task<(bool success, string? error)> DeleteUserAsync(OrgContext org, Guid userId, Guid deletedBy, CancellationToken ct = default);
     Task EnsureInitialAdminAsync(OrgContext org, string adminEmail, CancellationToken ct = default);
 
-    /// <summary>Updates users.status globally (e.g. 'active', 'disabled').</summary>
+    /// <summary>Updates users.status globally. Accepts only <see cref="UserStatusConstants"/> values.</summary>
     Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default);
 
     /// <summary>Hard-deletes the user row; cascade removes memberships and identities.</summary>
@@ -167,6 +167,9 @@ public class UserManagementService : IUserManagementService
 
     public async Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default)
     {
+        if (!UserStatusConstants.All.Contains(status))
+            throw new ArgumentException($"Unknown user status: {status}", nameof(status));
+
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 

@@ -11,6 +11,7 @@
  */
 
 import { runtimeConfig } from "@foundation/src/config/runtime";
+import { COOKIE_NAMES } from "@foundation/src/constants/http";
 
 // ── Hostname helpers (pure, no side-effects) ─────────────────────────────────
 
@@ -173,7 +174,7 @@ export function navigateToApex(path = "/"): boolean {
 // the tenant subdomain. The auth callback on the new subdomain reads it to
 // construct a break-glass membership.
 
-const BREAK_GLASS_COOKIE = "orkyo-break-glass";
+const BREAK_GLASS_COOKIE = COOKIE_NAMES.BREAK_GLASS;
 
 /**
  * Set a cross-subdomain cookie carrying the break-glass session ID and tenant UUID.

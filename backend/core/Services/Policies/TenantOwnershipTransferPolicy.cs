@@ -42,7 +42,7 @@ public static class TenantOwnershipTransferPolicy
         if (!string.Equals(newOwnerRole, RoleConstants.Admin, StringComparison.OrdinalIgnoreCase))
             return TenantOwnershipTransferDecision.NewOwnerNotAdmin;
 
-        if (!string.Equals(newOwnerMembershipStatus, "active", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(newOwnerMembershipStatus, MembershipStatusConstants.Active, StringComparison.OrdinalIgnoreCase))
             return TenantOwnershipTransferDecision.NewOwnerMembershipNotActive;
 
         return TenantOwnershipTransferDecision.Allowed;

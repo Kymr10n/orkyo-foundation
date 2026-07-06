@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Api.Constants;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -33,6 +34,11 @@ public sealed class UserLifecycleService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly KeycloakOptions _kc;
+
+    private const int MaxRetries = 3;
+    private static readonly TimeSpan ExternalCallTimeout = TimeSpan.FromSeconds(15);
+
+    private static TimeSpan RetryBackoff(int attempt) => TimeSpan.FromSeconds(Math.Pow(2, attempt));
 
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
     private static readonly SemaphoreSlim _emailThrottle = new(5, 5);
@@ -175,7 +181,7 @@ public sealed class UserLifecycleService
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "dormant", warningCount: 3,
                     lastWarnedAt: null, dormantSince: DateTime.UtcNow, confirmToken: null, ct);
-                await SetUserDbStatusAsync(db, user.Id, "disabled", ct);
+                await SetUserDbStatusAsync(db, user.Id, UserStatusConstants.Disabled, ct);
                 await tx.CommitAsync(ct);
 
                 await SendDormancyNoticeEmailAsync(user.Email, user.DisplayName);
@@ -279,7 +285,7 @@ public sealed class UserLifecycleService
                 $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             req.Content = new StringContent(JsonSerializer.Serialize(new { enabled }), Encoding.UTF8, "application/json");
-            return await http.SendAsync(req, new CancellationTokenSource(TimeSpan.FromSeconds(15)).Token);
+            return await http.SendAsync(req, new CancellationTokenSource(ExternalCallTimeout).Token);
         });
 
     private async Task<(bool success, string? error)> DeleteKeycloakUserAsync(string keycloakId)
@@ -288,19 +294,18 @@ public sealed class UserLifecycleService
             var req = new HttpRequestMessage(HttpMethod.Delete,
                 $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            return await http.SendAsync(req, new CancellationTokenSource(TimeSpan.FromSeconds(15)).Token);
+            return await http.SendAsync(req, new CancellationTokenSource(ExternalCallTimeout).Token);
         });
 
     private async Task<(bool success, string? error)> ExecuteKeycloakWithRetryAsync(
         Func<HttpClient, string, Task<HttpResponseMessage>> action)
     {
-        const int maxRetries = 3;
         var token = await GetKcAdminTokenAsync();
         if (token == null) return (false, "Failed to get admin token");
 
         var http = _httpClientFactory.CreateClient();
 
-        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        for (var attempt = 1; attempt <= MaxRetries; attempt++)
         {
             try
             {
@@ -308,16 +313,16 @@ public sealed class UserLifecycleService
                 if (res.IsSuccessStatusCode) return (true, null);
                 var err = await res.Content.ReadAsStringAsync();
                 if ((int)res.StatusCode < 500) return (false, err);
-                if (attempt < maxRetries)
+                if (attempt < MaxRetries)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+                    await Task.Delay(RetryBackoff(attempt));
                     continue;
                 }
                 return (false, err);
             }
-            catch (Exception ex) when (attempt < maxRetries && ex is HttpRequestException or TaskCanceledException)
+            catch (Exception ex) when (attempt < MaxRetries && ex is HttpRequestException or TaskCanceledException)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+                await Task.Delay(RetryBackoff(attempt));
             }
             catch (Exception ex)
             {
@@ -346,7 +351,7 @@ public sealed class UserLifecycleService
                 ["client_secret"] = _kc.BackendClientSecret
             });
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var cts = new CancellationTokenSource(ExternalCallTimeout);
             var res = await http.PostAsync(
                 $"{_kc.EffectiveInternalBaseUrl}/realms/{_kc.Realm}/protocol/openid-connect/token",
                 content, cts.Token);
@@ -425,13 +430,12 @@ public sealed class UserLifecycleService
 
     private async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody)
     {
-        const int maxRetries = 3;
         var smtp = _smtpConfig.Value;
 
         await _emailThrottle.WaitAsync();
         try
         {
-            for (var attempt = 1; attempt <= maxRetries; attempt++)
+            for (var attempt = 1; attempt <= MaxRetries; attempt++)
             {
                 try
                 {
@@ -442,7 +446,7 @@ public sealed class UserLifecycleService
                     message.Body = new BodyBuilder { HtmlBody = htmlBody, TextBody = textBody }.ToMessageBody();
 
                     using var client = new SmtpClient();
-                    client.Timeout = 15_000;
+                    client.Timeout = (int)ExternalCallTimeout.TotalMilliseconds;
                     await client.ConnectAsync(smtp.Host, smtp.Port,
                         smtp.UseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None);
 
@@ -456,12 +460,12 @@ public sealed class UserLifecycleService
                 }
                 catch (Exception ex)
                 {
-                    if (attempt == maxRetries)
+                    if (attempt == MaxRetries)
                     {
-                        _logger.LogError(ex, "Failed to send lifecycle email to {Email} after {Attempts} attempts", toEmail, maxRetries);
+                        _logger.LogError(ex, "Failed to send lifecycle email to {Email} after {Attempts} attempts", toEmail, MaxRetries);
                         return;
                     }
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+                    await Task.Delay(RetryBackoff(attempt));
                 }
             }
         }

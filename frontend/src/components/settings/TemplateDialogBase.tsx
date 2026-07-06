@@ -17,6 +17,7 @@ import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
 import { createTemplate, updateTemplate } from "@foundation/src/lib/api/template-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import type { Template } from "@foundation/src/types/templates";
@@ -129,7 +130,7 @@ export function TemplateDialogBase({
       successMessage: isEditMode ? 'Template updated' : 'Template created',
       errorMessage: isEditMode ? 'Failed to update template' : 'Failed to create template',
       // Both modes feed the same `templates-${entityType}` list query (TemplateSettings).
-      invalidates: [[`templates-${entityType}`]],
+      invalidates: [qk.templates(entityType)],
     },
     onSuccess: () => {
       if (!isEditMode) {

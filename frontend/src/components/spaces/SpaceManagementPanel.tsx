@@ -9,6 +9,7 @@ import {
   type FloorplanMetadata,
   getFloorplanMetadata,
 } from "@foundation/src/lib/api/floorplan-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { cn } from "@foundation/src/lib/utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
@@ -164,7 +165,7 @@ export function SpaceManagementPanel({
     setIsDeletingFloorplan(true);
     try {
       await deleteFloorplan(siteId);
-      await queryClient.invalidateQueries({ queryKey: ['floorplan-view-data', siteId] });
+      await queryClient.invalidateQueries({ queryKey: qk.floorplan.viewData(siteId) });
       setFloorplanMetadata(null);
       setFloorplanBlobUrl(null);
       setDeleteFloorplanOpen(false);

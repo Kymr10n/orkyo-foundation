@@ -15,6 +15,8 @@ import {
   type UserWithRole,
   type UpdateUserRoleRequest,
 } from "@foundation/src/lib/api/user-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 
 interface EditUserRoleDialogProps {
   open: boolean;
@@ -40,7 +42,7 @@ export function EditUserRoleDialog({
     meta: {
       successMessage: "User role updated",
       errorMessage: "Failed to update user role",
-      invalidates: [["users"]],
+      invalidates: [qk.users.all()],
     },
     onSuccess: () => {
       setError(null);
@@ -145,24 +147,24 @@ export function EditUserRoleDialog({
       {/* Role Description */}
       <div className="rounded-lg bg-muted p-3 text-sm">
         <p className="text-muted-foreground">
-          {role === "admin" &&
+          {role === TENANT_ROLE.Admin &&
             "Admins have full access to all features including user management and settings."}
-          {role === "editor" &&
+          {role === TENANT_ROLE.Editor &&
             "Editors can create and modify utilization, requests, and spaces but cannot access settings."}
-          {role === "viewer" &&
+          {role === TENANT_ROLE.Viewer &&
             "Viewers have read-only access to view utilization and plans."}
-          {role === "inactive" &&
+          {role === TENANT_ROLE.Inactive &&
             "Inactive users cannot log in and have no access to the system."}
         </p>
       </div>
 
       {/* Warning for sensitive changes */}
-      {(role === "admin" || role === "inactive") && role !== user.role && (
+      {(role === TENANT_ROLE.Admin || role === TENANT_ROLE.Inactive) && role !== user.role && (
         <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-3 text-sm">
           <p className="text-yellow-700 dark:text-yellow-400">
-            {role === "admin" &&
+            {role === TENANT_ROLE.Admin &&
               "⚠️ This will grant full administrative access including the ability to manage other users."}
-            {role === "inactive" &&
+            {role === TENANT_ROLE.Inactive &&
               "⚠️ This will immediately revoke all access for this user."}
           </p>
         </div>

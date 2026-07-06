@@ -14,6 +14,7 @@ import {
   type DepartmentInfo,
   type DepartmentTreeNode,
 } from '@foundation/src/lib/api/departments-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 export function DepartmentSettings() {
   // The tree fetch returns DepartmentTreeNode (no createdAt/updatedAt).
@@ -26,7 +27,7 @@ export function DepartmentSettings() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const { data: tree = [], isLoading, error } = useQuery({
-    queryKey: ['departments', 'tree', { includeInactive }],
+    queryKey: qk.departments.tree(includeInactive),
     queryFn: () => getDepartmentTree(includeInactive),
   });
 
@@ -35,7 +36,7 @@ export function DepartmentSettings() {
     meta: {
       successMessage: 'Department deleted',
       errorMessage: 'Failed to delete department',
-      invalidates: [['departments']],
+      invalidates: [qk.departments.all()],
     },
   });
 

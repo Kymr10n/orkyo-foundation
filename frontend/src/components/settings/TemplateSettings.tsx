@@ -10,6 +10,7 @@ import {
 } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { toast } from "sonner";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
@@ -40,7 +41,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     error,
     refetch,
   } = useQuery({
-    queryKey: [`templates-${entityType}`],
+    queryKey: qk.templates(entityType),
     queryFn: () => getTemplates(entityType),
   });
 
@@ -50,7 +51,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     meta: {
       successMessage: 'Template deleted',
       errorMessage: 'Failed to delete template',
-      invalidates: [[`templates-${entityType}`]],
+      invalidates: [qk.templates(entityType)],
     },
   });
 
@@ -71,7 +72,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         await createTemplate(template as CreateTemplateRequest);
       }
       // Reload templates
-      queryClient.invalidateQueries({ queryKey: [`templates-${entityType}`] });
+      queryClient.invalidateQueries({ queryKey: qk.templates(entityType) });
       toast.success(`Imported ${importedTemplates.length} template${importedTemplates.length === 1 ? '' : 's'}`);
     } catch (error) {
       logger.error('Import failed:', error);

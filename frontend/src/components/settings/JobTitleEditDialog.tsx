@@ -9,6 +9,7 @@ import {
   updateJobTitle,
   type JobTitleInfo,
 } from '@foundation/src/lib/api/job-titles-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 interface JobTitleEditDialogProps {
   jobTitle: JobTitleInfo | null;
@@ -67,7 +68,7 @@ export function JobTitleEditDialog({
     meta: {
       successMessage: jobTitle ? 'Job title updated' : 'Job title created',
       errorMessage: jobTitle ? 'Failed to update job title' : 'Failed to create job title',
-      invalidates: [['job-titles']],
+      invalidates: [qk.jobTitles.all()],
     },
     onSuccess: (saved) => {
       setError(null);

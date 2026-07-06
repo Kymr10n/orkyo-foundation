@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Middleware;
 
@@ -135,7 +136,7 @@ public class AuthorizationExtensionsTests
         ICurrentTenant? currentTenant = null)
     {
         var builder = WebApplication.CreateBuilder(
-            new WebApplicationOptions { EnvironmentName = "Testing" });
+            new WebApplicationOptions { EnvironmentName = EnvironmentNames.Test });
         builder.WebHost.UseTestServer();
         builder.Services.AddLogging();
 

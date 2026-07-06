@@ -5,6 +5,7 @@ export const TENANT_ROLE = {
   Admin: "admin",
   Editor: "editor",
   Viewer: "viewer",
+  Inactive: "inactive",
   None: "none",
 } as const;
 

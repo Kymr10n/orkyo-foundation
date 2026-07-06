@@ -20,7 +20,7 @@ public class TemplateEndpointsTests
     {
         _fixture = fixture;
         _client = fixture.Factory.CreateClient();
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", _testTenant);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, _testTenant);
     }
 
     private async Task<Guid> CreateTestCriterionAsync()

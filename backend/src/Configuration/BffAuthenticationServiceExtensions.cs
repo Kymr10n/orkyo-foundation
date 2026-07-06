@@ -66,7 +66,7 @@ public static class BffAuthenticationServiceExtensions
         // Register TenantMiddlewareOptions via the options pattern so it can be
         // injected as IOptions<TenantMiddlewareOptions> rather than manually bound
         // from IConfiguration inside individual handlers.
-        services.Configure<TenantMiddlewareOptions>(configuration.GetSection("TenantResolution"));
+        services.Configure<TenantMiddlewareOptions>(configuration.GetSection(ConfigKeys.TenantResolutionSection));
 
         // Register PKCE state store — Valkey (atomic GETDEL) in production,
         // in-memory (ConcurrentDictionary.TryRemove) in development / test.
