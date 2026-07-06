@@ -12,7 +12,7 @@ import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
 import type { Criterion, ResourceTypeKey } from '@foundation/src/types/criterion';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { createTestQueryWrapper, createTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryWrapper, createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
@@ -128,7 +128,7 @@ describe('useCriteria', () => {
       };
       vi.mocked(criteriaApi.updateCriterionApplicability).mockResolvedValue(applicabilityResult);
 
-      const { spy, wrapper } = createTestQueryClientWithSpy();
+      const { spy, wrapper } = createFeedbackTestQueryClientWithSpy();
       const { result } = renderHook(() => useUpdateCriterionApplicability(), { wrapper });
 
       await result.current.mutateAsync({
@@ -137,7 +137,7 @@ describe('useCriteria', () => {
       });
 
       await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'] });
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'], exact: false });
       });
       expect(criteriaApi.updateCriterionApplicability).toHaveBeenCalledWith(
         'criterion-1',

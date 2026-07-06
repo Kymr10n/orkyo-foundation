@@ -25,6 +25,14 @@ public static class AuthenticationServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // Idempotent: products call this explicitly in Program.cs (per their
+        // explicit-registration rule) while AddFoundationServices also calls it.
+        // Without the guard the second call would re-add the Bearer scheme and
+        // throw "Scheme already exists" at startup.
+        if (services.Any(d => d.ServiceType == typeof(OrkyoAuthenticationMarker)))
+            return services;
+        services.AddSingleton<OrkyoAuthenticationMarker>();
+
         var oidcAuthority = configuration.GetRequired(ConfigKeys.OidcAuthority);
         // The BFF uses the confidential orkyo-backend client for OIDC — tokens carry its audience
         var oidcClientId = configuration.GetRequired(ConfigKeys.KeycloakBackendClientId);
@@ -145,4 +153,7 @@ public static class AuthenticationServiceExtensions
 
         return services;
     }
+
+    /// <summary>Registration marker making <see cref="AddOrkyoAuthentication"/> idempotent.</summary>
+    private sealed class OrkyoAuthenticationMarker;
 }

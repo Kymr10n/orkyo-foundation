@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-The shared domain layer consumed by **both** product repos (`orkyo-saas`, `orkyo-community`). Contains NO runtime wiring — no `Program.cs`, no DI registration, no middleware. Published to GitHub Packages as `Orkyo.Foundation` (NuGet) and `@kymr10n/foundation` (npm).
+The shared domain layer consumed by **both** product repos (`orkyo-saas`, `orkyo-community`). Contains NO self-executing wiring — no `Program.cs` composes anything here. Foundation ships DI **extension methods** (`AddFoundationServices` and friends) and middleware **classes** that products opt into from their own `Program.cs`. Published to GitHub Packages as `Orkyo.Foundation` (NuGet) and `@kymr10n/foundation` (npm).
 
 Also owns the Keycloak image (`ghcr.io/kymr10n/keycloak:26.6-orkyo-<version>`) including the Orkyo theme.
 
@@ -45,8 +45,8 @@ Rules that are enforced (a conformance test fails CI otherwise):
 Don't hand-roll `toast.*` / `invalidateQueries` in a dialog's mutation. Declare
 `meta: { successMessage, errorMessage?, invalidates }` on `useMutation`; the central `MutationCache`
 in `query-client.ts` fires the toast + invalidation once. Keep inline `ErrorAlert` (`setError`) for
-in-context errors. Full-CRUD entities use `createCrudHooks` (`entityLabel`) instead. Tests render via
-`createFeedbackTestQueryWrapper()`.
+in-context errors. Full-CRUD entities (e.g. `useSites`, `useCriteria`) use the same `meta` pattern
+on each hook. Tests render via `createFeedbackTestQueryWrapper()`.
 
 Don't hand-roll the dialog shell either: simple form dialogs use `FormDialog` (owns shell + header +
 scrollable body + `ErrorAlert` + Cancel/Submit footer with `canEdit` gating); criterion/skill/

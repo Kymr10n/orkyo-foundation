@@ -23,7 +23,9 @@ public static class EndpointHelpers
         => value is null ? ErrorResponses.NotFound(resourceType, id) : Results.Ok(value);
 
     /// <summary>
-    /// Validate request with FluentValidation and execute handler with standard error handling
+    /// Validate request with FluentValidation and execute handler, logging rejected
+    /// requests under <paramref name="operationName"/>. Use the simpler overload below
+    /// when the endpoint has no interest in logging validation rejections.
     /// </summary>
     public static async Task<IResult> ExecuteAsync<TRequest>(
         TRequest request,
@@ -35,7 +37,15 @@ public static class EndpointHelpers
     {
         var validationResult = await validator.ValidateAsync(request);
         if (!validationResult.IsValid)
+        {
+            logger.LogWarning(
+                "Validation failed for {OperationName}: {ErrorCount} error(s) on {Properties} (context: {@Context})",
+                operationName,
+                validationResult.Errors.Count,
+                string.Join(", ", validationResult.Errors.Select(e => e.PropertyName).Distinct()),
+                context);
             return Results.ValidationProblem(validationResult.ToDictionary());
+        }
 
         return await handler();
     }

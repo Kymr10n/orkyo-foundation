@@ -1,8 +1,14 @@
 # Reusable UI Candidates — Orkyo Frontend
 
 **Scope:** `orkyo-foundation/frontend`, `orkyo-saas/frontend`, `orkyo-community/frontend`  
-**Date:** 2026-05-26  
+**Date:** 2026-05-26 (partially stale — see status note)  
 **Nature:** Analysis only — no code changes.
+
+> **Status (2026-07-06):** item 1 has landed — `ConfirmDialog` and `StatusBadge` now live in
+> Foundation, and the SaaS files are thin re-exports. Several cited paths have since moved
+> (e.g. `PersonList.tsx` is under `components/people/`, `ResourceGroupList.tsx` under
+> `components/resource-groups/`). Still open: SaaS `UsersTab` does not use the shared
+> `FormDialog` (TenantsTab does). Verify against current code before acting on any item.
 
 ---
 

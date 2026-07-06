@@ -14,7 +14,7 @@ public static class ResourceTypeEndpoints
         var group = app.MapGroup("/api/resource-types")
             .WithTags("ResourceTypes")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (IResourceTypeRepository repo, CancellationToken ct) =>
             Results.Ok(await repo.GetAllAsync()))

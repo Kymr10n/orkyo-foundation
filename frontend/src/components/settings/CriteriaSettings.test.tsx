@@ -161,8 +161,9 @@ describe('CriteriaSettings', () => {
     await waitFor(() => {
       expect(mockDeleteMutateAsync).toHaveBeenCalled();
     });
-    // Component catch is a no-op; toast.error is fired by the real hook's onError (entityLabel: "Criterion").
-    // The hook is mocked in this test, so no toast fires here — coverage lives in useMutations.test.tsx.
+    // Component catch is a no-op; toast.error is fired centrally via the real hook's mutation meta.
+    // The hook is mocked in this test, so no toast fires here — the meta mechanism is covered by
+    // query-client.test.ts.
   });
 
   it('clicking Add Criterion button opens create dialog', async () => {

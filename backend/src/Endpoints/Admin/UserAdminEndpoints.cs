@@ -15,10 +15,7 @@ public static class UserAdminEndpoints
 {
     public static void MapUserAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin")
-            .RequireAuthorization()
-            .WithTags("Admin")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup();
 
         group.MapGet("/users", GetUsers)
             .RequireSiteAdmin()

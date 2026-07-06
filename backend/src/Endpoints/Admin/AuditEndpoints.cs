@@ -1,4 +1,3 @@
-using Api.Configuration;
 using Api.Middleware;
 using Api.Models;
 using Api.Security;
@@ -27,11 +26,7 @@ public static class AuditEndpoints
 
     public static void MapAuditEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin")
-            .RequireAuthorization()
-            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
-            .WithTags("Admin")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup();
 
         group.MapGet("/audit", GetAuditEvents)
             .RequireSiteAdmin()

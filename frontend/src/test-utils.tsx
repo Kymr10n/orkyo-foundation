@@ -69,3 +69,23 @@ export function createTestQueryClientWithSpy() {
   );
   return { queryClient, spy, wrapper };
 }
+
+/**
+ * Like createTestQueryClientWithSpy, but with the central feedback MutationCache
+ * attached, so a mutation's `meta.invalidates` declarations fire in tests. Note the
+ * cache invalidates prefix-style: assert `{ queryKey, exact: false }`.
+ */
+export function createFeedbackTestQueryClientWithSpy() {
+  const queryClient: QueryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+    mutationCache: createFeedbackMutationCache(() => queryClient),
+  });
+  const spy = vi.spyOn(queryClient, "invalidateQueries");
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return { queryClient, spy, wrapper };
+}

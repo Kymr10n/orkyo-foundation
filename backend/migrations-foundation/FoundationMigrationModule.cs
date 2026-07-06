@@ -8,10 +8,10 @@ namespace Orkyo.Foundation.Migrations;
 /// in this assembly and exposes them as Orkyo migrations.
 /// </summary>
 /// <remarks>
-/// Currently empty by design — see <c>orkyo-saas/requirements/orkyo-migration-inventory-2026-04.md</c>:
-/// every existing migration is SaaS-shaped, so foundation starts as a slot for future
-/// genuinely-shared migrations. The module discovery infrastructure is in place so adding
-/// a foundation script later is just dropping a file under <c>sql/{controlplane,tenant}/</c>.
+/// Owns the shared migration set consumed by both editions — the scripts under
+/// <c>sql/{controlplane,tenant}/</c> in this assembly. Adding a foundation migration
+/// is dropping a numbered file there (see the migration rules in <c>CLAUDE.md</c>:
+/// applied migrations are immutable; fixes are follow-up migrations).
 /// </remarks>
 public sealed class FoundationMigrationModule : IMigrationModule
 {

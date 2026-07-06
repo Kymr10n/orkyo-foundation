@@ -13,11 +13,7 @@ public static class SettingsAdminEndpoints
 {
     public static void MapSettingsAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin")
-            .RequireAuthorization()
-            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
-            .WithTags("Admin")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup();
 
         group.MapGet("/settings", GetSettings)
             .RequireSiteAdmin()
