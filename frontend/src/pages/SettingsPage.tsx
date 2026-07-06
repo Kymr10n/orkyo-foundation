@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
+import { ROUTE_SETTINGS } from '@foundation/src/constants/auth';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
 
@@ -49,7 +50,7 @@ export function SettingsPage() {
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`/settings/${v}`, { replace: true })}
+        onChange={(v) => navigate(`${ROUTE_SETTINGS}/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>

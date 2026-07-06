@@ -21,6 +21,7 @@ import {
   setResourceGroupMembers,
 } from "@foundation/src/lib/api/resource-groups-api";
 import { logger } from "@foundation/src/lib/core/logger";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 // Spaces are 1:1 with groups; people and other types may belong to several.
 const SPACE_TYPE_KEY = "space";
@@ -151,7 +152,7 @@ export function ResourceGroupMembersEditor({
     meta: {
       successMessage: "Members updated",
       errorMessage: "Failed to update members",
-      invalidates: [["resource-groups", resourceTypeKey]],
+      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
     },
     onSuccess: () => {
       setError(null);

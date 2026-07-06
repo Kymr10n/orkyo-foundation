@@ -137,6 +137,15 @@ export const ROUTE_CREATE_ACCOUNT = '/create-account';
  */
 export const ROUTE_SITE_ADMIN = '/site-admin';
 
+/** Editor-open Settings area (criteria, templates, presets, scheduling). */
+export const ROUTE_SETTINGS = '/settings';
+
+/** Tenant-admin Administration area (sites, users, organization, …). */
+export const ROUTE_TENANT_ADMIN = '/tenant-admin';
+
+/** The current user's account page (memberships, profile, security). */
+export const ROUTE_ACCOUNT = '/account';
+
 /**
  * Paths that render without an authenticated session by design (invitation
  * signup, request-access). The auth machine must never redirect these to the

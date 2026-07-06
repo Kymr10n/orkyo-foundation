@@ -26,6 +26,7 @@ import { cn } from "@foundation/src/lib/utils";
 import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
+import { ROUTE_SETTINGS } from "@foundation/src/constants/auth";
 import { logger } from "@foundation/src/lib/core/logger";
 
 // Icon mapping for entity types
@@ -172,12 +173,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           if (result.id !== selectedSiteId) {
             setSelectedSiteId(result.id);
           }
-          navigate("/settings");
+          navigate(ROUTE_SETTINGS);
           break;
         case "template":
         case "criterion":
           // Templates and criteria are in settings
-          navigate("/settings");
+          navigate(ROUTE_SETTINGS);
           break;
         case "person":
           navigate("/people/list");
@@ -212,19 +213,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             navigate(`/requests?edit=${result.id}`);
             break;
           case "group":
-            navigate(`/settings?tab=groups&edit=${result.id}`);
+            navigate(`${ROUTE_SETTINGS}?tab=groups&edit=${result.id}`);
             break;
           case "site":
             if (result.id !== selectedSiteId) {
               setSelectedSiteId(result.id);
             }
-            navigate("/settings?tab=sites");
+            navigate(`${ROUTE_SETTINGS}?tab=sites`);
             break;
           case "template":
-            navigate(`/settings?tab=templates&edit=${result.id}`);
+            navigate(`${ROUTE_SETTINGS}?tab=templates&edit=${result.id}`);
             break;
           case "criterion":
-            navigate(`/settings?tab=criteria&edit=${result.id}`);
+            navigate(`${ROUTE_SETTINGS}?tab=criteria&edit=${result.id}`);
             break;
           case "person":
             navigate(`/people/list?edit=${result.id}`);

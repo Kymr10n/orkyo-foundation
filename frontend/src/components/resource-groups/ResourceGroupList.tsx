@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Plus, Pencil, Trash2, Users, type LucideIcon } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
@@ -26,7 +27,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   const [deletingGroup, setDeletingGroup] = useState<ResourceGroupInfo | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
-    queryKey: ['resource-groups', resourceTypeKey],
+    queryKey: qk.resourceGroups.byType(resourceTypeKey),
     queryFn: () => getResourceGroups(resourceTypeKey),
   });
 
@@ -35,7 +36,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
     meta: {
       successMessage: `${entityLabel} deleted`,
       errorMessage: `Failed to delete ${entityLabel.toLowerCase()}`,
-      invalidates: [['resource-groups', resourceTypeKey]],
+      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
     },
     onSuccess: () => setDeletingGroup(null),
   });
@@ -60,7 +61,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   };
 
   const handleSaved = () => {
-    queryClient.invalidateQueries({ queryKey: ['resource-groups', resourceTypeKey] });
+    queryClient.invalidateQueries({ queryKey: qk.resourceGroups.byType(resourceTypeKey) });
     handleClose();
   };
 

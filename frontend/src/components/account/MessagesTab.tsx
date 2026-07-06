@@ -28,6 +28,7 @@ import {
   getActiveAnnouncements,
   markAnnouncementRead,
 } from '@foundation/src/lib/api/user-announcements-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import { formatDistanceToNow } from 'date-fns';
 
 export function MessagesTab() {
@@ -35,7 +36,7 @@ export function MessagesTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['announcements'],
+    queryKey: qk.announcements.active(),
     queryFn: async () => {
       const res = await getActiveAnnouncements();
       return res.announcements;
@@ -48,13 +49,13 @@ export function MessagesTab() {
     mutationFn: markAnnouncementRead,
     onMutate: async (announcementId: string) => {
       // Cancel any outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: ['announcements'] });
+      await queryClient.cancelQueries({ queryKey: qk.announcements.active() });
 
       // Snapshot previous value
-      const previous = queryClient.getQueryData<UserAnnouncement[]>(['announcements']);
+      const previous = queryClient.getQueryData<UserAnnouncement[]>(qk.announcements.active());
 
       // Optimistically update
-      queryClient.setQueryData<UserAnnouncement[]>(['announcements'], (old) =>
+      queryClient.setQueryData<UserAnnouncement[]>(qk.announcements.active(), (old) =>
         old?.map((a) => (a.id === announcementId ? { ...a, isRead: true } : a))
       );
 
@@ -63,12 +64,12 @@ export function MessagesTab() {
     onError: (_err, _id, context) => {
       // Rollback on error
       if (context?.previous) {
-        queryClient.setQueryData(['announcements'], context.previous);
+        queryClient.setQueryData(qk.announcements.active(), context.previous);
       }
     },
     onSettled: () => {
       // Sync TopBar unread badge
-      queryClient.invalidateQueries({ queryKey: ['unread-announcements'] });
+      queryClient.invalidateQueries({ queryKey: qk.announcements.unread() });
     },
   });
 

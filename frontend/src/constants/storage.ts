@@ -14,4 +14,6 @@ export const STORAGE_KEYS = {
   SELECTED_SITE_ID: 'selectedSiteId',
   /** Sidebar collapsed state */
   SIDEBAR_COLLAPSED: 'sidebar-collapsed',
+  /** Expanded node ids of the request tree */
+  REQUEST_TREE_EXPANDED: 'requestTree.expandedIds',
 } as const;

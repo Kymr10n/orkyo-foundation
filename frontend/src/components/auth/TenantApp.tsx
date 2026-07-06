@@ -27,7 +27,7 @@ import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoun
 import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS, ROUTE_ACCOUNT, ROUTE_TENANT_ADMIN } from '@foundation/src/constants/auth';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { AccountPage, type AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
@@ -139,7 +139,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             and be returned to the same subdomain context. */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/about" element={<RequireAuth><RouteErrorBoundary label="page"><AboutPage /></RouteErrorBoundary></RequireAuth>} />
-        <Route path="/account" element={<RequireAuth requireMembership={false}><RouteErrorBoundary label="page"><AccountPage accountTabs={accountTabs} /></RouteErrorBoundary></RequireAuth>} />
+        <Route path={ROUTE_ACCOUNT} element={<RequireAuth requireMembership={false}><RouteErrorBoundary label="page"><AccountPage accountTabs={accountTabs} /></RouteErrorBoundary></RequireAuth>} />
         <Route path="/messages" element={<RequireAuth><RouteErrorBoundary label="page"><MessagesPage /></RouteErrorBoundary></RequireAuth>} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
@@ -204,12 +204,12 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
 
           {/* Backward-compatible redirects: governance tabs moved out of Settings
               into the tenant-admin Administration page. */}
-          <Route path="settings/sites"         element={<Navigate to="/tenant-admin/sites" replace />} />
-          <Route path="settings/users"         element={<Navigate to="/tenant-admin/users" replace />} />
-          <Route path="settings/organization"  element={<Navigate to="/tenant-admin/organization" replace />} />
-          <Route path="settings/configuration" element={<Navigate to="/tenant-admin/configuration" replace />} />
-          <Route path="settings/integrations"  element={<Navigate to="/tenant-admin/integrations" replace />} />
-          <Route path="settings/usage-limits"  element={<Navigate to="/tenant-admin/usage-limits" replace />} />
+          <Route path="settings/sites"         element={<Navigate to={`${ROUTE_TENANT_ADMIN}/sites`} replace />} />
+          <Route path="settings/users"         element={<Navigate to={`${ROUTE_TENANT_ADMIN}/users`} replace />} />
+          <Route path="settings/organization"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/organization`} replace />} />
+          <Route path="settings/configuration" element={<Navigate to={`${ROUTE_TENANT_ADMIN}/configuration`} replace />} />
+          <Route path="settings/integrations"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/integrations`} replace />} />
+          <Route path="settings/usage-limits"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/usage-limits`} replace />} />
         </Route>
 
         {/* Catch-all: unknown URLs render a recoverable 404 instead of a blank screen. */}

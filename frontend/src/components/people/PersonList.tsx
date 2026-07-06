@@ -11,6 +11,8 @@ import { PersonSkillsEditor } from './PersonSkillsEditor';
 import { PersonAbsenceList } from './PersonAbsenceList';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfiles, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
+import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 export function PersonList() {
@@ -23,7 +25,7 @@ export function PersonList() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: people, isLoading, error } = useQuery({
-    queryKey: ['resources', 'person'],
+    queryKey: qk.resources.byType(RESOURCE_TYPE_KEY.PERSON),
     queryFn: () => getResources({ resourceTypeKey: 'person' }),
   });
 
@@ -63,7 +65,7 @@ export function PersonList() {
     meta: {
       successMessage: 'Person deactivated',
       errorMessage: 'Failed to deactivate person',
-      invalidates: [['resources', 'person']],
+      invalidates: [qk.resources.byType(RESOURCE_TYPE_KEY.PERSON)],
     },
     onSuccess: () => setDeletingPerson(null),
   });
@@ -83,7 +85,7 @@ export function PersonList() {
   };
 
   const handlePersonSaved = () => {
-    queryClient.invalidateQueries({ queryKey: ['resources', 'person'] });
+    queryClient.invalidateQueries({ queryKey: qk.resources.byType(RESOURCE_TYPE_KEY.PERSON) });
     handleDialogClose();
   };
 

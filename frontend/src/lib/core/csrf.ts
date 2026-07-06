@@ -6,7 +6,9 @@
  * the backend expects an `X-CSRF-Token` header whose value matches the cookie.
  */
 
-const CSRF_COOKIE_NAME = 'orkyo-csrf';
+import { COOKIE_NAMES } from '../../constants/http';
+
+const CSRF_COOKIE_NAME = COOKIE_NAMES.CSRF;
 export const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
 /**

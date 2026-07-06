@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { createInvitation, type CreateInvitationRequest } from "@foundation/src/lib/api/user-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
 
 interface InviteUserDialogProps {
@@ -34,7 +36,7 @@ export function InviteUserDialog({
     meta: {
       successMessage: "Invitation sent",
       errorMessage: "Failed to send invitation",
-      invalidates: [["invitations"]],
+      invalidates: [qk.invitations.all()],
     },
     onSuccess: () => {
       setEmail("");
@@ -147,11 +149,11 @@ export function InviteUserDialog({
       {/* Role Description */}
       <div className="rounded-lg bg-muted p-3 text-sm">
         <p className="text-muted-foreground">
-          {role === "admin" &&
+          {role === TENANT_ROLE.Admin &&
             "Admins have full access to all features including user management and settings."}
-          {role === "editor" &&
+          {role === TENANT_ROLE.Editor &&
             "Editors can create and modify utilization, requests, and spaces but cannot access settings."}
-          {role === "viewer" &&
+          {role === TENANT_ROLE.Viewer &&
             "Viewers have read-only access to view utilization and plans."}
         </p>
       </div>

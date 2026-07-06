@@ -11,6 +11,7 @@ import {
   deleteJobTitle,
   type JobTitleInfo,
 } from '@foundation/src/lib/api/job-titles-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 export function JobTitleSettings() {
   const [editing, setEditing] = useState<JobTitleInfo | null>(null);
@@ -18,7 +19,7 @@ export function JobTitleSettings() {
   const [includeInactive, setIncludeInactive] = useState(false);
 
   const { data: jobTitles = [], isLoading, error } = useQuery({
-    queryKey: ['job-titles', { includeInactive }],
+    queryKey: qk.jobTitles.list(includeInactive),
     queryFn: () => getJobTitles(includeInactive),
   });
 
@@ -27,7 +28,7 @@ export function JobTitleSettings() {
     meta: {
       successMessage: 'Job title deleted',
       errorMessage: 'Failed to delete job title',
-      invalidates: [['job-titles']],
+      invalidates: [qk.jobTitles.all()],
     },
   });
 

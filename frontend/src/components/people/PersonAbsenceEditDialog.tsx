@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { createResourceAbsence, type AbsenceType } from '@foundation/src/lib/api/resource-absences-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Button } from '@foundation/src/components/ui/button'; // date-picker popover triggers
 import { Input } from '@foundation/src/components/ui/input';
@@ -44,7 +45,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
     meta: {
       successMessage: 'Absence added',
       errorMessage: 'Failed to add absence',
-      invalidates: [['resource-absences', personId]],
+      invalidates: [qk.resources.absences(personId)],
     },
     onSuccess: () => {
       setAbsenceType('vacation');

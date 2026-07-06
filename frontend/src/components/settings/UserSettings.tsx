@@ -25,6 +25,8 @@ import {
   type UserWithRole,
   type Invitation,
 } from "@foundation/src/lib/api/user-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { InviteUserDialog } from "./InviteUserDialog";
 import { EditUserRoleDialog } from "./EditUserRoleDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
@@ -44,7 +46,7 @@ export function UserSettings() {
     error: usersError,
     refetch: refetchUsers,
   } = useQuery({
-    queryKey: ["users"],
+    queryKey: qk.users.all(),
     queryFn: getUsers,
   });
 
@@ -55,7 +57,7 @@ export function UserSettings() {
     error: invitationsError,
     refetch: refetchInvitations,
   } = useQuery({
-    queryKey: ["invitations"],
+    queryKey: qk.invitations.all(),
     queryFn: getInvitations,
   });
 
@@ -63,7 +65,7 @@ export function UserSettings() {
   const cancelMutation = useMutation({
     mutationFn: cancelInvitation,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      queryClient.invalidateQueries({ queryKey: qk.invitations.all() });
     },
   });
 
@@ -79,7 +81,7 @@ export function UserSettings() {
   const deleteMutation = useMutation({
     mutationFn: deleteUser,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: qk.users.all() });
     },
   });
 
@@ -98,15 +100,15 @@ export function UserSettings() {
       // Invite users via API
       for (const user of importedUsers) {
         if (!user.email) continue;
-        const role = user.role === 'inactive' ? 'viewer' : (user.role || 'viewer');
+        const role = user.role === TENANT_ROLE.Inactive ? TENANT_ROLE.Viewer : (user.role || TENANT_ROLE.Viewer);
         await createInvitation({
           email: user.email,
           role,
         });
       }
       // Reload users and invitations
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      queryClient.invalidateQueries({ queryKey: qk.users.all() });
+      queryClient.invalidateQueries({ queryKey: qk.invitations.all() });
       alert(`Successfully imported ${importedUsers.length} users`);
     } catch (error) {
       logger.error('Import failed:', error);
@@ -465,7 +467,7 @@ export function UserSettings() {
         onOpenChange={setInviteDialogOpen}
         onSuccess={() => {
           setInviteDialogOpen(false);
-          queryClient.invalidateQueries({ queryKey: ["invitations"] });
+          queryClient.invalidateQueries({ queryKey: qk.invitations.all() });
         }}
       />
 
@@ -476,7 +478,7 @@ export function UserSettings() {
           user={editingUser}
           onSuccess={() => {
             setEditingUser(null);
-            queryClient.invalidateQueries({ queryKey: ["users"] });
+            queryClient.invalidateQueries({ queryKey: qk.users.all() });
           }}
         />
       )}

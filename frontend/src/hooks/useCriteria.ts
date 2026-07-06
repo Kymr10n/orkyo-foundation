@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
-const CRITERIA_QUERY_KEY = ["criteria"] as const;
+export const CRITERIA_QUERY_KEY = ["criteria"] as const;
 
 // Criteria drive request requirements; mutating them invalidates the request feed too.
 const CRITERIA_INVALIDATES = [CRITERIA_QUERY_KEY, qk.requests.all()] as const;

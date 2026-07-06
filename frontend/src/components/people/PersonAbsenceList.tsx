@@ -10,6 +10,7 @@ import {
 import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Plus, Trash2 } from 'lucide-react';
 import { getResourceAbsences, deleteResourceAbsence, type ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
 import { format } from 'date-fns';
 
@@ -34,14 +35,14 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const { data: absences = [], isLoading } = useQuery({
-    queryKey: ['resource-absences', personId],
+    queryKey: qk.resources.absences(personId),
     queryFn: () => getResourceAbsences(personId),
     enabled: open,
   });
 
   const deleteMutation = useMutation({
     mutationFn: (absenceId: string) => deleteResourceAbsence(personId, absenceId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource-absences', personId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.resources.absences(personId) }),
   });
 
   return (
@@ -108,7 +109,7 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
           isOpen={isAddOpen}
           onClose={() => setIsAddOpen(false)}
           onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ['resource-absences', personId] });
+            queryClient.invalidateQueries({ queryKey: qk.resources.absences(personId) });
             setIsAddOpen(false);
           }}
         />

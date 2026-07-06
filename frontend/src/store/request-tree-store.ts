@@ -1,6 +1,7 @@
 import { create } from "zustand";
+import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 
-const STORAGE_KEY_EXPANDED_IDS = "requestTree.expandedIds";
+const STORAGE_KEY_EXPANDED_IDS = STORAGE_KEYS.REQUEST_TREE_EXPANDED;
 
 function readExpandedIds(): Set<string> {
   try {

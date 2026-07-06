@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, Lock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 import { getSecurityInfo } from "@foundation/src/lib/api/security-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { PasswordSection } from "./PasswordSection";
 import { MfaSection } from "./MfaSection";
 import { SessionsSection } from "./SessionsSection";
@@ -15,7 +16,7 @@ export function SecuritySettings() {
     isLoading: securityInfoLoading,
     error: securityInfoError,
   } = useQuery({
-    queryKey: ["security-info"],
+    queryKey: qk.security.info(),
     queryFn: getSecurityInfo,
   });
 

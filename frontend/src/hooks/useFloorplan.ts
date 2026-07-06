@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchFloorplanViewData } from "@foundation/src/lib/api/floorplan-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 export function useFloorplanViewData(siteId: string | null, enabled = true) {
   return useQuery({
-    queryKey: ["floorplan-view-data", siteId],
+    queryKey: qk.floorplan.viewData(siteId),
     queryFn: () => fetchFloorplanViewData(siteId!),
     enabled: !!siteId && enabled,
     // Floorplan images are large and change rarely — keep them fresh and cached far

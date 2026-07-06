@@ -58,6 +58,8 @@ import {
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { getUserProfile, updateUserProfile, requestEmailChange, getSecurityInfo } from "@foundation/src/lib/api/security-api";
 import {
   navigateToTenantSubdomain,
@@ -177,7 +179,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
   // A shared/locked identity (e.g. the public demo account) cannot edit its own profile.
   const { data: securityInfo } = useQuery({
-    queryKey: ["security-info"],
+    queryKey: qk.security.info(),
     queryFn: getSecurityInfo,
   });
   const accountLocked = securityInfo?.accountLocked ?? false;
@@ -303,7 +305,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       displayName: membership.tenantDisplayName,
       role: membership.role,
       state: membership.tenantStatus,
-      isTenantAdmin: membership.role === "admin",
+      isTenantAdmin: membership.role === TENANT_ROLE.Admin,
       isOwner: membership.isOwner,
     });
     navigate("/", { replace: true });
