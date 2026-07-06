@@ -20,7 +20,7 @@ public static class ConflictsEndpoints
         var group = app.MapGroup("/api/conflicts")
             .WithTags("Conflicts")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (
             DateTime? from,

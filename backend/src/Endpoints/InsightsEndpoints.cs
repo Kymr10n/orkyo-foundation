@@ -25,7 +25,7 @@ public static class InsightsEndpoints
         var group = app.MapGroup("/api/insights")
             .WithTags("Insights")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         group.MapGet("/overview", GetOverview)
             .WithName("GetInsightsOverview")

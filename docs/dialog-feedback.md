@@ -63,12 +63,13 @@ The `mutationMeta` shape is typed via a `declare module '@tanstack/react-query'`
 
 ## Exceptions
 
-- **`createCrudHooks`** ([useMutations.ts](../frontend/src/hooks/useMutations.ts)) self-centralizes
-  toast + invalidation via `entityLabel` for full-CRUD entities (criteria, sites). It carries no
-  `meta`, so the global cache never double-fires. Use it for new full-CRUD entities; use `meta` for
-  everything else (composed saves, batch editors, single mutations).
 - **Page-level callback handlers** that aren't `useMutation` (e.g. `RequestsPage` request CRUD uses
   `useCallback` + manual `loadRequests()` orchestration) keep their own inline toast/invalidation.
+
+Full-CRUD entities (criteria, sites) are NOT an exception: their hooks ([useCriteria.ts](../frontend/src/hooks/useCriteria.ts),
+[useSites.ts](../frontend/src/hooks/useSites.ts)) declare `meta` per mutation like everything else.
+(A `createCrudHooks` factory was once planned for these but never built — `meta` is the single
+mechanism.)
 
 ## Tests
 

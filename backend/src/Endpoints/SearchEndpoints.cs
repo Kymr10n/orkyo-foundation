@@ -14,7 +14,7 @@ public static class SearchEndpoints
 {
     public static void MapSearchEndpoints(this WebApplication app)
     {
-        var search = app.MapGroup("/api/search").RequireAuthorization().RequireTenantMembership();
+        var search = app.MapGroup("/api/search").RequireAuthorization().RequireMemberReadEditorWrite();
 
         search.MapGet("/", async (string q, Guid? siteId, string? types, int? limit, ISearchRepository repository, IAuthorizationContext authContext, ITenantSettingsService settingsService, CancellationToken ct) =>
         {

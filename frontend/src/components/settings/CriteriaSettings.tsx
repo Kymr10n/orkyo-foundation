@@ -95,7 +95,7 @@ export function CriteriaSettings() {
     try {
       await deleteMutation.mutateAsync(criterion.id);
     } catch {
-      // toast already fired by useDeleteCriterion.onError (entityLabel: "Criterion")
+      // toast already fired centrally via useDeleteCriterion's mutation meta
     }
   };
 

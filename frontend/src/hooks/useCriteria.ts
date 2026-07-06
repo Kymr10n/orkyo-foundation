@@ -1,6 +1,6 @@
 import { createCriterion, deleteCriterion, getCriteria, updateCriterion, updateCriterionApplicability } from "@foundation/src/lib/api/criteria-api";
 import type { CreateCriterionRequest, UpdateCriterionRequest, UpdateCriterionApplicabilityRequest, CriterionApplicabilityInfo } from "@foundation/src/types/criterion";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
@@ -47,12 +47,13 @@ export const useDeleteCriterion = () =>
   });
 
 /** Mutation to update criterion applicability via PUT /criteria/{id}/applicability. */
-export function useUpdateCriterionApplicability() {
-  const queryClient = useQueryClient();
-  return useMutation<CriterionApplicabilityInfo, Error, { id: string; data: UpdateCriterionApplicabilityRequest }>({
+export const useUpdateCriterionApplicability = () =>
+  useMutation<CriterionApplicabilityInfo, Error, { id: string; data: UpdateCriterionApplicabilityRequest }>({
     mutationFn: ({ id, data }) => updateCriterionApplicability(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CRITERIA_QUERY_KEY });
+    // No successMessage: this runs inside EditCriterionDialog's composed save, which
+    // already toasts via useUpdateCriterion — a second success toast would double-fire.
+    meta: {
+      errorMessage: "Failed to update criterion applicability",
+      invalidates: [CRITERIA_QUERY_KEY],
     },
   });
-}

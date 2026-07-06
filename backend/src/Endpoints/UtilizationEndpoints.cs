@@ -14,7 +14,7 @@ public static class UtilizationEndpoints
         var resources = app.MapGroup("/api/resources")
             .WithTags("Utilization")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         resources.MapGet("/{id:guid}/utilization", async (
             Guid id,
@@ -32,7 +32,7 @@ public static class UtilizationEndpoints
         var groups = app.MapGroup("/api/resource-groups")
             .WithTags("Utilization")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         groups.MapGet("/{id:guid}/utilization", async (
             Guid id,
@@ -50,7 +50,7 @@ public static class UtilizationEndpoints
         var tenant = app.MapGroup("/api/utilization")
             .WithTags("Utilization")
             .RequireAuthorization()
-            .RequireTenantMembership();
+            .RequireMemberReadEditorWrite();
 
         tenant.MapGet("/", async (
             IUtilizationService service,

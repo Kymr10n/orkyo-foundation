@@ -38,11 +38,7 @@ public static class DiagnosticsAdminEndpoints
             .WithSummary("Returns API name and version (public, no auth)");
 
         // Admin diagnostics endpoint
-        var group = app.MapGroup("/api/admin")
-            .RequireAuthorization()
-            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
-            .WithTags("Admin")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup();
 
         group.MapGet("/diagnostics", GetDiagnostics)
             .RequireSiteAdmin()

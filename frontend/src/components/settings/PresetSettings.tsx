@@ -28,7 +28,7 @@ import {
   type PresetApplicationResult,
   type PresetValidationResult,
 } from "@foundation/src/lib/api/preset-api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -43,7 +43,6 @@ import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useRef, useState } from "react";
 
 export function PresetSettings() {
-  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State for dialogs
@@ -75,19 +74,24 @@ export function PresetSettings() {
     },
   });
 
-  // Apply mutation
+  // Apply mutation. No successMessage: the response carries its own success flag and
+  // the in-dialog application-result panel is the feedback; a central toast could
+  // claim success on a partially-failed application. Invalidation is harmless either
+  // way, so it lives in meta per docs/dialog-feedback.md.
   const applyMutation = useMutation({
     mutationFn: applyPreset,
+    meta: {
+      invalidates: [
+        ["preset-applications"],
+        ["criteria"],
+        ["space-groups"],
+        ["templates-request"],
+        ["templates-space"],
+        ["templates-group"],
+      ],
+    },
     onSuccess: (result) => {
       setApplicationResult(result);
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ["preset-applications"] });
-        queryClient.invalidateQueries({ queryKey: ["criteria"] });
-        queryClient.invalidateQueries({ queryKey: ["space-groups"] });
-        queryClient.invalidateQueries({ queryKey: ["templates-request"] });
-        queryClient.invalidateQueries({ queryKey: ["templates-space"] });
-        queryClient.invalidateQueries({ queryKey: ["templates-group"] });
-      }
     },
   });
 
