@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Hosting;
 using Api.Constants;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 
