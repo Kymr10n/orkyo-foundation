@@ -110,7 +110,7 @@ public class ResourceEndpointTests
     public async Task CreateResource_Unauthenticated_Returns401()
     {
         var anon = _fixture.Factory.CreateClient();
-        anon.DefaultRequestHeaders.Add("X-Tenant-Slug", TestConstants.TenantSlug);
+        anon.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
 
         var request = new CreateResourceRequest
         {

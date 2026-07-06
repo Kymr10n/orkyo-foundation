@@ -27,6 +27,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests;
 
@@ -165,7 +166,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             // Reporting token pepper — fixed for test repeatability.
             ["REPORTING_TOKEN_PEPPER"] = "test-reporting-pepper-do-not-use-in-prod",
             // Rate limiting disabled in tests to avoid spurious 429s.
-            ["DISABLE_RATE_LIMITING"] = "true",
+            [ConfigKeys.DisableRateLimiting] = "true",
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────
@@ -407,7 +408,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.UseExceptionHandler();
         app.UseRouting();
         app.UseAuthentication();
-        if (!builder.Configuration.GetValue<bool>("DISABLE_RATE_LIMITING"))
+        if (!builder.Configuration.GetValue<bool>(ConfigKeys.DisableRateLimiting))
             app.UseRateLimiter();
 
         // Test context enrichment: populate security context for authenticated requests.
@@ -423,7 +424,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         {
             var isReportingToken = context.Request.Headers.Authorization
                 .FirstOrDefault()?.StartsWith("Bearer orkyo_rpt_") == true;
-            if (isReportingToken && context.Request.Headers.ContainsKey("X-Tenant-Slug"))
+            if (isReportingToken && context.Request.Headers.ContainsKey(HeaderConstants.TenantSlug))
             {
                 var tenantCtx = context.RequestServices.GetRequiredService<TenantContext>();
                 var tenant = context.RequestServices.GetRequiredService<CurrentTenant>();
@@ -477,7 +478,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 // for "no tenant header" can run.
                 var endpoint = context.GetEndpoint();
                 var skipTenant = endpoint?.Metadata.GetMetadata<SkipTenantResolutionAttribute>() != null;
-                var hasSlugHeader = context.Request.Headers.ContainsKey("X-Tenant-Slug");
+                var hasSlugHeader = context.Request.Headers.ContainsKey(HeaderConstants.TenantSlug);
 
                 if (!skipTenant && !hasSlugHeader)
                 {

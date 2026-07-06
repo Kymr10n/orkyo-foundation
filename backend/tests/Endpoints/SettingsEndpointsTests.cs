@@ -23,7 +23,7 @@ public class SettingsEndpointsTests
     {
         _fixture = databaseFixture;
         _client = databaseFixture.Factory.CreateClient();
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
     private string? _cachedAdminToken;

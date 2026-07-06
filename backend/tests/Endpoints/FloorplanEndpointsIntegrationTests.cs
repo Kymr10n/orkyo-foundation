@@ -24,7 +24,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         _databaseFixture = databaseFixture;
         _client = databaseFixture.Factory.CreateClient();
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
     #region GET /sites/{siteId}/floorplan - Get Floorplan Image
@@ -35,7 +35,7 @@ public class FloorplanEndpointsIntegrationTests
         // 404 means Bearer token was accepted; site simply doesn't exist.
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
 
         var response = await client.GetAsync($"/api/sites/{siteId}/floorplan");
@@ -48,7 +48,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
         var response = await client.GetAsync($"/api/sites/{siteId}/floorplan");
 
@@ -64,7 +64,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
 
         var response = await client.GetAsync($"/api/sites/{siteId}/floorplan/metadata");
@@ -77,7 +77,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
         var response = await client.GetAsync($"/api/sites/{siteId}/floorplan/metadata");
 
@@ -93,7 +93,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
         var content = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 }); // PNG header
@@ -111,7 +111,7 @@ public class FloorplanEndpointsIntegrationTests
         // NotFound = authenticated OK; endpoint logic ran and rejected the unknown site.
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
 
         var content = new MultipartFormDataContent();
@@ -133,7 +133,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
         var response = await client.DeleteAsync($"/api/sites/{siteId}/floorplan");
 
@@ -145,7 +145,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         var siteId = Guid.NewGuid();
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
 
         var response = await client.DeleteAsync($"/api/sites/{siteId}/floorplan");
@@ -195,7 +195,7 @@ public class FloorplanEndpointsIntegrationTests
     private HttpClient AuthedClient()
     {
         var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
         return client;
     }

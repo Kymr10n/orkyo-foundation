@@ -164,7 +164,7 @@ public class SubdomainResolutionStrategyTests
         context.Request.Host = new HostString(host);
 
         if (!string.IsNullOrEmpty(headerSlug))
-            context.Request.Headers["X-Tenant-Slug"] = headerSlug;
+            context.Request.Headers[HeaderConstants.TenantSlug] = headerSlug;
 
         if (!string.IsNullOrEmpty(querySlug))
             context.Request.QueryString = new QueryString($"?tenant={querySlug}");

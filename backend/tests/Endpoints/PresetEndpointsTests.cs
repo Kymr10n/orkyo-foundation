@@ -22,7 +22,7 @@ public class PresetEndpointsTests
     public PresetEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.Factory.CreateClient();
-        _client.DefaultRequestHeaders.Add("X-Tenant-Slug", TenantSlug);
+        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,

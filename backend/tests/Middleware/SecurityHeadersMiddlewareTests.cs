@@ -1,6 +1,7 @@
 using Api.Middleware;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Middleware;
 
@@ -17,7 +18,7 @@ public class SecurityHeadersMiddlewareTests
     {
         var env = new Mock<IWebHostEnvironment>();
         env.Setup(e => e.EnvironmentName)
-           .Returns(isProduction ? "Production" : "Development");
+           .Returns(isProduction ? EnvironmentNames.Production : EnvironmentNames.Development);
 
         return new SecurityHeadersMiddleware(_ => Task.CompletedTask, env.Object);
     }
@@ -30,7 +31,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers["X-Content-Type-Options"].ToString().Should().Be("nosniff");
+        ctx.Response.Headers[HeaderConstants.XContentTypeOptions].ToString().Should().Be("nosniff");
     }
 
     [Fact]
@@ -39,7 +40,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers["X-Frame-Options"].ToString().Should().Be("DENY");
+        ctx.Response.Headers[HeaderConstants.XFrameOptions].ToString().Should().Be("DENY");
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers["Referrer-Policy"].ToString()
+        ctx.Response.Headers[HeaderConstants.ReferrerPolicy].ToString()
            .Should().Be("strict-origin-when-cross-origin");
     }
 
@@ -58,7 +59,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers["X-Permitted-Cross-Domain-Policies"].ToString().Should().Be("none");
+        ctx.Response.Headers[HeaderConstants.XPermittedCrossDomainPolicies].ToString().Should().Be("none");
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers["Content-Security-Policy"].ToString().Should()
+        ctx.Response.Headers[HeaderConstants.ContentSecurityPolicy].ToString().Should()
            .Contain("default-src 'none'")
            .And.Contain("frame-ancestors 'none'");
     }
@@ -78,7 +79,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers["Permissions-Policy"].ToString().Should()
+        ctx.Response.Headers[HeaderConstants.PermissionsPolicy].ToString().Should()
            .Contain("camera=()").And.Contain("microphone=()");
     }
 
@@ -90,7 +91,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: true).InvokeAsync(ctx);
 
-        ctx.Response.Headers["Strict-Transport-Security"].ToString().Should()
+        ctx.Response.Headers[HeaderConstants.StrictTransportSecurity].ToString().Should()
            .Contain("max-age=31536000")
            .And.Contain("includeSubDomains");
     }
@@ -101,7 +102,7 @@ public class SecurityHeadersMiddlewareTests
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers.ContainsKey("Strict-Transport-Security").Should().BeFalse();
+        ctx.Response.Headers.ContainsKey(HeaderConstants.StrictTransportSecurity).Should().BeFalse();
     }
 
     // ── Calls next ─────────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ public class SecurityHeadersMiddlewareTests
     {
         var nextCalled = false;
         var env = new Mock<IWebHostEnvironment>();
-        env.Setup(e => e.EnvironmentName).Returns("Development");
+        env.Setup(e => e.EnvironmentName).Returns(EnvironmentNames.Development);
 
         var middleware = new SecurityHeadersMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, env.Object);
 

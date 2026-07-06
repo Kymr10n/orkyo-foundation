@@ -1,5 +1,6 @@
 using Api.Configuration;
 using Microsoft.Extensions.Configuration;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Configuration;
 
@@ -33,7 +34,7 @@ public class ValidateModeTests
     {
         var config = BuildConfig(ValidConfig());
 
-        var exitCode = ValidateMode.Run(config, "Test");
+        var exitCode = ValidateMode.Run(config, EnvironmentNames.Test);
 
         exitCode.Should().Be(0);
     }
@@ -45,7 +46,7 @@ public class ValidateModeTests
         values.Remove("SMTP_HOST");
         var config = BuildConfig(values);
 
-        var exitCode = ValidateMode.Run(config, "Test");
+        var exitCode = ValidateMode.Run(config, EnvironmentNames.Test);
 
         exitCode.Should().Be(1);
     }
@@ -57,7 +58,7 @@ public class ValidateModeTests
         values["SMTP_PORT"] = "not-a-number";
         var config = BuildConfig(values);
 
-        var exitCode = ValidateMode.Run(config, "Test");
+        var exitCode = ValidateMode.Run(config, EnvironmentNames.Test);
 
         exitCode.Should().Be(1);
     }
@@ -69,7 +70,7 @@ public class ValidateModeTests
         values["TenantResolution:AllowTenantHeader"] = "true";
         var config = BuildConfig(values);
 
-        var exitCode = ValidateMode.Run(config, "Production");
+        var exitCode = ValidateMode.Run(config, EnvironmentNames.Production);
 
         exitCode.Should().Be(1);
     }

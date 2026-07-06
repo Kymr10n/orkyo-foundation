@@ -352,7 +352,7 @@ public class ReportingEndpointsTests
     private HttpClient MakeReportingClient(string rawToken)
     {
         var client = _fixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TestConstants.TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {rawToken}");
         return client;
     }
@@ -377,7 +377,7 @@ public class ReportingEndpointsTests
             Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(tokenData)));
 
         var client = _fixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Tenant-Slug", TestConstants.TenantSlug);
+        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearerToken}");
         return client;
     }

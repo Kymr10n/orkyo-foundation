@@ -146,6 +146,25 @@ public class DeploymentConfigTests
     }
 
     [Fact]
+    public void ToString_RendersRedactedView_WithoutSecretValues()
+    {
+        // The record-generated ToString would print every property (secrets included) when the
+        // config is interpolated into a log/exception message; the override must render the
+        // Redacted() view instead.
+        var config = DeploymentConfig.FromConfiguration(
+            BuildConfig(RequiredValues(new Dictionary<string, string?>
+            {
+                [ConfigKeys.KeycloakBackendClientSecret] = "super-secret-value",
+            })));
+
+        var rendered = config.ToString();
+
+        rendered.Should().NotContain("super-secret-value");
+        rendered.Should().NotContain(TestConstants.MasterEncryptionKey);
+        rendered.Should().Contain(nameof(DeploymentConfig.AppBaseUrl));
+    }
+
+    [Fact]
     public void DecodeMasterEncryptionKey_ReturnsThirtyTwoBytes_ForValidKey()
     {
         var config = DeploymentConfig.FromConfiguration(BuildConfig(RequiredValues()));
