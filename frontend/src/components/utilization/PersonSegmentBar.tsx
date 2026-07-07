@@ -3,7 +3,7 @@ import { AlertTriangle, Briefcase } from "lucide-react";
 import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
 import { segmentDisplayData } from "@foundation/src/domain/scheduling/utilization-segments";
 import type { BucketStatus } from "./schedule-colors";
-import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS } from "./schedule-colors";
+import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS, STATUS_PATTERN_CLASS } from "./schedule-colors";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 
 /** Datetime shown in segment tooltips/aria — locale date + 24h house time. */
@@ -100,6 +100,7 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
   const showLabel = widthPercent >= LABEL_MIN_WIDTH_PERCENT;
   const fill = fillPercent(segment);
   const fillClass = STATUS_FILL_CLASS[segment.status];
+  const patternClass = STATUS_PATTERN_CLASS[segment.status];
 
   const activate = () => onClick(segment);
 
@@ -118,7 +119,7 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
           activate();
         }
       }}
-      className={`absolute top-2 bottom-2 rounded border flex items-center gap-1.5 overflow-hidden px-2 text-xs font-medium cursor-pointer transition hover:brightness-95 outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[segment.status]} ${STATUS_BORDER_CLASS[segment.status]}`}
+      className={`absolute top-2 bottom-2 rounded border flex items-center gap-1.5 overflow-hidden px-2 text-xs font-medium cursor-pointer transition motion-reduce:transition-none hover:brightness-95 outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[segment.status]} ${STATUS_BORDER_CLASS[segment.status]}`}
       style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
     >
       {/* Solid utilization meter — fills the track left-to-right. */}
@@ -127,6 +128,15 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
           className={`absolute inset-y-0 left-0 ${fillClass}`}
           style={{ width: `${fill}%` }}
           data-testid="segment-fill"
+          aria-hidden="true"
+        />
+      )}
+      {/* Diagonal hatch for problem states (overbooked) — a non-colour cue that
+          reads over the fill. Decorative; the status is in the aria-label. */}
+      {patternClass && (
+        <div
+          className={`absolute inset-0 ${patternClass}`}
+          data-testid="segment-pattern"
           aria-hidden="true"
         />
       )}

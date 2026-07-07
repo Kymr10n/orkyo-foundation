@@ -183,6 +183,7 @@ vi.mock("@dnd-kit/core", () => ({
   DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
   useDndMonitor: vi.fn(),
   PointerSensor: vi.fn(),
+  KeyboardSensor: vi.fn(),
   pointerWithin: vi.fn(),
   useSensor: vi.fn(() => ({})),
   useSensors: vi.fn(() => []),

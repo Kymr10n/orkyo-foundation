@@ -232,14 +232,12 @@ describe('OrkyoDataTable', () => {
 
   it('prev button is disabled on first page', () => {
     render(<OrkyoDataTable columns={columns} data={makeRows(30)} pageSize={10} />);
-    const [prev] = screen.getAllByRole('button');
-    expect(prev).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
   });
 
   it('next button is enabled on first page', () => {
     render(<OrkyoDataTable columns={columns} data={makeRows(30)} pageSize={10} />);
-    const [, next] = screen.getAllByRole('button');
-    expect(next).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next page' })).not.toBeDisabled();
   });
 
   it('navigates to next page and shows correct rows', async () => {

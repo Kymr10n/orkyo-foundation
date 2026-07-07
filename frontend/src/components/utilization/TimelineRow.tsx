@@ -2,6 +2,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { TimeColumn } from "./scheduler-types";
+import { PROBLEM_HATCH_CLASS } from "./schedule-colors";
 
 /**
  * Shared row chrome for both utilization grids (Spaces + People).
@@ -60,10 +61,14 @@ function DefaultColumnCells({
         // Resource-specific off-time gets the same destructive tint as weekends/
         // global off-time; otherwise fall back to the shared column tint.
         const tint = isOffTime?.(col) ? "bg-destructive/15" : columnTintClass(col);
+        // Off-time (destructive tint) is a problem state — add the diagonal hatch
+        // so it reads without relying on colour alone. Outside-working-hours
+        // (muted) is not flagged as a problem, so it stays hatch-free.
+        const hatch = tint === "bg-destructive/15" ? PROBLEM_HATCH_CLASS : "";
         return (
           <div
             key={col.start.getTime()}
-            className={`flex-1 min-w-[60px] border-r ${tint}`}
+            className={`flex-1 min-w-[60px] border-r ${tint} ${hatch}`}
           />
         );
       })}
@@ -90,7 +95,7 @@ function RowInner({
     <div
       ref={dragRef}
       style={dragStyle}
-      className="flex border-b hover:bg-accent/30 transition-colors"
+      className="flex border-b hover:bg-accent/30 transition-colors motion-reduce:transition-none"
       data-testid={testId}
     >
       <div className="w-52 flex-shrink-0 px-3 py-2 border-r flex items-center gap-2">

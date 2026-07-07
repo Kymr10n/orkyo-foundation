@@ -56,7 +56,7 @@ export const RequestListView = React.memo(function RequestListView({
       <div className="flex justify-end">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm">
+            <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${request.name}`}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

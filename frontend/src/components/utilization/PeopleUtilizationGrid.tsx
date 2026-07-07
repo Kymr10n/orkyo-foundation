@@ -29,7 +29,7 @@ import { Input } from '@foundation/src/components/ui/input';
 import { PersonTimelineRow } from './PersonTimelineRow';
 import { PersonAssignmentDialog } from './PersonAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
-import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS } from './schedule-colors';
+import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
 import { groupRowsByResourceGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
@@ -106,7 +106,7 @@ function overallPercent(
 function LegendDot({ status, label, title }: { status: BucketStatus; label: string; title?: string }) {
   return (
     <span className="flex items-center gap-1" title={title}>
-      <span className={`inline-block h-2.5 w-4 rounded-sm border ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]}`} />
+      <span className={`inline-block h-2.5 w-4 rounded-sm border ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${STATUS_PATTERN_CLASS[status]}`} />
       {label}
     </span>
   );
@@ -365,6 +365,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
       <Input
         type="search"
         placeholder="Search people…"
+        aria-label="Search people"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="h-8 w-48"

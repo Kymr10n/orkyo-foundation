@@ -41,7 +41,9 @@ import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
-import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
 import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
 import { DropColumnIndicator } from "@foundation/src/components/utilization/DropColumnIndicator";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
@@ -84,7 +86,16 @@ export function UtilizationPage() {
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
   });
-  const sensors = useSensors(...(canEdit ? [pointerSensor] : []));
+  // KeyboardSensor makes the row-reorder drag (Spaces) keyboard-operable — that
+  // path resolves its target purely from element ids, so it is keyboard-correct.
+  // Request cards / scheduled bars intercept Enter/Space for their own "open"
+  // affordance, so they never start a keyboard drag onto the time grid (whose
+  // drop time is resolved from pointer coordinates); those users schedule via
+  // the "Schedule to…" dialog instead.
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+  const sensors = useSensors(...(canEdit ? [pointerSensor, keyboardSensor] : []));
 
   // Scope collision detection to the active drag's intent so a single set of
   // droppables can serve two modes unambiguously: dragging a space-row only
@@ -124,6 +135,8 @@ export function UtilizationPage() {
   const { isPhone } = useBreakpoint();
   const [isCreateChildDialogOpen, setIsCreateChildDialogOpen] = useState(false);
   const [createChildParent, setCreateChildParent] = useState<Request | null>(null);
+  // Non-drag "Schedule to…" dialog target (keyboard-accessible scheduling path).
+  const [scheduleToRequest, setScheduleToRequest] = useState<Request | null>(null);
   const queryClient = useQueryClient();
 
   // Auto-schedule
@@ -425,6 +438,14 @@ export function UtilizationPage() {
     setSelectedRequestId(draggedData.id);
   }, [scheduleMutation, setSelectedRequestId]);
 
+  // Non-drag scheduling: reuse the exact drag-drop handler (duration → endTs,
+  // schedule mutation, conflict feedback) so the dialog and the drag path submit
+  // identically.
+  const handleScheduleToSubmit = useCallback(async (resourceId: string, startTs: Date) => {
+    if (!scheduleToRequest) return;
+    await handleScheduleToGrid(scheduleToRequest, resourceId, startTs);
+  }, [scheduleToRequest, handleScheduleToGrid]);
+
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveDragLabel(null);
     const { active, over } = event;
@@ -657,6 +678,7 @@ export function UtilizationPage() {
                   isLoading={requestsLoading}
                   onCreateChild={canEdit ? handleCreateChild : undefined}
                   onRequestClick={openRequestEditor}
+                  onScheduleTo={canEdit ? setScheduleToRequest : undefined}
                 />
 
                 {spacesLoading || requestsLoading ? (
@@ -747,6 +769,16 @@ export function UtilizationPage() {
         defaultSchedule={calendarForm ? { startTs: calendarForm.startTs, endTs: calendarForm.endTs } : undefined}
         scheduleSiteId={selectedSiteId ?? undefined}
         onSave={handleCalendarFormSave}
+      />
+
+      {/* Non-drag "Schedule to…" — keyboard-accessible scheduling for backlog cards */}
+      <ScheduleToDialog
+        open={!!scheduleToRequest}
+        onOpenChange={(open) => { if (!open) setScheduleToRequest(null); }}
+        request={scheduleToRequest}
+        spaces={spaces}
+        onSchedule={handleScheduleToSubmit}
+        isSubmitting={scheduleMutation.isPending}
       />
 
       <AutoSchedulePreviewDialog

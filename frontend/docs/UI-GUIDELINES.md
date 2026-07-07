@@ -39,6 +39,22 @@ does, that region is the **sole** scroll owner and every ancestor up to `<main>`
 <div className={mode === 'tree' ? 'overflow-hidden' : 'overflow-y-auto'}>…</div>
 ```
 
+**Wide content scrolls in its own container.** Tables and other intrinsically wide content (e.g.
+a data grid with many columns) must never clip or force the page/route to scroll horizontally.
+Wrap the wide element in its own `overflow-x-auto` container so only that region scrolls
+sideways; the rest of the page stays put. `OrkyoDataTable` does this for its desktop table-mode
+rendering — reach for it, or mirror the pattern, before hand-rolling a table.
+
+```tsx
+// ✅ The table scrolls horizontally in place; the page doesn't.
+<div className="overflow-x-auto">
+  <Table>…</Table>
+</div>
+
+// ❌ No wrapper — a wide table clips or pushes the whole page into horizontal scroll.
+<Table>…</Table>
+```
+
 ## 2. `flex-1` is always paired with `min-h-0`
 
 A flex child defaults to `min-height: auto` and refuses to shrink below its content, so `flex-1`

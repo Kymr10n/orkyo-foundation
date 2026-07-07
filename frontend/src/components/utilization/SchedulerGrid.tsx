@@ -374,13 +374,13 @@ export function SchedulerGrid({
       {isDraggingCursor && (
         <>
           <div
-            className={`absolute top-0 bottom-0 left-52 w-[60px] pointer-events-none transition-opacity duration-150 ${
+            className={`absolute top-0 bottom-0 left-52 w-[60px] pointer-events-none transition-opacity duration-150 motion-reduce:transition-none ${
               edgeScrollDirection === 'left' ? 'opacity-100' : 'opacity-0'
             }`}
             style={{ background: 'linear-gradient(to right, rgba(59, 130, 246, 0.3), transparent)' }}
           />
           <div
-            className={`absolute top-0 bottom-0 right-0 w-[60px] pointer-events-none transition-opacity duration-150 ${
+            className={`absolute top-0 bottom-0 right-0 w-[60px] pointer-events-none transition-opacity duration-150 motion-reduce:transition-none ${
               edgeScrollDirection === 'right' ? 'opacity-100' : 'opacity-0'
             }`}
             style={{ background: 'linear-gradient(to left, rgba(59, 130, 246, 0.3), transparent)' }}
@@ -394,8 +394,8 @@ export function SchedulerGrid({
         className="absolute top-0 bottom-0 left-52 right-0 pointer-events-none"
       >
         <div
-          className={`absolute top-0 bottom-0 w-0.5 z-20 transition-colors ${
-            edgeScrollDirection ? 'bg-blue-400 animate-pulse' : 'bg-blue-500'
+          className={`absolute top-0 bottom-0 w-0.5 z-20 transition-colors motion-reduce:transition-none ${
+            edgeScrollDirection ? 'bg-blue-400 animate-pulse motion-reduce:animate-none' : 'bg-blue-500'
           }`}
           style={{ left: `${cursorPosition}%` }}
         >
@@ -408,7 +408,7 @@ export function SchedulerGrid({
           <div
             className={`absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-blue-500 pointer-events-none ${
               isDraggingCursor ? 'bg-blue-500 scale-125' : 'bg-background'
-            } transition-all`}
+            } transition-all motion-reduce:transition-none`}
           />
         </div>
       </div>

@@ -13,7 +13,7 @@ import {
 import type { Request, RequestStatus } from "@foundation/src/types/requests";
 import { buildRequestTree, flattenTree, canBeScheduled, canHaveChildren } from "@foundation/src/domain/request-tree";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
+import { CalendarPlus, ChevronRight, ChevronDown, GripVertical, Plus, Search } from "lucide-react";
 import { getPlanningModeIcon, REQUEST_STATUS_ORDER, PLANNING_MODE } from "@foundation/src/constants";
 import { filterPanelEntries } from "./request-panel-filter";
 import React, { useState, useMemo, useCallback, useRef } from "react";
@@ -25,6 +25,8 @@ interface RequestsPanelProps {
   isLoading?: boolean;
   onCreateChild?: (parentId: string) => void;
   onRequestClick?: (request: Request) => void;
+  /** Non-drag scheduling: open the "Schedule to…" dialog for a backlog card. */
+  onScheduleTo?: (request: Request) => void;
 }
 
 const INDENT_PX = 20;
@@ -37,6 +39,7 @@ interface RequestCardProps {
   onToggle: (requestId: string) => void;
   onCreateChild?: (requestId: string) => void;
   onCardClick?: (request: Request) => void;
+  onScheduleTo?: (request: Request) => void;
   requestId: string;
 }
 
@@ -48,6 +51,7 @@ const RequestCard = React.memo(function RequestCard({
   onToggle,
   onCreateChild,
   onCardClick,
+  onScheduleTo,
   requestId,
 }: RequestCardProps) {
   const isDraggable = canBeScheduled(request.planningMode);
@@ -87,18 +91,39 @@ const RequestCard = React.memo(function RequestCard({
   };
 
   const isScheduled = !!request.isScheduled;
+  const canScheduleTo = isDraggable && !isScheduled && !!onScheduleTo;
   const ModeIcon = getPlanningModeIcon(request.planningMode);
+
+  // Keyboard activation: Enter/Space on the focused card opens details. Only act
+  // when the event originates on the card itself (not a nested button that
+  // bubbled up). Rendering this after the dnd listeners deliberately overrides
+  // the draggable's own keydown, so the card's keyboard affordance is "open
+  // details" — the accessible scheduling path is the "Schedule to…" dialog, not
+  // a keyboard drag (the grid drop resolves its target from pointer coordinates).
+  const handleCardKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!onCardClick || e.target !== e.currentTarget) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onCardClick(request);
+      }
+    },
+    [onCardClick, request],
+  );
 
   return (
     <div
       ref={combinedRef}
       style={style}
       onClick={onCardClick ? () => onCardClick(request) : undefined}
-      className={`py-2 pr-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors ${
+      className={`group py-2 pr-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         isDraggable ? "cursor-grab active:cursor-grabbing" : onCardClick ? "cursor-pointer" : ""
       } ${isOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
       {...attributes}
       {...(isDraggable ? listeners : {})}
+      tabIndex={onCardClick ? 0 : undefined}
+      role={onCardClick ? "button" : undefined}
+      onKeyDown={onCardClick ? handleCardKeyDown : undefined}
     >
       <div className="flex items-start gap-1.5">
         {/* Expand/collapse toggle for parent nodes */}
@@ -110,6 +135,8 @@ const RequestCard = React.memo(function RequestCard({
               onToggle(requestId);
             }}
             className="mt-0.5 p-0.5 rounded hover:bg-accent flex-shrink-0"
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${request.name}`}
           >
             {isExpanded ? (
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -131,6 +158,20 @@ const RequestCard = React.memo(function RequestCard({
           <div className="flex items-start justify-between gap-2">
             <h4 className="font-medium text-sm truncate">{request.name}</h4>
             <div className="flex items-center gap-1 flex-shrink-0">
+              {canScheduleTo && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onScheduleTo!(request);
+                  }}
+                  className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity motion-reduce:transition-none"
+                  title="Schedule to…"
+                  aria-label={`Schedule ${request.name}`}
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                </button>
+              )}
               {isDropTarget && onCreateChild && (
                 <button
                   type="button"
@@ -140,6 +181,7 @@ const RequestCard = React.memo(function RequestCard({
                   }}
                   className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
                   title="Add child request"
+                  aria-label={`Add child request to ${request.name}`}
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -173,7 +215,7 @@ const RequestCard = React.memo(function RequestCard({
   );
 });
 
-export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestClick }: RequestsPanelProps) {
+export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestClick, onScheduleTo }: RequestsPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "all">(
     "all"
@@ -256,6 +298,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search requests..."
+            aria-label="Search requests"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8"
@@ -333,6 +376,7 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
                     onToggle={toggleCollapse}
                     onCreateChild={onCreateChild ? handleCreateChild : undefined}
                     onCardClick={onRequestClick}
+                    onScheduleTo={onScheduleTo}
                   />
                 </div>
               );

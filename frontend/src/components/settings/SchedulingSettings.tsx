@@ -526,6 +526,7 @@ export function SchedulingSettings() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleEditEvent(ev)}
+                        aria-label={`Edit ${ev.title}`}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -533,6 +534,7 @@ export function SchedulingSettings() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteEvent(ev)}
+                        aria-label={`Delete ${ev.title}`}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>

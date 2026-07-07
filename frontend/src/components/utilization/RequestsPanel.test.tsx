@@ -134,6 +134,8 @@ describe('RequestsPanel', () => {
   it('renders search input', () => {
     renderPanel();
     expect(screen.getByPlaceholderText('Search requests...')).toBeInTheDocument();
+    // Placeholder-only inputs need an accessible name for screen readers.
+    expect(screen.getByRole('textbox', { name: 'Search requests' })).toBeInTheDocument();
   });
 
   it('filters by search query', () => {
@@ -275,5 +277,57 @@ describe('RequestsPanel', () => {
     expect(screen.getByText('Scheduled Task')).toBeInTheDocument();
     expect(screen.getByText('Scheduled')).toBeInTheDocument();
     expect(screen.queryByText('Unscheduled Task')).not.toBeInTheDocument();
+  });
+
+  // --- Non-drag "Schedule to…" action (WP-20) ---
+
+  it('renders a "Schedule to…" action on an unscheduled leaf and fires onScheduleTo', () => {
+    const onScheduleTo = vi.fn();
+    renderPanel([unscheduledLeaf], { onScheduleTo });
+    const btn = screen.getByRole('button', { name: 'Schedule Unscheduled Task' });
+    fireEvent.click(btn);
+    expect(onScheduleTo).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-1' }));
+  });
+
+  it('does not render the "Schedule to…" action when onScheduleTo is not provided', () => {
+    renderPanel([unscheduledLeaf]);
+    expect(screen.queryByRole('button', { name: /^Schedule / })).not.toBeInTheDocument();
+  });
+
+  it('does not render the "Schedule to…" action on non-schedulable container nodes', () => {
+    const onScheduleTo = vi.fn();
+    renderPanel([parentReq], { onScheduleTo });
+    expect(screen.queryByRole('button', { name: /^Schedule / })).not.toBeInTheDocument();
+  });
+
+  it('does not fire onRequestClick when the Schedule action is clicked (stops propagation)', () => {
+    const onScheduleTo = vi.fn();
+    const onRequestClick = vi.fn();
+    renderPanel([unscheduledLeaf], { onScheduleTo, onRequestClick });
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule Unscheduled Task' }));
+    expect(onScheduleTo).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-1' }));
+    expect(onRequestClick).not.toHaveBeenCalled();
+  });
+
+  // --- Card focusability / keyboard activation (WP-20) ---
+
+  it('makes a clickable card keyboard-focusable and activatable via Enter/Space', () => {
+    const onRequestClick = vi.fn();
+    renderPanel([unscheduledLeaf], { onRequestClick });
+    const card = screen.getByText('Unscheduled Task').closest('[class*="rounded-lg"]') as HTMLElement;
+    expect(card).toHaveAttribute('tabindex', '0');
+    expect(card).toHaveAttribute('role', 'button');
+
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(onRequestClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-1' }));
+
+    fireEvent.keyDown(card, { key: ' ' });
+    expect(onRequestClick).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not make a card focusable when there is no click handler', () => {
+    renderPanel([unscheduledLeaf]);
+    const card = screen.getByText('Unscheduled Task').closest('[class*="rounded-lg"]') as HTMLElement;
+    expect(card).not.toHaveAttribute('tabindex');
   });
 });

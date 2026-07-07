@@ -30,6 +30,23 @@ export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
   'non-working': '',
 };
 
+// Diagonal hatch overlaid on PROBLEM states (overbooked / off-time) so they read
+// without relying on colour alone (WCAG 1.4.1). Sets `background-image`, which
+// composes on top of the STATUS_CELL_CLASS `background-color` tint rather than
+// replacing it. The hatch colour is a CSS var so light/dark stay in one place.
+export const PROBLEM_HATCH_CLASS =
+  'bg-[image:repeating-linear-gradient(45deg,transparent,transparent_5px,var(--hatch-color)_5px,var(--hatch-color)_7px)] [--hatch-color:rgba(0,0,0,0.15)] dark:[--hatch-color:rgba(255,255,255,0.18)]';
+
+// Per-status hatch — empty for the non-problem states. Keyed alongside the
+// colour tokens so the cue definition lives with the colours it disambiguates.
+export const STATUS_PATTERN_CLASS: Record<BucketStatus, string> = {
+  available:     '',
+  partial:       '',
+  assigned:      '',
+  overbooked:    PROBLEM_HATCH_CLASS,
+  'non-working': PROBLEM_HATCH_CLASS,
+};
+
 // Canvas/SVG fill + stroke — must stay in sync with the Tailwind tokens above.
 // available → emerald-500, occupied → blue-500 (= assigned), conflict → red-500 (= overbooked)
 export const SPACE_CANVAS_COLORS: Record<SpaceStatus, { fill: string; stroke: string }> = {

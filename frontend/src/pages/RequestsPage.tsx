@@ -6,6 +6,7 @@ import { RequestDetailPanel } from "@foundation/src/components/requests/RequestD
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetTitle } from "@foundation/src/components/ui/sheet";
 import { AddExistingRequestsDialog } from "@foundation/src/components/requests/AddExistingRequestsDialog";
 import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
@@ -31,6 +32,7 @@ import {
 } from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { useNow } from "@foundation/src/hooks/useNow";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
@@ -94,6 +96,7 @@ export function RequestsPage() {
   usePageTitle("Requests");
   const queryClient = useQueryClient();
   const canEdit = useCanEdit();
+  const { isPhone } = useBreakpoint();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // The request list lives in the query cache under the shared `requests`
@@ -541,6 +544,7 @@ export function RequestsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search requests..."
+            aria-label="Search requests"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -619,8 +623,9 @@ export function RequestsPage() {
           )}
         </div>
 
-        {/* Detail Panel */}
-        {selectedRequest && (
+        {/* Detail Panel — desktop/tablet: fixed side panel. Phone: rendered as a
+            bottom Sheet below instead, so the list stays full-width. */}
+        {selectedRequest && !isPhone && (
           <div className="w-[360px] flex-shrink-0">
             <RequestDetailPanel
               request={selectedRequest}
@@ -632,6 +637,31 @@ export function RequestsPage() {
           </div>
         )}
       </div>
+
+      {/* Detail Panel — phone: bottom drawer instead of the fixed side panel. */}
+      {isPhone && (
+        <Sheet
+          open={!!selectedRequest}
+          onOpenChange={(open) => {
+            if (!open) setSelectedId(null);
+          }}
+        >
+          <SheetContent side="bottom" className="h-[85dvh] gap-0 overflow-hidden p-0">
+            <SheetTitle className="sr-only">
+              {selectedRequest?.name ?? "Request details"}
+            </SheetTitle>
+            {selectedRequest && (
+              <RequestDetailPanel
+                request={selectedRequest}
+                allRequests={requests}
+                onEdit={handleEditRequest}
+                onNavigate={handleNavigateToRequest}
+                onClose={() => setSelectedId(null)}
+              />
+            )}
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Form Dialog (create or edit) */}
       <RequestFormDialog

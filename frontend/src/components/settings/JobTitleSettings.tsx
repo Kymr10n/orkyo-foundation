@@ -79,7 +79,7 @@ export function JobTitleSettings() {
     },
     {
       id: 'actions',
-      header: () => null,
+      header: () => <span className="sr-only">Actions</span>,
       size: 100,
       cell: ({ row }) => renderActions(row.original),
     },

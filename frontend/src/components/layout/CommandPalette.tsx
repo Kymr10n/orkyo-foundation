@@ -273,6 +273,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <Input
             ref={inputRef}
             placeholder="Search spaces, requests, groups, sites..."
+            aria-label="Search spaces, requests, groups, sites"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex h-12 w-full border-0 bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground focus-visible:ring-0"
@@ -282,6 +283,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               variant="ghost"
               size="icon"
               className="h-6 w-6 shrink-0"
+              aria-label="Clear search"
               onClick={() => {
                 setQuery("");
                 setResults([]);

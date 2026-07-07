@@ -98,7 +98,7 @@ export function DepartmentSettings() {
             <Plus className="h-3 w-3 mr-1" />
             Add child
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setEditing(node)}>
+          <Button variant="ghost" size="icon" onClick={() => setEditing(node)} aria-label={`Edit ${node.name}`}>
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
@@ -106,6 +106,7 @@ export function DepartmentSettings() {
             size="icon"
             onClick={() => handleDelete(node)}
             className="text-destructive hover:text-destructive"
+            aria-label={`Delete ${node.name}`}
           >
             <Trash2 className="h-4 w-4" />
           </Button>

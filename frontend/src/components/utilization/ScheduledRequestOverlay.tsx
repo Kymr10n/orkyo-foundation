@@ -14,7 +14,7 @@ import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/sche
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
-import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS } from "./schedule-colors";
+import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS, STATUS_PATTERN_CLASS } from "./schedule-colors";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverlay({
@@ -150,33 +150,55 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     ? `${request.name} (${requestConflicts.length} conflict${requestConflicts.length > 1 ? 's' : ''})${grossLabel}`
     : `${request.name} — Net: ${request.minimalDurationValue} ${request.minimalDurationUnit}${grossLabel}`;
 
+  // Screen-reader name — the status word ("Overbooked"/"Assigned") that the
+  // colour tint conveys visually, so the cue isn't colour-only (WCAG 1.4.1).
+  const ariaLabel = displayData.hasConflict
+    ? `${request.name}, Overbooked, ${requestConflicts.length} conflict${requestConflicts.length > 1 ? 's' : ''}. Open request.`
+    : `${request.name}, Assigned. Open request.`;
+
   return (
     <div
       ref={combinedRef}
       style={style}
-      className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition hover:brightness-95 ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
+      className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition motion-reduce:transition-none hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
         isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing'
       }`}
       onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); } }}
       title={tooltipText}
+      aria-label={ariaLabel}
       {...attributes}
       {...listeners}
+      onKeyDown={(e) => {
+        // Enter/Space opens the request (details) rather than starting a keyboard
+        // drag — grid drops resolve their time from pointer coordinates, so a
+        // keyboard drag can't land a valid slot. Rescheduling stays pointer-drag
+        // + the "Schedule to…" dialog for backlog. Overrides the dnd keydown.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (!isResizing) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); }
+        }
+      }}
     >
       {/* Translucent fill over the tinted track — gives the bar the same weight as a fully
           allocated People segment. */}
       {STATUS_FILL_CLASS[status] && (
         <div className={`absolute inset-0 ${STATUS_FILL_CLASS[status]}`} aria-hidden="true" />
       )}
+      {/* Diagonal hatch for the overbooked (conflict) state — non-colour cue. */}
+      {STATUS_PATTERN_CLASS[status] && (
+        <div className={`absolute inset-0 ${STATUS_PATTERN_CLASS[status]}`} aria-hidden="true" />
+      )}
       {/* Left resize handle — only needs onPointerDown; move/up go to document */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity rounded-l z-20"
+        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity motion-reduce:transition-none rounded-l z-20"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handleResizePointerDown(e, 'left')}
         onClick={(e) => e.stopPropagation()}
       />
       {/* Right resize handle — only needs onPointerDown; move/up go to document */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity rounded-r z-20"
+        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity motion-reduce:transition-none rounded-r z-20"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => handleResizePointerDown(e, 'right')}
         onClick={(e) => e.stopPropagation()}

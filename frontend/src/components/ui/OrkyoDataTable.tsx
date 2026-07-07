@@ -262,7 +262,7 @@ export function OrkyoDataTable<TData>({
           ))}
         </div>
       ) : (
-        <div>
+        <div className="overflow-x-auto">
           <Table className="border-separate border-spacing-y-1.5">
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -305,10 +305,10 @@ export function OrkyoDataTable<TData>({
             Page {currentPage + 1} of {pageCount}
           </p>
           <div className="flex gap-1">
-            <Button variant="outline" size="icon" onClick={goToPrev} disabled={!canPrev}>
+            <Button variant="outline" size="icon" onClick={goToPrev} disabled={!canPrev} aria-label="Previous page">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={goToNext} disabled={!canNext}>
+            <Button variant="outline" size="icon" onClick={goToNext} disabled={!canNext} aria-label="Next page">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
