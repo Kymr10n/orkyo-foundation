@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Coordinate, SpaceGeometry } from "@foundation/src/types/space";
 import { cn } from "@foundation/src/lib/utils";
 
@@ -6,18 +7,22 @@ interface SpaceShapeSvgProps {
   isDragging?: boolean;
   editEnabled?: boolean;
   selectedResourceId?: string;
-  resizingSpace: { id: string; handleIndex: number; geometry: SpaceGeometry } | null;
-  mousePosition: Coordinate | null;
+  /**
+   * Non-null ONLY for the shape currently being resized — carries the live handle
+   * index and pointer position. Every other shape receives `null`, so the live
+   * pointer no longer flows to untouched shapes and they skip re-rendering during
+   * a resize/drag gesture (this component is memoized).
+   */
+  resizePreview?: { handleIndex: number; mousePosition: Coordinate } | null;
   spaceColors?: Record<string, { fill: string; stroke: string }>;
 }
 
-export function SpaceShapeSvg({
+export const SpaceShapeSvg = memo(function SpaceShapeSvg({
   space,
   isDragging = false,
   editEnabled = false,
   selectedResourceId,
-  resizingSpace,
-  mousePosition,
+  resizePreview,
   spaceColors,
 }: SpaceShapeSvgProps) {
   if (!space.geometry) return null;
@@ -44,17 +49,16 @@ export function SpaceShapeSvg({
   const strokeDasharray = isDragging ? "5,5" : undefined;
 
   if (space.geometry.type === "rectangle") {
-    const [start, end] =
-      resizingSpace?.id === space.id && mousePosition
-        ? [
-            resizingSpace.handleIndex === 0
-              ? mousePosition
-              : resizingSpace.geometry.coordinates[0],
-            resizingSpace.handleIndex === 1
-              ? mousePosition
-              : resizingSpace.geometry.coordinates[1],
-          ]
-        : space.geometry.coordinates;
+    const [start, end] = resizePreview
+      ? [
+          resizePreview.handleIndex === 0
+            ? resizePreview.mousePosition
+            : space.geometry.coordinates[0],
+          resizePreview.handleIndex === 1
+            ? resizePreview.mousePosition
+            : space.geometry.coordinates[1],
+        ]
+      : space.geometry.coordinates;
 
     const x = Math.min(start.x, end.x);
     const y = Math.min(start.y, end.y);
@@ -123,12 +127,11 @@ export function SpaceShapeSvg({
       </g>
     );
   } else if (space.geometry.type === "polygon") {
-    const coordinates =
-      resizingSpace?.id === space.id && mousePosition
-        ? resizingSpace.geometry.coordinates.map((coord, i) =>
-            i === resizingSpace.handleIndex ? mousePosition : coord,
-          )
-        : space.geometry.coordinates;
+    const coordinates = resizePreview
+      ? space.geometry.coordinates.map((coord, i) =>
+          i === resizePreview.handleIndex ? resizePreview.mousePosition : coord,
+        )
+      : space.geometry.coordinates;
 
     const pathData =
       coordinates
@@ -188,4 +191,4 @@ export function SpaceShapeSvg({
   }
 
   return null;
-}
+});

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useResizeGesture } from "./useResizeGesture";
 import type { ResizeGestureCallbacks, ResizeGeometry, ResizeGestureResult } from "./useResizeGesture";
@@ -49,6 +49,37 @@ function makePointerEvent(
     nativeEvent: { stopPropagation: vi.fn() },
   } as unknown as React.PointerEvent<HTMLDivElement>;
 }
+
+// ---------------------------------------------------------------------------
+// rAF stub — onUpdate is rAF-throttled, so tests control frame timing.
+// ---------------------------------------------------------------------------
+
+let frameCallbacks: Map<number, FrameRequestCallback>;
+let nextFrameId: number;
+
+/** Runs all queued animation-frame callbacks (one painted frame). */
+function flushFrames() {
+  const callbacks = [...frameCallbacks.values()];
+  frameCallbacks.clear();
+  for (const cb of callbacks) cb(performance.now());
+}
+
+beforeEach(() => {
+  frameCallbacks = new Map();
+  nextFrameId = 1;
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+    const id = nextFrameId++;
+    frameCallbacks.set(id, cb);
+    return id;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+    frameCallbacks.delete(id);
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function pointerMove(clientX: number) {
   document.dispatchEvent(
@@ -109,6 +140,57 @@ describe("useResizeGesture", () => {
     act(() => pointerMove(100 + THRESHOLD_PX + 20));
     expect(cb.onStart).toHaveBeenCalledTimes(1);
     expect(cb.onStart).toHaveBeenCalledWith("right");
+
+    // onUpdate is rAF-throttled — it fires on the next animation frame.
+    expect(cb.onUpdate).not.toHaveBeenCalled();
+    act(() => flushFrames());
+    expect(cb.onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces multiple moves within one frame into a single onUpdate", () => {
+    const cb = makeCallbacks();
+    const { result } = renderHook(() =>
+      useResizeGesture(cb, { thresholdPx: THRESHOLD_PX, minDurationMs: MIN_DURATION_MS }),
+    );
+
+    act(() => {
+      result.current.beginGesture(makePointerEvent("pointerdown", 100), "right", GEOMETRY);
+    });
+
+    act(() => pointerMove(100 + THRESHOLD_PX + 20));
+    act(() => pointerMove(100 + THRESHOLD_PX + 60));
+    act(() => flushFrames());
+
+    // Two moves, one frame → one update carrying the latest bounds.
+    expect(cb.onUpdate).toHaveBeenCalledTimes(1);
+    const [, endMs] = cb.onUpdate.mock.calls[0];
+    const laterMoveDeltaMs =
+      ((THRESHOLD_PX + 60) / GEOMETRY.containerWidthPx) * GEOMETRY.totalDurationMs;
+    expect(endMs).toBe(GEOMETRY.origEndMs + laterMoveDeltaMs);
+
+    act(() => pointerUp());
+  });
+
+  it("flushes a pending throttled update before commit on pointer up", () => {
+    const cb = makeCallbacks();
+    const callOrder: string[] = [];
+    cb.onUpdate.mockImplementation(() => callOrder.push("update"));
+    cb.onCommit.mockImplementation(() => callOrder.push("commit"));
+    const { result } = renderHook(() =>
+      useResizeGesture(cb, { thresholdPx: THRESHOLD_PX, minDurationMs: MIN_DURATION_MS }),
+    );
+
+    act(() => {
+      result.current.beginGesture(makePointerEvent("pointerdown", 100), "right", GEOMETRY);
+    });
+
+    // Move but do NOT flush the frame — the update is still pending on pointer up.
+    act(() => pointerMove(100 + THRESHOLD_PX + 30));
+    act(() => pointerUp());
+
+    expect(callOrder).toEqual(["update", "commit"]);
+    // The pending frame was cancelled — nothing more fires later.
+    act(() => flushFrames());
     expect(cb.onUpdate).toHaveBeenCalledTimes(1);
   });
 
@@ -219,9 +301,11 @@ describe("useResizeGesture", () => {
     });
 
     act(() => pointerMove(100 + THRESHOLD_PX + 20));
+    act(() => flushFrames());
     act(() => pointerMove(100 + THRESHOLD_PX + 60));
+    act(() => flushFrames());
 
-    // onStart called once, onUpdate called twice
+    // onStart called once, onUpdate called once per frame
     expect(cb.onStart).toHaveBeenCalledTimes(1);
     expect(cb.onUpdate).toHaveBeenCalledTimes(2);
 

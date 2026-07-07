@@ -13,7 +13,6 @@ import { getRequestChildren } from "@foundation/src/lib/api/request-api";
 import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
-import { getSpaces } from "@foundation/src/lib/api/space-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG, SPACE_NONE_PLACEHOLDER } from "@foundation/src/constants";
 import { combineDateTimeToISO, durationToMinutes, formatMinutesHuman } from "@foundation/src/lib/utils";
@@ -26,6 +25,14 @@ import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator"
 import type { Space } from "@foundation/src/types/space";
 import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { CRITERIA_QUERY_KEY } from "@foundation/src/hooks/useCriteria";
+import { useSpaces } from "@foundation/src/hooks/useSpaces";
+
+const EMPTY_CRITERIA: Criterion[] = [];
+const EMPTY_TEMPLATES: Template[] = [];
+const EMPTY_SPACES: Space[] = [];
 
 type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
 
@@ -157,11 +164,23 @@ export function RequestFormDialog({
   const resourceConflictDot = conflictDotClass(conflicts.filter((c) => c.resourceId));
   const requirementConflictDot = conflictDotClass(conflicts.filter((c) => c.criterionId));
 
+  // Reference data for the form — fetched only while the dialog is open and
+  // cached under the shared keys, so other surfaces reuse the same data.
+  const { data: availableCriteria = EMPTY_CRITERIA, isLoading: criteriaLoading } = useQuery({
+    queryKey: CRITERIA_QUERY_KEY,
+    queryFn: () => getCriteria(),
+    enabled: open,
+  });
+  const { data: availableTemplates = EMPTY_TEMPLATES, isLoading: templatesLoading } = useQuery({
+    queryKey: qk.templates('request'),
+    queryFn: () => getTemplates('request'),
+    enabled: open,
+  });
+  const { data: availableSpaces = EMPTY_SPACES, isLoading: spacesLoading } =
+    useSpaces(open ? selectedSiteId : null);
+  const isLoading = criteriaLoading || templatesLoading || spacesLoading;
+
   // Additional state not managed by the form hook
-  const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
-  const [availableTemplates, setAvailableTemplates] = useState<Template[]>([]);
-  const [availableSpaces, setAvailableSpaces] = useState<Space[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
@@ -240,29 +259,6 @@ export function RequestFormDialog({
   // aims to avoid this, but the user may override it.
   const scheduleSiteName = scheduleSiteId ? sites.find((s) => s.id === scheduleSiteId)?.name : undefined;
   const siteScopeWarning = computeSiteScopeWarning(isMultiSite, scheduleSiteId, state.siteId, scheduleSiteName);
-
-  // Load criteria, templates, and spaces on mount
-  useEffect(() => {
-    const loadData = async () => {
-      if (!open || !selectedSiteId) return;
-      setIsLoading(true);
-      try {
-        const [criteriaData, templatesData, spacesData] = await Promise.all([
-          getCriteria(),
-          getTemplates('request'),
-          getSpaces(selectedSiteId)
-        ]);
-        setAvailableCriteria(criteriaData);
-        setAvailableTemplates(templatesData);
-        setAvailableSpaces(spacesData);
-      } catch (error) {
-        logger.error("Failed to load data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, [open, selectedSiteId]);
 
   // Determine whether the edited request has children, to gate the leaf (Task) option.
   // Only groups can have children, so we skip the lookup for create mode and leaf requests.

@@ -46,7 +46,7 @@ import { DropColumnIndicator } from "@foundation/src/components/utilization/Drop
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { addMonths, format } from "date-fns";
+import { addMonths, format, startOfMonth } from "date-fns";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
@@ -184,10 +184,15 @@ export function UtilizationPage() {
   // Scheduling off-times for grid overlay
   const { data: schedulingSettings } = useSchedulingSettings(selectedSiteId ?? undefined);
   const { data: availabilityEventDefs = [] } = useAvailabilityEvents(selectedSiteId ?? undefined);
+  // Key the expansion window on the anchor's month, not the raw anchor: edge-scroll
+  // updates anchorTs ~20×/s, and re-expanding recurrences on every tick made panning
+  // churn. Panning within a month reuses the same array; the ±1/+13-month slack
+  // around the month start still covers every visible window.
+  const monthAnchorMs = startOfMonth(anchorTs).getTime();
   const offTimeRanges: readonly OffTimeRange[] = useMemo(() => {
     const tz = schedulingSettings?.timeZone ?? "UTC";
-    const windowStart = addMonths(anchorTs, -1).getTime();
-    const windowEnd = addMonths(anchorTs, 13).getTime();
+    const windowStart = addMonths(monthAnchorMs, -1).getTime();
+    const windowEnd = addMonths(monthAnchorMs, 13).getTime();
     const expanded = availabilityEventDefs
       .filter((e) => e.enabled && e.defaultEffect === "closed")
       .flatMap((e) => expandRecurrence(
@@ -213,7 +218,7 @@ export function UtilizationPage() {
     }
 
     return expanded;
-  }, [availabilityEventDefs, schedulingSettings, anchorTs]);
+  }, [availabilityEventDefs, schedulingSettings, monthAnchorMs]);
 
   // Initialize space order from preferences
   const spaceOrder = useAppStore((state) => state.spaceOrder);

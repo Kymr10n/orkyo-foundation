@@ -32,6 +32,8 @@ export const qk = {
     scheduledAll: () => ["requests", "scheduled"] as const,
     backlog: () => ["requests", "backlog"] as const,
     conflicted: () => ["requests", "conflicted"] as const,
+    /** Full request list incl. hierarchy — the Requests page. */
+    list: () => ["requests", "list"] as const,
   },
 
   spaces: {

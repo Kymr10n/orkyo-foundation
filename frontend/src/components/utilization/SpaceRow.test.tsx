@@ -4,7 +4,6 @@ import type { Space } from '@foundation/src/types/space';
 import type { Request } from '@foundation/src/types/requests';
 import type { TimeColumn } from './scheduler-types';
 import type { PreviewEntry, ValidationResult } from '@foundation/src/domain/scheduling/schedule-model';
-import type { ScheduleIndex } from '@foundation/src/domain/scheduling/schedule-index';
 
 // ---- Mocks for hooks and shared selectors ----
 const mockUseSortable = vi.fn();
@@ -102,16 +101,6 @@ function makePreviewEntry(overrides: Partial<PreviewEntry> = {}): PreviewEntry {
   };
 }
 
-function buildIndex(entries: PreviewEntry[]): ScheduleIndex {
-  const bySpace = new Map<string, PreviewEntry[]>();
-  for (const e of entries) {
-    const list = bySpace.get(e.resourceId) ?? [];
-    list.push(e);
-    bySpace.set(e.resourceId, list);
-  }
-  return { bySpace };
-}
-
 const emptyValidation: ValidationResult = new Map();
 
 interface OffTimeRangeFixture {
@@ -154,7 +143,7 @@ function renderRow({
       space={baseSpace}
       columns={columns ?? [makeColumn('08'), makeColumn('09'), makeColumn('10')]}
       spaceRequests={spaceRequests}
-      scheduleIndex={buildIndex(previewEntries)}
+      spaceEntries={previewEntries}
       validation={emptyValidation}
       onRequestClick={onRequestClick}
       offTimeRanges={offTimeRanges as never}

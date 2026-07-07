@@ -37,6 +37,7 @@ import type {
     Request,
 } from "@foundation/src/types/requests";
 import {
+    buildChildrenIdMap,
     buildRequestTree,
     flattenTree,
     flattenVisibleTree,
@@ -55,7 +56,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
@@ -64,6 +66,8 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
 type ViewMode = "tree" | "list";
+
+const EMPTY_REQUESTS: Request[] = [];
 
 /**
  * Discriminated union for the page's modal/dialog state.
@@ -88,7 +92,18 @@ export function RequestsPage() {
   const canEdit = useCanEdit();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [rawRequests, setRequests] = useState<Request[]>([]);
+  // The request list lives in the query cache under the shared `requests`
+  // prefix, so `invalidateRequestData` alone refreshes it after any mutation —
+  // no manual re-fetch bookkeeping.
+  const {
+    data: rawRequests = EMPTY_REQUESTS,
+    isLoading: requestsLoading,
+    error: requestsError,
+    refetch: refetchRequests,
+  } = useQuery({
+    queryKey: qk.requests.list(),
+    queryFn: () => getRequests(true),
+  });
   const nowMs = useNow();
   // Recompute the time-derived lifecycle (new → in_progress → done) live so the list/tree/detail
   // auto-update as the clock advances, matching the utilization view. cancelled/deferred pass through;
@@ -98,8 +113,17 @@ export function RequestsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  // Mutation in-flight flag + error; list load state comes from the query above.
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isLoading = requestsLoading || loading;
+  const errorMessage =
+    error ??
+    (requestsError
+      ? requestsError instanceof Error
+        ? requestsError.message
+        : "Failed to load requests"
+      : null);
   const hasInitializedTreeExpansionRef = useRef(false);
 
   const { expandedIds, toggle, expandAncestors, expandAll, selectedId, setSelectedId } =
@@ -126,7 +150,7 @@ export function RequestsPage() {
       for (const req of importedRequests) {
         await createRequest(req as CreateRequestRequest);
       }
-      await loadRequests();
+      invalidateRequestData(queryClient);
       toast.success(`Successfully imported ${importedRequests.length} requests`);
     } catch (error) {
       logger.error('Import failed:', error);
@@ -136,15 +160,10 @@ export function RequestsPage() {
     }
   });
 
-  // Load requests from API
-  useEffect(() => {
-    loadRequests();
-  }, []);
-
   // Handle ?edit=<id> query param from global search
   useEffect(() => {
     const editId = searchParams.get('edit');
-    if (editId && requests.length > 0 && !loading) {
+    if (editId && requests.length > 0 && !isLoading) {
       const requestToEdit = requests.find(r => r.id === editId);
       if (requestToEdit) {
         setDialog({ kind: "edit", request: requestToEdit });
@@ -152,7 +171,37 @@ export function RequestsPage() {
         setSearchParams(searchParams, { replace: true });
       }
     }
-  }, [searchParams, requests, loading, setSearchParams]);
+  }, [searchParams, requests, isLoading, setSearchParams]);
+
+  // Parent → child-ids map, built once per list change and shared by every
+  // getDescendantIds call site below.
+  const childrenById = useMemo(() => buildChildrenIdMap(requests), [requests]);
+
+  // Search matches + their ancestors (tree mode only) — computed once and
+  // shared by the visible-entries memo and the auto-expand effect.
+  const searchMatches = useMemo(() => {
+    if (viewMode !== "tree" || !debouncedSearch) return null;
+    const query = debouncedSearch.toLowerCase();
+    const matchIds = new Set(
+      requests
+        .filter(r =>
+          r.name.toLowerCase().includes(query) ||
+          r.description?.toLowerCase().includes(query)
+        )
+        .map(r => r.id)
+    );
+
+    const ancestorIds = new Set<string>();
+    if (matchIds.size > 0) {
+      const byId = new Map(requests.map(r => [r.id, r]));
+      for (const id of matchIds) {
+        for (const aid of getAncestorIds(id, requests, byId)) {
+          ancestorIds.add(aid);
+        }
+      }
+    }
+    return { matchIds, ancestorIds };
+  }, [requests, debouncedSearch, viewMode]);
 
   // Build tree + flatten, respecting expanded state and search (tree mode only)
   const visibleEntries = useMemo(() => {
@@ -160,26 +209,9 @@ export function RequestsPage() {
 
     const tree = buildRequestTree(requests);
 
-    if (debouncedSearch) {
-      const query = debouncedSearch.toLowerCase();
-      const matchIds = new Set(
-        requests
-          .filter(r =>
-            r.name.toLowerCase().includes(query) ||
-            r.description?.toLowerCase().includes(query)
-          )
-          .map(r => r.id)
-      );
-
+    if (searchMatches) {
+      const { matchIds, ancestorIds } = searchMatches;
       if (matchIds.size === 0) return [];
-
-      const byId = new Map(requests.map(r => [r.id, r]));
-      const ancestorIds = new Set<string>();
-      for (const id of matchIds) {
-        for (const aid of getAncestorIds(id, requests, byId)) {
-          ancestorIds.add(aid);
-        }
-      }
 
       const allFlat = flattenTree(tree);
       return allFlat.filter(e =>
@@ -189,7 +221,7 @@ export function RequestsPage() {
 
     // No search — use flattenVisibleTree which respects expand/collapse state
     return flattenVisibleTree(tree, expandedIds);
-  }, [requests, debouncedSearch, expandedIds, viewMode]);
+  }, [requests, searchMatches, expandedIds, viewMode]);
 
   // Filtered requests for list mode
   const filteredRequests = useMemo(() => {
@@ -202,41 +234,12 @@ export function RequestsPage() {
     );
   }, [requests, debouncedSearch, viewMode]);
 
-  // Auto-expand ancestors when search matches (tree mode)
+  // Auto-expand ancestors when search matches (tree mode) — reuse the
+  // matches/ancestors already computed by `searchMatches`.
   useEffect(() => {
-    if (viewMode !== "tree" || !debouncedSearch) return;
-    const query = debouncedSearch.toLowerCase();
-    const matchIds = requests
-      .filter(r =>
-        r.name.toLowerCase().includes(query) ||
-        r.description?.toLowerCase().includes(query)
-      )
-      .map(r => r.id);
-    if (matchIds.length === 0) return;
-
-    const byId = new Map(requests.map(r => [r.id, r]));
-    const ancestorIds = new Set<string>();
-    for (const id of matchIds) {
-      for (const aid of getAncestorIds(id, requests, byId)) {
-        ancestorIds.add(aid);
-      }
-    }
-    if (ancestorIds.size > 0) expandAncestors([...ancestorIds]);
-  }, [debouncedSearch, requests, expandAncestors, viewMode]);
-
-  const loadRequests = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getRequests(true);
-      setRequests(data);
-    } catch (err) {
-      logger.error("Failed to load requests:", err);
-      setError(err instanceof Error ? err.message : "Failed to load requests");
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (!searchMatches || searchMatches.ancestorIds.size === 0) return;
+    expandAncestors([...searchMatches.ancestorIds]);
+  }, [searchMatches, expandAncestors]);
 
   const handleCreateRequest = useCallback((defaultMode: PlanningMode = 'leaf') => {
     setDialog({ kind: "create", parent: null, defaultMode });
@@ -273,7 +276,6 @@ export function RequestsPage() {
         newParentRequestId: targetParentId,
         sortOrder: targetParentId ? getNextSortOrder(targetParentId, requests) : 0,
       });
-      await loadRequests();
       invalidateRequestData(queryClient);
       if (targetParentId && !expandedIds.has(targetParentId)) {
         toggle(targetParentId);
@@ -299,7 +301,6 @@ export function RequestsPage() {
         });
       }
       setDialog(null);
-      await loadRequests();
       invalidateRequestData(queryClient);
       // Auto-expand the parent so user sees the newly added children
       if (!expandedIds.has(parent.id)) {
@@ -321,7 +322,6 @@ export function RequestsPage() {
         newParentRequestId: targetId,
         sortOrder: getNextSortOrder(targetId, requests),
       });
-      await loadRequests();
       invalidateRequestData(queryClient);
       // Auto-expand the new parent
       if (!expandedIds.has(targetId)) {
@@ -353,7 +353,7 @@ export function RequestsPage() {
       setError(null);
 
       // Use subtree delete if the request has descendants
-      const descendantIds = getDescendantIds(request.id, requests);
+      const descendantIds = getDescendantIds(request.id, requests, childrenById);
       if (descendantIds.length > 0) {
         await deleteRequestSubtree(request.id);
       } else {
@@ -367,7 +367,6 @@ export function RequestsPage() {
         }
       }
 
-      await loadRequests();
       invalidateRequestData(queryClient);
       toast.success("Request deleted");
     } catch (err) {
@@ -378,7 +377,7 @@ export function RequestsPage() {
     } finally {
       setLoading(false);
     }
-  }, [dialog, requests, queryClient, selectedId, setSelectedId]);
+  }, [dialog, requests, childrenById, queryClient, selectedId, setSelectedId]);
 
   const handleSaveRequest = useCallback(async (data: RequestFormData) => {
     try {
@@ -392,7 +391,6 @@ export function RequestsPage() {
         await createRequest(buildCreatePayload(data));
       }
 
-      await loadRequests();
       invalidateRequestData(queryClient);
       setDialog(null);
       toast.success(isEdit ? "Request updated" : "Request created");
@@ -431,7 +429,7 @@ export function RequestsPage() {
 
   const handleOpenConflicts = useCallback(
     (requestId: string) => {
-      const candidateIds = [requestId, ...getDescendantIds(requestId, requests)];
+      const candidateIds = [requestId, ...getDescendantIds(requestId, requests, childrenById)];
       const targetRequestId =
         candidateIds.find((id) => (storeConflicts.get(id)?.length ?? 0) > 0) ?? requestId;
       const targetConflictId = storeConflicts.get(targetRequestId)?.[0]?.id;
@@ -444,7 +442,7 @@ export function RequestsPage() {
 
       navigate(`/insights/conflicts?${params.toString()}`);
     },
-    [navigate, requests, storeConflicts],
+    [navigate, requests, childrenById, storeConflicts],
   );
 
   const conflictMap = useMemo(() => {
@@ -454,7 +452,7 @@ export function RequestsPage() {
       // Bubble up: count descendant conflicts for parent rows
       let total = own;
       if (canHaveChildren(r.planningMode)) {
-        const descIds = getDescendantIds(r.id, requests);
+        const descIds = getDescendantIds(r.id, requests, childrenById);
         for (const dId of descIds) {
           total += storeConflicts.get(dId)?.length ?? 0;
         }
@@ -462,7 +460,7 @@ export function RequestsPage() {
       if (total > 0) map.set(r.id, total);
     }
     return map;
-  }, [requests, storeConflicts]);
+  }, [requests, childrenById, storeConflicts]);
 
   // Expand all parent nodes on initial load
   useEffect(() => {
@@ -552,14 +550,14 @@ export function RequestsPage() {
             container never scrolls (overflow-hidden); the tree owns its own scroll,
             and the list view is wrapped in its own bounded ScrollArea below. */}
         <div className={`flex-1 min-h-0 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
-          {loading && requests.length === 0 ? (
+          {isLoading && requests.length === 0 ? (
             <LoadingSpinner fullScreen={false} message="Loading requests..." />
-          ) : error ? (
+          ) : errorMessage ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">
               <div className="text-destructive mb-4">⚠️</div>
               <h3 className="text-lg font-medium mb-2">Error loading requests</h3>
-              <p className="text-muted-foreground mb-4">{error}</p>
-              <Button onClick={loadRequests} variant="outline">Try Again</Button>
+              <p className="text-muted-foreground mb-4">{errorMessage}</p>
+              <Button onClick={() => refetchRequests()} variant="outline">Try Again</Button>
             </div>
           ) : isEmpty ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">
@@ -670,7 +668,7 @@ export function RequestsPage() {
         description={
           dialog?.kind === "delete"
             ? (() => {
-                const descendantIds = getDescendantIds(dialog.request.id, requests);
+                const descendantIds = getDescendantIds(dialog.request.id, requests, childrenById);
                 return descendantIds.length > 0
                   ? `This will permanently delete "${dialog.request.name}" and ${descendantIds.length} child request${descendantIds.length === 1 ? '' : 's'}. This cannot be undone.`
                   : `This will permanently delete "${dialog.request.name}". This cannot be undone.`;

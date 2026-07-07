@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RequestFormDialog } from "./RequestFormDialog";
 import type { Request } from "@foundation/src/types/requests";
 import type { Site } from "@foundation/src/types/site";
@@ -132,13 +133,18 @@ const EXISTING: Request = {
 function renderDialog(props?: Partial<React.ComponentProps<typeof RequestFormDialog>>) {
   const onSave = vi.fn(() => Promise.resolve());
   const onOpenChange = vi.fn();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   render(
-    <RequestFormDialog
-      open
-      onOpenChange={onOpenChange}
-      onSave={onSave}
-      {...props}
-    />,
+    <QueryClientProvider client={queryClient}>
+      <RequestFormDialog
+        open
+        onOpenChange={onOpenChange}
+        onSave={onSave}
+        {...props}
+      />
+    </QueryClientProvider>,
   );
   return { onSave, onOpenChange };
 }
@@ -195,15 +201,20 @@ describe("RequestFormDialog", () => {
   });
 
   it("hides the Site picker for single-site tenants and shows it for multi-site", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { rerender } = render(
-      <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />,
+      <QueryClientProvider client={queryClient}>
+        <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />
+      </QueryClientProvider>,
     );
     expect(screen.queryByLabelText("Site")).not.toBeInTheDocument();
 
     useIsMultiSiteMock.mockReturnValue(true);
     useSitesMock.mockReturnValue({ data: [SITE_A, SITE_B] });
     rerender(
-      <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} key="ms" />,
+      <QueryClientProvider client={queryClient}>
+        <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} key="ms" />
+      </QueryClientProvider>,
     );
     expect(screen.getByText("Site")).toBeInTheDocument();
   });
@@ -274,8 +285,11 @@ describe("RequestFormDialog", () => {
   it("surfaces the error and stays open when save rejects", async () => {
     const onSave = vi.fn(() => Promise.reject(new Error("Server exploded")));
     const onOpenChange = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />,
+      <QueryClientProvider client={queryClient}>
+        <RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />
+      </QueryClientProvider>,
     );
     fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
       target: { value: "My Request" },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
@@ -19,7 +19,10 @@ import {
   type ValidateResourceAssignmentRequest,
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
-import { mergeBucketsToSegments } from '@foundation/src/domain/scheduling/utilization-segments';
+import {
+  mergeBucketsToSegments,
+  type PersonUtilizationSegment,
+} from '@foundation/src/domain/scheduling/utilization-segments';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { Input } from '@foundation/src/components/ui/input';
 import { PersonTimelineRow } from './PersonTimelineRow';
@@ -59,6 +62,13 @@ export interface PeopleUtilizationGridProps {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
+const EMPTY_UTILIZATION: { segments: PersonUtilizationSegment[]; overallPct: number } = {
+  segments: [],
+  overallPct: 0,
+};
 
 function bucketIsOff(
   bucket: ResourceUtilizationBucket,
@@ -113,6 +123,9 @@ interface DialogState {
 
 export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId }: PeopleUtilizationGridProps) {
   const [search, setSearch] = useState('');
+  // Defer the filter so typing stays responsive — the input echoes `search`
+  // immediately while the (heavier) row regrouping trails by a render.
+  const deferredSearch = useDeferredValue(search);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
   const columns = useMemo(
@@ -220,7 +233,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     return () => clearTimeout(id);
   }, [allAssignmentsFlat.length]);
 
-  const { data: conflictedAssignmentIds = new Set<string>() } = useQuery({
+  const { data: conflictedAssignmentIds = EMPTY_SET } = useQuery({
     queryKey: ['assignment-capability-conflicts', allAssignmentsFlat.map((a) => a.id)],
     queryFn: async (): Promise<Set<string>> => {
       const items: ValidateResourceAssignmentRequest[] = allAssignmentsFlat.map((a) => ({
@@ -267,7 +280,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   // kept (includeEmpty: true) so users see their structure, ungrouped last.
   const shellGroups: ShellGroup<ResourceInfo>[] = useMemo(() => {
     const filtered = people.filter((p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()),
+      p.name.toLowerCase().includes(deferredSearch.toLowerCase()),
     );
     return groupRowsByResourceGroup(
       filtered,
@@ -275,7 +288,33 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
       (p) => groupIdsByPerson.get(p.id) ?? [],
       { includeEmpty: true },
     );
-  }, [people, groups, groupIdsByPerson, search]);
+  }, [people, groups, groupIdsByPerson, deferredSearch]);
+
+  // Precompute each person's merged segments + overall percentage once per
+  // bucket/off-time change, instead of re-deriving both inside every row's
+  // render pass (renderRow runs for every visible row on any grid re-render).
+  const utilizationByPerson = useMemo(() => {
+    const map = new Map<string, { segments: PersonUtilizationSegment[]; overallPct: number }>();
+    for (const [resourceId, buckets] of bucketsByResource) {
+      map.set(resourceId, {
+        segments: mergeBucketsToSegments(buckets, resourceId, offTimes),
+        overallPct: overallPercent(buckets, resourceId, offTimes),
+      });
+    }
+    return map;
+  }, [bucketsByResource, offTimes]);
+
+  const handleSegmentClick = useCallback(
+    (p: ResourceInfo, seg: PersonUtilizationSegment) =>
+      setDialogState({
+        personId: p.id,
+        personName: p.name,
+        allocationMode: p.allocationMode,
+        start: seg.start,
+        end: seg.end,
+      }),
+    [],
+  );
 
   // When a site is selected the visible row set is derived from the utilization buckets
   // (see `people` below), so rendering before they arrive shows a misleading "No people"
@@ -345,33 +384,23 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
         className="h-full flex flex-col overflow-hidden rounded-xl border bg-background"
         testId="people-utilization-grid"
         renderRow={(person) => {
-          const buckets = bucketsByResource.get(person.id) ?? [];
-          const isLoadingRow = utilizationLoading;
+          const { segments, overallPct } =
+            utilizationByPerson.get(person.id) ?? EMPTY_UTILIZATION;
           const jobTitle = jobTitleByResource.get(person.id);
-          const overallPct = overallPercent(buckets, person.id, offTimes);
           const assignments = assignmentsByResource.get(person.id) ?? [];
-          const segments = mergeBucketsToSegments(buckets, person.id, offTimes);
           return (
             <PersonTimelineRow
               person={person}
               jobTitle={jobTitle}
               segments={segments}
-              isLoadingRow={isLoadingRow}
+              isLoadingRow={utilizationLoading}
               overallPct={overallPct}
               viewStartMs={viewStartMs}
               viewEndMs={viewEndMs}
               columns={columns}
               assignments={assignments}
               conflictedAssignmentIds={conflictedAssignmentIds}
-              onSegmentClick={(p, seg) =>
-                setDialogState({
-                  personId: p.id,
-                  personName: p.name,
-                  allocationMode: p.allocationMode,
-                  start: seg.start,
-                  end: seg.end,
-                })
-              }
+              onSegmentClick={handleSegmentClick}
             />
           );
         }}

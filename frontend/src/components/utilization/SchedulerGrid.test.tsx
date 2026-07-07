@@ -50,6 +50,17 @@ vi.mock('@foundation/src/lib/api/conflicts-api', () => ({
   getConflicts: vi.fn(() => Promise.resolve(registryMock.conflicts)),
 }));
 
+// The resource-groups fetch now goes through React Query, whose notifications
+// land on a macrotask — a bare `await act(async () => {})` (microtask only)
+// is not enough to observe the resolved data.
+const flushQueries = () =>
+  act(async () => {
+    // A few macrotask turns — query resolution + notification can span more than one.
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  });
+
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -149,7 +160,7 @@ describe('SchedulerGrid', () => {
       </Wrapper>
     );
 
-    await act(async () => {});
+    await flushQueries();
     expect(screen.getByText('Room A101')).toBeInTheDocument();
   });
 
@@ -172,7 +183,7 @@ describe('SchedulerGrid', () => {
     );
 
     // Verify initial render
-    await act(async () => {});
+    await flushQueries();
     expect(screen.getByText('Room A101')).toBeInTheDocument();
     expect(screen.getByText('Room A102')).toBeInTheDocument();
 
@@ -214,7 +225,7 @@ describe('SchedulerGrid', () => {
       </Wrapper>
     );
 
-    await act(async () => {});
+    await flushQueries();
     expect(screen.getByText('Test Request 1')).toBeInTheDocument();
   });
 
@@ -238,7 +249,7 @@ describe('SchedulerGrid', () => {
 
     // Should render without crashing
     expect(screen.queryByText('Room A101')).not.toBeInTheDocument();
-    await act(async () => {});
+    await flushQueries();
   });
 
   it('renders space groups when provided', async () => {
@@ -273,7 +284,7 @@ describe('SchedulerGrid', () => {
     );
 
     // Should render grouped spaces
-    await act(async () => {});
+    await flushQueries();
     expect(screen.getByText('Room A101')).toBeInTheDocument();
     expect(screen.getByText('Room A102')).toBeInTheDocument();
   });
@@ -357,7 +368,7 @@ describe('SchedulerGrid', () => {
       </Wrapper>,
     );
 
-    await act(async () => {});
+    await flushQueries();
     expect(screen.getByText('Room A101')).toBeInTheDocument();
     expect(screen.getByText('Room A102')).toBeInTheDocument();
   });
@@ -381,7 +392,7 @@ describe('SchedulerGrid', () => {
       </Wrapper>
     );
 
-    await act(async () => {});
+    await flushQueries();
     expect(screen.getByText('Room A101')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Ungrouped'));
@@ -427,7 +438,7 @@ describe('SchedulerGrid', () => {
       dateTooltips.forEach((el) => {
         expect(el.title).not.toMatch(/\d{2}:\d{2}/);
       });
-      await act(async () => {});
+      await flushQueries();
     });
 
     it('shows full date with time tooltip on day/hour scale columns', async () => {
@@ -455,7 +466,7 @@ describe('SchedulerGrid', () => {
         (el) => el.title && /\d{4}/.test(el.title) && /\d{1,2}:\d{2}/.test(el.title)
       );
       expect(dateTimeTooltips.length).toBeGreaterThan(0);
-      await act(async () => {});
+      await flushQueries();
     });
   });
 
@@ -486,7 +497,7 @@ describe('SchedulerGrid', () => {
         expect(bar).toBeInTheDocument();
         expect(bar!.title).toContain('Test Request 1');
       });
-      await act(async () => {});
+      await flushQueries();
     });
 
     it('does not mark a request bar as conflicting when the registry is empty', async () => {
@@ -508,7 +519,7 @@ describe('SchedulerGrid', () => {
         </Wrapper>
       );
 
-      await act(async () => {});
+      await flushQueries();
       expect(document.querySelector('[title*="conflict"]')).not.toBeInTheDocument();
     });
   });
@@ -552,7 +563,7 @@ describe('SchedulerGrid', () => {
     it('adds an overlap conflict for the dragged bar and its new peer', async () => {
       registryMock.conflicts = [];
       renderGrid(twoOnOneSpace);
-      await act(async () => {});
+      await flushQueries();
       // No conflicts before the drag.
       expect(document.querySelector('[title*="conflict"]')).not.toBeInTheDocument();
 
@@ -631,7 +642,7 @@ describe('SchedulerGrid', () => {
         </Wrapper>
       );
 
-      await act(async () => {});
+      await flushQueries();
       expect(screen.getByText('Room A101')).toBeInTheDocument();
     });
 
@@ -656,7 +667,7 @@ describe('SchedulerGrid', () => {
 
       // The time cursor area exists (pointer-events-none container with draggable child)
       // Just verify component renders without errors
-      await act(async () => {});
+      await flushQueries();
       expect(screen.getByText('Room A101')).toBeInTheDocument();
     });
 
@@ -680,7 +691,7 @@ describe('SchedulerGrid', () => {
         </Wrapper>
       );
 
-      await act(async () => {});
+      await flushQueries();
       expect(screen.getByText('Room A101')).toBeInTheDocument();
     });
 
@@ -702,7 +713,7 @@ describe('SchedulerGrid', () => {
           />
         </Wrapper>,
       );
-      await act(async () => {});
+      await flushQueries();
 
       const handle = container.querySelector('.cursor-ew-resize')!;
       expect(handle).toBeTruthy();
@@ -761,7 +772,7 @@ describe('SchedulerGrid', () => {
             />
           </Wrapper>,
         );
-        await act(async () => {});
+        await flushQueries();
 
         const handle = container.querySelector('.cursor-ew-resize')!;
         fireEvent.mouseDown(handle, { clientX: 10 });
@@ -820,7 +831,7 @@ describe('SchedulerGrid', () => {
             />
           </Wrapper>,
         );
-        await act(async () => {});
+        await flushQueries();
 
         const handle = container.querySelector('.cursor-ew-resize')!;
         fireEvent.mouseDown(handle, { clientX: 995 });

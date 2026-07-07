@@ -1,18 +1,23 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 // Domain pipeline
-import { buildPreviewSchedule } from "@foundation/src/domain/scheduling/schedule-preview";
-import { buildIndex, getOverlapping } from "@foundation/src/domain/scheduling/schedule-index";
-import { evaluateSchedule } from "@foundation/src/domain/scheduling/schedule-validator";
+import { buildCommittedSchedule, applyDraft } from "@foundation/src/domain/scheduling/schedule-preview";
+import { buildIndex, replaceIndexEntry, getOverlapping } from "@foundation/src/domain/scheduling/schedule-index";
+import { evaluateEntry } from "@foundation/src/domain/scheduling/schedule-validator";
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useAppStore } from "@foundation/src/store/app-store";
+import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { Request } from "@foundation/src/types/requests";
 import type { Space } from "@foundation/src/types/space";
 
 const EMPTY_REQUESTS: Request[] = [];
+const EMPTY_ENTRIES: readonly PreviewEntry[] = [];
+const EMPTY_VALIDATION: ValidationResult = new Map();
 import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import type { TimeScale } from "./ScaleSelect";
 import { groupRowsByResourceGroup } from "./scheduler-types";
@@ -79,55 +84,39 @@ export function SchedulerGrid({
     [scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges],
   );
   const spaceOrder = useAppStore((s) => s.spaceOrder);
-  const [groups, setGroups] = useState<ResourceGroupInfo[]>([]);
-  const [groupsLoading, setGroupsLoading] = useState(true);
 
   // ---------------------------------------------------------------------------
   // Scheduling validation pipeline (steps 3–4 of interaction flow)
-  // Runs on every render; inputs are stable references when nothing changed.
+  //
+  // Structured for referential stability during a drag: the committed schedule/
+  // index are built once per `requests` change, and the draft overlay replaces
+  // only the dragged entry's object and its space's index slice per pointer
+  // frame — so SpaceRow/ScheduledRequestOverlay React.memo hold for every
+  // untouched space.
   // ---------------------------------------------------------------------------
   const draft = useSchedulerStore((s) => s.draft);
 
+  const committedSchedule = useMemo(() => buildCommittedSchedule(requests), [requests]);
+  const committedIndex = useMemo(() => buildIndex(committedSchedule), [committedSchedule]);
+
   const previewSchedule = useMemo(
-    () => buildPreviewSchedule(requests, draft),
-    [requests, draft]
+    () => applyDraft(committedSchedule, draft),
+    [committedSchedule, draft]
   );
 
-  const scheduleIndex = useMemo(
-    () => buildIndex(previewSchedule),
-    [previewSchedule]
-  );
+  const scheduleIndex = useMemo(() => {
+    if (previewSchedule === committedSchedule || !draft) return committedIndex;
+    const prev = committedSchedule.get(draft.requestId);
+    const next = previewSchedule.get(draft.requestId);
+    if (!prev || !next) return committedIndex;
+    return replaceIndexEntry(committedIndex, prev, next);
+  }, [committedSchedule, committedIndex, previewSchedule, draft]);
 
   // The backend is the single source of truth for committed bookings' conflicts
   // (overlap/overbook, capability, off-time, site). The grid reads them from the
   // tenant-wide registry — the same source the Conflicts page and Requests-page
   // badges use — so the three views agree by construction.
   const { conflictsByRequest: committedConflicts } = useConflictRegistry();
-
-  // Draft overlay: while a bar is being resized, re-evaluate overlap/duration
-  // client-side for just the dragged entry and the peers it now overlaps, so the
-  // feedback is instant before the mutation commits and the registry refetches.
-  // Backend-only conflict kinds for those ids are restored on the next refetch.
-  const validation = useMemo(() => {
-    if (!draft) return committedConflicts;
-    const draftEntry = previewSchedule.get(draft.requestId);
-    if (!draftEntry) return committedConflicts;
-
-    const affected = new Set<string>([draft.requestId]);
-    for (const peer of getOverlapping(scheduleIndex, draftEntry)) {
-      affected.add(peer.requestId);
-    }
-
-    const draftValidation = evaluateSchedule(previewSchedule, scheduleIndex);
-    const merged = new Map(committedConflicts);
-    for (const id of affected) {
-      const conflicts = draftValidation.get(id);
-      if (conflicts && conflicts.length > 0) merged.set(id, conflicts);
-      else merged.delete(id);
-    }
-    return merged;
-  }, [committedConflicts, draft, previewSchedule, scheduleIndex]);
-  // ---------------------------------------------------------------------------
 
   // Pre-group requests by space to avoid O(n×m) filtering inside each SpaceRow.
   const requestsBySpaceId = useMemo(() => {
@@ -142,13 +131,58 @@ export function SchedulerGrid({
     return map;
   }, [requests]);
 
-  // Fetch groups
-  useEffect(() => {
-    getResourceGroups('space').then((g) => {
-      setGroups(g);
-      setGroupsLoading(false);
-    });
-  }, []);
+  // Registry conflicts sliced per space, so each SpaceRow only receives (and
+  // only re-renders for) the validation of its own requests.
+  const committedValidationBySpace = useMemo(() => {
+    const result = new Map<string, ValidationResult>();
+    for (const [spaceId, spaceRequests] of requestsBySpaceId) {
+      let slice: ValidationResult | null = null;
+      for (const r of spaceRequests) {
+        const conflicts = committedConflicts.get(r.id);
+        if (conflicts && conflicts.length > 0) (slice ??= new Map()).set(r.id, conflicts);
+      }
+      result.set(spaceId, slice ?? EMPTY_VALIDATION);
+    }
+    return result;
+  }, [requestsBySpaceId, committedConflicts]);
+
+  // Draft overlay: while a bar is being resized, re-evaluate overlap/duration
+  // client-side for just the dragged entry and the peers it now overlaps, so the
+  // feedback is instant before the mutation commits and the registry refetches.
+  // Backend-only conflict kinds for those ids are restored on the next refetch.
+  // Only the draft's space gets a new validation slice — all affected entries
+  // (draft + overlap peers) live in that space.
+  const validationBySpace = useMemo(() => {
+    if (!draft) return committedValidationBySpace;
+    const draftEntry = previewSchedule.get(draft.requestId);
+    if (!draftEntry) return committedValidationBySpace;
+
+    const affected = new Set<string>([draft.requestId]);
+    for (const peer of getOverlapping(scheduleIndex, draftEntry)) {
+      affected.add(peer.requestId);
+    }
+
+    const spaceId = draftEntry.resourceId;
+    const slice = new Map(committedValidationBySpace.get(spaceId) ?? EMPTY_VALIDATION);
+    for (const id of affected) {
+      const entry = previewSchedule.get(id);
+      if (!entry) continue;
+      const conflicts = evaluateEntry(entry, scheduleIndex);
+      if (conflicts.length > 0) slice.set(id, conflicts);
+      else slice.delete(id);
+    }
+
+    const merged = new Map(committedValidationBySpace);
+    merged.set(spaceId, slice);
+    return merged;
+  }, [committedValidationBySpace, draft, previewSchedule, scheduleIndex]);
+  // ---------------------------------------------------------------------------
+
+  // Fetch groups — shared cache with everything else reading space groups.
+  const { data: groups = [], isLoading: groupsLoading } = useQuery<ResourceGroupInfo[]>({
+    queryKey: qk.resourceGroups.byType('space'),
+    queryFn: () => getResourceGroups('space'),
+  });
 
   // Memoize sorting + grouping — expensive with 50+ spaces (#5). Spaces are
   // sorted (manual order, then code) before bucketing so each group keeps that
@@ -387,15 +421,15 @@ export function SchedulerGrid({
         space={space}
         columns={columns}
         spaceRequests={requestsBySpaceId.get(space.id) ?? EMPTY_REQUESTS}
-        scheduleIndex={scheduleIndex}
-        validation={validation}
+        spaceEntries={scheduleIndex.bySpace.get(space.id) ?? EMPTY_ENTRIES}
+        validation={validationBySpace.get(space.id) ?? EMPTY_VALIDATION}
         onRequestClick={onRequestClick}
         onRequestDoubleClick={onRequestDoubleClick}
         onRequestResize={onRequestResize}
         offTimeRanges={offTimeRanges}
       />
     ),
-    [columns, requestsBySpaceId, scheduleIndex, validation, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges],
+    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges],
   );
 
   return (

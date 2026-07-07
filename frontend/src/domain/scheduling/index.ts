@@ -27,9 +27,9 @@ export {
 
 
 // Preview/render pipeline (was previously in domain/schedule-*.ts)
-export { buildPreviewSchedule } from "./schedule-preview";
-export { buildIndex, getOverlapping, getStackIndex, getOverlapGroupSize, getMaxOverlapInSpace } from "./schedule-index";
-export { evaluateSchedule, hasConflicts, getAllConflicts } from "./schedule-validator";
+export { buildPreviewSchedule, buildCommittedSchedule, applyDraft } from "./schedule-preview";
+export { buildIndex, replaceIndexEntry, getOverlapping, getStackIndex, getOverlapGroupSize, getMaxOverlapInSpace } from "./schedule-index";
+export { evaluateSchedule, evaluateEntry, hasConflicts, getAllConflicts } from "./schedule-validator";
 export { selectRequestDisplayData, selectSpaceOverlapCount, isOutsideView } from "./schedule-selectors";
 export { durationToMs } from "./schedule-model";
 export type {

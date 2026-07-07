@@ -466,12 +466,18 @@ export function SpaceDrawingCanvas({
                   isDragging={true}
                   editEnabled={editEnabled}
                   selectedResourceId={selectedResourceId}
-                  resizingSpace={resizingSpace}
-                  mousePosition={mousePosition}
+                  resizePreview={null}
                   spaceColors={spaceColors}
                 />
               );
             }
+
+            // Only the actively-resizing shape gets the live pointer; every other
+            // shape receives `null`, so memoized shapes skip re-rendering mid-gesture.
+            const resizePreview =
+              resizingSpace?.id === space.id && mousePosition
+                ? { handleIndex: resizingSpace.handleIndex, mousePosition }
+                : null;
 
             return (
               <SpaceShapeSvg
@@ -479,8 +485,7 @@ export function SpaceDrawingCanvas({
                 space={space}
                 editEnabled={editEnabled}
                 selectedResourceId={selectedResourceId}
-                resizingSpace={resizingSpace}
-                mousePosition={mousePosition}
+                resizePreview={resizePreview}
                 spaceColors={spaceColors}
               />
             );

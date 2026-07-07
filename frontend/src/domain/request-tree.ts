@@ -142,12 +142,10 @@ export function getAncestorIds(
 }
 
 /**
- * Get all descendant IDs (recursive children) of a request.
+ * Build a parentId → child-ids map for `getDescendantIds`.
+ * Build it once when calling `getDescendantIds` repeatedly over the same list.
  */
-export function getDescendantIds(
-  requestId: string,
-  requests: Request[],
-): string[] {
+export function buildChildrenIdMap(requests: Request[]): Map<string, string[]> {
   const childrenMap = new Map<string, string[]>();
   for (const r of requests) {
     if (r.parentRequestId) {
@@ -156,6 +154,19 @@ export function getDescendantIds(
       childrenMap.set(r.parentRequestId, siblings);
     }
   }
+  return childrenMap;
+}
+
+/**
+ * Get all descendant IDs (recursive children) of a request.
+ * Optionally accepts a pre-built children map to avoid rebuilding it per call.
+ */
+export function getDescendantIds(
+  requestId: string,
+  requests: Request[],
+  childrenById?: Map<string, string[]>,
+): string[] {
+  const childrenMap = childrenById ?? buildChildrenIdMap(requests);
 
   const result: string[] = [];
   const stack = [...(childrenMap.get(requestId) ?? [])];

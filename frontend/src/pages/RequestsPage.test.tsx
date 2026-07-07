@@ -227,6 +227,7 @@ vi.mock('@foundation/src/domain/request-tree', () => ({
     flatten(entries);
     return result;
   }),
+  buildChildrenIdMap: vi.fn(() => new Map()),
   getDescendantIds: vi.fn(() => []),
   getAncestorIds: vi.fn(() => []),
   getNextSortOrder: vi.fn(() => 0),

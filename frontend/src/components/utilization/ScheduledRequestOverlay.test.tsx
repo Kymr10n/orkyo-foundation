@@ -133,9 +133,35 @@ function pointerUp() {
 // Tests
 // ---------------------------------------------------------------------------
 
+// onUpdate is rAF-throttled inside useResizeGesture — stub rAF so tests can
+// flush a "painted frame" deterministically.
+let frameCallbacks: Map<number, FrameRequestCallback>;
+let nextFrameId: number;
+
+function flushFrames() {
+  const callbacks = [...frameCallbacks.values()];
+  frameCallbacks.clear();
+  for (const cb of callbacks) cb(performance.now());
+}
+
 describe("ScheduledRequestOverlay resize", () => {
-  beforeEach(() => useSchedulerStore.setState({ draft: null }));
-  afterEach(() => useSchedulerStore.setState({ draft: null }));
+  beforeEach(() => {
+    useSchedulerStore.setState({ draft: null });
+    frameCallbacks = new Map();
+    nextFrameId = 1;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = nextFrameId++;
+      frameCallbacks.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      frameCallbacks.delete(id);
+    });
+  });
+  afterEach(() => {
+    useSchedulerStore.setState({ draft: null });
+    vi.unstubAllGlobals();
+  });
 
   function getResizeHandles() {
     const overlay = screen.getByTitle(/Test Request/);
@@ -263,12 +289,14 @@ describe("ScheduledRequestOverlay resize", () => {
 
     act(() => pointerDown(right, 100));
     act(() => pointerMove(100 + RESIZE_MOVE_THRESHOLD_PX + 20));
+    act(() => flushFrames());
 
     const draft1 = useSchedulerStore.getState().draft;
     expect(draft1?.kind).toBe("resize");
     const end1 = draft1?.kind === "resize" ? draft1.previewEndMs : 0;
 
     act(() => pointerMove(100 + RESIZE_MOVE_THRESHOLD_PX + 60));
+    act(() => flushFrames());
 
     const draft2 = useSchedulerStore.getState().draft;
     const end2 = draft2?.kind === "resize" ? draft2.previewEndMs : 0;

@@ -21,7 +21,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   space,
   columns,
   spaceRequests,
-  scheduleIndex,
+  spaceEntries,
   validation,
   onRequestClick,
   onRequestDoubleClick,
@@ -31,7 +31,9 @@ export const SpaceRow = React.memo(function SpaceRow({
   space: Space;
   columns: TimeColumn[];
   spaceRequests: Request[];
-  scheduleIndex: ScheduleIndex;
+  /** This space's slice of the preview index — referentially stable while other spaces are dragged. */
+  spaceEntries: readonly PreviewEntry[];
+  /** This space's slice of the validation result. */
   validation: ValidationResult;
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
@@ -42,6 +44,13 @@ export const SpaceRow = React.memo(function SpaceRow({
   const requestsById = useMemo(
     () => new Map(spaceRequests.map((r) => [r.id, r])),
     [spaceRequests]
+  );
+
+  // Single-space index over this row's slice — the index-based selectors and
+  // the overlay only ever look up entries in their own space.
+  const spaceIndex = useMemo<ScheduleIndex>(
+    () => ({ bySpace: new Map([[space.id, spaceEntries]]) }),
+    [space.id, spaceEntries]
   );
 
   // A single droppable per row (not per cell). The exact column is resolved
@@ -82,13 +91,12 @@ export const SpaceRow = React.memo(function SpaceRow({
   const viewStartMs = columns[0].start.getTime();
   const viewEndMs = columns[columns.length - 1].end.getTime();
   const visibleEntries = useMemo(() => {
-    const entries = scheduleIndex.bySpace.get(space.id);
-    if (!entries) return EMPTY_ENTRIES;
-    return entries.filter((e) => !isOutsideView(e, viewStartMs, viewEndMs));
-  }, [scheduleIndex, space.id, viewStartMs, viewEndMs]);
+    if (spaceEntries.length === 0) return EMPTY_ENTRIES;
+    return spaceEntries.filter((e) => !isOutsideView(e, viewStartMs, viewEndMs));
+  }, [spaceEntries, viewStartMs, viewEndMs]);
 
   // Calculate row height from the preview index (reflects draft bounds)
-  const maxOverlaps = selectSpaceOverlapCount(scheduleIndex, space.id);
+  const maxOverlaps = selectSpaceOverlapCount(spaceIndex, space.id);
   const rowHeight = BASE_ROW_HEIGHT + (maxOverlaps - 1) * REQUEST_HEIGHT;
 
   return (
@@ -118,7 +126,7 @@ export const SpaceRow = React.memo(function SpaceRow({
             request={request}
             entry={entry}
             columns={columns}
-            scheduleIndex={scheduleIndex}
+            scheduleIndex={spaceIndex}
             validation={validation}
             onRequestClick={onRequestClick}
             onRequestDoubleClick={onRequestDoubleClick}

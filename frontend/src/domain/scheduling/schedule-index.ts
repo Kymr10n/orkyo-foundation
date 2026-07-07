@@ -34,6 +34,34 @@ export function buildIndex(schedule: PreviewSchedule): ScheduleIndex {
 }
 
 /**
+ * Replace one entry in an existing index without rebuilding it.
+ *
+ * Only the space arrays containing `prev`/`next` are rebuilt; every other
+ * space's array is shared by reference with the input index — so per-space
+ * consumers (SpaceRow memo props) stay referentially stable during a drag.
+ */
+export function replaceIndexEntry(
+  index: ScheduleIndex,
+  prev: PreviewEntry,
+  next: PreviewEntry,
+): ScheduleIndex {
+  const bySpace = new Map(index.bySpace);
+
+  for (const resourceId of new Set([prev.resourceId, next.resourceId])) {
+    const rebuilt = (index.bySpace.get(resourceId) ?? []).filter(
+      (e) => e.requestId !== prev.requestId,
+    );
+    if (resourceId === next.resourceId) rebuilt.push(next);
+    rebuilt.sort((a, b) => a.startMs - b.startMs || a.requestId.localeCompare(b.requestId));
+
+    if (rebuilt.length > 0) bySpace.set(resourceId, rebuilt);
+    else bySpace.delete(resourceId);
+  }
+
+  return { bySpace };
+}
+
+/**
  * Returns all entries in the same space that overlap with `target`.
  * Uses the half-open interval definition: [start, end).
  * An entry does NOT overlap with itself.

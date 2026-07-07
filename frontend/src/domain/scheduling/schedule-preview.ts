@@ -9,46 +9,69 @@
  * should render, with the draft interaction's bounds overriding the
  * committed bounds for the affected request.
  *
- * This is a pure function with no side effects.
+ * These are pure functions with no side effects. Entry objects are reused
+ * wherever possible: applyDraft returns the input schedule unchanged when
+ * there is no draft, and otherwise replaces only the dragged entry's object —
+ * so React.memo'd rows for untouched requests hold during a drag.
  */
 
 import type { Request } from "@foundation/src/types/requests";
 import type { DraftInteraction, PreviewEntry, PreviewSchedule } from "./schedule-model";
 import { toScheduledEntry } from "./schedule-model";
 
-export function buildPreviewSchedule(
-  committed: Request[],
-  draft: DraftInteraction
-): PreviewSchedule {
+/** Build the draft-free schedule from the committed request list. */
+export function buildCommittedSchedule(committed: Request[]): PreviewSchedule {
   const preview: PreviewSchedule = new Map();
 
   for (const request of committed) {
     const entry = toScheduledEntry(request);
     if (!entry) continue;
 
-    // Apply draft override if this is the request being interacted with
-    if (draft?.requestId === entry.requestId) {
-      preview.set(entry.requestId, {
-        requestId: entry.requestId,
-        resourceId: draft.resourceId,
-        startMs: draft.previewStartMs,
-        endMs: draft.previewEndMs,
-        name: entry.name,
-        minimalDurationMs: entry.minimalDurationMs,
-        isDraft: true,
-      } satisfies PreviewEntry);
-    } else {
-      preview.set(entry.requestId, {
-        requestId: entry.requestId,
-        resourceId: entry.resourceId,
-        startMs: entry.startMs,
-        endMs: entry.endMs,
-        name: entry.name,
-        minimalDurationMs: entry.minimalDurationMs,
-        isDraft: false,
-      } satisfies PreviewEntry);
-    }
+    preview.set(entry.requestId, {
+      requestId: entry.requestId,
+      resourceId: entry.resourceId,
+      startMs: entry.startMs,
+      endMs: entry.endMs,
+      name: entry.name,
+      minimalDurationMs: entry.minimalDurationMs,
+      isDraft: false,
+    } satisfies PreviewEntry);
   }
 
   return preview;
+}
+
+/**
+ * Overlay the draft interaction onto a committed schedule.
+ *
+ * Returns the input schedule itself when there is nothing to apply; otherwise
+ * a new Map where only the dragged request's entry is a new object (all other
+ * entries are shared by reference with the input).
+ */
+export function applyDraft(
+  committed: PreviewSchedule,
+  draft: DraftInteraction
+): PreviewSchedule {
+  if (!draft) return committed;
+  const entry = committed.get(draft.requestId);
+  if (!entry) return committed;
+
+  const preview = new Map(committed);
+  preview.set(entry.requestId, {
+    requestId: entry.requestId,
+    resourceId: draft.resourceId,
+    startMs: draft.previewStartMs,
+    endMs: draft.previewEndMs,
+    name: entry.name,
+    minimalDurationMs: entry.minimalDurationMs,
+    isDraft: true,
+  } satisfies PreviewEntry);
+  return preview;
+}
+
+export function buildPreviewSchedule(
+  committed: Request[],
+  draft: DraftInteraction
+): PreviewSchedule {
+  return applyDraft(buildCommittedSchedule(committed), draft);
 }

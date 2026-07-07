@@ -20,7 +20,40 @@
 import type { Conflict } from "@foundation/src/types/requests";
 import { buildIndex, getOverlapping } from "./schedule-index";
 import type { ScheduleIndex } from "./schedule-index";
-import type { PreviewSchedule, ValidationResult } from "./schedule-model";
+import type { PreviewEntry, PreviewSchedule, ValidationResult } from "./schedule-model";
+
+/**
+ * Evaluate the client-side rules for a single entry against an index.
+ * Used by the grid to validate only the entries affected by an in-flight
+ * draft instead of re-running the whole windowed schedule per pointer frame.
+ */
+export function evaluateEntry(entry: PreviewEntry, index: ScheduleIndex): Conflict[] {
+  const conflicts: Conflict[] = [];
+
+  // --- Rule 1: duration below minimum ---
+  const actualDurationMs = entry.endMs - entry.startMs;
+  if (actualDurationMs < entry.minimalDurationMs) {
+    conflicts.push({
+      id: `${entry.requestId}-below-min-duration`,
+      kind: "below_min_duration",
+      severity: "error",
+      message: `Duration is below the required minimum`,
+    });
+  }
+
+  // --- Rule 2: overlap (any overlap in the same space is a conflict) ---
+  for (const other of getOverlapping(index, entry)) {
+    conflicts.push({
+      id: `${entry.requestId}-overlap-${other.requestId}`,
+      kind: "overlap",
+      severity: "error",
+      peerRequestId: other.requestId,
+      message: `Overlaps with "${other.name}" in the same space`,
+    });
+  }
+
+  return conflicts;
+}
 
 export function evaluateSchedule(
   schedule: PreviewSchedule,
@@ -30,30 +63,7 @@ export function evaluateSchedule(
   const index = existingIndex ?? buildIndex(schedule);
 
   for (const entry of schedule.values()) {
-    const conflicts: Conflict[] = [];
-
-    // --- Rule 1: duration below minimum ---
-    const actualDurationMs = entry.endMs - entry.startMs;
-    if (actualDurationMs < entry.minimalDurationMs) {
-      conflicts.push({
-        id: `${entry.requestId}-below-min-duration`,
-        kind: "below_min_duration",
-        severity: "error",
-        message: `Duration is below the required minimum`,
-      });
-    }
-
-    // --- Rule 2: overlap (any overlap in the same space is a conflict) ---
-    for (const other of getOverlapping(index, entry)) {
-      conflicts.push({
-        id: `${entry.requestId}-overlap-${other.requestId}`,
-        kind: "overlap",
-        severity: "error",
-        peerRequestId: other.requestId,
-        message: `Overlaps with "${other.name}" in the same space`,
-      });
-    }
-
+    const conflicts = evaluateEntry(entry, index);
     if (conflicts.length > 0) {
       result.set(entry.requestId, conflicts);
     }

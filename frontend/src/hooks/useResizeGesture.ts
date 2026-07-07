@@ -90,6 +90,9 @@ export function useResizeGesture(
     end: () => void;
   } | null>(null);
 
+  /** Pending animation frame for the throttled onUpdate (null when none). */
+  const rafRef = useRef<number | null>(null);
+
   // -------------------------------------------------------------------------
   // Teardown — removes document listeners and resets gesture state.
   // -------------------------------------------------------------------------
@@ -100,6 +103,10 @@ export function useResizeGesture(
       document.removeEventListener("pointerup", listenersRef.current.end);
       document.removeEventListener("pointercancel", listenersRef.current.end);
       listenersRef.current = null;
+    }
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
     gestureRef.current = null;
   }, []);
@@ -165,11 +172,32 @@ export function useResizeGesture(
 
         g.latestStartMs = newStartMs;
         g.latestEndMs = newEndMs;
-        cbRef.current.onUpdate(newStartMs, newEndMs);
+
+        // rAF-throttle: coalesce pointer moves into one onUpdate per animation
+        // frame — the preview/validation pipeline only needs to run once per
+        // painted frame, not once per pointermove event.
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            const latest = gestureRef.current;
+            if (!latest?.activated) return;
+            cbRef.current.onUpdate(latest.latestStartMs, latest.latestEndMs);
+          });
+        }
       };
 
       const handlePointerEnd = () => {
         const g = gestureRef.current;
+
+        // Flush a pending throttled update so the final bounds are applied
+        // (e.g. to the draft store) before the commit fires.
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+          if (g?.activated) {
+            cbRef.current.onUpdate(g.latestStartMs, g.latestEndMs);
+          }
+        }
 
         if (g?.activated) {
           lastCommitMsRef.current = Date.now();
