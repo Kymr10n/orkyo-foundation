@@ -173,7 +173,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
   // Person profile — fetched via React Query for proper cancellation and caching
   const { data: profile } = useQuery({
-    queryKey: ['person-profile', person?.id],
+    queryKey: qk.personProfiles.single(person?.id),
     queryFn: () => loadProfileOrNull(person!.id),
     enabled: isOpen && !!person?.id,
   });
@@ -230,7 +230,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
     meta: {
       successMessage: isEditing ? 'Person updated' : 'Person created',
       errorMessage: isEditing ? 'Failed to update person' : 'Failed to create person',
-      invalidates: [qk.resources.byType(RESOURCE_TYPE_KEY.PERSON), ['person-profile']],
+      invalidates: [qk.resources.byType(RESOURCE_TYPE_KEY.PERSON), qk.personProfiles.all()],
     },
     onSettled: () => setIsSubmitting(false),
     onSuccess: () => onSaved(),

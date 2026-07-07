@@ -162,6 +162,6 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    expect(screen.getByText(/1\/15\/2024/)).toBeInTheDocument();
+    expect(screen.getByText(/Jan 15, 2024/)).toBeInTheDocument();
   });
 });

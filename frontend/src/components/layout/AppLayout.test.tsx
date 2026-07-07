@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
 
@@ -65,11 +66,19 @@ vi.mock('@foundation/src/components/tour/TourDialog', () => ({
 }));
 
 function renderLayout() {
-  return render(
-      <MemoryRouter>
-      <AppLayout />
-    </MemoryRouter>,
-  );
+  // AppLayout loads sites via the useSites() React Query hook, so a client is
+  // required. retry: false surfaces the getSites-throws case without retry delays.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return {
+    queryClient,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AppLayout />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 describe('AppLayout', () => {
@@ -181,7 +190,7 @@ describe('AppLayout — responsive shell', () => {
   it('phone: no inline sidebar; hamburger opens the nav drawer', async () => {
     setViewport(500);
     renderLayout();
-    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('hamburger')).toBeInTheDocument());
     // Drawer starts closed → the sidebar content is not mounted.
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument();
 
@@ -194,8 +203,8 @@ describe('AppLayout — responsive shell', () => {
 
   it('restores the inline sidebar (and drops the hamburger) when growing past phone width', async () => {
     setViewport(500);
-    const { rerender } = renderLayout();
-    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
+    const { rerender, queryClient } = renderLayout();
+    await waitFor(() => expect(screen.getByTestId('hamburger')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('hamburger'));
     await waitFor(() => expect(screen.getByTestId('sidebar')).toBeInTheDocument());
 
@@ -203,9 +212,11 @@ describe('AppLayout — responsive shell', () => {
     // inline store-driven sidebar returns and the hamburger disappears.
     setViewport(1280);
     rerender(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AppLayout />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
     await waitFor(() =>
       expect(screen.getByTestId('sidebar')).toHaveAttribute('data-forced', 'undefined'),

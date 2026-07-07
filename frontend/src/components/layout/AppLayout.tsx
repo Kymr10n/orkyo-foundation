@@ -1,4 +1,4 @@
-import { getSites } from "@foundation/src/lib/api/site-api";
+import { useSites } from "@foundation/src/hooks/useSites";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
@@ -70,26 +70,26 @@ export function AppLayout() {
     }
   }, [tourTick]);
 
-  // Load sites and validate/set default selection
+  // Load sites (shared React Query cache) and validate/set default selection.
+  const { data: sites, isSuccess: sitesLoaded, isError: sitesError, error: sitesLoadError } = useSites();
   useEffect(() => {
-    getSites()
-      .then((sites) => {
-        if (sites.length === 0) {
-          setIsSiteValidated(true);
-          return;
-        }
+    if (sitesError) {
+      logger.error("Failed to load sites:", sitesLoadError);
+      setIsSiteValidated(true);
+      return;
+    }
+    if (!sitesLoaded || !sites) return;
+    if (sites.length === 0) {
+      setIsSiteValidated(true);
+      return;
+    }
 
-        // If no site selected or selected site doesn't exist, use first site
-        if (!selectedSiteId || !sites.find((s) => s.id === selectedSiteId)) {
-          setSelectedSiteId(sites[0].id);
-        }
-        setIsSiteValidated(true);
-      })
-      .catch((err: unknown) => {
-        logger.error("Failed to load sites:", err);
-        setIsSiteValidated(true);
-      });
-  }, [selectedSiteId, setSelectedSiteId]);
+    // If no site selected or selected site doesn't exist, use first site
+    if (!selectedSiteId || !sites.find((s) => s.id === selectedSiteId)) {
+      setSelectedSiteId(sites[0].id);
+    }
+    setIsSiteValidated(true);
+  }, [sitesLoaded, sitesError, sitesLoadError, sites, selectedSiteId, setSelectedSiteId]);
 
   // Don't render child routes until site is validated - prevents stale site ID API calls
   if (!isSiteValidated) {

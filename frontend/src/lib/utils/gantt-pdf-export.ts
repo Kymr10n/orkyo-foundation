@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import type { Request, RequestStatus } from '@foundation/src/types/requests';
 import type { Space } from '@foundation/src/types/space';
 import { format } from 'date-fns';
+import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import { REQUEST_STATUS_ORDER } from '@foundation/src/constants/request-status';
 import { formatStatusLabel } from '@foundation/src/lib/utils/utils';
@@ -54,12 +55,12 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    `Period: ${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`,
+    `Period: ${format(startDate, DATE_FORMATS.DATE_MEDIUM)} - ${format(endDate, DATE_FORMATS.DATE_MEDIUM)}`,
     margin,
     margin + 17
   );
   doc.text(
-    `Generated: ${format(new Date(), 'MMM d, yyyy HH:mm')}`,
+    `Generated: ${format(new Date(), DATE_FORMATS.DATETIME_MEDIUM)}`,
     margin,
     margin + 22
   );
@@ -90,7 +91,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
     doc.line(x, chartY, x, chartY + chartHeight);
 
     doc.setTextColor(100, 100, 100);
-    doc.text(format(date, 'MMM d'), x, chartY - 3, { align: 'center' });
+    doc.text(format(date, DATE_FORMATS.DATE_HEADER), x, chartY - 3, { align: 'center' });
   }
 
   // Group requests by space
@@ -200,6 +201,6 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   );
 
   // Save the PDF
-  const pdfFilename = filename || `gantt-chart-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+  const pdfFilename = filename || `gantt-chart-${format(new Date(), DATE_FORMATS.DATE_ISO)}.pdf`;
   doc.save(pdfFilename);
 }

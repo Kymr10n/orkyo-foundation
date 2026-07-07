@@ -8,6 +8,7 @@ import type {
   InsightsUtilization,
 } from "@foundation/src/lib/api/insights-api";
 import { format, parseISO } from "date-fns";
+import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import {
   Bar,
   BarChart,
@@ -43,10 +44,10 @@ const clampUtilization = (v: number | null) => (v == null ? null : Math.min(v, U
 function bucketLabel(iso: string, bucket: InsightsBucket): string {
   const d = parseISO(iso);
   switch (bucket) {
-    case "week": return format(d, "MMM d");
-    case "month": return format(d, "MMM yy");
-    case "quarter": return format(d, "QQQ yyyy");
-    case "year": return format(d, "yyyy");
+    case "week": return format(d, DATE_FORMATS.DATE_HEADER);
+    case "month": return format(d, DATE_FORMATS.MONTH_YEAR);
+    case "quarter": return format(d, DATE_FORMATS.QUARTER_YEAR);
+    case "year": return format(d, DATE_FORMATS.YEAR);
   }
 }
 

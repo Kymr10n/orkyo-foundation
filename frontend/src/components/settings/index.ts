@@ -26,4 +26,4 @@ export { AvailabilityEventDialog } from "./AvailabilityEventDialog";
 export { TenantConfigSettings } from "./TenantConfigSettings";
 export { TemplateSettings } from "./TemplateSettings";
 export { UserSettings } from "./UserSettings";
-export { ReportingApiPage } from "./ReportingApiPage";
+export { ReportingApiSettings } from "./ReportingApiSettings";

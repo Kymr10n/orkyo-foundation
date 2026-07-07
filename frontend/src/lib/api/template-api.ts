@@ -1,6 +1,12 @@
-import { apiDelete, apiGet, apiPost, apiPut } from '../core/api-client';
+import { apiGet } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import type { Template, CreateTemplateRequest, UpdateTemplateRequest } from '@foundation/src/types/templates';
+import { createCrudApi } from './create-crud-api';
+
+const templatesApi = createCrudApi<Template, CreateTemplateRequest, Partial<UpdateTemplateRequest>>({
+  collectionPath: API_PATHS.TEMPLATES,
+  itemPath: API_PATHS.template,
+});
 
 /**
  * Get all templates for a specific entity type
@@ -13,19 +19,19 @@ export async function getTemplates(entityType: 'request' | 'space' | 'group'): P
  * Create a new template
  */
 export async function createTemplate(request: CreateTemplateRequest): Promise<Template> {
-  return apiPost<Template>(API_PATHS.TEMPLATES, request);
+  return templatesApi.create(request);
 }
 
 /**
  * Update an existing template
  */
 export async function updateTemplate(id: string, request: Partial<UpdateTemplateRequest>): Promise<Template> {
-  return apiPut<Template>(API_PATHS.template(id), request);
+  return templatesApi.update(id, request);
 }
 
 /**
  * Delete a template
  */
 export async function deleteTemplate(id: string): Promise<void> {
-  return apiDelete(API_PATHS.template(id));
+  return templatesApi.remove(id);
 }

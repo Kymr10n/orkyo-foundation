@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
@@ -127,7 +128,7 @@ export function AnnouncementsTab() {
         const a = row.original;
         return (
           <div className={`text-sm text-muted-foreground whitespace-nowrap ${a.isExpired ? 'opacity-50' : ''}`}>
-            <div>{new Date(a.createdAt).toLocaleDateString()}</div>
+            <div>{formatDateDisplay(a.createdAt)}</div>
             <div className="text-xs">{a.createdByEmail}</div>
           </div>
         );
@@ -138,7 +139,7 @@ export function AnnouncementsTab() {
       header: 'Expires',
       cell: ({ row }) => (
         <span className={`text-sm text-muted-foreground whitespace-nowrap ${row.original.isExpired ? 'opacity-50' : ''}`}>
-          {new Date(row.original.expiresAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.expiresAt)}
         </span>
       ),
     },

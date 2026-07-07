@@ -18,6 +18,12 @@ import {
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 
+/** Roles assignable to an existing member — every tenant role except "none". */
+type EditableRole = Exclude<
+  (typeof TENANT_ROLE)[keyof typeof TENANT_ROLE],
+  typeof TENANT_ROLE.None
+>;
+
 interface EditUserRoleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,9 +37,7 @@ export function EditUserRoleDialog({
   user,
   onSuccess,
 }: EditUserRoleDialogProps) {
-  const [role, setRole] = useState<
-    "admin" | "editor" | "viewer" | "inactive"
-  >(user.role);
+  const [role, setRole] = useState<EditableRole>(user.role);
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -102,14 +106,14 @@ export function EditUserRoleDialog({
         <Label htmlFor="role">New Role</Label>
         <Select
           value={role}
-          onValueChange={(value: "admin" | "editor" | "viewer" | "inactive") => setRole(value)}
+          onValueChange={(value: EditableRole) => setRole(value)}
           disabled={mutation.isPending}
         >
           <SelectTrigger id="role">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="viewer">
+            <SelectItem value={TENANT_ROLE.Viewer}>
               <div>
                 <div className="font-medium">Viewer</div>
                 <div className="text-xs text-muted-foreground">
@@ -117,7 +121,7 @@ export function EditUserRoleDialog({
                 </div>
               </div>
             </SelectItem>
-            <SelectItem value="editor">
+            <SelectItem value={TENANT_ROLE.Editor}>
               <div>
                 <div className="font-medium">Editor</div>
                 <div className="text-xs text-muted-foreground">
@@ -125,7 +129,7 @@ export function EditUserRoleDialog({
                 </div>
               </div>
             </SelectItem>
-            <SelectItem value="admin">
+            <SelectItem value={TENANT_ROLE.Admin}>
               <div>
                 <div className="font-medium">Admin</div>
                 <div className="text-xs text-muted-foreground">
@@ -133,7 +137,7 @@ export function EditUserRoleDialog({
                 </div>
               </div>
             </SelectItem>
-            <SelectItem value="inactive">
+            <SelectItem value={TENANT_ROLE.Inactive}>
               <div>
                 <div className="font-medium">Inactive</div>
                 <div className="text-xs text-muted-foreground">

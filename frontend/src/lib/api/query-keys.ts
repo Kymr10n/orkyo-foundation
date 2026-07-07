@@ -42,9 +42,20 @@ export const qk = {
     list: (siteId: string | null) => ["spaces", siteId] as const,
   },
 
+  sites: {
+    /** The tenant's site list (also its own invalidation prefix). */
+    list: () => ["sites"] as const,
+  },
+
   resources: {
     /** Resources of one type (e.g. the People list; also its own invalidation prefix). */
     byType: (resourceTypeKey: string) => ["resources", resourceTypeKey] as const,
+    /**
+     * People list backing the utilization grid — name/metadata lookup. Deliberately
+     * a distinct key from `byType('person')` (different fetch scope/staleness); do not
+     * fold into it (that would change invalidation semantics).
+     */
+    personUtilizationGrid: () => ["resources", "person", "utilization-grid"] as const,
     /** Absences recorded for one resource. */
     absences: (resourceId: string) => ["resource-absences", resourceId] as const,
     /** Capability/skill assignments for one resource. */
@@ -62,6 +73,8 @@ export const qk = {
     all: () => ["resource-groups"] as const,
     /** Groups of one resource type (person teams, space groups, …). */
     byType: (typeKey: string) => ["resource-groups", typeKey] as const,
+    /** Members of one resource group. */
+    members: (groupId: string) => ["resource-group-members", groupId] as const,
     /**
      * Flat list of groups across ALL resource types (availability-event scope picker).
      * Deliberately a distinct key from `byType` — different fetch/payload; do not fold
@@ -98,6 +111,9 @@ export const qk = {
       ["resource-assignments-by-type", resourceTypeKey, iso(from), iso(to)] as const,
     /** Prefix matching every assignments-by-type variant (invalidation). */
     assignmentsByTypeAll: () => ["resource-assignments-by-type"] as const,
+    /** Capability-conflict check for a set of assignment ids (utilization grid badges). */
+    capabilityConflicts: (assignmentIds: string[]) =>
+      ["assignment-capability-conflicts", assignmentIds] as const,
   },
 
   scheduling: {
@@ -152,6 +168,50 @@ export const qk = {
   security: {
     /** The current user's security info (lock state, federation, MFA). */
     info: () => ["security-info"] as const,
+  },
+
+  sessions: {
+    /** The current user's active sessions (also its own invalidation prefix). */
+    all: () => ["sessions"] as const,
+  },
+
+  mfa: {
+    /** The current user's MFA/TOTP status (also its own invalidation prefix). */
+    status: () => ["mfa-status"] as const,
+  },
+
+  reportingTokens: {
+    /** The tenant's reporting API tokens (also its own invalidation prefix). */
+    all: () => ["reporting-tokens"] as const,
+  },
+
+  userProfile: {
+    /** The current user's identity-provider profile (also its own invalidation prefix). */
+    all: () => ["user-profile"] as const,
+  },
+
+  personProfiles: {
+    /** Batched person profiles for a set of resource ids (People list). */
+    byIds: (resourceIds: string[]) => ["person-profiles", resourceIds] as const,
+    /** Broad prefix — every single person-profile query (use for invalidation). */
+    all: () => ["person-profile"] as const,
+    /** One person's profile. */
+    single: (resourceId: string | undefined) => ["person-profile", resourceId] as const,
+  },
+
+  personJobTitles: {
+    /** Job-title labels for a set of person resource ids (utilization grid). */
+    byIds: (resourceIds: string[]) => ["person-job-titles", resourceIds] as const,
+  },
+
+  presetApplications: {
+    /** The tenant's preset application history (also its own invalidation prefix). */
+    all: () => ["preset-applications"] as const,
+  },
+
+  notificationPreferences: {
+    /** The current user's notification preferences (also its own invalidation prefix). */
+    all: () => ["notification-preferences"] as const,
   },
 
   tenantSettings: {

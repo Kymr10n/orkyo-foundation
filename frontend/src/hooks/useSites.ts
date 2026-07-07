@@ -4,15 +4,13 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import type { CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types/site";
 
-const SITES_QUERY_KEY = ["sites"] as const;
-
 // Deleting a site cascades to spaces and requests; over-invalidating on
 // create/update is harmless and keeps the feedback declaration uniform.
-const SITE_INVALIDATES = [SITES_QUERY_KEY, qk.spaces.all(), qk.requests.all()] as const;
+const SITE_INVALIDATES = [qk.sites.list(), qk.spaces.all(), qk.requests.all()] as const;
 
 export const useSites = () =>
   useQuery({
-    queryKey: SITES_QUERY_KEY,
+    queryKey: qk.sites.list(),
     queryFn: () => getSites(),
     staleTime: STALE.OPERATIONAL,
   });

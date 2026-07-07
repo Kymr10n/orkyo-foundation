@@ -21,6 +21,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { formatCompactTime, formatLocalized, HOUR_CYCLE } from '@foundation/src/lib/formatters';
 
 function StatusBadgeIcon({ status }: { status: string }) {
   const isGood = ['healthy', 'connected', 'configured', 'running'].includes(status);
@@ -87,7 +88,7 @@ export function DiagnosticsTab() {
           <h3 className="text-lg font-medium">Platform Diagnostics</h3>
           {lastRefreshed && (
             <p className="text-xs text-muted-foreground">
-              Last refreshed: {lastRefreshed.toLocaleTimeString()}
+              Last refreshed: {formatCompactTime(lastRefreshed)}
             </p>
           )}
         </div>
@@ -187,7 +188,7 @@ export function DiagnosticsTab() {
               <Separator />
               <InfoRow
                 label="Last Activity"
-                value={new Date(data.worker.lastActivity).toLocaleString()}
+                value={formatLocalized(new Date(data.worker.lastActivity), { dateStyle: 'medium', timeStyle: 'short', hourCycle: HOUR_CYCLE })}
               />
             </>
           )}

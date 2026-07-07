@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -40,7 +41,8 @@ vi.mock('@foundation/src/store/app-store', () => ({
 
 const mockSitesData = { current: undefined as unknown };
 
-vi.mock('@tanstack/react-query', () => ({
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactQuery>()),
   useQuery: vi.fn((opts: { queryKey: string[] }) => {
     if (opts.queryKey[0] === 'sites') {
       return { data: mockSitesData.current, isLoading: false };

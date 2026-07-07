@@ -47,8 +47,9 @@ import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
+import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
 
 export function UtilizationPage() {
@@ -109,13 +110,8 @@ export function UtilizationPage() {
   }, []);
 
   // Tab state — persisted in URL so the view is bookmarkable
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') ?? 'calendar') as 'space' | 'people' | 'calendar';
-  const handleTabChange = (tab: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('tab', tab);
-    setSearchParams(next, { replace: true });
-  };
+  const [rawTab, handleTabChange] = useTabParam('calendar');
+  const activeTab = rawTab as 'space' | 'people' | 'calendar';
 
   // Floorplan height state
   const [floorplanHeight, setFloorplanHeight] = useState(280);
@@ -284,8 +280,8 @@ export function UtilizationPage() {
 
   // Auto-schedule handlers
   const AUTO_SCHEDULE_HORIZON_MONTHS = 3;
-  const horizonStart = format(anchorTs, "yyyy-MM-dd");
-  const horizonEnd = format(addMonths(anchorTs, AUTO_SCHEDULE_HORIZON_MONTHS), "yyyy-MM-dd");
+  const horizonStart = format(anchorTs, DATE_FORMATS.DATE_ISO);
+  const horizonEnd = format(addMonths(anchorTs, AUTO_SCHEDULE_HORIZON_MONTHS), DATE_FORMATS.DATE_ISO);
 
   const handleAutoScheduleClick = useCallback(async () => {
     if (!selectedSiteId) return;

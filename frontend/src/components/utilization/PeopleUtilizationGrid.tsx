@@ -144,7 +144,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   // 1. People resources — name/metadata lookup (tenant-wide). The visible row set is derived below
   //    from the utilization query, which is the site-filtered authority for "who's relevant".
   const { data: peopleResponse, isLoading: peopleLoading, isFetching: peopleFetching, isError: peopleError } = useQuery({
-    queryKey: ['resources', 'person', 'utilization-grid'],
+    queryKey: qk.resources.personUtilizationGrid(),
     queryFn: () => getResources({ resourceTypeKey: 'person', isActive: true }),
     staleTime: 60_000,
   });
@@ -152,7 +152,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   // 2. Person groups
   const { data: groupsData } = useQuery({
-    queryKey: ['resource-groups', 'person'],
+    queryKey: qk.resourceGroups.byType('person'),
     queryFn: () => getResourceGroups('person'),
   });
   const groups: ResourceGroupInfo[] = useMemo(() => groupsData ?? [], [groupsData]);
@@ -161,7 +161,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   //    for per-person profile fetching. Acceptable at expected scale (tens).
   const memberQueries = useQueries({
     queries: groups.map((g) => ({
-      queryKey: ['resource-group-members', g.id],
+      queryKey: qk.resourceGroups.members(g.id),
       queryFn: () => getResourceGroupMembers(g.id),
       staleTime: 60_000,
     })),
@@ -193,7 +193,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   //    not the full profile; failures surface via `jobTitlesError` instead of disappearing silently.
   const peopleIds = useMemo(() => people.map((p) => p.id), [people]);
   const { data: jobTitles = [], isError: jobTitlesError } = useQuery({
-    queryKey: ['person-job-titles', peopleIds],
+    queryKey: qk.personJobTitles.byIds(peopleIds),
     queryFn: () => getPersonJobTitles(peopleIds),
     enabled: peopleIds.length > 0,
     staleTime: 5 * 60_000,
@@ -235,7 +235,7 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   }, [allAssignmentsFlat.length]);
 
   const { data: conflictedAssignmentIds = EMPTY_SET } = useQuery({
-    queryKey: ['assignment-capability-conflicts', allAssignmentsFlat.map((a) => a.id)],
+    queryKey: qk.utilization.capabilityConflicts(allAssignmentsFlat.map((a) => a.id)),
     queryFn: async (): Promise<Set<string>> => {
       const items: ValidateResourceAssignmentRequest[] = allAssignmentsFlat.map((a) => ({
         requestId: a.requestId,

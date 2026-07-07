@@ -3,9 +3,10 @@
  * Used by the People → Groups tab to manage people groups.
  */
 
-import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
+import { apiGet, apiPut } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import type { ResourceInfo } from './resources-api';
+import { createCrudApi } from './create-crud-api';
 
 export interface ResourceGroupInfo {
   id: string;
@@ -20,30 +21,45 @@ export interface ResourceGroupInfo {
   displayOrder?: number;
 }
 
-export async function getResourceGroups(resourceTypeKey: string): Promise<ResourceGroupInfo[]> {
-  return apiGet<ResourceGroupInfo[]>(`${API_PATHS.RESOURCE_GROUPS}?resourceTypeKey=${encodeURIComponent(resourceTypeKey)}`);
-}
-
-export async function createResourceGroup(request: {
+interface CreateResourceGroupRequest {
   resourceTypeKey: string;
   name: string;
   description?: string;
   defaultAvailabilityPercent: number;
   color?: string;
   displayOrder?: number;
-}): Promise<ResourceGroupInfo> {
-  return apiPost<ResourceGroupInfo>(API_PATHS.RESOURCE_GROUPS, request);
+}
+
+interface UpdateResourceGroupRequest {
+  name?: string;
+  description?: string;
+  defaultAvailabilityPercent?: number;
+  color?: string;
+  displayOrder?: number;
+}
+
+const resourceGroupsApi = createCrudApi<ResourceGroupInfo, CreateResourceGroupRequest, UpdateResourceGroupRequest>({
+  collectionPath: API_PATHS.RESOURCE_GROUPS,
+  itemPath: API_PATHS.resourceGroup,
+});
+
+export async function getResourceGroups(resourceTypeKey: string): Promise<ResourceGroupInfo[]> {
+  return resourceGroupsApi.list({ resourceTypeKey: encodeURIComponent(resourceTypeKey) });
+}
+
+export async function createResourceGroup(request: CreateResourceGroupRequest): Promise<ResourceGroupInfo> {
+  return resourceGroupsApi.create(request);
 }
 
 export async function updateResourceGroup(
   id: string,
-  request: { name?: string; description?: string; defaultAvailabilityPercent?: number; color?: string; displayOrder?: number },
+  request: UpdateResourceGroupRequest,
 ): Promise<ResourceGroupInfo> {
-  return apiPut<ResourceGroupInfo>(API_PATHS.resourceGroup(id), request);
+  return resourceGroupsApi.update(id, request);
 }
 
 export async function deleteResourceGroup(id: string): Promise<void> {
-  return apiDelete(API_PATHS.resourceGroup(id));
+  return resourceGroupsApi.remove(id);
 }
 
 export interface ResourceGroupMembersResponse {

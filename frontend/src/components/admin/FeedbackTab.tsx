@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
@@ -118,7 +119,7 @@ export function FeedbackTab() {
       header: 'Created',
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground whitespace-nowrap">
-          {new Date(row.original.createdAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.createdAt)}
         </span>
       ),
     },

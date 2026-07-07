@@ -2,24 +2,29 @@
  * API client for Site operations
  */
 
-import { apiDelete, apiGet, apiPost, apiPut } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 import type { Site, CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types/site";
+import { createCrudApi } from "./create-crud-api";
 
 export type { Site };
+
+const sitesApi = createCrudApi<Site, CreateSiteRequest, UpdateSiteRequest>({
+  collectionPath: API_PATHS.SITES,
+  itemPath: API_PATHS.site,
+});
 
 /**
  * Get all sites for the current tenant
  */
 export async function getSites(): Promise<Site[]> {
-  return apiGet<Site[]>(API_PATHS.SITES);
+  return sitesApi.list();
 }
 
 /**
  * Create a new site
  */
 export async function createSite(request: CreateSiteRequest): Promise<Site> {
-  return apiPost<Site>(API_PATHS.SITES, request);
+  return sitesApi.create(request);
 }
 
 /**
@@ -29,12 +34,12 @@ export async function updateSite(
   siteId: string,
   request: UpdateSiteRequest,
 ): Promise<Site> {
-  return apiPut<Site>(API_PATHS.site(siteId), request);
+  return sitesApi.update(siteId, request);
 }
 
 /**
  * Delete a site
  */
 export async function deleteSite(siteId: string): Promise<void> {
-  return apiDelete(API_PATHS.site(siteId));
+  return sitesApi.remove(siteId);
 }

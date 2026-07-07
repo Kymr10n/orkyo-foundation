@@ -31,6 +31,7 @@ import {
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useNow } from "@foundation/src/hooks/useNow";
+import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import type {
     CreateRequestRequest,
@@ -131,10 +132,10 @@ export function RequestsPage() {
     useRequestTreeStore();
 
   // Debounce search input
+  const debounceSearch = useDebouncedCallback(setDebouncedSearch, 300);
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    debounceSearch(searchQuery);
+  }, [searchQuery, debounceSearch]);
 
   // Handle export/import
   useExportHandler('requests', async (format) => {

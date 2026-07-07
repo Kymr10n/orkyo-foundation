@@ -13,6 +13,7 @@ import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImp
 import { exportSites, importSites } from '@foundation/src/lib/utils/export-handlers';
 import { useSites, useDeleteSite, useCreateSite } from "@foundation/src/hooks/useSites";
 import { logger } from "@foundation/src/lib/core/logger";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 
 export function SiteSettings() {
@@ -133,7 +134,7 @@ export function SiteSettings() {
       header: 'Created',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(row.original.createdAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.createdAt)}
         </span>
       ),
     },

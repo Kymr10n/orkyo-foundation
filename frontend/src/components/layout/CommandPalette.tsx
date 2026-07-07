@@ -26,6 +26,7 @@ import { cn } from "@foundation/src/lib/utils";
 import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-api";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
+import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { ROUTE_SETTINGS } from "@foundation/src/constants/auth";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -84,7 +85,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Reset selection and focus when dialog opens
   useEffect(() => {
@@ -95,46 +95,38 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
   }, [open]);
 
+  const runSearch = useDebouncedCallback(() => {
+    setIsLoading(true);
+    globalSearch({
+      query: query.trim(),
+      siteId: selectedSiteId ?? undefined,
+      limit: 20,
+    }).then((response) => {
+      const visible = response.results.filter((r) => {
+        if (r.type === "site") return isTenantAdmin;
+        if (r.type === "template" || r.type === "criterion") return canEdit;
+        return true; // spaces/requests/people/groups are viewable on core pages
+      });
+      setResults(visible);
+      setSelectedIndex(0);
+    }).catch((error: unknown) => {
+      logger.error("Search failed:", error);
+      setResults([]);
+    }).finally(() => {
+      setIsLoading(false);
+    });
+  }, 200);
+
   // Debounced search
   useEffect(() => {
     if (!query.trim()) {
+      runSearch.cancel();
       setResults([]);
       setSelectedIndex(0);
       return;
     }
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(() => {
-      setIsLoading(true);
-      globalSearch({
-        query: query.trim(),
-        siteId: selectedSiteId ?? undefined,
-        limit: 20,
-      }).then((response) => {
-        const visible = response.results.filter((r) => {
-          if (r.type === "site") return isTenantAdmin;
-          if (r.type === "template" || r.type === "criterion") return canEdit;
-          return true; // spaces/requests/people/groups are viewable on core pages
-        });
-        setResults(visible);
-        setSelectedIndex(0);
-      }).catch((error: unknown) => {
-        logger.error("Search failed:", error);
-        setResults([]);
-      }).finally(() => {
-        setIsLoading(false);
-      });
-    }, 200);
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, [query, selectedSiteId, canEdit, isTenantAdmin]);
+    runSearch();
+  }, [query, selectedSiteId, canEdit, isTenantAdmin, runSearch]);
 
   // Scroll selected item into view
   useEffect(() => {

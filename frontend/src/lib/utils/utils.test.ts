@@ -5,7 +5,6 @@ import {
   cn,
   combineDateTimeToISO,
   durationToMinutes,
-  formatDateDisplay,
   formatDateForInput,
   formatDuration,
   formatMinutesHuman,
@@ -256,19 +255,6 @@ describe('formatDuration', () => {
   it('keeps the plural unit otherwise', () => {
     expect(formatDuration(2, 'hours')).toBe('2 hours');
     expect(formatDuration(0, 'minutes')).toBe('0 minutes');
-  });
-});
-
-describe('formatDateDisplay', () => {
-  it('returns a dash for null/undefined/empty input', () => {
-    expect(formatDateDisplay(null)).toBe('-');
-    expect(formatDateDisplay(undefined)).toBe('-');
-    expect(formatDateDisplay('')).toBe('-');
-  });
-  it('renders a locale date for a valid ISO string', () => {
-    expect(formatDateDisplay('2026-04-02T10:30:00Z')).toBe(
-      new Date('2026-04-02T10:30:00Z').toLocaleDateString(),
-    );
   });
 });
 

@@ -2,6 +2,7 @@ import { useConflictRegistry, useConflictedRequests } from "@foundation/src/hook
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
 import { AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { cn } from "@foundation/src/lib/utils";
 import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
@@ -69,8 +70,8 @@ const ConflictItem = React.memo(function ConflictItem({
               <span className="inline-flex items-center gap-1">
                 <span>Scheduled:</span>
                 <span className="font-medium">
-                  {format(new Date(item.request.startTs), "MMM d, h:mm a")} –{" "}
-                  {format(new Date(item.request.endTs), "MMM d, h:mm a")}
+                  {format(new Date(item.request.startTs), DATE_FORMATS.DATETIME_HEADER)} –{" "}
+                  {format(new Date(item.request.endTs), DATE_FORMATS.DATETIME_HEADER)}
                 </span>
               </span>
             </div>

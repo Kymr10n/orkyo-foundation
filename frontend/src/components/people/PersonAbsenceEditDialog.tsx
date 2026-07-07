@@ -11,6 +11,7 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@foundation/src/components/ui/popover';
 import { Calendar } from '@foundation/src/components/ui/calendar';
 import { format } from 'date-fns';
+import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 
 interface PersonAbsenceEditDialogProps {
   personId: string;
@@ -105,7 +106,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start text-left font-normal">
                 <CalendarIcon className="h-4 w-4 mr-2" />
-                {startDate ? format(startDate, 'PP') : 'Pick a date'}
+                {startDate ? format(startDate, DATE_FORMATS.DATE_LOCALE_SHORT) : 'Pick a date'}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
@@ -120,7 +121,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start text-left font-normal">
                 <CalendarIcon className="h-4 w-4 mr-2" />
-                {endDate ? format(endDate, 'PP') : 'Pick a date'}
+                {endDate ? format(endDate, DATE_FORMATS.DATE_LOCALE_SHORT) : 'Pick a date'}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">

@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
 import { Separator } from "@foundation/src/components/ui/separator";
-import { getDataTypeColor, formatDateDisplay, formatDuration, formatMinutesHuman, formatTimeDisplay } from "@foundation/src/lib/utils";
+import { getDataTypeColor, formatDuration, formatMinutesHuman } from "@foundation/src/lib/utils";
+import { formatDateDisplay, formatTimeDisplay } from "@foundation/src/lib/formatters";
 import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import type { Request } from "@foundation/src/types/requests";
 import type { CriterionValue } from "@foundation/src/types/criterion";

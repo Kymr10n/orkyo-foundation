@@ -87,8 +87,8 @@ describe("useRequests", () => {
     vi.clearAllMocks();
   });
 
-  it("fetches requests via fetchRequests", async () => {
-    vi.mocked(utilizationApi.fetchRequests).mockResolvedValue([
+  it("fetches requests via getAllRequests", async () => {
+    vi.mocked(utilizationApi.getAllRequests).mockResolvedValue([
       mockRequest,
       mockRequest2,
     ]);
@@ -99,11 +99,11 @@ describe("useRequests", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(utilizationApi.fetchRequests).toHaveBeenCalledTimes(1);
+    expect(utilizationApi.getAllRequests).toHaveBeenCalledTimes(1);
   });
 
   it("returns data on success", async () => {
-    vi.mocked(utilizationApi.fetchRequests).mockResolvedValue([
+    vi.mocked(utilizationApi.getAllRequests).mockResolvedValue([
       mockRequest,
       mockRequest2,
     ]);
@@ -118,7 +118,7 @@ describe("useRequests", () => {
   });
 
   it("is in loading state before the promise resolves", () => {
-    vi.mocked(utilizationApi.fetchRequests).mockReturnValue(
+    vi.mocked(utilizationApi.getAllRequests).mockReturnValue(
       new Promise(() => {}) // never resolves
     );
 
@@ -131,7 +131,7 @@ describe("useRequests", () => {
   });
 
   it("exposes error state when fetch fails", async () => {
-    vi.mocked(utilizationApi.fetchRequests).mockRejectedValue(
+    vi.mocked(utilizationApi.getAllRequests).mockRejectedValue(
       new Error("API error")
     );
 

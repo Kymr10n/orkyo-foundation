@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
@@ -202,8 +203,7 @@ export function SignupPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
             <span className="text-muted-foreground">Expires:</span>
             <span className="font-medium">
-              {invitation?.expiresAt &&
-                new Date(invitation.expiresAt).toLocaleDateString()}
+              {invitation?.expiresAt && formatDateDisplay(invitation.expiresAt)}
             </span>
           </div>
         </div>

@@ -24,6 +24,7 @@ import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export
 import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { logger } from '@foundation/src/lib/core/logger';
+import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { toast } from 'sonner';
 
 type FilterTab = 'all' | ResourceTypeKey;
@@ -245,7 +246,7 @@ export function CriteriaSettings() {
       header: 'Created',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(row.original.createdAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.createdAt)}
         </span>
       ),
     },

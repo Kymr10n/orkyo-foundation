@@ -20,6 +20,12 @@ export const DATE_FORMATS = {
   TIME_24H: "HH:mm",
   /** Medium datetime. "Oct 14, 2025 14:30" */
   DATETIME_MEDIUM: "MMM d, yyyy HH:mm",
+  /** Compact datetime without year, 24h. For dense lists like the conflicts table. "Oct 14, 14:30" */
+  DATETIME_HEADER: "MMM d, HH:mm",
+  /** Compact month + 2-digit year for chart axes. "Oct 25" */
+  MONTH_YEAR: "MMM yy",
+  /** Quarter + year for chart axes. "Q4 2025" */
+  QUARTER_YEAR: "QQQ yyyy",
   /** ISO date string, safe for filenames and input[type=date]. "2025-10-14" */
   DATE_ISO: "yyyy-MM-dd",
   /** Full year only. "2025" */
@@ -75,3 +81,21 @@ export function formatCompactTime(date: Date): string {
 export const GRID_DAY_HEADER_OPTS: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit" };
 /** Shared week-column header options (month + day). */
 export const GRID_WEEK_HEADER_OPTS: Intl.DateTimeFormatOptions = { month: "short", day: "2-digit" };
+
+/**
+ * Format an ISO date string as a locale-aware medium date for display.
+ * Returns "-" for missing values. e.g. "2026-04-02T10:30:00Z" → "Apr 2, 2026"
+ */
+export function formatDateDisplay(dateStr?: string | null): string {
+  if (!dateStr) return "-";
+  return formatLocalized(new Date(dateStr), { dateStyle: "medium" });
+}
+
+/**
+ * Format an ISO date string as a time-only display, 24h house style.
+ * Returns "" for missing values. e.g. "2026-04-02T10:30:00Z" → "10:30"
+ */
+export function formatTimeDisplay(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  return formatCompactTime(new Date(dateStr));
+}

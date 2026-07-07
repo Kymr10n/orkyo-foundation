@@ -10,10 +10,8 @@ import {
   getDirectChildren,
 } from "@foundation/src/domain/request-tree";
 import type { Request } from "@foundation/src/types/requests";
-import {
-  formatDateDisplay,
-  formatDuration,
-} from "@foundation/src/lib/utils/utils";
+import { formatDuration } from "@foundation/src/lib/utils/utils";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { ChevronRight, Edit, X } from "lucide-react";
 import React, { useMemo } from "react";
 

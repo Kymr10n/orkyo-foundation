@@ -5,7 +5,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Separator } from "@foundation/src/components/ui/separator";
 import {
   deleteFloorplan,
-  fetchFloorplanImageUrl,
+  getFloorplanImageUrl,
   type FloorplanMetadata,
   getFloorplanMetadata,
 } from "@foundation/src/lib/api/floorplan-api";
@@ -144,7 +144,7 @@ export function SpaceManagementPanel({
       return;
     }
     let cancelled = false;
-    fetchFloorplanImageUrl(siteId)
+    getFloorplanImageUrl(siteId)
       .then((url) => {
         if (!cancelled) {
           setFloorplanBlobUrl(url);

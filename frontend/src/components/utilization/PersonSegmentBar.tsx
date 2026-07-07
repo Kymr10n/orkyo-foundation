@@ -4,6 +4,14 @@ import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling
 import { segmentDisplayData } from "@foundation/src/domain/scheduling/utilization-segments";
 import type { BucketStatus } from "./schedule-colors";
 import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS } from "./schedule-colors";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
+
+/** Datetime shown in segment tooltips/aria — locale date + 24h house time. */
+const SEGMENT_DATETIME_OPTS: Intl.DateTimeFormatOptions = {
+  dateStyle: "medium",
+  timeStyle: "short",
+  hourCycle: HOUR_CYCLE,
+};
 
 /** Below this width the inline label is hidden; detail moves to the tooltip. */
 const LABEL_MIN_WIDTH_PERCENT = 6;
@@ -75,11 +83,11 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
   const label = segmentLabel(segment);
   const showCount = assignmentCount > 0;
 
-  // toLocaleString() is comparatively expensive; memoize the tooltip/aria
+  // Datetime formatting is comparatively expensive; memoize the tooltip/aria
   // strings so they aren't rebuilt on re-renders where the inputs are unchanged.
   // Declared before the early return below to satisfy the rules of hooks.
   const { tooltip, ariaLabel } = useMemo(() => {
-    const period = `${new Date(segment.start).toLocaleString()} – ${new Date(segment.end).toLocaleString()}`;
+    const period = `${formatLocalized(new Date(segment.start), SEGMENT_DATETIME_OPTS)} – ${formatLocalized(new Date(segment.end), SEGMENT_DATETIME_OPTS)}`;
     return {
       tooltip: `${personName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""}${hasConflict ? " · ⚠ capability conflict" : ""} · ${period}`,
       ariaLabel: `${personName}, ${label}, ${period}. Open assignment dialog.`,

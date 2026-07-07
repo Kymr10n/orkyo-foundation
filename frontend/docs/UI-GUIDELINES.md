@@ -344,6 +344,46 @@ For a small icon-only trigger (row-action menus, close buttons, table row afford
 
 ---
 
+## 12. Tabs — path segment vs query param
+
+Two tab mechanisms, picked by whether the tab is a **top-level page section** or an **in-page
+sub-view**. Never hand-roll either sync inline — reuse the hook.
+
+- **Top-level page sections → path segment (`useActiveTab`).** When each tab is effectively its own
+  sub-page (`/spaces/floorplan`, `/settings/organization`), the tab lives in the route. Read it with
+  `useActiveTab(defaultTab)` and render tabs as `<Link>`s / nested routes.
+- **In-page tabs → query param (`useTabParam`).** When the tabs are panels within a single page that
+  share its data/layout (Account, Utilization), the tab lives in `?tab=`. Use
+  `useTabParam(defaultTab)` → `[activeTab, setTab]`. The active tab is derived from the URL (single
+  source of truth, so it survives reload and back/forward) and `setTab` writes the param with
+  `{ replace: true }` so switching tabs doesn't stack history entries.
+
+```tsx
+const [activeTab, setTab] = useTabParam("calendar");
+<PageTabs value={activeTab} onChange={setTab} tabs={tabs} />
+```
+
+---
+
+## 13. Optimism — when to reach for `onMutate` rollback vs invalidate-refetch
+
+Optimistic updates are not the default. They add a rollback path and a reconciliation surface, so
+they earn their keep only where the latency would otherwise be felt.
+
+- **Optimistic (`onMutate` cache write + `onError` rollback) — only for direct-manipulation or
+  high-frequency interactions** where waiting on the round-trip would break the interaction's feel.
+  Current examples: drag-to-schedule (`hooks/useUtilization.ts`), mark-message-read (the account
+  Messages tab), space delete (`hooks/useSpaces.ts`).
+- **Invalidate-refetch (`meta.invalidates`) — for everything else, especially form submits.** A
+  dialog/form mutation declares the query keys it invalidates and lets the refetch bring the truth
+  back. No hand-written cache patching, no rollback to maintain. This is the overwhelming majority
+  of mutations.
+
+If you're unsure, use invalidate-refetch. Reach for optimism only when a specific gesture feels laggy
+without it.
+
+---
+
 ## Public-API note (this is a shared package)
 
 `@kymr10n/foundation` is consumed by `orkyo-saas` and `orkyo-community`. Per the repo `CLAUDE.md`,

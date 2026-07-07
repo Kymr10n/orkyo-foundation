@@ -96,7 +96,7 @@ export async function getFloorplanMetadata(siteId: string): Promise<FloorplanMet
   return data;
 }
 
-export async function fetchFloorplanImageUrl(siteId: string): Promise<string> {
+export async function getFloorplanImageUrl(siteId: string): Promise<string> {
   const response = await apiRawFetch(API_PATHS.siteFloorplan(siteId), "GET", { cache: "default" });
   const blob = await response.blob();
   // Use data URL instead of blob URL — Firefox blocks blob: inside SVG <image>.
@@ -112,13 +112,13 @@ export async function fetchFloorplanImageUrl(siteId: string): Promise<string> {
  * Returns null when no floorplan exists. The image fetch is gated on metadata so
  * a 404 from the image endpoint cannot surface as a query error for the empty case.
  */
-export async function fetchFloorplanViewData(siteId: string): Promise<FloorplanViewData | null> {
+export async function getFloorplanViewData(siteId: string): Promise<FloorplanViewData | null> {
   const metadata = await getFloorplanMetadata(siteId);
   if (!metadata) {
     return null;
   }
 
-  const blobUrl = await fetchFloorplanImageUrl(siteId);
+  const blobUrl = await getFloorplanImageUrl(siteId);
   return {
     blobUrl,
     widthPx: metadata.widthPx,

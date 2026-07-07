@@ -1,7 +1,7 @@
 import {
-    fetchRequests,
-    fetchScheduledRequests,
-    fetchBacklogRequests,
+    getAllRequests,
+    getScheduledRequests,
+    getBacklogRequests,
     scheduleRequest,
     type ScheduleRequestData,
 } from "@foundation/src/lib/api/utilization-api";
@@ -30,7 +30,7 @@ export { useSpaces } from "@foundation/src/hooks/useSpaces";
 export function useRequests() {
   return useQuery({
     queryKey: qk.requests.all(),
-    queryFn: fetchRequests,
+    queryFn: getAllRequests,
     refetchInterval: REQUESTS_REFETCH_MS,
   });
 }
@@ -39,7 +39,7 @@ export function useRequests() {
 export function useScheduledRequests(siteId: string | null, from: Date, to: Date) {
   return useQuery({
     queryKey: qk.requests.scheduled(siteId, from, to),
-    queryFn: () => fetchScheduledRequests(siteId!, from, to),
+    queryFn: () => getScheduledRequests(siteId!, from, to),
     enabled: !!siteId,
     refetchInterval: REQUESTS_REFETCH_MS,
   });
@@ -49,7 +49,7 @@ export function useScheduledRequests(siteId: string | null, from: Date, to: Date
 export function useBacklogRequests() {
   return useQuery({
     queryKey: qk.requests.backlog(),
-    queryFn: fetchBacklogRequests,
+    queryFn: getBacklogRequests,
     refetchInterval: REQUESTS_REFETCH_MS,
   });
 }

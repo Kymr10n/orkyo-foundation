@@ -6,6 +6,7 @@ import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Upload, X, FileImage } from 'lucide-react';
 import { cn } from '@foundation/src/lib/utils';
 import { uploadFloorplan, type FloorplanMetadata } from '@foundation/src/lib/api/floorplan-api';
+import { formatBytes } from '@foundation/src/lib/quotas/quota-display';
 import { qk } from '@foundation/src/lib/api/query-keys';
 
 interface FloorplanUploadDialogProps {
@@ -119,11 +120,6 @@ export function FloorplanUploadDialog({
     onOpenChange(false);
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,7 +187,7 @@ export function FloorplanUploadDialog({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Size:</span>
-                  <span>{formatFileSize(selectedFile.size)}</span>
+                  <span>{formatBytes(selectedFile.size)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Type:</span>

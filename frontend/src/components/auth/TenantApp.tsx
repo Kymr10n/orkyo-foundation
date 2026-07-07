@@ -61,7 +61,7 @@ const UserSettings = lazy(() => import('@foundation/src/components/settings/User
 const OrganizationSettings = lazy(() => import('@foundation/src/components/settings/OrganizationSettings').then(m => ({ default: m.OrganizationSettings })));
 const TenantConfigSettings = lazy(() => import('@foundation/src/components/settings/TenantConfigSettings').then(m => ({ default: m.TenantConfigSettings })));
 const SchedulingSettings = lazy(() => import('@foundation/src/components/settings/SchedulingSettings').then(m => ({ default: m.SchedulingSettings })));
-const ReportingApiPage = lazy(() => import('@foundation/src/components/settings/ReportingApiPage').then(m => ({ default: m.ReportingApiPage })));
+const ReportingApiSettings = lazy(() => import('@foundation/src/components/settings/ReportingApiSettings').then(m => ({ default: m.ReportingApiSettings })));
 const AuditLogTab = lazy(() => import('@foundation/src/components/admin/AuditLogTab').then(m => ({ default: m.AuditLogTab })));
 const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
 const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
@@ -173,7 +173,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="users" element={<UserSettings />} />
             <Route path="organization" element={<OrganizationSettings />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
-            <Route path="integrations" element={<ReportingApiPage upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="usage-limits" element={<UsageLimitsSettings />} />
           </Route>

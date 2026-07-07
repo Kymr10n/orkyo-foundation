@@ -29,7 +29,7 @@ const mockDeleteFloorplan = vi.fn();
 
 vi.mock('@foundation/src/lib/api/floorplan-api', () => ({
   getFloorplanMetadata: (siteId: any) => mockGetFloorplanMetadata(siteId),
-  fetchFloorplanImageUrl: (siteId: any) => mockFetchFloorplanImageUrl(siteId),
+  getFloorplanImageUrl: (siteId: any) => mockFetchFloorplanImageUrl(siteId),
   deleteFloorplan: (siteId: any) => mockDeleteFloorplan(siteId),
 }));
 

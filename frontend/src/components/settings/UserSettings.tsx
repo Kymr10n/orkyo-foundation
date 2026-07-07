@@ -33,6 +33,7 @@ import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
+import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 
 export function UserSettings() {
@@ -218,7 +219,7 @@ export function UserSettings() {
             {invitation.role}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+            Expires {formatDateDisplay(invitation.expiresAt)}
           </span>
         </div>
       </div>
@@ -251,7 +252,7 @@ export function UserSettings() {
       header: 'Sent',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(row.original.createdAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.createdAt)}
         </span>
       ),
     },
@@ -260,7 +261,7 @@ export function UserSettings() {
       header: 'Expires',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(row.original.expiresAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.expiresAt)}
         </span>
       ),
     },
@@ -351,7 +352,7 @@ export function UserSettings() {
       header: 'Created',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(row.original.createdAt).toLocaleDateString()}
+          {formatDateDisplay(row.original.createdAt)}
         </span>
       ),
     },
@@ -360,7 +361,7 @@ export function UserSettings() {
       header: 'Last Login',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {row.original.lastLoginAt ? new Date(row.original.lastLoginAt).toLocaleDateString() : '—'}
+          {row.original.lastLoginAt ? formatDateDisplay(row.original.lastLoginAt) : '—'}
         </span>
       ),
     },

@@ -24,11 +24,11 @@ import {
   type FlatTreeEntry,
 } from "@foundation/src/domain/request-tree";
 import {
-  formatDateDisplay,
   formatDuration,
   formatStatusLabel,
   getStatusDotColor,
 } from "@foundation/src/lib/utils/utils";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import type { Request } from "@foundation/src/types/requests";
 import {

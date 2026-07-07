@@ -7,14 +7,15 @@ import {
 import { Separator } from "@foundation/src/components/ui/separator";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT } from "@foundation/src/constants/auth";
-import { getSites } from "@foundation/src/lib/api/site-api";
 import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useSites } from "@foundation/src/hooks/useSites";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import {
   Select,
   SelectContent,
@@ -82,10 +83,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   const uiOpenTour = useUiActionsStore((s) => s.openTour);
 
   // Load sites with React Query
-  const { data: sites = [], isLoading: isLoadingSites } = useQuery({
-    queryKey: ["sites"],
-    queryFn: getSites,
-  });
+  const { data: sites = [], isLoading: isLoadingSites } = useSites();
 
   // Poll unread message count. refetchIntervalInBackground defaults to false,
   // so polling pauses when the tab is hidden (React Query honors document
@@ -177,7 +175,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
       <div className="flex items-center gap-2">
         <Calendar className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground whitespace-nowrap">
-          {format(anchorTs, "MMM d, yyyy")}
+          {format(anchorTs, DATE_FORMATS.DATE_MEDIUM)}
         </span>
       </div>
 

@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { SettingsPageHeader } from "./SettingsPageHeader";
+import { formatLocalized } from "@foundation/src/lib/formatters";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 import {
   listReportingTokens,
@@ -37,6 +38,7 @@ import {
   revokeReportingToken,
   type ReportingTokenSummary,
 } from "@foundation/src/lib/api/reporting-tokens-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 
 type ExpiryMode = "7" | "30" | "60" | "90" | "custom" | "none";
 
@@ -71,7 +73,7 @@ function getPresetExpiry(days: number): string {
 function formatExpiryLabel(dateOnly: string): string {
   const date = fromDateOnly(dateOnly);
   if (!date) return "";
-  return date.toLocaleDateString(undefined, {
+  return formatLocalized(date, {
     month: "short",
     day: "2-digit",
     year: "numeric",
@@ -80,7 +82,7 @@ function formatExpiryLabel(dateOnly: string): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, {
+  return formatLocalized(new Date(iso), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -145,7 +147,7 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
       ...(expiresAt ? { expiresAt } : {}),
     }),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["reporting-tokens"] });
+      queryClient.invalidateQueries({ queryKey: qk.reportingTokens.all() });
       onOpenChange(false);
       setName("");
       setExpiryMode("7");
@@ -298,7 +300,7 @@ function RevokeDialog({ token, onOpenChange }: RevokeDialogProps) {
   const mutation = useMutation({
     mutationFn: (id: string) => revokeReportingToken(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reporting-tokens"] });
+      queryClient.invalidateQueries({ queryKey: qk.reportingTokens.all() });
       onOpenChange(false);
       toast.success("Token revoked.");
     },
@@ -346,12 +348,12 @@ function PowerBiQuickStart() {
   );
 }
 
-interface ReportingApiPageProps {
+interface ReportingApiSettingsProps {
   /** When set, the locked state shows a CTA linking here (e.g. the plans page). */
   upgradeHref?: string;
 }
 
-export function ReportingApiPage({ upgradeHref }: ReportingApiPageProps = {}) {
+export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps = {}) {
   // Paid-tier gate: reporting API keys require API access (Professional+).
   const { isLoading: authLoading } = useAuth();
   const apiAccessAllowed = useReportingApiAvailable();
@@ -361,7 +363,7 @@ export function ReportingApiPage({ upgradeHref }: ReportingApiPageProps = {}) {
   const [revokeTarget, setRevokeTarget] = useState<ReportingTokenSummary | null>(null);
 
   const { data: tokens = [], isLoading, error } = useQuery({
-    queryKey: ["reporting-tokens"],
+    queryKey: qk.reportingTokens.all(),
     queryFn: listReportingTokens,
     enabled: apiAccessAllowed,
   });

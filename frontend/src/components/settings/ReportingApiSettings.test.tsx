@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReportingApiPage } from './ReportingApiPage';
+import { ReportingApiSettings } from './ReportingApiSettings';
 import type { ReportingTokenSummary } from '@foundation/src/lib/api/reporting-tokens-api';
 
 vi.mock('@foundation/src/lib/api/reporting-tokens-api', () => ({
@@ -17,7 +17,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Tier gate: ReportingApiPage requires API access (Professional+). Mock useAuth so
+// Tier gate: ReportingApiSettings requires API access (Professional+). Mock useAuth so
 // tests control the current tier; default to Professional so the page renders.
 const { authState } = vi.hoisted(() => ({
   authState: {
@@ -64,14 +64,14 @@ const revokedToken: ReportingTokenSummary = {
   revokedAtUtc: '2026-01-15T00:00:00Z',
 };
 
-function renderPage(props?: ComponentProps<typeof ReportingApiPage>) {
+function renderPage(props?: ComponentProps<typeof ReportingApiSettings>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <ReportingApiPage {...props} />
+        <ReportingApiSettings {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -100,7 +100,7 @@ function expectedPresetLabel(days: number): string {
   });
 }
 
-describe('ReportingApiPage', () => {
+describe('ReportingApiSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.membership = { tier: 'professional' };
@@ -137,7 +137,7 @@ describe('ReportingApiPage', () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={['/settings/integrations']}>
-          <ReportingApiPage upgradeHref="/account?tab=upgrade" />
+          <ReportingApiSettings upgradeHref="/account?tab=upgrade" />
         </MemoryRouter>
       </QueryClientProvider>,
     );

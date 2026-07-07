@@ -13,6 +13,7 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "@foundation/src/lib/api/security-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { toast } from "sonner";
 
 interface NotificationPreferencesSectionProps {
@@ -26,7 +27,7 @@ export function NotificationPreferencesSection({
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["notification-preferences"],
+    queryKey: qk.notificationPreferences.all(),
     queryFn: getNotificationPreferences,
   });
 
@@ -35,7 +36,7 @@ export function NotificationPreferencesSection({
     mutationFn: (receiveEmails: boolean) =>
       updateNotificationPreferences(!receiveEmails),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notification-preferences"] });
+      queryClient.invalidateQueries({ queryKey: qk.notificationPreferences.all() });
       toast.success("Email preferences updated");
     },
     onError: () => {

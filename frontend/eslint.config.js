@@ -6,6 +6,28 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 
+// Date/time convergence guardrail — every date/time string flows through
+// src/lib/formatters.ts (DATE_FORMATS tokens / formatLocalized), so the app
+// renders one consistent 24h house style. See docs/UI-GUIDELINES.md.
+const banInlineDateFormat = {
+  // date-fns `format(date, "…")` with an inline token string.
+  selector: "CallExpression[callee.name='format'] > Literal.arguments",
+  message:
+    'Inline date-fns format token: use a DATE_FORMATS token or formatLocalized from src/lib/formatters.ts.',
+};
+const banToLocaleDateTime = [
+  {
+    property: 'toLocaleDateString',
+    message:
+      'Raw toLocaleDateString for display: use formatDateDisplay / formatLocalized from src/lib/formatters.ts.',
+  },
+  {
+    property: 'toLocaleTimeString',
+    message:
+      'Raw toLocaleTimeString for display: use formatCompactTime / formatLocalized from src/lib/formatters.ts.',
+  },
+];
+
 export default defineConfig(
   {
     ignores: [
@@ -117,7 +139,30 @@ export default defineConfig(
           message:
             'Hand-rolled feedback box: use <Alert variant="warning|destructive"> or a <Badge> variant instead of a light semantic background. See docs/UI-GUIDELINES.md §7.',
         },
+        // Date/time convergence — component .tsx files also carry the colour ban,
+        // so the format ban is appended here (flat config's no-restricted-syntax
+        // does not merge across config objects — last match wins).
+        banInlineDateFormat,
       ],
+    },
+  },
+
+  // Date/time convergence for everything the colour block above doesn't cover
+  // (src .ts files + contracts). formatters.ts is the single source and is exempt.
+  {
+    files: ['src/**/*.{ts,tsx}', 'contracts/**/*.ts'],
+    ignores: ['src/components/**/*.tsx', 'src/lib/formatters.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', banInlineDateFormat],
+    },
+  },
+
+  // Ban raw locale date/time display calls everywhere but formatters.ts.
+  {
+    files: ['src/**/*.{ts,tsx}', 'contracts/**/*.ts'],
+    ignores: ['src/lib/formatters.ts'],
+    rules: {
+      'no-restricted-properties': ['error', ...banToLocaleDateTime],
     },
   },
 
@@ -148,6 +193,9 @@ export default defineConfig(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
+      // Tests may mirror production date formatting to build expected values.
+      'no-restricted-syntax': 'off',
+      'no-restricted-properties': 'off',
       'no-console': 'off',
     },
   },

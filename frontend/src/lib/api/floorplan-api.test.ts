@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteFloorplan,
-  fetchFloorplanViewData,
-  fetchFloorplanImageUrl,
+  getFloorplanViewData,
+  getFloorplanImageUrl,
   getFloorplanMetadata,
   uploadFloorplan,
 } from "./floorplan-api";
@@ -181,7 +181,7 @@ describe("floorplan-api", () => {
     });
   });
 
-  describe("fetchFloorplanImageUrl", () => {
+  describe("getFloorplanImageUrl", () => {
     it("fetches image via apiRawFetch and returns a data URL", async () => {
       const { apiRawFetch } = await import("../core/api-client");
       const mockBlob = new Blob(["fake-image"], { type: "image/png" });
@@ -189,7 +189,7 @@ describe("floorplan-api", () => {
         blob: () => Promise.resolve(mockBlob),
       });
 
-      const result = await fetchFloorplanImageUrl("site-123");
+      const result = await getFloorplanImageUrl("site-123");
 
       expect(apiRawFetch).toHaveBeenCalledWith(
         "/api/sites/site-123/floorplan",
@@ -205,7 +205,7 @@ describe("floorplan-api", () => {
         new Error("Failed to fetch floorplan: Unauthorized"),
       );
 
-      await expect(fetchFloorplanImageUrl("site-123")).rejects.toThrow(
+      await expect(getFloorplanImageUrl("site-123")).rejects.toThrow(
         "Failed to fetch floorplan: Unauthorized",
       );
     });
@@ -217,7 +217,7 @@ describe("floorplan-api", () => {
         blob: () => Promise.resolve(mockBlob),
       });
 
-      await fetchFloorplanImageUrl("site-456");
+      await getFloorplanImageUrl("site-456");
 
       const calledPath = (apiRawFetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(calledPath).not.toContain("tenant");
@@ -281,7 +281,7 @@ describe("floorplan-api", () => {
     });
   });
 
-  describe("fetchFloorplanViewData", () => {
+  describe("getFloorplanViewData", () => {
     it("returns image URL and dimensions when metadata exists", async () => {
       const { apiRawFetch } = await import("../core/api-client");
       const mockBlob = new Blob(["img"], { type: "image/png" });
@@ -290,7 +290,7 @@ describe("floorplan-api", () => {
         .mockResolvedValueOnce({ json: () => Promise.resolve({ widthPx: 1200, heightPx: 800 }) })
         .mockResolvedValueOnce({ blob: () => Promise.resolve(mockBlob) });
 
-      const result = await fetchFloorplanViewData("site-123");
+      const result = await getFloorplanViewData("site-123");
 
       expect(result).not.toBeNull();
       expect(result!.blobUrl).toMatch(/^data:/);
@@ -303,7 +303,7 @@ describe("floorplan-api", () => {
       const mock = apiRawFetch as ReturnType<typeof vi.fn>;
       mock.mockResolvedValueOnce({ json: () => Promise.resolve(null) });
 
-      const result = await fetchFloorplanViewData("site-empty");
+      const result = await getFloorplanViewData("site-empty");
 
       expect(result).toBeNull();
       expect(mock).toHaveBeenCalledTimes(1);
@@ -319,7 +319,7 @@ describe("floorplan-api", () => {
         .mockResolvedValueOnce({ json: () => Promise.resolve(null) })
         .mockRejectedValueOnce(new Error("Not Found"));
 
-      await expect(fetchFloorplanViewData("site-empty")).resolves.toBeNull();
+      await expect(getFloorplanViewData("site-empty")).resolves.toBeNull();
     });
 
     it("propagates errors when metadata exists but the image fetch fails", async () => {
@@ -330,7 +330,7 @@ describe("floorplan-api", () => {
         })
         .mockRejectedValueOnce(new Error("Network error"));
 
-      await expect(fetchFloorplanViewData("site-broken")).rejects.toThrow("Network error");
+      await expect(getFloorplanViewData("site-broken")).rejects.toThrow("Network error");
     });
   });
 });

@@ -22,6 +22,7 @@ import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImp
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
+import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 
 interface TemplateSettingsProps {
@@ -167,7 +168,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       header: 'Created',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : 'N/A'}
+          {row.original.createdAt ? formatDateDisplay(row.original.createdAt) : 'N/A'}
         </span>
       ),
     },

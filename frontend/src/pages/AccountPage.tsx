@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -148,8 +149,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     refresh,
   } = useAuth();
   const queryClient = useQueryClient();
-  const tabParam = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState(tabParam || "profile");
+  const [activeTab, handleTabChange] = useTabParam("profile");
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +173,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
   // Load user profile from Keycloak
   const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["user-profile"],
+    queryKey: qk.userProfile.all(),
     queryFn: getUserProfile,
   });
 
@@ -188,7 +188,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   const updateProfileMutation = useMutation({
     mutationFn: updateUserProfile,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      queryClient.invalidateQueries({ queryKey: qk.userProfile.all() });
       // Update auth context so TopBar and header reflect the new name immediately
       if (appUser && data.displayName) {
         setAppUser({ ...appUser, displayName: data.displayName });
@@ -224,7 +224,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       // We do NOT call refresh() here: refresh() transitions the auth machine back
       // to `initializing`, which unmounts TenantApp (and its Toaster) before Sonner
       // can display the toast notification.
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      queryClient.invalidateQueries({ queryKey: qk.userProfile.all() });
     } else {
       toast.error(message.title, {
         id: `email-change-${status}`,
@@ -234,8 +234,9 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
     const next = new URLSearchParams(searchParams);
     next.delete("email-change");
+    // Land on the profile tab so the refreshed email is visible.
+    next.set("tab", "profile");
     setSearchParams(next, { replace: true });
-    setActiveTab("profile");
   }, [queryClient, refresh, searchParams, setSearchParams]);
 
   const handleStartEditName = () => {
@@ -253,20 +254,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   const handleCancelEditName = () => {
     setIsEditingName(false);
     updateProfileMutation.reset();
-  };
-
-  // Sync tab from URL param
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
-
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set("tab", tab);
-    setSearchParams(newParams, { replace: true });
   };
 
   const loadMemberships = useCallback(async () => {

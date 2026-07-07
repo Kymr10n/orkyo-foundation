@@ -14,6 +14,7 @@ import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getSessions, revokeSession, logoutAllSessions } from "@foundation/src/lib/api/security-api";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { formatDistanceToNow } from "date-fns";
 
 interface SessionsSectionProps {
@@ -53,7 +54,7 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
     isLoading: sessionsLoading,
     error: sessionsError,
   } = useQuery({
-    queryKey: ["sessions"],
+    queryKey: qk.sessions.all(),
     queryFn: getSessions,
   });
 
@@ -62,7 +63,7 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
     meta: {
       successMessage: "Session signed out",
       errorMessage: "Failed to sign out session",
-      invalidates: [["sessions"]],
+      invalidates: [qk.sessions.all()],
     },
     onSuccess: () => setRevokeTarget(null),
   });

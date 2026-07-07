@@ -1,4 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
+import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Button } from "@foundation/src/components/ui/button";
@@ -157,7 +159,6 @@ export function SchedulingSettings() {
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const formRef = useRef(form);
   formRef.current = form;
 
@@ -199,6 +200,11 @@ export function SchedulingSettings() {
     }
   }, [selectedSiteId, upsertMutation]);
 
+  const debouncedSave = useDebouncedCallback(
+    (next: SettingsFormState) => { void saveSettings(next); },
+    600,
+  );
+
   // Clear "saved" indicator after 2s
   useEffect(() => {
     if (saveStatus !== "saved") return;
@@ -206,25 +212,19 @@ export function SchedulingSettings() {
     return () => clearTimeout(t);
   }, [saveStatus]);
 
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
   const updateField = <K extends keyof SettingsFormState>(key: K, value: SettingsFormState[K]) => {
     const next = { ...formRef.current, [key]: value };
     setForm(next);
     setError(null);
     setSaveStatus("idle");
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { void saveSettings(next); }, 600);
+    debouncedSave(next);
   };
 
   const handleReset = async () => {
     if (!selectedSiteId) return;
     setResetConfirmOpen(false);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debouncedSave.cancel();
     try {
       await deleteMutation.mutateAsync();
       setForm(DEFAULT_SETTINGS);
@@ -516,7 +516,7 @@ export function SchedulingSettings() {
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {new Date(ev.startTs).toLocaleDateString()} – {new Date(ev.endTs).toLocaleDateString()}
+                      {formatDateDisplay(ev.startTs)} – {formatDateDisplay(ev.endTs)}
                       {ev.scopes.length > 0 && ` · ${ev.scopes.length} override(s)`}
                     </div>
                   </div>

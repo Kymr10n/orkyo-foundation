@@ -1,6 +1,6 @@
 import type { Request } from "@foundation/src/types/requests";
 import { getRequestIcon, getPlanningModeIcon } from "@foundation/src/constants";
-import { formatDateDisplay } from "@foundation/src/lib/utils/utils";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 

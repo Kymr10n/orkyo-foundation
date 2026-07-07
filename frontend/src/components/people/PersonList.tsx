@@ -47,7 +47,7 @@ export function PersonList() {
   const personRows = useMemo<ResourceInfo[]>(() => people?.data ?? [], [people]);
   const personIds = useMemo(() => personRows.map((p) => p.id), [personRows]);
   const { data: profiles = [] } = useQuery({
-    queryKey: ['person-profiles', personIds],
+    queryKey: qk.personProfiles.byIds(personIds),
     queryFn: () => getPersonProfiles(personIds),
     enabled: personIds.length > 0,
     staleTime: 60_000,

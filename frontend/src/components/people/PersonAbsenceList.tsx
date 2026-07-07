@@ -13,6 +13,7 @@ import { getResourceAbsences, deleteResourceAbsence, type ResourceAbsenceInfo } 
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
 import { format } from 'date-fns';
+import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 
 const ABSENCE_TYPE_LABELS: Record<string, string> = {
   vacation: 'Vacation',
@@ -70,12 +71,12 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
               {
                 accessorKey: 'startTs',
                 header: 'Start',
-                cell: ({ getValue }) => format(new Date(getValue<string>()), 'PP'),
+                cell: ({ getValue }) => format(new Date(getValue<string>()), DATE_FORMATS.DATE_LOCALE_SHORT),
               },
               {
                 accessorKey: 'endTs',
                 header: 'End',
-                cell: ({ getValue }) => format(new Date(getValue<string>()), 'PP'),
+                cell: ({ getValue }) => format(new Date(getValue<string>()), DATE_FORMATS.DATE_LOCALE_SHORT),
               },
               {
                 accessorKey: 'title',

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchRequests, scheduleRequest, type ScheduleRequestData } from './utilization-api';
+import { getAllRequests, scheduleRequest, type ScheduleRequestData } from './utilization-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
@@ -22,11 +22,11 @@ describe('utilization-api', () => {
     vi.clearAllMocks();
   });
 
-  describe('fetchRequests', () => {
+  describe('getAllRequests', () => {
     it('calls apiGet with correct endpoint', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockRequest]);
 
-      await fetchRequests();
+      await getAllRequests();
 
       expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.REQUESTS);
     });
@@ -34,7 +34,7 @@ describe('utilization-api', () => {
     it('returns requests with computed durationMin', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockRequest]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result).toHaveLength(1);
       expect(result[0].durationMin).toBe(120); // 2 hours = 120 minutes
@@ -45,7 +45,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 30, minimalDurationUnit: 'minutes' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(30);
     });
@@ -55,7 +55,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 3, minimalDurationUnit: 'hours' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(180);
     });
@@ -65,7 +65,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'days' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(1440); // 24 * 60
     });
@@ -75,7 +75,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'weeks' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(10080); // 7 * 24 * 60
     });
@@ -85,7 +85,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'months' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(43200); // 30 * 24 * 60
     });
@@ -95,7 +95,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'years' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(525600); // 365 * 24 * 60
     });
@@ -105,7 +105,7 @@ describe('utilization-api', () => {
         { ...mockRequest, minimalDurationValue: 42, minimalDurationUnit: 'unknown' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result[0].durationMin).toBe(42);
     });
@@ -113,7 +113,7 @@ describe('utilization-api', () => {
     it('handles empty response', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result).toHaveLength(0);
     });
@@ -124,7 +124,7 @@ describe('utilization-api', () => {
         { ...mockRequest, id: 'req-456', minimalDurationValue: 1, minimalDurationUnit: 'days' },
       ]);
 
-      const result = await fetchRequests();
+      const result = await getAllRequests();
 
       expect(result).toHaveLength(2);
       expect(result[0].durationMin).toBe(120);
@@ -135,7 +135,7 @@ describe('utilization-api', () => {
       const error = new Error('Network error');
       vi.mocked(apiClient.apiGet).mockRejectedValue(error);
 
-      await expect(fetchRequests()).rejects.toThrow('Network error');
+      await expect(getAllRequests()).rejects.toThrow('Network error');
     });
   });
 

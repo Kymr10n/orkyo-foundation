@@ -17,6 +17,12 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
 
+/** Roles a new invitee can be granted — every tenant role except "none" and "inactive". */
+type InvitableRole = Exclude<
+  (typeof TENANT_ROLE)[keyof typeof TENANT_ROLE],
+  typeof TENANT_ROLE.None | typeof TENANT_ROLE.Inactive
+>;
+
 interface InviteUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,7 +35,7 @@ export function InviteUserDialog({
   onSuccess,
 }: InviteUserDialogProps) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "editor" | "viewer">("viewer");
+  const [role, setRole] = useState<InvitableRole>(TENANT_ROLE.Viewer);
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -41,7 +47,7 @@ export function InviteUserDialog({
     },
     onSuccess: () => {
       setEmail("");
-      setRole("viewer");
+      setRole(TENANT_ROLE.Viewer);
       setError(null);
       onSuccess();
     },
@@ -70,7 +76,7 @@ export function InviteUserDialog({
     if (newOpen) return;
     if (!mutation.isPending) {
       setEmail("");
-      setRole("viewer");
+      setRole(TENANT_ROLE.Viewer);
       setError(null);
       onOpenChange(false);
     }
@@ -92,7 +98,7 @@ export function InviteUserDialog({
       submitLabel="Send Invitation"
       submittingLabel="Sending..."
       error={error}
-      dirty={!!email.trim() || role !== "viewer"}
+      dirty={!!email.trim() || role !== TENANT_ROLE.Viewer}
     >
       {/* Email Field */}
       <FormField htmlFor="email" label="Email Address" required>
@@ -112,14 +118,14 @@ export function InviteUserDialog({
         <Label htmlFor="role">Role</Label>
         <Select
           value={role}
-          onValueChange={(value: "admin" | "editor" | "viewer") => setRole(value)}
+          onValueChange={(value: InvitableRole) => setRole(value)}
           disabled={mutation.isPending}
         >
           <SelectTrigger id="role">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="viewer">
+            <SelectItem value={TENANT_ROLE.Viewer}>
               <div>
                 <div className="font-medium">Viewer</div>
                 <div className="text-xs text-muted-foreground">
@@ -127,7 +133,7 @@ export function InviteUserDialog({
                 </div>
               </div>
             </SelectItem>
-            <SelectItem value="editor">
+            <SelectItem value={TENANT_ROLE.Editor}>
               <div>
                 <div className="font-medium">Editor</div>
                 <div className="text-xs text-muted-foreground">
@@ -135,7 +141,7 @@ export function InviteUserDialog({
                 </div>
               </div>
             </SelectItem>
-            <SelectItem value="admin">
+            <SelectItem value={TENANT_ROLE.Admin}>
               <div>
                 <div className="font-medium">Admin</div>
                 <div className="text-xs text-muted-foreground">

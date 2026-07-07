@@ -11,10 +11,8 @@ import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/Or
 import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import { canHaveChildren } from "@foundation/src/domain/request-tree";
-import {
-  formatDateDisplay,
-  formatDuration,
-} from "@foundation/src/lib/utils/utils";
+import { formatDuration } from "@foundation/src/lib/utils/utils";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import type { Request } from "@foundation/src/types/requests";
 import { Edit, Link, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";

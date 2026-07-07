@@ -43,6 +43,7 @@ import {
   Upload,
 } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { useRef, useState } from "react";
 
 export function PresetSettings() {
@@ -65,7 +66,7 @@ export function PresetSettings() {
 
   // Load preset application history
   const { data: applications = [], isLoading: loadingHistory } = useQuery({
-    queryKey: ["preset-applications"],
+    queryKey: qk.presetApplications.all(),
     queryFn: getPresetApplications,
   });
 
@@ -85,7 +86,7 @@ export function PresetSettings() {
     mutationFn: applyPreset,
     meta: {
       invalidates: [
-        ["preset-applications"],
+        qk.presetApplications.all(),
         CRITERIA_QUERY_KEY,
         // Presets write space groups; their queries live under the
         // resource-groups key for the space type.
@@ -155,12 +156,13 @@ export function PresetSettings() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(undefined, {
+    return formatLocalized(new Date(dateStr), {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hourCycle: HOUR_CYCLE,
     });
   };
 

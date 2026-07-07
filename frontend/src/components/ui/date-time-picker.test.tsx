@@ -10,7 +10,7 @@ describe('DateTimePicker', () => {
 
   it('renders the formatted date+time for a value', () => {
     render(<DateTimePicker value="2026-06-15T09:30" onChange={() => {}} />);
-    expect(screen.getByText('15 Jun 2026, 09:30')).toBeInTheDocument();
+    expect(screen.getByText('Jun 15, 2026 09:30')).toBeInTheDocument();
   });
 
   it('can be disabled', () => {
