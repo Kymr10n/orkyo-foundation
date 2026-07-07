@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, User, LogOut, Settings } from 'lucide-react';
+import { User, LogOut, Settings } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import {
   Popover,
@@ -10,11 +10,15 @@ import {
 import { Separator } from '@foundation/src/components/ui/separator';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
+import { PageLayout } from '@foundation/src/components/layout/PageLayout';
+import { PageHeader } from '@foundation/src/components/layout/PageHeader';
 
 export interface AdminPageShellProps {
-  /** Breadcrumb label shown next to the shield icon (e.g. "Site Administration"). */
-  breadcrumbLabel: string;
-  /** Optional content rendered between the breadcrumb and the theme toggle. */
+  /** Page title shown in the PageHeader (e.g. "Site Administration"). */
+  title: string;
+  /** Optional description rendered under the title, matching PageHeader chrome. */
+  description?: string;
+  /** Optional actions rendered in the PageHeader next to the title. */
   headerExtras?: ReactNode;
   /** When set, the user popover shows a "Manage Account" link pointing to this path. */
   accountHref?: string;
@@ -25,8 +29,16 @@ export interface AdminPageShellProps {
   children: ReactNode;
 }
 
+/**
+ * Full-screen shell for the standalone admin surfaces (SaaS /site-admin,
+ * Community /admin). It has no SidebarNav — it's a distinct route surface — but
+ * it converges on the in-app PageLayout/PageHeader chrome so title/description
+ * typography and page padding match the tenant admin. Because there's no TopBar
+ * here, the slim header keeps the theme toggle and account popover.
+ */
 export function AdminPageShell({
-  breadcrumbLabel,
+  title,
+  description,
   headerExtras,
   accountHref,
   displayName,
@@ -45,16 +57,10 @@ export function AdminPageShell({
     <div className="min-h-screen bg-background">
       <header className="h-14 border-b bg-card flex items-center px-4 gap-4 sticky top-0 z-50">
         <div className="font-semibold text-base whitespace-nowrap">Orkyo</div>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <span className="text-sm">/</span>
-          <Shield className="h-4 w-4" />
-          <span className="text-sm font-medium">{breadcrumbLabel}</span>
-        </div>
 
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          {headerExtras}
           <ThemeToggle />
 
           <Popover>
@@ -94,7 +100,10 @@ export function AdminPageShell({
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-6">{children}</div>
+      <PageLayout>
+        <PageHeader title={title} description={description} actions={headerExtras} />
+        {children}
+      </PageLayout>
     </div>
   );
 }

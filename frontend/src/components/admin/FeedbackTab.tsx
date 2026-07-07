@@ -185,7 +185,7 @@ export function FeedbackTab() {
             columns={columns}
             data={items}
             filterColumn="title"
-            filterPlaceholder="Search feedback..."
+            filterPlaceholder="Search feedback…"
             emptyMessage="No feedback yet."
           />
         </CardContent>

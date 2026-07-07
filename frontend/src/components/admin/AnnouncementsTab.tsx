@@ -221,7 +221,7 @@ export function AnnouncementsTab() {
             columns={columns}
             data={announcements}
             filterColumn="title"
-            filterPlaceholder="Search announcements..."
+            filterPlaceholder="Search announcements…"
             emptyMessage="No announcements yet. Create one to get started."
           />
         </CardContent>
