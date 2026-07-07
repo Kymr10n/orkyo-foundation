@@ -57,18 +57,42 @@ need `min-h-0`.
 
 - **Reach for `FormDialog` before a raw `Dialog`** for any "open → fill a form → submit" flow.
   It owns the shell, error display, footer, height-bounding, and body scroll — don't re-roll them.
+  Pass the body as children; wire `onSubmit` / `isSubmitting` / `submitLabel` / `error`. Do **not**
+  nest your own `<form>` inside it — `FormDialog` already renders one, so **Enter submits by
+  construction** (the footer primary is `type="submit"`). A nested inner form is invalid HTML and
+  swallows the submit; move its `onSubmit` up to the `FormDialog` prop.
+- **The `FormDialog` footer is `canEdit`-gated** (via `DialogFormFooter`): the submit disables for
+  Viewers. That is correct for **tenant-content and admin-area** dialogs (the design target), but
+  **wrong for account self-service** (change-your-own-password / MFA) and for **read actions
+  available to Viewers** (e.g. an export). Those don't belong on `FormDialog` — leave them on a raw
+  `Dialog` (or `ConfirmDialog` for a confirmation) so the action stays reachable.
+- **Guard unsaved edits with `FormDialog`'s `dirty` prop.** Compute dirtiness (snapshot the form on
+  open, compare live values — see `PersonEditDialog`) and pass `dirty={isDirty}`; a close attempt
+  (Cancel / X / ESC / overlay) then prompts to discard. It reuses `useDialogDirtyGuard` internally,
+  so **don't also wrap your own `onOpenChange`** with that hook when you pass `dirty` (double-prompt).
+  Dialogs that already self-guard via the hook simply don't pass `dirty`.
+- **`ScaffoldDialog`** is the shell for the tall / tabbed / multi-region dialogs that outgrow
+  `FormDialog` (the caller owns its own `<form>` spanning the sticky + scrolling regions).
 - For non-form dialogs that may get tall, build on `DialogContent` as a **height-bounded flex
   column** and put scrolling content in **`ScrollableDialogBody`** — the *one* sanctioned scroll
   region (pinned header/footer, scrolling body).
+- **Label a form control with `FormField`** (`ui/FormField.tsx`) — it renders the `Label`, the
+  required `*` (in `text-destructive`) when `required`, and optional `help` text
+  (`text-xs text-muted-foreground`). Reach for it instead of hand-rolling the
+  `<div className="space-y-2"><Label>… <span className="text-destructive">*</span></Label>…` cluster,
+  so required fields are marked uniformly. It carries **no validation logic** — that stays with the
+  form.
 - Use **`dvh`**, not `vh`, for dialog height caps (keeps clear of mobile browser chrome).
 - **Don't** invent a per-dialog `max-h-[..vh]`, and **don't** put `overflow` directly on
   `DialogContent` or nest a second `ScrollArea` inside it.
 
 ```tsx
-// ✅ Form dialog — nothing to configure; tall forms scroll automatically.
+// ✅ Form dialog — no inner <form>; Enter submits; `dirty` guards unsaved edits.
 <FormDialog open={open} onOpenChange={setOpen} title="Edit site"
-  onSubmit={save} isSubmitting={saving} submitLabel="Save">
-  <SiteFields />
+  onSubmit={save} isSubmitting={saving} submitLabel="Save" dirty={isDirty}>
+  <FormField htmlFor="name" label="Name" required help="Shown to planners">
+    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+  </FormField>
 </FormDialog>
 
 // ✅ Non-form dialog with tall content.
@@ -266,6 +290,56 @@ error `Alert` above the table.
   error={errorMsg}
   onRetry={() => refetch()}
 />
+```
+
+## 11. Button loading state — always `loading`, never an ad-hoc `Loader2`
+
+`Button` (`src/components/ui/button.tsx`) takes a `loading?: boolean` prop: it renders the
+standardized spinner (`<Loader2 className="h-4 w-4 animate-spin" />`) before `children` and forces
+`disabled`. Use it for any button whose click kicks off an async action (submit, save, delete,
+apply, …) instead of hand-rolling a `{isPending && <Loader2 .../>}` conditional.
+
+```tsx
+// ✅ Do
+<Button onClick={handleSave} loading={saving} disabled={saving}>
+  Save
+</Button>
+
+// ❌ Don't — re-implements what the `loading` prop already gives you.
+<Button onClick={handleSave} disabled={saving}>
+  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+  Save
+</Button>
+```
+
+If the button also swaps a leading icon for the spinner (e.g. `Save` ↔ spinner, or an icon-only
+button), hide the icon while `loading` rather than rendering both:
+
+```tsx
+<Button onClick={handleSave} loading={saving} disabled={saving}>
+  {!saving && <Save className="h-4 w-4 mr-2" />}
+  Save
+</Button>
+```
+
+`loading` is ignored when `asChild` is set (there's no single element to inject the spinner into).
+Non-`Button` pending indicators (a page-level `Loader2`, `RefreshCw` rotating in place, the
+`LoadingSpinner` component) are unaffected — this rule is specifically about buttons that
+represent an in-flight action.
+
+For a small icon-only trigger (row-action menus, close buttons, table row affordances), use the
+`icon-sm` size (`h-7 w-7`) instead of `size="sm"` with a manual `h-7 w-7` className override:
+
+```tsx
+// ✅ Do
+<Button variant="ghost" size="icon-sm" aria-label="Row actions">
+  <MoreHorizontal className="h-4 w-4" />
+</Button>
+
+// ❌ Don't
+<Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+  <MoreHorizontal className="h-4 w-4" />
+</Button>
 ```
 
 ---

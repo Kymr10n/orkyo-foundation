@@ -99,7 +99,7 @@ describe('UserSettings', () => {
         <UserSettings />
       </QueryClientProvider>
     );
-    expect(screen.getByText('Loading users...')).toBeInTheDocument();
+    expect(screen.getByText('Loading users…')).toBeInTheDocument();
   });
 
   it('displays user list after loading', async () => {

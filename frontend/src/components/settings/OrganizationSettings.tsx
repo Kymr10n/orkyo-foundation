@@ -275,15 +275,12 @@ export function OrganizationSettings() {
               />
               <Button
                 onClick={handleSaveName}
+                loading={saving}
                 disabled={
                   saving || displayName === originalName || !displayName.trim()
                 }
               >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
+                {!saving && <Save className="h-4 w-4" />}
                 <span className="ml-2">Save</span>
               </Button>
             </div>
@@ -327,14 +324,12 @@ export function OrganizationSettings() {
             </Label>
           </div>
 
-          <Button onClick={handleExport} disabled={exporting}>
-            {exporting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : exportDone ? (
+          <Button onClick={handleExport} loading={exporting} disabled={exporting}>
+            {!exporting && (exportDone ? (
               <Check className="h-4 w-4" />
             ) : (
               <Download className="h-4 w-4" />
-            )}
+            ))}
             <span className="ml-2">
               {exporting
                 ? "Exporting..."
@@ -387,12 +382,10 @@ export function OrganizationSettings() {
 
               <Button
                 variant="outline"
+                loading={transferring}
                 disabled={!selectedNewOwner || transferring}
                 onClick={() => setTransferConfirmOpen(true)}
               >
-                {transferring && (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                )}
                 Transfer Ownership
               </Button>
 
@@ -448,10 +441,10 @@ export function OrganizationSettings() {
 
           <Button
             variant="destructive"
+            loading={deleting}
             disabled={deleting}
             onClick={() => setDeleteOrgOpen(true)}
           >
-            {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Delete Organization
           </Button>
 

@@ -104,7 +104,7 @@ describe('SiteSettings', () => {
       </QueryClientProvider>
     );
 
-    expect(screen.getByText('Loading sites...')).toBeInTheDocument();
+    expect(screen.getByText('Loading sites…')).toBeInTheDocument();
   });
 
   it('displays sites list after loading', async () => {

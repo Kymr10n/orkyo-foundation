@@ -67,7 +67,7 @@ describe('MessagesTab', () => {
   it('should show loading state', () => {
     mockGetActiveAnnouncements.mockReturnValue(new Promise(() => {}));
     render(<MessagesTab />, { wrapper: createWrapper() });
-    expect(screen.getByText('Loading messages...')).toBeInTheDocument();
+    expect(screen.getByText('Loading messages…')).toBeInTheDocument();
   });
 
   it('should show empty state when no messages', async () => {

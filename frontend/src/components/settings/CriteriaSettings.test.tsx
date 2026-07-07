@@ -96,7 +96,7 @@ describe('CriteriaSettings', () => {
   it('shows loading state', () => {
     mockCriteriaData = { data: [], isLoading: true, error: null };
     render(<CriteriaSettings />);
-    expect(screen.getByText('Loading criteria...')).toBeInTheDocument();
+    expect(screen.getByText('Loading criteria…')).toBeInTheDocument();
   });
 
   it('shows empty state when no criteria', () => {

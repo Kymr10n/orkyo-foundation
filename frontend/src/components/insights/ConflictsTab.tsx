@@ -1,7 +1,9 @@
 import { useConflictRegistry, useConflictedRequests } from "@foundation/src/hooks/useConflictRegistry";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
-import { AlertCircle, AlertTriangle, Info } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@foundation/src/lib/utils";
+import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportConflicts } from "@foundation/src/lib/utils/export-handlers";
 import type { Conflict, Request } from "@foundation/src/types/requests";
@@ -23,20 +25,15 @@ const ConflictItem = React.memo(function ConflictItem({
   isHighlighted,
   onOpen,
   peerRequest,
-  getSeverityIcon,
-  getSeverityBadgeClass,
-  getSeverityLabel,
   getConflictKindLabel,
 }: {
   item: ConflictWithRequest;
   isHighlighted: boolean;
   onOpen: (request: Request) => void;
   peerRequest?: Request;
-  getSeverityIcon: (severity: string) => React.ReactNode;
-  getSeverityBadgeClass: (severity: string) => string;
-  getSeverityLabel: (severity: string) => string;
   getConflictKindLabel: (kind: string) => string;
 }) {
+  const { icon: SeverityIcon, iconClass, badgeClass, label } = severityPresentation(item.severity);
   return (
     <div
       role="button"
@@ -53,16 +50,14 @@ const ConflictItem = React.memo(function ConflictItem({
       }}
     >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5">{getSeverityIcon(item.severity)}</div>
+        <div className="mt-0.5">
+          <SeverityIcon className={cn("w-5 h-5", iconClass)} />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <h3 className="font-semibold truncate">{item.request.name}</h3>
-            <span
-              className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityBadgeClass(
-                item.severity
-              )}`}
-            >
-              {getSeverityLabel(item.severity)}
+            <span className={cn("px-2 py-0.5 rounded text-xs font-medium", badgeClass)}>
+              {label}
             </span>
             <span className="px-2 py-0.5 rounded text-xs font-medium bg-muted">
               {getConflictKindLabel(item.kind)}
@@ -164,31 +159,6 @@ export function ConflictsTab() {
     await exportConflicts(visibleConflictItems, format);
     logger.info(`Exported ${visibleConflictItems.length} conflicts as ${format.toUpperCase()}`);
   });
-
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case "error":
-        return <AlertCircle className="w-5 h-5 text-destructive" />;
-      case "warning":
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-      default:
-        return <Info className="w-5 h-5 text-blue-500" />;
-    }
-  };
-
-  const getSeverityLabel = (severity: string) =>
-    severity === "error" ? "violation" : severity === "warning" ? "advisory" : severity;
-
-  const getSeverityBadgeClass = (severity: string) => {
-    switch (severity) {
-      case "error":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-      case "warning":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-      default:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-    }
-  };
 
   const getConflictKindLabel = (kind: string) => {
     switch (kind) {
@@ -292,9 +262,6 @@ export function ConflictsTab() {
                       isHighlighted={targetConflictId === item.id}
                       onOpen={(request) => openRequestEditor(request, conflicts.get(request.id) ?? [])}
                       peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
-                      getSeverityIcon={getSeverityIcon}
-                      getSeverityBadgeClass={getSeverityBadgeClass}
-                      getSeverityLabel={getSeverityLabel}
                       getConflictKindLabel={getConflictKindLabel}
                     />
                   </div>

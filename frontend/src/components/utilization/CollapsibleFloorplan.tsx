@@ -171,7 +171,7 @@ export function CollapsibleFloorplan({
         <>
           <div style={{ height: `${height}px` }} className="p-4 bg-card overflow-hidden">
             {isLoadingFloorplan ? (
-              <LoadingSpinner fullScreen={false} message="Loading floorplan..." />
+              <LoadingSpinner fullScreen={false} message="Loading floorplan…" />
             ) : fetchError ? (
               <div className="h-full flex items-center justify-center text-destructive text-sm">
                 Failed to load floorplan. Please try refreshing.

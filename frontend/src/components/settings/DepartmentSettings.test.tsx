@@ -71,7 +71,7 @@ describe('DepartmentSettings', () => {
   it('shows loading state initially', () => {
     vi.mocked(getDepartmentTree).mockReturnValue(new Promise(() => {}));
     renderComponent();
-    expect(screen.getByText('Loading departments...')).toBeInTheDocument();
+    expect(screen.getByText('Loading departments…')).toBeInTheDocument();
   });
 
   it('renders department names after loading', async () => {

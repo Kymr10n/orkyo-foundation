@@ -187,8 +187,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
         </Badge>
         <Button
           variant="ghost"
-          size="icon"
-          className="h-7 w-7"
+          size="icon-sm"
           onClick={handleClose}
           aria-label="Close tour"
         >

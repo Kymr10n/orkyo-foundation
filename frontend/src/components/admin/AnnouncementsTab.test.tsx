@@ -73,7 +73,7 @@ describe('AnnouncementsTab', () => {
     // Never resolve the promise to keep loading
     mockGetAnnouncements.mockReturnValue(new Promise(() => {}));
     render(<AnnouncementsTab />);
-    expect(screen.getByText('Loading announcements...')).toBeInTheDocument();
+    expect(screen.getByText('Loading announcements…')).toBeInTheDocument();
   });
 
   it('should show empty state when no announcements', async () => {

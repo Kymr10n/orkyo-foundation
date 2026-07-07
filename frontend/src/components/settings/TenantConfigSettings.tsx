@@ -9,7 +9,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Save,
-  Loader2,
   AlertCircle,
   Check,
 } from "lucide-react";
@@ -210,13 +209,10 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
             hasErrors ||
             updateMutation.isPending
           }
+          loading={updateMutation.isPending}
           size="sm"
         >
-          {updateMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
-          )}
+          {!updateMutation.isPending && <Save className="h-4 w-4 mr-2" />}
           Save{dirtyKeys.length > 0 ? ` (${dirtyKeys.length})` : ""}
         </Button>
       </SettingsPageHeader>

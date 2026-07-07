@@ -147,7 +147,7 @@ export function FeedbackTab() {
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-muted-foreground">Loading feedback...</span>
+          <span className="ml-2 text-muted-foreground">Loading feedback…</span>
         </CardContent>
       </Card>
     );
@@ -299,8 +299,7 @@ function FeedbackDetailDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving || !dirty}>
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          <Button onClick={handleSave} loading={saving} disabled={saving || !dirty}>
             Save
           </Button>
         </DialogFooter>

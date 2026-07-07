@@ -383,14 +383,12 @@ export function PresetSettings() {
                 </Button>
                 <Button
                   onClick={handleApply}
+                  loading={applyMutation.isPending}
                   disabled={
                     !validationResult?.isValid ||
                     applyMutation.isPending
                   }
                 >
-                  {applyMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
                   Apply Preset
                 </Button>
               </>
@@ -451,12 +449,10 @@ export function PresetSettings() {
             </Button>
             <Button
               onClick={() => exportMutation.mutate()}
+              loading={exportMutation.isPending}
               disabled={!exportPresetId || !exportName || exportMutation.isPending}
             >
-              {exportMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              <Download className="mr-2 h-4 w-4" />
+              {!exportMutation.isPending && <Download className="mr-2 h-4 w-4" />}
               Export
             </Button>
           </DialogFooter>

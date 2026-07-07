@@ -187,7 +187,7 @@ export function AnnouncementsTab() {
     return (
       <Card>
         <CardContent className="py-8">
-          <div className="text-center text-muted-foreground">Loading announcements...</div>
+          <div className="text-center text-muted-foreground">Loading announcements…</div>
         </CardContent>
       </Card>
     );

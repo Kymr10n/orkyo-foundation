@@ -663,7 +663,7 @@ export function UtilizationPage() {
 
                 {spacesLoading || requestsLoading ? (
                   <div className="flex-1">
-                    <LoadingSpinner fullScreen={false} message="Loading requests..." />
+                    <LoadingSpinner fullScreen={false} message="Loading requests…" />
                   </div>
                 ) : (
                   <SchedulerGrid

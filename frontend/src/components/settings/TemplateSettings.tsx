@@ -199,7 +199,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading request templates...</p>
+        <p className="text-muted-foreground">Loading request templates…</p>
       </div>
     );
   }

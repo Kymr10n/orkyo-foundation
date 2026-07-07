@@ -119,6 +119,12 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         data={groups}
         isLoading={isLoading}
         emptyMessage={`No ${entityLabel.toLowerCase()}s yet. Click "Add ${entityLabel}" to create one.`}
+        emptyAction={
+          <Button onClick={handleAdd} disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add {entityLabel}
+          </Button>
+        }
         filterColumn="name"
         filterPlaceholder={`Search ${entityLabel.toLowerCase()}s...`}
         pageSize={25}

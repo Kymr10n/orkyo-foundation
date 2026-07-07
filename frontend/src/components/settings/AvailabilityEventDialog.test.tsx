@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AvailabilityEventDialog } from './AvailabilityEventDialog';
 import type { AvailabilityEventInfo } from '@foundation/src/lib/api/availability-events-api';
@@ -27,16 +26,8 @@ vi.mock('@foundation/src/lib/api/availability-events-api', () => ({
 }));
 
 // ── UI mocks ──────────────────────────────────────────────────────────────────
-
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-}));
+// The dialog shell is the real FormDialog (migrated in WP-6); only the leaf
+// widgets below are stubbed to keep the test focused on form behaviour.
 
 vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
   DateTimePicker: ({

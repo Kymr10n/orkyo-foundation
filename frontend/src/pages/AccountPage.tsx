@@ -71,10 +71,10 @@ import { toast } from "sonner";
 type Membership = TenantMembership;
 type EmailChangeStatus = "confirmed" | "expired" | "invalid" | "error" | "conflict";
 
-const roleColors: Record<string, string> = {
-  admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  editor: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  viewer: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+const roleBadgeVariant: Record<string, "destructive" | "default" | "secondary"> = {
+  admin: "destructive",
+  editor: "default",
+  viewer: "secondary",
 };
 
 const emailChangeStatusMessages: Record<
@@ -471,13 +471,10 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                           <Button
                             size="sm"
                             onClick={() => emailChangeMutation.mutate(newEmail)}
+                            loading={emailChangeMutation.isPending}
                             disabled={emailChangeMutation.isPending || !newEmail.trim()}
                           >
-                            {emailChangeMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4 mr-1" />
-                            )}
+                            {!emailChangeMutation.isPending && <Check className="h-4 w-4 mr-1" />}
                             Send Confirmation
                           </Button>
                           <Button
@@ -556,13 +553,10 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                           <Button
                             size="sm"
                             onClick={handleSaveName}
+                            loading={updateProfileMutation.isPending}
                             disabled={updateProfileMutation.isPending}
                           >
-                            {updateProfileMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4 mr-1" />
-                            )}
+                            {!updateProfileMutation.isPending && <Check className="h-4 w-4 mr-1" />}
                             Save
                           </Button>
                           <Button
@@ -683,8 +677,8 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span>{membership.tenantSlug}</span>
                           <Badge
-                            variant="secondary"
-                            className={`text-xs ${roleColors[membership.role] || roleColors.viewer}`}
+                            variant={roleBadgeVariant[membership.role] ?? "secondary"}
+                            className="text-xs"
                           >
                             {membership.role}
                           </Badge>
@@ -807,11 +801,9 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             <Button
               onClick={handleLeave}
               disabled={actionLoading !== null}
+              loading={!!actionLoading}
               variant="destructive"
             >
-              {actionLoading && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
               Leave
             </Button>
           </DialogFooter>
@@ -841,11 +833,9 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             <Button
               onClick={handleDelete}
               disabled={actionLoading !== null}
+              loading={!!actionLoading}
               variant="destructive"
             >
-              {actionLoading && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
               Delete Organization
             </Button>
           </DialogFooter>

@@ -211,7 +211,7 @@ describe('PersonList', () => {
     renderList();
     // Wait for the loading state to clear before asserting absence.
     await waitFor(() =>
-      expect(screen.queryByText('Loading people...')).not.toBeInTheDocument(),
+      expect(screen.queryByText('Loading people…')).not.toBeInTheDocument(),
     );
     expect(screen.queryByText('Alice')).not.toBeInTheDocument();
     expect(screen.queryByText('Bob')).not.toBeInTheDocument();

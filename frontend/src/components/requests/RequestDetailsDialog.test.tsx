@@ -116,7 +116,7 @@ describe('RequestDetailsDialog', () => {
   it('renders request name and status badge', () => {
     renderDialog();
     expect(screen.getByText('Scheduled Task')).toBeInTheDocument();
-    expect(screen.getByText('in_progress')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
   });
 
   it('renders description when present', () => {

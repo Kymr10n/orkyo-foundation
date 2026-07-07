@@ -95,6 +95,8 @@ export function DepartmentEditDialog({
   onSaved,
 }: DepartmentEditDialogProps) {
   const [form, setForm] = useState<FormState>(empty);
+  // Snapshot of the form as last synced; the dirty guard compares against it.
+  const [baseline, setBaseline] = useState<FormState>(empty);
   const [error, setError] = useState<string | null>(null);
 
   const { data: tree = [] } = useQuery({
@@ -106,16 +108,14 @@ export function DepartmentEditDialog({
   useEffect(() => {
     if (!open) return;
     setError(null);
-    if (department) {
-      setForm(fromInfo(department));
-    } else {
-      setForm({
-        ...empty,
-        parentDepartmentId: defaultParentId ?? '',
-        name: initialName ?? '',
-      });
-    }
+    const next = department
+      ? fromInfo(department)
+      : { ...empty, parentDepartmentId: defaultParentId ?? '', name: initialName ?? '' };
+    setForm(next);
+    setBaseline(next);
   }, [department, defaultParentId, initialName, open]);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -169,6 +169,7 @@ export function DepartmentEditDialog({
       submitLabel="Save"
       submitDisabled={!form.name.trim()}
       error={error}
+      dirty={isDirty}
     >
       <div className="space-y-2">
         <Label htmlFor="dept-name">Name</Label>

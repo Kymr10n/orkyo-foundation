@@ -16,7 +16,7 @@ describe('a11y smoke', () => {
 
   it('LoadingSpinner exposes an accessible status with no violations', async () => {
     const { container } = render(
-      <LoadingSpinner fullScreen={false} message="Loading requests..." />,
+      <LoadingSpinner fullScreen={false} message="Loading requests…" />,
     );
     expect(await axe(container)).toHaveNoViolations();
   });

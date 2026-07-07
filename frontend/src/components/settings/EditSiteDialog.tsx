@@ -69,6 +69,11 @@ export function EditSiteDialog({
       isSubmitting={isSubmitting}
       submitLabel="Save Changes"
       error={error}
+      dirty={
+        name !== site.name ||
+        description !== (site.description || "") ||
+        address !== (site.address || "")
+      }
     >
       {/* Code (read-only) */}
       <div className="space-y-2">

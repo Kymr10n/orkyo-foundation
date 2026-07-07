@@ -1,4 +1,5 @@
 import { Badge } from "@foundation/src/components/ui/badge";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import { Button } from "@foundation/src/components/ui/button";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
@@ -12,7 +13,6 @@ import type { Request } from "@foundation/src/types/requests";
 import {
   formatDateDisplay,
   formatDuration,
-  getStatusColor,
 } from "@foundation/src/lib/utils/utils";
 import { ChevronRight, Edit, X } from "lucide-react";
 import React, { useMemo } from "react";
@@ -87,7 +87,7 @@ export const RequestDetailPanel = React.memo(function RequestDetailPanel({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="outline">{getPlanningModeLabel(request.planningMode)}</Badge>
-            <Badge className={getStatusColor(request.status)}>{request.status}</Badge>
+            <RequestStatusBadge status={request.status} />
           </div>
           {request.description && (
             <p className="text-sm text-muted-foreground">{request.description}</p>

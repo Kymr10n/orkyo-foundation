@@ -10,7 +10,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
-import { Loader2, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { acceptTos } from "@foundation/src/lib/api/session-api";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -149,9 +149,9 @@ export function TosPage({ onAccept, onCancel, tosVersion }: TosPageProps) {
           </Button>
           <Button
             onClick={handleAccept}
+            loading={submitting}
             disabled={!accepted || submitting}
           >
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Accept and Continue
           </Button>
         </CardFooter>

@@ -41,7 +41,7 @@ export function RowActions({ actions, triggerLabel = "Row actions" }: RowActions
     <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label={triggerLabel}>
+          <Button variant="ghost" size="icon-sm" aria-label={triggerLabel}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

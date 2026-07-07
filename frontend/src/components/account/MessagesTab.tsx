@@ -87,7 +87,7 @@ export function MessagesTab() {
   if (isLoading) {
     return (
       <div className="py-12">
-        <LoadingSpinner fullScreen={false} message="Loading messages..." />
+        <LoadingSpinner fullScreen={false} message="Loading messages…" />
       </div>
     );
   }

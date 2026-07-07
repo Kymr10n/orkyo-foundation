@@ -118,7 +118,7 @@ export function DepartmentSettings() {
   };
 
   if (isLoading) {
-    return <div className="text-muted-foreground">Loading departments...</div>;
+    return <div className="text-muted-foreground">Loading departments…</div>;
   }
 
   return (

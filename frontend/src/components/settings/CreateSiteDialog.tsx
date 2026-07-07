@@ -1,6 +1,6 @@
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
+import { FormField } from "@foundation/src/components/ui/FormField";
 import { Input } from "@foundation/src/components/ui/input";
-import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import type { Site } from "@foundation/src/lib/api/site-api";
 import { isValidSlug } from "@foundation/src/lib/utils";
@@ -87,12 +87,14 @@ export function CreateSiteDialog({
       submitLabel="Create Site"
       submittingLabel="Creating..."
       error={error}
+      dirty={!!(code || name || description || address)}
     >
-      {/* Code */}
-      <div className="space-y-2">
-        <Label htmlFor="code">
-          Code <span className="text-destructive">*</span>
-        </Label>
+      <FormField
+        htmlFor="code"
+        label="Code"
+        required
+        help="Unique identifier (alphanumeric, underscores, hyphens only)"
+      >
         <Input
           id="code"
           placeholder="e.g., MAIN-01, WAREHOUSE-A"
@@ -101,16 +103,9 @@ export function CreateSiteDialog({
           disabled={isSubmitting}
           className="font-mono"
         />
-        <p className="text-xs text-muted-foreground">
-          Unique identifier (alphanumeric, underscores, hyphens only)
-        </p>
-      </div>
+      </FormField>
 
-      {/* Name */}
-      <div className="space-y-2">
-        <Label htmlFor="name">
-          Name <span className="text-destructive">*</span>
-        </Label>
+      <FormField htmlFor="name" label="Name" required>
         <Input
           id="name"
           placeholder="e.g., Main Production Facility"
@@ -118,11 +113,9 @@ export function CreateSiteDialog({
           onChange={(e) => setName(e.target.value)}
           disabled={isSubmitting}
         />
-      </div>
+      </FormField>
 
-      {/* Description */}
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
+      <FormField htmlFor="description" label="Description">
         <Textarea
           id="description"
           placeholder="Optional description of the site"
@@ -131,11 +124,9 @@ export function CreateSiteDialog({
           disabled={isSubmitting}
           rows={3}
         />
-      </div>
+      </FormField>
 
-      {/* Address */}
-      <div className="space-y-2">
-        <Label htmlFor="address">Address</Label>
+      <FormField htmlFor="address" label="Address">
         <Textarea
           id="address"
           placeholder="Physical address of the site"
@@ -144,7 +135,7 @@ export function CreateSiteDialog({
           disabled={isSubmitting}
           rows={2}
         />
-      </div>
+      </FormField>
     </FormDialog>
   );
 }

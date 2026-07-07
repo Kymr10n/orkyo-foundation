@@ -1,5 +1,6 @@
-import { Badge } from "@foundation/src/components/ui/badge";
 import { Input } from "@foundation/src/components/ui/input";
+import { EmptyState } from "@foundation/src/components/ui/EmptyState";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import {
@@ -17,7 +18,7 @@ import { getPlanningModeIcon, REQUEST_STATUS_ORDER, PLANNING_MODE } from "@found
 import { filterPanelEntries } from "./request-panel-filter";
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { formatMinutesHuman, getStatusColor, formatStatusLabel } from "@foundation/src/lib/utils/utils";
+import { formatMinutesHuman, formatStatusLabel } from "@foundation/src/lib/utils/utils";
 
 interface RequestsPanelProps {
   requests: Request[];
@@ -143,9 +144,7 @@ const RequestCard = React.memo(function RequestCard({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               )}
-              <Badge className={`${getStatusColor(request.status)} text-xs flex-shrink-0`}>
-              {formatStatusLabel(request.status)}
-            </Badge>
+              <RequestStatusBadge status={request.status} className="text-xs flex-shrink-0" />
             </div>
           </div>
           {request.description && (
@@ -304,11 +303,9 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
       <ScrollArea type="auto" viewportRef={listScrollRef} className="flex-1 min-h-0">
         <div className="px-4 py-2">
         {isLoading ? (
-          <LoadingSpinner fullScreen={false} message="Loading requests..." />
+          <LoadingSpinner fullScreen={false} message="Loading requests…" />
         ) : visibleEntries.length === 0 ? (
-          <div className="text-center text-muted-foreground text-sm py-8">
-            No requests found
-          </div>
+          <EmptyState message="No requests found" className="text-sm" />
         ) : (
           <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
             {virtualizer.getVirtualItems().map((vItem) => {

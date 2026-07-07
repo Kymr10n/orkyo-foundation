@@ -3,8 +3,8 @@ import { SettingsPageHeader } from './SettingsPageHeader';
 import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
-import { Card } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
+import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import {
@@ -267,7 +267,7 @@ export function CriteriaSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading criteria...</p>
+        <p className="text-muted-foreground">Loading criteria…</p>
       </div>
     );
   }
@@ -311,13 +311,15 @@ export function CriteriaSettings() {
 
       {/* Criteria List */}
       {criteria.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">No criteria defined yet</p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first criterion
-          </Button>
-        </Card>
+        <EmptyState
+          message="No criteria defined yet"
+          action={
+            <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create your first criterion
+            </Button>
+          }
+        />
       ) : (
         <OrkyoDataTable
           columns={columns}

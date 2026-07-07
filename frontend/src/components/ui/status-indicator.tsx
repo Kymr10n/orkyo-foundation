@@ -54,6 +54,45 @@ function severityVisuals(severity: StatusSeverity): {
     : { Icon: AlertTriangle, textClass: "text-amber-500" };
 }
 
+/** Badge tint (bg + text) per severity — same red/amber hues as the request-calendar severity source. */
+const SEVERITY_BADGE_CLASS: Record<StatusSeverity, string> = {
+  error: "bg-red-500/10 text-red-700 dark:text-red-400",
+  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+};
+
+/** Neutral, presentation-level label per severity. */
+const SEVERITY_LABEL: Record<StatusSeverity, string> = {
+  error: "Error",
+  warning: "Warning",
+};
+
+export interface SeverityPresentation {
+  /** Lucide icon component for the severity — caller sizes/positions it. */
+  icon: ComponentType<{ className?: string }>;
+  /** Foreground colour class for the standalone icon. */
+  iconClass: string;
+  /** Badge tint class (bg + text). */
+  badgeClass: string;
+  /** Presentation label ("Error" / "Warning"). */
+  label: string;
+}
+
+/**
+ * Single source for severity icon/colour/label presentation, shared by the
+ * conflicts list and the calendar event badges. Consolidates the hand-rolled
+ * `getSeverity*` switches so the red/amber mapping stays consistent with the
+ * status indicators above and the request-calendar severity colours.
+ */
+export function severityPresentation(severity: StatusSeverity): SeverityPresentation {
+  const { Icon, textClass } = severityVisuals(severity);
+  return {
+    icon: Icon,
+    iconClass: textClass,
+    badgeClass: SEVERITY_BADGE_CLASS[severity],
+    label: SEVERITY_LABEL[severity],
+  };
+}
+
 /**
  * Inline icon + tooltip flagging the status item(s) on a single row. Renders nothing
  * when there are none. The worst severity drives the icon/colour; the tooltip lists

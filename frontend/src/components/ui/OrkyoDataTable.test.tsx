@@ -31,6 +31,13 @@ describe('OrkyoDataTable', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('renders skeleton rows (role=status) while loading', () => {
+    const { container } = render(<OrkyoDataTable columns={columns} data={[]} isLoading />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    // One skeleton cell per column, across the placeholder rows.
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThanOrEqual(columns.length);
+  });
+
   it('shows error state', () => {
     render(<OrkyoDataTable columns={columns} data={[]} error="Something went wrong" />);
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();

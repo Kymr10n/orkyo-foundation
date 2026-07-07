@@ -63,7 +63,7 @@ describe('TemplateSettings', () => {
 
   it('shows loading state', () => {
     renderTemplateSettings();
-    expect(screen.getByText('Loading request templates...')).toBeInTheDocument();
+    expect(screen.getByText('Loading request templates…')).toBeInTheDocument();
   });
 
   it('shows empty state when no templates', async () => {

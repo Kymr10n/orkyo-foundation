@@ -171,6 +171,12 @@ export function PersonList() {
         error={queryErrorMsg}
         onRetry={() => refetch()}
         emptyMessage="No people found. Add your first person to get started."
+        emptyAction={
+          <Button onClick={() => handleEdit(null)} disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Person
+          </Button>
+        }
         filterColumn="name"
         filterPlaceholder="Search people..."
         pageSize={25}

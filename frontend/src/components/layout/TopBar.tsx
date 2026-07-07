@@ -359,7 +359,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
 
       {/* Import/Export Dialogs */}
       {currentContext && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<span role="status" className="sr-only">Loading…</span>}>
           <ImportExportDialog
             open={importDialogOpen}
             onOpenChange={setImportDialogOpen}

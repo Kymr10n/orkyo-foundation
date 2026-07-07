@@ -1,12 +1,4 @@
-import { Button } from "@foundation/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { getPlanningModeIcon, getPlanningModeLabel } from "@foundation/src/constants";
@@ -66,15 +58,17 @@ export function MoveToDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Move "{request.name}"</DialogTitle>
-          <DialogDescription>
-            Select a target parent, or move to root level.
-          </DialogDescription>
-        </DialogHeader>
-
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Move "${request.name}"`}
+      description="Select a target parent, or move to root level."
+      size="sm"
+      onSubmit={handleConfirm}
+      isSubmitting={false}
+      submitLabel="Move"
+      submitDisabled={selectedId === null && !request.parentRequestId}
+    >
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -130,19 +124,6 @@ export function MoveToDialog({
             )}
           </div>
         </ScrollArea>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={selectedId === null && !request.parentRequestId}
-          >
-            Move
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormDialog>
   );
 }

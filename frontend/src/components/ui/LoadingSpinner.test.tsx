@@ -4,12 +4,12 @@ import { LoadingSpinner } from './LoadingSpinner';
 
 describe('LoadingSpinner', () => {
   it('renders with a message', () => {
-    render(<LoadingSpinner message="Loading..." />);
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    render(<LoadingSpinner message="Loading…" />);
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
   });
 
   it('renders the spinner icon', () => {
-    const { container } = render(<LoadingSpinner message="Loading..." />);
+    const { container } = render(<LoadingSpinner message="Loading…" />);
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
@@ -33,7 +33,7 @@ describe('LoadingSpinner', () => {
   });
 
   it('exposes an accessible busy status', () => {
-    render(<LoadingSpinner message="Loading requests..." />);
+    render(<LoadingSpinner message="Loading requests…" />);
     const status = screen.getByRole('status');
     expect(status).toHaveAttribute('aria-busy', 'true');
   });

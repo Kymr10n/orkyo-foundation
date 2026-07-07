@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
 import { Separator } from "@foundation/src/components/ui/separator";
-import { getDataTypeColor, formatDateDisplay, formatDuration, formatMinutesHuman, formatTimeDisplay, getStatusColor } from "@foundation/src/lib/utils";
+import { getDataTypeColor, formatDateDisplay, formatDuration, formatMinutesHuman, formatTimeDisplay } from "@foundation/src/lib/utils";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import type { Request } from "@foundation/src/types/requests";
 import type { CriterionValue } from "@foundation/src/types/criterion";
 import { Calendar, Clock, MapPin, Tag, FileText } from "lucide-react";
@@ -46,9 +47,7 @@ export function RequestDetailsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <span>{request.name}</span>
-            <Badge className={getStatusColor(request.status)}>
-              {request.status}
-            </Badge>
+            <RequestStatusBadge status={request.status} />
           </DialogTitle>
           <DialogDescription className="sr-only">Details for request {request.name}</DialogDescription>
         </DialogHeader>

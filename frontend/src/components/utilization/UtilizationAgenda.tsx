@@ -1,11 +1,8 @@
 import type { Request } from "@foundation/src/types/requests";
 import { getRequestIcon, getPlanningModeIcon } from "@foundation/src/constants";
-import {
-  formatDateDisplay,
-  formatStatusLabel,
-  getStatusColor,
-} from "@foundation/src/lib/utils/utils";
-import { Badge } from "@foundation/src/components/ui/badge";
+import { formatDateDisplay } from "@foundation/src/lib/utils/utils";
+import { EmptyState } from "@foundation/src/components/ui/EmptyState";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 
 export interface UtilizationAgendaProps {
   /** Scheduled requests for the active window. */
@@ -32,9 +29,7 @@ export function UtilizationAgenda({
     .sort((a, b) => (a.startTs! < b.startTs! ? -1 : a.startTs! > b.startTs! ? 1 : 0));
 
   if (sorted.length === 0) {
-    return (
-      <div className="py-8 text-center text-sm text-muted-foreground">{emptyMessage}</div>
-    );
+    return <EmptyState message={emptyMessage} className="text-sm" />;
   }
 
   return (
@@ -53,9 +48,7 @@ export function UtilizationAgenda({
                 <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <span className="truncate font-medium">{request.name}</span>
               </div>
-              <Badge className={getStatusColor(request.status)}>
-                {formatStatusLabel(request.status)}
-              </Badge>
+              <RequestStatusBadge status={request.status} />
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {request.startTs && request.endTs

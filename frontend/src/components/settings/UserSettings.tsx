@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { Card } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
+import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getUsers,
@@ -378,7 +378,7 @@ export function UserSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading users...</p>
+        <p className="text-muted-foreground">Loading users…</p>
       </div>
     );
   }
@@ -435,13 +435,15 @@ export function UserSettings() {
       {/* Active Users Section */}
       <div className="space-y-3">
         {users.length === 0 ? (
-          <Card className="p-12 text-center">
-            <p className="text-muted-foreground mb-4">No users yet</p>
-            <Button onClick={() => setInviteDialogOpen(true)} variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Invite your first user
-            </Button>
-          </Card>
+          <EmptyState
+            message="No users yet"
+            action={
+              <Button onClick={() => setInviteDialogOpen(true)} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Invite your first user
+              </Button>
+            }
+          />
         ) : (
           <OrkyoDataTable
             columns={userColumns}

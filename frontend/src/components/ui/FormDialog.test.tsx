@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { FormDialog } from './FormDialog';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
@@ -71,5 +72,32 @@ describe('FormDialog', () => {
     vi.mocked(useCanEdit).mockReturnValueOnce(false);
     renderDialog();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('submits on Enter from a field (the body is wrapped in a <form>)', async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog();
+    await user.type(screen.getByLabelText('name'), 'hello{Enter}');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not prompt to discard when closing a clean (non-dirty) form', () => {
+    const { onOpenChange } = renderDialog({ dirty: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
+  });
+
+  it('prompts to discard on close when dirty, and closes only after confirming', async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderDialog({ dirty: true });
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    // Close is intercepted: the guard prompt shows and onOpenChange has NOT fired.
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    await user.click(screen.getByRole('button', { name: /Discard changes/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

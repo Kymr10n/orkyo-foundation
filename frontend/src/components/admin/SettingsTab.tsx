@@ -119,7 +119,7 @@ export function SettingsTab() {
         <CardContent className="py-8">
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading settings...
+            Loading settings…
           </div>
         </CardContent>
       </Card>
@@ -246,8 +246,8 @@ export function SettingsTab() {
           <Button variant="outline" disabled={saving} onClick={() => setDraft(data.runtime)}>
             Discard
           </Button>
-          <Button disabled={!isDirty || saving} onClick={handleSave}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          <Button disabled={!isDirty || saving} loading={saving} onClick={handleSave}>
+            {!saving && <Save className="h-4 w-4 mr-2" />}
             Save changes
           </Button>
         </div>

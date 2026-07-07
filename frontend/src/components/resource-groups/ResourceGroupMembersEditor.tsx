@@ -212,7 +212,7 @@ export function ResourceGroupMembersEditor({
           <div className="space-y-4">
             {isLoading ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                Loading resources...
+                Loading resources…
               </div>
             ) : allResources.length === 0 ? (
               <div className="text-center py-8 border rounded-lg border-dashed">

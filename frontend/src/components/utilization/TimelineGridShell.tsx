@@ -213,7 +213,7 @@ export function TimelineGridShell<R>({
       >
         {isLoading ? (
           <div className="h-32">
-            <LoadingSpinner fullScreen={false} message="Loading..." />
+            <LoadingSpinner fullScreen={false} message="Loading…" />
           </div>
         ) : totalRows === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">

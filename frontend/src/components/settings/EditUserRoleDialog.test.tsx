@@ -357,9 +357,10 @@ describe('EditUserRoleDialog', () => {
     const adminOption = await screen.findByRole('option', { name: /Admin/i });
     await user.click(adminOption);
 
-    // Cancel
+    // Cancel — with unsaved changes the FormDialog dirty guard prompts first.
     const cancelButton = screen.getByRole('button', { name: /Cancel/i });
     await user.click(cancelButton);
+    await user.click(await screen.findByRole('button', { name: /Discard changes/i }));
 
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
   });

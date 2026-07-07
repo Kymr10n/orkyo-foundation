@@ -88,6 +88,7 @@ export function EditUserRoleDialog({
       isSubmitting={mutation.isPending}
       submitLabel="Save Changes"
       error={error}
+      dirty={role !== user.role}
     >
       {/* Current Role Info */}
       <div className="rounded-lg bg-muted p-3 text-sm">

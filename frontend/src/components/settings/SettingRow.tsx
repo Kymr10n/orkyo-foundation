@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
-import { RotateCcw, Loader2, Info } from "lucide-react";
+import { RotateCcw, Info } from "lucide-react";
 import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
 import { isModified, formatRange, isColorSetting, validate } from "./tenant-config-helpers";
 
@@ -125,13 +125,10 @@ export function SettingRow({
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-foreground"
                   onClick={() => onReset(descriptor.key)}
+                  loading={isResetting}
                   disabled={isResetting}
                 >
-                  {isResetting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="h-4 w-4" />
-                  )}
+                  {!isResetting && <RotateCcw className="h-4 w-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Reset to default ({descriptor.defaultValue})</TooltipContent>

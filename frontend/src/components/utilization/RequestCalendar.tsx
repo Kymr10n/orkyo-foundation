@@ -7,7 +7,8 @@ import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInpu
 import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
 import { calendarViewToScale, SEVERITY_SWATCH } from "./request-calendar-events";
-import { AlertCircle, AlertTriangle } from "lucide-react";
+import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
+import { cn } from "@foundation/src/lib/utils";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import "./request-calendar.css";
 
@@ -179,10 +180,12 @@ export function RequestCalendar({
         datesSet={handleDatesSet}
         eventContent={(arg) => {
           const severity = arg.event.extendedProps?.conflictSeverity as ConflictSeverity | undefined;
+          const presentation = severity ? severityPresentation(severity) : null;
           return (
             <div className="flex items-start gap-1 overflow-hidden h-full px-0.5 min-w-0">
-              {severity === 'error'   && <AlertCircle   className="h-3 w-3 flex-shrink-0 text-red-600" />}
-              {severity === 'warning' && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-amber-600" />}
+              {presentation && (
+                <presentation.icon className={cn("h-3 w-3 flex-shrink-0", presentation.iconClass)} />
+              )}
               {arg.event.start && (
                 <span className="text-[10px] flex-shrink-0 tabular-nums opacity-80 leading-4">
                   {formatCompactTime(arg.event.start)}

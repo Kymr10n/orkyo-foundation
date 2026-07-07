@@ -17,9 +17,9 @@ interface EmptyStateProps {
 export function EmptyState({ message, icon, action, className }: EmptyStateProps) {
   return (
     <div className={cn("text-center py-8 text-muted-foreground", className)}>
-      {icon}
+      {icon && <div className="mb-3 flex justify-center">{icon}</div>}
       {message}
-      {action}
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }

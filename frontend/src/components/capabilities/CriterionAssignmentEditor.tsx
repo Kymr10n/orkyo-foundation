@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
+import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import {
   Dialog,
@@ -206,9 +207,10 @@ export function CriterionAssignmentEditor({
               )}
 
               {assignments.size === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground border rounded-lg border-dashed">
-                  {labels.emptyText}
-                </div>
+                <EmptyState
+                  message={labels.emptyText}
+                  className="text-sm border rounded-lg border-dashed"
+                />
               ) : (
                 <div className="space-y-4 border rounded-lg p-4">
                   {Array.from(assignments.entries()).map(([criterionId, value]) => {

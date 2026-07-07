@@ -246,13 +246,10 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                     variant="outline"
                     size="sm"
                     onClick={() => handleCancelDeletion(t.tenantId)}
+                    loading={restoringId === t.tenantId}
                     disabled={restoringId === t.tenantId}
                   >
-                    {restoringId === t.tenantId ? (
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                    ) : (
-                      <RotateCcw className="mr-2 h-3 w-3" />
-                    )}
+                    {restoringId !== t.tenantId && <RotateCcw className="mr-2 h-3 w-3" />}
                     Restore
                   </Button>
                 </div>
@@ -385,8 +382,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button onClick={handleCreateTenant} disabled={submitting} className="flex-1">
-                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button onClick={handleCreateTenant} loading={submitting} disabled={submitting} className="flex-1">
                   {submitting ? "Creating workspace…" : "Create"}
                 </Button>
               </div>

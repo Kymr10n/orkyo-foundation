@@ -98,7 +98,7 @@ export const AUTH_EVENTS = {
 
 /** Spinner and status messages shown to the user. */
 export const AUTH_MESSAGES = {
-  LOADING: 'Loading...',
+  LOADING: 'Loading…',
   REDIRECTING: 'Redirecting...',
   REDIRECTING_LOGIN: 'Redirecting to sign in...',
   SIGNING_OUT: 'Signing out...',

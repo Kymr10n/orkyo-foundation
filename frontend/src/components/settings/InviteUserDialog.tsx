@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
+import { FormField } from "@foundation/src/components/ui/FormField";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import {
@@ -91,10 +92,10 @@ export function InviteUserDialog({
       submitLabel="Send Invitation"
       submittingLabel="Sending..."
       error={error}
+      dirty={!!email.trim() || role !== "viewer"}
     >
       {/* Email Field */}
-      <div className="space-y-2">
-        <Label htmlFor="email">Email Address</Label>
+      <FormField htmlFor="email" label="Email Address" required>
         <Input
           id="email"
           type="email"
@@ -104,7 +105,7 @@ export function InviteUserDialog({
           disabled={mutation.isPending}
           autoFocus
         />
-      </div>
+      </FormField>
 
       {/* Role Field */}
       <div className="space-y-2">

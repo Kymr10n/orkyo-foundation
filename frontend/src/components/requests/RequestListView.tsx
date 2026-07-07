@@ -8,13 +8,12 @@ import {
   DropdownMenuTrigger,
 } from "@foundation/src/components/ui/dropdown-menu";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import { canHaveChildren } from "@foundation/src/domain/request-tree";
 import {
   formatDateDisplay,
   formatDuration,
-  formatStatusLabel,
-  getStatusColor,
 } from "@foundation/src/lib/utils/utils";
 import type { Request } from "@foundation/src/types/requests";
 import { Edit, Link, MoreHorizontal, Plus, Trash2 } from "lucide-react";
@@ -59,7 +58,7 @@ export const RequestListView = React.memo(function RequestListView({
       <div className="flex justify-end">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+            <Button variant="ghost" size="icon-sm">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -159,11 +158,7 @@ export const RequestListView = React.memo(function RequestListView({
       id: "status",
       header: "Status",
       size: 100,
-      cell: ({ row }) => (
-        <Badge className={getStatusColor(row.original.status)}>
-          {formatStatusLabel(row.original.status)}
-        </Badge>
-      ),
+      cell: ({ row }) => <RequestStatusBadge status={row.original.status} />,
     },
     {
       id: "actions",
@@ -194,9 +189,7 @@ export const RequestListView = React.memo(function RequestListView({
           <Badge variant="outline" className="text-xs font-normal">
             {getPlanningModeLabel(request.planningMode)}
           </Badge>
-          <Badge className={getStatusColor(request.status)}>
-            {formatStatusLabel(request.status)}
-          </Badge>
+          <RequestStatusBadge status={request.status} />
           <span className="text-xs text-muted-foreground">
             {formatDuration(request.minimalDurationValue, request.minimalDurationUnit)}
           </span>

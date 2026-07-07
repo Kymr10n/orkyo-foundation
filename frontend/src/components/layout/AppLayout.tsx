@@ -97,7 +97,7 @@ export function AppLayout() {
       <div className="h-screen flex flex-col">
         <TopBar />
         <div className="flex-1">
-          <LoadingSpinner fullScreen={false} message="Loading..." />
+          <LoadingSpinner fullScreen={false} message="Loading…" />
         </div>
       </div>
     );

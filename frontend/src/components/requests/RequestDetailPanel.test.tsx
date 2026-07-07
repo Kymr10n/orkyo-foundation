@@ -173,7 +173,7 @@ describe('RequestDetailPanel', () => {
 
   it('shows status badge', () => {
     renderPanel();
-    expect(screen.getByText('new')).toBeInTheDocument();
+    expect(screen.getByText('New')).toBeInTheDocument();
   });
 
   it('calls onEdit when edit button is clicked', () => {

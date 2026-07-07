@@ -104,7 +104,7 @@ describe('RequestsPanel', () => {
 
   it('shows loading state', () => {
     renderPanel([], { isLoading: true });
-    expect(screen.getByText('Loading requests...')).toBeInTheDocument();
+    expect(screen.getByText('Loading requests…')).toBeInTheDocument();
   });
 
   it('shows empty state when no requests match', () => {

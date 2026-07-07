@@ -10,6 +10,7 @@ import {
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getSessions, revokeSession, logoutAllSessions } from "@foundation/src/lib/api/security-api";
@@ -116,9 +117,7 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
               </AlertDescription>
             </Alert>
           ) : sessions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No active sessions found.
-            </p>
+            <EmptyState message="No active sessions found." className="text-sm py-6" />
           ) : (
             <div className="space-y-3">
               {sessions.map((session) => (

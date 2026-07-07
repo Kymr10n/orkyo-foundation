@@ -1,14 +1,5 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
-import { Button } from "@foundation/src/components/ui/button";
-import { AlertTriangle, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
+import { Loader2 } from "lucide-react";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 
 interface Props {
@@ -36,16 +27,22 @@ export function AutoSchedulePreviewDialog({
   onApply,
   onClose,
 }: Props) {
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Auto-schedule preview</DialogTitle>
-          <DialogDescription>
-            Review the proposed placements before committing them.
-          </DialogDescription>
-        </DialogHeader>
+  const applyLabel = `Apply${preview ? ` (${preview.assignments.length})` : ""}`;
 
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
+      title="Auto-schedule preview"
+      description="Review the proposed placements before committing them."
+      size="lg"
+      onSubmit={onApply}
+      isSubmitting={!!isApplying}
+      submitLabel={applyLabel}
+      submittingLabel={applyLabel}
+      submitDisabled={!preview || preview.assignments.length === 0}
+      error={applyError ?? null}
+    >
         {!preview ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -158,30 +155,6 @@ export function AutoSchedulePreviewDialog({
             )}
           </div>
         )}
-
-        {applyError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{applyError}</AlertDescription>
-          </Alert>
-        )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={onApply}
-            disabled={
-              !preview || preview.assignments.length === 0 || isApplying
-            }
-          >
-            {isApplying && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Apply {preview ? `(${preview.assignments.length})` : ""}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormDialog>
   );
 }

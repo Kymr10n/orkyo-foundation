@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Shield, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
+import { Lock, Shield, ExternalLink, AlertCircle } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -201,10 +201,11 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={changePasswordMutation.isPending}>
-                {changePasswordMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
+              <Button
+                type="submit"
+                loading={changePasswordMutation.isPending}
+                disabled={changePasswordMutation.isPending}
+              >
                 Change Password
               </Button>
             </DialogFooter>

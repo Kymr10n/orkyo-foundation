@@ -6,6 +6,7 @@ import {
   StatusMessageList,
   TabIndicatorDot,
   severityDotClass,
+  severityPresentation,
   worstSeverity,
   type StatusItem,
 } from './status-indicator';
@@ -38,6 +39,24 @@ describe('severityDotClass', () => {
 
   it('returns the destructive class when any item is an error', () => {
     expect(severityDotClass([warn, err])).toBe('bg-destructive');
+  });
+});
+
+describe('severityPresentation', () => {
+  it('maps error to a destructive icon, red badge and "Error" label', () => {
+    const p = severityPresentation('error');
+    expect(p.icon).toBeTruthy();
+    expect(p.iconClass).toBe('text-destructive');
+    expect(p.badgeClass).toContain('bg-red-500/10');
+    expect(p.label).toBe('Error');
+  });
+
+  it('maps warning to an amber icon, amber badge and "Warning" label', () => {
+    const p = severityPresentation('warning');
+    expect(p.icon).toBeTruthy();
+    expect(p.iconClass).toBe('text-amber-500');
+    expect(p.badgeClass).toContain('bg-amber-500/10');
+    expect(p.label).toBe('Warning');
   });
 });
 

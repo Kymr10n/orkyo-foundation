@@ -24,6 +24,7 @@ import {
   type PersonUtilizationSegment,
 } from '@foundation/src/domain/scheduling/utilization-segments';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { Input } from '@foundation/src/components/ui/input';
 import { PersonTimelineRow } from './PersonTimelineRow';
 import { PersonAssignmentDialog } from './PersonAssignmentDialog';
@@ -345,9 +346,10 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   if (people.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-        No people defined yet.
-      </div>
+      <EmptyState
+        message="No people defined yet."
+        className="h-full flex flex-col items-center justify-center text-sm"
+      />
     );
   }
 

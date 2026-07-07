@@ -11,8 +11,8 @@ import {
   type RowData,
 } from '@tanstack/react-table';
 import { AlertCircle, ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
+import { Skeleton } from '@foundation/src/components/ui/skeleton';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Input } from '@foundation/src/components/ui/input';
 import { Button } from '@foundation/src/components/ui/button';
@@ -38,6 +38,10 @@ export interface OrkyoDataTableProps<TData> {
   /** Shown as a "Try again" button next to the error alert. Omit to render no retry affordance. */
   onRetry?: () => void;
   emptyMessage?: string;
+  /** Optional icon rendered above the empty message. */
+  emptyIcon?: ReactNode;
+  /** Optional CTA (e.g. a button) rendered below the empty message. */
+  emptyAction?: ReactNode;
 
   // Filtering — choose one mode:
   // Client-side: provide filterColumn (accessor key). Filter fires on keystroke.
@@ -75,6 +79,8 @@ export function OrkyoDataTable<TData>({
   error,
   onRetry,
   emptyMessage = 'No results found.',
+  emptyIcon,
+  emptyAction,
   filterColumn,
   filterPlaceholder = 'Search...',
   filterValue: controlledFilterValue,
@@ -211,8 +217,20 @@ export function OrkyoDataTable<TData>({
       )}
 
       {isLoading ? (
-        <div className="py-8">
-          <LoadingSpinner fullScreen={false} message="Loading..." />
+        <div role="status" aria-busy="true" aria-live="polite" className="space-y-1.5">
+          <span className="sr-only">Loading…</span>
+          {Array.from({ length: 5 }).map((_, r) => (
+            <div
+              key={r}
+              aria-hidden="true"
+              className="grid gap-4 rounded-lg border bg-card px-4 py-3.5"
+              style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}
+            >
+              {columns.map((_, c) => (
+                <Skeleton key={c} className="h-4 w-full" />
+              ))}
+            </div>
+          ))}
         </div>
       ) : error ? (
         <Alert variant="destructive">
@@ -227,7 +245,7 @@ export function OrkyoDataTable<TData>({
           </AlertDescription>
         </Alert>
       ) : table.getRowModel().rows.length === 0 ? (
-        <EmptyState message={emptyMessage} />
+        <EmptyState message={emptyMessage} icon={emptyIcon} action={emptyAction} />
       ) : showCards ? (
         <div className="space-y-2">
           {table.getRowModel().rows.map((row) => (

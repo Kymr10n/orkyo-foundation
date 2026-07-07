@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@foundation/src/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
@@ -19,11 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@foundation/src/components/ui/select";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Combobox, type ComboboxOption } from "@foundation/src/components/ui/combobox";
 import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { getResources } from "@foundation/src/lib/api/resources-api";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
@@ -177,14 +170,11 @@ function ScopeRow({
         size="icon"
         className="h-6 w-6 shrink-0"
         onClick={onDelete}
+        loading={isDeleting}
         disabled={isDeleting}
         aria-label="Remove override"
       >
-        {isDeleting ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <X className="h-3 w-3" />
-        )}
+        {!isDeleting && <X className="h-3 w-3" />}
       </Button>
     </div>
   );
@@ -370,14 +360,11 @@ function AddScopeForm({
           type="button"
           size="sm"
           className="h-7 text-xs"
+          loading={isSubmitting}
           disabled={!targetId || isSubmitting || !canEdit}
           onClick={() => void handleAdd()}
         >
-          {isSubmitting ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          ) : (
-            <Plus className="h-3 w-3 mr-1" />
-          )}
+          {!isSubmitting && <Plus className="h-3 w-3 mr-1" />}
           Add
         </Button>
       </div>
@@ -432,6 +419,9 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
   const [error, setError] = useState<string | null>(null);
   const [showAddScope, setShowAddScope] = useState(false);
   const [draftScopes, setDraftScopes] = useState<ScopeDraft[]>([]);
+  // JSON snapshot of the form as last synced from the event/defaults; the dirty
+  // guard compares the live fields against it to detect unsaved edits.
+  const [baseline, setBaseline] = useState("");
 
   // Live scopes state (optimistic-ish: re-read from event prop, refreshed via query invalidation)
   const serverScopes = event?.scopes ?? [];
@@ -449,10 +439,38 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
     setError(null);
     setShowAddScope(false);
     setDraftScopes([]);
+    setBaseline(
+      JSON.stringify({
+        title: event?.title ?? "",
+        eventType: event?.eventType ?? "public_holiday",
+        defaultEffect: event?.defaultEffect ?? "closed",
+        startLocal: event ? toDateTimeLocal(event.startTs) : "",
+        endLocal: event ? toDateTimeLocal(event.endTs) : "",
+        isRecurring: event?.isRecurring ?? false,
+        recurrenceRule: event?.recurrenceRule ?? "",
+        enabled: event?.enabled ?? true,
+        draftScopes: [] as ScopeDraft[],
+      }),
+    );
   }, [event, open]);
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const isDirty = useMemo(
+    () =>
+      JSON.stringify({
+        title,
+        eventType,
+        defaultEffect,
+        startLocal,
+        endLocal,
+        isRecurring,
+        recurrenceRule,
+        enabled,
+        draftScopes,
+      }) !== baseline,
+    [title, eventType, defaultEffect, startLocal, endLocal, isRecurring, recurrenceRule, enabled, draftScopes, baseline],
+  );
+
+  const handleSubmit = async () => {
     setError(null);
     if (!title.trim()) { setError("Title is required."); return; }
     if (!startLocal || !endLocal) { setError("Start and end dates are required."); return; }
@@ -494,22 +512,17 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{event ? "Edit Availability Event" : "Add Availability Event"}</DialogTitle>
-          <DialogDescription>
-            Define a period that changes resource availability for this site.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={event ? "Edit Availability Event" : "Add Availability Event"}
+      description="Define a period that changes resource availability for this site."
+      onSubmit={handleSubmit}
+      isSubmitting={saving}
+      submitLabel={event ? "Update" : "Create"}
+      error={error}
+      dirty={isDirty}
+    >
           {/* Title */}
           <div className="space-y-1.5">
             <Label htmlFor="ae-title">Title</Label>
@@ -674,18 +687,6 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
               )
             )}
           </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {event ? "Update" : "Create"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+    </FormDialog>
   );
 }

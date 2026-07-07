@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
-import { CalendarIcon, Loader2, Plus, Trash2, Copy, Check, Key } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Copy, Check, Key } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
@@ -243,9 +243,9 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
             </Button>
             <Button
               type="submit"
+              loading={mutation.isPending}
               disabled={!name.trim() || (expiryMode === "custom" && !expiresAt) || mutation.isPending}
             >
-              {mutation.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
               Create token
             </Button>
           </DialogFooter>

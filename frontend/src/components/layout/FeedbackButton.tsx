@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MessageSquarePlus, Bug, Lightbulb, HelpCircle, MoreHorizontal, Loader2, CheckCircle } from 'lucide-react';
+import { MessageSquarePlus, Bug, Lightbulb, HelpCircle, MoreHorizontal, CheckCircle } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import {
   Dialog,
@@ -185,8 +185,7 @@ export function FeedbackButton() {
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button onClick={handleSubmit} loading={isSubmitting} disabled={isSubmitting}>
                 Submit
               </Button>
             </DialogFooter>

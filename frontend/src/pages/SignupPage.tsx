@@ -257,12 +257,9 @@ export function SignupPage() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" loading={isLoading} disabled={isLoading}>
             {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating Account...
-              </>
+              "Creating Account..."
             ) : (
               <>
                 <UserPlus className="mr-2 h-4 w-4" />

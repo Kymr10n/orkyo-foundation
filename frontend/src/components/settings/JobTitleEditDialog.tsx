@@ -43,14 +43,19 @@ export function JobTitleEditDialog({
   initialName,
 }: JobTitleEditDialogProps) {
   const [form, setForm] = useState<FormState>(empty);
+  // Snapshot of the form as last synced; the dirty guard compares against it.
+  const [baseline, setBaseline] = useState<FormState>(empty);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
-    if (jobTitle) setForm(fromInfo(jobTitle));
-    else setForm({ ...empty, name: initialName ?? '' });
+    const next = jobTitle ? fromInfo(jobTitle) : { ...empty, name: initialName ?? '' };
+    setForm(next);
+    setBaseline(next);
   }, [jobTitle, open, initialName]);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -96,6 +101,7 @@ export function JobTitleEditDialog({
       submitLabel="Save"
       submitDisabled={!form.name.trim()}
       error={error}
+      dirty={isDirty}
     >
       <div className="space-y-2">
         <Label htmlFor="jt-name">Name</Label>

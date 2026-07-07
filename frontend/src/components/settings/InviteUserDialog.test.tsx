@@ -56,7 +56,7 @@ describe('InviteUserDialog', () => {
     );
 
     expect(screen.getByText('Invite User')).toBeInTheDocument();
-    expect(screen.getByLabelText('Email Address')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Email Address/)).toBeInTheDocument();
     expect(screen.getByLabelText('Role')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Send Invitation/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('InviteUserDialog', () => {
       </QueryClientProvider>
     );
 
-    const emailInput = screen.getByLabelText('Email Address');
+    const emailInput = screen.getByLabelText(/Email Address/);
     fireEvent.change(emailInput, { target: { value: badEmail } });
     fireEvent.submit(emailInput.closest('form')!);
 
@@ -164,7 +164,7 @@ describe('InviteUserDialog', () => {
       </QueryClientProvider>
     );
 
-    const emailInput = screen.getByLabelText('Email Address');
+    const emailInput = screen.getByLabelText(/Email Address/);
     await user.type(emailInput, 'newuser@example.com');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
@@ -224,7 +224,7 @@ describe('InviteUserDialog', () => {
     await user.click(editorOption);
 
     // Enter email and submit
-    const emailInput = screen.getByLabelText('Email Address');
+    const emailInput = screen.getByLabelText(/Email Address/);
     await user.type(emailInput, 'editor@example.com');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
@@ -257,7 +257,7 @@ describe('InviteUserDialog', () => {
     await user.click(adminOption);
 
     // Enter email and submit
-    const emailInput = screen.getByLabelText('Email Address');
+    const emailInput = screen.getByLabelText(/Email Address/);
     await user.type(emailInput, 'admin@example.com');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
@@ -287,7 +287,7 @@ describe('InviteUserDialog', () => {
       </QueryClientProvider>
     );
 
-    const emailInput = screen.getByLabelText('Email Address');
+    const emailInput = screen.getByLabelText(/Email Address/);
     await user.type(emailInput, 'existing@example.com');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
@@ -316,7 +316,7 @@ describe('InviteUserDialog', () => {
       </QueryClientProvider>
     );
 
-    const emailInput = screen.getByLabelText('Email Address') as HTMLInputElement;
+    const emailInput = screen.getByLabelText(/Email Address/) as HTMLInputElement;
     await user.type(emailInput, 'test@example.com');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
@@ -341,7 +341,7 @@ describe('InviteUserDialog', () => {
       </QueryClientProvider>
     );
 
-    const emailInput = screen.getByLabelText('Email Address') as HTMLInputElement;
+    const emailInput = screen.getByLabelText(/Email Address/) as HTMLInputElement;
     await user.type(emailInput, 'test@example.com');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });
@@ -385,7 +385,7 @@ describe('InviteUserDialog', () => {
       </QueryClientProvider>
     );
 
-    const emailInput = screen.getByLabelText('Email Address');
+    const emailInput = screen.getByLabelText(/Email Address/);
     await user.type(emailInput, '  spaced@example.com  ');
 
     const submitButton = screen.getByRole('button', { name: /Send Invitation/i });

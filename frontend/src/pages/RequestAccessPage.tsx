@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   UserPlus,
   CheckCircle,
-  Loader2,
   AlertCircle,
 } from "lucide-react";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
@@ -184,12 +183,8 @@ export function RequestAccessPage() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <UserPlus className="mr-2 h-4 w-4" />
-            )}
+          <Button type="submit" className="w-full" loading={isLoading} disabled={isLoading}>
+            {!isLoading && <UserPlus className="mr-2 h-4 w-4" />}
             Create Account
           </Button>
         </form>

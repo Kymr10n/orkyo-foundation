@@ -133,7 +133,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
     <>
       <FloatingThemeToggle />
       <BreakGlassBanner />
-      <Suspense fallback={<LoadingSpinner message="Loading..." />}>
+      <Suspense fallback={<LoadingSpinner message="Loading…" />}>
       <Routes>
         {/* /login is intentionally kept for direct navigation recovery when a
             session expires on a tenant subdomain — the user can sign back in

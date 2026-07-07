@@ -11,6 +11,7 @@ import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { Input } from "@foundation/src/components/ui/input";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import { toast } from "sonner";
@@ -551,7 +552,7 @@ export function RequestsPage() {
             and the list view is wrapped in its own bounded ScrollArea below. */}
         <div className={`flex-1 min-h-0 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
           {isLoading && requests.length === 0 ? (
-            <LoadingSpinner fullScreen={false} message="Loading requests..." />
+            <LoadingSpinner fullScreen={false} message="Loading requests…" />
           ) : errorMessage ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">
               <div className="text-destructive mb-4">⚠️</div>
@@ -560,20 +561,28 @@ export function RequestsPage() {
               <Button onClick={() => refetchRequests()} variant="outline">Try again</Button>
             </div>
           ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center h-full p-12 text-center">
-              <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No requests found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchQuery
-                  ? "Try adjusting your search"
-                  : "Get started by creating your first request"}
-              </p>
-              {!searchQuery && (
-                <Button onClick={() => handleCreateRequest()} disabled={!canEdit}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Request
-                </Button>
-              )}
+            <div className="flex h-full flex-col items-center justify-center p-12">
+              <EmptyState
+                icon={<Calendar className="h-12 w-12 text-muted-foreground" />}
+                message={
+                  <>
+                    <h3 className="mb-2 text-lg font-medium text-foreground">No requests found</h3>
+                    <p>
+                      {searchQuery
+                        ? "Try adjusting your search"
+                        : "Get started by creating your first request"}
+                    </p>
+                  </>
+                }
+                action={
+                  !searchQuery ? (
+                    <Button onClick={() => handleCreateRequest()} disabled={!canEdit}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Request
+                    </Button>
+                  ) : undefined
+                }
+              />
             </div>
           ) : viewMode === "tree" ? (
             <RequestTreeView

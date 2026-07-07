@@ -7,6 +7,7 @@ import { getTenantAuditEvents, type TenantAuditEvent } from '@foundation/src/lib
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
+import { Badge } from '@foundation/src/components/ui/badge';
 import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 
 const PAGE_SIZE = 25;
@@ -89,9 +90,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
           return (
             <span className="flex items-center gap-2">
               <span>{meta.actorEmail || 'Orkyo Support'}</span>
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                Platform
-              </span>
+              <Badge variant="warning">Platform</Badge>
             </span>
           );
         }

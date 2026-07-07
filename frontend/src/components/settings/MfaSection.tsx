@@ -158,13 +158,10 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
                 <>
                   <Button
                     onClick={() => enableMfaMutation.mutate()}
+                    loading={enableMfaMutation.isPending}
                     disabled={enableMfaMutation.isPending}
                   >
-                    {enableMfaMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="h-4 w-4 mr-2" />
-                    )}
+                    {!enableMfaMutation.isPending && <ShieldCheck className="h-4 w-4 mr-2" />}
                     Enable MFA
                   </Button>
                   {enableMfaMutation.isError && (
@@ -207,11 +204,9 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
             <Button
               variant="destructive"
               onClick={() => removeMfaMutation.mutate()}
+              loading={removeMfaMutation.isPending}
               disabled={removeMfaMutation.isPending}
             >
-              {removeMfaMutation.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
               Remove MFA
             </Button>
           </DialogFooter>
