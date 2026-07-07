@@ -314,6 +314,9 @@ The canonical, example-backed version lives in [`UI-GUIDELINES.md`](UI-GUIDELINE
   to a raw `<div>` for styling reasons.
 - **Magic numbers:** use a named token, not a literal, for spacing/radius/size/dialog-height.
 - **Tooltips:** assume a single root `TooltipProvider`; don't mount your own.
+- **Confirmations:** always `ConfirmDialog`, never `window.confirm` or a hand-rolled `AlertDialog`.
+- **Retry buttons:** always labelled "Try again"; `OrkyoDataTable`'s `error`/`onRetry` props render
+  this for you — don't hand-roll a separate error `Alert` above the table.
 
 ---
 

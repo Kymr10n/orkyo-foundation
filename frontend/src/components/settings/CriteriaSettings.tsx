@@ -15,6 +15,7 @@ import {
 } from '@foundation/src/components/ui/tooltip';
 import { CreateCriterionDialog } from './CreateCriterionDialog';
 import { EditCriterionDialog } from './EditCriterionDialog';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
 import type { CreateCriterionRequest, ResourceTypeKey } from '@foundation/src/types/criterion';
 import type { Criterion } from '@foundation/src/types/criterion';
@@ -45,6 +46,7 @@ export function CriteriaSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [deletingCriterion, setDeletingCriterion] = useState<Criterion | null>(null);
 
   // Use React Query for criteria data
   const { data: criteria = [], isLoading, error, refetch } = useCriteria();
@@ -87,13 +89,12 @@ export function CriteriaSettings() {
     setEditingCriterion(null);
   };
 
-  const handleDelete = async (criterion: Criterion) => {
-    if (!confirm(`Delete criterion "${criterion.name}"? This action cannot be undone.`)) {
-      return;
-    }
-
+  const handleDelete = (criterion: Criterion) => setDeletingCriterion(criterion);
+  const handleConfirmDelete = async () => {
+    if (!deletingCriterion) return;
     try {
-      await deleteMutation.mutateAsync(criterion.id);
+      await deleteMutation.mutateAsync(deletingCriterion.id);
+      setDeletingCriterion(null);
     } catch {
       // toast already fired centrally via useDeleteCriterion's mutation meta
     }
@@ -291,7 +292,7 @@ export function CriteriaSettings() {
           <AlertDescription className="flex items-center justify-between gap-2">
             <span>{error instanceof Error ? error.message : 'Failed to load criteria'}</span>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
+              Try again
             </Button>
           </AlertDescription>
         </Alert>
@@ -344,6 +345,17 @@ export function CriteriaSettings() {
           onSuccess={handleUpdateSuccess}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingCriterion}
+        onOpenChange={(open) => !open && setDeletingCriterion(null)}
+        title={`Delete "${deletingCriterion?.name}"?`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

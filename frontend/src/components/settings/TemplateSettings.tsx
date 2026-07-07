@@ -14,6 +14,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { toast } from "sonner";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useState } from "react";
 import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import { EditTemplateDialog } from "./EditTemplateDialog";
@@ -33,6 +34,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
     useState<Template | null>(null);
+  const [deletingTemplate, setDeletingTemplate] = useState<Template | null>(null);
 
   // Load templates with React Query
   const {
@@ -90,13 +92,12 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     setEditingTemplate(null);
   };
 
-  const handleDelete = async (template: Template) => {
-    if (!confirm(`Delete template "${template.name}"? This action cannot be undone.`)) {
-      return;
-    }
-
+  const handleDelete = (template: Template) => setDeletingTemplate(template);
+  const handleConfirmDelete = async () => {
+    if (!deletingTemplate) return;
     try {
-      await deleteMutation.mutateAsync(template.id);
+      await deleteMutation.mutateAsync(deletingTemplate.id);
+      setDeletingTemplate(null);
     } catch {
       // error toast fired centrally via the mutation's meta (MutationCache)
     }
@@ -223,7 +224,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
           <AlertDescription className="flex items-center justify-between gap-2">
             <span>{error instanceof Error ? error.message : "Failed to load templates"}</span>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
+              Try again
             </Button>
           </AlertDescription>
         </Alert>
@@ -267,6 +268,17 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
           onSuccess={handleUpdateSuccess}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingTemplate}
+        onOpenChange={(open) => !open && setDeletingTemplate(null)}
+        title={`Delete "${deletingTemplate?.name}"?`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

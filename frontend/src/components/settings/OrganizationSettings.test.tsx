@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
@@ -229,7 +229,7 @@ describe('OrganizationSettings', () => {
 
       // Dialog should be open with confirmation content
       await waitFor(() => {
-        expect(screen.getByText('Confirm Ownership Transfer')).toBeInTheDocument();
+        expect(screen.getByText('Transfer ownership?')).toBeInTheDocument();
       });
       expect(screen.getByText(/This action cannot be undone by you/)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
@@ -325,12 +325,14 @@ describe('OrganizationSettings', () => {
       renderOrganizationSettings();
       await waitFor(() => screen.getByText('Organization Details'));
 
-      const openTransferBtn = screen.queryByRole('button', { name: /Transfer/i });
+      const openTransferBtn = screen.queryByRole('button', { name: /Transfer Ownership/i });
       if (!openTransferBtn) return;
       await user.click(openTransferBtn);
 
-      const confirmTransferBtn = await screen.findByRole('button', { name: /^Transfer$/i }).catch(() => null);
-      if (confirmTransferBtn) await user.click(confirmTransferBtn);
+      const dialog = await screen.findByRole('alertdialog').catch(() => null);
+      if (dialog) {
+        await user.click(within(dialog).getByRole('button', { name: /Transfer Ownership/i }));
+      }
       // handleTransferOwnership fires — dialog interaction confirmed
     });
   });

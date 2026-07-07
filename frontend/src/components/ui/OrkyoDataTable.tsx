@@ -10,9 +10,10 @@ import {
   type PaginationState,
   type RowData,
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
+import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Input } from '@foundation/src/components/ui/input';
 import { Button } from '@foundation/src/components/ui/button';
 import {
@@ -34,6 +35,8 @@ export interface OrkyoDataTableProps<TData> {
   data: TData[];
   isLoading?: boolean;
   error?: string | null;
+  /** Shown as a "Try again" button next to the error alert. Omit to render no retry affordance. */
+  onRetry?: () => void;
   emptyMessage?: string;
 
   // Filtering — choose one mode:
@@ -70,6 +73,7 @@ export function OrkyoDataTable<TData>({
   data,
   isLoading,
   error,
+  onRetry,
   emptyMessage = 'No results found.',
   filterColumn,
   filterPlaceholder = 'Search...',
@@ -211,7 +215,17 @@ export function OrkyoDataTable<TData>({
           <LoadingSpinner fullScreen={false} message="Loading..." />
         </div>
       ) : error ? (
-        <div className="text-center py-8 text-destructive">{error}</div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-2">
+            <span>{error}</span>
+            {onRetry && (
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                Try again
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
       ) : table.getRowModel().rows.length === 0 ? (
         <EmptyState message={emptyMessage} />
       ) : showCards ? (

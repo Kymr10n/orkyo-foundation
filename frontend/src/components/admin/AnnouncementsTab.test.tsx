@@ -350,7 +350,7 @@ describe('AnnouncementsTab', () => {
     await user.click(actionButtons[0]);
 
     // Check confirmation dialog
-    expect(screen.getByText('Delete Announcement')).toBeInTheDocument();
+    expect(screen.getByText('Delete "Scheduled Maintenance"?')).toBeInTheDocument();
     expect(screen.getAllByText(/scheduled maintenance/i).length).toBeGreaterThanOrEqual(2);
   });
 

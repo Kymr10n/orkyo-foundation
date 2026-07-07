@@ -37,6 +37,21 @@ describe('OrkyoDataTable', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('does not render a retry button when onRetry is omitted', () => {
+    render(<OrkyoDataTable columns={columns} data={[]} error="Something went wrong" />);
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+
+  it('shows a "Try again" button wired to onRetry when provided', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    render(<OrkyoDataTable columns={columns} data={[]} error="Something went wrong" onRetry={onRetry} />);
+    const retryButton = screen.getByRole('button', { name: 'Try again' });
+    expect(retryButton).toBeInTheDocument();
+    await user.click(retryButton);
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
   it('error takes precedence over loading', () => {
     render(<OrkyoDataTable columns={columns} data={[]} isLoading error="Oops" />);
     // isLoading shows first in our implementation

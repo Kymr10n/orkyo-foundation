@@ -24,7 +24,7 @@ export function PersonList() {
   const [deletingPerson, setDeletingPerson] = useState<ResourceInfo | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { data: people, isLoading, error } = useQuery({
+  const { data: people, isLoading, error, refetch } = useQuery({
     queryKey: qk.resources.byType(RESOURCE_TYPE_KEY.PERSON),
     queryFn: () => getResources({ resourceTypeKey: 'person' }),
   });
@@ -169,6 +169,7 @@ export function PersonList() {
         data={personRows}
         isLoading={isLoading}
         error={queryErrorMsg}
+        onRetry={() => refetch()}
         emptyMessage="No people found. Add your first person to get started."
         filterColumn="name"
         filterPlaceholder="Search people..."

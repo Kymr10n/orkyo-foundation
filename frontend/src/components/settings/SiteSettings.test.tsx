@@ -222,7 +222,7 @@ describe('SiteSettings', () => {
     );
 
     expect(screen.getByText(/API Error|Failed to load sites/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Try again/i })).toBeInTheDocument();
   });
 
   it('shows edit button for each site', async () => {
@@ -346,7 +346,7 @@ describe('SiteSettings', () => {
     });
   });
 
-  it('clicking Retry calls refetch', async () => {
+  it('clicking Try again calls refetch', async () => {
     const mockRefetch = vi.fn();
     vi.mocked(useSites).mockReturnValue({
       data: [],
@@ -362,7 +362,7 @@ describe('SiteSettings', () => {
       </QueryClientProvider>
     );
 
-    await user.click(screen.getByRole('button', { name: /Retry/i }));
+    await user.click(screen.getByRole('button', { name: /Try again/i }));
     expect(mockRefetch).toHaveBeenCalledOnce();
   });
 

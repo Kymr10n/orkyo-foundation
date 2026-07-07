@@ -65,7 +65,6 @@ describe('DepartmentSettings', () => {
     vi.clearAllMocks();
     vi.mocked(getDepartmentTree).mockResolvedValue(mockTree);
     vi.mocked(deleteDepartment).mockResolvedValue(undefined as any);
-    global.confirm = vi.fn(() => true);
     global.alert = vi.fn();
   });
 
@@ -193,13 +192,15 @@ describe('DepartmentSettings', () => {
     const buttonsInRow = Array.from(row.querySelectorAll('button'));
     await user.click(buttonsInRow[3]); // delete
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalledWith(expect.stringContaining('Engineering'));
+      expect(screen.getByText('Delete "Engineering"?')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => {
       expect(deleteDepartment).toHaveBeenCalledWith('d1');
     });
   });
 
   it('does not delete when confirmation is declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
     renderComponent();
     await waitFor(() => screen.getByText('Engineering'));
@@ -207,6 +208,7 @@ describe('DepartmentSettings', () => {
     const row = engText.closest('div[class*="flex items-center"]')!;
     const buttonsInRow = Array.from(row.querySelectorAll('button'));
     await user.click(buttonsInRow[3]);
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(deleteDepartment).not.toHaveBeenCalled();
   });
 

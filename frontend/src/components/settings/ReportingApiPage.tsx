@@ -16,16 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@foundation/src/components/ui/alert-dialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { StatusBadge } from "@foundation/src/components/ui/status-badge";
@@ -317,28 +308,16 @@ function RevokeDialog({ token, onOpenChange }: RevokeDialogProps) {
   });
 
   return (
-    <AlertDialog open={!!token} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Revoke token?</AlertDialogTitle>
-          <AlertDialogDescription>
-            <strong>{token?.name}</strong> will stop working immediately. Any integration using it
-            will lose access.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => token && mutation.mutate(token.id)}
-            disabled={mutation.isPending}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {mutation.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
-            Revoke
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={!!token}
+      onOpenChange={onOpenChange}
+      title={`Revoke "${token?.name}"?`}
+      description="It will stop working immediately. Any integration using it will lose access."
+      confirmLabel="Revoke"
+      destructive
+      isPending={mutation.isPending}
+      onConfirm={() => { if (token) mutation.mutate(token.id); }}
+    />
   );
 }
 

@@ -13,17 +13,7 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@foundation/src/components/ui/alert-dialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import {
   Clock,
   Globe,
@@ -162,6 +152,8 @@ export function SchedulingSettings() {
   const [form, setForm] = useState(DEFAULT_SETTINGS);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<AvailabilityEventInfo | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState<AvailabilityEventInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
@@ -231,6 +223,7 @@ export function SchedulingSettings() {
 
   const handleReset = async () => {
     if (!selectedSiteId) return;
+    setResetConfirmOpen(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     try {
       await deleteMutation.mutateAsync();
@@ -252,8 +245,11 @@ export function SchedulingSettings() {
     setEventDialogOpen(true);
   };
 
-  const handleDeleteEvent = async (id: string) => {
-    await deleteEventMutation.mutateAsync(id);
+  const handleDeleteEvent = (ev: AvailabilityEventInfo) => setDeletingEvent(ev);
+  const handleConfirmDeleteEvent = async () => {
+    if (!deletingEvent) return;
+    await deleteEventMutation.mutateAsync(deletingEvent.id);
+    setDeletingEvent(null);
   };
 
   const handleSaveEvent = async (
@@ -302,26 +298,25 @@ export function SchedulingSettings() {
             <><Check className="h-3.5 w-3.5 text-green-500" /> Saved</>
           )}
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm" disabled={!settings}>
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Reset to Defaults
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reset scheduling settings?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will remove all custom scheduling settings for this site.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!settings}
+          onClick={() => setResetConfirmOpen(true)}
+        >
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Reset to Defaults
+        </Button>
+
+        <ConfirmDialog
+          open={resetConfirmOpen}
+          onOpenChange={setResetConfirmOpen}
+          title="Reset scheduling settings?"
+          description="This will remove all custom scheduling settings for this site."
+          confirmLabel="Reset"
+          isPending={deleteMutation.isPending}
+          onConfirm={handleReset}
+        />
       </SettingsPageHeader>
 
       {error && (
@@ -534,27 +529,13 @@ export function SchedulingSettings() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete availability event</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Delete "{ev.title}"? This cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteEvent(ev.id)}>
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteEvent(ev)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -570,6 +551,17 @@ export function SchedulingSettings() {
         siteId={selectedSiteId ?? ""}
         event={editingEvent}
         onSave={handleSaveEvent}
+      />
+
+      <ConfirmDialog
+        open={!!deletingEvent}
+        onOpenChange={(open) => !open && setDeletingEvent(null)}
+        title={`Delete "${deletingEvent?.title}"?`}
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteEventMutation.isPending}
+        onConfirm={handleConfirmDeleteEvent}
       />
     </div>
   );

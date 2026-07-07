@@ -55,7 +55,6 @@ describe('JobTitleSettings', () => {
     vi.clearAllMocks();
     vi.mocked(getJobTitles).mockResolvedValue(mockJobTitles);
     vi.mocked(deleteJobTitle).mockResolvedValue(undefined as any);
-    global.confirm = vi.fn(() => true);
   });
 
   it('shows loading state initially', () => {
@@ -145,18 +144,21 @@ describe('JobTitleSettings', () => {
     const deleteButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
     await user.click(deleteButtons[1]); // second icon button = delete for first card
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalledWith(expect.stringContaining('Senior Engineer'));
+      expect(screen.getByText('Delete "Senior Engineer"?')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => {
       expect(deleteJobTitle).toHaveBeenCalledWith('jt-1');
     });
   });
 
   it('does not delete when confirmation is declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
     renderComponent();
     await waitFor(() => screen.getByText('Senior Engineer'));
     const deleteButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
     await user.click(deleteButtons[1]);
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(deleteJobTitle).not.toHaveBeenCalled();
   });
 

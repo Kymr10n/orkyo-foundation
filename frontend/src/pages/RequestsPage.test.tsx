@@ -307,7 +307,7 @@ describe('RequestsPage', () => {
       expect(screen.getByText('Error loading requests')).toBeInTheDocument();
     });
     expect(screen.getByText('Network failure')).toBeInTheDocument();
-    expect(screen.getByText('Try Again')).toBeInTheDocument();
+    expect(screen.getByText('Try again')).toBeInTheDocument();
     consoleSpy.mockRestore();
   });
 
@@ -319,9 +319,9 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => {
-      expect(screen.getByText('Try Again')).toBeInTheDocument();
+      expect(screen.getByText('Try again')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Try Again'));
+    fireEvent.click(screen.getByText('Try again'));
     await waitFor(() => {
       expect(mockGetRequests).toHaveBeenCalledTimes(2);
     });

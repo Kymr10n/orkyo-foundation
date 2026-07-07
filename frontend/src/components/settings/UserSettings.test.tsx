@@ -86,8 +86,7 @@ describe('UserSettings', () => {
       role: 'editor',
     });
 
-    // Mock window.confirm and window.alert
-    global.confirm = vi.fn(() => true);
+    // Mock window.alert (window.confirm is no longer used — ConfirmDialog replaced it)
     global.alert = vi.fn();
   });
 
@@ -193,8 +192,9 @@ describe('UserSettings', () => {
 
     await user.click(cancelButtons[0]);
 
+    await user.click(await screen.findByRole('button', { name: 'Cancel Invitation' }));
+
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled();
       expect(userApi.cancelInvitation).toHaveBeenCalled();
       const [[invitationId]] = vi.mocked(userApi.cancelInvitation).mock.calls;
       expect(invitationId).toBe('inv-1');
@@ -245,8 +245,9 @@ describe('UserSettings', () => {
 
     await user.click(removeButtons[0]);
 
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled();
       expect(userApi.deleteUser).toHaveBeenCalled();
       const [[userId]] = vi.mocked(userApi.deleteUser).mock.calls;
       expect(userId).toBe('1');
@@ -254,7 +255,6 @@ describe('UserSettings', () => {
   });
 
   it('does not delete user if confirmation declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
 
     render(
@@ -270,9 +270,8 @@ describe('UserSettings', () => {
     const removeButtons = screen.getAllByRole('button', { name: /^Remove /i });
     await user.click(removeButtons[0]);
 
-    await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalled();
-    });
+    const dialogCancelButton = await screen.findByRole('button', { name: 'Cancel' });
+    await user.click(dialogCancelButton);
 
     expect(userApi.deleteUser).not.toHaveBeenCalled();
   });
@@ -304,7 +303,7 @@ describe('UserSettings', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/API Error|Failed to load users/)).toBeInTheDocument();
-      expect(screen.getByText('Retry')).toBeInTheDocument();
+      expect(screen.getByText('Try again')).toBeInTheDocument();
     });
   });
 
@@ -403,12 +402,11 @@ describe('UserSettings', () => {
   });
 
   it('does not cancel an invitation when confirmation is declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
-    expect(global.confirm).toHaveBeenCalled();
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(userApi.cancelInvitation).not.toHaveBeenCalled();
   });
 
@@ -418,6 +416,7 @@ describe('UserSettings', () => {
     render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
+    await user.click(await screen.findByRole('button', { name: 'Cancel Invitation' }));
     await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to cancel invitation'));
   });
 
@@ -436,6 +435,7 @@ describe('UserSettings', () => {
     render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
     await waitFor(() => screen.getByText('Admin User'));
     await user.click(screen.getAllByRole('button', { name: /^Remove /i })[0]);
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to remove user'));
   });
 

@@ -25,16 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@foundation/src/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@foundation/src/components/ui/alert-dialog';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { Plus, Pencil, Trash2, Megaphone, AlertTriangle } from 'lucide-react';
 import {
   type Announcement,
@@ -66,6 +57,7 @@ export function AnnouncementsTab() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [deletingAnnouncement, setDeletingAnnouncement] = useState<Announcement | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadAnnouncements = useCallback(async () => {
     try {
@@ -85,6 +77,7 @@ export function AnnouncementsTab() {
 
   const handleDelete = async () => {
     if (!deletingAnnouncement) return;
+    setDeleting(true);
     try {
       await deleteAnnouncement(deletingAnnouncement.id);
       setDeletingAnnouncement(null);
@@ -92,6 +85,8 @@ export function AnnouncementsTab() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete announcement');
       setDeletingAnnouncement(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -249,25 +244,16 @@ export function AnnouncementsTab() {
       />
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deletingAnnouncement} onOpenChange={(o) => !o && setDeletingAnnouncement(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Announcement</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{deletingAnnouncement?.title}&rdquo;? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deletingAnnouncement}
+        onOpenChange={(open) => !open && setDeletingAnnouncement(null)}
+        title={`Delete "${deletingAnnouncement?.title}"?`}
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleting}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

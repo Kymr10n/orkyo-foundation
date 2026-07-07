@@ -557,7 +557,7 @@ export function RequestsPage() {
               <div className="text-destructive mb-4">⚠️</div>
               <h3 className="text-lg font-medium mb-2">Error loading requests</h3>
               <p className="text-muted-foreground mb-4">{errorMessage}</p>
-              <Button onClick={() => refetchRequests()} variant="outline">Try Again</Button>
+              <Button onClick={() => refetchRequests()} variant="outline">Try again</Button>
             </div>
           ) : isEmpty ? (
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">

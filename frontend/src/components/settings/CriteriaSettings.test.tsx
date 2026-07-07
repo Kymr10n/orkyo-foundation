@@ -71,7 +71,6 @@ describe('CriteriaSettings', () => {
     vi.clearAllMocks();
     mockCriteriaData = { data: mockCriteria, isLoading: false, error: null };
     mockCriteriaData.refetch = mockRefetch;
-    global.confirm = vi.fn(() => true);
     global.alert = vi.fn();
   });
 
@@ -112,7 +111,7 @@ describe('CriteriaSettings', () => {
     mockCriteriaData.refetch = mockRefetch;
     render(<CriteriaSettings />);
     expect(screen.getByText('Network error')).toBeInTheDocument();
-    expect(screen.getByText('Retry')).toBeInTheDocument();
+    expect(screen.getByText('Try again')).toBeInTheDocument();
   });
 
   it('shows unit for Number criteria', () => {
@@ -138,17 +137,20 @@ describe('CriteriaSettings', () => {
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalledWith(expect.stringContaining('Capacity'));
+      expect(screen.getByText('Delete "Capacity"?')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => {
       expect(mockDeleteMutateAsync).toHaveBeenCalledWith('c1');
     });
   });
 
   it('does not delete when confirmation is declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
     render(<CriteriaSettings />);
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
   });
 
@@ -158,6 +160,7 @@ describe('CriteriaSettings', () => {
     render(<CriteriaSettings />);
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
+    await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
       expect(mockDeleteMutateAsync).toHaveBeenCalled();
     });
@@ -207,11 +210,11 @@ describe('CriteriaSettings', () => {
     await waitFor(() => expect(screen.queryByTestId('edit-success-btn')).not.toBeInTheDocument());
   });
 
-  it('Retry button in error state calls refetch', async () => {
+  it('Try again button in error state calls refetch', async () => {
     mockCriteriaData = { data: [], isLoading: false, error: new Error('Failed'), refetch: mockRefetch };
     const user = userEvent.setup();
     render(<CriteriaSettings />);
-    await user.click(screen.getByRole('button', { name: /Retry/i }));
+    await user.click(screen.getByRole('button', { name: /Try again/i }));
     expect(mockRefetch).toHaveBeenCalled();
   });
 

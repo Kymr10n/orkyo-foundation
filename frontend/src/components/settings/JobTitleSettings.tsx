@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { JobTitleEditDialog } from './JobTitleEditDialog';
 import {
@@ -17,8 +18,9 @@ export function JobTitleSettings() {
   const [editing, setEditing] = useState<JobTitleInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [deletingJobTitle, setDeletingJobTitle] = useState<JobTitleInfo | null>(null);
 
-  const { data: jobTitles = [], isLoading, error } = useQuery({
+  const { data: jobTitles = [], isLoading, error, refetch } = useQuery({
     queryKey: qk.jobTitles.list(includeInactive),
     queryFn: () => getJobTitles(includeInactive),
   });
@@ -30,11 +32,12 @@ export function JobTitleSettings() {
       errorMessage: 'Failed to delete job title',
       invalidates: [qk.jobTitles.all()],
     },
+    onSuccess: () => setDeletingJobTitle(null),
   });
 
-  const handleDelete = (jt: JobTitleInfo) => {
-    if (!confirm(`Delete job title "${jt.name}"? People assigned to this title will be unlinked.`)) return;
-    deleteMutation.mutate(jt.id);
+  const handleDelete = (jt: JobTitleInfo) => setDeletingJobTitle(jt);
+  const handleConfirmDelete = () => {
+    if (deletingJobTitle) deleteMutation.mutate(deletingJobTitle.id);
   };
 
   const renderActions = (jt: JobTitleInfo) => (
@@ -127,6 +130,7 @@ export function JobTitleSettings() {
         data={jobTitles}
         isLoading={isLoading}
         error={errorMsg}
+        onRetry={() => refetch()}
         emptyMessage="No job titles defined yet."
         filterColumn="name"
         filterPlaceholder="Search job titles..."
@@ -145,6 +149,17 @@ export function JobTitleSettings() {
           onOpenChange={(open) => !open && setEditing(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingJobTitle}
+        onOpenChange={(open) => !open && setDeletingJobTitle(null)}
+        title={`Delete "${deletingJobTitle?.name}"?`}
+        description="People assigned to this job title will be unlinked."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

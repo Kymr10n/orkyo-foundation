@@ -141,6 +141,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
           data={events}
           isLoading={loading}
           error={error}
+          onRetry={() => void load()}
           emptyMessage="No audit events yet."
           filterValue={actionFilter}
           onFilterChange={(v) => { setPage(0); setActionFilter(v); }}

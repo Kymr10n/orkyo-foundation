@@ -22,17 +22,7 @@ import {
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@foundation/src/components/ui/alert-dialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import {
   Select,
   SelectContent,
@@ -72,7 +62,8 @@ export function OrganizationSettings() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
+  const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
   const [includePlanningData, setIncludePlanningData] = useState(false);
@@ -141,6 +132,7 @@ export function OrganizationSettings() {
   const handleTransferOwnership = async () => {
     if (!tenantId || !selectedNewOwner) return;
 
+    setTransferConfirmOpen(false);
     setTransferring(true);
     setError(null);
 
@@ -199,6 +191,7 @@ export function OrganizationSettings() {
         err instanceof Error ? err.message : "Failed to delete organization.",
       );
       setDeleting(false);
+      setDeleteOrgOpen(false);
     }
   };
 
@@ -392,46 +385,38 @@ export function OrganizationSettings() {
                 </Select>
               </div>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    disabled={!selectedNewOwner || transferring}
-                  >
-                    {transferring && (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    )}
-                    Transfer Ownership
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Confirm Ownership Transfer
-                    </AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                      <div>
-                        Are you sure you want to transfer ownership? You will no
-                        longer be able to:
-                        <ul className="list-disc ml-6 mt-2">
-                          <li>Delete the organization</li>
-                          <li>Transfer ownership again</li>
-                          <li>Change organization settings</li>
-                        </ul>
-                        <p className="mt-2">
-                          This action cannot be undone by you.
-                        </p>
-                      </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleTransferOwnership}>
-                      Transfer Ownership
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="outline"
+                disabled={!selectedNewOwner || transferring}
+                onClick={() => setTransferConfirmOpen(true)}
+              >
+                {transferring && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                )}
+                Transfer Ownership
+              </Button>
+
+              <ConfirmDialog
+                open={transferConfirmOpen}
+                onOpenChange={setTransferConfirmOpen}
+                title="Transfer ownership?"
+                description={
+                  <div>
+                    Are you sure you want to transfer ownership? You will no
+                    longer be able to:
+                    <ul className="list-disc ml-6 mt-2">
+                      <li>Delete the organization</li>
+                      <li>Transfer ownership again</li>
+                      <li>Change organization settings</li>
+                    </ul>
+                    <p className="mt-2">
+                      This action cannot be undone by you.
+                    </p>
+                  </div>
+                }
+                confirmLabel="Transfer Ownership"
+                onConfirm={handleTransferOwnership}
+              />
             </>
           )}
         </CardContent>
@@ -461,46 +446,31 @@ export function OrganizationSettings() {
             </AlertDescription>
           </Alert>
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={deleting}>
-                {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Delete Organization
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Organization</AlertDialogTitle>
-                <AlertDialogDescription asChild>
-                  <div>
-                    This will permanently delete{" "}
-                    <strong>{membership?.displayName}</strong> and all its data.
-                    <p className="mt-4">
-                      Type <strong>{tenantSlug}</strong> to confirm:
-                    </p>
-                    <Input
-                      value={deleteConfirmText}
-                      onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      placeholder={tenantSlug}
-                      className="mt-2"
-                    />
-                  </div>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDeleteOrganization}
-                  disabled={deleteConfirmText !== tenantSlug}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Delete Organization
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="destructive"
+            disabled={deleting}
+            onClick={() => setDeleteOrgOpen(true)}
+          >
+            {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Delete Organization
+          </Button>
+
+          <ConfirmDialog
+            open={deleteOrgOpen}
+            onOpenChange={setDeleteOrgOpen}
+            title="Delete Organization"
+            description={
+              <>
+                This will permanently delete{" "}
+                <strong>{membership?.displayName}</strong> and all its data.
+              </>
+            }
+            confirmLabel="Delete Organization"
+            destructive
+            isPending={deleting}
+            confirmPhrase={tenantSlug}
+            onConfirm={handleDeleteOrganization}
+          />
         </CardContent>
       </Card>
     </div>

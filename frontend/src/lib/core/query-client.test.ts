@@ -77,4 +77,16 @@ describe('createFeedbackMutationCache', () => {
     await runMutation(client, () => Promise.reject(new Error('Boom')));
     expect(toastError).not.toHaveBeenCalled();
   });
+
+  // Regression: a mutation that declares meta.errorMessage must get exactly one error
+  // toast from this central cache — a caller that ALSO hand-rolls its own toast.error on
+  // failure would double it. Guard both halves of that contract in one assertion.
+  it('fires exactly one error toast for a failed mutation with meta.errorMessage', async () => {
+    const client = makeClient();
+    await runMutation(client, () => Promise.reject(new Error('Boom')), {
+      errorMessage: 'Failed to save',
+    });
+    expect(toastError).toHaveBeenCalledTimes(1);
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
 });

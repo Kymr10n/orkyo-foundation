@@ -198,6 +198,78 @@ mechanism — are not at risk and need no `!`.)
 
 ---
 
+## 9. Confirmations — always `ConfirmDialog`, never `window.confirm`
+
+**Rule:** every destructive or hard-to-undo action confirms through
+**`ui/ConfirmDialog.tsx`** — never the native `window.confirm`, and never a hand-rolled
+`AlertDialog` composite. `window.confirm` blocks the JS thread, can't be styled, and isn't
+consistent with the rest of the app; a hand-rolled `AlertDialog` just re-derives what
+`ConfirmDialog` already gives you (proper `alertdialog` role, destructive styling, an optional
+type-to-confirm gate, a pending/spinner state).
+
+`ConfirmDialog` is controlled — track the row/entity being confirmed in state, not a boolean:
+
+```tsx
+const [deletingThing, setDeletingThing] = useState<Thing | null>(null);
+
+const handleDelete = (thing: Thing) => setDeletingThing(thing);
+const handleConfirmDelete = () => {
+  if (deletingThing) deleteMutation.mutate(deletingThing.id);
+};
+
+<ConfirmDialog
+  open={!!deletingThing}
+  onOpenChange={(open) => !open && setDeletingThing(null)}
+  title={`Delete "${deletingThing?.name}"?`}
+  description="People assigned to this will be unlinked."
+  confirmLabel="Delete"
+  destructive
+  isPending={deleteMutation.isPending}
+  onConfirm={handleConfirmDelete}
+/>
+```
+
+Copy convention: **title** is `Delete "<name>"?` (or the action-appropriate verb —
+`Cancel invitation for "<email>"?`, `Revoke "<name>"?`); **description** is one sentence stating
+the specific consequence, not a generic "this cannot be undone" filler unless that really is the
+only consequence; **confirm label** matches the verb (`Delete`, `Remove`, `Revoke`), styled
+`destructive` for anything irreversible; **cancel** stays the default `"Cancel"`. Use
+`confirmPhrase` (type-to-confirm) only where the blast radius genuinely warrants the extra
+friction (e.g. deleting an entire organization) — see `OrganizationSettings.tsx`.
+
+```tsx
+// ❌ Don't — blocks the thread, unstyled, and a second flow to keep in sync.
+if (!confirm(`Delete "${thing.name}"?`)) return;
+deleteMutation.mutate(thing.id);
+
+// ❌ Don't — re-derives what ConfirmDialog already provides.
+<AlertDialog>
+  <AlertDialogTrigger asChild><Button>Delete</Button></AlertDialogTrigger>
+  <AlertDialogContent>…</AlertDialogContent>
+</AlertDialog>
+```
+
+## 10. Retry buttons — always labelled "Try again"
+
+Every retry affordance (a failed query, a failed table load, a failed page) uses the exact label
+**"Try again"** — not "Retry", not "Try Again". `OrkyoDataTable`'s built-in error state
+(`error` + `onRetry` props) renders this for you as a destructive `Alert` with a trailing
+"Try again" button; pass your query's `refetch` as `onRetry` rather than rendering a separate
+error `Alert` above the table.
+
+```tsx
+// ✅ Let OrkyoDataTable own the error + retry affordance.
+<OrkyoDataTable
+  columns={columns}
+  data={rows}
+  isLoading={isLoading}
+  error={errorMsg}
+  onRetry={() => refetch()}
+/>
+```
+
+---
+
 ## Public-API note (this is a shared package)
 
 `@kymr10n/foundation` is consumed by `orkyo-saas` and `orkyo-community`. Per the repo `CLAUDE.md`,

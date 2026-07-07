@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
+import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
 import {
@@ -25,6 +26,7 @@ export function DepartmentSettings() {
   // ^ undefined = dialog closed; null = create root; string = create child
   const [includeInactive, setIncludeInactive] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [deletingDepartment, setDeletingDepartment] = useState<DepartmentTreeNode | null>(null);
 
   const { data: tree = [], isLoading, error } = useQuery({
     queryKey: qk.departments.tree(includeInactive),
@@ -38,6 +40,7 @@ export function DepartmentSettings() {
       errorMessage: 'Failed to delete department',
       invalidates: [qk.departments.all()],
     },
+    onSuccess: () => setDeletingDepartment(null),
   });
 
   const handleDelete = (d: DepartmentTreeNode) => {
@@ -47,8 +50,10 @@ export function DepartmentSettings() {
       });
       return;
     }
-    if (!confirm(`Delete department "${d.name}"? People assigned to this department will be unlinked.`)) return;
-    deleteMutation.mutate(d.id);
+    setDeletingDepartment(d);
+  };
+  const handleConfirmDelete = () => {
+    if (deletingDepartment) deleteMutation.mutate(deletingDepartment.id);
   };
 
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -176,6 +181,17 @@ export function DepartmentSettings() {
           onOpenChange={(open) => !open && setEditing(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingDepartment}
+        onOpenChange={(open) => !open && setDeletingDepartment(null)}
+        title={`Delete "${deletingDepartment?.name}"?`}
+        description="People assigned to this department will be unlinked."
+        confirmLabel="Delete"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

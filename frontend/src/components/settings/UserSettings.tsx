@@ -29,6 +29,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { InviteUserDialog } from "./InviteUserDialog";
 import { EditUserRoleDialog } from "./EditUserRoleDialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
@@ -38,6 +39,8 @@ export function UserSettings() {
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [cancelingInvitation, setCancelingInvitation] = useState<Invitation | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserWithRole | null>(null);
 
   // Load users
   const {
@@ -116,17 +119,12 @@ export function UserSettings() {
     }
   });
 
-  const handleCancelInvitation = async (invitation: Invitation) => {
-    if (
-      !confirm(
-        `Cancel invitation for ${invitation.email}? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
+  const handleCancelInvitation = (invitation: Invitation) => setCancelingInvitation(invitation);
+  const handleConfirmCancelInvitation = async () => {
+    if (!cancelingInvitation) return;
     try {
-      await cancelMutation.mutateAsync(invitation.id);
+      await cancelMutation.mutateAsync(cancelingInvitation.id);
+      setCancelingInvitation(null);
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "Failed to cancel invitation"
@@ -142,17 +140,12 @@ export function UserSettings() {
     }
   };
 
-  const handleDeleteUser = async (user: UserWithRole) => {
-    if (
-      !confirm(
-        `Remove ${user.displayName} (${user.email})? This will set their role to inactive.`
-      )
-    ) {
-      return;
-    }
-
+  const handleDeleteUser = (user: UserWithRole) => setDeletingUser(user);
+  const handleConfirmDeleteUser = async () => {
+    if (!deletingUser) return;
     try {
-      await deleteMutation.mutateAsync(user.id);
+      await deleteMutation.mutateAsync(deletingUser.id);
+      setDeletingUser(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to remove user");
     }
@@ -417,7 +410,7 @@ export function UserSettings() {
                 refetchInvitations();
               }}
             >
-              Retry
+              Try again
             </Button>
           </AlertDescription>
         </Alert>
@@ -482,6 +475,28 @@ export function UserSettings() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!cancelingInvitation}
+        onOpenChange={(open) => !open && setCancelingInvitation(null)}
+        title={`Cancel invitation for "${cancelingInvitation?.email}"?`}
+        description="This action cannot be undone."
+        confirmLabel="Cancel Invitation"
+        destructive
+        isPending={cancelMutation.isPending}
+        onConfirm={handleConfirmCancelInvitation}
+      />
+
+      <ConfirmDialog
+        open={!!deletingUser}
+        onOpenChange={(open) => !open && setDeletingUser(null)}
+        title={`Remove "${deletingUser?.displayName}"?`}
+        description="This will set their role to inactive."
+        confirmLabel="Remove"
+        destructive
+        isPending={deleteMutation.isPending}
+        onConfirm={handleConfirmDeleteUser}
+      />
     </div>
   );
 }

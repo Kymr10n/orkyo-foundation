@@ -50,7 +50,6 @@ describe('TemplateSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetTemplates.mockResolvedValue([]);
-    global.confirm = vi.fn(() => true);
     global.alert = vi.fn();
   });
 
@@ -92,18 +91,18 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeInTheDocument();
     });
-    expect(screen.getByText('Retry')).toBeInTheDocument();
+    expect(screen.getByText('Try again')).toBeInTheDocument();
   });
 
-  it('retries loading on Retry click', async () => {
+  it('retries loading on Try again click', async () => {
     const user = userEvent.setup();
     mockGetTemplates.mockRejectedValueOnce(new Error('Network error'));
     renderTemplateSettings();
     await waitFor(() => {
-      expect(screen.getByText('Retry')).toBeInTheDocument();
+      expect(screen.getByText('Try again')).toBeInTheDocument();
     });
     mockGetTemplates.mockResolvedValueOnce(mockTemplates);
-    await user.click(screen.getByText('Retry'));
+    await user.click(screen.getByText('Try again'));
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
@@ -120,13 +119,15 @@ describe('TemplateSettings', () => {
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await waitFor(() => {
-      expect(global.confirm).toHaveBeenCalledWith(expect.stringContaining('Weekly Meeting'));
+      expect(screen.getByText('Delete "Weekly Meeting"?')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => {
       expect(mockDeleteTemplate).toHaveBeenCalledWith('t1', expect.any(Object));
     });
   });
 
   it('does not delete when confirmation is declined', async () => {
-    global.confirm = vi.fn(() => false);
     const user = userEvent.setup();
     mockGetTemplates.mockResolvedValue(mockTemplates);
     renderTemplateSettings();
@@ -135,6 +136,7 @@ describe('TemplateSettings', () => {
     });
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockDeleteTemplate).not.toHaveBeenCalled();
   });
 
@@ -148,6 +150,7 @@ describe('TemplateSettings', () => {
     });
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
+    await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));
     });

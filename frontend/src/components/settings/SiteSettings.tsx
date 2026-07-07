@@ -191,7 +191,7 @@ export function SiteSettings() {
           <AlertDescription className="flex items-center justify-between gap-2">
             <span>{error instanceof Error ? error.message : "Failed to load sites"}</span>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
+              Try again
             </Button>
           </AlertDescription>
         </Alert>
