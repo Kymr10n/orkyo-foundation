@@ -6,6 +6,7 @@ import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
 import { ROUTE_TENANT_ADMIN } from '@foundation/src/constants/auth';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
+import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
 
 // Map legacy ?tab= values and pre-split /settings/<tab> bookmarks to the new
@@ -22,6 +23,7 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
 };
 
 export function TenantAdminPage() {
+  usePageTitle('Administration');
   const { membership } = useAuth();
   const tier = membership?.tier ?? 'free';
   const { data: sites = [] } = useSites();

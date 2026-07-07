@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -136,6 +137,7 @@ export interface AccountPageExtraTab {
 }
 
 export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
+  usePageTitle("Account");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -317,7 +319,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       await loadMemberships();
     } catch (err) {
       logger.error("Leave tenant error:", err);
-      setError(err instanceof Error ? err.message : "Failed to leave tenant");
+      setError(err instanceof Error ? err.message : "Failed to leave organization");
     } finally {
       setActionLoading(null);
       setLeaveDialogOpen(false);
@@ -344,7 +346,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       await loadMemberships();
     } catch (err) {
       logger.error("Delete tenant error:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete tenant");
+      setError(err instanceof Error ? err.message : "Failed to delete organization");
     } finally {
       setActionLoading(null);
       setDeleteDialogOpen(false);

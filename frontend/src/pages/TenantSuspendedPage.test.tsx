@@ -37,14 +37,14 @@ describe('TenantSuspendedPage', () => {
     configMock.supportEmail = 'support@example.test';
   });
 
-  it('renders workspace suspended heading', () => {
+  it('renders organization suspended heading', () => {
     mockAuthState.membership = {
       state: 'suspended',
       suspensionReason: 'inactivity',
       canReactivate: true,
     };
     render(<TenantSuspendedPage />);
-    expect(screen.getByText('Workspace suspended')).toBeInTheDocument();
+    expect(screen.getByText('Organization suspended')).toBeInTheDocument();
   });
 
   it('shows inactivity message when reason is inactivity', () => {
@@ -74,7 +74,7 @@ describe('TenantSuspendedPage', () => {
       canReactivate: true,
     };
     render(<TenantSuspendedPage />);
-    expect(screen.getByRole('button', { name: /reactivate workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reactivate organization/i })).toBeInTheDocument();
   });
 
   it('does not show reactivate button when canReactivate is false', () => {
@@ -84,7 +84,7 @@ describe('TenantSuspendedPage', () => {
       canReactivate: false,
     };
     render(<TenantSuspendedPage />);
-    expect(screen.queryByRole('button', { name: /reactivate workspace/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /reactivate organization/i })).not.toBeInTheDocument();
   });
 
   it('shows contact support with the env-derived mailto when canReactivate is false', () => {
@@ -143,7 +143,7 @@ describe('TenantSuspendedPage', () => {
     );
 
     render(<TenantSuspendedPage />);
-    fireEvent.click(screen.getByRole('button', { name: /reactivate workspace/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reactivate organization/i }));
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -178,7 +178,7 @@ describe('TenantSuspendedPage', () => {
     );
 
     render(<TenantSuspendedPage />);
-    fireEvent.click(screen.getByRole('button', { name: /reactivate workspace/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reactivate organization/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Not allowed')).toBeInTheDocument();
@@ -199,7 +199,7 @@ describe('TenantSuspendedPage', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'));
 
     render(<TenantSuspendedPage />);
-    fireEvent.click(screen.getByRole('button', { name: /reactivate workspace/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reactivate organization/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Network error/)).toBeInTheDocument();

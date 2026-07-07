@@ -5,8 +5,10 @@ import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_EVENTS, SUSPENSION_REASON } from '@foundation/src/constants/auth';
 import { API_BASE_URL, getApiHeaders } from '@foundation/src/lib/core/api-utils';
 import { runtimeConfig } from '@foundation/src/config/runtime';
+import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 
 export function TenantSuspendedPage() {
+  usePageTitle('Organization suspended');
   const { membership, send } = useAuth();
   const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,11 +49,11 @@ export function TenantSuspendedPage() {
         <PauseCircle className="h-14 w-14 text-amber-500" />
 
         <div className="space-y-2">
-          <h1 className="text-xl font-semibold">Workspace suspended</h1>
+          <h1 className="text-xl font-semibold">Organization suspended</h1>
           <p className="text-muted-foreground text-sm">
             {isInactivity
-              ? 'This workspace was automatically suspended due to 30 days of inactivity. All your data is safe.'
-              : 'This workspace has been suspended. Please contact support for more information.'}
+              ? 'This organization was automatically suspended due to 30 days of inactivity. All your data is safe.'
+              : 'This organization has been suspended. Please contact support for more information.'}
           </p>
         </div>
 
@@ -59,7 +61,7 @@ export function TenantSuspendedPage() {
           <>
             <Button onClick={handleReactivate} disabled={reactivating}>
               <RefreshCw className={`mr-2 h-4 w-4 ${reactivating ? 'animate-spin' : ''}`} />
-              {reactivating ? 'Reactivating...' : 'Reactivate workspace'}
+              {reactivating ? 'Reactivating...' : 'Reactivate organization'}
             </Button>
             {error && <p className="text-destructive text-sm">{error}</p>}
           </>
@@ -68,7 +70,7 @@ export function TenantSuspendedPage() {
         {!canReactivate && (
           <div className="space-y-2">
             <p className="text-muted-foreground text-xs">
-              Ask a workspace owner or admin to reactivate this workspace, or contact support.
+              Ask an organization owner or admin to reactivate this organization, or contact support.
             </p>
             {runtimeConfig.supportEmail && (
               <Button variant="outline" size="sm" asChild>

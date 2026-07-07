@@ -302,7 +302,7 @@ function RevokeDialog({ token, onOpenChange }: RevokeDialogProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.reportingTokens.all() });
       onOpenChange(false);
-      toast.success("Token revoked.");
+      toast.success("Token revoked");
     },
     onError: () => {
       toast.error("Failed to revoke token. Please try again.");

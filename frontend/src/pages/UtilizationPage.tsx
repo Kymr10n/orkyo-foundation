@@ -10,6 +10,7 @@ import { useRequestEditor } from "@foundation/src/components/requests/useRequest
 import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import { useNow } from "@foundation/src/hooks/useNow";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
@@ -53,6 +54,7 @@ import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
 
 export function UtilizationPage() {
+  usePageTitle("Utilization");
   const {
     scale, setScale,
     anchorTs, setAnchorTs,

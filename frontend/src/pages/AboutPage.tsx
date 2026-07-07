@@ -4,11 +4,13 @@ import { Separator } from "@foundation/src/components/ui/separator";
 import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { runtimeConfig } from "@foundation/src/config/runtime";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 
 // Build-time metadata injected by vite.config.ts
 const APP_VERSION = (typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : null) ?? null;
 
 export function AboutPage() {
+  usePageTitle("About");
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
 
@@ -57,8 +59,8 @@ export function AboutPage() {
               <h3 className="font-medium">About</h3>
               <p className="text-sm text-muted-foreground">
                 Orkyo helps organizations manage their physical spaces, people, and scheduling.
-                Track space availability, handle booking requests, detect conflicts in real time,
-                and analyse utilization — all from one place.
+                Track space availability, handle requests, detect conflicts in real time,
+                and analyze utilization — all from one place.
               </p>
             </div>
 
@@ -67,9 +69,9 @@ export function AboutPage() {
             <div className="space-y-4">
               <h3 className="font-medium">Features</h3>
               <ul className="text-sm text-muted-foreground space-y-2">
-                <li>• Spaces — manage rooms and areas with custom criteria, templates, and floorplans</li>
+                <li>• Spaces — manage spaces and areas with custom criteria, templates, and floorplans</li>
                 <li>• Utilization — visual drag-and-drop timeline for scheduling across all spaces</li>
-                <li>• Requests — structured booking workflows with approval and template support</li>
+                <li>• Requests — structured request workflows with approval and template support</li>
                 <li>• Conflict detection — real-time overlap and constraint validation</li>
                 <li>• People — employee directory with teams, departments, and job titles</li>
                 <li>• Reporting — usage analytics and capacity-vs-demand insights</li>

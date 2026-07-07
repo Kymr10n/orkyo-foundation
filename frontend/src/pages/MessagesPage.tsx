@@ -9,9 +9,11 @@ import { Button } from "@foundation/src/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { MessagesTab } from "@foundation/src/components/account/MessagesTab";
 
 export function MessagesPage() {
+  usePageTitle("Messages");
   const navigate = useNavigate();
 
   return (

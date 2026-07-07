@@ -119,7 +119,7 @@ export function SpaceManagementPanel({
       for (const space of importedSpaces) {
         await createSpaceMutation.mutateAsync(space as CreateSpaceRequest);
       }
-      toast.success(`Successfully imported ${importedSpaces.length} spaces`);
+      toast.success(`Imported ${importedSpaces.length} spaces`);
     } catch (error) {
       logger.error('Import failed:', error);
       toast.error('Failed to import spaces', {

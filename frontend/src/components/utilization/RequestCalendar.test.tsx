@@ -137,7 +137,7 @@ describe("RequestCalendar", () => {
     expect(screen.getByText("New")).toBeInTheDocument();
     expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
-    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+    expect(screen.getByText("Canceled")).toBeInTheDocument();
     expect(screen.getByText("Conflicts")).toBeInTheDocument();
     expect(screen.getByText("Warnings")).toBeInTheDocument();
   });

@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
@@ -69,6 +70,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 }
 
 export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: OnboardingPageProps) {
+  usePageTitle("Get started");
   const [canCreate, setCanCreate] = useState<boolean | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [slug, setSlug] = useState("");

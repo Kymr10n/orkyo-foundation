@@ -14,6 +14,7 @@ import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { Input } from "@foundation/src/components/ui/input";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { toast } from "sonner";
 import {
     Tooltip,
@@ -90,6 +91,7 @@ type Dialog =
 // ---------------------------------------------------------------------------
 
 export function RequestsPage() {
+  usePageTitle("Requests");
   const queryClient = useQueryClient();
   const canEdit = useCanEdit();
   const navigate = useNavigate();
@@ -153,7 +155,7 @@ export function RequestsPage() {
         await createRequest(req as CreateRequestRequest);
       }
       invalidateRequestData(queryClient);
-      toast.success(`Successfully imported ${importedRequests.length} requests`);
+      toast.success(`Imported ${importedRequests.length} requests`);
     } catch (error) {
       logger.error('Import failed:', error);
       toast.error('Failed to import requests', {

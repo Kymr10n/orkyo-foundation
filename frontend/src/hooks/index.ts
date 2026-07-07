@@ -8,6 +8,7 @@ export {
   useUpdateCriterionApplicability,
 } from "./useCriteria";
 export { useExportHandler, useImportHandler } from "./useImportExport";
+export { usePageTitle } from "./usePageTitle";
 export { useCanEdit, useIsTenantAdmin, TENANT_ROLE } from "./usePermissions";
 export {
   usePreferences,

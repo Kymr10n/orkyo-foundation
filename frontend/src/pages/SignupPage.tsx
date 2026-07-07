@@ -16,6 +16,7 @@ import {
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { apiGet, apiPost } from "@foundation/src/lib/core/api-client";
 import { API_PATHS } from "@foundation/src/lib/core/api-paths";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 
 interface InvitationDetails {
   email: string;
@@ -24,6 +25,7 @@ interface InvitationDetails {
 }
 
 export function SignupPage() {
+  usePageTitle("Accept invitation");
   const [searchParams] = useSearchParams();
   const invitationToken = searchParams.get("invitation");
 

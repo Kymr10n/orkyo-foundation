@@ -120,7 +120,7 @@ export function formatStatusLabel(status: string): string {
     case REQUEST_STATUS.DEFERRED:
       return "Deferred";
     case REQUEST_STATUS.CANCELLED:
-      return "Cancelled";
+      return "Canceled";
     default:
       return status;
   }

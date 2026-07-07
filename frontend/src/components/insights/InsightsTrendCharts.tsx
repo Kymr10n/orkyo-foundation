@@ -195,7 +195,7 @@ export function RequestStatusTrendChart({
     "In progress": p.inProgress,
     Done: p.done,
     Deferred: p.deferred,
-    Cancelled: p.cancelled,
+    Canceled: p.cancelled,
   }));
 
   return (
@@ -216,7 +216,7 @@ export function RequestStatusTrendChart({
         <Bar dataKey="In progress" stackId="r" fill={COLORS.inProgress} />
         <Bar dataKey="Done" stackId="r" fill={COLORS.done} />
         <Bar dataKey="Deferred" stackId="r" fill={COLORS.deferred} />
-        <Bar dataKey="Cancelled" stackId="r" fill={COLORS.cancelled} />
+        <Bar dataKey="Canceled" stackId="r" fill={COLORS.cancelled} />
       </BarChart>
     </ChartCard>
   );

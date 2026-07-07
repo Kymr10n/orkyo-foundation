@@ -780,7 +780,7 @@ describe('RequestsPage', () => {
     await act(async () => {});
     await ioHandlers.importCb!(new File(['x'], 'requests.csv'), 'csv');
     expect(createRequest).toHaveBeenCalledWith(expect.objectContaining({ name: 'Imported' }));
-    expect(toast.success).toHaveBeenCalledWith('Successfully imported 1 requests');
+    expect(toast.success).toHaveBeenCalledWith('Imported 1 requests');
   });
 
   it('toasts when the imported file contains no valid requests', async () => {

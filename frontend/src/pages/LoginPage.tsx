@@ -20,8 +20,10 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { AUTH_MESSAGES } from "@foundation/src/constants/auth";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 
 export function LoginPage() {
+  usePageTitle("Sign in");
   const { isAuthenticated, isLoading, login, error } = useAuth();
   const navigate = useNavigate();
   const loginAttempted = useRef(false);

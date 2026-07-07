@@ -4,6 +4,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
 import { ROUTE_SETTINGS } from '@foundation/src/constants/auth';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
+import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
 
 // Map legacy ?tab= values (pre nested-route routing) to the new path segment.
@@ -28,6 +29,7 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
 };
 
 export function SettingsPage() {
+  usePageTitle('Settings');
   const active = useActiveTab('criteria');
   const navigate = useNavigate();
 

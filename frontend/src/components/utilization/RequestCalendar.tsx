@@ -132,7 +132,7 @@ export function RequestCalendar({
         <LegendItem className="bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/40" label="In Progress" />
         <LegendItem className="bg-emerald-500/15 dark:bg-emerald-500/25 border-emerald-500/40" label="Done" />
         <LegendItem className="bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40" label="Deferred" />
-        <LegendItem className="bg-muted border-muted-foreground/30" label="Cancelled" />
+        <LegendItem className="bg-muted border-muted-foreground/30" label="Canceled" />
         <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
         <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
       </div>

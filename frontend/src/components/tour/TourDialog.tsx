@@ -55,7 +55,7 @@ const STEPS: TourStep[] = [
   {
     icon: Settings,
     title: "Templates",
-    description: "Standardise resource definitions with reusable templates.",
+    description: "Standardize resource definitions with reusable templates.",
     detail:
       "Templates bundle a set of criteria into a reusable blueprint. New resources can inherit from a template, saving time and keeping your data consistent.",
     path: `${ROUTE_SETTINGS}/templates`,
@@ -64,7 +64,7 @@ const STEPS: TourStep[] = [
   {
     icon: Boxes,
     title: "Groups",
-    description: "Organise resources into logical groups.",
+    description: "Organize resources into logical groups.",
     detail:
       "Groups let you cluster resources by site, team, or function. Use them to manage related spaces or people together and keep large catalogues navigable.",
     path: "/spaces/groups",
@@ -74,7 +74,7 @@ const STEPS: TourStep[] = [
     title: "Spaces",
     description: "Manage the spaces you schedule work into.",
     detail:
-      "Spaces are one of Orkyo's resource types — a room, lab bench, or any area you book. People and tools are resources too. Attach criteria, assign groups, and describe each space's capabilities.",
+      "Spaces are one of Orkyo's resource types — a room, lab bench, or any area you schedule. People and tools are resources too. Attach criteria, assign groups, and describe each space's capabilities.",
     path: "/spaces/list",
   },
   {

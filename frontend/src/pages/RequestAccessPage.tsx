@@ -12,8 +12,10 @@ import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 
 export function RequestAccessPage() {
+  usePageTitle("Request access");
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

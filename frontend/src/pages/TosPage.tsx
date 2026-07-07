@@ -13,6 +13,7 @@ import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { FileText } from "lucide-react";
 import { acceptTos } from "@foundation/src/lib/api/session-api";
 import { logger } from "@foundation/src/lib/core/logger";
+import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 
 interface TosPageProps {
   /** Called after successful TOS acceptance (e.g. refresh the pipeline). */
@@ -24,6 +25,7 @@ interface TosPageProps {
 }
 
 export function TosPage({ onAccept, onCancel, tosVersion }: TosPageProps) {
+  usePageTitle("Terms of Service");
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

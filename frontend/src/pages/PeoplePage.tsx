@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
+import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 
 const TABS: PageTab[] = [
   { value: 'list', label: 'People' },
@@ -10,6 +11,7 @@ const TABS: PageTab[] = [
 ];
 
 export function PeoplePage() {
+  usePageTitle('People');
   const active = useActiveTab('list');
   const navigate = useNavigate();
 
@@ -17,7 +19,7 @@ export function PeoplePage() {
     <PageLayout>
       <PageHeader
         title="People"
-        description="Manage person resources, teams, and absences"
+        description="Manage people, teams, and absences"
       />
       <PageTabs
         tabs={TABS}

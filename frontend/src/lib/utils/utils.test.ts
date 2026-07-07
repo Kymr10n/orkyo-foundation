@@ -282,7 +282,7 @@ describe('status helpers', () => {
     expect(formatStatusLabel('in_progress')).toBe('In Progress');
     expect(formatStatusLabel('done')).toBe('Done');
     expect(formatStatusLabel('deferred')).toBe('Deferred');
-    expect(formatStatusLabel('cancelled')).toBe('Cancelled');
+    expect(formatStatusLabel('cancelled')).toBe('Canceled');
     expect(formatStatusLabel('custom')).toBe('custom');
   });
 });

@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
+import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 import { InsightsFilters, resolveRange, type RangePreset } from '@foundation/src/components/insights/InsightsFilters';
 import type { InsightsTabContext } from '@foundation/src/components/insights/insightsTabContext';
 import type { InsightsBucket } from '@foundation/src/lib/api/insights-api';
@@ -19,6 +20,7 @@ const TABS: PageTab[] = [
  * the active tab's /api/insights/* queries run (no 5-call burst on load).
  */
 export function InsightsPage() {
+  usePageTitle('Insights');
   const active = useActiveTab('overview');
   const navigate = useNavigate();
   const siteId = useAppStore((s) => s.selectedSiteId);
