@@ -30,11 +30,22 @@ public class SchedulingProblemBuilder
         CancellationToken cancellationToken)
     {
         var settings = await _schedulingRepository.GetSettingsAsync(request.SiteId);
-        var allRequests = await _requestRepository.GetAllAsync(includeRequirements: true);
 
-        var eligibleRequests = allRequests
-            .Where(r => !r.IsScheduled)
-            .Where(r => r.PlanningMode == PlanningMode.Leaf)
+        // The schedulable backlog is every leaf that isn't fully scheduled, in two disjoint fetches
+        // that together reproduce the old tenant-wide `!IsScheduled` leaf filter without the heavy
+        // GetAllAsync (which pulled every request, groups and finished ones included):
+        //   • GetUnscheduledAsync — leaves with start_ts IS NULL (the drag-to-schedule backlog).
+        //   • GetPartiallyScheduledLeavesAsync — leaves WITH a start_ts but still !IsScheduled
+        //     (no end_ts, or no Space assignment). These timed-but-spaceless leaves are excluded
+        //     from both the unscheduled backlog and the fixed-occupancy fetch, so without this
+        //     second set they'd be invisible to the solver despite being auto-schedulable before.
+        var unscheduled = await _requestRepository.GetUnscheduledAsync(
+            includeRequirements: true, ct: cancellationToken);
+        var partiallyScheduled = await _requestRepository.GetPartiallyScheduledLeavesAsync(
+            includeRequirements: true, ct: cancellationToken);
+
+        var eligibleRequests = unscheduled
+            .Concat(partiallyScheduled)
             .Where(r => r.Status is RequestStatus.New or RequestStatus.InProgress)
             .Where(r => r.MinimalDurationValue > 0);
 
@@ -45,12 +56,13 @@ public class SchedulingProblemBuilder
         }
 
         var spaces = await _spaceRepository.GetAllAsync(request.SiteId);
-        var spaceNodes = new List<SpaceNode>();
-        foreach (var space in spaces)
-        {
-            var capabilities = await _capabilityRepository.GetByResourceAsync(space.Id);
-            spaceNodes.Add(new SpaceNode(space.Id, space.Name, capabilities.Select(c => c.CriterionId).ToHashSet()));
-        }
+        var capabilitiesBySpace = (await _capabilityRepository.GetByResourcesAsync(
+                spaces.Select(s => s.Id).ToList(), cancellationToken))
+            .GroupBy(c => c.ResourceId)
+            .ToDictionary(g => g.Key, g => g.Select(c => c.CriterionId).ToHashSet());
+        var spaceNodes = spaces
+            .Select(s => new SpaceNode(s.Id, s.Name, capabilitiesBySpace.GetValueOrDefault(s.Id) ?? []))
+            .ToList();
 
         var spaceResourceIds = spaceNodes.Select(s => s.ResourceId).ToList();
         var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(
@@ -73,7 +85,17 @@ public class SchedulingProblemBuilder
                 r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>()));
         }
 
-        var fixedAssignments = allRequests
+        // Fixed occupancies: scheduled requests in this site whose bar can touch the horizon.
+        // The solvers only consult occupancies on this site's spaces within the horizon, so the
+        // site+window fetch is solver-equivalent to the previous tenant-wide scan. The upper bound
+        // is exclusive-day so an assignment starting late on the last horizon day is still seen.
+        // No scheduling_settings_apply filter — manually scheduled requests occupy spaces too.
+        var scheduled = await _requestRepository.GetScheduledBySiteWindowAsync(
+            request.SiteId,
+            request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            cancellationToken);
+        var fixedAssignments = scheduled
             .Where(r => r.IsScheduled)
             .Select(r => new FixedOccupancy(
                 r.Id,

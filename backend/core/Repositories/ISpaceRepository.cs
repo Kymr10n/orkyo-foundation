@@ -12,6 +12,10 @@ public interface ISpaceRepository
     /// <summary>Returns all spaces for the given site, ordered by name.</summary>
     Task<List<SpaceInfo>> GetAllAsync(Guid siteId, CancellationToken ct = default);
 
+    /// <summary>Bulk fetch spaces for many sites in one query, keyed by site id — for export.
+    /// Per-site lists carry the same code/name ordering as <see cref="GetAllAsync(Guid, CancellationToken)"/>.</summary>
+    Task<Dictionary<Guid, List<SpaceInfo>>> GetBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default);
+
     /// <summary>Returns a page of spaces for the given site.</summary>
     Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default);
 

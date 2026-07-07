@@ -29,17 +29,6 @@ public sealed class ReportingQueryService : IReportingQueryService
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
 
-        // Count total distinct spaces with assignments
-        await using var countCmd = new NpgsqlCommand($@"
-            SELECT COUNT(DISTINCT s.id)
-            FROM spaces s
-            JOIN resource_assignments ra ON ra.resource_id = s.id
-            WHERE ra.start_utc < @to AND ra.end_utc > @from
-              AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'", conn);
-        countCmd.Parameters.AddWithValue("from", from);
-        countCmd.Parameters.AddWithValue("to", to);
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
-
         await using var cmd = new NpgsqlCommand($@"
             SELECT
                 si.name                                       AS site_name,
@@ -52,7 +41,8 @@ public sealed class ReportingQueryService : IReportingQueryService
                         LEAST(ra.end_utc, @to) - GREATEST(ra.start_utc, @from)
                     )) / 3600
                 ), 0)                                         AS allocated_hours,
-                COUNT(DISTINCT ra.request_id)                 AS request_count
+                COUNT(DISTINCT ra.request_id)                 AS request_count,
+                COUNT(*) OVER ()                              AS total_count
             FROM spaces s
             JOIN resources r ON r.id = s.id
             JOIN sites si ON si.id = s.site_id
@@ -72,9 +62,11 @@ public sealed class ReportingQueryService : IReportingQueryService
         cmd.Parameters.AddWithValue("offset", paged.Offset);
 
         var rows = new List<SpaceUtilizationRow>();
+        var totalCount = 0;
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            if (rows.Count == 0) totalCount = reader.GetInt32(7);
             var allocated = reader.GetDouble(5);
             var utilPct = periodHours > 0 ? Math.Round(allocated / periodHours * 100, 1) : 0;
             rows.Add(new SpaceUtilizationRow
@@ -106,17 +98,6 @@ public sealed class ReportingQueryService : IReportingQueryService
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
 
-        await using var countCmd = new NpgsqlCommand($@"
-            SELECT COUNT(DISTINCT r.id)
-            FROM resources r
-            JOIN resource_types rt ON rt.id = r.resource_type_id
-            JOIN resource_assignments ra ON ra.resource_id = r.id
-            WHERE ra.start_utc < @to AND ra.end_utc > @from
-              AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'", conn);
-        countCmd.Parameters.AddWithValue("from", from);
-        countCmd.Parameters.AddWithValue("to", to);
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
-
         await using var cmd = new NpgsqlCommand($@"
             SELECT
                 rt.key                                        AS resource_type,
@@ -130,7 +111,8 @@ public sealed class ReportingQueryService : IReportingQueryService
                         LEAST(ra.end_utc, @to) - GREATEST(ra.start_utc, @from)
                     )) / 3600
                 ), 0)                                         AS allocated_hours,
-                COUNT(DISTINCT ra.request_id)                 AS request_count
+                COUNT(DISTINCT ra.request_id)                 AS request_count,
+                COUNT(*) OVER ()                              AS total_count
             FROM resources r
             JOIN resource_types rt ON rt.id = r.resource_type_id
             LEFT JOIN resource_group_members rgm ON rgm.resource_id = r.id
@@ -149,9 +131,11 @@ public sealed class ReportingQueryService : IReportingQueryService
         cmd.Parameters.AddWithValue("offset", paged.Offset);
 
         var rows = new List<ResourceUtilizationRow>();
+        var totalCount = 0;
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            if (rows.Count == 0) totalCount = reader.GetInt32(8);
             var availPct = reader.IsDBNull(5) ? 100.0 : reader.GetDouble(5);
             var effectiveHours = periodHours * availPct / 100.0;
             var allocated = reader.GetDouble(6);
@@ -311,23 +295,6 @@ public sealed class ReportingQueryService : IReportingQueryService
         await conn.OpenAsync(ct);
 
         // Detect overbooking: same resource, overlapping non-cancelled assignments
-        await using var countCmd = new NpgsqlCommand($@"
-            SELECT COUNT(*)
-            FROM resource_assignments ra1
-            JOIN LATERAL (
-                SELECT 1
-                FROM resource_assignments ra2
-                WHERE ra2.resource_id = ra1.resource_id
-                  AND ra2.assignment_status != '{AssignmentStatuses.Cancelled}'
-                  AND ra2.start_utc < ra1.end_utc AND ra2.end_utc > ra1.start_utc
-                  AND ra2.id > ra1.id
-            ) ra2 ON true
-            WHERE ra1.assignment_status != '{AssignmentStatuses.Cancelled}'
-              AND ra1.start_utc < @to AND ra1.end_utc > @from", conn);
-        countCmd.Parameters.AddWithValue("from", from);
-        countCmd.Parameters.AddWithValue("to", to);
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
-
         await using var cmd = new NpgsqlCommand($@"
             SELECT
                 rt.key                                        AS resource_type,
@@ -338,7 +305,8 @@ public sealed class ReportingQueryService : IReportingQueryService
                 EXTRACT(EPOCH FROM (
                     LEAST(ra1.end_utc, ra2.end_utc) -
                     GREATEST(ra1.start_utc, ra2.start_utc)
-                )) / 3600                                     AS overlap_hours
+                )) / 3600                                     AS overlap_hours,
+                COUNT(*) OVER ()                              AS total_count
             FROM resource_assignments ra1
             JOIN LATERAL (
                 SELECT ra2.id, ra2.start_utc, ra2.end_utc
@@ -362,9 +330,11 @@ public sealed class ReportingQueryService : IReportingQueryService
         cmd.Parameters.AddWithValue("offset", paged.Offset);
 
         var rows = new List<ConflictRow>();
+        var totalCount = 0;
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            if (rows.Count == 0) totalCount = reader.GetInt32(6);
             rows.Add(new ConflictRow
             {
                 ConflictType = "Overbooking",

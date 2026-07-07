@@ -143,6 +143,39 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
+    public async Task<List<ScheduledRequestLite>> GetScheduledLiteAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        // Lightweight projection of the windowed GetScheduledAsync row set: identical WHERE clause
+        // (the view adds no row filter over requests), but a plain SELECT — no assignments
+        // aggregation, no requirements hydration.
+        return await db.QueryListAsync(@"
+            SELECT id, start_ts, site_id
+            FROM requests r
+            WHERE start_ts IS NOT NULL AND start_ts <= @to AND end_ts >= @from
+              AND EXISTS (
+                SELECT 1 FROM resource_assignments ra
+                JOIN resources res ON res.id = ra.resource_id
+                JOIN resource_types rt ON rt.id = res.resource_type_id
+                WHERE ra.request_id = r.id
+                  AND rt.key = @spaceKey
+                  AND ra.assignment_status != @cancelled
+              )",
+            p =>
+            {
+                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+            },
+            reader => new ScheduledRequestLite(
+                reader.GetGuid(0),
+                reader.GetDateTime(1),
+                reader.IsDBNull(2) ? null : reader.GetGuid(2)),
+            ct);
+    }
+
     public async Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(
         Guid siteId, DateTime from, DateTime to, CancellationToken ct = default)
     {
@@ -187,7 +220,7 @@ public class RequestRepository : IRequestRepository
     }
 
     public async Task<List<RequestInfo>> GetUnscheduledAsync(
-        Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default)
+        Guid? siteId = null, bool includeSiteNeutral = true, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
@@ -205,7 +238,7 @@ public class RequestRepository : IRequestRepository
                 ? "AND (site_id = @siteId OR site_id IS NULL) "
                 : "AND site_id = @siteId ";
 
-        return await db.QueryListAsync(
+        var requests = await db.QueryListAsync(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
             $"WHERE start_ts IS NULL AND planning_mode = '{PlanningModes.Leaf}' " +
             siteFilter +
@@ -216,6 +249,51 @@ public class RequestRepository : IRequestRepository
             },
             RequestMapper.MapFromReader,
             ct);
+
+        if (includeRequirements && requests.Count > 0)
+            await LoadRequirementsForRequests(requests, db, ct);
+
+        return requests;
+    }
+
+    public async Task<List<RequestInfo>> GetPartiallyScheduledLeavesAsync(
+        bool includeRequirements = false, CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        // Leaf requests that carry a start_ts but are NOT fully scheduled — the exact complement of
+        // GetUnscheduledAsync (start_ts IS NULL) among leaves. "Not fully scheduled" mirrors
+        // RequestInfo.IsScheduled = start_ts && end_ts && a non-cancelled Space assignment, so a timed
+        // leaf missing its end_ts OR its Space assignment qualifies. These stay auto-schedulable and
+        // would otherwise be invisible to the solver (they are excluded from both the unscheduled
+        // backlog and the fixed-occupancy fetch, which filters IsScheduled).
+        var requests = await db.QueryListAsync(
+            $@"SELECT {SelectFromView} FROM v_requests_with_assignments
+               WHERE start_ts IS NOT NULL AND planning_mode = '{PlanningModes.Leaf}'
+                 AND (
+                   end_ts IS NULL
+                   OR NOT EXISTS (
+                     SELECT 1 FROM resource_assignments ra
+                     JOIN resources res ON res.id = ra.resource_id
+                     JOIN resource_types rt ON rt.id = res.resource_type_id
+                     WHERE ra.request_id = v_requests_with_assignments.id
+                       AND rt.key = @spaceKey
+                       AND ra.assignment_status != @cancelled
+                   )
+                 )
+               ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
+            p =>
+            {
+                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            RequestMapper.MapFromReader,
+            ct);
+
+        if (includeRequirements && requests.Count > 0)
+            await LoadRequirementsForRequests(requests, db, ct);
+
+        return requests;
     }
 
     public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
@@ -568,6 +646,7 @@ public class RequestRepository : IRequestRepository
         await using var tx = await db.BeginTransactionAsync();
 
         await using var batch = new NpgsqlBatch(db, tx);
+        var requestUpdateCommands = new List<NpgsqlBatchCommand>(updates.Count);
         foreach (var (id, request) in updates)
         {
             int? actualDurationValue = request.ActualDurationValue;
@@ -593,20 +672,31 @@ public class RequestRepository : IRequestRepository
             cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);
             cmd.Parameters.AddWithValue("actual_duration_unit", (object?)actualDurationUnit ?? DBNull.Value);
             batch.BatchCommands.Add(cmd);
-        }
+            requestUpdateCommands.Add(cmd);
 
-        var rowsAffected = await batch.ExecuteNonQueryAsync(ct);
-
-        // Update resource assignments for each scheduled item.
-        foreach (var (id, request) in updates)
-        {
+            // Update resource assignments for each scheduled item, in the same batch:
+            // cancel the existing space assignment, then write the new one.
             if (!request.ResourceId.HasValue || !request.StartTs.HasValue || !request.EndTs.HasValue)
                 continue;
 
-            await CancelSpaceAssignmentAsync(db, tx, id);
-            await WriteResourceAssignmentAsync(
-                db, tx, id, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value);
+            var cancel = new NpgsqlBatchCommand(CancelSpaceAssignmentSql);
+            cancel.Parameters.AddWithValue("requestId", id);
+            cancel.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+            cancel.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            batch.BatchCommands.Add(cancel);
+
+            var write = new NpgsqlBatchCommand(WriteResourceAssignmentSql);
+            write.Parameters.AddWithValue("requestId", id);
+            write.Parameters.AddWithValue("resourceId", request.ResourceId.Value);
+            write.Parameters.AddWithValue("startUtc", request.StartTs.Value);
+            write.Parameters.AddWithValue("endUtc", request.EndTs.Value);
+            batch.BatchCommands.Add(write);
         }
+
+        await batch.ExecuteNonQueryAsync(ct);
+
+        // Only the request UPDATEs count — the assignment statements must not inflate the total.
+        var rowsAffected = (int)requestUpdateCommands.Aggregate(0UL, (sum, c) => sum + c.Rows);
 
         await tx.CommitAsync();
         return rowsAffected;
@@ -665,14 +755,10 @@ public class RequestRepository : IRequestRepository
 
     // ── Resource assignment helpers ───────────────────────────────────────────
 
-    private static async Task WriteResourceAssignmentAsync(
-        NpgsqlConnection conn, NpgsqlTransaction? tx,
-        Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
-    {
-        // The ON CONFLICT predicate MUST stay byte-identical to the migration's partial unique
-        // index predicate (uq_resource_assignments_active). AssignmentStatuses.Cancelled == 'Cancelled',
-        // so interpolating it yields the same SQL while keeping the literal traceable to the constant.
-        await using var cmd = new NpgsqlCommand($@"
+    // The ON CONFLICT predicate MUST stay byte-identical to the migration's partial unique
+    // index predicate (uq_resource_assignments_active). AssignmentStatuses.Cancelled == 'Cancelled',
+    // so interpolating it yields the same SQL while keeping the literal traceable to the constant.
+    private const string WriteResourceAssignmentSql = $@"
             INSERT INTO resource_assignments
                 (request_id, resource_id, start_utc, end_utc)
             VALUES (@requestId, @resourceId, @startUtc, @endUtc)
@@ -680,7 +766,22 @@ public class RequestRepository : IRequestRepository
                 WHERE assignment_status != '{AssignmentStatuses.Cancelled}'
             DO UPDATE SET start_utc = EXCLUDED.start_utc,
                           end_utc   = EXCLUDED.end_utc,
-                          updated_at = NOW()", conn, tx);
+                          updated_at = NOW()";
+
+    private const string CancelSpaceAssignmentSql = @"
+            UPDATE resource_assignments ra
+            SET assignment_status = @cancelled, updated_at = NOW()
+            FROM resources res
+            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = @spaceKey
+            WHERE ra.request_id = @requestId
+              AND ra.resource_id = res.id
+              AND ra.assignment_status != @cancelled";
+
+    private static async Task WriteResourceAssignmentAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx,
+        Guid requestId, Guid resourceId, DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
+    {
+        await using var cmd = new NpgsqlCommand(WriteResourceAssignmentSql, conn, tx);
         cmd.Parameters.AddWithValue("requestId", requestId);
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("startUtc", startUtc);
@@ -691,14 +792,7 @@ public class RequestRepository : IRequestRepository
     private static async Task CancelSpaceAssignmentAsync(
         NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId, CancellationToken ct = default)
     {
-        await using var cmd = new NpgsqlCommand(@"
-            UPDATE resource_assignments ra
-            SET assignment_status = @cancelled, updated_at = NOW()
-            FROM resources res
-            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = @spaceKey
-            WHERE ra.request_id = @requestId
-              AND ra.resource_id = res.id
-              AND ra.assignment_status != @cancelled", conn, tx);
+        await using var cmd = new NpgsqlCommand(CancelSpaceAssignmentSql, conn, tx);
         cmd.Parameters.AddWithValue("requestId", requestId);
         cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
@@ -936,9 +1030,20 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        var count = await GetDescendantCountAsync(id);
-        var deleted = await db.ExecuteAsync("DELETE FROM requests WHERE id = @id",
+        // One statement: count the subtree (root + descendants, snapshotted before the delete)
+        // and delete the root — children go via the FK cascade. Returns 0 when the root is absent.
+        return await db.ExecuteScalarAsync<int>(
+            @"WITH RECURSIVE subtree AS (
+                SELECT id FROM requests WHERE id = @id
+                UNION ALL
+                SELECT r.id FROM requests r JOIN subtree s ON r.parent_request_id = s.id
+              ),
+              deleted AS (
+                DELETE FROM requests WHERE id = @id RETURNING id
+              )
+              SELECT CASE WHEN EXISTS (SELECT 1 FROM deleted)
+                          THEN (SELECT COUNT(*)::int FROM subtree)
+                          ELSE 0 END",
             p => p.AddWithValue("id", id), ct);
-        return deleted > 0 ? count + 1 : 0;
     }
 }

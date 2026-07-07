@@ -415,6 +415,183 @@ public class SchedulingEngineTests
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 1, 13, 0, 0, DateTimeKind.Utc));
     }
 
+    // ── Multi-day spans ─────────────────────────────────────────────
+
+    [Fact]
+    public void CalculateSchedule_SpansMultipleDays_ConsumesWholeWorkingDays()
+    {
+        var settings = MakeSettings(); // 08:00-17:00 UTC → 540 min/day
+        // Wednesday 2026-04-01 08:00 UTC, request 3 working days + 2h
+        var start = new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc);
+        var result = SchedulingEngine.CalculateSchedule(start, 3 * 540 + 120, true, settings, []);
+
+        result.ActualStart.Should().Be(start);
+        // Full days Wed/Thu/Fri, then 120 min Saturday 08:00-10:00 (weekends enabled)
+        result.ActualEnd.Should().Be(new DateTime(2026, 4, 4, 10, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void CalculateSchedule_OffTimeSpansDayBoundary_SkipsAcrossDays()
+    {
+        var settings = MakeSettings(); // 08:00-17:00 UTC
+        // Off-time from Wed 15:00 to Thu 10:00
+        var offTimes = new List<BlockedPeriod>
+        {
+            MakeBlockedPeriod(
+                new DateTime(2026, 4, 1, 15, 0, 0, DateTimeKind.Utc),
+                new DateTime(2026, 4, 2, 10, 0, 0, DateTimeKind.Utc))
+        };
+
+        // Start Wed 14:00, request 120 min
+        var start = new DateTime(2026, 4, 1, 14, 0, 0, DateTimeKind.Utc);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, offTimes);
+
+        // 60 min Wed 14:00-15:00, skip to Thu 10:00, 60 min Thu 10:00-11:00
+        result.ActualStart.Should().Be(start);
+        result.ActualEnd.Should().Be(new DateTime(2026, 4, 2, 11, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void CalculateSchedule_OffTimeOverlapsWorkingDayEnd_ResumesNextMorning()
+    {
+        var settings = MakeSettings(); // 08:00-17:00 UTC
+        // Off-time 16:00-20:00 partially overlaps the working window
+        var offTimes = new List<BlockedPeriod>
+        {
+            MakeBlockedPeriod(
+                new DateTime(2026, 4, 1, 16, 0, 0, DateTimeKind.Utc),
+                new DateTime(2026, 4, 1, 20, 0, 0, DateTimeKind.Utc))
+        };
+
+        // Start Wed 15:00, request 120 min
+        var start = new DateTime(2026, 4, 1, 15, 0, 0, DateTimeKind.Utc);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, offTimes);
+
+        // 60 min Wed 15:00-16:00, off-time ends 20:00 (after hours), 60 min Thu 08:00-09:00
+        result.ActualEnd.Should().Be(new DateTime(2026, 4, 2, 9, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void CalculateSchedule_EndsExactlyAtWorkingDayEnd_DoesNotSnapToNextDay()
+    {
+        var settings = MakeSettings(); // 08:00-17:00 UTC
+        // Wednesday 2026-04-01 16:00 UTC, request exactly the 60 min left in the day
+        var start = new DateTime(2026, 4, 1, 16, 0, 0, DateTimeKind.Utc);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+
+        result.ActualEnd.Should().Be(new DateTime(2026, 4, 1, 17, 0, 0, DateTimeKind.Utc));
+        result.ActualDurationMinutes.Should().Be(60);
+    }
+
+    [Fact]
+    public void CalculateSchedule_NonMinuteAlignedStart_CountsMinutesOnStartGrid()
+    {
+        var settings = MakeSettings(); // 08:00-17:00 UTC
+        // Start at 16:30:30 — the minute grid is anchored at the start instant
+        var start = new DateTime(2026, 4, 1, 16, 30, 30, DateTimeKind.Utc);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+
+        // 30 grid minutes fit before 17:00 (16:30:30 .. 16:59:30), the instant
+        // 17:00:30 is outside working hours → remaining 30 min on day 2
+        result.ActualStart.Should().Be(start);
+        result.ActualEnd.Should().Be(new DateTime(2026, 4, 2, 8, 30, 0, DateTimeKind.Utc));
+    }
+
+    // ── Equivalence with minute-stepping reference ──────────────────
+
+    [Fact]
+    public void CalculateSchedule_MatchesMinuteSteppingReference_AcrossRandomizedInputs()
+    {
+        // Deterministic randomized grid comparing the chunked engine against a
+        // verbatim copy of the original minute-stepping algorithm.
+        var rng = new Random(20260707);
+        var baseDate = new DateTime(2026, 3, 23, 0, 0, 0, DateTimeKind.Utc); // Monday
+
+        for (var i = 0; i < 300; i++)
+        {
+            var settings = MakeSettings(
+                timeZone: rng.Next(2) == 0 ? "UTC" : "Europe/Berlin",
+                workingHoursEnabled: rng.Next(4) != 0,
+                workingDayStart: rng.Next(2) == 0 ? "08:00" : "09:30",
+                workingDayEnd: rng.Next(2) == 0 ? "17:00" : "16:15",
+                weekendsEnabled: rng.Next(2) == 0);
+
+            var offTimes = new List<BlockedPeriod>();
+            var offTimeCount = rng.Next(4);
+            for (var j = 0; j < offTimeCount; j++)
+            {
+                var offStart = baseDate
+                    .AddMinutes(rng.Next(14 * 24 * 60))
+                    .AddSeconds(rng.Next(60));
+                offTimes.Add(MakeBlockedPeriod(offStart, offStart.AddMinutes(rng.Next(1, 2000))));
+            }
+
+            var start = baseDate
+                .AddMinutes(rng.Next(10 * 24 * 60))
+                .AddSeconds(rng.Next(60));
+            var duration = rng.Next(0, 3000);
+
+            var expected = MinuteSteppingReference(start, duration, settings, offTimes);
+            var actual = SchedulingEngine.CalculateSchedule(start, duration, true, settings, offTimes);
+
+            actual.Should().Be(expected,
+                $"case {i}: start={start:O}, duration={duration}, tz={settings.TimeZone}, " +
+                $"wh={settings.WorkingHoursEnabled} {settings.WorkingDayStart}-{settings.WorkingDayEnd}, " +
+                $"weekends={settings.WeekendsEnabled}, offTimes={offTimes.Count}");
+        }
+    }
+
+    /// <summary>
+    /// Verbatim copy of the original O(duration) minute-stepping algorithm,
+    /// kept as the semantic reference for the chunked implementation.
+    /// </summary>
+    private static SchedulingEngine.ScheduleResult MinuteSteppingReference(
+        DateTime desiredStart,
+        int requestedDurationMinutes,
+        SchedulingSettingsInfo settings,
+        List<BlockedPeriod> offTimes)
+    {
+        if (!settings.WorkingHoursEnabled && offTimes.Count == 0)
+        {
+            return new SchedulingEngine.ScheduleResult
+            {
+                ActualStart = desiredStart,
+                ActualEnd = desiredStart.AddMinutes(requestedDurationMinutes),
+                ActualDurationMinutes = requestedDurationMinutes
+            };
+        }
+
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZone);
+
+        var current = SchedulingEngine.SnapToNextWorkingTime(desiredStart, settings, tz, offTimes);
+        var actualStart = current;
+        var remainingMinutes = requestedDurationMinutes;
+
+        while (remainingMinutes > 0)
+        {
+            if (!SchedulingEngine.IsWorkingTime(current, settings, tz, offTimes))
+            {
+                current = SchedulingEngine.SnapToNextWorkingTime(current, settings, tz, offTimes);
+                continue;
+            }
+
+            current = current.AddMinutes(1);
+            remainingMinutes--;
+
+            if (remainingMinutes > 0 && !SchedulingEngine.IsWorkingTime(current, settings, tz, offTimes))
+            {
+                current = SchedulingEngine.SnapToNextWorkingTime(current, settings, tz, offTimes);
+            }
+        }
+
+        return new SchedulingEngine.ScheduleResult
+        {
+            ActualStart = actualStart,
+            ActualEnd = current,
+            ActualDurationMinutes = (int)(current - actualStart).TotalMinutes
+        };
+    }
+
     // ── DurationToMinutes ───────────────────────────────────────────
 
     [Theory]

@@ -53,6 +53,14 @@ public class SchedulingService : ISchedulingService
         _logger.LogInformation("Recalculating {Count} scheduled requests for site {SiteId}",
             toRecalculate.Count, siteId);
 
+        var spaceResourceIds = toRecalculate
+            .Select(r => r.GetSpaceResourceId())
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        var blockedByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(spaceResourceIds, ct);
+
         var updates = new List<(Guid Id, ScheduleRequestRequest Data)>();
         foreach (var request in toRecalculate)
         {
@@ -60,7 +68,7 @@ public class SchedulingService : ISchedulingService
             {
                 var resourceId = request.GetSpaceResourceId();
                 var blockedPeriods = resourceId.HasValue
-                    ? await _resolver.GetBlockedPeriodsAsync(resourceId.Value, ct)
+                    ? blockedByResource[resourceId.Value]
                     : [];
 
                 var durationMinutes = SchedulingEngine.DurationToMinutes(

@@ -30,6 +30,24 @@ public class CachingInsightsServiceTests
             => throw new NotImplementedException();
     }
 
+    private sealed class GatedInsights(Func<Task<InsightsOverview>> gate) : IInsightsService
+    {
+        public int OverviewCalls;
+
+        public Task<InsightsOverview> GetOverviewAsync(InsightsFilter filter, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref OverviewCalls);
+            return gate();
+        }
+
+        public Task<InsightsUtilization> GetUtilizationTrendAsync(InsightsFilter filter, CancellationToken ct = default)
+            => throw new NotImplementedException();
+        public Task<InsightsConflicts> GetConflictTrendAsync(InsightsFilter filter, CancellationToken ct = default)
+            => throw new NotImplementedException();
+        public Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default)
+            => throw new NotImplementedException();
+    }
+
     private static OrgContext Org(Guid id) => new() { OrgId = id, OrgSlug = "t", DbConnectionString = "x" };
 
     private static InsightsFilter Filter(DateTime from) => new() { From = from, To = from.AddDays(1) };
@@ -94,5 +112,42 @@ public class CachingInsightsServiceTests
 
         Assert.Equal(1, innerA.OverviewCalls);
         Assert.Equal(1, innerB.OverviewCalls); // B's call is a miss under its own org key, not A's cached value
+    }
+
+    [Fact]
+    public async Task ConcurrentCalls_SameKey_ComputeOnce()
+    {
+        var overview = MakeOverview();
+        var gate = new TaskCompletionSource<InsightsOverview>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = new GatedInsights(() => gate.Task);
+        var sut = new CachingInsightsService(inner, Org(Guid.NewGuid()));
+        var filter = Filter(new DateTime(2034, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // Both calls miss the cache while the computation is still pending; single-flight
+        // coalescing must hand the second caller the first caller's in-flight task.
+        var first = sut.GetOverviewAsync(filter);
+        var second = sut.GetOverviewAsync(filter);
+        gate.SetResult(overview);
+
+        Assert.Same(overview, await first);
+        Assert.Same(overview, await second);
+        Assert.Equal(1, inner.OverviewCalls);
+    }
+
+    [Fact]
+    public async Task FaultedComputation_IsNotCached_NextCallRecomputes()
+    {
+        var overview = MakeOverview();
+        var calls = 0;
+        var inner = new GatedInsights(() => Interlocked.Increment(ref calls) == 1
+            ? Task.FromException<InsightsOverview>(new InvalidOperationException("boom"))
+            : Task.FromResult(overview));
+        var sut = new CachingInsightsService(inner, Org(Guid.NewGuid()));
+        var filter = Filter(new DateTime(2035, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GetOverviewAsync(filter));
+
+        Assert.Same(overview, await sut.GetOverviewAsync(filter)); // failure not cached, retried
+        Assert.Equal(2, inner.OverviewCalls);
     }
 }

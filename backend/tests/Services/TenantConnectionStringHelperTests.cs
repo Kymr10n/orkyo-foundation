@@ -1,4 +1,5 @@
 using Api.Services;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Services;
 
@@ -14,6 +15,7 @@ public class TenantConnectionStringHelperTests
         tenantConnection.Should().Contain("Database=tenant_acme");
         tenantConnection.Should().Contain("Host=localhost");
         tenantConnection.Should().Contain("Username=postgres");
+        new NpgsqlConnectionStringBuilder(tenantConnection).MinPoolSize.Should().Be(0);
     }
 
     [Fact]
@@ -28,5 +30,18 @@ public class TenantConnectionStringHelperTests
         tenantConnection.Should().Contain("Database=tenant_blue");
         tenantConnection.Should().Contain("Username=app");
         tenantConnection.Should().Contain("SSL Mode=Require");
+        new NpgsqlConnectionStringBuilder(tenantConnection).MinPoolSize.Should().Be(0);
+    }
+
+    [Fact]
+    public void BuildTenantDatabaseConnectionString_ShouldResetNonzeroMinPoolSizeToZero()
+    {
+        // Tenant pools must be able to shrink to zero when idle, even if the control-plane
+        // connection string keeps a warm floor for itself.
+        const string controlPlane = "Host=localhost;Database=control_plane;Username=postgres;Password=postgres;Minimum Pool Size=5";
+
+        var tenantConnection = TenantConnectionStringHelper.BuildTenantDatabaseConnectionString(controlPlane, "tenant_acme");
+
+        new NpgsqlConnectionStringBuilder(tenantConnection).MinPoolSize.Should().Be(0);
     }
 }

@@ -15,6 +15,9 @@ public interface ITemplateRepository
     Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
     Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId, CancellationToken ct = default);
+    /// <summary>Bulk fetch items for many templates in one query, keyed by template id — for export/presets.
+    /// Per-template lists carry the same criterion-name ordering as <see cref="GetTemplateItemsAsync"/>.</summary>
+    Task<Dictionary<Guid, List<TemplateItem>>> GetTemplateItemsByTemplatesAsync(IReadOnlyList<Guid> templateIds, CancellationToken ct = default);
     Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default);
     Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default);
 }
@@ -157,6 +160,46 @@ public class TemplateRepository : ITemplateRepository
                 CriterionDataType = r.GetString(7),
                 CriterionCategory = null
             }, ct);
+    }
+
+    public async Task<Dictionary<Guid, List<TemplateItem>>> GetTemplateItemsByTemplatesAsync(IReadOnlyList<Guid> templateIds, CancellationToken ct = default)
+    {
+        if (templateIds.Count == 0) return [];
+
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        var items = await conn.QueryListAsync(@"
+            SELECT ti.id, ti.template_id, ti.criterion_id, ti.value,
+                   ti.created_at, ti.updated_at,
+                   c.name AS criterion_name, c.data_type AS criterion_data_type
+            FROM template_items ti
+            INNER JOIN criteria c ON ti.criterion_id = c.id
+            WHERE ti.template_id = ANY(@ids)
+            ORDER BY ti.template_id, c.name",
+            p => p.AddWithValue("ids", templateIds.ToArray()),
+            r => new TemplateItem
+            {
+                Id = r.GetGuid(0),
+                TemplateId = r.GetGuid(1),
+                CriterionId = r.GetGuid(2),
+                Value = r.GetString(3),
+                CreatedAt = r.GetDateTime(4),
+                UpdatedAt = r.GetDateTime(5),
+                CriterionName = r.GetString(6),
+                CriterionDataType = r.GetString(7),
+                CriterionCategory = null
+            }, ct);
+
+        var map = new Dictionary<Guid, List<TemplateItem>>();
+        foreach (var item in items)
+        {
+            if (!map.TryGetValue(item.TemplateId, out var list))
+            {
+                list = [];
+                map[item.TemplateId] = list;
+            }
+            list.Add(item);
+        }
+        return map;
     }
 
     public async Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default)

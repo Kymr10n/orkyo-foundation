@@ -105,10 +105,13 @@ public class ExportService : IExportService
                 Unit = c.Unit
             }).ToList();
 
+        // Bulk-fetch capabilities for all groups up front (was one query per group).
+        var capsByGroup = await _groupCapabilityRepo.GetByGroupsAsync(groups.Select(g => g.Id).ToList());
+
         var exportGroups = new List<ExportSpaceGroup>();
         foreach (var g in groups.OrderBy(g => g.DisplayOrder ?? 0).ThenBy(g => g.Name, StringComparer.Ordinal))
         {
-            var groupCaps = await _groupCapabilityRepo.GetAllAsync(g.Id);
+            var groupCaps = capsByGroup.GetValueOrDefault(g.Id, []);
             exportGroups.Add(new ExportSpaceGroup
             {
                 Key = GenerateKey(g.Name),
@@ -137,15 +140,25 @@ public class ExportService : IExportService
         Dictionary<Guid, string> groupIdToKey,
         Dictionary<Guid, string> criterionIdToKey)
     {
+        // Bulk-fetch all per-site data up front (was N+1: three queries per site plus one per space).
+        var siteIds = sites.Select(s => s.Id).ToList();
+        var spacesBySite = await _spaceRepo.GetBySitesAsync(siteIds);
+        var settingsBySite = await _schedulingRepo.GetSettingsBySitesAsync(siteIds);
+        var eventsBySite = await _availabilityEventRepo.GetBySitesAsync(siteIds);
+        var capsByResource = (await _capabilityRepo.GetByResourcesAsync(
+                spacesBySite.Values.SelectMany(spaces => spaces).Select(s => s.Id).ToList()))
+            .GroupBy(c => c.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var exportSites = new List<ExportSite>();
         foreach (var site in sites.OrderBy(s => s.Code ?? s.Name, StringComparer.Ordinal))
         {
-            var spaces = await _spaceRepo.GetAllAsync(site.Id);
+            var spaces = spacesBySite.GetValueOrDefault(site.Id, []);
             var exportSpaces = new List<ExportSpace>();
 
             foreach (var space in spaces.OrderBy(s => s.Name, StringComparer.Ordinal))
             {
-                var caps = await _capabilityRepo.GetByResourceAsync(space.Id);
+                var caps = capsByResource.GetValueOrDefault(space.Id, []);
                 exportSpaces.Add(new ExportSpace
                 {
                     Name = space.Name,
@@ -165,8 +178,8 @@ public class ExportService : IExportService
                 Name = site.Name,
                 Description = site.Description,
                 Address = site.Address,
-                SchedulingSettings = await BuildSchedulingSettingsAsync(site.Id),
-                AvailabilityEvents = await BuildAvailabilityEventsAsync(site.Id),
+                SchedulingSettings = BuildSchedulingSettings(settingsBySite.GetValueOrDefault(site.Id)),
+                AvailabilityEvents = BuildAvailabilityEvents(eventsBySite.GetValueOrDefault(site.Id, [])),
                 Spaces = exportSpaces
             });
         }
@@ -174,9 +187,8 @@ public class ExportService : IExportService
         return exportSites;
     }
 
-    private async Task<ExportSchedulingSettings?> BuildSchedulingSettingsAsync(Guid siteId)
+    private static ExportSchedulingSettings? BuildSchedulingSettings(SchedulingSettingsInfo? settings)
     {
-        var settings = await _schedulingRepo.GetSettingsAsync(siteId);
         if (settings is null || settings.Id == Guid.Empty) return null;
 
         return new ExportSchedulingSettings
@@ -191,9 +203,8 @@ public class ExportService : IExportService
         };
     }
 
-    private async Task<List<ExportAvailabilityEvent>?> BuildAvailabilityEventsAsync(Guid siteId)
+    private static List<ExportAvailabilityEvent>? BuildAvailabilityEvents(List<AvailabilityEventInfo> events)
     {
-        var events = await _availabilityEventRepo.GetBySiteAsync(siteId);
         if (events.Count == 0) return null;
 
         return events
@@ -214,13 +225,20 @@ public class ExportService : IExportService
 
     private async Task<List<ExportTemplate>> BuildTemplatesAsync(Dictionary<Guid, string> criterionIdToKey)
     {
-        var allTemplates = new List<ExportTemplate>();
+        var templatesByType = new List<(string EntityType, List<Template> Templates)>();
         foreach (var entityType in new[] { TemplateEntityTypes.Space, TemplateEntityTypes.Group, TemplateEntityTypes.Request })
+            templatesByType.Add((entityType, await _templateRepo.GetAllAsync(entityType)));
+
+        // Bulk-fetch items for all templates in one query (was one query per template).
+        var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(
+            templatesByType.SelectMany(t => t.Templates).Select(t => t.Id).ToList());
+
+        var allTemplates = new List<ExportTemplate>();
+        foreach (var (entityType, templates) in templatesByType)
         {
-            var templates = await _templateRepo.GetAllAsync(entityType);
             foreach (var template in templates.OrderBy(t => t.Name, StringComparer.Ordinal))
             {
-                var items = await _templateRepo.GetTemplateItemsAsync(template.Id);
+                var items = itemsByTemplate.GetValueOrDefault(template.Id, []);
                 allTemplates.Add(new ExportTemplate
                 {
                     Key = GenerateKey(template.Name),
@@ -252,11 +270,13 @@ public class ExportService : IExportService
         var resourceIdToSiteCode = new Dictionary<Guid, string>();
         var allowedResourceIds = new HashSet<Guid>();
 
+        // Bulk-fetch spaces for all sites in one query (was one query per site).
+        var spacesBySite = await _spaceRepo.GetBySitesAsync(sites.Select(s => s.Id).ToList());
+
         foreach (var site in sites)
         {
             var siteCode = site.Code ?? GenerateKey(site.Name);
-            var spaces = await _spaceRepo.GetAllAsync(site.Id);
-            foreach (var space in spaces)
+            foreach (var space in spacesBySite.GetValueOrDefault(site.Id, []))
             {
                 allowedResourceIds.Add(space.Id);
                 resourceIdToName[space.Id] = space.Name;

@@ -9,6 +9,8 @@ namespace Api.Repositories;
 public interface IGroupCapabilityRepository
 {
     Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId, CancellationToken ct = default);
+    /// <summary>Bulk fetch capabilities for many groups in one query, keyed by group id — for export.</summary>
+    Task<Dictionary<Guid, List<GroupCapabilityInfo>>> GetByGroupsAsync(IReadOnlyList<Guid> groupIds, CancellationToken ct = default);
     Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default);
 }
@@ -43,6 +45,38 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
             ORDER BY c.name",
             p => p.AddWithValue("groupId", groupId),
             r => MapFromReader(r), ct);
+    }
+
+    public async Task<Dictionary<Guid, List<GroupCapabilityInfo>>> GetByGroupsAsync(IReadOnlyList<Guid> groupIds, CancellationToken ct = default)
+    {
+        if (groupIds.Count == 0) return [];
+
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        // No per-group existence check: callers pass ids they just read from resource_groups.
+        var capabilities = await conn.QueryListAsync(@"
+            SELECT
+                gc.id, gc.resource_group_id, gc.criterion_id, gc.value,
+                gc.created_at, gc.updated_at,
+                c.name as criterion_name, c.data_type as criterion_type, c.unit as criterion_unit
+            FROM resource_group_capabilities gc
+            JOIN criteria c ON gc.criterion_id = c.id
+            WHERE gc.resource_group_id = ANY(@groupIds)
+            ORDER BY gc.resource_group_id, c.name",
+            p => p.AddWithValue("groupIds", groupIds.ToArray()),
+            r => MapFromReader(r), ct);
+
+        var map = new Dictionary<Guid, List<GroupCapabilityInfo>>();
+        foreach (var capability in capabilities)
+        {
+            if (!map.TryGetValue(capability.GroupId, out var list))
+            {
+                list = [];
+                map[capability.GroupId] = list;
+            }
+            list.Add(capability);
+        }
+        return map;
     }
 
     public async Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default)

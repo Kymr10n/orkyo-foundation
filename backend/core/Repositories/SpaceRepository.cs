@@ -37,6 +37,28 @@ public class SpaceRepository : ISpaceRepository
             p => p.AddWithValue("siteId", siteId), SpaceMapper.MapFromReader, ct);
     }
 
+    public async Task<Dictionary<Guid, List<SpaceInfo>>> GetBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default)
+    {
+        if (siteIds.Count == 0) return [];
+
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        var spaces = await conn.QueryListAsync(
+            $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = ANY(@siteIds) ORDER BY s.site_id, s.code, r.name",
+            p => p.AddWithValue("siteIds", siteIds.ToArray()), SpaceMapper.MapFromReader, ct);
+
+        var map = new Dictionary<Guid, List<SpaceInfo>>();
+        foreach (var space in spaces)
+        {
+            if (!map.TryGetValue(space.SiteId, out var list))
+            {
+                list = [];
+                map[space.SiteId] = list;
+            }
+            list.Add(space);
+        }
+        return map;
+    }
+
     public async Task<PagedResult<SpaceInfo>> GetAllAsync(Guid siteId, PageRequest page, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);

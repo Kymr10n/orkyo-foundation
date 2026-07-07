@@ -149,10 +149,13 @@ public class PresetService : IPresetService
 
     private async Task<List<PresetTemplate>> ConvertTemplatesAsync(List<Template> templates, Dictionary<Guid, string> criterionIdToKey)
     {
+        // Bulk-fetch items for all templates in one query (was one query per template).
+        var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(templates.Select(t => t.Id).ToList());
+
         var result = new List<PresetTemplate>();
         foreach (var template in templates)
         {
-            var items = await _templateRepo.GetTemplateItemsAsync(template.Id);
+            var items = itemsByTemplate.GetValueOrDefault(template.Id, []);
             result.Add(new PresetTemplate
             {
                 Key = GenerateKey(template.Name),

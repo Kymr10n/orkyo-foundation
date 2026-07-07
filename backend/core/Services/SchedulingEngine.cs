@@ -62,20 +62,34 @@ public static class SchedulingEngine
 
         while (remainingMinutes > 0)
         {
-            if (++iterations > maxIterations)
-                throw new InvalidOperationException(
-                    "Scheduling calculation exceeded maximum iterations. " +
-                    "Check that working hours and off-times allow at least some working time.");
-
             if (!IsWorkingTime(current, settings, tz, enabledOffTimes))
             {
                 current = SnapToNextWorkingTime(current, settings, tz, enabledOffTimes);
                 continue;
             }
 
-            // Consume 1 minute of working time
-            current = current.AddMinutes(1);
-            remainingMinutes--;
+            // Consume a contiguous run of working minutes in one step
+            var chunkMinutes = WorkingRunMinutes(current, remainingMinutes, settings, tz, enabledOffTimes);
+            if (chunkMinutes > 0)
+            {
+                if (iterations + (long)chunkMinutes > maxIterations)
+                    throw new InvalidOperationException(
+                        "Scheduling calculation exceeded maximum iterations. " +
+                        "Check that working hours and off-times allow at least some working time.");
+                iterations += chunkMinutes;
+                current = current.AddMinutes(chunkMinutes);
+                remainingMinutes -= chunkMinutes;
+            }
+            else
+            {
+                // Fallback: consume 1 minute at a time (e.g. across a DST transition)
+                if (++iterations > maxIterations)
+                    throw new InvalidOperationException(
+                        "Scheduling calculation exceeded maximum iterations. " +
+                        "Check that working hours and off-times allow at least some working time.");
+                current = current.AddMinutes(1);
+                remainingMinutes--;
+            }
 
             // If we've crossed into non-working time, don't count the overshoot
             if (remainingMinutes > 0 && !IsWorkingTime(current, settings, tz, enabledOffTimes))
@@ -201,6 +215,70 @@ public static class SchedulingEngine
         throw new InvalidOperationException(
             "No working time available within 366 days. Check scheduling settings.");
     }
+
+    /// <summary>
+    /// Computes how many whole minutes of working time can be consumed
+    /// contiguously from <paramref name="fromUtc"/> (which must be a working
+    /// instant) before hitting non-working time, capped at
+    /// <paramref name="maxMinutes"/>. Minutes are counted on a grid anchored at
+    /// <paramref name="fromUtc"/>: a minute counts iff its start instant is
+    /// working, matching minute-by-minute stepping exactly. Returns 0 when a
+    /// timezone offset transition falls inside the run, signalling the caller
+    /// to fall back to minute-level stepping.
+    /// </summary>
+    private static int WorkingRunMinutes(
+        DateTime fromUtc,
+        int maxMinutes,
+        SchedulingSettingsInfo settings,
+        TimeZoneInfo tz,
+        List<BlockedPeriod> enabledOffTimes)
+    {
+        var limit = (long)maxMinutes;
+
+        // Off-times: first minute-grid instant that lands inside a window.
+        // A window entirely between two grid instants is skipped over, exactly
+        // as minute stepping would.
+        foreach (var ot in enabledOffTimes)
+        {
+            if (ot.EndTs <= fromUtc)
+                continue;
+            var stepsToStart = Math.Max(0L, CeilMinutes(ot.StartTs - fromUtc));
+            if (stepsToStart < limit && fromUtc.AddMinutes(stepsToStart) < ot.EndTs)
+                limit = stepsToStart;
+        }
+
+        // Local-time constraints (working-day end, weekend day change) are
+        // extrapolated with the current UTC offset; only valid while the
+        // offset stays constant across the run.
+        if (settings.WorkingHoursEnabled || !settings.WeekendsEnabled)
+        {
+            var offset = tz.GetUtcOffset(DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc));
+            var local = fromUtc + offset;
+
+            // Working-day end: first grid instant with local time-of-day >= WorkingDayEnd
+            if (settings.WorkingHoursEnabled)
+            {
+                var dayEndUtc = local.Date.Add(settings.WorkingDayEnd.ToTimeSpan()) - offset;
+                limit = Math.Min(limit, CeilMinutes(dayEndUtc - fromUtc));
+            }
+
+            // Day change: weekend status can flip at local midnight
+            if (!settings.WeekendsEnabled)
+            {
+                var midnightUtc = local.Date.AddDays(1) - offset;
+                limit = Math.Min(limit, CeilMinutes(midnightUtc - fromUtc));
+            }
+
+            var runEnd = DateTime.SpecifyKind(fromUtc.AddMinutes(limit), DateTimeKind.Utc);
+            if (tz.GetUtcOffset(runEnd) != offset)
+                return 0;
+        }
+
+        return (int)limit;
+    }
+
+    private static long CeilMinutes(TimeSpan span) =>
+        (span.Ticks + TimeSpan.TicksPerMinute - 1) / TimeSpan.TicksPerMinute;
 
     private const int MinutesPerHour = 60;
     private const int MinutesPerDay = MinutesPerHour * 24;

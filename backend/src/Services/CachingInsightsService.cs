@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Api.Models.Insights;
 using Api.Services;
 using Microsoft.Extensions.Caching.Memory;
@@ -23,6 +24,12 @@ public sealed class CachingInsightsService(IInsightsService inner, OrgContext or
     // Process-wide, size-bounded. Shared across scopes; tenant isolation comes from OrgId in the key.
     private static readonly MemoryCache Cache = new(new MemoryCacheOptions { SizeLimit = 10_000 });
 
+    // Single-flight map: concurrent misses for the same key await one computation instead of each
+    // recomputing. Values are Lazy<Task<T>> (object-typed because the helper is generic); entries
+    // are always removed on completion, so a faulted task is never cached and never poisons
+    // subsequent calls. IMemoryCache above remains the actual store.
+    private static readonly ConcurrentDictionary<string, object> InFlight = new();
+
     public Task<InsightsOverview> GetOverviewAsync(InsightsFilter filter, CancellationToken ct = default)
         => GetOrComputeAsync("overview", filter, () => inner.GetOverviewAsync(filter, ct));
 
@@ -45,12 +52,24 @@ public sealed class CachingInsightsService(IInsightsService inner, OrgContext or
         if (Cache.TryGetValue(key, out T? hit) && hit is not null)
             return hit;
 
-        var value = await compute();
-        Cache.Set(key, value, new MemoryCacheEntryOptions
+        var lazy = (Lazy<Task<T>>)InFlight.GetOrAdd(key, _ => new Lazy<Task<T>>(async () =>
         {
-            AbsoluteExpirationRelativeToNow = Ttl,
-            Size = 1,
-        });
-        return value;
+            var value = await compute();
+            Cache.Set(key, value, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = Ttl,
+                Size = 1,
+            });
+            return value;
+        }));
+
+        try
+        {
+            return await lazy.Value;
+        }
+        finally
+        {
+            InFlight.TryRemove(key, out _);
+        }
     }
 }

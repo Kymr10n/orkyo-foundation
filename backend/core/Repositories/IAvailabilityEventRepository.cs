@@ -5,6 +5,8 @@ namespace Api.Repositories;
 public interface IAvailabilityEventRepository
 {
     Task<List<AvailabilityEventInfo>> GetBySiteAsync(Guid siteId, CancellationToken ct = default);
+    /// <summary>Bulk fetch events (with scopes) for many sites in one pass, keyed by site id — for export.</summary>
+    Task<Dictionary<Guid, List<AvailabilityEventInfo>>> GetBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default);
     Task<AvailabilityEventInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<AvailabilityEventInfo> CreateAsync(Guid siteId, CreateAvailabilityEventRequest request, CancellationToken ct = default);
     Task<AvailabilityEventInfo?> UpdateAsync(Guid id, UpdateAvailabilityEventRequest request, CancellationToken ct = default);

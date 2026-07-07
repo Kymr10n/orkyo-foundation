@@ -78,7 +78,7 @@ public class RequestService : IRequestService
         => _repository.GetScheduledBySiteWindowAsync(siteId, from, to, ct);
 
     public Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default)
-        => _repository.GetUnscheduledAsync(siteId, includeSiteNeutral, ct);
+        => _repository.GetUnscheduledAsync(siteId, includeSiteNeutral, ct: ct);
 
     public async Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {

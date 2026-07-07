@@ -84,6 +84,20 @@ public class SchedulingRepository : ISchedulingRepository
             SchedulingMapper.MapSettingsFromReader, ct);
     }
 
+    public async Task<Dictionary<Guid, SchedulingSettingsInfo>> GetSettingsBySitesAsync(
+        IReadOnlyList<Guid> siteIds, CancellationToken ct = default)
+    {
+        if (siteIds.Count == 0) return [];
+
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        var rows = await conn.QueryListAsync(
+            $"SELECT {SettingsSelectColumns} FROM scheduling_settings WHERE site_id = ANY(@ids)",
+            p => p.AddWithValue("ids", siteIds.ToArray()),
+            SchedulingMapper.MapSettingsFromReader, ct);
+
+        return rows.ToDictionary(s => s.SiteId);
+    }
+
     public async Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);

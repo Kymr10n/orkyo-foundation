@@ -27,6 +27,32 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         return events;
     }
 
+    public async Task<Dictionary<Guid, List<AvailabilityEventInfo>>> GetBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default)
+    {
+        if (siteIds.Count == 0) return [];
+
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.OpenAsync(ct);
+
+        var events = await conn.QueryListAsync(
+            $"SELECT {EventCols} FROM availability_events WHERE site_id = ANY(@ids) ORDER BY site_id, start_ts",
+            p => p.AddWithValue("ids", siteIds.ToArray()),
+            SchedulingMapper.MapAvailabilityEventFromReader, ct);
+        await HydrateScopesAsync(conn, events, ct);
+
+        var map = new Dictionary<Guid, List<AvailabilityEventInfo>>();
+        foreach (var ev in events)
+        {
+            if (!map.TryGetValue(ev.SiteId, out var list))
+            {
+                list = [];
+                map[ev.SiteId] = list;
+            }
+            list.Add(ev);
+        }
+        return map;
+    }
+
     public async Task<AvailabilityEventInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);

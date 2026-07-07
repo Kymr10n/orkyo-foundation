@@ -12,6 +12,8 @@ public interface ISchedulingRepository
     // ── Settings ─────────────────────────────────────────────────────────────
 
     Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default);
+    /// <summary>Bulk settings for many sites in one query, keyed by site id; sites without settings are omitted.</summary>
+    Task<Dictionary<Guid, SchedulingSettingsInfo>> GetSettingsBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default);
     Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default);
     Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default);
 

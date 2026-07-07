@@ -130,6 +130,13 @@ public record RequestInfo
 }
 
 /// <summary>
+/// Lightweight projection of a scheduled request (insights conflict timeline) — same row set as
+/// <see cref="RequestInfo"/> from the windowed scheduled query, without the assignments view or
+/// requirements.
+/// </summary>
+public record ScheduledRequestLite(Guid Id, DateTime StartTs, Guid? SiteId);
+
+/// <summary>
 /// Request requirement (criterion value).
 /// </summary>
 public record RequestRequirementInfo

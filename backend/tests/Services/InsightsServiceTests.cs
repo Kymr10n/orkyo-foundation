@@ -36,7 +36,7 @@ public class InsightsServiceTests
         // Sensible empties — individual tests override.
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
@@ -59,22 +59,7 @@ public class InsightsServiceTests
     private static readonly DateTime Mar = new(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
     private const int JanMinutes = 31 * 24 * 60; // 44640
 
-    private static RequestInfo Scheduled(Guid id, DateTime start, Guid? siteId) => new()
-    {
-        Id = id,
-        Name = "R",
-        PlanningMode = PlanningMode.Leaf,
-        Status = RequestStatus.New,
-        SchedulingSettingsApply = false,
-        Assignments = [],
-        SiteId = siteId,
-        StartTs = start,
-        EndTs = start.AddHours(1),
-        MinimalDurationValue = 60,
-        MinimalDurationUnit = DurationUnit.Minutes,
-        CreatedAt = start,
-        UpdatedAt = start,
-    };
+    private static ScheduledRequestLite Scheduled(Guid id, DateTime start, Guid? siteId) => new(id, start, siteId);
 
     private static ConflictInfo Conflict(string kind) => new()
     {
@@ -143,7 +128,7 @@ public class InsightsServiceTests
                 Conflicts = [Conflict("overlap"), Conflict("capacity_exceeded"), Conflict("connector_mismatch"),
                              Conflict("starts_in_off_time"), Conflict("site_mismatch"), Conflict("below_min_duration")],
             }]);
-        _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([Scheduled(reqId, febStart, siteId: null)]);
 
         var result = await _service.GetConflictTrendAsync(
@@ -167,7 +152,7 @@ public class InsightsServiceTests
         var siteA = Guid.NewGuid();
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
-        _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc), siteId: siteA)]);
 
         // Filter to a different site → the siteA conflict is excluded.
@@ -184,7 +169,7 @@ public class InsightsServiceTests
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
         // Site-neutral request (no site) is schedulable anywhere → kept under a specific site filter.
-        _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc), siteId: null)]);
 
         var result = await _service.GetConflictTrendAsync(
@@ -276,7 +261,7 @@ public class InsightsServiceTests
         var reqId = Guid.NewGuid();
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
-        _requests.Setup(r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 20, 9, 0, 0, DateTimeKind.Utc), siteId: null)]);
 
         var result = await _service.GetUtilizationTrendAsync(

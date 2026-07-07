@@ -244,7 +244,7 @@ public class InsightsService(
         var registry = await conflictService.GetAllAsync(from, to, ct);
         if (registry.Count == 0) return [];
 
-        var scheduled = (await requestRepository.GetScheduledAsync(from, to, ct))
+        var scheduled = (await requestRepository.GetScheduledLiteAsync(from, to, ct))
             .ToDictionary(r => r.Id);
 
         var points = new List<ConflictPoint>();
@@ -253,9 +253,8 @@ public class InsightsService(
             if (!scheduled.TryGetValue(rc.RequestId, out var request)) continue;
             // Exclude only when the request is bound to a *different* site; site-neutral stays in.
             if (siteId.HasValue && request.SiteId.HasValue && request.SiteId != siteId) continue;
-            if (request.StartTs is not { } start) continue;
             foreach (var c in rc.Conflicts)
-                points.Add(new ConflictPoint(start, c.Kind));
+                points.Add(new ConflictPoint(request.StartTs, c.Kind));
         }
         return points;
     }
