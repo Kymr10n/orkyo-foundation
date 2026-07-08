@@ -284,9 +284,9 @@ describe('SpaceRow', () => {
       ],
     });
     const cells = getCells(container);
-    expect(cells[0].className).not.toMatch(/bg-destructive\/15/);
-    expect(cells[1].className).toMatch(/bg-destructive\/15/);
-    expect(cells[2].className).not.toMatch(/bg-destructive\/15/);
+    expect(cells[0].className).not.toMatch(/bg-\[color-mix/);
+    expect(cells[1].className).toMatch(/bg-\[color-mix/);
+    expect(cells[2].className).not.toMatch(/bg-\[color-mix/);
   });
 
   it('does not tint cells as off-time when the range applies to a different resource', () => {
@@ -305,6 +305,6 @@ describe('SpaceRow', () => {
         },
       ],
     });
-    expect(getCells(container)[0].className).not.toMatch(/bg-destructive\/15/);
+    expect(getCells(container)[0].className).not.toMatch(/bg-\[color-mix/);
   });
 });

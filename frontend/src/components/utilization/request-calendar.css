@@ -70,10 +70,24 @@
   background-color: hsl(var(--muted) / 0.8);
 }
 
-/* Off-time background events (weekends + holidays/closures) */
+/* Off-time background events (weekends + holidays/closures). Solid tint + diagonal
+   hatch matching the People/Space grid off-time *background* columns (OFFTIME_TINT_CLASS
+   + PROBLEM_HATCH_CLASS in schedule-colors.ts) so the two views read identically. */
 .orkyo-calendar .fc-bg-event {
-  background-color: hsl(var(--destructive) / 0.15);
+  background-color: color-mix(in srgb, hsl(var(--destructive)) 15%, hsl(var(--background)));
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 11px,
+    var(--hatch-color) 11px,
+    var(--hatch-color) 12px
+  );
+  --hatch-color: rgba(0, 0, 0, 0.07);
   opacity: 1; /* FullCalendar defaults to 0.3 — override to match grid shading */
+}
+
+.dark .orkyo-calendar .fc-bg-event {
+  --hatch-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Time-grid slot density — compress each 30-min sub-slot to 16px (≈32px/hour) so the per-hour

@@ -2,7 +2,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { TimeColumn } from "./scheduler-types";
-import { PROBLEM_HATCH_CLASS } from "./schedule-colors";
+import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
 
 /**
  * Shared row chrome for both utilization grids (Spaces + People).
@@ -20,7 +20,7 @@ import { PROBLEM_HATCH_CLASS } from "./schedule-colors";
 
 /** Tailwind tint for a column cell — single source for both grids. */
 export function columnTintClass(col: TimeColumn): string {
-  if (col.isWeekend || col.isGlobalOffTime) return "bg-destructive/15";
+  if (col.isWeekend || col.isGlobalOffTime) return OFFTIME_TINT_CLASS;
   if (col.isOutsideWorkingHours) return "bg-muted/80";
   return "";
 }
@@ -60,11 +60,11 @@ function DefaultColumnCells({
       {columns.map((col) => {
         // Resource-specific off-time gets the same destructive tint as weekends/
         // global off-time; otherwise fall back to the shared column tint.
-        const tint = isOffTime?.(col) ? "bg-destructive/15" : columnTintClass(col);
-        // Off-time (destructive tint) is a problem state — add the diagonal hatch
-        // so it reads without relying on colour alone. Outside-working-hours
-        // (muted) is not flagged as a problem, so it stays hatch-free.
-        const hatch = tint === "bg-destructive/15" ? PROBLEM_HATCH_CLASS : "";
+        const tint = isOffTime?.(col) ? OFFTIME_TINT_CLASS : columnTintClass(col);
+        // The off-time background column carries the diagonal hatch (the "Off"
+        // segment bars stay hatch-free so the two don't double up). Outside
+        // working hours (muted) is not a problem state, so it stays hatch-free.
+        const hatch = tint === OFFTIME_TINT_CLASS ? PROBLEM_HATCH_CLASS : "";
         return (
           <div
             key={col.start.getTime()}

@@ -34,17 +34,27 @@ export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
 // without relying on colour alone (WCAG 1.4.1). Sets `background-image`, which
 // composes on top of the STATUS_CELL_CLASS `background-color` tint rather than
 // replacing it. The hatch colour is a CSS var so light/dark stay in one place.
+// Opaque off-time cell tint (weekends / holidays / resource off-time). Solid —
+// not a translucent overlay — so row separators and bars don't show through.
+// color-mix is inlined (not a shared token) because each edition ships its own
+// theme :root, but --destructive/--background exist in all of them; this yields
+// the same hue as the old destructive/15 tint, opaque, and tracks light/dark.
+export const OFFTIME_TINT_CLASS =
+  'bg-[color-mix(in_srgb,hsl(var(--destructive))_15%,hsl(var(--background)))]';
+
 export const PROBLEM_HATCH_CLASS =
   'bg-[image:repeating-linear-gradient(45deg,transparent,transparent_11px,var(--hatch-color)_11px,var(--hatch-color)_12px)] [--hatch-color:rgba(0,0,0,0.07)] dark:[--hatch-color:rgba(255,255,255,0.08)]';
 
-// Per-status hatch — empty for the non-problem states. Keyed alongside the
-// colour tokens so the cue definition lives with the colours it disambiguates.
+// Per-status hatch for BARS/segments. Overbooked (the conflict state) carries it
+// as its non-colour cue. Off-time bars stay hatch-free: the off-time *background*
+// column already shows the hatch (see TimelineRow), and hatching the "Off" bar on
+// top of it doubles the pattern and reads as noise.
 export const STATUS_PATTERN_CLASS: Record<BucketStatus, string> = {
   available:     '',
   partial:       '',
   assigned:      '',
   overbooked:    PROBLEM_HATCH_CLASS,
-  'non-working': PROBLEM_HATCH_CLASS,
+  'non-working': '',
 };
 
 // Canvas/SVG fill + stroke — must stay in sync with the Tailwind tokens above.
