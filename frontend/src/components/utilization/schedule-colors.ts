@@ -35,7 +35,7 @@ export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
 // composes on top of the STATUS_CELL_CLASS `background-color` tint rather than
 // replacing it. The hatch colour is a CSS var so light/dark stay in one place.
 export const PROBLEM_HATCH_CLASS =
-  'bg-[image:repeating-linear-gradient(45deg,transparent,transparent_5px,var(--hatch-color)_5px,var(--hatch-color)_7px)] [--hatch-color:rgba(0,0,0,0.15)] dark:[--hatch-color:rgba(255,255,255,0.18)]';
+  'bg-[image:repeating-linear-gradient(45deg,transparent,transparent_11px,var(--hatch-color)_11px,var(--hatch-color)_12px)] [--hatch-color:rgba(0,0,0,0.07)] dark:[--hatch-color:rgba(255,255,255,0.08)]';
 
 // Per-status hatch — empty for the non-problem states. Keyed alongside the
 // colour tokens so the cue definition lives with the colours it disambiguates.
