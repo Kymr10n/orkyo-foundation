@@ -117,7 +117,8 @@ const RequestCard = React.memo(function RequestCard({
       style={style}
       onClick={onCardClick ? () => onCardClick(request) : undefined}
       className={`group py-2 pr-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-        isDraggable ? "cursor-grab active:cursor-grabbing" : onCardClick ? "cursor-pointer" : ""
+        // dnd-kit: prevent touch scroll from hijacking drag on the activator
+        isDraggable ? "cursor-grab active:cursor-grabbing touch-none" : onCardClick ? "cursor-pointer" : ""
       } ${isOver ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
       {...attributes}
       {...(isDraggable ? listeners : {})}

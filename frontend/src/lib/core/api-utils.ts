@@ -13,6 +13,7 @@ import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
 import { getTenantSlugSync } from "@foundation/src/contexts/AuthContext";
 import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
 import { logger } from "@foundation/src/lib/core/logger";
+import { randomId } from "@foundation/src/lib/core/ids";
 import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@foundation/src/lib/utils/tenant-navigation";
 
 /**
@@ -24,7 +25,7 @@ import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@found
 export function getApiHeaders(method = 'GET'): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    [CORRELATION_ID_HEADER_NAME]: crypto.randomUUID(),
+    [CORRELATION_ID_HEADER_NAME]: randomId(),
   };
 
   // Add tenant identifier

@@ -1,0 +1,115 @@
+/*
+ * Fixture-only Tailwind entry for the cross-engine smoke harness.
+ * Mirrors the theme tokens each edition ships (see orkyo-community
+ * frontend/src/index.css) so foundation components render with real styling.
+ * NOT a production asset — excluded from the published package (package.json
+ * `files` whitelists only .tsbuild/ + assets/).
+ */
+@import "tailwindcss";
+
+/* Scan foundation source so utility classes referenced only in src/ (e.g. the
+ * off-time PROBLEM_HATCH_CLASS in schedule-colors.ts) get generated. */
+@source "../../src/**/*.{ts,tsx}";
+@source "./main.tsx";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 216 13% 5%;
+    --foreground: 216 8% 80%;
+    --card: 217 14% 9%;
+    --card-foreground: 216 8% 80%;
+    --popover: 217 14% 9%;
+    --popover-foreground: 216 8% 80%;
+    --primary: 228 69% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 15% 13%;
+    --secondary-foreground: 216 8% 80%;
+    --muted: 217 14% 9%;
+    --muted-foreground: 216 7% 56%;
+    --accent: 217 15% 13%;
+    --accent-foreground: 216 8% 80%;
+    --destructive: 0 64% 53%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 15% 19%;
+    --input: 216 15% 14%;
+    --ring: 212 100% 67%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 14px;
+  }
+}

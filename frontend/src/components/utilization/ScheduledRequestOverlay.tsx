@@ -161,7 +161,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       ref={combinedRef}
       style={style}
       className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition motion-reduce:transition-none hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
-        isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing'
+        isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
       }`}
       onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); } }}
       title={tooltipText}

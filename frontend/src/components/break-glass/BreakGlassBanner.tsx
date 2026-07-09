@@ -102,6 +102,8 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
     return () => window.clearInterval(id);
   }, [membership?.isBreakGlass, now]);
 
+  // Backend serializes DateTimeOffset via System.Text.Json → strict ISO-8601 with
+  // offset, safe for Date.parse in all supported engines.
   const expiresAtMs = session?.expiresAt ? Date.parse(session.expiresAt) : null;
   const absoluteExpiresAtMs = session?.absoluteExpiresAt ? Date.parse(session.absoluteExpiresAt) : null;
   const remainingMs = expiresAtMs != null ? expiresAtMs - tick : null;

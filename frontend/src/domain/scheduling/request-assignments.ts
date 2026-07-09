@@ -1,4 +1,5 @@
 import type { Request, ResourceAssignment } from '@foundation/src/types/requests';
+import { randomId } from '@foundation/src/lib/core/ids';
 
 /**
  * Gets the space assignment from a request, if any.
@@ -30,7 +31,7 @@ export function applySpaceAssignmentOptimistic(
   const nonSpaceAssignments = r.assignments.filter(a => a.resourceTypeKey !== 'space');
   const now = new Date().toISOString();
   const newAssignment: ResourceAssignment = {
-    id: `optimistic-${(globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36))}`,
+    id: `optimistic-${randomId()}`,
     resourceId,
     resourceTypeKey: 'space',
     startUtc,

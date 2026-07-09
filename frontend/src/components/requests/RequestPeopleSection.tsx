@@ -18,6 +18,7 @@ import { ValidationIssueList } from "./ValidationIssueList";
 import { ConflictIndicator } from "./ConflictIndicator";
 import type { Conflict } from "@foundation/src/types/requests";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
+import { randomId } from "@foundation/src/lib/core/ids";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -100,7 +101,7 @@ export function RequestPeopleSection({
     setPendingRows((prev) => [
       ...prev,
       {
-        key: crypto.randomUUID(),
+        key: randomId(),
         resourceId: '',
         allocationPercent: 100,
         role: '',

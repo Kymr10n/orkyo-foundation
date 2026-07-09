@@ -400,6 +400,33 @@ without it.
 
 ---
 
+## 14. Browser support
+
+**Supported:** Safari 16.4+, Chrome/Edge 111+, Firefox 128+.
+
+**Rationale:** Tailwind CSS v4's generated output (`oklch()` colors, `@property`, `color-mix()`)
+sets the floor — these engine versions are the earliest that render it correctly. `vite.config.ts`
+in both `orkyo-saas` and `orkyo-community` pins `build.target` to this same floor
+(`['chrome111', 'edge111', 'firefox128', 'safari16.4']`) so the two stay aligned; if you raise or
+lower one, raise or lower the other.
+
+**Rule:** before adopting any new platform feature (CSS or JS), check its caniuse.com support
+against this floor. If it's not supported down to Safari 16.4 / Chrome 111 / Firefox 128, it's not
+safe to ship unguarded.
+
+**Secure-context rule:** `crypto.randomUUID()` and `navigator.clipboard` are only available in
+secure contexts (HTTPS or `localhost`). Community self-hosted deployments may be reached over
+plain HTTP on a LAN, which is a non-secure context — calling either API directly throws or is
+`undefined` there. Never call them directly; use the shared guarded helpers (`randomId()` in
+`lib/core/ids.ts` for UUIDs; check `navigator.clipboard?.writeText` before using the Clipboard API
+and fail with a visible message when it's unavailable).
+
+**Marketing pages have no build step.** The marketing HTML/CSS/JS (served statically, not through
+Vite) is not covered by the `build.target` floor above and stays conservative — nothing newer than
+roughly 2020-era CSS/JS.
+
+---
+
 ## Public-API note (this is a shared package)
 
 `@kymr10n/foundation` is consumed by `orkyo-saas` and `orkyo-community`. Per the repo `CLAUDE.md`,

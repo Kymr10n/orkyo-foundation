@@ -100,6 +100,13 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
+    // navigator.clipboard is only exposed in secure contexts (HTTPS or localhost);
+    // Community self-hosts may be reached over plain HTTP on a LAN. The token stays
+    // visible in the dialog/table, so the user can still copy it manually.
+    if (!navigator.clipboard?.writeText) {
+      toast.error("Clipboard unavailable — copy the token manually");
+      return;
+    }
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
