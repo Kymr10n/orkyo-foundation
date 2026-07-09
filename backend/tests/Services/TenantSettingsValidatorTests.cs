@@ -17,6 +17,9 @@ public class TenantSettingsValidatorTests
     private static TenantSettingDescriptor StringDesc(string key = "category.some_string")
         => new(key, "category", "Label", "Desc", "string", "default");
 
+    private static TenantSettingDescriptor MultilineDesc(string key = "category.some_text")
+        => new(key, "category", "Label", "Desc", "string", "default", Multiline: true);
+
     [Fact]
     public void Validate_ValueExceedingMaxLength_Throws()
     {
@@ -24,6 +27,26 @@ public class TenantSettingsValidatorTests
         var oversize = new string('a', TenantSettingsValidator.MaxStringLength + 1);
 
         var act = () => TenantSettingsValidator.Validate(descriptor, oversize);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*exceeds maximum length*");
+    }
+
+    [Fact]
+    public void Validate_MultilineDescriptor_AcceptsValueBeyondSingleLineCap()
+    {
+        var value = new string('a', TenantSettingsValidator.MaxStringLength + 1);
+
+        var act = () => TenantSettingsValidator.Validate(MultilineDesc(), value);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_MultilineDescriptor_RejectsValueBeyondMultilineCap()
+    {
+        var oversize = new string('a', TenantSettingsValidator.MaxMultilineLength + 1);
+
+        var act = () => TenantSettingsValidator.Validate(MultilineDesc(), oversize);
 
         act.Should().Throw<ArgumentException>().WithMessage("*exceeds maximum length*");
     }

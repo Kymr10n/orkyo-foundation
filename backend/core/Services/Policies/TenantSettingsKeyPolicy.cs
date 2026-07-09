@@ -59,6 +59,8 @@ public static class TenantSettingsKeyPolicy
             return "branding";
         if (propertyName.StartsWith("AutoSchedule"))
             return "scheduling";
+        if (propertyName.StartsWith("Tos"))
+            return "legal";
         return "general";
     }
 

@@ -11,7 +11,7 @@ vi.mock('@foundation/src/pages/LoginPage', () => ({
 vi.mock('@foundation/src/pages/TosPage', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TosPage: (props: any) => (
-    <div data-testid="tos-page" data-tos-version={props.tosVersion}>
+    <div data-testid="tos-page" data-tos-version={props.tosVersion} data-tos-text={props.tosText}>
       <button onClick={props.onAccept}>Accept</button>
       <button onClick={props.onCancel}>Cancel</button>
     </div>
@@ -139,6 +139,15 @@ describe('ApexGateway', () => {
     }));
     renderGateway();
     expect(screen.getByTestId('tos-page')).toHaveAttribute('data-tos-version', '2026-03');
+  });
+
+  it('passes tosText from the session data to TosPage', () => {
+    mockUseAuth.mockReturnValue(authState({
+      authStage: AUTH_STAGES.TOS_REQUIRED,
+      sessionData: { requiredTosVersion: '2026-03', tosText: 'Custom terms body', tenants: [] },
+    }));
+    renderGateway();
+    expect(screen.getByTestId('tos-page')).toHaveAttribute('data-tos-text', 'Custom terms body');
   });
 
   // ── Tenant selection stage ────────────────────────────────────────────────

@@ -127,4 +127,48 @@ describe('SettingRow', () => {
     const input = screen.getByRole('textbox');
     expect(input).toHaveAttribute('inputMode', 'decimal');
   });
+
+  it('renders a textarea for multiline settings', () => {
+    const descriptor = makeDescriptor({
+      key: 'legal.tos_text',
+      valueType: 'string',
+      multiline: true,
+      defaultValue: 'Default terms',
+      currentValue: 'Default terms',
+      minValue: null,
+      maxValue: null,
+    });
+    render(<SettingRow {...defaultProps} descriptor={descriptor} editValue="Custom terms" />);
+    const textarea = screen.getByRole('textbox');
+    expect(textarea.tagName).toBe('TEXTAREA');
+    expect(textarea).toHaveValue('Custom terms');
+  });
+
+  it('calls onChange when the multiline textarea changes', () => {
+    const descriptor = makeDescriptor({
+      key: 'legal.tos_text',
+      valueType: 'string',
+      multiline: true,
+      minValue: null,
+      maxValue: null,
+    });
+    render(<SettingRow {...defaultProps} descriptor={descriptor} editValue="Old" />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'New terms' } });
+    expect(defaultProps.onChange).toHaveBeenCalledWith('legal.tos_text', 'New terms');
+  });
+
+  it('shows the reset button for a modified multiline setting', () => {
+    const descriptor = makeDescriptor({
+      key: 'legal.tos_text',
+      valueType: 'string',
+      multiline: true,
+      defaultValue: 'Default terms',
+      currentValue: 'Overridden terms',
+      minValue: null,
+      maxValue: null,
+    });
+    render(<SettingRow {...defaultProps} descriptor={descriptor} editValue="Overridden terms" />);
+    fireEvent.click(screen.getByRole('button', { name: /reset/i }));
+    expect(defaultProps.onReset).toHaveBeenCalledWith('legal.tos_text');
+  });
 });

@@ -61,6 +61,8 @@ export interface SessionBootstrapResponse {
   user: AppUser;
   tosRequired: boolean;
   requiredTosVersion?: string;
+  /** ToS text resolved by the backend (site-scoped setting); only sent while acceptance is pending. */
+  tosText?: string;
   tenants: TenantMembership[];
   suggestedTenantSlug?: string;
   isSiteAdmin?: boolean;

@@ -1,5 +1,6 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
+import { Textarea } from "@foundation/src/components/ui/textarea";
 import { Label } from "@foundation/src/components/ui/label";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Switch } from "@foundation/src/components/ui/switch";
@@ -32,6 +33,52 @@ export function SettingRow({
   const error = validate(descriptor, editValue);
   const range = formatRange(descriptor);
   const hasLocalChange = editValue !== descriptor.currentValue;
+
+  // Long-form text settings get a stacked layout with a full-width textarea.
+  if (descriptor.multiline) {
+    return (
+      <div className="space-y-1.5 py-3">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={descriptor.key} className="font-medium text-sm">
+            {descriptor.displayName}
+          </Label>
+          {modified && (
+            <Badge variant="outline" className="text-xs px-1.5 py-0">
+              modified
+            </Badge>
+          )}
+          {modified && (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    aria-label={`Reset ${descriptor.displayName} to default`}
+                    onClick={() => onReset(descriptor.key)}
+                    loading={isResetting}
+                    disabled={isResetting}
+                  >
+                    {!isResetting && <RotateCcw className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reset to default</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">{descriptor.description}</p>
+        <Textarea
+          id={descriptor.key}
+          value={editValue}
+          onChange={(e) => onChange(descriptor.key, e.target.value)}
+          className={`min-h-48 text-sm ${error ? "border-destructive" : ""} ${hasLocalChange ? "border-primary" : ""}`}
+        />
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-[1fr_auto] gap-4 items-start py-3">

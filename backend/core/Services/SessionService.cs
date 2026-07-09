@@ -11,17 +11,20 @@ public class SessionService : ISessionService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IConfiguration _configuration;
     private readonly ITenantPlanInfoProvider _planInfoProvider;
+    private readonly ITenantSettingsService _tenantSettingsService;
     private readonly ILogger<SessionService> _logger;
 
     public SessionService(
         IDbConnectionFactory connectionFactory,
         IConfiguration configuration,
         ITenantPlanInfoProvider planInfoProvider,
+        ITenantSettingsService tenantSettingsService,
         ILogger<SessionService> logger)
     {
         _connectionFactory = connectionFactory;
         _configuration = configuration;
         _planInfoProvider = planInfoProvider;
+        _tenantSettingsService = tenantSettingsService;
         _logger = logger;
     }
 
@@ -77,6 +80,7 @@ public class SessionService : ISessionService
             User = userInfo,
             TosRequired = tosRequired,
             RequiredTosVersion = requiredTosVersion,
+            TosText = await GetTosTextIfRequiredAsync(tosRequired, ct),
             Tenants = memberships,
             SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == MembershipStatusConstants.Active)?.Slug
         };
@@ -121,9 +125,22 @@ public class SessionService : ISessionService
             User = userInfo,
             TosRequired = tosRequired,
             RequiredTosVersion = requiredTosVersion,
+            TosText = await GetTosTextIfRequiredAsync(tosRequired, ct),
             Tenants = memberships,
             SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == MembershipStatusConstants.Active)?.Slug
         };
+    }
+
+    /// <summary>
+    /// Resolve the site-scoped ToS text, only when the acceptance page will actually be shown.
+    /// Session endpoints run pre-tenant (SkipTenantResolution), where GetSettingsAsync resolves
+    /// site scope — same pattern as the password-policy read in SecurityEndpoints.
+    /// </summary>
+    private async Task<string?> GetTosTextIfRequiredAsync(bool tosRequired, CancellationToken ct)
+    {
+        if (!tosRequired) return null;
+        var settings = await _tenantSettingsService.GetSettingsAsync(ct);
+        return settings.Tos_Text;
     }
 
     public async Task MarkTourSeenAsync(Guid userId, CancellationToken ct = default)

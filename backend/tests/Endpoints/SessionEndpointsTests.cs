@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -20,9 +21,11 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class SessionEndpointsTests
 {
     private readonly HttpClient _client;
+    private readonly FoundationWebApplicationFactory _factory;
 
     public SessionEndpointsTests(DatabaseFixture databaseFixture)
     {
+        _factory = databaseFixture.Factory;
         _client = databaseFixture.Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -256,6 +259,45 @@ public class SessionEndpointsTests
         accepted.GetBoolean().Should().BeTrue();
         doc.RootElement.TryGetProperty("tosVersion", out var version).Should().BeTrue();
         version.GetString().Should().Be(requiredVersion);
+    }
+
+    // ─── Session bootstrap response — ToS text contract ──────────────────────────
+
+    /// <summary>
+    /// Contract test between SessionBootstrapResponse.TosText and the frontend TosPage:
+    /// while acceptance is pending the session response carries the resolved ToS text
+    /// (compiled default in this host — the factory runs in tenant context, so the
+    /// site-scoped override path is covered by TenantSettingsService tests); after
+    /// acceptance the field is null again. Exercised at the service level because the
+    /// /api/session/bootstrap route depends on IIdentityLinkService, which this factory
+    /// stubs out.
+    /// </summary>
+    [Fact]
+    public async Task SessionResponse_TosTextPresentWhilePending_NullAfterAcceptance()
+    {
+        const string requiredVersion = "2026-02"; // from factory config ToS:RequiredVersion
+        var email = $"tostext_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(
+            email, displayName: "ToS Text Test", tenantSlug: null, active: true);
+
+        using var scope = _factory.Services.CreateScope();
+        var sessionService = scope.ServiceProvider.GetRequiredService<Api.Services.ISessionService>();
+
+        // Fresh user → ToS pending → text present and matching the compiled default
+        var pending = await sessionService.GetSessionByUserIdAsync(userId);
+        pending.Should().NotBeNull();
+        pending!.TosRequired.Should().BeTrue();
+        pending.RequiredTosVersion.Should().Be(requiredVersion);
+        pending.TosText.Should().Be(new Api.Models.TenantSettings().Tos_Text);
+
+        // Accept the required version
+        await sessionService.AcceptTosAsync(userId, requiredVersion, ipAddress: null, userAgent: null);
+
+        // Accepted → ToS no longer pending → text no longer sent
+        var after = await sessionService.GetSessionByUserIdAsync(userId);
+        after.Should().NotBeNull();
+        after!.TosRequired.Should().BeFalse();
+        after.TosText.Should().BeNull();
     }
 
     // ─── POST /api/auth/create-account ───────────────────────────────────────────

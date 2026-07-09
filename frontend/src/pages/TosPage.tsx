@@ -22,9 +22,48 @@ interface TosPageProps {
   onCancel: () => void;
   /** TOS version to accept. */
   tosVersion: string;
+  /**
+   * Terms text resolved by the backend (site-scoped `legal.tos_text` setting).
+   * Plain text; blank lines separate paragraphs. Falls back to the built-in
+   * default when absent (older backend that doesn't send the field yet).
+   */
+  tosText?: string;
 }
 
-export function TosPage({ onAccept, onCancel, tosVersion }: TosPageProps) {
+/**
+ * Built-in generic terms, mirrored from the backend's compiled default
+ * (TenantSettings.DefaultTosText). Only rendered when the backend didn't
+ * provide `tosText` — i.e. during the package version-skew window.
+ */
+export const DEFAULT_TOS_TEXT = `1. Acceptance of Terms
+
+By accessing and using this service ("Service"), you accept and agree to be bound by the terms and provision of this agreement.
+
+2. Use of Service
+
+You agree to use the Service only for lawful purposes and in accordance with these Terms. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
+
+3. Data and Privacy
+
+We collect and process your data as described in our Privacy Policy. You retain ownership of all data you upload to the Service. We implement appropriate security measures to protect your data.
+
+4. Service Availability
+
+While we strive to maintain high availability, we do not guarantee uninterrupted access to the Service. We may perform maintenance or updates that temporarily affect availability.
+
+5. Limitation of Liability
+
+To the maximum extent permitted by law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the Service.
+
+6. Changes to Terms
+
+We reserve the right to modify these Terms at any time. We will notify you of any material changes. Your continued use of the Service after such modifications constitutes acceptance of the updated Terms.
+
+7. Contact
+
+If you have any questions about these Terms, please contact your system administrator.`;
+
+export function TosPage({ onAccept, onCancel, tosVersion, tosText }: TosPageProps) {
   usePageTitle("Terms of Service");
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -49,14 +88,6 @@ export function TosPage({ onAccept, onCancel, tosVersion }: TosPageProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-2xl space-y-4">
-        <div className="rounded-md bg-yellow-400 text-yellow-900 p-4 text-center">
-          <p className="text-base font-extrabold uppercase tracking-widest mb-1">Public Demo</p>
-          <p className="text-sm leading-relaxed opacity-85">
-            You are welcome to explore this solution. Prior to official go-live, you may use it freely —
-            however, your data may be lost in future updates. No guarantees or liability are given. Use at your own discretion.
-          </p>
-        </div>
       <Card className="w-full max-w-2xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center gap-2">
@@ -70,52 +101,8 @@ export function TosPage({ onAccept, onCancel, tosVersion }: TosPageProps) {
 
         <CardContent className="space-y-4">
           <ScrollArea className="h-64 rounded-md border p-4">
-            <div className="space-y-4 text-sm text-muted-foreground">
-              <h3 className="font-semibold text-foreground">1. Acceptance of Terms</h3>
-              <p>
-                By accessing and using this space utilization service ("Service"), you accept
-                and agree to be bound by the terms and provision of this agreement.
-              </p>
-
-              <h3 className="font-semibold text-foreground">2. Use of Service</h3>
-              <p>
-                You agree to use the Service only for lawful purposes and in accordance with these
-                Terms. You are responsible for maintaining the confidentiality of your account
-                credentials and for all activities that occur under your account.
-              </p>
-
-              <h3 className="font-semibold text-foreground">3. Data and Privacy</h3>
-              <p>
-                We collect and process your data as described in our Privacy Policy. You retain
-                ownership of all data you upload to the Service. We implement appropriate security
-                measures to protect your data.
-              </p>
-
-              <h3 className="font-semibold text-foreground">4. Service Availability</h3>
-              <p>
-                While we strive to maintain high availability, we do not guarantee uninterrupted
-                access to the Service. We may perform maintenance or updates that temporarily
-                affect availability.
-              </p>
-
-              <h3 className="font-semibold text-foreground">5. Limitation of Liability</h3>
-              <p>
-                To the maximum extent permitted by law, we shall not be liable for any indirect,
-                incidental, special, consequential, or punitive damages resulting from your use
-                of or inability to use the Service.
-              </p>
-
-              <h3 className="font-semibold text-foreground">6. Changes to Terms</h3>
-              <p>
-                We reserve the right to modify these Terms at any time. We will notify you of
-                any material changes. Your continued use of the Service after such modifications
-                constitutes acceptance of the updated Terms.
-              </p>
-
-              <h3 className="font-semibold text-foreground">7. Contact</h3>
-              <p>
-                If you have any questions about these Terms, please contact your system administrator.
-              </p>
+            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+              {tosText ?? DEFAULT_TOS_TEXT}
             </div>
           </ScrollArea>
 
@@ -158,7 +145,6 @@ export function TosPage({ onAccept, onCancel, tosVersion }: TosPageProps) {
           </Button>
         </CardFooter>
       </Card>
-      </div>
     </div>
   );
 }

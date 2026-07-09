@@ -14,6 +14,7 @@ public class TenantSettingsKeyPolicyTests
     [InlineData("AutoSchedule_Enabled", "scheduling.auto_schedule_enabled")]
     [InlineData("Invitation_ExpiryDays", "invitations.invitation_expiry_days")]
     [InlineData("RateLimit_LoginPerMinute", "security.rate_limit_login_per_minute")]
+    [InlineData("Tos_Text", "legal.tos_text")]
     public void PropertyToKey_ShouldProduceDotSeparatedSnakeCaseWithCategory(string propertyName, string expected)
     {
         TenantSettingsKeyPolicy.PropertyToKey(propertyName).Should().Be(expected);
@@ -28,6 +29,7 @@ public class TenantSettingsKeyPolicyTests
     [InlineData("Search_DefaultPageSize", "search")]
     [InlineData("Branding_ProductName", "branding")]
     [InlineData("AutoSchedule_Enabled", "scheduling")]
+    [InlineData("Tos_Text", "legal")]
     [InlineData("SomeUnrelatedThing", "general")]
     public void GetCategory_ShouldRouteByPropertyPrefix(string propertyName, string expected)
     {

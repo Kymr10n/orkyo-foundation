@@ -17,6 +17,7 @@ public class TenantSettingDescriptorCatalogTests
         keys.Should().Contain("search.search_default_page_size");
         keys.Should().Contain("branding.branding_product_name");
         keys.Should().Contain("scheduling.auto_schedule_enabled");
+        keys.Should().Contain("legal.tos_text");
     }
 
     [Fact]
@@ -84,5 +85,25 @@ public class TenantSettingDescriptorCatalogTests
     {
         var descriptor = TenantSettingDescriptorCatalog.ByKey["security.password_min_length"];
         descriptor.Scope.Should().Be("site");
+    }
+
+    [Fact]
+    public void TosText_IsSiteScopedAndMultiline()
+    {
+        var descriptor = TenantSettingDescriptorCatalog.ByKey["legal.tos_text"];
+        descriptor.Scope.Should().Be("site");
+        descriptor.Multiline.Should().BeTrue();
+        descriptor.ValueType.Should().Be("string");
+        descriptor.DefaultValue.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void NonMultilineDescriptors_StayWithinSingleLineCap()
+    {
+        // Guards against accidentally adding a long default to a single-line setting.
+        foreach (var descriptor in TenantSettingDescriptorCatalog.All.Where(d => !d.Multiline))
+        {
+            descriptor.DefaultValue.Length.Should().BeLessThanOrEqualTo(TenantSettingsValidator.MaxStringLength);
+        }
     }
 }

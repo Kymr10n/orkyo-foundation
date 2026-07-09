@@ -14,6 +14,12 @@ public record SessionBootstrapResponse
     public required UserInfo User { get; init; }
     public bool TosRequired { get; init; }
     public string? RequiredTosVersion { get; init; }
+
+    /// <summary>
+    /// Terms of Service text to display; populated only when <see cref="TosRequired"/> is true.
+    /// Resolved from the site-scoped <c>legal.tos_text</c> setting (compiled default when unset).
+    /// </summary>
+    public string? TosText { get; init; }
     public List<TenantMembershipInfo> Tenants { get; init; } = new();
     public string? SuggestedTenantSlug { get; init; }
     public bool IsSiteAdmin { get; init; }

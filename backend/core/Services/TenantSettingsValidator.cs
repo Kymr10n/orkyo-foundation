@@ -13,8 +13,11 @@ namespace Api.Services;
 /// </summary>
 public static class TenantSettingsValidator
 {
-    /// <summary>Universal length cap for any setting value (TEXT column safety limit).</summary>
+    /// <summary>Universal length cap for any single-line setting value (TEXT column safety limit).</summary>
     public const int MaxStringLength = 500;
+
+    /// <summary>Length cap for multiline settings (e.g. legal text).</summary>
+    public const int MaxMultilineLength = 10000;
 
     private static readonly Regex _hexColorPattern = new(@"^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
     private static readonly Regex _mimeTypePattern = new(@"^[a-z]+/[a-z0-9\.\-\+]+$", RegexOptions.Compiled);
@@ -26,8 +29,9 @@ public static class TenantSettingsValidator
     /// </summary>
     public static void Validate(TenantSettingDescriptor descriptor, string value)
     {
-        if (value.Length > MaxStringLength)
-            throw new ArgumentException($"Setting '{descriptor.Key}' value exceeds maximum length of {MaxStringLength} characters");
+        var maxLength = descriptor.Multiline ? MaxMultilineLength : MaxStringLength;
+        if (value.Length > maxLength)
+            throw new ArgumentException($"Setting '{descriptor.Key}' value exceeds maximum length of {maxLength} characters");
 
         switch (descriptor.ValueType)
         {

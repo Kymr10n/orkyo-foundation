@@ -114,6 +114,12 @@ public static class TenantSettingDescriptorCatalog
             new("scheduling.auto_schedule_enabled", "scheduling", "Auto-Schedule",
                 "Enable the auto-schedule feature on the utilization page. Requires Professional tier or above.",
                 "bool", d["scheduling.auto_schedule_enabled"]),
+
+            // Legal  (site-admin: shown on the ToS acceptance page when ToS:RequiredVersion is set)
+            new("legal.tos_text", "legal", "Terms of Service Text",
+                "Plain text shown on the Terms of Service acceptance page; blank lines separate paragraphs. " +
+                "Editing this text does not re-prompt users who already accepted; to force re-acceptance raise ToS:RequiredVersion.",
+                "string", d["legal.tos_text"], Scope: "site", Multiline: true),
         };
     }
 }

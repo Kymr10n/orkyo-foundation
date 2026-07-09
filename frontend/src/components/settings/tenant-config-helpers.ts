@@ -5,6 +5,7 @@ import {
   Search,
   Mail,
   Calendar,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import type { TenantSettingDescriptor } from "@foundation/src/lib/api/tenant-settings-api";
@@ -42,6 +43,11 @@ export const CATEGORY_META: Record<
     label: "Scheduling",
     description: "Auto-scheduling feature controls",
     icon: Calendar,
+  },
+  legal: {
+    label: "Legal",
+    description: "Terms of Service shown on the acceptance page",
+    icon: FileText,
   },
 };
 

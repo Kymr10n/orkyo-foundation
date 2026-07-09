@@ -130,6 +130,7 @@ internal static class SettingsEndpointHandlers
             d.Scope,
             d.MinValue,
             d.MaxValue,
+            d.Multiline,
             CurrentValue = GetPropertyValue(values, d.Key)
         });
 

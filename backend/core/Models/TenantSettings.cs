@@ -76,6 +76,45 @@ public sealed record TenantSettings
     /// <summary>Whether auto-scheduling is enabled for this tenant. Requires Professional tier or above.</summary>
     public bool AutoSchedule_Enabled { get; init; } = false;
 
+    // ── Legal ────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Terms of Service text shown on the acceptance page when ToS:RequiredVersion is configured.
+    /// Plain text; blank lines separate paragraphs. Site-scoped override via site_settings.
+    /// </summary>
+    public string Tos_Text { get; init; } = DefaultTosText;
+
+    /// <summary>Built-in generic Terms of Service text (compiled default for <see cref="Tos_Text"/>).</summary>
+    public const string DefaultTosText =
+        """
+        1. Acceptance of Terms
+
+        By accessing and using this service ("Service"), you accept and agree to be bound by the terms and provision of this agreement.
+
+        2. Use of Service
+
+        You agree to use the Service only for lawful purposes and in accordance with these Terms. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
+
+        3. Data and Privacy
+
+        We collect and process your data as described in our Privacy Policy. You retain ownership of all data you upload to the Service. We implement appropriate security measures to protect your data.
+
+        4. Service Availability
+
+        While we strive to maintain high availability, we do not guarantee uninterrupted access to the Service. We may perform maintenance or updates that temporarily affect availability.
+
+        5. Limitation of Liability
+
+        To the maximum extent permitted by law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the Service.
+
+        6. Changes to Terms
+
+        We reserve the right to modify these Terms at any time. We will notify you of any material changes. Your continued use of the Service after such modifications constitutes acceptance of the updated Terms.
+
+        7. Contact
+
+        If you have any questions about these Terms, please contact your system administrator.
+        """;
+
     /// <summary>Project branding values into an <see cref="Api.Services.EmailBranding"/> record.</summary>
     public Services.EmailBranding ToEmailBranding() =>
         new(Branding_ProductName, Branding_PrimaryColor, Branding_SecondaryColor);
@@ -98,5 +137,10 @@ public sealed record TenantSettingDescriptor(
     /// </summary>
     string Scope = "tenant",
     string? MinValue = null,
-    string? MaxValue = null
+    string? MaxValue = null,
+    /// <summary>
+    /// True for long-form text values; the settings UI renders a textarea and the
+    /// validator applies the extended length cap instead of the single-line one.
+    /// </summary>
+    bool Multiline = false
 );

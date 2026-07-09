@@ -8,7 +8,7 @@ vi.mock('@foundation/src/lib/api/session-api', () => ({
   acceptTos: (...args: unknown[]) => mockAcceptTos(...args),
 }));
 
-import { TosPage } from '@foundation/src/pages/TosPage';
+import { TosPage, DEFAULT_TOS_TEXT } from '@foundation/src/pages/TosPage';
 
 const defaultProps = {
   onAccept: vi.fn().mockResolvedValue(undefined),
@@ -28,10 +28,27 @@ describe('TosPage', () => {
     expect(screen.getByText('Terms of Service')).toBeInTheDocument();
   });
 
-  it('renders ToS content sections', () => {
+  it('renders the built-in default text when no tosText is provided', () => {
     render(<TosPage {...defaultProps} />);
-    expect(screen.getByText('1. Acceptance of Terms')).toBeInTheDocument();
-    expect(screen.getByText('2. Use of Service')).toBeInTheDocument();
+    expect(screen.getByText(/1\. Acceptance of Terms/)).toBeInTheDocument();
+    expect(screen.getByText(/2\. Use of Service/)).toBeInTheDocument();
+  });
+
+  it('renders the provided tosText instead of the default', () => {
+    render(<TosPage {...defaultProps} tosText={'Custom Terms\n\nBe excellent to each other.'} />);
+    expect(screen.getByText(/Be excellent to each other\./)).toBeInTheDocument();
+    expect(screen.queryByText(/1\. Acceptance of Terms/)).not.toBeInTheDocument();
+  });
+
+  it('does not render the legacy Public Demo banner', () => {
+    render(<TosPage {...defaultProps} />);
+    expect(screen.queryByText(/Public Demo/i)).not.toBeInTheDocument();
+  });
+
+  it('exports a default text matching the backend compiled default shape', () => {
+    // Non-empty, plain text, no JSX/HTML — mirrors TenantSettings.DefaultTosText.
+    expect(DEFAULT_TOS_TEXT).toMatch(/^1\. Acceptance of Terms/);
+    expect(DEFAULT_TOS_TEXT).not.toMatch(/</);
   });
 
   it('renders checkbox for agreement', () => {

@@ -110,6 +110,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
         <ThemeToggle variant="floating" />
         <TosPage
           tosVersion={sessionData?.requiredTosVersion ?? '2026-02'}
+          tosText={sessionData?.tosText}
           onAccept={() => send({ type: AUTH_EVENTS.TOS_ACCEPTED })}
           onCancel={() => send({ type: AUTH_EVENTS.LOGOUT })}
         />

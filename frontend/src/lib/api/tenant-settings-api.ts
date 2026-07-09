@@ -26,6 +26,8 @@ export interface TenantSettingDescriptor {
   scope: SettingScope;
   minValue: string | null;
   maxValue: string | null;
+  /** Long-form text value; rendered as a textarea instead of a single-line input. */
+  multiline?: boolean;
   currentValue: string;
 }
 
