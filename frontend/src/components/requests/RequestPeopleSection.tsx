@@ -34,6 +34,8 @@ interface RequestPeopleSectionProps {
   onBlockersChange: (hasBlockers: boolean) => void;
   /** Saved conflicts keyed by resource — flags the matching assigned-person row. */
   conflictsByResourceId?: Map<string, Conflict[]>;
+  /** View mode: show the resolved assignment names only, hide add/remove controls. */
+  readOnly?: boolean;
 }
 
 interface PendingRow {
@@ -55,6 +57,7 @@ export function RequestPeopleSection({
   requestEndTs,
   onBlockersChange,
   conflictsByResourceId,
+  readOnly = false,
 }: RequestPeopleSectionProps) {
   const [people, setPeople] = useState<ResourceInfo[]>([]);
   const [assignments, setAssignments] = useState<ResourceAssignmentInfo[]>([]);
@@ -237,21 +240,27 @@ export function RequestPeopleSection({
                   {person?.name ?? a.resourceId}
                   <ConflictIndicator conflicts={conflictsByResourceId?.get(a.resourceId) ?? []} />
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Remove assignment"
-                  onClick={() => handleRemoveAssignment(a.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Remove assignment"
+                    onClick={() => handleRemoveAssignment(a.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             );
           })}
 
+          {readOnly && assignments.length === 0 && !isLoading && (
+            <p className="text-sm text-muted-foreground">No people assigned.</p>
+          )}
+
           {/* Pending (unsaved) rows */}
-          {pendingRows.map((row) => {
+          {!readOnly && pendingRows.map((row) => {
             const selectedPerson = people.find((p) => p.id === row.resourceId);
             const isExclusive = selectedPerson?.allocationMode === 'Exclusive';
             return (
@@ -362,17 +371,19 @@ export function RequestPeopleSection({
             );
           })}
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={addPendingRow}
-            data-testid="add-person-btn"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Person
-          </Button>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={addPendingRow}
+              data-testid="add-person-btn"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Person
+            </Button>
+          )}
       </div>
     </div>
   );

@@ -5,9 +5,8 @@ import { X } from "lucide-react"
 
 import { cn } from "@foundation/src/lib/utils"
 
-// A Sheet is a Radix Dialog rendered as an edge/bottom drawer. It is the
-// foundation's single drawer primitive — DetailDrawer builds on it, so no
-// separate drawer dependency (e.g. vaul) is needed.
+// A Sheet is a Radix Dialog rendered as an edge/bottom drawer — no separate
+// drawer dependency (e.g. vaul) is needed.
 const Sheet = SheetPrimitive.Root
 
 const SheetTrigger = SheetPrimitive.Trigger
@@ -22,6 +21,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     ref={ref}
+    data-testid="sheet-overlay"
     className={cn(
       "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none",
       className
@@ -50,13 +50,10 @@ const sheetVariants = cva(
   }
 )
 
-interface SheetContentProps
-  extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
-
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Content>,
-  SheetContentProps
+  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> &
+    VariantProps<typeof sheetVariants>
 >(({ side = "right", className, children, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />

@@ -49,3 +49,4 @@ frontend/src/**/*.js
 # Playwright cross-engine smoke suite (e2e/) run artifacts — on-demand only
 frontend/test-results/
 frontend/playwright-report/
+frontend/e2e/review/

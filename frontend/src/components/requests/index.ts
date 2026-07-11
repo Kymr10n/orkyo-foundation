@@ -5,7 +5,6 @@
 export { CreateSpaceDialog } from "./CreateSpaceDialog";
 export { CriterionRequirementInput } from "./CriterionRequirementInput";
 export { FloorplanUploadDialog } from "./FloorplanUploadDialog";
-export { RequestDetailsDialog } from "./RequestDetailsDialog";
 export { RequestFormDialog } from "./RequestFormDialog";
 export { SpaceDrawingCanvas } from "./SpaceDrawingCanvas";
 

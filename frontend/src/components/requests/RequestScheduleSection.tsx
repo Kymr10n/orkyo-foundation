@@ -7,11 +7,14 @@ import { Calendar } from "lucide-react";
 interface RequestScheduleSectionProps {
   state: ReturnType<typeof useRequestForm>['state'];
   setField: ReturnType<typeof useRequestForm>['setField'];
+  /** View mode: disable the pickers (values still shown). */
+  readOnly?: boolean;
 }
 
 export function RequestScheduleSection({
   state,
   setField,
+  readOnly = false,
 }: RequestScheduleSectionProps) {
   return (
     <div>
@@ -28,6 +31,7 @@ export function RequestScheduleSection({
                 value={combineDateTimeFields(state.startDate, state.startTime)}
                 onChange={(v) => splitDateTimeFields(v, (d) => setField('startDate', d), (t) => setField('startTime', t))}
                 placeholder="Pick start date & time"
+                disabled={readOnly}
               />
             </div>
 
@@ -38,6 +42,7 @@ export function RequestScheduleSection({
                 value={combineDateTimeFields(state.endDate, state.endTime)}
                 onChange={(v) => splitDateTimeFields(v, (d) => setField('endDate', d), (t) => setField('endTime', t))}
                 placeholder="Pick end date & time"
+                disabled={readOnly}
               />
             </div>
           </div>

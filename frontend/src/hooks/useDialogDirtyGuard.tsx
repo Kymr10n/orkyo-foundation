@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,14 @@ interface UseDialogDirtyGuardResult {
    */
   guardedOnOpenChange: (open: boolean) => void;
   /**
+   * Whether the discard-confirm prompt is currently open. Consumers can use
+   * this to keep the underlying dialog from dismissing while the prompt is up
+   * (e.g. `onInteractOutside`/`onEscapeKeyDown` → `preventDefault()`), since the
+   * confirm is a separate Radix layer whose clicks would otherwise register as
+   * an outside-dismiss on the dialog and re-trigger the prompt.
+   */
+  confirmOpen: boolean;
+  /**
    * Render this element alongside (or inside) your Dialog. It's the confirm
    * prompt that asks the user to discard or keep editing.
    */
@@ -64,25 +72,35 @@ export function useDialogDirtyGuard({
   description = "You have unsaved changes. They will be lost if you close this dialog.",
 }: UseDialogDirtyGuardOptions): UseDialogDirtyGuardResult {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Mirrors confirmOpen synchronously so a re-entrant close attempt (e.g. the
+  // confirm's own click registering as an outside-dismiss on the dialog) is
+  // ignored instead of re-opening the prompt.
+  const confirmOpenRef = useRef(false);
+
+  const setConfirm = useCallback((open: boolean) => {
+    confirmOpenRef.current = open;
+    setConfirmOpen(open);
+  }, []);
 
   const guardedOnOpenChange = useCallback(
     (open: boolean) => {
+      if (!open && confirmOpenRef.current) return;
       if (!open && isDirty) {
-        setConfirmOpen(true);
+        setConfirm(true);
         return;
       }
       onOpenChange(open);
     },
-    [isDirty, onOpenChange],
+    [isDirty, onOpenChange, setConfirm],
   );
 
   const confirmDiscard = useCallback(() => {
-    setConfirmOpen(false);
+    setConfirm(false);
     onOpenChange(false);
-  }, [onOpenChange]);
+  }, [onOpenChange, setConfirm]);
 
   const ConfirmDiscardDialog = (
-    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirm}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -101,5 +119,5 @@ export function useDialogDirtyGuard({
     </AlertDialog>
   );
 
-  return { guardedOnOpenChange, ConfirmDiscardDialog };
+  return { guardedOnOpenChange, confirmOpen, ConfirmDiscardDialog };
 }

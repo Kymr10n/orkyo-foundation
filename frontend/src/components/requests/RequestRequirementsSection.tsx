@@ -17,6 +17,8 @@ interface RequestRequirementsSectionProps {
   isLoading: boolean;
   /** Saved conflicts keyed by the criterion they're about — flags the matching requirement row. */
   conflictsByCriterionId?: Map<string, Conflict[]>;
+  /** View mode: disable inputs and hide the add/remove controls (values still shown). */
+  readOnly?: boolean;
   onAddRequirement: () => void;
   onRemoveRequirement: (criterionId: string) => void;
   onRequirementChange: (criterionId: string, patch: Partial<RequirementEntry>) => void;
@@ -29,6 +31,7 @@ export function RequestRequirementsSection({
   setSelectedCriterionId,
   isLoading,
   conflictsByCriterionId,
+  readOnly = false,
   onAddRequirement,
   onRemoveRequirement,
   onRequirementChange,
@@ -48,7 +51,7 @@ export function RequestRequirementsSection({
       <div className="space-y-4 pt-4">
 
           {/* Add Requirement */}
-          {unusedCriteria.length > 0 && (
+          {!readOnly && unusedCriteria.length > 0 && (
             <div className="flex gap-2">
               <Select
                 value={selectedCriterionId}
@@ -102,7 +105,7 @@ export function RequestRequirementsSection({
                       conflicts={conflictsByCriterionId?.get(criterionId) ?? []}
                       className="mt-9"
                     />
-                    <div className="flex-1">
+                    <fieldset disabled={readOnly} className="flex-1 min-w-0 border-0 p-0 m-0">
                       <CriterionRequirementInput
                         criterion={criterion}
                         value={entry.value}
@@ -110,16 +113,18 @@ export function RequestRequirementsSection({
                         onChange={(newValue) => onRequirementChange(criterionId, { value: newValue })}
                         onOperatorChange={(newOperator) => onRequirementChange(criterionId, { operator: newOperator })}
                       />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onRemoveRequirement(criterionId)}
-                      className="mt-7"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    </fieldset>
+                    {!readOnly && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRemoveRequirement(criterionId)}
+                        className="mt-7"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 );
               })}

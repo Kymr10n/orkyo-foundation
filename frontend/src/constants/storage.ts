@@ -16,4 +16,6 @@ export const STORAGE_KEYS = {
   SIDEBAR_COLLAPSED: 'sidebar-collapsed',
   /** Expanded node ids of the request tree */
   REQUEST_TREE_EXPANDED: 'requestTree.expandedIds',
+  /** Tree vs. list view mode on the Requests page */
+  REQUEST_VIEW_MODE: 'requestTree.viewMode',
 } as const;

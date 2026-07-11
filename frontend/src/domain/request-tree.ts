@@ -7,6 +7,8 @@
 
 import type { DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
 import { PLANNING_MODE } from "@foundation/src/constants/planning-mode";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
+import { formatDuration } from "@foundation/src/lib/utils/utils";
 import {
   DURATION_TO_MINUTES,
   MS_PER_MINUTE,
@@ -348,6 +350,86 @@ function computeDerivedValuesFromDescendants(
     totalDurationUnit: bestUnit,
     requirementCount: reqCount,
   };
+}
+
+/**
+ * Build a requestId → DerivedValues map for every request that can have
+ * children, from a flat list. `null` means the request can have children but
+ * currently has none. Requests that can't have children (leaves) have no
+ * entry. Shared by every request-list surface (tree, list, cards) so a group
+ * row's rolled-up schedule/effort is computed once per render instead of once
+ * per row.
+ */
+export function buildDerivedMap(requests: Request[]): Map<string, DerivedValues | null> {
+  const childrenByParent = new Map<string, Request[]>();
+  for (const r of requests) {
+    if (r.parentRequestId) {
+      const siblings = childrenByParent.get(r.parentRequestId);
+      if (siblings) siblings.push(r);
+      else childrenByParent.set(r.parentRequestId, [r]);
+    }
+  }
+  const map = new Map<string, DerivedValues | null>();
+  for (const r of requests) {
+    if (canHaveChildren(r.planningMode)) {
+      const children = childrenByParent.get(r.id);
+      map.set(r.id, children?.length ? computeDerivedValuesFromChildren(children) : null);
+    }
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Resolved schedule / duration text — derived (rolled up from children) vs
+// the request's own values. Shared by every request-list surface.
+// ---------------------------------------------------------------------------
+
+export interface ResolvedText {
+  text: string;
+  isDerived: boolean;
+}
+
+/**
+ * Resolve the duration text for a request row: sum of children when derived
+ * values are present (parent rows with children), else the request's own
+ * minimal duration.
+ */
+export function resolveDuration(request: Request, derived: DerivedValues | null): ResolvedText {
+  if (derived) {
+    return {
+      text: formatDuration(derived.totalDurationValue, derived.totalDurationUnit),
+      isDerived: true,
+    };
+  }
+  return {
+    text: formatDuration(request.minimalDurationValue, request.minimalDurationUnit),
+    isDerived: false,
+  };
+}
+
+/**
+ * Resolve the schedule window text for a request row: derived start/end
+ * rolled up from children when present, else the request's own start/end.
+ * Returns `text: null` when neither is available — callers render their own
+ * "unscheduled" fallback (it differs slightly by surface).
+ */
+export function resolveSchedule(
+  request: Request,
+  derived: DerivedValues | null,
+): { text: string | null; isDerived: boolean } {
+  if (derived?.startTs && derived?.endTs) {
+    return {
+      text: `${formatDateDisplay(derived.startTs)} — ${formatDateDisplay(derived.endTs)}`,
+      isDerived: true,
+    };
+  }
+  if (request.startTs && request.endTs) {
+    return {
+      text: `${formatDateDisplay(request.startTs)} — ${formatDateDisplay(request.endTs)}`,
+      isDerived: false,
+    };
+  }
+  return { text: null, isDerived: false };
 }
 
 // ---------------------------------------------------------------------------

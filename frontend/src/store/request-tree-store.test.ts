@@ -24,6 +24,23 @@ describe("request-tree-store hydration", () => {
     const mod = await import("./request-tree-store");
     expect(mod.useRequestTreeStore.getState().expandedIds.size).toBe(0);
   });
+
+  it("defaults viewMode to tree when nothing is persisted", async () => {
+    const mod = await import("./request-tree-store");
+    expect(mod.useRequestTreeStore.getState().viewMode).toBe("tree");
+  });
+
+  it("restores a persisted list viewMode", async () => {
+    localStorage.setItem("requestTree.viewMode", "list");
+    const mod = await import("./request-tree-store");
+    expect(mod.useRequestTreeStore.getState().viewMode).toBe("list");
+  });
+
+  it("falls back to tree for an unrecognized persisted viewMode", async () => {
+    localStorage.setItem("requestTree.viewMode", "grid");
+    const mod = await import("./request-tree-store");
+    expect(mod.useRequestTreeStore.getState().viewMode).toBe("tree");
+  });
 });
 
 describe("useRequestTreeStore", () => {
@@ -31,6 +48,7 @@ describe("useRequestTreeStore", () => {
     useRequestTreeStore.setState({
       expandedIds: new Set<string>(),
       selectedId: null,
+      viewMode: "tree",
     });
   });
 
@@ -95,5 +113,15 @@ describe("useRequestTreeStore", () => {
     expect(useRequestTreeStore.getState().selectedId).toBe("x");
     useRequestTreeStore.getState().setSelectedId(null);
     expect(useRequestTreeStore.getState().selectedId).toBeNull();
+  });
+
+  it("setViewMode updates state and persists to localStorage", () => {
+    useRequestTreeStore.getState().setViewMode("list");
+    expect(useRequestTreeStore.getState().viewMode).toBe("list");
+    expect(localStorage.getItem("requestTree.viewMode")).toBe("list");
+
+    useRequestTreeStore.getState().setViewMode("tree");
+    expect(useRequestTreeStore.getState().viewMode).toBe("tree");
+    expect(localStorage.getItem("requestTree.viewMode")).toBe("tree");
   });
 });

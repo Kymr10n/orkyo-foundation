@@ -254,16 +254,12 @@ vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () =
 }));
 
 vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId }: any) => open ? (
-    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""}>
+  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId, canEdit }: any) => open ? (
+    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""} data-can-edit={String(canEdit)}>
       <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
       <button data-testid="close-form" onClick={() => onOpenChange(false)}>Close</button>
     </div>
   ) : null,
-}));
-
-vi.mock("@foundation/src/components/requests/RequestDetailsDialog", () => ({
-  RequestDetailsDialog: ({ open }: any) => open ? <div data-testid="details-dialog" /> : null,
 }));
 
 let capturedOnSlotSelect: ((start: Date, end: Date) => void) | null = null;
@@ -506,11 +502,11 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("dblclick-request"));
     await waitFor(() => {
-      expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-can-edit", "true");
     });
   });
 
-  it("opens details dialog on click for viewer", async () => {
+  it("opens the form dialog in view mode on click for viewer", async () => {
     mockRole = "viewer";
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
@@ -518,7 +514,7 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("dblclick-request"));
     await waitFor(() => {
-      expect(screen.getByTestId("details-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-can-edit", "false");
     });
   });
 
@@ -966,7 +962,6 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("dblclick-request"));
     expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("details-dialog")).not.toBeInTheDocument();
   });
 
   // --- Drag-end handler paths ---

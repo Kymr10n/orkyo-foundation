@@ -283,6 +283,25 @@ describe('RequestPeopleSection', () => {
     expect(screen.queryByText('Alice')).not.toBeInTheDocument();
   });
 
+  // ── Read-only (view) mode ───────────────────────────────────────────────────
+
+  it('shows resolved assignment names (not raw UUIDs) and hides mutation controls in readOnly mode', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
+    render(<RequestPeopleSection {...defaultProps} readOnly />);
+    await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
+    // The raw resourceId must not leak.
+    expect(screen.queryByText('res-person-1')).not.toBeInTheDocument();
+    // No add / remove affordances.
+    expect(screen.queryByTestId('add-person-btn')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Remove assignment')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty hint when there are no assignments in readOnly mode', async () => {
+    (getAssignmentsByRequest as Mock).mockResolvedValue([]);
+    render(<RequestPeopleSection {...defaultProps} readOnly />);
+    await waitFor(() => expect(screen.getByText('No people assigned.')).toBeInTheDocument());
+  });
+
   it('renders all known blocker reason codes with labels', () => {
     // Render a minimal version that tests the label map covers all codes
     const reasonCodes = [

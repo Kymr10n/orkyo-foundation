@@ -24,20 +24,11 @@ vi.mock('@foundation/src/lib/api/request-api', () => ({
 }));
 
 vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange }: any) =>
+  RequestFormDialog: ({ open, onSave, onOpenChange, canEdit }: any) =>
     open ? (
-      <div data-testid="edit-dialog">
+      <div data-testid="form-dialog" data-can-edit={String(canEdit)}>
         <button data-testid="save-btn" onClick={() => onSave(mockFormData)}>Save</button>
         <button data-testid="close-edit-btn" onClick={() => onOpenChange(false)}>Cancel</button>
-      </div>
-    ) : null,
-}));
-
-vi.mock('@foundation/src/components/requests/RequestDetailsDialog', () => ({
-  RequestDetailsDialog: ({ open, onOpenChange }: any) =>
-    open ? (
-      <div data-testid="details-dialog">
-        <button data-testid="close-details-btn" onClick={() => onOpenChange(false)}>Close</button>
       </div>
     ) : null,
 }));
@@ -103,36 +94,32 @@ describe('useRequestEditor', () => {
   });
 
   describe('role gate', () => {
-    it('opens edit dialog for admin role', () => {
+    it('opens the form dialog in edit mode for admin role', () => {
       mockRole = 'admin';
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('edit-dialog')).toBeInTheDocument();
-      expect(screen.queryByTestId('details-dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
     });
 
-    it('opens edit dialog for editor role', () => {
+    it('opens the form dialog in edit mode for editor role', () => {
       mockRole = 'editor';
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('edit-dialog')).toBeInTheDocument();
-      expect(screen.queryByTestId('details-dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
     });
 
-    it('opens details dialog for member role', () => {
+    it('opens the form dialog in view mode for member role', () => {
       mockRole = 'member';
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('details-dialog')).toBeInTheDocument();
-      expect(screen.queryByTestId('edit-dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
     });
 
-    it('opens details dialog when membership is null', () => {
+    it('opens the form dialog in view mode when membership is null', () => {
       mockRole = undefined;
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('details-dialog')).toBeInTheDocument();
-      expect(screen.queryByTestId('edit-dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
     });
   });
 
@@ -167,10 +154,10 @@ describe('useRequestEditor', () => {
     it('closes the edit dialog after save', async () => {
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('edit-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
-        expect(screen.queryByTestId('edit-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
       });
     });
 
@@ -179,10 +166,10 @@ describe('useRequestEditor', () => {
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
-        expect(screen.queryByTestId('edit-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
       });
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('edit-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
     });
   });
 
@@ -190,18 +177,18 @@ describe('useRequestEditor', () => {
     it('closes edit dialog when onOpenChange fires false', () => {
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('edit-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
       fireEvent.click(screen.getByTestId('close-edit-btn'));
-      expect(screen.queryByTestId('edit-dialog')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
     });
 
-    it('closes details dialog when onOpenChange fires false', () => {
+    it('closes the view-mode form dialog when onOpenChange fires false', () => {
       mockRole = 'member';
       renderWithClient(makeQueryClient());
       fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('details-dialog')).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId('close-details-btn'));
-      expect(screen.queryByTestId('details-dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
+      fireEvent.click(screen.getByTestId('close-edit-btn'));
+      expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
     });
   });
 });

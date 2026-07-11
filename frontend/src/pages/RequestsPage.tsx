@@ -2,13 +2,9 @@ import {
     RequestFormDialog,
     type RequestFormData,
 } from "@foundation/src/components/requests/RequestFormDialog";
-import { RequestDetailPanel } from "@foundation/src/components/requests/RequestDetailPanel";
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetTitle } from "@foundation/src/components/ui/sheet";
-import { AddExistingRequestsDialog } from "@foundation/src/components/requests/AddExistingRequestsDialog";
-import { MoveToDialog } from "@foundation/src/components/requests/MoveToDialog";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
@@ -32,7 +28,6 @@ import {
 } from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { useNow } from "@foundation/src/hooks/useNow";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
@@ -54,6 +49,8 @@ import {
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import {
     Calendar,
+    ChevronsDown,
+    ChevronsUp,
     List,
     Plus,
     Search,
@@ -70,8 +67,6 @@ import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
-type ViewMode = "tree" | "list";
-
 const EMPTY_REQUESTS: Request[] = [];
 
 /**
@@ -84,9 +79,7 @@ const EMPTY_REQUESTS: Request[] = [];
 type Dialog =
   | { kind: "create"; parent: Request | null; defaultMode?: PlanningMode }
   | { kind: "edit"; request: Request }
-  | { kind: "addExisting"; parent: Request }
-  | { kind: "delete"; request: Request }
-  | { kind: "moveTo"; request: Request };
+  | { kind: "delete"; request: Request };
 
 // ---------------------------------------------------------------------------
 // Page
@@ -96,7 +89,6 @@ export function RequestsPage() {
   usePageTitle("Requests");
   const queryClient = useQueryClient();
   const canEdit = useCanEdit();
-  const { isPhone } = useBreakpoint();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // The request list lives in the query cache under the shared `requests`
@@ -118,7 +110,6 @@ export function RequestsPage() {
   const requests = useMemo(() => withEffectiveStatus(rawRequests, nowMs), [rawRequests, nowMs]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [dialog, setDialog] = useState<Dialog | null>(null);
   // Mutation in-flight flag + error; list load state comes from the query above.
   const [loading, setLoading] = useState(false);
@@ -133,8 +124,24 @@ export function RequestsPage() {
       : null);
   const hasInitializedTreeExpansionRef = useRef(false);
 
-  const { expandedIds, toggle, expandAncestors, expandAll, selectedId, setSelectedId } =
-    useRequestTreeStore();
+  const {
+    expandedIds,
+    toggle,
+    expandAncestors,
+    expandAll,
+    collapseAll,
+    selectedId,
+    setSelectedId,
+    viewMode,
+    setViewMode,
+  } = useRequestTreeStore();
+
+  // Parent (expandable) ids — feeds the toolbar Expand/Collapse-all buttons.
+  // Mirrors the one-liner the tree uses for its `*` shortcut.
+  const expandableIds = useMemo(
+    () => requests.filter((r) => canHaveChildren(r.planningMode)).map((r) => r.id),
+    [requests],
+  );
 
   // Debounce search input
   const debounceSearch = useDebouncedCallback(setDebouncedSearch, 300);
@@ -252,75 +259,6 @@ export function RequestsPage() {
     setDialog({ kind: "create", parent: null, defaultMode });
   }, []);
 
-  const handleAddChild = useCallback((parent: Request) => {
-    setDialog({ kind: "create", parent });
-  }, []);
-
-  const handleAddSibling = useCallback((request: Request) => {
-    const parent = request.parentRequestId
-      ? requests.find(r => r.id === request.parentRequestId) ?? null
-      : null;
-    setDialog({ kind: "create", parent });
-  }, [requests]);
-
-  const handleAddExisting = useCallback((parent: Request) => {
-    setDialog({ kind: "addExisting", parent });
-  }, []);
-
-  const handleMoveTo = useCallback((request: Request) => {
-    setDialog({ kind: "moveTo", request });
-  }, []);
-
-  const handleConfirmMoveTo = useCallback(async (targetParentId: string | null) => {
-    if (dialog?.kind !== "moveTo") return;
-    const req = dialog.request;
-    setDialog(null);
-
-    try {
-      setLoading(true);
-      setError(null);
-      await moveRequest(req.id, {
-        newParentRequestId: targetParentId,
-        sortOrder: targetParentId ? getNextSortOrder(targetParentId, requests) : 0,
-      });
-      invalidateRequestData(queryClient);
-      if (targetParentId && !expandedIds.has(targetParentId)) {
-        toggle(targetParentId);
-      }
-    } catch (err) {
-      logger.error("Failed to move request:", err);
-      setError(err instanceof Error ? err.message : "Failed to move request");
-    } finally {
-      setLoading(false);
-    }
-  }, [dialog, requests, queryClient, expandedIds, toggle]);
-
-  const handleConfirmAddExisting = useCallback(async (requestIds: string[]) => {
-    if (dialog?.kind !== "addExisting") return;
-    const parent = dialog.parent;
-    try {
-      setLoading(true);
-      setError(null);
-      for (const id of requestIds) {
-        await moveRequest(id, {
-          newParentRequestId: parent.id,
-          sortOrder: getNextSortOrder(parent.id, requests),
-        });
-      }
-      setDialog(null);
-      invalidateRequestData(queryClient);
-      // Auto-expand the parent so user sees the newly added children
-      if (!expandedIds.has(parent.id)) {
-        toggle(parent.id);
-      }
-    } catch (err) {
-      logger.error("Failed to move requests:", err);
-      setError(err instanceof Error ? err.message : "Failed to move requests");
-    } finally {
-      setLoading(false);
-    }
-  }, [dialog, requests, queryClient, expandedIds, toggle]);
-
   const handleDrop = useCallback(async (draggedId: string, targetId: string) => {
     try {
       setLoading(true);
@@ -392,15 +330,18 @@ export function RequestsPage() {
       setError(null);
 
       const isEdit = dialog?.kind === "edit";
+      let created: Request | undefined;
       if (isEdit) {
         await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
       } else {
-        await createRequest(buildCreatePayload(data));
+        created = await createRequest(buildCreatePayload(data));
       }
 
       invalidateRequestData(queryClient);
       setDialog(null);
       toast.success(isEdit ? "Request updated" : "Request created");
+      // Returned so the dialog can create children queued on its Children tab.
+      return created;
     } catch (err) {
       logger.error("Failed to save request:", err);
       const message = err instanceof Error ? err.message : "Failed to save request";
@@ -424,12 +365,15 @@ export function RequestsPage() {
     setSelectedId(id);
     // Switch to tree view so the hierarchy is visible
     if (viewMode !== "tree") setViewMode("tree");
-  }, [requests, expandAncestors, setSelectedId, viewMode]);
+  }, [requests, expandAncestors, setSelectedId, viewMode, setViewMode]);
 
-  const selectedRequest = useMemo(
-    () => (selectedId ? requests.find((r) => r.id === selectedId) ?? null : null),
-    [selectedId, requests],
-  );
+  // Re-target the form dialog to another request (breadcrumb / Children tab
+  // navigation) and keep the tree selection/expansion in sync.
+  const handleDialogNavigate = useCallback((id: string) => {
+    const target = requests.find((r) => r.id === id);
+    if (target) setDialog({ kind: "edit", request: target });
+    handleNavigateToRequest(id);
+  }, [requests, handleNavigateToRequest]);
 
   // Build conflict count map for tree view (own + descendant conflicts)
   const { conflictsByRequest: storeConflicts } = useConflictRegistry();
@@ -490,57 +434,12 @@ export function RequestsPage() {
     <PageLayout>
       <PageHeader
         title="Requests"
-        actions={
-          <>
-            <div className="flex border rounded-md" role="group" aria-label="View mode">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={viewMode === "tree" ? "secondary" : "ghost"}
-                    size="sm"
-                    className="rounded-r-none"
-                    onClick={() => setViewMode("tree")}
-                    aria-label="Tree view"
-                    aria-pressed={viewMode === "tree"}
-                  >
-                    <TreePine className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Tree view</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={viewMode === "list" ? "secondary" : "ghost"}
-                    size="sm"
-                    className="rounded-l-none"
-                    onClick={() => setViewMode("list")}
-                    aria-label="List view"
-                    aria-pressed={viewMode === "list"}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>List view</TooltipContent>
-              </Tooltip>
-            </div>
-
-            <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Task
-            </Button>
-
-            <Button onClick={() => handleCreateRequest('summary')} disabled={!canEdit}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Group
-            </Button>
-          </>
-        }
+        description="Organize tasks and groups and track their schedules."
       />
 
-      {/* Search */}
-      <div className="flex gap-3 mb-4 shrink-0">
-        <div className="relative flex-1">
+      {/* Toolbar: search (left) · expand/collapse-all + view toggle + primary (right) */}
+      <div className="flex items-center gap-3 mb-4 shrink-0">
+        <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search requests..."
@@ -550,14 +449,86 @@ export function RequestsPage() {
             className="pl-9"
           />
         </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          {viewMode === "tree" && (
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => expandAll(expandableIds)}
+                    aria-label="Expand all"
+                  >
+                    <ChevronsDown className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Expand all (*)</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => collapseAll()}
+                    aria-label="Collapse all"
+                  >
+                    <ChevronsUp className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Collapse all</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+
+          <div className="flex border rounded-md" role="group" aria-label="View mode">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewMode === "tree" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="rounded-r-none"
+                  onClick={() => setViewMode("tree")}
+                  aria-label="Tree view"
+                  aria-pressed={viewMode === "tree"}
+                >
+                  <TreePine className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Tree view</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none"
+                  onClick={() => setViewMode("list")}
+                  aria-label="List view"
+                  aria-pressed={viewMode === "list"}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>List view</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Request
+          </Button>
+        </div>
       </div>
 
-      {/* Body: View + Detail Panel */}
-      <div className="flex-1 flex overflow-hidden min-h-0 gap-4">
-        {/* Main content area. Single scroll owner regardless of view mode: the
-            container never scrolls (overflow-hidden); the tree owns its own scroll,
-            and the list view is wrapped in its own bounded ScrollArea below. */}
-        <div className={`flex-1 min-h-0 overflow-hidden ${selectedRequest ? 'min-w-0' : ''}`}>
+      {/* Body: full-width view. Row click opens the RequestFormDialog below —
+          view mode for viewers, edit mode for editors. */}
+      <div className="flex-1 overflow-hidden min-h-0">
+        {/* Single scroll owner regardless of view mode: the container never scrolls
+            (overflow-hidden); the tree owns its own scroll, and the list view is
+            wrapped in its own bounded ScrollArea below. */}
+        <div className="flex-1 min-h-0 overflow-hidden h-full">
           {isLoading && requests.length === 0 ? (
             <LoadingSpinner fullScreen={false} message="Loading requests…" />
           ) : errorMessage ? (
@@ -602,10 +573,6 @@ export function RequestsPage() {
               onSelect={handleSelect}
               onEdit={handleEditRequest}
               onDelete={handleDeleteRequest}
-              onAddChild={handleAddChild}
-              onAddSibling={handleAddSibling}
-              onAddExisting={handleAddExisting}
-              onMoveTo={handleMoveTo}
               onDrop={handleDrop}
             />
           ) : (
@@ -616,54 +583,14 @@ export function RequestsPage() {
                 onSelect={handleSelect}
                 onEdit={handleEditRequest}
                 onDelete={handleDeleteRequest}
-                onAddChild={handleAddChild}
-                onAddExisting={handleAddExisting}
+                onNavigateToParent={handleNavigateToRequest}
               />
             </ScrollArea>
           )}
         </div>
-
-        {/* Detail Panel — desktop/tablet: fixed side panel. Phone: rendered as a
-            bottom Sheet below instead, so the list stays full-width. */}
-        {selectedRequest && !isPhone && (
-          <div className="w-[360px] flex-shrink-0">
-            <RequestDetailPanel
-              request={selectedRequest}
-              allRequests={requests}
-              onEdit={handleEditRequest}
-              onNavigate={handleNavigateToRequest}
-              onClose={() => setSelectedId(null)}
-            />
-          </div>
-        )}
       </div>
 
-      {/* Detail Panel — phone: bottom drawer instead of the fixed side panel. */}
-      {isPhone && (
-        <Sheet
-          open={!!selectedRequest}
-          onOpenChange={(open) => {
-            if (!open) setSelectedId(null);
-          }}
-        >
-          <SheetContent side="bottom" className="h-[85dvh] gap-0 overflow-hidden p-0">
-            <SheetTitle className="sr-only">
-              {selectedRequest?.name ?? "Request details"}
-            </SheetTitle>
-            {selectedRequest && (
-              <RequestDetailPanel
-                request={selectedRequest}
-                allRequests={requests}
-                onEdit={handleEditRequest}
-                onNavigate={handleNavigateToRequest}
-                onClose={() => setSelectedId(null)}
-              />
-            )}
-          </SheetContent>
-        </Sheet>
-      )}
-
-      {/* Form Dialog (create or edit) */}
+      {/* Form Dialog — the single view+edit surface for a request (create or edit). */}
       <RequestFormDialog
         key={
           dialog?.kind === "edit"
@@ -677,30 +604,11 @@ export function RequestsPage() {
         request={dialog?.kind === "edit" ? dialog.request : null}
         parentRequest={dialog?.kind === "create" ? dialog.parent : null}
         defaultPlanningMode={dialog?.kind === "create" ? dialog.defaultMode : undefined}
+        canEdit={canEdit}
+        allRequests={requests}
+        onNavigate={handleDialogNavigate}
         onSave={handleSaveRequest}
       />
-
-      {/* Add Existing Requests Dialog */}
-      {dialog?.kind === "addExisting" && (
-        <AddExistingRequestsDialog
-          open
-          onOpenChange={(open) => { if (!open) setDialog(null); }}
-          parentRequest={dialog.parent}
-          allRequests={requests}
-          onConfirm={handleConfirmAddExisting}
-        />
-      )}
-
-      {/* Move To Dialog */}
-      {dialog?.kind === "moveTo" && (
-        <MoveToDialog
-          open
-          onOpenChange={(open) => { if (!open) setDialog(null); }}
-          request={dialog.request}
-          allRequests={requests}
-          onConfirm={handleConfirmMoveTo}
-        />
-      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

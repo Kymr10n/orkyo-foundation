@@ -427,6 +427,26 @@ roughly 2020-era CSS/JS.
 
 ---
 
+## 15. Hierarchy, detail surfaces & primary actions
+
+**Tree-table is the house pattern for hierarchy.** A hierarchical view (parent/child requests, etc.)
+uses the same visual grammar as the flat data table — a labelled header row and rows that **mirror
+the `ui/table.tsx` classes** (header: `text-muted-foreground` medium + `border-b`; rows: `border-b
+hover:bg-accent/40`, matching cell padding and row height). Keep whatever engine you need
+(virtualization, dnd, `role="tree"` keyboard map); only the *look* is the table's. Match the flat
+list's column widths so toggling between tree and list feels seamless. `RequestTreeView` is the
+reference implementation.
+
+**One detail surface per entity.** An entity has a single place its details render, not a permanent
+split-screen *and* a dialog, and not a side peek alongside a separate read-only view. The house
+detail surface is a **permission-gated form dialog** (e.g. `RequestFormDialog` with a `canEdit`
+prop): editors get the edit form, viewers get the same dialog rendered read-only with a
+Close-only footer. Row click opens this one dialog regardless of role. Don't introduce a parallel
+side panel, peek, or secondary detail surface alongside it.
+
+**One primary action per surface.** A page header/toolbar carries a single primary button; variants
+(e.g. Task vs Group) are chosen *inside* the create dialog, not as competing header buttons.
+
 ## Public-API note (this is a shared package)
 
 `@kymr10n/foundation` is consumed by `orkyo-saas` and `orkyo-community`. Per the repo `CLAUDE.md`,

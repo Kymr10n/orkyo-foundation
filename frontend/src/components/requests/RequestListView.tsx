@@ -1,20 +1,20 @@
 import { Badge } from "@foundation/src/components/ui/badge";
-import { Button } from "@foundation/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@foundation/src/components/ui/dropdown-menu";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { RequestRowActions } from "@foundation/src/components/requests/RequestRowActions";
 import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@foundation/src/components/ui/tooltip";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
-import { canHaveChildren } from "@foundation/src/domain/request-tree";
-import { formatDuration } from "@foundation/src/lib/utils/utils";
-import { formatDateDisplay } from "@foundation/src/lib/formatters";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import {
+  buildDerivedMap,
+  resolveDuration,
+  resolveSchedule,
+} from "@foundation/src/domain/request-tree";
 import type { Request } from "@foundation/src/types/requests";
-import { Edit, Link, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
 interface RequestListViewProps {
@@ -23,8 +23,8 @@ interface RequestListViewProps {
   onSelect: (id: string) => void;
   onEdit: (request: Request) => void;
   onDelete: (request: Request) => void;
-  onAddChild: (request: Request) => void;
-  onAddExisting: (request: Request) => void;
+  /** Jump to a parent request (switches to the tree, expands ancestors). */
+  onNavigateToParent: (parentId: string) => void;
 }
 
 export const RequestListView = React.memo(function RequestListView({
@@ -33,9 +33,10 @@ export const RequestListView = React.memo(function RequestListView({
   onSelect,
   onEdit,
   onDelete,
-  onAddChild,
-  onAddExisting,
+  onNavigateToParent,
 }: RequestListViewProps) {
+  const canEdit = useCanEdit();
+
   const parentNameMap = useMemo(() => {
     const byId = new Map(requests.map((r) => [r.id, r]));
     const map = new Map<string, string | null>();
@@ -48,48 +49,10 @@ export const RequestListView = React.memo(function RequestListView({
     return map;
   }, [requests]);
 
-  // Shared row actions — identical dropdown for the desktop table cell and the
-  // phone card. Already touch-friendly (always-visible trigger, no hover gating).
-  const renderActions = useCallback((request: Request) => {
-    const isParent = canHaveChildren(request.planningMode);
-    return (
-      <div className="flex justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${request.name}`}>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(request)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </DropdownMenuItem>
-            {isParent && (
-              <>
-                <DropdownMenuItem onClick={() => onAddChild(request)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add new child
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onAddExisting(request)}>
-                  <Link className="h-4 w-4 mr-2" />
-                  Add existing requests…
-                </DropdownMenuItem>
-              </>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => onDelete(request)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    );
-  }, [onEdit, onAddChild, onAddExisting, onDelete]);
+  // Derived schedule/duration for parent (Group/Container) rows — same memo
+  // pattern the tree uses, so a group shows its rolled-up window/effort instead
+  // of its own (empty) minimal duration and "Unscheduled".
+  const derivedMap = useMemo(() => buildDerivedMap(requests), [requests]);
 
   const columns: ColumnDef<Request>[] = useMemo(() => [
     {
@@ -100,9 +63,7 @@ export const RequestListView = React.memo(function RequestListView({
         const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
         return (
           <div
-            className={`flex items-center gap-2 cursor-pointer ${selectedId === request.id ? "font-semibold" : ""}`}
-            onClick={() => onSelect(request.id)}
-            onDoubleClick={() => onEdit(request)}
+            className={`flex items-center gap-2 ${selectedId === request.id ? "font-semibold" : ""}`}
           >
             <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <span className="font-medium truncate">{request.name}</span>
@@ -125,10 +86,21 @@ export const RequestListView = React.memo(function RequestListView({
       header: "Parent",
       size: 180,
       cell: ({ row }) => {
+        const { parentRequestId } = row.original;
         const parentName = parentNameMap.get(row.original.id);
-        return parentName
-          ? <span className="text-xs text-muted-foreground truncate block">{parentName}</span>
-          : <span className="text-xs text-muted-foreground">—</span>;
+        return parentName && parentRequestId ? (
+          <button
+            className="text-xs text-primary hover:underline truncate block max-w-full text-left"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateToParent(parentRequestId);
+            }}
+          >
+            {parentName}
+          </button>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        );
       },
     },
     {
@@ -136,21 +108,43 @@ export const RequestListView = React.memo(function RequestListView({
       header: "Schedule",
       size: 200,
       cell: ({ row }) => {
-        const { startTs, endTs } = row.original;
-        return startTs && endTs
-          ? <span className="text-xs">{formatDateDisplay(startTs)} — {formatDateDisplay(endTs)}</span>
-          : <span className="text-xs text-muted-foreground">Unscheduled</span>;
+        const request = row.original;
+        const { text, isDerived } = resolveSchedule(request, derivedMap.get(request.id) ?? null);
+        if (!text) {
+          return <span className="text-xs text-muted-foreground">Unscheduled</span>;
+        }
+        if (isDerived) {
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-xs italic">{text}</span>
+              </TooltipTrigger>
+              <TooltipContent side="top">Derived from children</TooltipContent>
+            </Tooltip>
+          );
+        }
+        return <span className="text-xs">{text}</span>;
       },
     },
     {
       id: "duration",
       header: "Duration",
       size: 110,
-      cell: ({ row }) => (
-        <span className="text-sm">
-          {formatDuration(row.original.minimalDurationValue, row.original.minimalDurationUnit)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const request = row.original;
+        const { text, isDerived } = resolveDuration(request, derivedMap.get(request.id) ?? null);
+        if (isDerived) {
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-sm italic">{text}</span>
+              </TooltipTrigger>
+              <TooltipContent side="top">Sum of children</TooltipContent>
+            </Tooltip>
+          );
+        }
+        return <span className="text-sm">{text}</span>;
+      },
     },
     {
       id: "status",
@@ -162,44 +156,60 @@ export const RequestListView = React.memo(function RequestListView({
       id: "actions",
       header: () => null,
       size: 60,
-      cell: ({ row }) => renderActions(row.original),
+      cell: ({ row }) => (
+        <RequestRowActions
+          request={row.original}
+          canEdit={canEdit}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      ),
     },
-  ], [parentNameMap, selectedId, onSelect, onEdit, renderActions]);
+  ], [parentNameMap, derivedMap, selectedId, onEdit, onNavigateToParent, canEdit, onDelete]);
 
   // Phone presentation: name + actions on top; kind/status/duration badges and
   // the schedule window below.
   const renderCard = useCallback((request: Request) => {
     const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
-    const { startTs, endTs } = request;
+    const derived = derivedMap.get(request.id) ?? null;
+    const { text: durationText, isDerived: durationIsDerived } = resolveDuration(request, derived);
+    const { text: scheduleTextRaw, isDerived: scheduleIsDerived } = resolveSchedule(request, derived);
+    const scheduleText = scheduleTextRaw ?? "Unscheduled";
     return (
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div
             className={`flex items-center gap-2 min-w-0 cursor-pointer ${selectedId === request.id ? "font-semibold" : ""}`}
-            onClick={() => onSelect(request.id)}
+            onClick={() => {
+              onSelect(request.id);
+              onEdit(request);
+            }}
           >
             <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <span className="font-medium truncate">{request.name}</span>
           </div>
-          {renderActions(request)}
+          <RequestRowActions
+            request={request}
+            canEdit={canEdit}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="text-xs font-normal">
             {getPlanningModeLabel(request.planningMode)}
           </Badge>
           <RequestStatusBadge status={request.status} />
-          <span className="text-xs text-muted-foreground">
-            {formatDuration(request.minimalDurationValue, request.minimalDurationUnit)}
+          <span className={`text-xs text-muted-foreground ${durationIsDerived ? "italic" : ""}`}>
+            {durationText}
           </span>
         </div>
-        <div className="text-xs text-muted-foreground">
-          {startTs && endTs
-            ? `${formatDateDisplay(startTs)} — ${formatDateDisplay(endTs)}`
-            : "Unscheduled"}
+        <div className={`text-xs text-muted-foreground ${scheduleIsDerived ? "italic" : ""}`}>
+          {scheduleText}
         </div>
       </div>
     );
-  }, [selectedId, onSelect, renderActions]);
+  }, [selectedId, derivedMap, onSelect, onEdit, canEdit, onDelete]);
 
   return (
     <OrkyoDataTable
@@ -208,6 +218,10 @@ export const RequestListView = React.memo(function RequestListView({
       emptyMessage="No requests found."
       pageSize={50}
       renderCard={renderCard}
+      onRowClick={(request) => {
+        onSelect(request.id);
+        onEdit(request);
+      }}
     />
   );
 });

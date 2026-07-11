@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestTreeView } from './RequestTreeView';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
@@ -106,10 +107,6 @@ const defaultHandlers = {
   onSelect: vi.fn(),
   onEdit: vi.fn(),
   onDelete: vi.fn(),
-  onAddChild: vi.fn(),
-  onAddSibling: vi.fn(),
-  onAddExisting: vi.fn(),
-  onMoveTo: vi.fn(),
   onDrop: vi.fn(),
 };
 
@@ -144,16 +141,18 @@ describe('RequestTreeView', () => {
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
-  it('renders a row action menu per row for editors', () => {
-    const { container } = renderTreeView();
-    // One "more actions" (ellipsis) trigger per visible row.
-    expect(container.querySelectorAll('.lucide-ellipsis').length).toBe(defaultEntries.length);
+  it('renders Edit/Delete row actions per row for editors', () => {
+    renderTreeView();
+    // One Edit (and one Delete) button per visible row.
+    expect(screen.getAllByRole('button', { name: /^Edit /i })).toHaveLength(defaultEntries.length);
+    expect(screen.getAllByRole('button', { name: /^Delete /i })).toHaveLength(defaultEntries.length);
   });
 
-  it('hides the row action menus (all mutating) for a viewer', () => {
+  it('hides the row actions (all mutating) for a viewer', () => {
     vi.mocked(useCanEdit).mockReturnValue(false);
-    const { container } = renderTreeView();
-    expect(container.querySelectorAll('.lucide-ellipsis').length).toBe(0);
+    renderTreeView();
+    expect(screen.queryAllByRole('button', { name: /^Edit /i })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: /^Delete /i })).toHaveLength(0);
   });
 
   it('renders all visible entries', () => {
@@ -174,15 +173,10 @@ describe('RequestTreeView', () => {
     expect(items).toHaveLength(3);
   });
 
-  it('calls onSelect when clicking a row', () => {
+  it('calls onSelect and onEdit when clicking a row (row click opens the dialog)', () => {
     renderTreeView();
     fireEvent.click(screen.getByText('Child Task'));
     expect(defaultHandlers.onSelect).toHaveBeenCalledWith('child-1');
-  });
-
-  it('calls onEdit when double-clicking a row', () => {
-    renderTreeView();
-    fireEvent.doubleClick(screen.getByText('Child Task'));
     expect(defaultHandlers.onEdit).toHaveBeenCalledWith(childRequest);
   });
 
@@ -211,18 +205,39 @@ describe('RequestTreeView', () => {
     expect(childItem).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('renders mode badges', () => {
+  it('renders a header row mirroring the house table', () => {
     renderTreeView();
-    // Summary mode for parent, Leaf mode for children
-    expect(screen.getByText('Group')).toBeInTheDocument();
-    expect(screen.getAllByText('Task')).toHaveLength(2);
+    expect(screen.getByText('Name')).toBeInTheDocument();
+    expect(screen.getByText('Schedule')).toBeInTheDocument();
+    expect(screen.getByText('Duration')).toBeInTheDocument();
+    expect(screen.getByText('Status')).toBeInTheDocument();
   });
 
-  it('renders status dots', () => {
+  it('renders a status badge (not a dot) per row', () => {
     renderTreeView();
-    // Each row has a status dot (small circle span) — we check them via treeitem structure
-    const items = screen.getAllByRole('treeitem');
-    expect(items).toHaveLength(3);
+    // RequestStatusBadge renders the humanised label; all fixtures are "new".
+    expect(screen.getAllByText('New')).toHaveLength(3);
+  });
+
+  it('renders the shared row actions (Edit / Delete, no Move to)', () => {
+    renderTreeView();
+    expect(screen.getByRole('button', { name: 'Edit Parent Group' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete Parent Group' })).toBeInTheDocument();
+    expect(screen.queryByText(/Move to/i)).not.toBeInTheDocument();
+  });
+
+  it('clicking the inline Edit button on a row calls onEdit', async () => {
+    const user = userEvent.setup();
+    renderTreeView();
+    await user.click(screen.getByRole('button', { name: 'Edit Child Task' }));
+    expect(defaultHandlers.onEdit).toHaveBeenCalledWith(childRequest);
+  });
+
+  it('clicking the inline Delete button on a row calls onDelete', async () => {
+    const user = userEvent.setup();
+    renderTreeView();
+    await user.click(screen.getByRole('button', { name: 'Delete Child Task' }));
+    expect(defaultHandlers.onDelete).toHaveBeenCalledWith(childRequest);
   });
 
   it('renders without entries', () => {
@@ -233,24 +248,12 @@ describe('RequestTreeView', () => {
 
   it('indents children deeper than parents', () => {
     renderTreeView();
-    const items = screen.getAllByRole('treeitem');
-    const parentPadding = items[0].style.paddingLeft;
-    const childPadding = items[1].style.paddingLeft;
-    // depth 0 => 12 + 0*20 = 12px, depth 1 => 12 + 1*20 = 32px
-    expect(parseInt(parentPadding)).toBeLessThan(parseInt(childPadding));
-  });
-
-  it('expands all groups when clicking Expand all', () => {
-    mockExpandedIds.clear();
-    renderTreeView();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
-    expect(mockExpandAll).toHaveBeenCalledWith(['parent-1']);
-  });
-
-  it('collapses all groups when clicking Collapse all', () => {
-    renderTreeView();
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
-    expect(mockCollapseAll).toHaveBeenCalledTimes(1);
+    // Indent lives on the Name cell (the div wrapping the name text), so the
+    // Schedule/Duration/Status columns stay aligned with the header.
+    const parentPad = screen.getByText('Parent Group').closest('div')!.style.paddingLeft;
+    const childPad = screen.getByText('Child Task').closest('div')!.style.paddingLeft;
+    // depth 0 => 0*20 = 0px, depth 1 => 1*20 = 20px
+    expect(parseInt(parentPad || '0')).toBeLessThan(parseInt(childPad || '0'));
   });
 
   it('expands all groups with * keyboard shortcut', () => {
@@ -271,6 +274,28 @@ describe('RequestTreeView', () => {
     renderTreeView();
     fireEvent.keyDown(screen.getByRole('tree'), { key: '+' });
     expect(defaultHandlers.onToggle).toHaveBeenCalledWith('parent-1');
+  });
+
+  it('Delete key calls onDelete when canEdit is true', () => {
+    renderTreeView({ selectedId: 'child-1' });
+    fireEvent.keyDown(screen.getByRole('tree'), { key: 'Delete' });
+    expect(defaultHandlers.onDelete).toHaveBeenCalledWith(childRequest);
+  });
+
+  it('Delete key does nothing when canEdit is false (viewer)', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderTreeView({ selectedId: 'child-1' });
+    fireEvent.keyDown(screen.getByRole('tree'), { key: 'Delete' });
+    expect(defaultHandlers.onDelete).not.toHaveBeenCalled();
+  });
+
+  it('aria-activedescendant points at the treeitem element itself', () => {
+    renderTreeView({ selectedId: 'child-1' });
+    const tree = screen.getByRole('tree');
+    const activeId = tree.getAttribute('aria-activedescendant');
+    expect(activeId).toBe('tree-item-child-1');
+    const target = document.getElementById(activeId!);
+    expect(target).toHaveAttribute('role', 'treeitem');
   });
 
   it('renders the curated icon on a row whose request.icon is set', () => {
@@ -320,31 +345,22 @@ describe('RequestTreeView — touch affordances', () => {
 
   it('keeps row actions hover-gated on desktop', () => {
     setViewport(1280);
-    const { container } = renderTreeView();
-    const actionBtn = container.querySelector('.lucide-ellipsis')?.closest('button');
-    expect(actionBtn?.className).toContain('opacity-0');
+    renderTreeView();
+    // The shared Edit/Delete actions are wrapped in a hover-reveal span on desktop.
+    const wrapper = screen.getAllByRole('button', { name: /^Edit /i })[0].closest('span');
+    expect(wrapper?.className).toContain('opacity-0');
   });
 
   it('shows row actions persistently and hides the drag handle on phone', () => {
     setViewport(500);
     const { container } = renderTreeView();
 
-    const actionBtn = container.querySelector('.lucide-ellipsis')?.closest('button');
-    expect(actionBtn).toBeTruthy();
-    expect(actionBtn?.className).not.toContain('opacity-0');
+    const wrapper = screen.getAllByRole('button', { name: /^Edit /i })[0].closest('span');
+    expect(wrapper).toBeTruthy();
+    expect(wrapper?.className).not.toContain('opacity-0');
 
     // Drag-to-reparent is desktop-only; the handle is removed on touch.
     const handle = container.querySelector('.lucide-grip-vertical')?.closest('span');
     expect(handle?.className).toContain('hidden');
-  });
-
-  it('shows the add-child trigger persistently on parent rows on phone', () => {
-    setViewport(500);
-    const { container } = renderTreeView();
-    // The "Move to…" item inside this menu is the non-drag reparent path; the
-    // trigger being persistently visible is what makes it reachable on touch.
-    const addChild = container.querySelector('[title="Add child"]');
-    expect(addChild).toBeTruthy();
-    expect(addChild?.className).not.toContain('opacity-0');
   });
 });

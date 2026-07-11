@@ -1,13 +1,7 @@
 import { Badge } from "@foundation/src/components/ui/badge";
-import { Button } from "@foundation/src/components/ui/button";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@foundation/src/components/ui/dropdown-menu";
+import { RequestRowActions } from "@foundation/src/components/requests/RequestRowActions";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import {
   Tooltip,
   TooltipContent,
@@ -16,19 +10,15 @@ import {
 } from "@foundation/src/components/ui/tooltip";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
-import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
+import { getPlanningModeIcon, getRequestIcon } from "@foundation/src/constants";
 import {
+  buildDerivedMap,
   canHaveChildren,
-  computeDerivedValuesFromChildren,
+  resolveDuration,
+  resolveSchedule,
   type DerivedValues,
   type FlatTreeEntry,
 } from "@foundation/src/domain/request-tree";
-import {
-  formatDuration,
-  formatStatusLabel,
-  getStatusDotColor,
-} from "@foundation/src/lib/utils/utils";
-import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import type { Request } from "@foundation/src/types/requests";
 import {
@@ -42,20 +32,17 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  ChevronsDown,
-  ChevronsUp,
-  ChevronRight,
-  Edit,
-  FolderInput,
-  GripVertical,
-  Link,
-  MoreHorizontal,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, ChevronRight, GripVertical } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+
+// Column widths mirror RequestListView so toggling views feels seamless.
+// Name flexes; Schedule/Duration/Status/Actions are fixed. Schedule hides
+// below sm, Duration below lg (matches the old inline-metadata treatment).
+const COL_SCHEDULE = "w-[200px] shrink-0 hidden sm:block";
+const COL_DURATION = "w-[110px] shrink-0 hidden lg:block";
+const COL_STATUS = "w-[100px] shrink-0";
+const COL_ACTIONS = "w-[60px] shrink-0";
 
 // ---------------------------------------------------------------------------
 // Tree row
@@ -70,10 +57,6 @@ const TreeRow = React.memo(function TreeRow({
   onToggle,
   onEdit,
   onDelete,
-  onAddChild,
-  onAddSibling,
-  onAddExisting,
-  onMoveTo,
   onSelect,
   isSelected,
   isDragOverlay,
@@ -87,10 +70,6 @@ const TreeRow = React.memo(function TreeRow({
   onToggle: (id: string) => void;
   onEdit: (request: Request) => void;
   onDelete: (request: Request) => void;
-  onAddChild: (request: Request) => void;
-  onAddSibling: (request: Request) => void;
-  onAddExisting: (request: Request) => void;
-  onMoveTo: (request: Request) => void;
   onSelect: (id: string) => void;
   isSelected: boolean;
   isDragOverlay?: boolean;
@@ -105,7 +84,7 @@ const TreeRow = React.memo(function TreeRow({
 
   // Touch surfaces have no hover, so row affordances must be persistently visible
   // there; desktop keeps the reveal-on-hover treatment. Drag-to-reparent stays
-  // desktop-only (touch users reparent via the always-present "Move to…" action).
+  // desktop-only; touch users reparent via the request's Edit dialog → Children tab.
   const hoverReveal = isDesktop ? "opacity-0 group-hover:opacity-100 transition-opacity" : "";
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
@@ -129,90 +108,91 @@ const TreeRow = React.memo(function TreeRow({
     [setDragRef, setDropRef],
   );
 
-  // Schedule summary
-  let schedule: string | null = null;
-  if (isParent && derived?.startTs && derived?.endTs) {
-    schedule = `${formatDateDisplay(derived.startTs)} — ${formatDateDisplay(derived.endTs)}`;
-  } else if (request.startTs && request.endTs) {
-    schedule = `${formatDateDisplay(request.startTs)} — ${formatDateDisplay(request.endTs)}`;
-  }
-
-  // Duration summary
-  const duration = isParent && derived
-    ? formatDuration(derived.totalDurationValue, derived.totalDurationUnit)
-    : formatDuration(request.minimalDurationValue, request.minimalDurationUnit);
+  // Schedule/duration summary — derived (rolled up from children) for
+  // parents, else the request's own values. `derived` is only ever non-null
+  // for parent rows (derivedMap is keyed by canHaveChildren), so `isParent`
+  // is implied by a non-null `derived`.
+  const { text: schedule, isDerived: scheduleIsDerived } = resolveSchedule(request, derived);
+  const { text: duration, isDerived: durationIsDerived } = resolveDuration(request, derived);
 
   return (
     <div
       ref={mergedRef}
+      id={isDragOverlay ? undefined : `tree-item-${request.id}`}
       role="treeitem"
       aria-expanded={hasChildren ? isExpanded : undefined}
       aria-level={depth + 1}
       aria-selected={isSelected}
       className={`
-        group flex items-center gap-1.5 h-10 px-3 cursor-pointer
-        hover:bg-muted/50 transition-colors
+        group flex items-center gap-2 h-12 px-4 cursor-pointer border-b
+        hover:bg-accent/40 transition-colors
         ${isSelected ? "bg-muted" : ""}
         ${isDragging ? "opacity-40" : ""}
         ${isDropTarget && isOver ? "ring-2 ring-primary ring-inset bg-primary/10" : ""}
       `}
-      style={{ paddingLeft: `${12 + depth * 20}px` }}
-      onClick={() => onSelect(request.id)}
-      onDoubleClick={() => onEdit(request)}
+      onClick={() => {
+        onSelect(request.id);
+        onEdit(request);
+      }}
     >
-      {/* Drag handle — desktop only; touch reparents via the "Move to…" action. */}
-      <span
-        className={`flex-shrink-0 cursor-grab ${isDesktop ? "opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity" : "hidden"}`}
-        {...listeners}
-        {...attributes}
-      >
-        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-      </span>
-
-      {/* Expand / collapse */}
-      {hasChildren ? (
-        <button
-          tabIndex={-1}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(request.id);
-          }}
-          className="p-0.5 rounded hover:bg-muted-foreground/10 flex-shrink-0"
-        >
-          <ChevronRight
-            className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ${
-              isExpanded ? "rotate-90" : ""
-            }`}
-          />
-        </button>
-      ) : (
-        <span className="w-[18px] flex-shrink-0" />
-      )}
-
-      {/* Icon */}
-      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-
       {/* Name */}
-      <span className="font-medium text-sm truncate min-w-0 flex-1">
-        {request.name}
-      </span>
+      <div
+        className="flex items-center gap-1.5 flex-1 min-w-0"
+        style={{ paddingLeft: `${depth * 20}px` }}
+      >
+        {/* Drag handle — desktop only; touch reparents via the Edit dialog → Children tab. */}
+        <span
+          className={`flex-shrink-0 cursor-grab ${isDesktop ? "opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity" : "hidden"}`}
+          {...listeners}
+          {...attributes}
+        >
+          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+        </span>
 
-      {/* Inline metadata (visible on hover or always for key info) */}
-      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+        {/* Expand / collapse */}
+        {hasChildren ? (
+          <button
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(request.id);
+            }}
+            className="p-0.5 rounded hover:bg-muted-foreground/10 flex-shrink-0"
+          >
+            <ChevronRight
+              className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+            />
+          </button>
+        ) : (
+          <span className="w-[18px] flex-shrink-0" />
+        )}
+
+        {/* Planning-mode / curated icon */}
+        <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+
+        {/* Name */}
+        <span className="font-medium text-sm truncate min-w-0">{request.name}</span>
+
         {/* Conflict indicator */}
         {conflictCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex-shrink-0 rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenConflicts(request.id);
                 }}
                 aria-label={`Open ${conflictCount} conflict${conflictCount !== 1 ? "s" : ""} for ${request.name}`}
               >
-                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5 cursor-pointer">
+                <Badge
+                  variant="destructive"
+                  className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0 h-5 cursor-pointer"
+                >
+                  <AlertTriangle className="h-3 w-3" />
                   {conflictCount}
                 </Badge>
               </button>
@@ -225,121 +205,65 @@ const TreeRow = React.memo(function TreeRow({
 
         {/* Child count */}
         {isParent && childCount > 0 && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
-            {childCount}
-          </Badge>
-        )}
-
-        {/* Schedule hint */}
-        {schedule && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className={`text-[11px] text-muted-foreground hidden sm:inline ${isParent ? "italic" : ""}`}>
-                {schedule}
-              </span>
+              <Badge
+                variant="secondary"
+                className="flex-shrink-0 text-[10px] px-1.5 py-0 h-5"
+                aria-label={`${childCount} direct child${childCount !== 1 ? "ren" : ""}`}
+              >
+                {childCount}
+              </Badge>
             </TooltipTrigger>
             <TooltipContent side="top">
-              {isParent ? "Derived from children" : "Scheduled"}
+              {childCount} direct child{childCount !== 1 ? "ren" : ""}
             </TooltipContent>
           </Tooltip>
         )}
+      </div>
 
-        {/* Duration */}
-        <span className={`text-[11px] text-muted-foreground hidden lg:inline ${isParent && derived ? "italic" : ""}`}>
-          {duration}
-        </span>
+      {/* Schedule */}
+      <div className={`${COL_SCHEDULE} text-xs text-muted-foreground truncate`}>
+        {schedule &&
+          (scheduleIsDerived ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="italic">{schedule}</span>
+              </TooltipTrigger>
+              <TooltipContent side="top">Derived from children</TooltipContent>
+            </Tooltip>
+          ) : (
+            <span>{schedule}</span>
+          ))}
+      </div>
 
-        {/* Mode badge */}
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
-          {getPlanningModeLabel(request.planningMode)}
-        </Badge>
-
-        {/* Status dot */}
+      {/* Duration */}
+      <div className={`${COL_DURATION} text-xs text-muted-foreground truncate`}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span
-              className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusDotColor(request.status)}`}
-            />
+            <span className={durationIsDerived ? "italic" : ""}>{duration}</span>
           </TooltipTrigger>
-          <TooltipContent side="top">{formatStatusLabel(request.status)}</TooltipContent>
+          <TooltipContent side="top">
+            {durationIsDerived ? "Sum of children" : "Minimal duration"}
+          </TooltipContent>
         </Tooltip>
+      </div>
 
-        {/* Inline add child dropdown for parents — editors/admins only */}
-        {isParent && canEdit && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`h-6 w-6 p-0 ${hoverReveal}`}
-                onClick={(e) => e.stopPropagation()}
-                title="Add child"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onAddChild(request)}>
-                <Plus className="h-4 w-4 mr-2" />
-                New child
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onAddExisting(request)}>
-                <Link className="h-4 w-4 mr-2" />
-                Add existing requests…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+      {/* Status */}
+      <div className={COL_STATUS}>
+        <RequestStatusBadge status={request.status} />
+      </div>
 
-        {/* Actions dropdown — all items are mutations, so hidden for viewers */}
-        {canEdit && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-6 w-6 p-0 ${hoverReveal}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(request)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </DropdownMenuItem>
-            {isParent && (
-              <>
-                <DropdownMenuItem onClick={() => onAddChild(request)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add new child
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onAddExisting(request)}>
-                  <Link className="h-4 w-4 mr-2" />
-                  Add existing requests…
-                </DropdownMenuItem>
-              </>
-            )}
-            <DropdownMenuItem onClick={() => onAddSibling(request)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add sibling
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onMoveTo(request)}>
-              <FolderInput className="h-4 w-4 mr-2" />
-              Move to…
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => onDelete(request)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        )}
+      {/* Actions — Edit/Delete, hover-revealed on desktop / persistent on touch. */}
+      <div className={`${COL_ACTIONS} flex justify-end`}>
+        <span className={hoverReveal}>
+          <RequestRowActions
+            request={request}
+            canEdit={canEdit}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        </span>
       </div>
     </div>
   );
@@ -359,10 +283,6 @@ interface RequestTreeViewProps {
   onSelect: (id: string) => void;
   onEdit: (request: Request) => void;
   onDelete: (request: Request) => void;
-  onAddChild: (request: Request) => void;
-  onAddSibling: (request: Request) => void;
-  onAddExisting: (request: Request) => void;
-  onMoveTo: (request: Request) => void;
   onDrop: (draggedId: string, targetId: string) => void;
 }
 
@@ -376,35 +296,24 @@ export const RequestTreeView = React.memo(function RequestTreeView({
   onSelect,
   onEdit,
   onDelete,
-  onAddChild,
-  onAddSibling,
-  onAddExisting,
-  onMoveTo,
   onDrop,
 }: RequestTreeViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const expandedIds = useRequestTreeStore((s) => s.expandedIds);
   const expandAll = useRequestTreeStore((s) => s.expandAll);
-  const collapseAll = useRequestTreeStore((s) => s.collapseAll);
+  const canEdit = useCanEdit();
 
+  // Expandable (parent) ids — feeds the `*` expand-all shortcut. The page owns
+  // the toolbar Expand/Collapse-all buttons and computes this list identically.
   const expandableIds = useMemo(
     () => allRequests.filter((r) => canHaveChildren(r.planningMode)).map((r) => r.id),
     [allRequests],
   );
 
-  const allExpandableExpanded = useMemo(
-    () => expandableIds.length > 0 && expandableIds.every((id) => expandedIds.has(id)),
-    [expandableIds, expandedIds],
-  );
-
   const handleExpandAll = useCallback(() => {
     expandAll(expandableIds);
   }, [expandAll, expandableIds]);
-
-  const handleCollapseAll = useCallback(() => {
-    collapseAll();
-  }, [collapseAll]);
 
   // Require 8px drag distance before activating — avoids conflicts with clicks
   const sensors = useSensors(
@@ -473,29 +382,12 @@ export const RequestTreeView = React.memo(function RequestTreeView({
     return map;
   }, [allRequests]);
 
-  const derivedMap = useMemo(() => {
-    const childrenByParent = new Map<string, Request[]>();
-    for (const r of allRequests) {
-      if (r.parentRequestId) {
-        const siblings = childrenByParent.get(r.parentRequestId);
-        if (siblings) siblings.push(r);
-        else childrenByParent.set(r.parentRequestId, [r]);
-      }
-    }
-    const map = new Map<string, DerivedValues | null>();
-    for (const r of allRequests) {
-      if (canHaveChildren(r.planningMode)) {
-        const children = childrenByParent.get(r.id);
-        map.set(r.id, children?.length ? computeDerivedValuesFromChildren(children) : null);
-      }
-    }
-    return map;
-  }, [allRequests]);
+  const derivedMap = useMemo(() => buildDerivedMap(allRequests), [allRequests]);
 
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 40,
+    estimateSize: () => 48,
     overscan: 15,
   });
 
@@ -593,6 +485,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
         }
         case "Delete": {
           e.preventDefault();
+          if (!canEdit) break;
           const entry = entries[currentIndex];
           if (entry) onDelete(entry.request);
           break;
@@ -623,6 +516,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
       virtualizer,
       expandedIds,
       handleExpandAll,
+      canEdit,
     ],
   );
 
@@ -642,37 +536,14 @@ export const RequestTreeView = React.memo(function RequestTreeView({
       onDragCancel={handleDragCancel}
     >
     <div className="h-full flex flex-col rounded-2xl border bg-card text-card-foreground shadow-xs overflow-hidden">
-      {entries.length > 0 && (
-        <div className="px-3 h-14 shrink-0 border-b flex items-center justify-end gap-2">
-          <span className="text-xs text-muted-foreground mr-auto">
-            {expandedIds.size} expanded
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7"
-            onClick={handleExpandAll}
-            disabled={expandableIds.length === 0 || allExpandableExpanded}
-            title="Expand all (*)"
-          >
-            <ChevronsDown className="h-3.5 w-3.5 mr-1.5" />
-            Expand all
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7"
-            onClick={handleCollapseAll}
-            disabled={expandedIds.size === 0}
-            title="Collapse all (use - to collapse current node)"
-          >
-            <ChevronsUp className="h-3.5 w-3.5 mr-1.5" />
-            Collapse all
-          </Button>
-        </div>
-      )}
+      {/* Header row — mirrors the house table header, pinned above the scroll area. */}
+      <div className="flex items-center gap-2 h-10 px-4 shrink-0 border-b text-sm font-medium text-muted-foreground">
+        <span className="flex-1 min-w-0">Name</span>
+        <span className={COL_SCHEDULE}>Schedule</span>
+        <span className={COL_DURATION}>Duration</span>
+        <span className={COL_STATUS}>Status</span>
+        <span className={COL_ACTIONS} aria-hidden />
+      </div>
       {/* The virtualizer scrolls the ScrollArea Viewport (wired via `viewportRef`),
           not the Root — so this uses the shared house scrollbar instead of a bare
           overflow div. `type="auto"` keeps the bar visible whenever the tree
@@ -695,7 +566,6 @@ export const RequestTreeView = React.memo(function RequestTreeView({
             return (
               <div
                 key={entry.request.id}
-                id={`tree-item-${entry.request.id}`}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -714,10 +584,6 @@ export const RequestTreeView = React.memo(function RequestTreeView({
                   onToggle={onToggle}
                   onEdit={onEdit}
                   onDelete={onDelete}
-                  onAddChild={onAddChild}
-                  onAddSibling={onAddSibling}
-                  onAddExisting={onAddExisting}
-                  onMoveTo={onMoveTo}
                   onSelect={onSelect}
                   isSelected={selectedId === entry.request.id}
                   isDropTarget={validDropTargets.has(entry.request.id)}
@@ -740,10 +606,6 @@ export const RequestTreeView = React.memo(function RequestTreeView({
             onToggle={onToggle}
             onEdit={onEdit}
             onDelete={onDelete}
-            onAddChild={onAddChild}
-            onAddSibling={onAddSibling}
-            onAddExisting={onAddExisting}
-            onMoveTo={onMoveTo}
             onSelect={onSelect}
             isSelected={false}
             isDragOverlay

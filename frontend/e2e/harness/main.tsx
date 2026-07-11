@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 
@@ -17,6 +17,28 @@ import type { CalendarEvent } from "@foundation/src/components/utilization/reque
 import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
 import { makeRequest } from "@foundation/src/test-utils/request-fixtures";
 import type { Space } from "@foundation/src/types/space";
+import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
+import { RequestListView } from "@foundation/src/components/requests/RequestListView";
+import { RequestFormDialog } from "@foundation/src/components/requests/RequestFormDialog";
+import { TooltipProvider } from "@foundation/src/components/ui/tooltip";
+import { buildRequestTree, flattenVisibleTree } from "@foundation/src/domain/request-tree";
+import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
+import { useAppStore } from "@foundation/src/store/app-store";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { Request } from "@foundation/src/types/requests";
+import {
+  GROUP_A_ID,
+  conflictMapFixture,
+  requestFixtures,
+  SITE_ID,
+  groupEditRequestFixture,
+  groupEditAllRequests,
+  leafViewRequestFixture,
+} from "./requests-fixtures";
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+});
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +87,10 @@ function makeSpace(id: string, name: string): Space {
 }
 const spaces = [makeSpace("space-1", "Room A"), makeSpace("space-2", "Room B")];
 
+// No-op handler shared by the Requests fixtures below — the harness has no
+// backend, so mutation/navigation callbacks just render the static fixture.
+const noop = () => {};
+
 // ── Harness page ──────────────────────────────────────────────────────────────
 
 function Harness() {
@@ -76,6 +102,36 @@ function Harness() {
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
+  // RequestFormDialog visual review — one state-controlled dialog instance,
+  // opened against either the group-edit or leaf-view fixture. A site must be
+  // selected in the app store for useSpaces() (Resources tab) to fetch —
+  // otherwise the space query stays disabled and the assignment can't resolve
+  // to a name.
+  const setSelectedSiteId = useAppStore((s) => s.setSelectedSiteId);
+  useEffect(() => {
+    setSelectedSiteId(SITE_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [dialogFixture, setDialogFixture] = useState<{
+    request: Request;
+    allRequests?: Request[];
+    canEdit: boolean;
+  } | null>(null);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+
+  // Requests — seed the tree store so grp-conf renders expanded (its nested
+  // subgroup and the other top-level group stay collapsed) on first paint.
+  const expandedIds = useRequestTreeStore((s) => s.expandedIds);
+  const expandAll = useRequestTreeStore((s) => s.expandAll);
+  useEffect(() => {
+    expandAll([GROUP_A_ID]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const visibleEntries = useMemo(
+    () => flattenVisibleTree(buildRequestTree(requestFixtures), expandedIds),
+    [expandedIds],
+  );
+
   const toggleTheme = () => {
     setIsDark((prev) => {
       const next = !prev;
@@ -85,6 +141,7 @@ function Harness() {
   };
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="p-6 space-y-8 max-w-4xl mx-auto">
       <header className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Foundation smoke harness</h1>
@@ -202,8 +259,110 @@ function Harness() {
           defaultStart={new Date(2026, 3, 17, 9, 0)}
         />
       </section>
+
+      {/* Requests ---------------------------------------------------------- */}
+      <section className="space-y-4" data-testid="requests-section">
+        <h2 className="font-medium">Requests</h2>
+
+        <div>
+          <h3 className="text-sm text-muted-foreground mb-2">Tree view</h3>
+          <div className="h-[420px] border rounded-lg overflow-hidden" data-testid="requests-tree">
+            <RequestTreeView
+              entries={visibleEntries}
+              allRequests={requestFixtures}
+              selectedId={null}
+              conflictMap={conflictMapFixture}
+              onOpenConflicts={noop}
+              onToggle={noop}
+              onSelect={noop}
+              onEdit={noop}
+              onDelete={noop}
+              onDrop={noop}
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm text-muted-foreground mb-2">List view</h3>
+          <div className="border rounded-lg overflow-hidden" data-testid="requests-list">
+            <RequestListView
+              requests={requestFixtures}
+              selectedId={null}
+              onSelect={noop}
+              onEdit={noop}
+              onDelete={noop}
+              onNavigateToParent={noop}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* RequestFormDialog ------------------------------------------------------ */}
+      <section className="space-y-2">
+        <h2 className="font-medium">Request dialog</h2>
+        <div className="flex gap-2">
+          <Button
+            data-testid="open-group"
+            variant="outline"
+            onClick={() =>
+              setDialogFixture({
+                request: groupEditRequestFixture,
+                allRequests: groupEditAllRequests,
+                canEdit: true,
+              })
+            }
+          >
+            Open group (edit)
+          </Button>
+          <Button
+            data-testid="open-leaf"
+            variant="outline"
+            onClick={() =>
+              setDialogFixture({
+                request: leafViewRequestFixture,
+                canEdit: false,
+              })
+            }
+          >
+            Open leaf (view)
+          </Button>
+          <Button
+            data-testid="open-create-group"
+            variant="outline"
+            onClick={() => setCreateGroupOpen(true)}
+          >
+            Open create (group)
+          </Button>
+        </div>
+        {createGroupOpen && (
+          <RequestFormDialog
+            open
+            onOpenChange={(o) => { if (!o) setCreateGroupOpen(false); }}
+            defaultPlanningMode="summary"
+            allRequests={groupEditAllRequests}
+            onNavigate={noop}
+            onSave={async () => undefined}
+          />
+        )}
+        {dialogFixture && (
+          <RequestFormDialog
+            open
+            onOpenChange={(o) => { if (!o) setDialogFixture(null); }}
+            request={dialogFixture.request}
+            allRequests={dialogFixture.allRequests}
+            canEdit={dialogFixture.canEdit}
+            onNavigate={noop}
+            onSave={async () => {}}
+          />
+        )}
+      </section>
     </div>
+    </TooltipProvider>
   );
 }
 
-createRoot(document.getElementById("root")!).render(<Harness />);
+createRoot(document.getElementById("root")!).render(
+  <QueryClientProvider client={queryClient}>
+    <Harness />
+  </QueryClientProvider>,
+);

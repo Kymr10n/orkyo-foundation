@@ -2,7 +2,6 @@ import { useCallback, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
-import { RequestDetailsDialog } from "@foundation/src/components/requests/RequestDetailsDialog";
 import {
   RequestFormDialog,
   type RequestFormData,
@@ -13,12 +12,13 @@ import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-reque
 import type { Conflict, Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
-  /** Open the edit dialog (admin/editor) or read-only details dialog for a request. Pass the
-   *  request's conflicts (from the registry) to surface indicators in the edit form. */
+  /** Open the request dialog — edit mode for admin/editor, read-only view mode
+   *  otherwise. Pass the request's conflicts (from the registry) to surface
+   *  indicators in the edit form. */
   open: (request: Request, conflicts?: Conflict[]) => void;
   /**
-   * Both dialogs as a single ReactNode. Mount once at the page root —
-   * they portal to document.body so the mount point doesn't affect layout.
+   * The dialog as a ReactNode. Mount once at the page root — it portals to
+   * document.body so the mount point doesn't affect layout.
    */
   dialogs: ReactNode;
 }
@@ -27,8 +27,11 @@ interface UseRequestEditorResult {
  * Centralises the open / edit / view-request dialog flow shared by
  * UtilizationPage and ConflictsPage.
  *
- * Owns: dialog state, role gate (admin|editor → edit, otherwise → details),
- * save handler, and React Query invalidation.
+ * Owns: dialog state, role gate (admin|editor → edit, otherwise → read-only
+ * view), save handler, and React Query invalidation. Always opens
+ * `RequestFormDialog` — `canEdit` decides edit vs. view mode. These callers
+ * open a single request by id (no tree), so `allRequests`/`onNavigate` are
+ * omitted and the dialog's breadcrumb/Children tab/derived rollups hide.
  */
 export function useRequestEditor(): UseRequestEditorResult {
   const queryClient = useQueryClient();
@@ -40,55 +43,38 @@ export function useRequestEditor(): UseRequestEditorResult {
 
   const [request, setRequest] = useState<Request | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const open = useCallback(
-    (next: Request, nextConflicts: Conflict[] = []) => {
-      setRequest(next);
-      setConflicts(nextConflicts);
-      if (userCanEdit) {
-        setIsEditOpen(true);
-      } else {
-        setIsDetailsOpen(true);
-      }
-    },
-    [userCanEdit],
-  );
+  const open = useCallback((next: Request, nextConflicts: Conflict[] = []) => {
+    setRequest(next);
+    setConflicts(nextConflicts);
+    setIsOpen(true);
+  }, []);
 
   const handleSave = useCallback(
     async (data: RequestFormData) => {
       if (!request) return;
       await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
       invalidateRequestData(queryClient);
-      setIsEditOpen(false);
+      setIsOpen(false);
       setRequest(null);
     },
     [request, queryClient],
   );
 
   const dialogs = (
-    <>
-      <RequestFormDialog
-        key={request?.id ?? "new"}
-        open={isEditOpen}
-        onOpenChange={(next) => {
-          setIsEditOpen(next);
-          if (!next) setRequest(null);
-        }}
-        request={request}
-        conflicts={conflicts}
-        onSave={handleSave}
-      />
-      <RequestDetailsDialog
-        open={isDetailsOpen}
-        onOpenChange={(next) => {
-          setIsDetailsOpen(next);
-          if (!next) setRequest(null);
-        }}
-        request={request}
-      />
-    </>
+    <RequestFormDialog
+      key={request?.id ?? "new"}
+      open={isOpen}
+      onOpenChange={(next) => {
+        setIsOpen(next);
+        if (!next) setRequest(null);
+      }}
+      request={request}
+      conflicts={conflicts}
+      canEdit={userCanEdit}
+      onSave={handleSave}
+    />
   );
 
   return { open, dialogs };

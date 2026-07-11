@@ -87,26 +87,6 @@ export function getStatusColor(status: string): string {
 }
 
 /**
- * Get Tailwind bg class for a small status dot indicator.
- */
-export function getStatusDotColor(status: string): string {
-  switch (status) {
-    case REQUEST_STATUS.NEW:
-      return "bg-blue-500";
-    case REQUEST_STATUS.IN_PROGRESS:
-      return "bg-amber-500";
-    case REQUEST_STATUS.DONE:
-      return "bg-emerald-500";
-    case REQUEST_STATUS.DEFERRED:
-      return "bg-slate-400";
-    case REQUEST_STATUS.CANCELLED:
-      return "bg-gray-400";
-    default:
-      return "bg-gray-400";
-  }
-}
-
-/**
  * Human-readable label for a RequestStatus wire value.
  */
 export function formatStatusLabel(status: string): string {

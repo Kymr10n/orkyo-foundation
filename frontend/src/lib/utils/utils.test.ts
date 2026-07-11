@@ -12,7 +12,6 @@ import {
   formatTimeForInput,
   getDataTypeColor,
   getStatusColor,
-  getStatusDotColor,
   isValidSlug,
 } from './utils';
 import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
@@ -268,14 +267,6 @@ describe('status helpers', () => {
     expect(getStatusColor('deferred')).toContain('slate');
     expect(getStatusColor('cancelled')).toContain('line-through');
     expect(getStatusColor('???')).toBe('bg-muted text-muted-foreground');
-  });
-  it('getStatusDotColor covers every known status plus the default', () => {
-    expect(getStatusDotColor('new')).toBe('bg-blue-500');
-    expect(getStatusDotColor('in_progress')).toBe('bg-amber-500');
-    expect(getStatusDotColor('done')).toBe('bg-emerald-500');
-    expect(getStatusDotColor('deferred')).toBe('bg-slate-400');
-    expect(getStatusDotColor('cancelled')).toBe('bg-gray-400');
-    expect(getStatusDotColor('???')).toBe('bg-gray-400');
   });
   it('formatStatusLabel humanizes known statuses and echoes unknown ones', () => {
     expect(formatStatusLabel('new')).toBe('New');

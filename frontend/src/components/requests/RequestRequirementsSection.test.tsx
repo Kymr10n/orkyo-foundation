@@ -188,6 +188,23 @@ describe('RequestRequirementsSection', () => {
     expect(screen.queryByTestId('conflict-indicator')).not.toBeInTheDocument();
   });
 
+  it('hides add/remove and disables inputs in readOnly mode', () => {
+    const stateWithReqs = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
+    };
+    const { container } = render(
+      <RequestRequirementsSection {...defaultProps} state={stateWithReqs} readOnly />,
+    );
+    // Value still shown…
+    expect(screen.getByTestId('input-c1')).toBeInTheDocument();
+    // …but the add-criterion row and the remove trash button are gone.
+    expect(screen.queryByText('Select a criterion to add')).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    // The input is wrapped in a disabled fieldset.
+    expect(container.querySelector('fieldset[disabled]')).not.toBeNull();
+  });
+
   it('renders multiple requirements', () => {
     const stateWithTwo = {
       ...baseState,

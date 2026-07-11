@@ -12,6 +12,9 @@ import {
   canBeScheduled,
   getNextSortOrder,
   computeDerivedValues,
+  buildDerivedMap,
+  resolveDuration,
+  resolveSchedule,
   validateNode,
   validateParentChild,
 } from "./request-tree";
@@ -296,6 +299,95 @@ describe("computeDerivedValues", () => {
     // 120min + 60min + 60min = 240min, most common unit = minutes
     expect(derived.totalDurationUnit).toBe("minutes");
     expect(derived.totalDurationValue).toBe(240);
+  });
+});
+
+describe("buildDerivedMap", () => {
+  it("maps parent ids to derived values and omits leaves", () => {
+    const map = buildDerivedMap(flat);
+    expect(map.has("root-1")).toBe(true);
+    expect(map.has("root-2")).toBe(true);
+    expect(map.has("child-2")).toBe(false); // leaf, can't have children
+    expect(map.has("grandchild-1")).toBe(false); // leaf
+  });
+
+  it("maps a childless parent to null", () => {
+    const map = buildDerivedMap([
+      makeRequest({ id: "empty-parent", planningMode: "summary" }),
+    ]);
+    expect(map.get("empty-parent")).toBeNull();
+  });
+
+  it("matches computeDerivedValues for a parent with children", () => {
+    const requests: Request[] = [
+      makeRequest({ id: "parent", planningMode: "summary" }),
+      makeRequest({
+        id: "c1",
+        parentRequestId: "parent",
+        startTs: "2025-06-01T08:00:00Z",
+        endTs: "2025-06-01T12:00:00Z",
+        sortOrder: 0,
+      }),
+    ];
+    const map = buildDerivedMap(requests);
+    expect(map.get("parent")).toEqual(computeDerivedValues("parent", requests));
+  });
+});
+
+describe("resolveDuration", () => {
+  const request = makeRequest({
+    id: "r",
+    minimalDurationValue: 45,
+    minimalDurationUnit: "minutes",
+  });
+
+  it("uses the request's own minimal duration when there are no derived values", () => {
+    expect(resolveDuration(request, null)).toEqual({ text: "45 minutes", isDerived: false });
+  });
+
+  it("uses derived (sum of children) values when present", () => {
+    const derived = {
+      startTs: null,
+      endTs: null,
+      spanDurationMinutes: null,
+      totalDurationValue: 3,
+      totalDurationUnit: "hours" as const,
+      requirementCount: 0,
+    };
+    expect(resolveDuration(request, derived)).toEqual({ text: "3 hours", isDerived: true });
+  });
+});
+
+describe("resolveSchedule", () => {
+  it("uses the request's own schedule when there are no derived dates", () => {
+    const request = makeRequest({
+      id: "r",
+      startTs: "2025-06-01T08:00:00Z",
+      endTs: "2025-06-01T12:00:00Z",
+    });
+    const resolved = resolveSchedule(request, null);
+    expect(resolved.isDerived).toBe(false);
+    expect(resolved.text).toContain("—");
+  });
+
+  it("uses derived dates when both start and end are present", () => {
+    const request = makeRequest({ id: "r", planningMode: "summary" });
+    const derived = {
+      startTs: "2025-06-01T08:00:00Z",
+      endTs: "2025-06-03T17:00:00Z",
+      spanDurationMinutes: 3420,
+      totalDurationValue: 5,
+      totalDurationUnit: "hours" as const,
+      requirementCount: 0,
+    };
+    const resolved = resolveSchedule(request, derived);
+    expect(resolved.isDerived).toBe(true);
+    expect(resolved.text).not.toBeNull();
+  });
+
+  it("returns a null text when neither derived nor own dates are available", () => {
+    const request = makeRequest({ id: "r" });
+    expect(resolveSchedule(request, null)).toEqual({ text: null, isDerived: false });
   });
 });
 

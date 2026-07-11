@@ -13,15 +13,18 @@ vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
     placeholder,
     id,
     onChange,
+    disabled,
   }: {
     placeholder: string;
     id: string;
     value?: string;
     onChange?: (v: string) => void;
+    disabled?: boolean;
   }) => (
     <input
       data-testid={id}
       placeholder={placeholder}
+      disabled={disabled}
       onChange={(e) => onChange?.(e.target.value)}
     />
   ),
@@ -88,6 +91,12 @@ describe('RequestScheduleSection', () => {
     render(<RequestScheduleSection {...defaultProps} />);
     fireEvent.change(screen.getByTestId('endDateTime'), { target: { value: '2026-06-01T17:00' } });
     expect(mockSplitDateTimeFields).toHaveBeenCalled();
+  });
+
+  it('disables the pickers in readOnly mode', () => {
+    render(<RequestScheduleSection {...defaultProps} readOnly />);
+    expect(screen.getByTestId('startDateTime')).toBeDisabled();
+    expect(screen.getByTestId('endDateTime')).toBeDisabled();
   });
 
 });

@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 
 const STORAGE_KEY_EXPANDED_IDS = STORAGE_KEYS.REQUEST_TREE_EXPANDED;
+const STORAGE_KEY_VIEW_MODE = STORAGE_KEYS.REQUEST_VIEW_MODE;
+
+export type RequestViewMode = "tree" | "list";
 
 function readExpandedIds(): Set<string> {
   try {
@@ -23,11 +26,30 @@ function writeExpandedIds(ids: Set<string>) {
   }
 }
 
+function readViewMode(): RequestViewMode {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_VIEW_MODE);
+    return raw === "list" ? "list" : "tree";
+  } catch {
+    return "tree";
+  }
+}
+
+function writeViewMode(mode: RequestViewMode) {
+  try {
+    localStorage.setItem(STORAGE_KEY_VIEW_MODE, mode);
+  } catch {
+    // Ignore persistence failures (private mode/quota).
+  }
+}
+
 interface RequestTreeState {
   /** IDs of expanded tree nodes */
   expandedIds: Set<string>;
-  /** Currently selected request ID (for detail panel) */
+  /** Currently selected request ID (drives row highlight + keyboard anchor) */
   selectedId: string | null;
+  /** Tree vs. list view mode on the Requests page */
+  viewMode: RequestViewMode;
 
   toggle: (id: string) => void;
   expand: (id: string) => void;
@@ -36,11 +58,13 @@ interface RequestTreeState {
   collapseAll: () => void;
   expandAncestors: (ids: string[]) => void;
   setSelectedId: (id: string | null) => void;
+  setViewMode: (mode: RequestViewMode) => void;
 }
 
 export const useRequestTreeStore = create<RequestTreeState>((set) => ({
   expandedIds: readExpandedIds(),
   selectedId: null,
+  viewMode: readViewMode(),
 
   toggle: (id) =>
     set((state) => {
@@ -92,4 +116,10 @@ export const useRequestTreeStore = create<RequestTreeState>((set) => ({
     }),
 
   setSelectedId: (id) => set({ selectedId: id }),
+
+  setViewMode: (mode) =>
+    set(() => {
+      writeViewMode(mode);
+      return { viewMode: mode };
+    }),
 }));

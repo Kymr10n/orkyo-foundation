@@ -1,21 +1,42 @@
 import { ScaffoldDialog } from "@foundation/src/components/ui/ScaffoldDialog";
 import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
+import { DialogFooter } from "@foundation/src/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@foundation/src/components/ui/tabs";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
+import { Badge } from "@foundation/src/components/ui/badge";
+import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
+import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
-import { getRequestChildren } from "@foundation/src/lib/api/request-api";
+import { createRequest, getRequestChildren, moveRequest } from "@foundation/src/lib/api/request-api";
 import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
 import { useAppStore } from "@foundation/src/store/app-store";
-import { VALIDATION_MESSAGES, PLANNING_MODE_CONFIG, SPACE_NONE_PLACEHOLDER } from "@foundation/src/constants";
-import { combineDateTimeToISO, durationToMinutes, formatMinutesHuman } from "@foundation/src/lib/utils";
+import {
+  VALIDATION_MESSAGES,
+  PLANNING_MODE_CONFIG,
+  SPACE_NONE_PLACEHOLDER,
+  DEFAULT_DURATION_VALUE,
+  DEFAULT_DURATION_UNIT,
+  getPlanningModeIcon,
+  getPlanningModeLabel,
+  getRequestIcon,
+} from "@foundation/src/constants";
+import { combineDateTimeToISO, durationToMinutes, formatDuration, formatMinutesHuman } from "@foundation/src/lib/utils";
+import { formatDateDisplay } from "@foundation/src/lib/formatters";
+import {
+  computeDerivedValues,
+  getAncestorIds,
+  getDirectChildren,
+  getNextSortOrder,
+} from "@foundation/src/domain/request-tree";
+import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
@@ -23,9 +44,11 @@ import type { Conflict, Duration, DurationUnit, PlanningMode, Request } from "@f
 import { ConflictBanner, ConflictIndicator, conflictDotClass } from "./ConflictIndicator";
 import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator";
 import type { Space } from "@foundation/src/types/space";
-import { AlertTriangle, FileText, Layers, MapPin } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, ChevronRight, FileText, Layers, Link, MapPin, Plus, Search, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { toast } from "sonner";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { CRITERIA_QUERY_KEY } from "@foundation/src/hooks/useCriteria";
 import { useSpaces } from "@foundation/src/hooks/useSpaces";
@@ -34,13 +57,14 @@ const EMPTY_CRITERIA: Criterion[] = [];
 const EMPTY_TEMPLATES: Template[] = [];
 const EMPTY_SPACES: Space[] = [];
 
-type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources';
+type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources' | 'children';
 
 /** Sentinel for the "Any site" (site-neutral) option — Radix Select disallows empty values. */
 const ANY_SITE = '__any_site__';
 import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
+import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { RequestScheduleSection } from "./RequestScheduleSection";
 import { RequestConstraintsSection } from "./RequestConstraintsSection";
 import { RequestRequirementsSection } from "./RequestRequirementsSection";
@@ -62,7 +86,24 @@ interface RequestFormDialogProps {
   scheduleSiteId?: string | null;
   /** Saved conflicts for this request (from the registry); surfaced as form indicators. */
   conflicts?: Conflict[];
-  onSave: (data: RequestFormData) => void | Promise<void>;
+  /**
+   * When false, the dialog is a read-only VIEW surface: every field is disabled,
+   * the footer is a single Close button, and the mutation controls (Children
+   * add/remove, People add/remove) are hidden. Defaults to true (edit mode).
+   */
+  canEdit?: boolean;
+  /**
+   * The full request tree. Drives the ancestor breadcrumb, the Children tab, and
+   * the group derived-schedule rollups. When undefined those features hide.
+   */
+  allRequests?: Request[];
+  /** Re-target the dialog to another request (breadcrumb / children click). */
+  onNavigate?: (requestId: string) => void;
+  /**
+   * Create-mode consumers should return the created Request so queued children
+   * from the Children tab can be created under it. May return void otherwise.
+   */
+  onSave: (data: RequestFormData) => void | Request | Promise<void | Request>;
 }
 
 export interface RequestFormData {
@@ -116,22 +157,26 @@ export function RequestFormDialog({
   defaultSchedule,
   scheduleSiteId,
   conflicts = [],
+  canEdit = true,
+  allRequests,
+  onNavigate,
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const { data: sites = [] } = useSites();
   const isMultiSite = useIsMultiSite();
-  const isCreateMode = !request;
   const isChildCreation = !request && !!parentRequest;
+  const readOnly = !canEdit;
+  const queryClient = useQueryClient();
 
   // Use the custom hook for form state management
   const {
     state,
-    setField,
-    addRequirement,
-    removeRequirement,
-    updateRequirement,
-    applyTemplate,
+    setField: setFieldRaw,
+    addRequirement: addRequirementRaw,
+    removeRequirement: removeRequirementRaw,
+    updateRequirement: updateRequirementRaw,
+    applyTemplate: applyTemplateRaw,
   } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId, scheduleSiteId);
 
   // Map saved conflicts onto the form: by assigned resource (people + space) and by requirement
@@ -189,7 +234,24 @@ export function RequestFormDialog({
   const nameInputRef = useRef<HTMLInputElement>(null);
   // True when the edited request already has child requests — the backend rejects
   // converting such a request to a leaf (Task), so that option is disabled below.
-  const [hasChildren, setHasChildren] = useState(false);
+  // Fetched from the API only when the caller didn't pass the full tree; when
+  // `allRequests` is present, `directChildren` (derived from it) already answers this.
+  const [hasChildrenFromApi, setHasChildrenFromApi] = useState(false);
+  // Inline quick-add child name (Children tab).
+  const [newChildName, setNewChildName] = useState("");
+  const [isAddingChild, setIsAddingChild] = useState(false);
+  // Create mode only: child names queued on the Children tab, created under the
+  // new group right after it is saved.
+  const [pendingChildren, setPendingChildren] = useState<string[]>([]);
+  // Create mode only: existing request ids queued to reparent under the new
+  // group once it is saved.
+  const [pendingExistingIds, setPendingExistingIds] = useState<string[]>([]);
+  // Children tab inline "Add existing" picker (edit mode only): pull parentless
+  // requests into this group.
+  const [addExistingOpen, setAddExistingOpen] = useState(false);
+  const [addExistingSelected, setAddExistingSelected] = useState<Set<string>>(new Set());
+  const [addExistingSearch, setAddExistingSearch] = useState("");
+  const [isAddingExisting, setIsAddingExisting] = useState(false);
 
   /** Surface a validation error on the tab that owns the offending field. */
   const failValidation = (tab: RequestFormTab, message: string) => {
@@ -204,34 +266,238 @@ export function RequestFormDialog({
     if (open) {
       setIsDirty(false);
       setActiveTab('details');
+      setPendingChildren([]);
+      setPendingExistingIds([]);
+      setNewChildName("");
+      setAddExistingOpen(false);
+      setAddExistingSelected(new Set());
+      setAddExistingSearch("");
     }
   }, [open]);
 
-  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
-    isDirty,
+  // Dirty tracking happens at the state layer, not just via DOM event bubbling:
+  // Radix Selects/Checkboxes and the icon selector don't emit native input/change
+  // events, so the form-level onInput/onChange alone would miss them (silent
+  // unsaved-change loss). Every user-driven form mutation goes through these
+  // wrappers; the hook's own init on open never does.
+  const setField: typeof setFieldRaw = (field, value) => {
+    setIsDirty(true);
+    setFieldRaw(field, value);
+  };
+  const addRequirement: typeof addRequirementRaw = (...args) => {
+    setIsDirty(true);
+    addRequirementRaw(...args);
+  };
+  const removeRequirement: typeof removeRequirementRaw = (...args) => {
+    setIsDirty(true);
+    removeRequirementRaw(...args);
+  };
+  const updateRequirement: typeof updateRequirementRaw = (...args) => {
+    setIsDirty(true);
+    updateRequirementRaw(...args);
+  };
+  const applyTemplate: typeof applyTemplateRaw = (...args) => {
+    setIsDirty(true);
+    applyTemplateRaw(...args);
+  };
+
+  // Children-tab actions are immediate & committed in edit mode (not "unsaved
+  // form changes"), so they don't set `isDirty` — see the Children TabsContent's
+  // event-propagation guard below. In create mode, though, queued children/
+  // existing requests ARE unsaved state that Discard legitimately drops, so
+  // fold them in here.
+  const hasPendingCreate = !request && (pendingChildren.length > 0 || pendingExistingIds.length > 0);
+  const effectiveDirty = isDirty || hasPendingCreate;
+
+  const { guardedOnOpenChange, confirmOpen, ConfirmDiscardDialog } = useDialogDirtyGuard({
+    isDirty: effectiveDirty,
     onOpenChange,
   });
 
   // Leaf: fully editable schedule.
   // Summary/Container: structural nodes; schedule is derived from children and not editable.
   const isLeaf = state.planningMode === 'leaf';
-  const isSummary = state.planningMode === 'summary';
   const isContainer = state.planningMode === 'container';
   const isGroup = !isLeaf;
   const hasEditableSchedule = isLeaf;
   const hasEditableConstraints = isLeaf || isContainer;
 
-  const planningModeOptions = Object.entries(PLANNING_MODE_CONFIG).map(
-    ([value, config]) => ({ value: value as PlanningMode, ...config })
+  // Tree-derived surfaces — only available when the caller passes the full tree.
+  // Breadcrumb (ancestors), direct children (Children tab), and the group
+  // derived-schedule rollup all hide gracefully when `allRequests` is absent.
+  // Shared id lookup for the tree-derived memos below — built once per
+  // allRequests change instead of once per memo.
+  const requestsById = useMemo(
+    () => new Map((allRequests ?? []).map((r) => [r.id, r])),
+    [allRequests],
   );
-  const activePlanningMode = planningModeOptions.find((o) => o.value === state.planningMode);
-  const ActivePlanningModeIcon = activePlanningMode?.icon;
+
+  const { derivedValues, directChildren, breadcrumb } = useMemo(() => {
+    if (!allRequests || !request) {
+      return { derivedValues: null, directChildren: [] as Request[], breadcrumb: [] as Request[] };
+    }
+    const _derived = isGroup ? computeDerivedValues(request.id, allRequests) : null;
+    const _children = getDirectChildren(request.id, allRequests);
+    const _breadcrumb = getAncestorIds(request.id, allRequests, requestsById)
+      .reverse()
+      .map((id) => requestsById.get(id))
+      .filter(Boolean) as Request[];
+    return { derivedValues: _derived, directChildren: _children, breadcrumb: _breadcrumb };
+  }, [allRequests, request, isGroup, requestsById]);
+
+  // Edit mode needs the tree to list existing children; create mode only queues
+  // names locally, so the tab is always available for a new group.
+  const showChildrenTab = isGroup && (request ? !!allRequests : true);
+
+  /** Shared defaults for children created from the Children tab. */
+  const createChildRequest = (parentRequestId: string, name: string, sortOrder: number) =>
+    createRequest({
+      parentRequestId,
+      name,
+      planningMode: 'leaf',
+      sortOrder,
+      minimalDurationValue: DEFAULT_DURATION_VALUE,
+      minimalDurationUnit: DEFAULT_DURATION_UNIT as DurationUnit,
+    });
+
+  const handleAddChild = async () => {
+    const name = newChildName.trim();
+    if (!name) return;
+    // Create mode: queue locally; children are created together with the group.
+    if (!request) {
+      setPendingChildren((prev) => [...prev, name]);
+      setNewChildName("");
+      return;
+    }
+    if (!allRequests) return;
+    setIsAddingChild(true);
+    setValidationError(null);
+    try {
+      await createChildRequest(request.id, name, getNextSortOrder(request.id, allRequests));
+      invalidateRequestData(queryClient);
+      setNewChildName("");
+    } catch (error) {
+      logger.error("Failed to add child request:", error);
+      setValidationError(error instanceof Error ? error.message : "Failed to add child request");
+    } finally {
+      setIsAddingChild(false);
+    }
+  };
+
+  // Eligible existing requests for the inline "Add existing" picker: parentless
+  // ("not in a group yet"), not this request, not an ancestor (no cycle), and
+  // not already queued. Parentless keeps both Tasks and Groups while excluding
+  // current children. Computed only while the picker is open, and O(n): a
+  // parentless candidate can only create a cycle if it's one of this request's
+  // ancestors (its root), so we exclude the ancestor set instead of running a
+  // per-candidate descendant walk.
+  const addExistingBase = useMemo(() => {
+    if (!addExistingOpen || !allRequests) return [] as Request[];
+    const ancestors = request
+      ? new Set(getAncestorIds(request.id, allRequests, requestsById))
+      : new Set<string>();
+    return allRequests.filter((r) =>
+      !r.parentRequestId &&
+      r.id !== request?.id &&
+      !ancestors.has(r.id) &&
+      !pendingExistingIds.includes(r.id),
+    );
+  }, [addExistingOpen, allRequests, request, pendingExistingIds, requestsById]);
+
+  const addExistingCandidates = useMemo(() => {
+    const q = addExistingSearch.trim().toLowerCase();
+    if (!q) return addExistingBase;
+    return addExistingBase.filter(
+      (r) => r.name.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q),
+    );
+  }, [addExistingBase, addExistingSearch]);
+
+  // Virtualize the candidate list so the picker opens instantly regardless of
+  // how many requests the tenant has (only ~15 rows mount at once).
+  const addExistingViewportRef = useRef<HTMLDivElement>(null);
+  const addExistingVirtualizer = useVirtualizer({
+    count: addExistingCandidates.length,
+    getScrollElement: () => addExistingViewportRef.current,
+    estimateSize: () => 44,
+    overscan: 8,
+  });
+
+  // Existing requests queued in create mode, resolved for display in the
+  // "to be added" list. Order follows pendingExistingIds.
+  const pendingExistingRequests = useMemo(() => {
+    if (!pendingExistingIds.length || !allRequests) return [] as Request[];
+    return pendingExistingIds.map((id) => requestsById.get(id)).filter(Boolean) as Request[];
+  }, [pendingExistingIds, allRequests, requestsById]);
+
+  const toggleAddExistingSelected = (id: string) => {
+    setAddExistingSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const closeAddExisting = () => {
+    setAddExistingSelected(new Set());
+    setAddExistingSearch("");
+    setAddExistingOpen(false);
+  };
+
+  const handleAddExisting = async () => {
+    if (addExistingSelected.size === 0) return;
+    // Create mode: no group id yet — queue and reparent on save.
+    if (!request) {
+      setPendingExistingIds((prev) => [...prev, ...[...addExistingSelected].filter((id) => !prev.includes(id))]);
+      closeAddExisting();
+      return;
+    }
+    if (!allRequests) return;
+    setIsAddingExisting(true);
+    setValidationError(null);
+    try {
+      // allRequests only refreshes after the post-loop invalidate, so compute
+      // the base once and offset per item — otherwise every move gets the same
+      // sortOrder.
+      const base = getNextSortOrder(request.id, allRequests);
+      for (const [index, id] of [...addExistingSelected].entries()) {
+        await moveRequest(id, {
+          newParentRequestId: request.id,
+          sortOrder: base + index,
+        });
+      }
+      invalidateRequestData(queryClient);
+      closeAddExisting();
+    } catch (error) {
+      logger.error("Failed to add existing requests:", error);
+      setValidationError(error instanceof Error ? error.message : "Failed to add existing requests");
+    } finally {
+      setIsAddingExisting(false);
+    }
+  };
+
+  const handleRemoveChild = async (child: Request) => {
+    if (!allRequests) return;
+    setValidationError(null);
+    // Reparent to root (reversible). sortOrder = end of the current root list.
+    const rootSiblings = allRequests.filter((r) => !r.parentRequestId);
+    const sortOrder = rootSiblings.length ? Math.max(...rootSiblings.map((r) => r.sortOrder)) + 1 : 0;
+    try {
+      await moveRequest(child.id, { newParentRequestId: null, sortOrder });
+      invalidateRequestData(queryClient);
+    } catch (error) {
+      logger.error("Failed to remove child from group:", error);
+      setValidationError(error instanceof Error ? error.message : "Failed to remove child from group");
+    }
+  };
 
   const typeChoice: 'leaf' | 'group' = isLeaf ? 'leaf' : 'group';
 
   const setTypeChoice = (value: 'leaf' | 'group') => {
     if (value === 'leaf') {
       setField('planningMode', 'leaf');
+      // A task can't have children — drop any names queued while it was a group.
+      setPendingChildren([]);
       return;
     }
 
@@ -261,18 +527,22 @@ export function RequestFormDialog({
   const siteScopeWarning = computeSiteScopeWarning(isMultiSite, scheduleSiteId, state.siteId, scheduleSiteName);
 
   // Determine whether the edited request has children, to gate the leaf (Task) option.
-  // Only groups can have children, so we skip the lookup for create mode and leaf requests.
+  // Only groups can have children, so we skip the lookup for create mode and leaf
+  // requests — and skip it entirely when the caller passed the full tree, since
+  // `directChildren` (derived from it) already answers this without a round trip.
   useEffect(() => {
-    if (!open || !request || request.planningMode === 'leaf') {
-      setHasChildren(false);
+    if (!open || !request || request.planningMode === 'leaf' || allRequests) {
+      setHasChildrenFromApi(false);
       return;
     }
     let cancelled = false;
     getRequestChildren(request.id)
-      .then((children) => { if (!cancelled) setHasChildren(children.length > 0); })
+      .then((children) => { if (!cancelled) setHasChildrenFromApi(children.length > 0); })
       .catch((error: unknown) => { logger.error("Failed to load request children:", error); });
     return () => { cancelled = true; };
-  }, [open, request]);
+  }, [open, request, allRequests]);
+
+  const hasChildren = allRequests ? directChildren.length > 0 : hasChildrenFromApi;
 
   const handleApplyTemplate = (templateId: string) => {
     const template = availableTemplates.find((t) => t.id === templateId);
@@ -393,7 +663,41 @@ export function RequestFormDialog({
 
     setIsSaving(true);
     try {
-      await onSave(formData);
+      const saved = await onSave(formData);
+      // Create mode, group: create the queued new children and reparent the
+      // queued existing requests under the new group. Failures are surfaced per
+      // item via toast — the group and whatever succeeded so far are kept; the
+      // user can re-add the rest from the group's dialog.
+      if (!request && isGroup && saved && typeof saved === 'object') {
+        let touched = false;
+        for (const [index, childName] of pendingChildren.entries()) {
+          try {
+            await createChildRequest(saved.id, childName, index);
+            touched = true;
+          } catch (error) {
+            logger.error("Failed to create queued child request:", error);
+            toast.error(`Failed to create child "${childName}"`, {
+              description: error instanceof Error ? error.message : undefined,
+            });
+          }
+        }
+        for (const [index, existingId] of pendingExistingIds.entries()) {
+          try {
+            await moveRequest(existingId, {
+              newParentRequestId: saved.id,
+              sortOrder: pendingChildren.length + index,
+            });
+            touched = true;
+          } catch (error) {
+            logger.error("Failed to reparent queued request:", error);
+            const name = allRequests?.find((r) => r.id === existingId)?.name ?? "request";
+            toast.error(`Failed to add "${name}"`, {
+              description: error instanceof Error ? error.message : undefined,
+            });
+          }
+        }
+        if (touched) invalidateRequestData(queryClient);
+      }
       onOpenChange(false);
     } catch (error) {
       logger.error("Failed to save request:", error);
@@ -411,15 +715,19 @@ export function RequestFormDialog({
       size="lg"
       title={
         <span className="text-xl">
-          {request ? "Edit Request" : isChildCreation ? "Add Child Request" : "Create New Request"}
+          {readOnly
+            ? "Request details"
+            : request ? "Edit Request" : isChildCreation ? "Add Child Request" : "Create New Request"}
         </span>
       }
       description={
-        request
-          ? "Update the request details below."
-          : isChildCreation
-            ? `Adding a child request under "${parentRequest.name}".`
-            : "Fill in the details for your new space request."
+        readOnly
+          ? "View request details."
+          : request
+            ? "Update the request details below."
+            : isChildCreation
+              ? `Adding a child request under "${parentRequest.name}".`
+              : "Fill in the details for your new space request."
       }
       contentProps={{
         onOpenAutoFocus: (e) => {
@@ -429,8 +737,36 @@ export function RequestFormDialog({
           e.preventDefault();
           nameInputRef.current?.focus();
         },
+        // Don't let outside interactions dismiss this dialog while there are
+        // unsaved changes. Guarding on `isDirty` (stable across the whole
+        // interaction) rather than `confirmOpen` (which flips to false the
+        // instant "Keep editing" closes the confirm) avoids a race where a
+        // trailing pointer/focus-outside event re-opens the prompt and traps
+        // the user. When dirty, closing goes through the explicit X / Cancel /
+        // Escape paths, which run the guarded prompt exactly once.
+        onInteractOutside: (e) => { if (effectiveDirty || confirmOpen) e.preventDefault(); },
+        onEscapeKeyDown: (e) => { if (confirmOpen) e.preventDefault(); },
       }}
     >
+        {breadcrumb.length > 0 && (
+          <div className="px-6 pb-2 flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+            {breadcrumb.map((ancestor, i) => (
+              <Fragment key={ancestor.id}>
+                {i > 0 && <ChevronRight className="h-3 w-3" />}
+                <button
+                  type="button"
+                  className="hover:text-foreground hover:underline"
+                  onClick={() => onNavigate?.(ancestor.id)}
+                >
+                  {ancestor.name}
+                </button>
+              </Fragment>
+            ))}
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-foreground font-medium">{request?.name}</span>
+          </div>
+        )}
+
         <ConflictBanner conflicts={conflicts} />
 
         <form
@@ -459,6 +795,9 @@ export function RequestFormDialog({
                   Resources
                   <TabIndicatorDot dotClass={resourceConflictDot} label="resource conflict" />
                 </TabsTrigger>
+              )}
+              {showChildrenTab && (
+                <TabsTrigger value="children">Children</TabsTrigger>
               )}
             </TabsList>
 
@@ -500,6 +839,7 @@ export function RequestFormDialog({
                           id="request-icon"
                           value={state.icon}
                           onChange={(next) => setField('icon', next)}
+                          disabled={readOnly}
                         />
                         <Input
                           ref={nameInputRef}
@@ -509,6 +849,7 @@ export function RequestFormDialog({
                           placeholder="e.g., Product Launch Event"
                           required
                           className="flex-1"
+                          disabled={readOnly}
                         />
                       </div>
                     </div>
@@ -521,52 +862,39 @@ export function RequestFormDialog({
                         onChange={(e) => setField('description', e.target.value)}
                         placeholder="Optional description of the request"
                         rows={3}
+                        disabled={readOnly}
                       />
                     </div>
 
                     {/* Type */}
                     <div className="space-y-2">
                       <Label htmlFor="planningMode">Type</Label>
-                      {isCreateMode ? (
-                        <div
-                          id="planningMode"
-                          className="h-10 px-3 rounded-md border bg-muted/30 flex items-center"
-                          aria-readonly="true"
-                        >
-                          {activePlanningMode && ActivePlanningModeIcon && (
+                      <Select
+                        value={typeChoice}
+                        onValueChange={(v) => setTypeChoice(v as 'leaf' | 'group')}
+                        disabled={readOnly}
+                      >
+                        <SelectTrigger id="planningMode">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* A request with children can't become a leaf — the backend
+                              rejects it (RequestService.UpdateAsync). Disable rather than
+                              let the user hit a 409 on save. */}
+                          <SelectItem value="leaf" disabled={hasChildren}>
                             <span className="flex items-center gap-2">
-                              <ActivePlanningModeIcon className="h-3.5 w-3.5" />
-                              {activePlanningMode.label}
+                              <FileText className="h-3.5 w-3.5" />
+                              Task
                             </span>
-                          )}
-                        </div>
-                      ) : (
-                        <Select
-                          value={typeChoice}
-                          onValueChange={(v) => setTypeChoice(v as 'leaf' | 'group')}
-                        >
-                          <SelectTrigger id="planningMode">
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {/* A request with children can't become a leaf — the backend
-                                rejects it (RequestService.UpdateAsync). Disable rather than
-                                let the user hit a 409 on save. */}
-                            <SelectItem value="leaf" disabled={hasChildren}>
-                              <span className="flex items-center gap-2">
-                                <FileText className="h-3.5 w-3.5" />
-                                Task
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="group">
-                              <span className="flex items-center gap-2">
-                                <Layers className="h-3.5 w-3.5" />
-                                Group
-                              </span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
+                          </SelectItem>
+                          <SelectItem value="group">
+                            <span className="flex items-center gap-2">
+                              <Layers className="h-3.5 w-3.5" />
+                              Group
+                            </span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                       <p className="text-xs text-muted-foreground">
                         {isLeaf
                           ? PLANNING_MODE_CONFIG.leaf.description
@@ -586,6 +914,7 @@ export function RequestFormDialog({
                             checked={isContainer}
                             onChange={(e) => setGroupBoundaryMode(e.target.checked)}
                             className="h-4 w-4 rounded border-input"
+                            disabled={readOnly}
                           />
                           <Label htmlFor="group-boundary-mode" className="text-sm cursor-pointer">
                             Boundary mode (enforce child start/end within group constraints)
@@ -602,6 +931,7 @@ export function RequestFormDialog({
                         <Select
                           value={state.siteId || ANY_SITE}
                           onValueChange={(v) => setField('siteId', v === ANY_SITE ? '' : v)}
+                          disabled={readOnly}
                         >
                           <SelectTrigger id="siteId">
                             <SelectValue placeholder="Any site" />
@@ -633,13 +963,40 @@ export function RequestFormDialog({
 
               {/* TIMING */}
               <TabsContent value="timing" className="mt-0 space-y-6">
-                {/* Summary: read-only derived info (schedule is computed from children) */}
-                {isSummary && request && (
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <h4 className="text-sm font-medium mb-2">Derived Schedule (read-only)</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Summary dates and duration are automatically calculated from child requests.
-                    </p>
+                {/* Group: derived schedule/effort rolled up from children. Shows real
+                    values when the tree is available, else the placeholder note
+                    (always shown in create mode, where nothing is derived yet). */}
+                {isGroup && (
+                  <div className="p-4 border rounded-lg bg-muted/30 space-y-2">
+                    <h4 className="text-sm font-medium">Derived Schedule (read-only)</h4>
+                    {derivedValues && (derivedValues.startTs || derivedValues.endTs) ? (
+                      <div className="text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Earliest</span>
+                          <span className="italic">
+                            {derivedValues.startTs ? formatDateDisplay(derivedValues.startTs) : '—'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Latest</span>
+                          <span className="italic">
+                            {derivedValues.endTs ? formatDateDisplay(derivedValues.endTs) : '—'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Sum of children</span>
+                          <span className="italic">
+                            {formatDuration(derivedValues.totalDurationValue, derivedValues.totalDurationUnit)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {isContainer
+                          ? "Dates and duration roll up from children. The boundary window below limits when they can be scheduled."
+                          : "Summary dates and duration are automatically calculated from child requests."}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -667,10 +1024,12 @@ export function RequestFormDialog({
                             }}
                             className="flex-1"
                             required
+                            disabled={readOnly}
                           />
                           <Select
                             value={state.durationUnit}
                             onValueChange={(value) => setField('durationUnit', value as DurationUnit)}
+                            disabled={readOnly}
                           >
                             <SelectTrigger className="w-32">
                               <SelectValue placeholder="Unit">
@@ -702,6 +1061,7 @@ export function RequestFormDialog({
                     <RequestScheduleSection
                       state={state}
                       setField={setField}
+                      readOnly={readOnly}
                     />
 
                     <Separator />
@@ -709,6 +1069,7 @@ export function RequestFormDialog({
                     <RequestConstraintsSection
                       state={state}
                       setField={setField}
+                      readOnly={readOnly}
                     />
 
                     <Separator />
@@ -719,6 +1080,7 @@ export function RequestFormDialog({
                         id="schedulingSettingsApply"
                         checked={state.schedulingSettingsApply}
                         onCheckedChange={(checked) => setField('schedulingSettingsApply', !!checked)}
+                        disabled={readOnly}
                       />
                       <Label htmlFor="schedulingSettingsApply" className="text-sm cursor-pointer">
                         Apply scheduling settings (working hours, off-times)
@@ -727,11 +1089,15 @@ export function RequestFormDialog({
                   </>
                 )}
 
-                {/* Constraints — boundary groups only */}
+                {/* Constraints — boundary groups only. Copy reframed: the window
+                    bounds the children, it isn't the group's own schedule. */}
                 {isContainer && (
                   <RequestConstraintsSection
                     state={state}
                     setField={setField}
+                    readOnly={readOnly}
+                    title="Boundary Window (Optional)"
+                    description="Children must start and finish within this window."
                   />
                 )}
               </TabsContent>
@@ -745,6 +1111,7 @@ export function RequestFormDialog({
                   setSelectedCriterionId={setSelectedCriterionId}
                   isLoading={isLoading}
                   conflictsByCriterionId={conflictsByCriterionId}
+                  readOnly={readOnly}
                   onAddRequirement={handleAddRequirement}
                   onRemoveRequirement={handleRemoveRequirement}
                   onRequirementChange={handleRequirementChange}
@@ -770,6 +1137,7 @@ export function RequestFormDialog({
                       <Select
                         value={state.selectedResourceId || SPACE_NONE_PLACEHOLDER}
                         onValueChange={(value) => setField('selectedResourceId', value === SPACE_NONE_PLACEHOLDER ? "" : value)}
+                        disabled={readOnly}
                       >
                         <SelectTrigger id="resourceId">
                           <SelectValue placeholder="No space assigned (unscheduled)" />
@@ -805,7 +1173,246 @@ export function RequestFormDialog({
                     }
                     onBlockersChange={setHasPeopleBlockers}
                     conflictsByResourceId={conflictsByResourceId}
+                    readOnly={readOnly}
                   />
+                </TabsContent>
+              )}
+
+              {/* CHILDREN — groups only, needs the tree. List (both modes) + inline
+                  quick-add / remove-from-group (edit mode only). */}
+              {showChildrenTab && (
+                <TabsContent
+                  value="children"
+                  className="mt-0 space-y-3"
+                  // Children-tab controls (quick-add name, add-existing search /
+                  // checkboxes) are transient scratch or immediate committed
+                  // actions — not edits to the request's own fields. Stop their
+                  // input/change events from bubbling to the form-level
+                  // setIsDirty handler, so managing children doesn't raise a
+                  // false "Discard changes?" prompt on close.
+                  onInput={(e) => e.stopPropagation()}
+                  onChange={(e) => e.stopPropagation()}
+                >
+                  {/* Quick-add first so it stays visible however long the list gets. */}
+                  {!readOnly && (
+                    <div className="flex gap-2">
+                      <Input
+                        value={newChildName}
+                        onChange={(e) => setNewChildName(e.target.value)}
+                        placeholder="New child name"
+                        className="flex-1"
+                        data-testid="new-child-name"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void handleAddChild();
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!newChildName.trim() || isAddingChild}
+                        onClick={handleAddChild}
+                        data-testid="add-child-btn"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Add existing — pull parentless requests into this group.
+                      Inline (no nested modal). Edit mode moves immediately;
+                      create mode queues until the group is saved. */}
+                  {!readOnly && (
+                    <div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setAddExistingOpen((v) => !v)}
+                        data-testid="add-existing-toggle"
+                        aria-expanded={addExistingOpen}
+                      >
+                        <Link className="h-4 w-4 mr-1" />
+                        Add existing
+                        <ChevronRight
+                          className={`h-4 w-4 ml-1 transition-transform ${addExistingOpen ? 'rotate-90' : ''}`}
+                        />
+                      </Button>
+
+                      {addExistingOpen && (
+                        <div className="mt-2 space-y-2 rounded-md border p-2">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Search requests…"
+                              aria-label="Search requests to add"
+                              value={addExistingSearch}
+                              onChange={(e) => setAddExistingSearch(e.target.value)}
+                              className="pl-9"
+                            />
+                          </div>
+
+                          <ScrollArea type="auto" viewportRef={addExistingViewportRef} className="h-[200px] rounded-md border">
+                            {addExistingCandidates.length === 0 ? (
+                              <div className="flex h-[200px] items-center justify-center p-4 text-sm text-muted-foreground">
+                                {addExistingSearch ? "No matching requests" : "No unassigned requests available."}
+                              </div>
+                            ) : (
+                              <div
+                                className="relative w-full p-1"
+                                style={{ height: `${addExistingVirtualizer.getTotalSize()}px` }}
+                              >
+                                {addExistingVirtualizer.getVirtualItems().map((vi) => {
+                                  const r = addExistingCandidates[vi.index];
+                                  const Icon = getPlanningModeIcon(r.planningMode);
+                                  const checked = addExistingSelected.has(r.id);
+                                  return (
+                                    // The wrapping label forwards clicks anywhere on the row to
+                                    // the checkbox (Radix renders a <button>, which is a
+                                    // labelable element), so the whole row is the click target.
+                                    // NOTE: do NOT convert this to a div with onClick — that
+                                    // triggers an infinite render loop via the Radix ScrollArea
+                                    // ref (reproduced in Chromium; see requests-dialog-visual
+                                    // row-click spec).
+                                    <label
+                                      key={r.id}
+                                      className={`absolute left-0 top-0 flex w-full items-center gap-3 rounded-md px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors ${checked ? 'bg-muted' : ''}`}
+                                      style={{ height: `${vi.size}px`, transform: `translateY(${vi.start}px)` }}
+                                    >
+                                      <Checkbox
+                                        checked={checked}
+                                        aria-label={r.name}
+                                        onCheckedChange={() => toggleAddExistingSelected(r.id)}
+                                      />
+                                      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      <span className="flex-1 truncate text-sm font-medium">{r.name}</span>
+                                      <Badge variant="outline" className="text-[10px] flex-shrink-0">
+                                        {getPlanningModeLabel(r.planningMode)}
+                                      </Badge>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </ScrollArea>
+
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={addExistingSelected.size === 0 || isAddingExisting}
+                              onClick={handleAddExisting}
+                              data-testid="add-existing-confirm"
+                            >
+                              Add {addExistingSelected.size > 0 ? addExistingSelected.size : ''}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Create mode: locally queued children, created with the group. */}
+                  {!request ? (
+                    pendingChildren.length === 0 && pendingExistingRequests.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Child tasks added here are created together with this group.
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {pendingChildren.map((childName, index) => {
+                          const PendingIcon = getPlanningModeIcon('leaf');
+                          return (
+                            <div
+                              key={`new-${childName}-${index}`}
+                              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted transition-colors"
+                            >
+                              <PendingIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="flex-1 min-w-0 truncate">{childName}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Remove ${childName}`}
+                                onClick={() =>
+                                  setPendingChildren((prev) => prev.filter((_, i) => i !== index))
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                        {pendingExistingRequests.map((r) => {
+                          const PendingIcon = getRequestIcon(r.icon) ?? getPlanningModeIcon(r.planningMode);
+                          return (
+                            <div
+                              key={`existing-${r.id}`}
+                              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted transition-colors"
+                            >
+                              <PendingIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="flex-1 min-w-0 truncate">{r.name}</span>
+                              <Badge variant="outline" className="text-[10px] flex-shrink-0">
+                                {getPlanningModeLabel(r.planningMode)}
+                              </Badge>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Remove ${r.name}`}
+                                onClick={() =>
+                                  setPendingExistingIds((prev) => prev.filter((id) => id !== r.id))
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : directChildren.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No children yet.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {directChildren.map((child) => {
+                        const ChildIcon = getRequestIcon(child.icon) ?? getPlanningModeIcon(child.planningMode);
+                        return (
+                          <div
+                            key={child.id}
+                            className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted transition-colors"
+                          >
+                            <button
+                              type="button"
+                              className="flex flex-1 min-w-0 items-center gap-2 text-left"
+                              onClick={() => onNavigate?.(child.id)}
+                            >
+                              <ChildIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="truncate">{child.name}</span>
+                              <Badge variant="outline" className="text-[10px] flex-shrink-0">
+                                {getPlanningModeLabel(child.planningMode)}
+                              </Badge>
+                              <RequestStatusBadge status={child.status} />
+                            </button>
+                            {!readOnly && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Remove ${child.name} from group`}
+                                onClick={() => handleRemoveChild(child)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </TabsContent>
               )}
             </div>
@@ -816,13 +1423,26 @@ export function RequestFormDialog({
           <div className="px-6 pt-3">
             <ErrorAlert message={validationError} />
           </div>
-          <DialogFormFooter
-            className="px-6 py-4 shrink-0 bg-background"
-            onCancel={() => guardedOnOpenChange(false)}
-            isSubmitting={isSaving}
-            submitLabel={request ? "Update Request" : "Create Request"}
-            submitDisabled={hasPeopleBlockers}
-          />
+          {readOnly ? (
+            <DialogFooter className="px-6 py-4 shrink-0 bg-background">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                data-testid="view-close-btn"
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          ) : (
+            <DialogFormFooter
+              className="px-6 py-4 shrink-0 bg-background"
+              onCancel={() => guardedOnOpenChange(false)}
+              isSubmitting={isSaving}
+              submitLabel={request ? "Update Request" : "Create Request"}
+              submitDisabled={hasPeopleBlockers}
+            />
+          )}
         </form>
     </ScaffoldDialog>
     {ConfirmDiscardDialog}

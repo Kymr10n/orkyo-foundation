@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestListView } from './RequestListView';
 import type { Request } from '@foundation/src/types/requests';
 
@@ -76,20 +77,21 @@ const defaultHandlers = {
   onSelect: vi.fn(),
   onEdit: vi.fn(),
   onDelete: vi.fn(),
-  onAddChild: vi.fn(),
-  onAddExisting: vi.fn(),
+  onNavigateToParent: vi.fn(),
 };
 
 function renderListView(
   props: Partial<React.ComponentProps<typeof RequestListView>> = {},
 ) {
   return render(
-    <RequestListView
-      requests={allRequests}
-      selectedId={null}
-      {...defaultHandlers}
-      {...props}
-    />,
+    <TooltipProvider>
+      <RequestListView
+        requests={allRequests}
+        selectedId={null}
+        {...defaultHandlers}
+        {...props}
+      />
+    </TooltipProvider>,
   );
 }
 
@@ -149,16 +151,11 @@ describe('RequestListView', () => {
     expect(badges).toHaveLength(3);
   });
 
-  it('calls onSelect when clicking a row', () => {
+  it('calls onSelect and onEdit when clicking a row (row click opens the dialog)', () => {
     renderListView();
     fireEvent.click(screen.getByText('Child Task'));
     expect(defaultHandlers.onSelect).toHaveBeenCalledWith('child-1');
-  });
-
-  it('calls onEdit when double-clicking a row', () => {
-    renderListView();
-    fireEvent.doubleClick(screen.getByText('Standalone Task'));
-    expect(defaultHandlers.onEdit).toHaveBeenCalledWith(standaloneReq);
+    expect(defaultHandlers.onEdit).toHaveBeenCalledWith(childReq);
   });
 
   it('renders empty when no requests', () => {
@@ -175,52 +172,52 @@ describe('RequestListView', () => {
     expect(unscheduled.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('clicking MoreHorizontal stops propagation (onSelect not called)', async () => {
+  it('clicking the inline Edit button stops propagation (onSelect not called)', async () => {
     const user = userEvent.setup();
     renderListView();
-    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
-    if (moreBtns.length > 0) await user.click(moreBtns[0]);
+    await user.click(screen.getByRole('button', { name: 'Edit Child Task' }));
     expect(defaultHandlers.onSelect).not.toHaveBeenCalled();
   });
 
-  it('clicking Edit in row dropdown calls onEdit', async () => {
+  it('clicking the inline Edit button calls onEdit', async () => {
     const user = userEvent.setup();
     renderListView();
-    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
-    if (moreBtns.length === 0) return;
-    await user.click(moreBtns[0]);
-    const editItem = screen.queryByRole('menuitem', { name: /^Edit$/i });
-    if (editItem) { await user.click(editItem); expect(defaultHandlers.onEdit).toHaveBeenCalled(); }
+    await user.click(screen.getByRole('button', { name: 'Edit Child Task' }));
+    expect(defaultHandlers.onEdit).toHaveBeenCalledWith(childReq);
   });
 
-  it('clicking Delete in row dropdown calls onDelete', async () => {
+  it('clicking the inline Delete button calls onDelete', async () => {
     const user = userEvent.setup();
     renderListView();
-    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
-    if (moreBtns.length === 0) return;
-    await user.click(moreBtns[0]);
-    const del = screen.queryByRole('menuitem', { name: /Delete/i });
-    if (del) { await user.click(del); expect(defaultHandlers.onDelete).toHaveBeenCalled(); }
+    await user.click(screen.getByRole('button', { name: 'Delete Child Task' }));
+    expect(defaultHandlers.onDelete).toHaveBeenCalledWith(childReq);
   });
 
-  it('clicking Add new child in dropdown calls onAddChild', async () => {
-    const user = userEvent.setup();
+  it('does not render a "Move to" action', () => {
     renderListView();
-    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
-    if (moreBtns.length === 0) return;
-    await user.click(moreBtns[0]);
-    const item = screen.queryByRole('menuitem', { name: /Add new child/i });
-    if (item) { await user.click(item); expect(defaultHandlers.onAddChild).toHaveBeenCalled(); }
+    expect(screen.queryByText(/Move to/i)).not.toBeInTheDocument();
   });
 
-  it('clicking Add existing in dropdown calls onAddExisting', async () => {
-    const user = userEvent.setup();
+  it('navigates to the parent when the Parent cell button is clicked', () => {
     renderListView();
-    const moreBtns = screen.getAllByRole('button').filter(b => !b.textContent?.trim() && b.querySelector('svg'));
-    if (moreBtns.length === 0) return;
-    await user.click(moreBtns[0]);
-    const item = screen.queryByRole('menuitem', { name: /Add existing/i });
-    if (item) { await user.click(item); expect(defaultHandlers.onAddExisting).toHaveBeenCalled(); }
+    fireEvent.click(screen.getByRole('button', { name: 'Parent Group' }));
+    expect(defaultHandlers.onNavigateToParent).toHaveBeenCalledWith('parent-1');
+  });
+
+  it('shows derived (italic) schedule/duration for a group with scheduled children', () => {
+    const group = makeRequest({ id: 'g1', name: 'Group X', planningMode: 'summary' });
+    const child = makeRequest({
+      id: 'c1',
+      name: 'Child X',
+      parentRequestId: 'g1',
+      startTs: '2026-03-01T09:00:00Z',
+      endTs: '2026-03-01T17:00:00Z',
+    });
+    const { container } = renderListView({ requests: [group, child] });
+    // The group rolls up its children's window/effort instead of showing
+    // "Unscheduled" + its own (empty) minimal duration.
+    expect(screen.queryByText('Unscheduled')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('.italic').length).toBeGreaterThan(0);
   });
 
   // Icon plumbing

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestsPage } from '@foundation/src/pages/RequestsPage';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { getDescendantIds, getAncestorIds } from '@foundation/src/domain/request-tree';
 import { importRequests, exportRequests } from '@foundation/src/lib/utils/export-handlers';
 import { toast } from 'sonner';
@@ -50,11 +51,14 @@ vi.mock('@foundation/src/store/app-store', () => ({
   }),
 }));
 
+let mockSelectedId: string | null = null;
+let mockViewMode: 'tree' | 'list' = 'tree';
 const mockToggle = vi.fn();
 const mockExpandAncestors = vi.fn();
 const mockExpandAll = vi.fn();
+const mockCollapseAll = vi.fn();
 const mockSetSelectedId = vi.fn();
-let mockSelectedId: string | null = null;
+const mockSetViewMode = vi.fn((m: 'tree' | 'list') => { mockViewMode = m; });
 
 vi.mock('@foundation/src/store/request-tree-store', () => ({
   useRequestTreeStore: vi.fn(() => ({
@@ -62,8 +66,11 @@ vi.mock('@foundation/src/store/request-tree-store', () => ({
     toggle: mockToggle,
     expandAncestors: mockExpandAncestors,
     expandAll: mockExpandAll,
+    collapseAll: mockCollapseAll,
     selectedId: mockSelectedId,
     setSelectedId: mockSetSelectedId,
+    viewMode: mockViewMode,
+    setViewMode: mockSetViewMode,
   })),
 }));
 
@@ -111,7 +118,7 @@ vi.mock('@foundation/src/hooks/useSpaces', () => ({
 
 // Mock child components to isolate page logic
 vi.mock('@foundation/src/components/requests/RequestTreeView', () => ({
-  RequestTreeView: ({ entries, onSelect, onEdit, onDelete, onAddChild, onAddSibling, onAddExisting, onMoveTo, onDrop, onOpenConflicts }: any) => (
+  RequestTreeView: ({ entries, onSelect, onEdit, onDelete, onDrop, onOpenConflicts }: any) => (
     <div data-testid="tree-view">
       {(entries as { request: { id: string; name: string; parentRequestId?: string | null } }[]).map((e) => (
         <div key={e.request.id} data-testid={`tree-item-${e.request.id}`}>
@@ -119,10 +126,6 @@ vi.mock('@foundation/src/components/requests/RequestTreeView', () => ({
           <button onClick={() => (onSelect as (id: string) => void)(e.request.id)}>Select</button>
           <button onClick={() => (onEdit as (r: unknown) => void)(e.request)}>Edit</button>
           <button onClick={() => (onDelete as (r: unknown) => void)(e.request)}>Delete</button>
-          <button data-testid={`add-child-${e.request.id}`} onClick={() => (onAddChild as (r: unknown) => void)(e.request)}>Add Child</button>
-          <button data-testid={`add-sibling-${e.request.id}`} onClick={() => (onAddSibling as (r: unknown) => void)(e.request)}>Add Sibling</button>
-          <button data-testid={`add-existing-${e.request.id}`} onClick={() => (onAddExisting as (r: unknown) => void)(e.request)}>Add Existing</button>
-          <button data-testid={`move-to-${e.request.id}`} onClick={() => (onMoveTo as (r: unknown) => void)(e.request)}>Move To</button>
           {onOpenConflicts && <button data-testid={`open-conflicts-${e.request.id}`} onClick={() => (onOpenConflicts as (id: string) => void)(e.request.id)}>Conflicts</button>}
           {onDrop && <button data-testid={`drop-${e.request.id}`} onClick={() => (onDrop as (a: string, b: string) => void)('r-drag', e.request.id)}>Drop</button>}
         </div>
@@ -146,45 +149,19 @@ vi.mock('@foundation/src/components/requests/RequestListView', () => ({
   ),
 }));
 
-vi.mock('@foundation/src/components/requests/RequestDetailPanel', () => ({
-  RequestDetailPanel: ({ request, onEdit, onClose, onNavigate }: any) => (
-    <div data-testid="detail-panel">
-      <span>{(request as { name: string }).name}</span>
-      <button data-testid="detail-edit" onClick={() => (onEdit as (r: unknown) => void)(request)}>Edit</button>
-      <button data-testid="detail-close" onClick={onClose as () => void}>Close</button>
-      {onNavigate && <button data-testid="detail-navigate" onClick={() => (onNavigate as (id: string) => void)((request as { id: string }).id)}>Navigate</button>}
-    </div>
-  ),
-}));
-
+// RequestFormDialog is the single view+edit surface now — mocked so the page
+// test can drive save/close/navigate without the real dialog internals, and
+// can assert the canEdit/allRequests/onNavigate props the page threads through.
 vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange }: any) =>
+  RequestFormDialog: ({ open, onSave, onOpenChange, canEdit, allRequests, onNavigate }: any) =>
     open ? (
-      <div data-testid="form-dialog">
+      <div data-testid="form-dialog" data-can-edit={String(canEdit)} data-has-all-requests={String(!!allRequests)}>
         Form Dialog
         <button data-testid="form-save" onClick={() => { void Promise.resolve(onSave({ name: 'Test', planningMode: 'leaf' })).catch(() => {}); }}>Save</button>
         <button data-testid="form-close" onClick={() => onOpenChange(false)}>Close</button>
+        {onNavigate && <button data-testid="form-navigate" onClick={() => onNavigate('p1')}>Navigate</button>}
       </div>
     ) : null,
-}));
-
-vi.mock('@foundation/src/components/requests/AddExistingRequestsDialog', () => ({
-  AddExistingRequestsDialog: ({ onConfirm, onOpenChange }: any) => (
-    <div data-testid="add-existing-dialog">
-      <button data-testid="confirm-add-existing" onClick={() => onConfirm(['r-orphan'])}>Confirm</button>
-      <button data-testid="cancel-add-existing" onClick={() => onOpenChange(false)}>Cancel</button>
-    </div>
-  ),
-}));
-
-vi.mock('@foundation/src/components/requests/MoveToDialog', () => ({
-  MoveToDialog: ({ onConfirm, onOpenChange }: any) => (
-    <div data-testid="move-to-dialog">
-      <button data-testid="confirm-move" onClick={() => onConfirm('r-target')}>Confirm</button>
-      <button data-testid="confirm-move-root" onClick={() => onConfirm(null)}>Confirm Root</button>
-      <button data-testid="cancel-move" onClick={() => onOpenChange(false)}>Cancel</button>
-    </div>
-  ),
 }));
 
 vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
@@ -266,6 +243,7 @@ describe('RequestsPage', () => {
     vi.clearAllMocks();
     mockGetRequests.mockResolvedValue([]);
     mockSelectedId = null;
+    mockViewMode = 'tree';
     mockConflictRegistry.mockReturnValue({ conflictsByRequest: new Map() });
     vi.mocked(getDescendantIds).mockReturnValue([]);
     vi.mocked(getAncestorIds).mockReturnValue([]);
@@ -281,11 +259,12 @@ describe('RequestsPage', () => {
     await act(async () => {});
   });
 
-  it('renders New Task and New Group buttons', async () => {
+  it('renders a single New Request primary (no New Task / New Group split)', async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
-    expect(screen.getByText('New Task')).toBeInTheDocument();
-    expect(screen.getByText('New Group')).toBeInTheDocument();
+    expect(screen.getByText('New Request')).toBeInTheDocument();
+    expect(screen.queryByText('New Task')).not.toBeInTheDocument();
+    expect(screen.queryByText('New Group')).not.toBeInTheDocument();
     await act(async () => {});
   });
 
@@ -342,24 +321,27 @@ describe('RequestsPage', () => {
     expect(screen.getByText('Task B')).toBeInTheDocument();
   });
 
-  it('opens form dialog when New Task is clicked', async () => {
+  it('opens the create form dialog when New Request is clicked', async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await act(async () => {});
-    fireEvent.click(screen.getByText('New Task'));
+    fireEvent.click(screen.getByText('New Request'));
     await waitFor(() => {
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
     });
   });
 
-  it('opens form dialog when New Group is clicked', async () => {
+  it('expands and collapses all via the toolbar buttons (tree mode)', async () => {
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
+    ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
-    await act(async () => {});
-    fireEvent.click(screen.getByText('New Group'));
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
-    });
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+    expect(mockExpandAll).toHaveBeenCalledWith(['r1']);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(mockCollapseAll).toHaveBeenCalled();
   });
 
   it('shows Create Request button in empty state', async () => {
@@ -406,7 +388,7 @@ describe('RequestsPage', () => {
 
   // --- View mode toggle ---
 
-  it('toggles to list view and back', async () => {
+  it('writes the view mode to the store when the toggle is clicked', async () => {
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
     ]);
@@ -415,36 +397,11 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('tree-view')).toBeInTheDocument();
     });
-    // Click list view toggle — icon-only buttons, find via the toggle group container
-    const toggleGroup = document.querySelector('.flex.border.rounded-md');
-    const toggleButtons = toggleGroup?.querySelectorAll('button');
-    // Second button is list view
-    fireEvent.click(toggleButtons![1]);
-    await waitFor(() => {
-      expect(screen.getByTestId('list-view')).toBeInTheDocument();
-    });
-    // Switch back — first button is tree view
-    fireEvent.click(toggleButtons![0]);
-    await waitFor(() => {
-      expect(screen.getByTestId('tree-view')).toBeInTheDocument();
-    });
-  });
-
-  // --- Select request shows detail panel ---
-
-  it('shows detail panel on request select', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    mockSelectedId = 'r1';
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('detail-panel')).toBeInTheDocument();
-    });
-    // The detail panel should contain the request name
-    expect(screen.getByTestId('detail-panel')).toHaveTextContent('Task A');
-    mockSelectedId = null;
+    // Both toggles write the mode through the store (viewMode is store-backed).
+    fireEvent.click(screen.getByRole('button', { name: 'List view' }));
+    expect(mockSetViewMode).toHaveBeenCalledWith('list');
+    fireEvent.click(screen.getByRole('button', { name: 'Tree view' }));
+    expect(mockSetViewMode).toHaveBeenCalledWith('tree');
   });
 
   // --- Edit from tree view opens form dialog ---
@@ -462,6 +419,49 @@ describe('RequestsPage', () => {
     fireEvent.click(editBtns[0]);
     await waitFor(() => {
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
+    });
+  });
+
+  // --- Row click opens the dialog: edit mode for editors, view mode for viewers ---
+
+  it('opens the form dialog in edit mode when the user can edit', async () => {
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByText('Edit')[0]);
+    await waitFor(() => {
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
+    });
+  });
+
+  it('opens the form dialog in view mode when the user cannot edit', async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByText('Edit')[0]);
+    await waitFor(() => {
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
+    });
+    vi.mocked(useCanEdit).mockReturnValue(true);
+  });
+
+  it('passes the request list to the form dialog so breadcrumb/Children/rollups can render', async () => {
+    mockGetRequests.mockResolvedValue([
+      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByText('Edit')[0]);
+    await waitFor(() => {
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-has-all-requests', 'true');
     });
   });
 
@@ -511,74 +511,6 @@ describe('RequestsPage', () => {
     });
   });
 
-  // --- Add child from tree view opens create dialog ---
-
-  it('opens create dialog via Add Child', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('tree-view')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('add-child-r1'));
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
-    });
-  });
-
-  // --- Add sibling opens create dialog ---
-
-  it('opens create dialog via Add Sibling', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('tree-view')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('add-sibling-r1'));
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
-    });
-  });
-
-  // --- Add existing opens dialog ---
-
-  it('opens add-existing dialog', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('tree-view')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('add-existing-r1'));
-    await waitFor(() => {
-      expect(screen.getByTestId('add-existing-dialog')).toBeInTheDocument();
-    });
-  });
-
-  // --- Move to opens dialog ---
-
-  it('opens move-to dialog', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('tree-view')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('move-to-r1'));
-    await waitFor(() => {
-      expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument();
-    });
-  });
-
   // --- Save new request via form dialog ---
 
   it('saves a new request from form dialog', async () => {
@@ -587,7 +519,7 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await act(async () => {});
-    fireEvent.click(screen.getByText('New Task'));
+    fireEvent.click(screen.getByText('New Request'));
     await waitFor(() => {
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
     });
@@ -621,38 +553,16 @@ describe('RequestsPage', () => {
     });
   });
 
-  // --- Close detail panel ---
-
-  it('closes detail panel', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    mockSelectedId = 'r1';
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('detail-panel')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('detail-close'));
-    expect(mockSetSelectedId).toHaveBeenCalledWith(null);
-    mockSelectedId = null;
-  });
-
   // --- List view rendering ---
 
   it('renders requests in list view', async () => {
+    mockViewMode = 'list';
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
       { id: 'r2', name: 'Task B', planningMode: 'leaf', parentRequestId: null, sortOrder: 1 },
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => {
-      expect(screen.getByTestId('tree-view')).toBeInTheDocument();
-    });
-    const toggleGroup = document.querySelector('.flex.border.rounded-md');
-    const toggleButtons = toggleGroup?.querySelectorAll('button');
-    fireEvent.click(toggleButtons![1]);
     await waitFor(() => {
       expect(screen.getByTestId('list-view')).toBeInTheDocument();
     });
@@ -678,81 +588,6 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(moveRequest).toHaveBeenCalledWith('r-drag', expect.objectContaining({ newParentRequestId: 'r1' }));
     });
-  });
-
-  // ── handleConfirmMoveTo ────────────────────────────────────────────────────
-
-  it('confirms move-to and calls moveRequest', async () => {
-    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
-    vi.mocked(moveRequest).mockResolvedValue(undefined as any);
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-
-    // Open move-to dialog then confirm
-    fireEvent.click(screen.getByTestId('move-to-r1'));
-    await waitFor(() => expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('confirm-move'));
-
-    await waitFor(() =>
-      expect(moveRequest).toHaveBeenCalledWith('r1', expect.objectContaining({ newParentRequestId: 'r-target' })),
-    );
-  });
-
-  it('shows error when handleConfirmMoveTo fails', async () => {
-    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
-    vi.mocked(moveRequest).mockRejectedValueOnce(new Error('Move error'));
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByTestId('move-to-r1'));
-    await waitFor(() => expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('confirm-move'));
-
-    await waitFor(() => expect(screen.getByText('Move error')).toBeInTheDocument());
-  });
-
-  // ── handleConfirmAddExisting ────────────────────────────────────────────────
-
-  it('confirms add-existing and calls moveRequest for each selected id', async () => {
-    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
-    vi.mocked(moveRequest).mockResolvedValue(undefined as any);
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByTestId('add-existing-r1'));
-    await waitFor(() => expect(screen.getByTestId('add-existing-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('confirm-add-existing'));
-
-    await waitFor(() =>
-      expect(moveRequest).toHaveBeenCalledWith('r-orphan', expect.objectContaining({ newParentRequestId: 'r1' })),
-    );
-  });
-
-  it('shows an error when add-existing move fails', async () => {
-    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
-    vi.mocked(moveRequest).mockRejectedValueOnce(new Error('Add existing failed'));
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('add-existing-r1'));
-    await waitFor(() => expect(screen.getByTestId('add-existing-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('confirm-add-existing'));
-    await waitFor(() => expect(screen.getByText('Add existing failed')).toBeInTheDocument());
   });
 
   // ── Import / export handlers ───────────────────────────────────────────────
@@ -830,16 +665,13 @@ describe('RequestsPage', () => {
 
   it('filters list view by a description match', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockViewMode = 'list';
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Alpha', description: 'red apple', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
       { id: 'r2', name: 'Beta', description: 'blue sky', planningMode: 'leaf', parentRequestId: null, sortOrder: 1 },
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    const toggleGroup = document.querySelector('.flex.border.rounded-md');
-    const toggleButtons = toggleGroup?.querySelectorAll('button');
-    fireEvent.click(toggleButtons![1]);
     await waitFor(() => expect(screen.getByTestId('list-view')).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'apple' } });
     await act(async () => { vi.advanceTimersByTime(300); });
@@ -857,39 +689,6 @@ describe('RequestsPage', () => {
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByText('Failed to load requests')).toBeInTheDocument());
     consoleSpy.mockRestore();
-  });
-
-  // ── Add sibling resolves parent ─────────────────────────────────────────────
-
-  it('opens the create dialog via Add Sibling for a child (resolving its parent)', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Parent', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
-      { id: 'r2', name: 'Child', planningMode: 'leaf', parentRequestId: 'r1', sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('add-sibling-r2'));
-    await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
-  });
-
-  // ── Move-to to root (null parent) ───────────────────────────────────────────
-
-  it('confirms move-to to root with a null parent and sortOrder 0', async () => {
-    const { moveRequest } = await import('@foundation/src/lib/api/request-api');
-    vi.mocked(moveRequest).mockResolvedValue(undefined as any);
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('move-to-r1'));
-    await waitFor(() => expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('confirm-move-root'));
-    await waitFor(() =>
-      expect(moveRequest).toHaveBeenCalledWith('r1', expect.objectContaining({ newParentRequestId: null, sortOrder: 0 })),
-    );
   });
 
   // ── Drop error path ─────────────────────────────────────────────────────────
@@ -954,7 +753,7 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await act(async () => {});
-    fireEvent.click(screen.getByText('New Task'));
+    fireEvent.click(screen.getByText('New Request'));
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-save'));
     await waitFor(() =>
@@ -998,17 +797,17 @@ describe('RequestsPage', () => {
 
   it('navigates to a request, expanding its ancestors', async () => {
     vi.mocked(getAncestorIds).mockReturnValue(['p1']);
-    mockSelectedId = 'r1';
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('detail-panel')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('detail-navigate'));
+    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByText('Edit')[0]);
+    await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('form-navigate'));
     expect(mockExpandAncestors).toHaveBeenCalledWith(['p1']);
-    expect(mockSetSelectedId).toHaveBeenCalledWith('r1');
-    mockSelectedId = null;
+    expect(mockSetSelectedId).toHaveBeenCalledWith('p1');
   });
 
   // ── Open conflicts ──────────────────────────────────────────────────────────
@@ -1061,36 +860,10 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await act(async () => {});
-    fireEvent.click(screen.getByText('New Task'));
+    fireEvent.click(screen.getByText('New Request'));
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-close'));
     await waitFor(() => expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument());
-  });
-
-  it('closes the add-existing dialog via cancel', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('add-existing-r1'));
-    await waitFor(() => expect(screen.getByTestId('add-existing-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('cancel-add-existing'));
-    await waitFor(() => expect(screen.queryByTestId('add-existing-dialog')).not.toBeInTheDocument());
-  });
-
-  it('closes the move-to dialog via cancel', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('move-to-r1'));
-    await waitFor(() => expect(screen.getByTestId('move-to-dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('cancel-move'));
-    await waitFor(() => expect(screen.queryByTestId('move-to-dialog')).not.toBeInTheDocument());
   });
 
   it('closes the delete dialog via Cancel', async () => {

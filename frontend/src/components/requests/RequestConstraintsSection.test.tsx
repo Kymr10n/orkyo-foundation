@@ -7,15 +7,18 @@ vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
     id,
     placeholder,
     onChange,
+    disabled,
   }: {
     id: string;
     value?: string | null;
     placeholder?: string;
     onChange?: (v: string | null) => void;
+    disabled?: boolean;
   }) => (
     <input
       data-testid={`picker-${id}`}
       placeholder={placeholder}
+      disabled={disabled}
       onChange={(e) => onChange?.(e.target.value || null)}
     />
   ),
@@ -85,5 +88,43 @@ describe('RequestConstraintsSection', () => {
       target: { value: '2026-06-01T09:00' },
     });
     expect(setField).toHaveBeenCalledWith('earliestStartDate', '2026-06-01');
+  });
+
+  it('disables the pickers in readOnly mode', () => {
+    render(
+      <RequestConstraintsSection state={makeState()} setField={vi.fn()} readOnly />,
+    );
+    expect(screen.getByTestId('picker-earliestStart')).toBeDisabled();
+    expect(screen.getByTestId('picker-latestEnd')).toBeDisabled();
+  });
+
+  it('renders the default title and description when not provided', () => {
+    render(
+      <RequestConstraintsSection state={makeState()} setField={vi.fn()} />,
+    );
+    expect(
+      screen.getByText('Scheduling Constraints (Optional)'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Specify time windows when this request can be scheduled.'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the passed title and description when provided', () => {
+    render(
+      <RequestConstraintsSection
+        state={makeState()}
+        setField={vi.fn()}
+        title="Boundary Window (Optional)"
+        description="Children must start and finish within this window."
+      />,
+    );
+    expect(screen.getByText('Boundary Window (Optional)')).toBeInTheDocument();
+    expect(
+      screen.getByText('Children must start and finish within this window.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Scheduling Constraints (Optional)'),
+    ).not.toBeInTheDocument();
   });
 });
