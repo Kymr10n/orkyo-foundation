@@ -20,146 +20,30 @@ public static class EmailTemplates
         string displayName, string verificationLink, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = "Verify your email address";
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Verify Your Email</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">Welcome to {b.ProductName}!</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            Thank you for registering with {b.ProductName}. To complete your registration and activate your account,
-            please verify your email address by clicking the button below.
-        </p>
-
-        <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{verificationLink}""
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
-                      border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
-                Verify Email Address
-            </a>
-        </div>
-
-        <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
-            If the button doesn't work, copy and paste this link into your browser:
-        </p>
-        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
-            {verificationLink}
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This verification link will expire in 7 days. If you didn't create an account with us,
-            you can safely ignore this email.
-        </p>
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"Welcome to {b.ProductName}!
-
-Hi {displayName},
-
-Thank you for registering with {b.ProductName}. To complete your registration and activate your account, please verify your email address by visiting the link below:
-
-{verificationLink}
-
-This verification link will expire in 7 days. If you didn't create an account with us, you can safely ignore this email.
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            $"Welcome to {b.ProductName}!",
+            [
+                $"Hi {displayName},",
+                $"Thank you for registering with {b.ProductName}. To complete your registration and activate your account, please verify your email address by clicking the button below.",
+            ],
+            cta: ("Verify Email Address", verificationLink),
+            footerNote: "This verification link will expire in 7 days. If you didn't create an account with us, you can safely ignore this email.");
+        return ("Verify your email address", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetPasswordResetEmail(
         string displayName, string resetLink, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = "Reset your password";
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Reset Your Password</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">Password Reset Request</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            We received a request to reset your password for your {b.ProductName} account.
-            Click the button below to create a new password.
-        </p>
-
-        <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{resetLink}""
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
-                      border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
-                Reset Password
-            </a>
-        </div>
-
-        <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
-            If the button doesn't work, copy and paste this link into your browser:
-        </p>
-        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
-            {resetLink}
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This password reset link will expire in 1 hour. If you didn't request a password reset,
-            you can safely ignore this email. Your password will remain unchanged.
-        </p>
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"Password Reset Request
-
-Hi {displayName},
-
-We received a request to reset your password for your {b.ProductName} account. Visit the link below to create a new password:
-
-{resetLink}
-
-This password reset link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            "Password Reset Request",
+            [
+                $"Hi {displayName},",
+                $"We received a request to reset your password for your {b.ProductName} account. Click the button below to create a new password.",
+            ],
+            cta: ("Reset Password", resetLink),
+            footerNote: "This password reset link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.");
+        return ("Reset your password", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetWelcomeEmail(
@@ -498,148 +382,31 @@ This is an automated alert from {b.ProductName}.";
         string signupLink, DateTime expiresAt, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = $"You've been invited to join {b.ProductName}";
         var expiryText = expiresAt.ToString("MMMM dd, yyyy 'at' HH:mm UTC");
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Invitation to Join</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">🎉 You're Invited!</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hello,</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            You've been invited to join a {b.ProductName} workspace. Click the button below
-            to accept the invitation and create your account.
-        </p>
-
-        <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{signupLink}""
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
-                      border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
-                Accept Invitation
-            </a>
-        </div>
-
-        <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
-            If the button doesn't work, copy and paste this link into your browser:
-        </p>
-        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
-            {signupLink}
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This invitation link will expire on {expiryText}. If you didn't expect this invitation,
-            you can safely ignore this email.
-        </p>
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"You're Invited to {b.ProductName}!
-
-Hello,
-
-You've been invited to join a {b.ProductName} workspace. Visit the link below to accept the invitation and create your account:
-
-{signupLink}
-
-This invitation link will expire on {expiryText}. If you didn't expect this invitation, you can safely ignore this email.
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            "🎉 You're Invited!",
+            [
+                "Hello,",
+                $"You've been invited to join a {b.ProductName} workspace. Click the button below to accept the invitation and create your account.",
+            ],
+            cta: ("Accept Invitation", signupLink),
+            footerNote: $"This invitation link will expire on {expiryText}. If you didn't expect this invitation, you can safely ignore this email.");
+        return ($"You've been invited to join {b.ProductName}", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetEmailChangeConfirmationEmail(
         string displayName, string confirmUrl, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = "Confirm your new email address";
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Confirm Your New Email</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">Confirm Your New Email</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            You recently requested to change the email address on your {b.ProductName} account.
-            Click the button below to confirm this is your new address.
-            Your current email remains valid until you confirm.
-        </p>
-
-        <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{confirmUrl}""
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
-                      border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
-                Confirm New Email Address
-            </a>
-        </div>
-
-        <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
-            If the button doesn't work, copy and paste this link into your browser:
-        </p>
-        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
-            {confirmUrl}
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This confirmation link will expire in 24 hours. If you did not request an email change,
-            you can safely ignore this email — your current address will remain unchanged.
-        </p>
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"Confirm Your New Email Address
-
-Hi {displayName},
-
-You recently requested to change the email address on your {b.ProductName} account. Visit the link below to confirm this is your new address. Your current email remains valid until you confirm.
-
-{confirmUrl}
-
-This confirmation link will expire in 24 hours. If you did not request an email change, you can safely ignore this email.
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            "Confirm Your New Email",
+            [
+                $"Hi {displayName},",
+                $"You recently requested to change the email address on your {b.ProductName} account. Click the button below to confirm this is your new address. Your current email remains valid until you confirm.",
+            ],
+            cta: ("Confirm New Email Address", confirmUrl),
+            footerNote: "This confirmation link will expire in 24 hours. If you did not request an email change, you can safely ignore this email — your current address will remain unchanged.");
+        return ("Confirm your new email address", html, text);
     }
 
     // ────────────────────────────────────────────────────────────────────────────
