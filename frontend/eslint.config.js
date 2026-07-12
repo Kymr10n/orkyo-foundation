@@ -229,6 +229,22 @@ export default defineConfig(
     },
   },
 
+  // G3 (W1.2): the utils barrel must never re-export gantt-pdf-export — that is
+  // the exact line that dragged jspdf into the main chunk. `error` here (0
+  // violations since the re-export was removed) locks the fix. Scoped to the one
+  // file, so it overrides — not merges with — the date-format no-restricted-syntax
+  // ban above (index.ts has no date formatting, so nothing is lost).
+  {
+    files: ['src/lib/utils/index.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: "ExportAllDeclaration[source.value=/gantt-pdf-export/]",
+        message:
+          'Do not re-export gantt-pdf-export from the utils barrel: it statically imports jspdf, and this barrel is on the cn import path of ~48 modules. Reach it via the dynamic import() in export-handlers.ts. See plan G3.',
+      }],
+    },
+  },
+
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {
