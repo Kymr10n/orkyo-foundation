@@ -68,25 +68,30 @@ export function UserSettings() {
   // Cancel invitation mutation
   const cancelMutation = useMutation({
     mutationFn: cancelInvitation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.invitations.all() });
+    meta: {
+      errorMessage: "Failed to cancel invitation",
+      invalidates: [qk.invitations.all()],
     },
+    onSuccess: () => setCancelingInvitation(null),
   });
 
   // Resend invitation mutation
   const resendMutation = useMutation({
     mutationFn: resendInvitation,
-    onSuccess: () => {
-      alert("Invitation email resent successfully");
+    meta: {
+      successMessage: "Invitation email resent successfully",
+      errorMessage: "Failed to resend invitation",
     },
   });
 
   // Delete user mutation
   const deleteMutation = useMutation({
     mutationFn: deleteUser,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.users.all() });
+    meta: {
+      errorMessage: "Failed to remove user",
+      invalidates: [qk.users.all()],
     },
+    onSuccess: () => setDeletingUser(null),
   });
 
   // Handle export/import
@@ -95,8 +100,9 @@ export function UserSettings() {
     logger.info(`Exported ${users.length} users as ${format.toUpperCase()}`);
   });
 
-  useImportHandler('users', async (file, format) => {
-    try {
+  useImportHandler(
+    'users',
+    async (file, format) => {
       const importedUsers = await importUsers(file, format);
       if (!importedUsers.length) {
         throw new Error('No valid users found in file');
@@ -110,46 +116,29 @@ export function UserSettings() {
           role,
         });
       }
-      // Reload users and invitations
-      queryClient.invalidateQueries({ queryKey: qk.users.all() });
-      queryClient.invalidateQueries({ queryKey: qk.invitations.all() });
-      alert(`Successfully imported ${importedUsers.length} users`);
-    } catch (error) {
-      logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import users');
-    }
-  });
+      return importedUsers.length;
+    },
+    {
+      successMessage: (n) => `Successfully imported ${n} users`,
+      errorMessage: 'Failed to import users',
+      invalidates: [qk.users.all(), qk.invitations.all()],
+    },
+  );
 
   const handleCancelInvitation = (invitation: Invitation) => setCancelingInvitation(invitation);
-  const handleConfirmCancelInvitation = async () => {
+  const handleConfirmCancelInvitation = () => {
     if (!cancelingInvitation) return;
-    try {
-      await cancelMutation.mutateAsync(cancelingInvitation.id);
-      setCancelingInvitation(null);
-    } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Failed to cancel invitation"
-      );
-    }
+    cancelMutation.mutate(cancelingInvitation.id);
   };
 
-  const handleResendInvitation = async (invitation: Invitation) => {
-    try {
-      await resendMutation.mutateAsync(invitation.id);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to resend invitation");
-    }
+  const handleResendInvitation = (invitation: Invitation) => {
+    resendMutation.mutate(invitation.id);
   };
 
   const handleDeleteUser = (user: UserWithRole) => setDeletingUser(user);
-  const handleConfirmDeleteUser = async () => {
+  const handleConfirmDeleteUser = () => {
     if (!deletingUser) return;
-    try {
-      await deleteMutation.mutateAsync(deletingUser.id);
-      setDeletingUser(null);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to remove user");
-    }
+    deleteMutation.mutate(deletingUser.id);
   };
 
   const getRoleBadgeColor = (role: string) => {

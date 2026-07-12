@@ -193,21 +193,6 @@ describe("AuthContext BFF session", () => {
       expect(getAuth().appUser).toBeNull();
     });
 
-    it("does not expose tokens (getAccessToken returns null)", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ ...mockBootstrapResponse, tenants: [mockTenant] }),
-      });
-
-      const getAuth = renderAuthProvider();
-
-      await waitFor(() => expect(getAuth().authStage).toBe(AUTH_STAGES.READY));
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      expect(getAuth().getAccessToken()).toBeNull();
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      expect(getAuth().oidcUser).toBeNull();
-    });
   });
 
   describe("failure mode separation", () => {

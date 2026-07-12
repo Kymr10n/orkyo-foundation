@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { StatusBadge } from "@foundation/src/components/ui/status-badge";
@@ -165,101 +166,82 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
     },
   });
 
-  function handleSubmit(e: React.SubmitEvent) {
-    e.preventDefault();
-    if (name.trim() && (expiryMode !== "custom" || expiresAt)) mutation.mutate();
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create Reporting Token</DialogTitle>
-          <DialogDescription>
-            This token grants read-only access to reporting data for this workspace. It will be
-            shown once — copy it before closing.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create Reporting Token"
+      description="This token grants read-only access to reporting data for this workspace. It will be shown once — copy it before closing."
+      onSubmit={() => mutation.mutate()}
+      isSubmitting={mutation.isPending}
+      submitLabel="Create token"
+      submitDisabled={!(name.trim() && (expiryMode !== "custom" || !!expiresAt))}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="token-name">Name</Label>
+        <Input
+          id="token-name"
+          placeholder="e.g. Power BI Dashboard"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+      </div>
+      <div className="space-y-1.5">
+        <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-start">
           <div className="space-y-1.5">
-            <Label htmlFor="token-name">Name</Label>
-            <Input
-              id="token-name"
-              placeholder="e.g. Power BI Dashboard"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
+            <Label htmlFor="token-expiration">Expiration</Label>
+            <Select value={expiryMode} onValueChange={(value) => setExpiryMode(value as ExpiryMode)}>
+              <SelectTrigger id="token-expiration" className="h-9 min-w-[220px]">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="min-w-[220px]">
+                {EXPIRY_PRESETS.map((preset) => (
+                  <SelectItem key={preset.value} value={preset.value}>
+                    {preset.label} ({formatExpiryLabel(getPresetExpiry(preset.days))})
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Custom</SelectItem>
+                <SelectItem value="none">No expiration</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-1.5">
-            <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-start">
-              <div className="space-y-1.5">
-                <Label htmlFor="token-expiration">Expiration</Label>
-                <Select value={expiryMode} onValueChange={(value) => setExpiryMode(value as ExpiryMode)}>
-                  <SelectTrigger id="token-expiration" className="h-9 min-w-[220px]">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="min-w-[220px]">
-                    {EXPIRY_PRESETS.map((preset) => (
-                      <SelectItem key={preset.value} value={preset.value}>
-                        {preset.label} ({formatExpiryLabel(getPresetExpiry(preset.days))})
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">Custom</SelectItem>
-                    <SelectItem value="none">No expiration</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {expiryMode === "custom" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="token-custom-expires">Select date *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="token-custom-expires"
-                        type="button"
-                        variant="outline"
-                        className="h-9 w-full justify-start text-left font-normal"
-                      >
-                        {customExpiresAt ? formatExpiryLabel(customExpiresAt) : "dd . mm . yyyy"}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-70" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedCustomDate}
-                        onSelect={(date) => setCustomExpiresAt(date ? toDateOnly(date) : "")}
-                        disabled={(date) => date < today}
-                        autoFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
+          {expiryMode === "custom" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="token-custom-expires">Select date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="token-custom-expires"
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full justify-start text-left font-normal"
+                  >
+                    {customExpiresAt ? formatExpiryLabel(customExpiresAt) : "dd . mm . yyyy"}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-70" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedCustomDate}
+                    onSelect={(date) => setCustomExpiresAt(date ? toDateOnly(date) : "")}
+                    disabled={(date) => date < today}
+                    autoFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {expiryMode === "none"
-                ? "The token will not expire automatically"
-                : "The token will expire on the selected date"}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              loading={mutation.isPending}
-              disabled={!name.trim() || (expiryMode === "custom" && !expiresAt) || mutation.isPending}
-            >
-              Create token
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {expiryMode === "none"
+            ? "The token will not expire automatically"
+            : "The token will expire on the selected date"}
+        </p>
+      </div>
+    </FormDialog>
   );
 }
 

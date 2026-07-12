@@ -20,8 +20,30 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: (_key: string, cb: (format: string) => Promise<void>) => {
     ioHandlers.exportCb = cb;
   },
-  useImportHandler: (_key: string, cb: (file: File, format: string) => Promise<void>) => {
-    ioHandlers.importCb = cb;
+  // Mirrors the real hook's feedback wiring (toast + prefix invalidation) so
+  // tests exercising the import block don't need the real hook's internals.
+  useImportHandler: (
+    _key: string,
+    handler: (file: File, format: string) => Promise<unknown>,
+    options?: {
+      successMessage?: string | ((result: unknown) => string);
+      errorMessage?: string;
+    },
+  ) => {
+    ioHandlers.importCb = async (file: File, format: string) => {
+      try {
+        const result = await handler(file, format);
+        const successMessage =
+          typeof options?.successMessage === 'function'
+            ? options.successMessage(result)
+            : options?.successMessage;
+        if (successMessage) toast.success(successMessage);
+      } catch (error) {
+        toast.error(options?.errorMessage ?? 'Import failed', {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
+    };
   },
 }));
 

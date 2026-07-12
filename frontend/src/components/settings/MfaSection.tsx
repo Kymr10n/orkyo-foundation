@@ -18,14 +18,7 @@ import {
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getMfaStatus, removeMfa, enableMfa } from "@foundation/src/lib/api/security-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -126,6 +119,14 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
                   Recovery codes configured
                 </div>
               )}
+              {removeMfaMutation.isError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {removeMfaMutation.error?.message || "Failed to remove MFA"}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -176,38 +177,16 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
         </CardContent>
       </Card>
 
-      <Dialog open={removeMfaOpen} onOpenChange={setRemoveMfaOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove Two-Factor Authentication?</DialogTitle>
-            <DialogDescription>
-              This will remove your TOTP authenticator and recovery codes. You
-              will be prompted to set up MFA again on your next login.
-            </DialogDescription>
-          </DialogHeader>
-          {removeMfaMutation.isError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {removeMfaMutation.error?.message || "Failed to remove MFA"}
-              </AlertDescription>
-            </Alert>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoveMfaOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => removeMfaMutation.mutate()}
-              loading={removeMfaMutation.isPending}
-              disabled={removeMfaMutation.isPending}
-            >
-              Remove MFA
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={removeMfaOpen}
+        onOpenChange={setRemoveMfaOpen}
+        title="Remove Two-Factor Authentication?"
+        description="This will remove your TOTP authenticator and recovery codes. You will be prompted to set up MFA again on your next login."
+        confirmLabel="Remove MFA"
+        destructive
+        isPending={removeMfaMutation.isPending}
+        onConfirm={() => removeMfaMutation.mutate()}
+      />
     </>
   );
 }

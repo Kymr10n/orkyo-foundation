@@ -11,24 +11,22 @@ const mockRefetch = vi.fn();
 let mockCriteriaData: { data: unknown[]; isLoading: boolean; error: Error | null; refetch?: () => void };
 
 vi.mock('@foundation/src/hooks/useCriteria', () => ({
+  CRITERIA_QUERY_KEY: ['criteria'],
   useCriteria: () => mockCriteriaData,
   useCreateCriterion: () => ({ mutateAsync: mockCreateMutateAsync, isPending: false }),
   useDeleteCriterion: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),
 }));
 
-// Capture the export/import callbacks the page registers so the tests can drive
-// them directly (the real hooks wire them to a global event the toolbar fires).
+// Capture the export callback the page registers so tests can drive it directly
+// (the real hook wires it to a global event the toolbar fires).
 const ioHandlers = vi.hoisted(() => ({
   exportCb: null as null | ((format: string) => Promise<void>),
-  importCb: null as null | ((file: File, format: string) => Promise<void>),
 }));
 vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: (_key: string, cb: (format: string) => Promise<void>) => {
     ioHandlers.exportCb = cb;
   },
-  useImportHandler: (_key: string, cb: (file: File, format: string) => Promise<void>) => {
-    ioHandlers.importCb = cb;
-  },
+  useImportHandler: vi.fn(),
 }));
 
 vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
@@ -37,10 +35,7 @@ vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
 }));
 
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
-
-const toastSuccess = vi.fn();
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
+import { useImportHandler } from '@foundation/src/hooks/useImportExport';
 
 vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -50,14 +45,16 @@ vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   };
 });
 
-vi.mock('./CreateCriterionDialog', () => ({
-  CreateCriterionDialog: ({ open, onSuccess }: any) =>
-    open ? <button data-testid="create-success-btn" onClick={() => onSuccess({})}>Confirm Create</button> : null,
-}));
-
-vi.mock('./EditCriterionDialog', () => ({
-  EditCriterionDialog: ({ open, onSuccess }: any) =>
-    open ? <button data-testid="edit-success-btn" onClick={() => onSuccess({})}>Confirm Edit</button> : null,
+vi.mock('./CriterionEditDialog', () => ({
+  CriterionEditDialog: ({ open, criterion, onOpenChange }: any) =>
+    open ? (
+      <button
+        data-testid={criterion ? 'edit-success-btn' : 'create-success-btn'}
+        onClick={() => onOpenChange(false)}
+      >
+        {criterion ? 'Confirm Edit' : 'Confirm Create'}
+      </button>
+    ) : null,
 }));
 
 const mockCriteria = [
@@ -325,31 +322,43 @@ describe('CriteriaSettings', () => {
       expect(exportCriteria).toHaveBeenCalledWith(mockCriteria, 'csv');
     });
 
+    it('registers the import handler with centralized feedback options', () => {
+      render(<CriteriaSettings />);
+      expect(useImportHandler).toHaveBeenCalledWith(
+        'criteria',
+        expect.any(Function),
+        expect.objectContaining({
+          successMessage: expect.any(Function),
+          errorMessage: 'Failed to import criteria',
+          invalidates: [['criteria']],
+        }),
+      );
+      const [, , options] = vi.mocked(useImportHandler).mock.calls[0];
+      expect((options!.successMessage as (n: number) => string)(1)).toBe('Imported 1 criterion');
+      expect((options!.successMessage as (n: number) => string)(2)).toBe('Imported 2 criterionia');
+    });
+
     it('imports valid criteria and creates each one', async () => {
       vi.mocked(importCriteria).mockResolvedValueOnce([
         { name: 'Imported', dataType: 'Number' } as any,
       ]);
       render(<CriteriaSettings />);
-      await ioHandlers.importCb!(new File(['x'], 'criteria.csv'), 'csv');
+      const [, handler] = vi.mocked(useImportHandler).mock.calls[0];
+      const result = await handler(new File(['x'], 'criteria.csv'), 'csv' as any);
       expect(mockCreateMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Imported' }),
       );
-      expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Imported 1'));
+      expect(result).toBe(1);
     });
 
-    it('shows error toast when the imported file contains no valid criteria', async () => {
+    it('throws when the imported file contains no valid criteria', async () => {
       vi.mocked(importCriteria).mockResolvedValueOnce([]);
       render(<CriteriaSettings />);
-      await ioHandlers.importCb!(new File(['x'], 'criteria.csv'), 'csv');
+      const [, handler] = vi.mocked(useImportHandler).mock.calls[0];
+      await expect(handler(new File(['x'], 'criteria.csv'), 'csv' as any)).rejects.toThrow(
+        'No valid criteria found in file',
+      );
       expect(mockCreateMutateAsync).not.toHaveBeenCalled();
-      expect(toastError).toHaveBeenCalledWith('Import failed', expect.objectContaining({ description: 'No valid criteria found in file' }));
-    });
-
-    it('shows error toast when import fails', async () => {
-      vi.mocked(importCriteria).mockRejectedValueOnce(new Error('Bad file'));
-      render(<CriteriaSettings />);
-      await ioHandlers.importCb!(new File(['x'], 'criteria.csv'), 'csv');
-      expect(toastError).toHaveBeenCalledWith('Import failed', expect.objectContaining({ description: 'Bad file' }));
     });
   });
 

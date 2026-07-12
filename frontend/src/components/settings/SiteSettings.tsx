@@ -7,11 +7,11 @@ import { AlertCircle, Edit, MapPin, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState } from "react";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
-import { CreateSiteDialog } from "./CreateSiteDialog";
-import { EditSiteDialog } from "./EditSiteDialog";
+import { SiteEditDialog } from "./SiteEditDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportSites, importSites } from '@foundation/src/lib/utils/export-handlers';
 import { useSites, useDeleteSite, useCreateSite } from "@foundation/src/hooks/useSites";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
@@ -39,30 +39,24 @@ export function SiteSettings() {
     logger.info(`Exported ${sites.length} sites as ${format.toUpperCase()}`);
   });
 
-  useImportHandler('sites', async (file, format) => {
-    try {
+  useImportHandler(
+    'sites',
+    async (file, format) => {
       const importedSites = await importSites(file, format);
       if (!importedSites.length) {
         throw new Error('No valid sites found in file');
       }
-      // Create sites via API
       for (const site of importedSites) {
         await createMutation.mutateAsync(site as CreateSiteRequest);
       }
-      alert(`Successfully imported ${importedSites.length} sites`);
-    } catch (error) {
-      logger.error('Import failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to import sites');
-    }
-  });
-
-  const handleCreateSuccess = (_newSite: Site) => {
-    setCreateDialogOpen(false);
-  };
-
-  const handleUpdateSuccess = (_updatedSite: Site) => {
-    setEditingSite(null);
-  };
+      return importedSites.length;
+    },
+    {
+      successMessage: (count) => `Successfully imported ${count} sites`,
+      errorMessage: 'Failed to import sites',
+      invalidates: [qk.sites.list()],
+    },
+  );
 
   const handleConfirmDelete = async () => {
     if (!deletingSite) return;
@@ -219,18 +213,17 @@ export function SiteSettings() {
       )}
 
       {/* Dialogs */}
-      <CreateSiteDialog
+      <SiteEditDialog
+        site={null}
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onSuccess={handleCreateSuccess}
       />
 
       {editingSite && (
-        <EditSiteDialog
+        <SiteEditDialog
           site={editingSite}
           open={!!editingSite}
           onOpenChange={(open: boolean) => !open && setEditingSite(null)}
-          onSuccess={handleUpdateSuccess}
         />
       )}
 

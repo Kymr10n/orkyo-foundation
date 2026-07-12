@@ -40,7 +40,7 @@ import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-reque
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import type { Criterion } from "@foundation/src/types/criterion";
 import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
-import type { Conflict, Duration, DurationUnit, PlanningMode, Request } from "@foundation/src/types/requests";
+import type { Conflict, DurationUnit, PlanningMode, Request, RequestFormData } from "@foundation/src/types/requests";
 import { ConflictBanner, ConflictIndicator, conflictDotClass } from "./ConflictIndicator";
 import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator";
 import type { Space } from "@foundation/src/types/space";
@@ -106,27 +106,9 @@ interface RequestFormDialogProps {
   onSave: (data: RequestFormData) => void | Request | Promise<void | Request>;
 }
 
-export interface RequestFormData {
-  name: string;
-  description?: string;
-  icon?: string | null;
-  planningMode: PlanningMode;
-  parentRequestId?: string;
-  /** Site scope. null/undefined = site-neutral (Any site). */
-  siteId?: string | null;
-  resourceId?: string;
-  startTs?: string;
-  endTs?: string;
-  earliestStartTs?: string;
-  latestEndTs?: string;
-  duration: Duration;
-  schedulingSettingsApply: boolean;
-  requirements: {
-    criterionId: string;
-    value: RequirementEntry['value'];
-    operator?: string;
-  }[];
-}
+// RequestFormData moved to the types layer (W2.5) so lib-level payload builders
+// don't import from the components layer; re-exported to keep existing paths working.
+export type { RequestFormData };
 
 /**
  * @internal Exported for unit testing. Returns a warning when the chosen site

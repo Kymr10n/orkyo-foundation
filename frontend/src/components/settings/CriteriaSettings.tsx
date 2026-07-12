@@ -13,19 +13,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@foundation/src/components/ui/tooltip';
-import { CreateCriterionDialog } from './CreateCriterionDialog';
-import { EditCriterionDialog } from './EditCriterionDialog';
+import { CriterionEditDialog } from './CriterionEditDialog';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
 import type { CreateCriterionRequest, ResourceTypeKey } from '@foundation/src/types/criterion';
 import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
-import { useCriteria, useCreateCriterion, useDeleteCriterion } from '@foundation/src/hooks/useCriteria';
+import {
+  CRITERIA_QUERY_KEY,
+  useCriteria,
+  useCreateCriterion,
+  useDeleteCriterion,
+} from '@foundation/src/hooks/useCriteria';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
-import { toast } from 'sonner';
 
 type FilterTab = 'all' | ResourceTypeKey;
 
@@ -61,8 +64,9 @@ export function CriteriaSettings() {
     logger.info(`Exported ${criteria.length} criteria as ${format.toUpperCase()}`);
   });
 
-  useImportHandler('criteria', async (file, format) => {
-    try {
+  useImportHandler(
+    'criteria',
+    async (file, format) => {
       const importedCriteria = await importCriteria(file, format);
       if (!importedCriteria.length) {
         throw new Error('No valid criteria found in file');
@@ -71,24 +75,14 @@ export function CriteriaSettings() {
       for (const criterion of importedCriteria) {
         await createMutation.mutateAsync(criterion as CreateCriterionRequest);
       }
-      toast.success(`Imported ${importedCriteria.length} criterion${importedCriteria.length === 1 ? '' : 'ia'}`);
-    } catch (error) {
-      logger.error('Import failed:', error);
-      toast.error('Import failed', {
-        description: error instanceof Error ? error.message : 'Failed to import criteria',
-      });
-    }
-  });
-
-  const handleCreateSuccess = () => {
-    // Cache is automatically invalidated by the mutation hook
-    setCreateDialogOpen(false);
-  };
-
-  const handleUpdateSuccess = () => {
-    // Cache is automatically invalidated by the mutation hook
-    setEditingCriterion(null);
-  };
+      return importedCriteria.length;
+    },
+    {
+      successMessage: (count) => `Imported ${count} criterion${count === 1 ? '' : 'ia'}`,
+      errorMessage: 'Failed to import criteria',
+      invalidates: [CRITERIA_QUERY_KEY],
+    },
+  );
 
   const handleDelete = (criterion: Criterion) => setDeletingCriterion(criterion);
   const handleConfirmDelete = async () => {
@@ -334,18 +328,17 @@ export function CriteriaSettings() {
       )}
 
       {/* Dialogs */}
-      <CreateCriterionDialog
+      <CriterionEditDialog
+        criterion={null}
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onSuccess={handleCreateSuccess}
       />
 
       {editingCriterion && (
-        <EditCriterionDialog
+        <CriterionEditDialog
           criterion={editingCriterion}
           open={!!editingCriterion}
           onOpenChange={(open: boolean) => !open && setEditingCriterion(null)}
-          onSuccess={handleUpdateSuccess}
         />
       )}
 

@@ -65,7 +65,7 @@ import { exportRequests, importRequests } from "@foundation/src/lib/utils/export
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
-import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
+import { invalidateRequestData, REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 
 const EMPTY_REQUESTS: Request[] = [];
 
@@ -156,22 +156,18 @@ export function RequestsPage() {
   });
 
   useImportHandler('requests', async (file, format) => {
-    try {
-      const importedRequests = await importRequests(file, format);
-      if (!importedRequests.length) {
-        throw new Error('No valid requests found in file');
-      }
-      for (const req of importedRequests) {
-        await createRequest(req as CreateRequestRequest);
-      }
-      invalidateRequestData(queryClient);
-      toast.success(`Imported ${importedRequests.length} requests`);
-    } catch (error) {
-      logger.error('Import failed:', error);
-      toast.error('Failed to import requests', {
-        description: error instanceof Error ? error.message : undefined,
-      });
+    const importedRequests = await importRequests(file, format);
+    if (!importedRequests.length) {
+      throw new Error('No valid requests found in file');
     }
+    for (const req of importedRequests) {
+      await createRequest(req as CreateRequestRequest);
+    }
+    return importedRequests.length;
+  }, {
+    successMessage: (count) => `Imported ${count} requests`,
+    errorMessage: 'Failed to import requests',
+    invalidates: REQUEST_DERIVED_QUERY_KEYS,
   });
 
   // Handle ?edit=<id> query param from global search

@@ -19,14 +19,11 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
 }));
 
 import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@foundation/src/hooks/useSites';
+import { useImportHandler } from '@foundation/src/hooks/useImportExport';
 
-vi.mock('./CreateSiteDialog', () => ({
-  CreateSiteDialog: ({ open, onSuccess }: any) =>
-    open ? <div data-testid="create-site-dialog"><button onClick={() => onSuccess({ id: 'new', name: 'New', code: 'N' })}>Confirm Create</button></div> : null,
-}));
-vi.mock('./EditSiteDialog', () => ({
-  EditSiteDialog: ({ open, onSuccess }: any) =>
-    open ? <div data-testid="edit-site-dialog"><button onClick={() => onSuccess({ id: '1', name: 'Updated', code: 'U' })}>Confirm Edit</button></div> : null,
+vi.mock('./SiteEditDialog', () => ({
+  SiteEditDialog: ({ open, site }: any) =>
+    open ? <div data-testid={site ? 'edit-site-dialog' : 'create-site-dialog'} /> : null,
 }));
 
 describe('SiteSettings', () => {
@@ -87,7 +84,6 @@ describe('SiteSettings', () => {
     vi.mocked(useUpdateSite).mockReturnValue(mockUpdateMutation as any);
 
     global.confirm = vi.fn(() => true);
-    global.alert = vi.fn();
   });
 
   it('renders loading state initially', () => {
@@ -403,7 +399,27 @@ describe('SiteSettings', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /Create your first site/i }));
-    // CreateSiteDialog open state is set — component stays rendered
+    // SiteEditDialog open state is set — component stays rendered
     expect(screen.getByText(/No sites/i)).toBeInTheDocument();
+  });
+
+  it('wires the import handler to the centralized feedback options (no alert())', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SiteSettings />
+      </QueryClientProvider>
+    );
+
+    expect(useImportHandler).toHaveBeenCalledWith(
+      'sites',
+      expect.any(Function),
+      expect.objectContaining({
+        successMessage: expect.any(Function),
+        errorMessage: 'Failed to import sites',
+        invalidates: [['sites']],
+      }),
+    );
+    const [, , options] = vi.mocked(useImportHandler).mock.calls[0];
+    expect((options!.successMessage as (n: number) => string)(3)).toBe('Successfully imported 3 sites');
   });
 });

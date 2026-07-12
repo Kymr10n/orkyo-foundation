@@ -21,15 +21,16 @@ const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
 
-// Stub CreateCriterionDialog. The real dialog mounts react-query mutations and
+// Stub CriterionEditDialog. The real dialog mounts react-query mutations and
 // is exercised by its own test suite; here we only care that the editor wires
-// it up correctly and reacts to onSuccess.
+// it up correctly and reacts to onSaved.
 const mockCreateCriterionDialogProps = vi.fn();
-vi.mock('../settings/CreateCriterionDialog', () => ({
-  CreateCriterionDialog: (props: {
+vi.mock('../settings/CriterionEditDialog', () => ({
+  CriterionEditDialog: (props: {
+    criterion: Criterion | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSuccess: (criterion: Criterion) => void;
+    onSaved?: (criterion: Criterion) => void;
     defaultResourceType?: string;
   }) => {
     mockCreateCriterionDialogProps(props);
@@ -38,7 +39,7 @@ vi.mock('../settings/CreateCriterionDialog', () => ({
         <button
           data-testid="create-criterion-success"
           onClick={() =>
-            props.onSuccess({
+            props.onSaved?.({
               id: 'new-criterion-id',
               name: 'Newly created',
               dataType: 'Boolean',

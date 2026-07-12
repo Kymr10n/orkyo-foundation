@@ -195,3 +195,29 @@ export interface MoveRequestRequest {
   newParentRequestId?: string | null;
   sortOrder: number;
 }
+
+/**
+ * The request form's submit payload (RequestFormDialog → onSave). Lives here so
+ * lib-level payload builders don't import from the components layer.
+ */
+export interface RequestFormData {
+  name: string;
+  description?: string;
+  icon?: string | null;
+  planningMode: PlanningMode;
+  parentRequestId?: string;
+  /** Site scope. null/undefined = site-neutral (Any site). */
+  siteId?: string | null;
+  resourceId?: string;
+  startTs?: string;
+  endTs?: string;
+  earliestStartTs?: string;
+  latestEndTs?: string;
+  duration: Duration;
+  schedulingSettingsApply: boolean;
+  requirements: {
+    criterionId: string;
+    value: CriterionValue | null;
+    operator?: string;
+  }[];
+}
