@@ -1,0 +1,29 @@
+# frontend-path-collision-allowlist.txt — repo-relative paths under frontend/src
+# that are ALLOWED to exist in both orkyo-foundation and orkyo-saas.
+#
+# A path present in both repos is usually a copy-paste (people keep the path when
+# they copy a file), which the placement rule forbids: shared feature code belongs
+# in @kymr10n/foundation, not duplicated into a product. check-frontend-path-
+# collisions.sh flags every shared path NOT listed here.
+#
+# Two legitimate reasons to allowlist:
+#   (a) framework scaffolding every Vite app independently owns (entrypoints,
+#       per-app store/contracts) — permanent;
+#   (b) TRACKED duplication debt awaiting a placement fix — remove the line when
+#       the duplicate is deleted downstream.
+#
+# See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G8).
+
+# (a) Independent framework scaffolding — each app wires its own; permanent.
+App.tsx
+main.tsx
+test/setup.ts
+contracts.ts
+store/app-store.ts
+store/index.ts
+
+# (b) Tracked duplication debt — remove these when W1.3 deletes the saas copy
+#     and switches to `import … from "@kymr10n/foundation/src/infrastructure/tracking"`.
+infrastructure/tracking/TrackingProvider.tsx
+infrastructure/tracking/index.ts
+infrastructure/tracking/tracking.types.ts
