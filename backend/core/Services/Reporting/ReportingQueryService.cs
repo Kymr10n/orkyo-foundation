@@ -18,12 +18,14 @@ public sealed class ReportingQueryService : IReportingQueryService
         _db = db;
     }
 
+    /// <summary>Resolves the shared paging + date-range defaulting applied to every reporting query.</summary>
+    private static (ReportingPageRequest Paged, DateTime From, DateTime To) ResolveWindow(ReportingQuery query) =>
+        (query.ToPageRequest(), query.From ?? DateTime.UtcNow.AddMonths(-1), query.To ?? DateTime.UtcNow);
+
     public async Task<ReportingResult<SpaceUtilizationRow>> GetSpaceUtilizationAsync(
         Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
         var periodHours = (to - from).TotalHours;
 
         await using var conn = _db.CreateTenantConnection(tenant);
@@ -90,9 +92,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     public async Task<ReportingResult<ResourceUtilizationRow>> GetResourceUtilizationAsync(
         Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
         var periodHours = (to - from).TotalHours;
 
         await using var conn = _db.CreateTenantConnection(tenant);
@@ -160,9 +160,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     public async Task<ReportingResult<AllocationRow>> GetAllocationsAsync(
         Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
@@ -244,9 +242,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     public async Task<ReportingResult<RequestThroughputRow>> GetRequestThroughputAsync(
         Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
@@ -287,9 +283,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     public async Task<ReportingResult<ConflictRow>> GetConflictsAsync(
         Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
@@ -354,9 +348,7 @@ public sealed class ReportingQueryService : IReportingQueryService
         Guid tenantId, TenantContext tenant, ReportingQuery query, bool peopleLevelEnabled,
         CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
@@ -422,9 +414,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     public async Task<ReportingResult<CapacityVsDemandRow>> GetCapacityVsDemandAsync(
         Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
-        var paged = query.ToPageRequest();
-        var from = query.From ?? DateTime.UtcNow.AddMonths(-1);
-        var to = query.To ?? DateTime.UtcNow;
+        var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
         await conn.OpenAsync(ct);
