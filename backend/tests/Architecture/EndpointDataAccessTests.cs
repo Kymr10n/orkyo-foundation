@@ -32,15 +32,12 @@ public partial class EndpointDataAccessTests
     /// </summary>
     private static readonly HashSet<string> KnownRawDataAccessFiles =
     [
-        "AccountLifecycleEndpoints.cs",
         "Admin/AuditEndpoints.cs",
         "Admin/DiagnosticsAdminEndpoints.cs",
         "Admin/UserAdminEndpoints.cs",
         "ContactEndpoints.cs",
         "QuotaEndpoints.cs",
-        "SecurityEndpoints.cs",
         "TenantAuditEndpoints.cs",
-        "UserAnnouncementEndpoints.cs",
     ];
 
     [GeneratedRegex(@"new\s+NpgsqlCommand|NpgsqlDataReader|\.OpenAsync\(")]

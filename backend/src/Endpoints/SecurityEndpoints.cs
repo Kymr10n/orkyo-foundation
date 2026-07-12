@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using FluentValidation;
@@ -298,19 +299,14 @@ public static class SecurityEndpoints
 
         security.MapGet("/notification-preferences", async (
             ICurrentPrincipal principal,
-            IDbConnectionFactory dbFactory,
+            IPlatformUserRepository userRepository,
             CancellationToken ct) =>
         {
             var userId = principal.RequireUserId();
-            await using var db = dbFactory.CreateControlPlaneConnection();
-            await db.OpenAsync(ct);
-            await using var cmd = new Npgsql.NpgsqlCommand(
-                "SELECT announcement_email_opt_out FROM users WHERE id = @id", db);
-            cmd.Parameters.AddWithValue("id", userId);
-            var optOut = await cmd.ExecuteScalarAsync(ct);
+            var optOut = await userRepository.GetAnnouncementEmailOptOutAsync(userId, ct);
             if (optOut is null)
                 return ErrorResponses.NotFoundMessage("User not found");
-            return Results.Ok(new NotificationPreferencesResponse { AnnouncementEmailOptOut = (bool)optOut });
+            return Results.Ok(new NotificationPreferencesResponse { AnnouncementEmailOptOut = optOut.Value });
         })
         .WithName("GetNotificationPreferences")
         .WithSummary("Get notification preferences")
@@ -319,20 +315,13 @@ public static class SecurityEndpoints
         security.MapPut("/notification-preferences", async (
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
-            IDbConnectionFactory dbFactory,
+            IPlatformUserRepository userRepository,
             UpdateNotificationPreferencesRequest request,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
             var userId = principal.RequireUserId();
-            await using var db = dbFactory.CreateControlPlaneConnection();
-            await db.OpenAsync(ct);
-            await using var cmd = new Npgsql.NpgsqlCommand(@"
-                UPDATE users SET announcement_email_opt_out = @v, updated_at = NOW()
-                WHERE id = @id", db);
-            cmd.Parameters.AddWithValue("v", request.AnnouncementEmailOptOut);
-            cmd.Parameters.AddWithValue("id", userId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await userRepository.SetAnnouncementEmailOptOutAsync(userId, request.AnnouncementEmailOptOut, ct);
             logger.LogInformation("Announcement email opt-out set to {OptOut} for user {UserId}",
                 request.AnnouncementEmailOptOut, userId);
             return Results.Ok(new { message = "Notification preferences updated" });

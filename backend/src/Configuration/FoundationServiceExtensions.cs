@@ -91,6 +91,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         services.AddScoped<IJobTitleRepository, JobTitleRepository>();
         services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
+        services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();

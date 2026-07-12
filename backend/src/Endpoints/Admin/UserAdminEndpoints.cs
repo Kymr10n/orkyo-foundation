@@ -4,6 +4,7 @@ using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Models;
 using Api.Models.Admin;
+using Api.Repositories;
 using Api.Security;
 using Api.Security.Features;
 using Api.Services;
@@ -60,7 +61,7 @@ public static class UserAdminEndpoints
     }
 
     private static async Task<IResult> GetUsers(
-        IDbConnectionFactory connectionFactory,
+        IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
         ITenantPlanInfoProvider planInfoProvider,
         ILogger<EndpointLoggerCategory> logger,
@@ -68,68 +69,17 @@ public static class UserAdminEndpoints
         string? status = null,
         CancellationToken ct = default)
     {
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
-
-        var whereClauses = new List<string>();
-        var parameters = new List<NpgsqlParameter>();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            whereClauses.Add("(LOWER(email) LIKE @search OR LOWER(display_name) LIKE @search)");
-            parameters.Add(new NpgsqlParameter("search", $"%{search.ToLower()}%"));
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            whereClauses.Add("status = @status");
-            parameters.Add(new NpgsqlParameter("status", status));
-        }
-
-        var whereClause = whereClauses.Count > 0 ? $"WHERE {string.Join(" AND ", whereClauses)}" : "";
-
-        var sql = $@"
-            SELECT
-                u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at,
-                (SELECT COUNT(*) FROM tenant_memberships tm WHERE tm.user_id = u.id AND tm.status = 'active') as membership_count,
-                (SELECT COUNT(*) FROM user_identities ui WHERE ui.user_id = u.id) as identity_count,
-                (SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'keycloak' LIMIT 1) as keycloak_sub,
-                ot.id as owned_tenant_id
-            FROM users u
-            LEFT JOIN tenants ot ON ot.owner_user_id = u.id AND ot.status != 'deleting'
-            {whereClause}
-            ORDER BY u.email
-            LIMIT 500";
-
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        foreach (var param in parameters)
-            cmd.Parameters.Add(param);
+        var rows = await userRepository.GetAdminUserListAsync(search, status, ct);
 
         var users = new List<AdminUserSummary>();
         var keycloakIds = new List<(int index, string keycloakId)>();
-        await using var reader = await cmd.ExecuteReaderAsync();
 
-        while (await reader.ReadAsync())
+        foreach (var row in rows)
         {
-            var keycloakSub = reader.IsDBNull(9) ? null : reader.GetString(9);
-            if (keycloakSub != null)
-                keycloakIds.Add((users.Count, keycloakSub));
+            if (row.KeycloakSub != null)
+                keycloakIds.Add((users.Count, row.KeycloakSub));
 
-            users.Add(new AdminUserSummary
-            {
-                Id = reader.GetGuid(0),
-                Email = reader.GetString(1),
-                DisplayName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                Status = reader.GetString(3),
-                CreatedAt = reader.GetDateTime(4),
-                UpdatedAt = reader.GetDateTime(5),
-                LastLoginAt = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-                MembershipCount = reader.GetInt32(7),
-                IdentityCount = reader.GetInt32(8),
-                IsSiteAdmin = false, // populated below
-                OwnedTenantId = reader.IsDBNull(10) ? null : reader.GetGuid(10),
-                OwnedTenantTier = null // resolved below via the edition's plan provider
-            });
+            users.Add(row.Summary);
         }
 
         // Check site-admin role for each user with a Keycloak identity.
@@ -165,46 +115,35 @@ public static class UserAdminEndpoints
 
     private static async Task<IResult> GetUser(
         Guid userId,
+        IPlatformUserRepository userRepository,
         IDbConnectionFactory connectionFactory,
         IKeycloakAdminService keycloak,
         ITenantPlanInfoProvider planInfoProvider,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
-
-        await using var userCmd = new NpgsqlCommand(@"
-            SELECT u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at,
-                   ot.id as owned_tenant_id
-            FROM users u
-            LEFT JOIN tenants ot ON ot.owner_user_id = u.id AND ot.status != 'deleting'
-            WHERE u.id = @userId",
-            conn);
-        userCmd.Parameters.AddWithValue("userId", userId);
-
-        await using var userReader = await userCmd.ExecuteReaderAsync();
-
-        if (!await userReader.ReadAsync())
+        var core = await userRepository.GetAdminUserCoreAsync(userId, ct);
+        if (core is null)
             return ErrorResponses.NotFound("User");
 
         var user = new AdminUserDetail
         {
-            Id = userReader.GetGuid(0),
-            Email = userReader.GetString(1),
-            DisplayName = userReader.IsDBNull(2) ? null : userReader.GetString(2),
-            Status = userReader.GetString(3),
-            CreatedAt = userReader.GetDateTime(4),
-            UpdatedAt = userReader.GetDateTime(5),
-            LastLoginAt = userReader.IsDBNull(6) ? null : userReader.GetDateTime(6),
+            Id = core.Id,
+            Email = core.Email,
+            DisplayName = core.DisplayName,
+            Status = core.Status,
+            CreatedAt = core.CreatedAt,
+            UpdatedAt = core.UpdatedAt,
+            LastLoginAt = core.LastLoginAt,
             IsSiteAdmin = false,
-            OwnedTenantId = userReader.IsDBNull(7) ? null : userReader.GetGuid(7),
+            OwnedTenantId = core.OwnedTenantId,
             OwnedTenantTier = null, // resolved below via the edition's plan provider
             Identities = new List<AdminUserIdentity>(),
             Memberships = new List<AdminUserMembership>()
         };
 
-        await userReader.CloseAsync();
+        await using var conn = connectionFactory.CreateControlPlaneConnection();
+        await conn.OpenAsync();
 
         if (user.OwnedTenantId is Guid ownedTenantId)
         {
@@ -277,18 +216,16 @@ public static class UserAdminEndpoints
 
     private static async Task<IResult> GetUserMemberships(
         Guid userId,
+        IPlatformUserRepository userRepository,
         IDbConnectionFactory connectionFactory,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
+        if (!await userRepository.ExistsAsync(userId, ct))
+            return ErrorResponses.NotFound("User");
+
         await using var conn = connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync();
-
-        await using var checkCmd = new NpgsqlCommand("SELECT 1 FROM users WHERE id = @userId", conn);
-        checkCmd.Parameters.AddWithValue("userId", userId);
-
-        if (await checkCmd.ExecuteScalarAsync() == null)
-            return ErrorResponses.NotFound("User");
 
         await using var cmd = new NpgsqlCommand(@"
             SELECT tm.tenant_id, t.slug, t.display_name, tm.role, tm.status, tm.created_at
@@ -414,25 +351,16 @@ public static class UserAdminEndpoints
         return (await cmd.ExecuteScalarAsync()) as string;
     }
 
-    private static async Task<bool> UserExistsAsync(Guid userId, IDbConnectionFactory connectionFactory, CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
-
-        await using var cmd = new Npgsql.NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM users WHERE id = @userId)", conn);
-        cmd.Parameters.AddWithValue("userId", userId);
-        return (await cmd.ExecuteScalarAsync()) is true;
-    }
-
     private static async Task<IResult> PromoteSiteAdmin(
         Guid userId,
+        IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        if (!await UserExistsAsync(userId, connectionFactory))
+        if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
@@ -458,6 +386,7 @@ public static class UserAdminEndpoints
 
     private static async Task<IResult> RevokeSiteAdmin(
         Guid userId,
+        IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
         IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
@@ -468,7 +397,7 @@ public static class UserAdminEndpoints
         if (userId == principal.UserId)
             return ErrorResponses.BadRequest("Cannot revoke your own site-admin role");
 
-        if (!await UserExistsAsync(userId, connectionFactory))
+        if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
         var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);

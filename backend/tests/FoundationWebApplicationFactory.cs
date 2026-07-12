@@ -251,6 +251,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISearchRepository, SearchRepository>();
         builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        builder.Services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
         builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
