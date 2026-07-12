@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
@@ -128,7 +128,6 @@ interface CreateTokenDialogProps {
 }
 
 function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogProps) {
-  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [expiryMode, setExpiryMode] = useState<ExpiryMode>("7");
   const [customExpiresAt, setCustomExpiresAt] = useState("");
@@ -153,16 +152,16 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
       name,
       ...(expiresAt ? { expiresAt } : {}),
     }),
+    meta: {
+      errorMessage: "Failed to create token. Please try again.",
+      invalidates: [qk.reportingTokens.all()],
+    },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: qk.reportingTokens.all() });
       onOpenChange(false);
       setName("");
       setExpiryMode("7");
       setCustomExpiresAt("");
       onCreated(result.rawToken);
-    },
-    onError: () => {
-      toast.error("Failed to create token. Please try again.");
     },
   });
 
@@ -302,18 +301,14 @@ interface RevokeDialogProps {
 }
 
 function RevokeDialog({ token, onOpenChange }: RevokeDialogProps) {
-  const queryClient = useQueryClient();
-
   const mutation = useMutation({
     mutationFn: (id: string) => revokeReportingToken(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.reportingTokens.all() });
-      onOpenChange(false);
-      toast.success("Token revoked");
+    meta: {
+      successMessage: "Token revoked",
+      errorMessage: "Failed to revoke token. Please try again.",
+      invalidates: [qk.reportingTokens.all()],
     },
-    onError: () => {
-      toast.error("Failed to revoke token. Please try again.");
-    },
+    onSuccess: () => onOpenChange(false),
   });
 
   return (
