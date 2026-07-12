@@ -147,7 +147,7 @@ public static class InsightsEndpoints
     private static async Task<IResult?> ValidateSiteAsync(Guid? siteId, ISiteRepository sites, CancellationToken ct)
     {
         if (siteId is null) return null;
-        var site = await sites.GetByIdAsync(siteId.Value, ct);
-        return site is null ? ErrorResponses.NotFound("Site", siteId) : null;
+        var exists = await sites.ExistsAsync(siteId.Value, ct);
+        return exists ? null : ErrorResponses.NotFound("Site", siteId);
     }
 }

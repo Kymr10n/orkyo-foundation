@@ -17,6 +17,9 @@ public interface ISiteRepository
     /// <summary>Returns the site with the given ID, or <c>null</c> if not found.</summary>
     Task<SiteInfo?> GetByIdAsync(Guid siteId, CancellationToken ct = default);
 
+    /// <summary>Existence check that avoids materializing the row (for validation gates).</summary>
+    Task<bool> ExistsAsync(Guid siteId, CancellationToken ct = default);
+
     /// <summary>Returns an estimated count from the Postgres statistics table. Fast but not exact.</summary>
     Task<int> GetEstimatedCountAsync(CancellationToken ct = default);
 

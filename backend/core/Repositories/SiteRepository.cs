@@ -66,6 +66,12 @@ public class SiteRepository : ISiteRepository
         return site is null ? null : Dec(site);
     }
 
+    public async Task<bool> ExistsAsync(Guid siteId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        return await conn.ExistsAsync("sites", siteId, ct);
+    }
+
     public async Task<int> GetEstimatedCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
