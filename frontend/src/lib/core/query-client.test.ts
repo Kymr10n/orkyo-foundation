@@ -38,6 +38,19 @@ describe('createFeedbackMutationCache', () => {
     expect(toastSuccess).toHaveBeenCalledWith('Saved');
   });
 
+  it('resolves a function successMessage with the mutation data and variables', async () => {
+    const client = makeClient();
+    const mutation = client.getMutationCache().build(client, {
+      mutationFn: (email: string) => Promise.resolve({ ack: email }),
+      meta: {
+        successMessage: (data: unknown, variables: unknown) =>
+          `Sent to ${variables} (ack ${(data as { ack: string }).ack})`,
+      } as never,
+    });
+    await mutation.execute('a@b.com');
+    expect(toastSuccess).toHaveBeenCalledWith('Sent to a@b.com (ack a@b.com)');
+  });
+
   it('invalidates the meta.invalidates query keys on success', async () => {
     const client = makeClient();
     const spy = vi.spyOn(client, 'invalidateQueries');

@@ -10,12 +10,20 @@ import { toast } from 'sonner';
 //     meta: { successMessage: 'Skills saved', invalidates: [['resource-capabilities', id]] },
 //   })
 //
+// A dynamic success message that depends on the mutation result/variables passes a
+// function instead of a string, so the toast text still lives in `meta` rather than a
+// hand-rolled onSuccess:
+//   meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}.` }
+//
 // See docs/dialog-feedback.md and the `mutationMeta` augmentation below.
 declare module '@tanstack/react-query' {
   interface Register {
     mutationMeta: {
-      /** Toast fired on success. Omit to stay silent. */
-      successMessage?: string;
+      /**
+       * Toast fired on success. A string is used verbatim; a function is called with the
+       * mutation's (data, variables) so the message can interpolate them. Omit to stay silent.
+       */
+      successMessage?: string | ((data: unknown, variables: unknown) => string);
       /** Title for the error toast. Defaults to "Something went wrong". */
       errorMessage?: string;
       /** Query keys invalidated on success, prefix-style (exact: false). */
@@ -34,12 +42,16 @@ export function createFeedbackMutationCache(
   toastImpl: Pick<typeof toast, 'success' | 'error'> = toast,
 ) {
   return new MutationCache({
-    onSuccess: (_data, _vars, _ctx, mutation) => {
+    onSuccess: (data, vars, _ctx, mutation) => {
       const meta = mutation.meta;
       meta?.invalidates?.forEach((queryKey) => {
         getClient().invalidateQueries({ queryKey, exact: false });
       });
-      if (meta?.successMessage) toastImpl.success(meta.successMessage);
+      const successMessage =
+        typeof meta?.successMessage === 'function'
+          ? meta.successMessage(data, vars)
+          : meta?.successMessage;
+      if (successMessage) toastImpl.success(successMessage);
     },
     onError: (err, _vars, _ctx, mutation) => {
       const meta = mutation.meta;
