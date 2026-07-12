@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { getMfaStatus, removeMfa, enableMfa } from "@foundation/src/lib/api/security-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { formatDistanceToNow } from "date-fns";
@@ -37,7 +37,6 @@ interface MfaSectionProps {
 }
 
 export function MfaSection({ locked = false }: MfaSectionProps = {}) {
-  const queryClient = useQueryClient();
   const [removeMfaOpen, setRemoveMfaOpen] = useState(false);
 
   const { data: mfaStatus, isLoading: mfaLoading } = useQuery({
@@ -47,17 +46,13 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
 
   const removeMfaMutation = useMutation({
     mutationFn: removeMfa,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.mfa.status() });
-      setRemoveMfaOpen(false);
-    },
+    meta: { invalidates: [qk.mfa.status()] },
+    onSuccess: () => setRemoveMfaOpen(false),
   });
 
   const enableMfaMutation = useMutation({
     mutationFn: enableMfa,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.mfa.status() });
-    },
+    meta: { invalidates: [qk.mfa.status()] },
   });
 
   return (
