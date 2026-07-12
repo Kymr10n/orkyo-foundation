@@ -43,7 +43,7 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
 
   const deleteMutation = useMutation({
     mutationFn: (absenceId: string) => deleteResourceAbsence(personId, absenceId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.resources.absences(personId) }),
+    meta: { invalidates: [qk.resources.absences(personId)] },
   });
 
   const renderDeleteButton = (absence: ResourceAbsenceInfo) => (

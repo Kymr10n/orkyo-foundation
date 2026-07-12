@@ -28,6 +28,28 @@ const banToLocaleDateTime = [
   },
 ];
 
+// Mutation-feedback guardrail (G1, deferred from Wave 0 to the Wave 2 flip):
+// toast/invalidation inside useMutation callbacks belongs in meta
+// {successMessage, errorMessage, invalidates} — the central MutationCache fires
+// it once. onSuccess/onError stay for non-feedback side effects only. The
+// documented exemption is optimistic-rollback mutations (onMutate snapshot),
+// which the meta convention can't express — those carry an eslint-disable with
+// a reason citing docs/dialog-feedback.md.
+const banMutationCallbackFeedback = [
+  {
+    selector:
+      "CallExpression[callee.name='useMutation'] Property[key.name=/^(onSuccess|onError|onSettled)$/] CallExpression[callee.object.name='toast']",
+    message:
+      'Toast inside a useMutation callback: declare meta { successMessage, errorMessage } instead — the central MutationCache toasts once. Optimistic-rollback mutations are the documented exemption (eslint-disable with reason). See docs/dialog-feedback.md.',
+  },
+  {
+    selector:
+      "CallExpression[callee.name='useMutation'] Property[key.name=/^(onSuccess|onError|onSettled)$/] CallExpression[callee.property.name='invalidateQueries']",
+    message:
+      'invalidateQueries inside a useMutation callback: declare meta.invalidates (prefix-style) instead. Optimistic-rollback mutations are the documented exemption (eslint-disable with reason). See docs/dialog-feedback.md.',
+  },
+];
+
 export default defineConfig(
   {
     ignores: [
@@ -143,6 +165,8 @@ export default defineConfig(
         // so the format ban is appended here (flat config's no-restricted-syntax
         // does not merge across config objects — last match wins).
         banInlineDateFormat,
+        // Mutation-feedback convergence (appended for the same non-merge reason).
+        ...banMutationCallbackFeedback,
       ],
     },
   },
@@ -153,7 +177,7 @@ export default defineConfig(
     files: ['src/**/*.{ts,tsx}', 'contracts/**/*.ts'],
     ignores: ['src/components/**/*.tsx', 'src/lib/formatters.ts'],
     rules: {
-      'no-restricted-syntax': ['error', banInlineDateFormat],
+      'no-restricted-syntax': ['error', banInlineDateFormat, ...banMutationCallbackFeedback],
     },
   },
 
@@ -183,18 +207,20 @@ export default defineConfig(
     },
   },
 
-  // ── Convention guardrails (soft rollout at `warn`) ─────────────────────────
-  // Dialog-shell + native-dialog + heavy-dep import bans. Landed as `warn` so
-  // the existing violations surface as advisories without breaking CI; flipped
-  // to `error` after the Wave 2 convention sweep (dialog/native) and the W1.2
-  // barrel fix (jspdf). These use `no-restricted-imports` / `no-restricted-
-  // globals`, distinct rules from the `no-restricted-syntax` colour/date bans
-  // above, so they compose without the flat-config last-match-wins clobber.
+  // ── Convention guardrails (enforcing since the Wave 2 sweep) ───────────────
+  // Dialog-shell + native-dialog + heavy-dep import bans. Landed as `warn` in
+  // Wave 0; flipped to `error` after the Wave 2 convention sweep converged the
+  // violators (alert() eradicated, form dialogs on FormDialog/ConfirmDialog) and
+  // the W1.2 barrel fix (jspdf). The triaged genuinely-special dialogs are
+  // enumerated in the exemption block below. These use `no-restricted-imports` /
+  // `no-restricted-globals`, distinct rules from the `no-restricted-syntax`
+  // colour/date bans above, so they compose without the flat-config
+  // last-match-wins clobber.
   // See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G1, G3).
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': ['warn', {
+      'no-restricted-imports': ['error', {
         paths: [
           {
             name: 'jspdf',
@@ -209,7 +235,7 @@ export default defineConfig(
           },
         ],
       }],
-      'no-restricted-globals': ['warn',
+      'no-restricted-globals': ['error',
         { name: 'alert', message: 'Native alert() blocks the UI and bypasses the toast convention: use toast (sonner) for feedback or ErrorAlert for in-context errors. See docs/dialog-feedback.md.' },
         { name: 'confirm', message: 'Native confirm(): use ConfirmDialog (destructive, isPending). See docs/dialog-feedback.md.' },
         { name: 'prompt', message: 'Native prompt(): use a FormDialog. See docs/dialog-feedback.md.' },
@@ -223,6 +249,38 @@ export default defineConfig(
       'src/components/ui/FormDialog.tsx',
       'src/components/ui/ScaffoldDialog.tsx',
       'src/lib/utils/gantt-pdf-export.ts',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+  // Triaged raw-Dialog consumers (G1 exemption list, enumerated at the Wave 2
+  // flip per docs/dialog-feedback.md's "genuinely special" categories). Adding a
+  // file here requires the same triage — most new dialogs belong on FormDialog /
+  // ScaffoldDialog / ConfirmDialog.
+  {
+    files: [
+      // Command palette — cmdk composition, named exempt in the rule message.
+      'src/components/layout/CommandPalette.tsx',
+      // Shared criterion/skill/capability assignment editor (doc-exempt shell).
+      'src/components/capabilities/CriterionAssignmentEditor.tsx',
+      // List / multi-select pickers and list-management views.
+      'src/components/resource-groups/ResourceGroupMembersEditor.tsx',
+      'src/components/people/PersonAbsenceList.tsx',
+      // Read-only / per-item-state-machine views.
+      'src/components/utilization/PersonAssignmentDialog.tsx',
+      'src/components/utilization/ScheduleSlotDialog.tsx',
+      'src/components/settings/ReportingApiSettings.tsx', // RawTokenDialog: show-once token view
+      'src/components/admin/FeedbackTab.tsx',
+      'src/components/admin/AnnouncementsTab.tsx',
+      // Compound in-place sub-forms / special flows — FormDialog convergence is
+      // tracked as follow-up work, not forced here (W2.2 backlog).
+      'src/components/layout/FeedbackButton.tsx',
+      'src/components/settings/PasswordSection.tsx',
+      'src/components/settings/PresetSettings.tsx',
+      'src/components/system/ImportExportDialog.tsx',
+      'src/components/requests/FloorplanUploadDialog.tsx',
+      'src/pages/AccountPage.tsx',
     ],
     rules: {
       'no-restricted-imports': 'off',
