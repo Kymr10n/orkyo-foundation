@@ -8,7 +8,10 @@ public class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRe
     public ChangePasswordRequestValidator()
     {
         RuleFor(x => x.CurrentPassword).NotEmpty().WithMessage("Current password is required");
-        RuleFor(x => x.NewPassword).NotEmpty().WithMessage("New password is required");
+        RuleFor(x => x.NewPassword)
+            .NotEmpty().WithMessage("New password is required")
+            .MinimumLength(TenantSettings.DefaultPasswordMinLength)
+            .WithMessage($"New password must be at least {TenantSettings.DefaultPasswordMinLength} characters");
         RuleFor(x => x).Must(x => x.NewPassword == x.ConfirmPassword)
             .WithMessage("Passwords do not match")
             .When(x => !string.IsNullOrEmpty(x.NewPassword));

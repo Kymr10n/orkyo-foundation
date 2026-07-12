@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using Api.Configuration;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
@@ -6,6 +5,7 @@ using Api.Middleware;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -87,13 +87,12 @@ public sealed record RequestEmailChangeRequest(string NewEmail);
 
 public static class AccountEmailChangeEndpoints
 {
-    private static readonly EmailAddressAttribute EmailAddressValidator = new();
-
     public static void MapAccountEmailChangeEndpoints(this WebApplication app)
     {
         // POST /api/account/email — authenticated; stores a pending change and sends confirmation to the new address.
         app.MapPost("/api/account/email", async (
             RequestEmailChangeRequest request,
+            IValidator<RequestEmailChangeRequest> validator,
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IPlatformUserRepository userRepository,
@@ -103,69 +102,67 @@ public static class AccountEmailChangeEndpoints
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
             var userId = principal.RequireUserId();
-            if (string.IsNullOrWhiteSpace(request.NewEmail))
-                return ErrorResponses.BadRequest("Email address is required.");
-
-            var newEmail = request.NewEmail.Trim().ToLowerInvariant();
-            if (!EmailAddressValidator.IsValid(newEmail))
-                return ErrorResponses.BadRequest("Enter a valid email address.");
-
-            var userRow = await userRepository.GetEmailAndDisplayNameAsync(userId, ct);
-            if (userRow is null)
-                return Results.NotFound();
-            var (currentEmail, displayName) = userRow.Value;
-
-            if (string.Equals(currentEmail, newEmail, StringComparison.OrdinalIgnoreCase))
-                return ErrorResponses.BadRequest("The new email address is the same as your current one.");
-
-            // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE indexes below
-            bool taken;
-            try { taken = await keycloakAdmin.UserExistsAsync(newEmail, ct); }
-            catch (Exception ex)
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                logger.LogError(ex, "Failed to check email availability for {NewEmail}", newEmail);
-                return Results.Problem("Could not verify email availability. Please try again.");
-            }
-            if (taken)
-                return ErrorResponses.Conflict("That email address is already in use.");
+                var newEmail = request.NewEmail.Trim().ToLowerInvariant();
 
-            var token = Guid.NewGuid().ToString();
+                var userRow = await userRepository.GetEmailAndDisplayNameAsync(userId, ct);
+                if (userRow is null)
+                    return Results.NotFound();
+                var (currentEmail, displayName) = userRow.Value;
 
-            if (!await userRepository.SetPendingEmailChangeAsync(userId, newEmail, token, ct))
-                return ErrorResponses.Conflict("That email address is already in use.");
+                if (string.Equals(currentEmail, newEmail, StringComparison.OrdinalIgnoreCase))
+                    return ErrorResponses.BadRequest("The new email address is the same as your current one.");
 
-            // IEmailService returns false on SMTP failure (no exception thrown).
-            // If we cannot deliver the confirmation link the user can never complete
-            // the change, so we must surface the failure rather than respond 200 OK.
-            // The pending row is cleared so the next attempt starts from a clean
-            // state — otherwise the (orphan, undeliverable) pending_email would
-            // keep the UNIQUE (lower(pending_email)) index claimed for 24h.
-            bool sent;
-            try
-            {
-                sent = await emailService.SendEmailChangeConfirmationAsync(newEmail, displayName, token, ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to send email change confirmation for user {UserId}", userId);
-                sent = false;
-            }
+                // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE indexes below
+                bool taken;
+                try { taken = await keycloakAdmin.UserExistsAsync(newEmail, ct); }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to check email availability for {NewEmail}", newEmail);
+                    return Results.Problem("Could not verify email availability. Please try again.");
+                }
+                if (taken)
+                    return ErrorResponses.Conflict("That email address is already in use.");
 
-            if (!sent)
-            {
-                await userRepository.ClearPendingEmailChangeAsync(userId, ct);
+                var token = Guid.NewGuid().ToString();
 
-                return Results.Problem(
-                    title: "Email delivery failed",
-                    detail: "Could not send the confirmation email. Please try again later.",
-                    statusCode: StatusCodes.Status502BadGateway);
-            }
+                if (!await userRepository.SetPendingEmailChangeAsync(userId, newEmail, token, ct))
+                    return ErrorResponses.Conflict("That email address is already in use.");
 
-            // Security: tell the CURRENT address that a change was requested (best-effort).
-            _ = emailService.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail);
+                // IEmailService returns false on SMTP failure (no exception thrown).
+                // If we cannot deliver the confirmation link the user can never complete
+                // the change, so we must surface the failure rather than respond 200 OK.
+                // The pending row is cleared so the next attempt starts from a clean
+                // state — otherwise the (orphan, undeliverable) pending_email would
+                // keep the UNIQUE (lower(pending_email)) index claimed for 24h.
+                bool sent;
+                try
+                {
+                    sent = await emailService.SendEmailChangeConfirmationAsync(newEmail, displayName, token, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to send email change confirmation for user {UserId}", userId);
+                    sent = false;
+                }
 
-            logger.LogInformation("Email change requested for user {UserId}: pending={NewEmail}", userId, newEmail);
-            return Results.Ok(new { message = "Confirmation email sent. Check your new inbox and click the link to complete the change." });
+                if (!sent)
+                {
+                    await userRepository.ClearPendingEmailChangeAsync(userId, ct);
+
+                    return Results.Problem(
+                        title: "Email delivery failed",
+                        detail: "Could not send the confirmation email. Please try again later.",
+                        statusCode: StatusCodes.Status502BadGateway);
+                }
+
+                // Security: tell the CURRENT address that a change was requested (best-effort).
+                _ = emailService.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail);
+
+                logger.LogInformation("Email change requested for user {UserId}: pending={NewEmail}", userId, newEmail);
+                return Results.Ok(new { message = "Confirmation email sent. Check your new inbox and click the link to complete the change." });
+            }, logger, "request email change");
         })
         .RequireAuthorization()
         .WithMetadata(new SkipTenantResolutionAttribute())

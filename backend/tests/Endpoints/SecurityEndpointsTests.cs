@@ -195,10 +195,13 @@ public class SecurityEndpointsTests
         // Act
         var response = await _client.SendAsync(request);
 
-        // Assert
+        // Assert — FluentValidation ValidationProblem uses "errors" (plural), not "error".
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("at least 8 characters");
+        var allMessages = content.GetProperty("errors").EnumerateObject()
+            .SelectMany(p => p.Value.EnumerateArray().Select(v => v.GetString() ?? ""))
+            .ToList();
+        allMessages.Should().Contain(m => m.Contains("at least 8 characters", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

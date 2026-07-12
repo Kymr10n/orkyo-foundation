@@ -25,7 +25,6 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            ITenantSettingsService settingsService,
             IEmailService emailService,
             ChangePasswordRequest request,
             IValidator<ChangePasswordRequest> validator,
@@ -36,11 +35,7 @@ public static class SecurityEndpoints
             {
                 var sub = principal.RequireExternalSubject();
 
-                var settings = await settingsService.GetSettingsAsync(ct);
-                if (request.NewPassword!.Length < settings.PasswordMinLength)
-                    return ErrorResponses.BadRequest($"New password must be at least {settings.PasswordMinLength} characters");
-
-                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword, ct);
+                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword!, ct);
                 logger.LogInformation("Password changed for user {Sub}", sub);
                 // Security confirmation (best-effort, non-blocking).
                 _ = emailService.SendPasswordChangedAsync(principal.Email, principal.DisplayName ?? principal.Email);
@@ -279,19 +274,21 @@ public static class SecurityEndpoints
             IKeycloakAdminService keycloakService,
             ISessionService sessionService,
             UpdateProfileRequest request,
+            IValidator<UpdateProfileRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
             var sub = principal.RequireExternalSubject();
-            if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
-                return ErrorResponses.BadRequest("At least one name field is required");
-            var firstName = request.FirstName?.Trim() ?? string.Empty;
-            var lastName = request.LastName?.Trim() ?? string.Empty;
-            await keycloakService.UpdateUserProfileAsync(sub, firstName, lastName, ct);
-            var displayName = $"{firstName} {lastName}".Trim();
-            await sessionService.UpdateDisplayNameAsync(principal.RequireUserId(), displayName, ct);
-            logger.LogInformation("Profile updated for user {Sub}", sub);
-            return Results.Ok(new { message = "Profile updated successfully", displayName });
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var firstName = request.FirstName?.Trim() ?? string.Empty;
+                var lastName = request.LastName?.Trim() ?? string.Empty;
+                await keycloakService.UpdateUserProfileAsync(sub, firstName, lastName, ct);
+                var displayName = $"{firstName} {lastName}".Trim();
+                await sessionService.UpdateDisplayNameAsync(principal.RequireUserId(), displayName, ct);
+                logger.LogInformation("Profile updated for user {Sub}", sub);
+                return Results.Ok(new { message = "Profile updated successfully", displayName });
+            }, logger, "update profile");
         })
         .WithName("UpdateUserProfile")
         .WithSummary("Update user profile")

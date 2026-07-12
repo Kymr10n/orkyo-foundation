@@ -37,9 +37,7 @@ public class RequestValidatorCoverageTests
         "Api.Endpoints.AddResourceCapabilityRequest",
         "Api.Endpoints.Admin.UpdateSettingsRequest",
         "Api.Endpoints.Reporting.CreateReportingTokenRequest",
-        "Api.Endpoints.RequestEmailChangeRequest",
         "Api.Endpoints.UpdateNotificationPreferencesRequest",
-        "Api.Endpoints.UpdateProfileRequest",
         "Api.Endpoints.UpdateSettingsRequest",
         "Api.Models.AddRequirementRequest",
         "Api.Models.AutoScheduleApplyRequest",
@@ -135,26 +133,34 @@ public class RequestValidatorCoverageTests
             .Where(t => t.Name.EndsWith("Request", StringComparison.Ordinal))
             .Distinct();
 
-    // Every T for which a closed AbstractValidator<T> subclass exists (validators live in Core).
+    // Every T for which a closed AbstractValidator<T> subclass exists. Validators live in both
+    // the Core assembly (Api.Models request types) and the Web assembly (records declared
+    // alongside their endpoints), mirroring RequestTypes() above.
     private static HashSet<Type> ValidatedRequestTypes()
     {
         var validated = new HashSet<Type>();
-        foreach (var type in typeof(Api.Validators.ContactRequestValidator).Assembly.GetTypes())
+        var assemblies = new[]
         {
-            if (type is not { IsClass: true, IsAbstract: false })
+            typeof(Api.Validators.ContactRequestValidator).Assembly, // Orkyo.Foundation.Core
+            typeof(Api.Endpoints.SecurityEndpoints).Assembly,        // Orkyo.Foundation.Web
+        };
+        foreach (var assembly in assemblies)
+            foreach (var type in assembly.GetTypes())
             {
-                continue;
-            }
-
-            for (var b = type.BaseType; b is not null; b = b.BaseType)
-            {
-                if (b.IsGenericType && b.GetGenericTypeDefinition() == typeof(AbstractValidator<>))
+                if (type is not { IsClass: true, IsAbstract: false })
                 {
-                    validated.Add(b.GetGenericArguments()[0]);
-                    break;
+                    continue;
+                }
+
+                for (var b = type.BaseType; b is not null; b = b.BaseType)
+                {
+                    if (b.IsGenericType && b.GetGenericTypeDefinition() == typeof(AbstractValidator<>))
+                    {
+                        validated.Add(b.GetGenericArguments()[0]);
+                        break;
+                    }
                 }
             }
-        }
 
         return validated;
     }
