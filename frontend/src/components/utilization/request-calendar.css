@@ -43,6 +43,14 @@
   font-weight: 600;
 }
 
+/* Let the header toolbar wrap onto multiple rows instead of overflowing on
+   narrow (tablet/phone) viewports. Breakpoint-free: wrapping is harmless at
+   any width and only engages when the row runs out of room. */
+.orkyo-calendar .fc .fc-header-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
 /* Column header cells — align with the timeline grid (text-xs / font-medium / muted-foreground / px-3 py-2) */
 .orkyo-calendar .fc .fc-col-header-cell-cushion {
   font-size: 0.75rem;

@@ -143,6 +143,31 @@ export function FeedbackTab() {
     },
   ];
 
+  // Phone presentation: title + type/status/submitter stacked, review trailing.
+  const renderCard = (item: FeedbackSummary) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <p className="font-medium truncate">{item.title}</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="capitalize">{item.feedbackType}</Badge>
+          <Badge variant={STATUS_VARIANT[item.status]}>{STATUS_LABEL[item.status]}</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground truncate">
+          {item.submitterEmail ?? '—'}{item.tenantName ? ` · ${item.tenantName}` : ''} · {formatDateDisplay(item.createdAt)}
+        </p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 shrink-0"
+        onClick={(e) => { e.stopPropagation(); openDetail(item.id); }}
+        aria-label={`Review ${item.title}`}
+      >
+        <Eye className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
   if (loading) {
     return (
       <Card>
@@ -187,6 +212,7 @@ export function FeedbackTab() {
             filterColumn="title"
             filterPlaceholder="Search feedback…"
             emptyMessage="No feedback yet."
+            renderCard={renderCard}
           />
         </CardContent>
       </Card>
@@ -260,7 +286,7 @@ function FeedbackDetailDialog({
         </DialogHeader>
 
         <Field label="Description" value={feedback.description} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Page" value={feedback.pageUrl} />
           <Field label="User agent" value={feedback.userAgent} />
         </div>

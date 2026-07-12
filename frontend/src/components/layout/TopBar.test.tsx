@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
@@ -33,9 +34,21 @@ vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   getCurrentSubdomain: vi.fn(() => null),
 }));
 
+const mockSetSelectedSiteId = vi.fn();
+const mockSetTheme = vi.fn();
+
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ scale: 1, anchorTs: new Date('2026-01-01'), user: null, selectedSiteId: null, setUser: vi.fn(), setSelectedSiteId: vi.fn() })
+    selector({
+      scale: 1,
+      anchorTs: new Date('2026-01-01'),
+      user: null,
+      selectedSiteId: null,
+      setUser: vi.fn(),
+      setSelectedSiteId: mockSetSelectedSiteId,
+      resolvedTheme: 'dark',
+      setTheme: mockSetTheme,
+    })
   ),
 }));
 
@@ -246,5 +259,57 @@ describe('TopBar — mobile navigation hamburger', () => {
     expect(hamburger).toBeInTheDocument();
     fireEvent.click(hamburger);
     expect(onOpenMobileNav).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TopBar — phone overflow menu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSitesData.current = undefined;
+    mockUseAuth.mockReturnValue(authState());
+  });
+
+  it('renders a "More options" trigger', () => {
+    renderTopBar();
+    expect(screen.getByLabelText('More options')).toBeInTheDocument();
+  });
+
+  it('renders a site radio group in the overflow menu when there are multiple sites', async () => {
+    const user = userEvent.setup();
+    mockSitesData.current = [
+      { id: 's1', name: 'Site Alpha' },
+      { id: 's2', name: 'Site Beta' },
+    ];
+    mockUseAuth.mockReturnValue(authState());
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('More options'));
+
+    const radios = screen.getAllByRole('menuitemradio');
+    expect(radios).toHaveLength(2);
+    expect(screen.getByRole('menuitemradio', { name: 'Site Alpha' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'Site Beta' })).toBeInTheDocument();
+  });
+
+  it('omits the site radio group when there is a single site', async () => {
+    const user = userEvent.setup();
+    mockSitesData.current = [{ id: 's1', name: 'Default Site' }];
+    mockUseAuth.mockReturnValue(authState());
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('More options'));
+
+    expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument();
+  });
+
+  it('disables the Import item when import is not available for the context', async () => {
+    // Default route "/" resolves to the utilization context, which has no import support.
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByLabelText('More options'));
+
+    const importItem = screen.getByText('Import').closest('[role="menuitem"]');
+    expect(importItem).toHaveAttribute('data-disabled');
   });
 });

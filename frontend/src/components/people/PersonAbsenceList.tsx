@@ -46,6 +46,32 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.resources.absences(personId) }),
   });
 
+  const renderDeleteButton = (absence: ResourceAbsenceInfo) => (
+    <Button
+      variant="ghost" size="icon"
+      onClick={() => deleteMutation.mutate(absence.id)}
+      disabled={deleteMutation.isPending}
+      aria-label="Delete absence"
+    >
+      <Trash2 className="h-4 w-4" />
+    </Button>
+  );
+
+  // Phone presentation: type + date range stacked, delete trailing.
+  const renderCard = (absence: ResourceAbsenceInfo) => {
+    const range = `${format(new Date(absence.startTs), DATE_FORMATS.DATE_LOCALE_SHORT)} – ${format(new Date(absence.endTs), DATE_FORMATS.DATE_LOCALE_SHORT)}`;
+    return (
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-0.5">
+          <p className="font-medium truncate">{ABSENCE_TYPE_LABELS[absence.absenceType] ?? absence.absenceType}</p>
+          <p className="text-sm text-muted-foreground truncate">{range}</p>
+          {absence.title && <p className="text-xs text-muted-foreground truncate">{absence.title}</p>}
+        </div>
+        {renderDeleteButton(absence)}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px]">
@@ -102,6 +128,7 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
             data={absences}
             isLoading={isLoading}
             emptyMessage="No absences recorded."
+            renderCard={renderCard}
           />
         </div>
 

@@ -9,6 +9,12 @@ import {
   OrkyoDataTable,
   type ColumnDef,
 } from "@foundation/src/components/ui/OrkyoDataTable";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@foundation/src/components/ui/tabs";
 import { TimelineGridShell } from "@foundation/src/components/utilization/TimelineGridShell";
 import { PROBLEM_HATCH_CLASS } from "@foundation/src/components/utilization/schedule-colors";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
@@ -188,8 +194,46 @@ function Harness() {
       <section className="space-y-2">
         <h2 className="font-medium">OrkyoDataTable</h2>
         <div data-testid="data-table">
-          <OrkyoDataTable columns={tableColumns} data={tableRows} pageSize={2} />
+          <OrkyoDataTable
+            columns={tableColumns}
+            data={tableRows}
+            pageSize={2}
+            renderCard={(row) => (
+              <div data-testid={`card-${row.id}`} className="font-medium">
+                {row.name}
+              </div>
+            )}
+          />
         </div>
+      </section>
+
+      {/* Wizard tab strip (mobile scroll fixture) ------------------------------ */}
+      <section className="space-y-2" data-testid="wizard-tabs-section">
+        <h2 className="font-medium">Wizard tabs</h2>
+        {/* Fixed narrow width so the 6-tab strip always overflows its container,
+            exercising the WP3 overflow-x-auto + w-max scroll recipe deterministically
+            regardless of the emulated device width. */}
+        <Tabs defaultValue="t1" className="w-[300px] border rounded-lg p-2">
+          <div className="overflow-x-auto" data-testid="wizard-tabs-strip">
+            <TabsList className="w-max min-w-full">
+              {["Details", "Timing", "Requirements", "Resources", "Children", "Extras"].map(
+                (label, i) => (
+                  <TabsTrigger
+                    key={label}
+                    value={`t${i + 1}`}
+                    className="shrink-0"
+                    data-testid={i === 5 ? "wizard-tab-last" : undefined}
+                  >
+                    {label}
+                  </TabsTrigger>
+                ),
+              )}
+            </TabsList>
+          </div>
+          <TabsContent value="t6" data-testid="wizard-content-last">
+            Last tab content
+          </TabsContent>
+        </Tabs>
       </section>
 
       {/* Utilization grid + off-time hatch ------------------------------------- */}

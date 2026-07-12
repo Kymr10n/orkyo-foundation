@@ -65,6 +65,17 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
     handleClose();
   };
 
+  const renderActions = (group: ResourceGroupInfo) => (
+    <RowActions
+      triggerLabel={`Actions for ${group.name}`}
+      actions={[
+        { label: 'Manage members', icon: MembersIcon, onSelect: () => setManagingMembersFor(group), disabled: !canEdit },
+        { label: 'Edit', icon: Pencil, onSelect: () => handleEdit(group), disabled: !canEdit },
+        { label: 'Delete', icon: Trash2, onSelect: () => setDeletingGroup(group), disabled: !canEdit, destructive: true },
+      ]}
+    />
+  );
+
   const columns: ColumnDef<ResourceGroupInfo>[] = [
     {
       accessorKey: 'name',
@@ -89,21 +100,23 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
       id: 'actions',
       header: () => null,
       size: 60,
-      cell: ({ row }) => {
-        const group = row.original;
-        return (
-          <RowActions
-            triggerLabel={`Actions for ${group.name}`}
-            actions={[
-              { label: 'Manage members', icon: MembersIcon, onSelect: () => setManagingMembersFor(group), disabled: !canEdit },
-              { label: 'Edit', icon: Pencil, onSelect: () => handleEdit(group), disabled: !canEdit },
-              { label: 'Delete', icon: Trash2, onSelect: () => setDeletingGroup(group), disabled: !canEdit, destructive: true },
-            ]}
-          />
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Phone presentation: name + description/members stacked, actions trailing.
+  const renderCard = (group: ResourceGroupInfo) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-0.5">
+        <p className="font-medium truncate">{group.name}</p>
+        <p className="text-sm text-muted-foreground truncate">{group.description ?? '—'}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {group.memberCount} member{group.memberCount === 1 ? '' : 's'} · {group.defaultAvailabilityPercent}% default availability
+        </p>
+      </div>
+      {renderActions(group)}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -129,6 +142,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         filterPlaceholder={`Search ${entityLabel.toLowerCase()}s...`}
         pageSize={25}
         onRowClick={canEdit ? handleEdit : undefined}
+        renderCard={renderCard}
       />
 
       <ResourceGroupEditDialog

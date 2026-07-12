@@ -138,7 +138,9 @@ export function CriterionAssignmentEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+      {/* Height comes from DialogContent's default max-h-[85dvh] flex column (UI-GUIDELINES §3);
+          `dvh` keeps the footer reachable on mobile. Only width + padding are overridden here. */}
+      <DialogContent className="max-w-2xl p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{labels.title}</DialogTitle>
           <DialogDescription className="sr-only">{labels.srDescription}</DialogDescription>

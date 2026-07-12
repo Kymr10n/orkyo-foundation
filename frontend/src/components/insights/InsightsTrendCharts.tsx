@@ -9,6 +9,7 @@ import type {
 } from "@foundation/src/lib/api/insights-api";
 import { format, parseISO } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import {
   Bar,
   BarChart,
@@ -49,6 +50,28 @@ function bucketLabel(iso: string, bucket: InsightsBucket): string {
     case "quarter": return format(d, DATE_FORMATS.QUARTER_YEAR);
     case "year": return format(d, DATE_FORMATS.YEAR);
   }
+}
+
+/**
+ * Phone-tuned chart geometry. On phone (<md) recharts crowds badly: axis ticks
+ * collide and the plot loses width to the Y-axis gutter. Branch on the device
+ * class (the sanctioned rendering-config use of useBreakpoint) to tighten
+ * margins, shrink ticks, thin the axes, keep only the first/last X tick, and
+ * shrink the legend that sits below the plot.
+ */
+function useChartResponsive() {
+  const { isPhone } = useBreakpoint();
+  return {
+    isPhone,
+    margin: isPhone
+      ? { top: 8, right: 8, bottom: 0, left: -18 }
+      : { top: 8, right: 16, bottom: 0, left: -8 },
+    axisFontSize: isPhone ? 10 : 12,
+    xAxisInterval: isPhone ? ("preserveStartEnd" as const) : undefined,
+    xAxisMinTickGap: isPhone ? 24 : 5,
+    yAxisWidth: isPhone ? 32 : undefined,
+    legendStyle: isPhone ? { fontSize: 11 } : undefined,
+  };
 }
 
 interface ChartCardProps {
@@ -97,6 +120,7 @@ export function UtilizationTrendChart({
   isLoading: boolean;
   error: unknown;
 }) {
+  const r = useChartResponsive();
   const series = data?.series ?? [];
   const isEmpty = series.length === 0
     || series.every((p) => p.utilizationPercent == null && p.totalCapacityMinutes === 0);
@@ -113,10 +137,10 @@ export function UtilizationTrendChart({
       isEmpty={isEmpty}
       emptyMessage="No capacity configured for this period."
     >
-      <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+      <LineChart data={chartData} margin={r.margin}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="label" fontSize={12} />
-        <YAxis fontSize={12} unit="%" domain={[0, UTILIZATION_MAX]} />
+        <XAxis dataKey="label" fontSize={r.axisFontSize} interval={r.xAxisInterval} minTickGap={r.xAxisMinTickGap} />
+        <YAxis fontSize={r.axisFontSize} width={r.yAxisWidth} unit="%" domain={[0, UTILIZATION_MAX]} />
         <Tooltip formatter={(v) => (v == null ? "—" : `${v}%`)} />
         <Line
           type="monotone"
@@ -142,6 +166,7 @@ export function ConflictTrendChart({
   isLoading: boolean;
   error: unknown;
 }) {
+  const r = useChartResponsive();
   const series = data?.series ?? [];
   const isEmpty = series.length === 0 || series.every((p) => p.total === 0);
   const chartData = series.map((p) => ({
@@ -160,12 +185,12 @@ export function ConflictTrendChart({
       isEmpty={isEmpty}
       emptyMessage="No conflicts in this period."
     >
-      <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+      <BarChart data={chartData} margin={r.margin}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="label" fontSize={12} />
-        <YAxis fontSize={12} allowDecimals={false} />
+        <XAxis dataKey="label" fontSize={r.axisFontSize} interval={r.xAxisInterval} minTickGap={r.xAxisMinTickGap} />
+        <YAxis fontSize={r.axisFontSize} width={r.yAxisWidth} allowDecimals={false} />
         <Tooltip />
-        <Legend />
+        <Legend verticalAlign="bottom" wrapperStyle={r.legendStyle} />
         <Bar dataKey="Overbooking" stackId="c" fill={COLORS.overbooking} />
         <Bar dataKey="Criteria mismatch" stackId="c" fill={COLORS.criteriaMismatch} />
         <Bar dataKey="Resource unavailable" stackId="c" fill={COLORS.resourceUnavailable} />
@@ -185,6 +210,7 @@ export function RequestStatusTrendChart({
   isLoading: boolean;
   error: unknown;
 }) {
+  const r = useChartResponsive();
   const series = data?.series ?? [];
   const isEmpty = series.length === 0 || series.every((p) => p.total === 0);
   // Bucketed by scheduled date and stacked by real domain status. Backlog (no scheduled date) isn't
@@ -206,12 +232,12 @@ export function RequestStatusTrendChart({
       isEmpty={isEmpty}
       emptyMessage="No scheduled requests in this period."
     >
-      <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+      <BarChart data={chartData} margin={r.margin}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis dataKey="label" fontSize={12} />
-        <YAxis fontSize={12} allowDecimals={false} />
+        <XAxis dataKey="label" fontSize={r.axisFontSize} interval={r.xAxisInterval} minTickGap={r.xAxisMinTickGap} />
+        <YAxis fontSize={r.axisFontSize} width={r.yAxisWidth} allowDecimals={false} />
         <Tooltip />
-        <Legend />
+        <Legend verticalAlign="bottom" wrapperStyle={r.legendStyle} />
         <Bar dataKey="New" stackId="r" fill={COLORS.new} />
         <Bar dataKey="In progress" stackId="r" fill={COLORS.inProgress} />
         <Bar dataKey="Done" stackId="r" fill={COLORS.done} />

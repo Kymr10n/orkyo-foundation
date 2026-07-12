@@ -184,6 +184,50 @@ export function AnnouncementsTab() {
     },
   ];
 
+  // Phone presentation: title + status/dates stacked, edit/delete trailing.
+  const renderCard = (a: Announcement) => (
+    <div className={`flex items-start justify-between gap-2 ${a.isExpired ? 'opacity-50' : ''}`}>
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2 min-w-0">
+          {a.isImportant && <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />}
+          <span className="font-medium truncate">{a.title}</span>
+        </div>
+        <div>
+          {a.isExpired ? (
+            <Badge variant="secondary">Expired</Badge>
+          ) : a.isImportant ? (
+            <Badge variant="destructive">Important</Badge>
+          ) : (
+            <Badge>Active</Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground truncate">
+          {formatDateDisplay(a.createdAt)} · expires {formatDateDisplay(a.expiresAt)}
+        </p>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={(e) => { e.stopPropagation(); setEditingAnnouncement(a); }}
+          aria-label={`Edit ${a.title}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-destructive hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); setDeletingAnnouncement(a); }}
+          aria-label={`Delete ${a.title}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <Card>
@@ -223,6 +267,7 @@ export function AnnouncementsTab() {
             filterColumn="title"
             filterPlaceholder="Search announcements…"
             emptyMessage="No announcements yet. Create one to get started."
+            renderCard={renderCard}
           />
         </CardContent>
       </Card>

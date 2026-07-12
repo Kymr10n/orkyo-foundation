@@ -5,6 +5,16 @@ import {
     PopoverTrigger,
 } from "@foundation/src/components/ui/popover";
 import { Separator } from "@foundation/src/components/ui/separator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@foundation/src/components/ui/dropdown-menu";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT } from "@foundation/src/constants/auth";
 import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
@@ -30,12 +40,15 @@ import {
     Calendar,
     Compass,
     Download,
+    EllipsisVertical,
     Info,
     LogOut,
     Megaphone,
     Menu,
+    Moon,
     Search,
     Shield,
+    Sun,
     Upload,
     User,
     UserCog,
@@ -71,6 +84,8 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   const anchorTs = useAppStore((state) => state.anchorTs);
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
+  const resolvedTheme = useAppStore((state) => state.resolvedTheme);
+  const setTheme = useAppStore((state) => state.setTheme);
 
   // Dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -134,6 +149,10 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
     }
   };
 
+  const toggleTheme = () => {
+    setTheme?.(resolvedTheme === "dark" ? "light" : "dark");
+  };
+
   const isMultiTenant = (sessionData?.tenants.length ?? 0) > 1;
 
   const handleSwitchTenant = () => {
@@ -162,33 +181,33 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
         Orkyo
       </div>
 
-      {/* Current Organisation */}
+      {/* Current Organisation — tablet+ inline (hidden on phone, shown in overflow menu) */}
       {membership && (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <span className="text-sm">/</span>
-          <Building className="h-4 w-4" />
-          <span className="text-sm font-medium">{membership.displayName}</span>
+        <div className="hidden md:flex items-center gap-2 text-muted-foreground max-w-[14rem]">
+          <span className="text-sm shrink-0">/</span>
+          <Building className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium truncate">{membership.displayName}</span>
         </div>
       )}
 
-      {/* Scale & Anchor Date */}
-      <div className="flex items-center gap-2">
+      {/* Scale & Anchor Date — desktop+ only */}
+      <div className="hidden lg:flex items-center gap-2">
         <Calendar className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground whitespace-nowrap">
           {format(anchorTs, DATE_FORMATS.DATE_MEDIUM)}
         </span>
       </div>
 
-      {/* Site Selector — visible when tenant has multiple sites */}
+      {/* Site Selector — tablet+ inline when tenant has multiple sites (phone uses overflow menu) */}
       {sites.length > 1 && (
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           <Building2 className="h-4 w-4 text-muted-foreground" />
           <Select
             value={selectedSiteId ?? ''}
             onValueChange={setSelectedSiteId}
             disabled={isLoadingSites || sites.length === 0}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[140px] lg:w-[180px]">
               <SelectValue placeholder="Select site..." />
             </SelectTrigger>
             <SelectContent>
@@ -218,10 +237,11 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
           <Search className="h-4 w-4" />
         </Button>
 
-        {/* Contextual Import button */}
+        {/* Contextual Import button — tablet+ (phone uses overflow menu) */}
         <Button
           variant="ghost"
           size="icon"
+          className="hidden md:inline-flex"
           onClick={() => setImportDialogOpen(true)}
           disabled={!canImport}
           title={canImport ? `Import ${currentContext}` : 'Import not available'}
@@ -230,10 +250,11 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
           <Upload className="h-4 w-4" />
         </Button>
 
-        {/* Contextual Export button */}
+        {/* Contextual Export button — tablet+ (phone uses overflow menu) */}
         <Button
           variant="ghost"
           size="icon"
+          className="hidden md:inline-flex"
           onClick={() => setExportDialogOpen(true)}
           disabled={!canExport}
           title={canExport ? `Export ${currentContext}` : 'Export not available'}
@@ -242,7 +263,10 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
           <Download className="h-4 w-4" />
         </Button>
 
-        <ThemeToggle />
+        {/* Theme toggle — tablet+ (phone uses overflow menu) */}
+        <span className="hidden md:inline-flex">
+          <ThemeToggle />
+        </span>
 
         {/* Unread messages indicator */}
         {unreadCount > 0 && (
@@ -260,6 +284,74 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
             </span>
           </Button>
         )}
+
+        {/* Phone overflow menu — surfaces the bar controls hidden below md */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              aria-label="More options"
+            >
+              <EllipsisVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col gap-0.5">
+                {membership && (
+                  <span className="text-sm font-medium truncate">
+                    {membership.displayName}
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {format(anchorTs, DATE_FORMATS.DATE_MEDIUM)}
+                </span>
+              </div>
+            </DropdownMenuLabel>
+
+            {sites.length > 1 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={selectedSiteId ?? ''}
+                  onValueChange={setSelectedSiteId}
+                >
+                  {sites.map((site) => (
+                    <DropdownMenuRadioItem key={site.id} value={site.id}>
+                      {site.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </>
+            )}
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={!canImport}
+              onSelect={() => setImportDialogOpen(true)}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!canExport}
+              onSelect={() => setExportDialogOpen(true)}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={toggleTheme}>
+              {resolvedTheme === "dark" ? (
+                <Sun className="mr-2 h-4 w-4" />
+              ) : (
+                <Moon className="mr-2 h-4 w-4" />
+              )}
+              Toggle theme
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Popover>
           <PopoverTrigger asChild>

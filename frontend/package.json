@@ -25,7 +25,8 @@
     "build": "tsc -b && tsc-alias -p tsconfig.json && find src -name '*.css' | xargs cp --parents -t .tsbuild/",
     "typecheck": "tsc -b && tsc-alias -p tsconfig.json",
     "test": "vitest run",
-    "test:browsers": "playwright test",
+    "test:browsers": "playwright test --project=chromium --project=firefox --project=webkit",
+    "test:mobile": "playwright test --project=mobile-webkit --project=mobile-chromium --project=tablet-webkit",
     "lint": "eslint src contracts"
   },
   "peerDependencies": {

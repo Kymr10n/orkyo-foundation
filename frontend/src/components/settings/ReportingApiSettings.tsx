@@ -437,6 +437,33 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
     },
   ];
 
+  // Phone presentation: name + status/prefix stacked, revoke trailing.
+  const renderCard = (token: ReportingTokenSummary) => (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate">{token.name}</span>
+          <TokenStatusBadge token={token} />
+        </div>
+        <p className="font-mono text-xs text-muted-foreground truncate">{token.tokenPrefix}…</p>
+        <p className="text-xs text-muted-foreground truncate">
+          Created {formatDate(token.createdAtUtc)} · Last used {formatDate(token.lastUsedAtUtc)}
+        </p>
+      </div>
+      {token.isActive && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); setRevokeTarget(token); }}
+          aria-label={`Revoke ${token.name}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+
   if (authLoading) {
     return (
       <div className="py-12">
@@ -512,6 +539,7 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
           data={tokens}
           filterColumn="name"
           filterPlaceholder="Search tokens..."
+          renderCard={renderCard}
         />
       )}
 

@@ -119,6 +119,30 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
     },
   ], []);
 
+  // Phone presentation: action + actor/target stacked, timestamp last. Read-only, no actions.
+  const renderCard = (e: TenantAuditEvent) => {
+    const meta = parseMetadata(e.metadata);
+    const isPlatform = meta?.source === 'platform';
+    const actorLabel = isPlatform
+      ? meta?.actorEmail || 'Orkyo Support'
+      : e.actorType !== 'user'
+        ? 'System'
+        : e.actorDisplayName || e.actorEmail || 'Unknown user';
+    return (
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate">{e.action}</span>
+          {isPlatform && <Badge variant="warning" className="shrink-0">Platform</Badge>}
+        </div>
+        <p className="text-sm text-muted-foreground truncate">{actorLabel}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {e.targetType ? `${e.targetType}${e.targetId ? ` · ${e.targetId}` : ''} · ` : ''}
+          {format(new Date(e.createdAt), DATE_FORMATS.DATETIME_MEDIUM)}
+        </p>
+      </div>
+    );
+  };
+
   if (!available) {
     return (
       <FeatureUpsell
@@ -149,6 +173,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
           totalCount={total}
           page={page}
           onPageChange={setPage}
+          renderCard={renderCard}
         />
       </CardContent>
     </Card>

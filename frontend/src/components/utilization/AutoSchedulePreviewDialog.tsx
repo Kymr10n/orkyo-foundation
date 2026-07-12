@@ -50,7 +50,7 @@ export function AutoSchedulePreviewDialog({
         ) : (
           <div className="space-y-4">
             {/* Summary cards */}
-            <section className="grid grid-cols-3 gap-3">
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-lg border p-3">
                 <div className="text-xs text-muted-foreground">Solver</div>
                 <div className="text-sm font-medium">

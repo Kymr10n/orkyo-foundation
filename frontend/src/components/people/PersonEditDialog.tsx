@@ -323,20 +323,22 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
             onValueChange={(v) => setTab(v as typeof tab)}
             className="flex flex-col flex-1 min-h-0"
           >
-            <TabsList className="mx-6 shrink-0">
-              <TabsTrigger value="details" className="relative">
-                Details
-                <TabIndicatorDot dotClass={severityDotClass(detailsItems)} label="details warning" />
-              </TabsTrigger>
-              <TabsTrigger value="allocation" className="relative">
-                Allocation
-              </TabsTrigger>
-              {isMultiSite && (
-                <TabsTrigger value="location" className="relative">
-                  Location
+            <div className="mx-6 shrink-0 overflow-x-auto">
+              <TabsList className="w-max min-w-full">
+                <TabsTrigger value="details" className="relative shrink-0">
+                  Details
+                  <TabIndicatorDot dotClass={severityDotClass(detailsItems)} label="details warning" />
                 </TabsTrigger>
-              )}
-            </TabsList>
+                <TabsTrigger value="allocation" className="relative shrink-0">
+                  Allocation
+                </TabsTrigger>
+                {isMultiSite && (
+                  <TabsTrigger value="location" className="relative shrink-0">
+                    Location
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
 
             {/* forceMount on every panel keeps all controlled fields in the DOM so switching
                 tabs mid-edit never remounts an input. Visibility is driven by the active tab. */}
@@ -366,7 +368,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="jobTitle">Job Title</Label>
                     <Select
@@ -455,7 +457,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                 forceMount
                 className={tab === 'allocation' ? 'mt-0 space-y-4' : 'mt-0 hidden'}
               >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="allocationMode">Allocation Mode</Label>
                     <Select
