@@ -183,6 +183,52 @@ export default defineConfig(
     },
   },
 
+  // ── Convention guardrails (soft rollout at `warn`) ─────────────────────────
+  // Dialog-shell + native-dialog + heavy-dep import bans. Landed as `warn` so
+  // the existing violations surface as advisories without breaking CI; flipped
+  // to `error` after the Wave 2 convention sweep (dialog/native) and the W1.2
+  // barrel fix (jspdf). These use `no-restricted-imports` / `no-restricted-
+  // globals`, distinct rules from the `no-restricted-syntax` colour/date bans
+  // above, so they compose without the flat-config last-match-wins clobber.
+  // See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G1, G3).
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['warn', {
+        paths: [
+          {
+            name: 'jspdf',
+            message:
+              'jspdf is heavy: only src/lib/utils/gantt-pdf-export.ts may load it, via the existing dynamic import(). A static import drags it into the main chunk. See plan G3.',
+          },
+          {
+            name: '@foundation/src/components/ui/dialog',
+            importNames: ['Dialog', 'DialogContent'],
+            message:
+              'Hand-rolled dialog shell: use FormDialog (simple form dialogs) or ScaffoldDialog (multi-tab wizards). Composition helpers (DialogFooter, DialogHeader, ScrollableDialogBody, …) remain allowed. Genuinely-special dialogs (command palette, list pickers, read-only views) get an exemption entry once triaged. See docs/dialog-feedback.md (G1).',
+          },
+        ],
+      }],
+      'no-restricted-globals': ['warn',
+        { name: 'alert', message: 'Native alert() blocks the UI and bypasses the toast convention: use toast (sonner) for feedback or ErrorAlert for in-context errors. See docs/dialog-feedback.md.' },
+        { name: 'confirm', message: 'Native confirm(): use ConfirmDialog (destructive, isPending). See docs/dialog-feedback.md.' },
+        { name: 'prompt', message: 'Native prompt(): use a FormDialog. See docs/dialog-feedback.md.' },
+      ],
+    },
+  },
+  // The sanctioned dialog shells and the sole jspdf loader are exempt — they
+  // ARE the primitives the bans steer everything else toward.
+  {
+    files: [
+      'src/components/ui/FormDialog.tsx',
+      'src/components/ui/ScaffoldDialog.tsx',
+      'src/lib/utils/gantt-pdf-export.ts',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {
@@ -196,6 +242,9 @@ export default defineConfig(
       // Tests may mirror production date formatting to build expected values.
       'no-restricted-syntax': 'off',
       'no-restricted-properties': 'off',
+      // Tests may stub dialogs and mirror native prompts freely.
+      'no-restricted-imports': 'off',
+      'no-restricted-globals': 'off',
       'no-console': 'off',
     },
   },
