@@ -289,3 +289,26 @@ public class EmailService : IEmailService
         }
     }
 }
+
+/// <summary>
+/// Best-effort send helpers shared by hand-rolled admin-notification callers (feedback, contact, ...).
+/// A mail failure must never surface to the caller — it only logs a warning.
+/// </summary>
+public static class EmailServiceExtensions
+{
+    public static async Task TrySendNotificationAsync(
+        this IEmailService emailService, string? notifyEmail, string subject, string htmlBody, string textBody,
+        ILogger logger, string failureLogContext)
+    {
+        if (string.IsNullOrEmpty(notifyEmail)) return;
+
+        try
+        {
+            await emailService.SendEmailAsync(notifyEmail, "Orkyo Team", subject, htmlBody, textBody);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send {Context}", failureLogContext);
+        }
+    }
+}

@@ -1,3 +1,4 @@
+using System.Net;
 using Api.Models;
 using Orkyo.Shared;
 
@@ -684,5 +685,28 @@ This is an automated alert from {b.ProductName}.";
 
         var subject = isImportant ? $"[Important] {title}" : title;
         return (subject, html, text);
+    }
+
+    // ── Admin notifications (feedback / contact) ────────────────────────────────
+
+    /// <summary>
+    /// Shared shape for hand-rolled admin-notification emails: an HTML-encoded label/value
+    /// table under <paramref name="heading"/>, plus an optional free-text <paramref name="body"/>
+    /// rendered below an &lt;hr/&gt;. Returns the HTML and plain-text mirrors.
+    /// </summary>
+    public static (string htmlBody, string textBody) AdminNotification(
+        string heading, IReadOnlyList<(string label, string? value)> rows, string? body = null)
+    {
+        static string Enc(string? s) => WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(s) ? "—" : s);
+
+        var tableRows = string.Concat(rows.Select(r =>
+            $"<tr><td><strong>{WebUtility.HtmlEncode(r.label)}</strong></td><td>{Enc(r.value)}</td></tr>"));
+        var bodyHtml = body is null ? "" : $"<hr/><p>{Enc(body).Replace("\n", "<br/>")}</p>";
+        var htmlBody = $"<h2>{WebUtility.HtmlEncode(heading)}</h2><table>{tableRows}</table>{bodyHtml}";
+
+        var textLines = rows.Select(r => $"{r.label}: {(string.IsNullOrWhiteSpace(r.value) ? "—" : r.value)}");
+        var textBody = string.Join('\n', textLines) + (body is null ? "" : $"\n\n{body}");
+
+        return (htmlBody, textBody);
     }
 }
