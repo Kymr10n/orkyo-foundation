@@ -22,8 +22,5 @@ contracts.ts
 store/app-store.ts
 store/index.ts
 
-# (b) Tracked duplication debt — remove these when W1.3 deletes the saas copy
-#     and switches to `import … from "@kymr10n/foundation/src/infrastructure/tracking"`.
-infrastructure/tracking/TrackingProvider.tsx
-infrastructure/tracking/index.ts
-infrastructure/tracking/tracking.types.ts
+# (b) Tracked duplication debt — none currently. W1.3 removed the saas
+#     infrastructure/tracking/* copies and repointed to @kymr10n/foundation.
