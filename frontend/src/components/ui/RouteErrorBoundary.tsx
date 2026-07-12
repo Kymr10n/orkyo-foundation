@@ -1,7 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertCircle, RotateCcw } from 'lucide-react';
+import { AlertCircle, RefreshCw, RotateCcw } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { logger } from '@foundation/src/lib/core/logger';
+import { isStaleChunkError } from '@foundation/src/lib/core/stale-chunk';
 
 interface RouteErrorBoundaryProps {
   /** Subtree to protect. */
@@ -39,6 +40,32 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+
+    // A failed chunk import means the deployment changed under this tab; a
+    // state reset re-requests the same dead URL, so offer a reload instead.
+    // Takes precedence over custom fallbacks — they can't recover from this.
+    if (isStaleChunkError(error)) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <div className="max-w-md space-y-4 rounded-lg border bg-card p-6 text-center">
+            <div className="flex justify-center">
+              <RefreshCw className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">A new version is available</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Orkyo has been updated since this page was loaded. Reload to
+                continue where you left off.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reload
+            </Button>
+          </div>
+        </div>
+      );
+    }
 
     if (this.props.fallback) return this.props.fallback(error, this.reset);
 

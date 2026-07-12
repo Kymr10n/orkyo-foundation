@@ -112,4 +112,56 @@ describe('RouteErrorBoundary', () => {
     );
     expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
   });
+
+  describe('stale chunk errors', () => {
+    function ChunkBomb(): never {
+      throw new Error("'text/html' is not a valid JavaScript MIME type.");
+    }
+
+    it('renders the new-version prompt instead of the generic fallback', () => {
+      render(
+        <RouteErrorBoundary>
+          <ChunkBomb />
+        </RouteErrorBoundary>,
+      );
+      expect(screen.getByText('A new version is available')).toBeInTheDocument();
+      expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
+    });
+
+    it('takes precedence over a custom fallback', () => {
+      render(
+        <RouteErrorBoundary fallback={() => <div>custom</div>}>
+          <ChunkBomb />
+        </RouteErrorBoundary>,
+      );
+      expect(screen.getByText('A new version is available')).toBeInTheDocument();
+      expect(screen.queryByText('custom')).not.toBeInTheDocument();
+    });
+
+    it('reloads the page when Reload is clicked', async () => {
+      const user = userEvent.setup();
+      const reload = vi.fn();
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        value: { reload },
+        writable: true,
+        configurable: true,
+      });
+      try {
+        render(
+          <RouteErrorBoundary>
+            <ChunkBomb />
+          </RouteErrorBoundary>,
+        );
+        await user.click(screen.getByRole('button', { name: /reload/i }));
+        expect(reload).toHaveBeenCalledTimes(1);
+      } finally {
+        Object.defineProperty(window, 'location', {
+          value: originalLocation,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+  });
 });
