@@ -5,6 +5,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { ShowInactiveToggle } from '@foundation/src/components/ui/ShowInactiveToggle';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { JobTitleEditDialog } from './JobTitleEditDialog';
 import {
@@ -113,17 +114,11 @@ export function JobTitleSettings() {
         </Button>
       </SettingsPageHeader>
 
-      <div className="flex items-center gap-2">
-        <input
-          id="include-inactive-jt"
-          type="checkbox"
-          checked={includeInactive}
-          onChange={(e) => setIncludeInactive(e.target.checked)}
-        />
-        <label htmlFor="include-inactive-jt" className="text-sm text-muted-foreground">
-          Show inactive
-        </label>
-      </div>
+      <ShowInactiveToggle
+        id="include-inactive-jt"
+        checked={includeInactive}
+        onChange={setIncludeInactive}
+      />
 
       <OrkyoDataTable
         columns={columns}

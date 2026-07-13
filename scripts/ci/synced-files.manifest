@@ -1,0 +1,19 @@
+# synced-files.manifest — files that are intentionally byte-identical across repos.
+# The template-sync-check workflow (G4) fails when a consumer copy drifts from its
+# source. This makes the fork visible so someone opens a sync PR — or, if the fork
+# is intentional, deletes the row here (the manifest IS the allowlist).
+#
+# There is NO runtime coupling: nothing in one repo imports another at build/run
+# time. Sync is a review-time discipline, verified asynchronously in CI.
+#
+# Format (tab-separated):  <repo-relative-path>\t<source-repo>\t<consumer-repos,comma-separated>
+# Lines starting with # and blank lines are ignored.
+#
+# See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G4).
+
+scripts/ci/lint-migration-headers.sh	orkyo-foundation	orkyo-saas,orkyo-community
+global.json	orkyo-foundation	orkyo-saas,orkyo-community
+scripts/check-env.sh	orkyo-saas	orkyo-community
+Directory.Build.props	orkyo-saas	orkyo-community
+nuget.config	orkyo-saas	orkyo-community
+frontend/eslint.config.js	orkyo-saas	orkyo-community

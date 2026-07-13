@@ -102,6 +102,7 @@ export function useScheduleRequest() {
       for (const [key, snapshot] of context?.previous ?? []) {
         queryClient.setQueryData(key, snapshot);
       }
+      // eslint-disable-next-line no-restricted-syntax -- optimistic-rollback mutation: meta can't express onMutate rollback, feedback stays hand-rolled (docs/dialog-feedback.md)
       toast.error("Failed to schedule request", {
         description: errorMessage(err),
       });

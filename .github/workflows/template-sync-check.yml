@@ -1,0 +1,62 @@
+name: template-sync-check
+
+# Cross-repo drift guardrail (G4 + G8). Runs in foundation because foundation is
+# the acknowledged shared-code owner. Read-only, cross-repo checkouts only — there
+# is NO runtime coupling between the repos; this just surfaces drift asynchronously
+# so a sync PR gets opened. Scheduled (not per-PR-in-consumers) so it never fails a
+# consumer PR on cross-repo state that PR didn't touch.
+#
+# See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G4, G8).
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      # Foundation-sourced synced files + the checks themselves.
+      - 'scripts/ci/synced-files.manifest'
+      - 'scripts/ci/frontend-path-collision-allowlist.txt'
+      - 'scripts/ci/check-synced-files.sh'
+      - 'scripts/ci/check-frontend-path-collisions.sh'
+      - 'scripts/ci/lint-migration-headers.sh'
+      - 'global.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-sync-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync-check:
+    name: sync-check
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout orkyo-foundation
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          path: orkyo-foundation
+
+      - name: Checkout orkyo-saas
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: kymr10n/orkyo-saas
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: orkyo-saas
+
+      - name: Checkout orkyo-community
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: kymr10n/orkyo-community
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: orkyo-community
+
+      - name: Check synced files (G4)
+        run: bash orkyo-foundation/scripts/ci/check-synced-files.sh "$GITHUB_WORKSPACE"
+
+      - name: Check frontend path collisions (G8)
+        run: bash orkyo-foundation/scripts/ci/check-frontend-path-collisions.sh "$GITHUB_WORKSPACE"

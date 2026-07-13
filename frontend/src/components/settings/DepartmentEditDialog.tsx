@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
@@ -19,6 +18,7 @@ import {
   type DepartmentTreeNode,
 } from '@foundation/src/lib/api/departments-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 
 /** Structural subset shared by DepartmentInfo and DepartmentTreeNode. */
 type EditableDepartment = Pick<
@@ -44,13 +44,6 @@ interface FormState {
   description: string;
   parentDepartmentId: string;  // empty = root
 }
-
-const empty: FormState = {
-  name: '',
-  code: '',
-  description: '',
-  parentDepartmentId: '',
-};
 
 function fromInfo(d: EditableDepartment): FormState {
   return {
@@ -94,41 +87,38 @@ export function DepartmentEditDialog({
   onOpenChange,
   onSaved,
 }: DepartmentEditDialogProps) {
-  const [form, setForm] = useState<FormState>(empty);
-  // Snapshot of the form as last synced; the dirty guard compares against it.
-  const [baseline, setBaseline] = useState<FormState>(empty);
-  const [error, setError] = useState<string | null>(null);
-
   const { data: tree = [] } = useQuery({
     queryKey: qk.departments.tree(false),
     queryFn: () => getDepartmentTree(false),
     enabled: open,
   });
 
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    const next = department
-      ? fromInfo(department)
-      : { ...empty, parentDepartmentId: defaultParentId ?? '', name: initialName ?? '' };
-    setForm(next);
-    setBaseline(next);
-  }, [department, defaultParentId, initialName, open]);
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
-
-  const mutation = useMutation({
-    mutationFn: async () => {
+  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
+    EditableDepartment,
+    FormState,
+    DepartmentInfo
+  >({
+    open,
+    onOpenChange,
+    entity: department,
+    emptyForm: () => ({
+      name: initialName ?? '',
+      code: '',
+      description: '',
+      parentDepartmentId: defaultParentId ?? '',
+    }),
+    toForm: fromInfo,
+    save: (form, dept) => {
       const parentId = form.parentDepartmentId === '' ? null : form.parentDepartmentId;
-      if (department) {
-        return updateDepartment(department.id, {
+      if (dept) {
+        return updateDepartment(dept.id, {
           name: form.name,
           code: form.code || undefined,
           description: form.description || undefined,
           parentDepartmentId: parentId,
           // Reparent only when the form value differs from the saved value;
           // sending changeParent=false preserves the existing parent.
-          changeParent: (department.parentDepartmentId ?? null) !== parentId,
+          changeParent: (dept.parentDepartmentId ?? null) !== parentId,
         });
       }
       return createDepartment({
@@ -138,22 +128,14 @@ export function DepartmentEditDialog({
         parentDepartmentId: parentId,
       });
     },
-    meta: {
-      successMessage: department ? 'Department updated' : 'Department created',
-      errorMessage: department ? 'Failed to update department' : 'Failed to create department',
-      invalidates: [qk.departments.all()],
-    },
-    onSuccess: (saved) => {
-      setError(null);
-      onSaved?.(saved);
-      onOpenChange(false);
-    },
-    onError: (err) => setError(err instanceof Error ? err.message : 'Save failed'),
+    entityLabel: 'Department',
+    invalidates: [qk.departments.all()],
+    onSaved,
   });
 
   const handleSubmit = () => {
     if (!form.name.trim()) return;
-    mutation.mutate();
+    submit();
   };
 
   const parentOptions = flattenForParentSelect(tree, department?.id ?? null);
@@ -165,7 +147,7 @@ export function DepartmentEditDialog({
       title={department ? 'Edit Department' : 'New Department'}
       description="Departments are organizational units. They do not carry capabilities, availability, or scheduling rules."
       onSubmit={handleSubmit}
-      isSubmitting={mutation.isPending}
+      isSubmitting={isSubmitting}
       submitLabel="Save"
       submitDisabled={!form.name.trim()}
       error={error}
@@ -176,7 +158,7 @@ export function DepartmentEditDialog({
         <Input
           id="dept-name"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onChange={(e) => set({ name: e.target.value })}
           maxLength={200}
           autoFocus
           required
@@ -187,7 +169,7 @@ export function DepartmentEditDialog({
         <Select
           value={form.parentDepartmentId === '' ? ROOT_VALUE : form.parentDepartmentId}
           onValueChange={(v) =>
-            setForm({ ...form, parentDepartmentId: v === ROOT_VALUE ? '' : v })
+            set({ parentDepartmentId: v === ROOT_VALUE ? '' : v })
           }
         >
           <SelectTrigger id="dept-parent">
@@ -208,7 +190,7 @@ export function DepartmentEditDialog({
         <Input
           id="dept-code"
           value={form.code}
-          onChange={(e) => setForm({ ...form, code: e.target.value })}
+          onChange={(e) => set({ code: e.target.value })}
           maxLength={50}
           placeholder="e.g. ENG, OPS"
         />
@@ -218,7 +200,7 @@ export function DepartmentEditDialog({
         <Textarea
           id="dept-description"
           value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          onChange={(e) => set({ description: e.target.value })}
           maxLength={2000}
           rows={3}
         />

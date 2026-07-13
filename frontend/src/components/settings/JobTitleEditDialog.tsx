@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
@@ -10,6 +8,7 @@ import {
   type JobTitleInfo,
 } from '@foundation/src/lib/api/job-titles-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 
 interface JobTitleEditDialogProps {
   jobTitle: JobTitleInfo | null;
@@ -26,15 +25,6 @@ interface FormState {
   description: string;
 }
 
-const empty: FormState = { name: '', description: '' };
-
-function fromInfo(jt: JobTitleInfo): FormState {
-  return {
-    name: jt.name,
-    description: jt.description ?? '',
-  };
-}
-
 export function JobTitleEditDialog({
   jobTitle,
   open,
@@ -42,52 +32,28 @@ export function JobTitleEditDialog({
   onSaved,
   initialName,
 }: JobTitleEditDialogProps) {
-  const [form, setForm] = useState<FormState>(empty);
-  // Snapshot of the form as last synced; the dirty guard compares against it.
-  const [baseline, setBaseline] = useState<FormState>(empty);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    const next = jobTitle ? fromInfo(jobTitle) : { ...empty, name: initialName ?? '' };
-    setForm(next);
-    setBaseline(next);
-  }, [jobTitle, open, initialName]);
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (jobTitle) {
-        return updateJobTitle(jobTitle.id, {
-          name: form.name,
-          description: form.description || undefined,
-        });
-      }
-      return createJobTitle({
-        name: form.name,
-        description: form.description || undefined,
-      });
-    },
-    meta: {
-      successMessage: jobTitle ? 'Job title updated' : 'Job title created',
-      errorMessage: jobTitle ? 'Failed to update job title' : 'Failed to create job title',
-      invalidates: [qk.jobTitles.all()],
-    },
-    onSuccess: (saved) => {
-      setError(null);
-      onSaved?.(saved);
-      onOpenChange(false);
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    },
+  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
+    JobTitleInfo,
+    FormState,
+    JobTitleInfo
+  >({
+    open,
+    onOpenChange,
+    entity: jobTitle,
+    emptyForm: () => ({ name: initialName ?? '', description: '' }),
+    toForm: (jt) => ({ name: jt.name, description: jt.description ?? '' }),
+    save: (form, jt) =>
+      jt
+        ? updateJobTitle(jt.id, { name: form.name, description: form.description || undefined })
+        : createJobTitle({ name: form.name, description: form.description || undefined }),
+    entityLabel: 'Job title',
+    invalidates: [qk.jobTitles.all()],
+    onSaved,
   });
 
   const handleSubmit = () => {
     if (!form.name.trim()) return;
-    mutation.mutate();
+    submit();
   };
 
   return (
@@ -97,7 +63,7 @@ export function JobTitleEditDialog({
       title={jobTitle ? 'Edit Job Title' : 'New Job Title'}
       description="Job titles are tenant-wide reference data assigned to person resources."
       onSubmit={handleSubmit}
-      isSubmitting={mutation.isPending}
+      isSubmitting={isSubmitting}
       submitLabel="Save"
       submitDisabled={!form.name.trim()}
       error={error}
@@ -108,7 +74,7 @@ export function JobTitleEditDialog({
         <Input
           id="jt-name"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onChange={(e) => set({ name: e.target.value })}
           maxLength={200}
           autoFocus
           required
@@ -119,7 +85,7 @@ export function JobTitleEditDialog({
         <Textarea
           id="jt-description"
           value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          onChange={(e) => set({ description: e.target.value })}
           maxLength={2000}
           rows={3}
         />

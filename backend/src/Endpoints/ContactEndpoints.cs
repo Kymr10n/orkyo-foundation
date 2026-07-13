@@ -51,28 +51,17 @@ public static class ContactEndpoints
                 logger.LogInformation("Contact form submitted: {Email}, subject={Subject}", request.Email, request.Subject);
 
                 var notifyEmail = configuration.GetOptionalString(ConfigKeys.ContactNotificationEmail);
-                if (!string.IsNullOrEmpty(notifyEmail))
-                {
-                    try
-                    {
-                        var company = string.IsNullOrWhiteSpace(request.Company) ? "—" : request.Company.Trim();
-                        var subject = $"[Contact] {request.Subject}: {request.Name.Trim()}";
-                        var textBody = $"Name: {request.Name.Trim()}\nEmail: {request.Email.Trim()}\nCompany: {company}\nSubject: {request.Subject}\n\n{request.Message.Trim()}";
-                        var htmlBody = $"""
-                            <h2>New contact form submission</h2>
-                            <table>
-                                <tr><td><strong>Name</strong></td><td>{System.Net.WebUtility.HtmlEncode(request.Name.Trim())}</td></tr>
-                                <tr><td><strong>Email</strong></td><td>{System.Net.WebUtility.HtmlEncode(request.Email.Trim())}</td></tr>
-                                <tr><td><strong>Company</strong></td><td>{System.Net.WebUtility.HtmlEncode(company)}</td></tr>
-                                <tr><td><strong>Subject</strong></td><td>{System.Net.WebUtility.HtmlEncode(request.Subject)}</td></tr>
-                            </table>
-                            <hr/>
-                            <p>{System.Net.WebUtility.HtmlEncode(request.Message.Trim()).Replace("\n", "<br/>")}</p>
-                            """;
-                        await emailService.SendEmailAsync(notifyEmail, "Orkyo Team", subject, htmlBody, textBody);
-                    }
-                    catch (Exception ex) { logger.LogWarning(ex, "Failed to send contact notification email"); }
-                }
+                var subject = $"[Contact] {request.Subject}: {request.Name.Trim()}";
+                var (htmlBody, textBody) = EmailTemplates.AdminNotification("New contact form submission",
+                    [
+                        ("Name", request.Name.Trim()),
+                        ("Email", request.Email.Trim()),
+                        ("Company", request.Company?.Trim()),
+                        ("Subject", request.Subject),
+                    ],
+                    request.Message.Trim());
+
+                await emailService.TrySendNotificationAsync(notifyEmail, subject, htmlBody, textBody, logger, "contact notification email");
 
                 return Results.Ok(new { message = "Message received. We'll be in touch shortly." });
             }, logger, "submit contact form", new { email = request.Email, subject = request.Subject });

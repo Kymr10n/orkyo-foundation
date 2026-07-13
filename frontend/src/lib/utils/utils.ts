@@ -1,7 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { RequestFormData } from "@foundation/src/components/requests/RequestFormDialog"
-import type { CreateRequestRequest, DurationUnit, PlanningMode, UpdateRequestRequest } from "@foundation/src/types/requests"
+import type { CreateRequestRequest, DurationUnit, PlanningMode, RequestFormData, UpdateRequestRequest } from "@foundation/src/types/requests"
 import { REQUEST_STATUS } from "@foundation/src/constants/request-status"
 
 export function cn(...inputs: ClassValue[]) {

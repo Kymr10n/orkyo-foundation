@@ -100,11 +100,6 @@ interface AuthContextValue {
 
   // Raw send for advanced use (e.g. UNAUTHORIZED from API error handlers)
   send: (event: AuthMachineEvent) => void;
-
-  /** @deprecated BFF mode — tokens are server-side. Always null. */
-  oidcUser: null;
-  /** @deprecated BFF mode — tokens are server-side. Always null. */
-  getAccessToken: () => string | null;
 }
 
 // ── Debug helper ──────────────────────────────────────────────────────────────
@@ -159,10 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Raw send
     send,
-
-    // Deprecated stubs
-    oidcUser: null,
-    getAccessToken: () => null,
   }), [authStage, ctx, send]);
 
   return (

@@ -12,43 +12,68 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@foundation/src/components/ui/select';
-import type { Criterion, CriterionDataType, UpdateCriterionRequest } from '@foundation/src/types/criterion';
-import { useUpdateCriterion, useUpdateCriterionApplicability } from '@foundation/src/hooks/useCriteria';
+import type {
+  Criterion,
+  CriterionDataType,
+  ResourceTypeKey,
+  UpdateCriterionRequest,
+} from '@foundation/src/types/criterion';
+import {
+  useCreateCriterion,
+  useUpdateCriterion,
+  useUpdateCriterionApplicability,
+} from '@foundation/src/hooks/useCriteria';
 import { EnumValueEditor } from './EnumValueEditor';
 import {
   CRITERION_RESOURCE_TYPE_OPTIONS as RESOURCE_TYPE_OPTIONS,
   useCriterionForm,
-  useSeedCriterionForm,
 } from './useCriterionForm';
 
-interface EditCriterionDialogProps {
-  criterion: Criterion;
+interface CriterionEditDialogProps {
+  criterion: Criterion | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (criterion: Criterion) => void;
+  /** Optional: invoked with the saved entity on successful create or update. Used by inline-create flows. */
+  onSaved?: (criterion: Criterion) => void;
+  /** Pre-select a resource type when creating from a resource-domain page. Ignored when editing. */
+  defaultResourceType?: ResourceTypeKey;
 }
 
-export function EditCriterionDialog({
+export function CriterionEditDialog({
   criterion,
   open,
   onOpenChange,
-  onSuccess,
-}: EditCriterionDialogProps) {
+  onSaved,
+  defaultResourceType,
+}: CriterionEditDialogProps) {
+  const createMutation = useCreateCriterion();
   const updateMutation = useUpdateCriterion();
   const applicabilityMutation = useUpdateCriterionApplicability();
   const form = useCriterionForm();
-  // Name and DataType are mutable on edit (DataType only while not in use), so they live in
-  // local state here rather than in the shared form hook — mirrors CreateCriterionDialog.
-  const [name, setName] = useState(criterion.name);
-  const [dataType, setDataType] = useState<CriterionDataType>(criterion.dataType);
+  // Name and DataType are mutable (DataType only while not in use), so they live in
+  // local state here rather than in the shared form hook.
+  const [name, setName] = useState('');
+  const [dataType, setDataType] = useState<CriterionDataType>('Boolean');
   const [error, setError] = useState<string | null>(null);
-  const isSubmitting = updateMutation.isPending || applicabilityMutation.isPending;
+  const isSubmitting =
+    createMutation.isPending || updateMutation.isPending || applicabilityMutation.isPending;
+  const dataTypeLocked = !!criterion?.inUse;
 
-  useSeedCriterionForm(form, criterion);
   useEffect(() => {
-    setName(criterion.name);
-    setDataType(criterion.dataType);
-  }, [criterion]);
+    if (!open) return;
+    setError(null);
+    setName(criterion?.name ?? '');
+    setDataType(criterion?.dataType ?? 'Boolean');
+    form.reset({
+      description: criterion?.description ?? '',
+      unit: criterion?.unit ?? '',
+      enumValues: criterion?.enumValues ?? [],
+      resourceTypeKeys: criterion
+        ? [...(criterion.resourceTypeKeys ?? [])]
+        : [defaultResourceType ?? 'space'],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criterion, open, defaultResourceType]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -64,6 +89,20 @@ export function EditCriterionDialog({
     }
 
     try {
+      if (!criterion) {
+        const created = await createMutation.mutateAsync({
+          name: name.trim(),
+          description: form.description.trim() || undefined,
+          dataType,
+          enumValues: dataType === 'Enum' ? form.enumValues : undefined,
+          unit: dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined,
+          resourceTypeKeys: form.resourceTypeKeys,
+        });
+        onSaved?.(created);
+        onOpenChange(false);
+        return;
+      }
+
       const detailData: UpdateCriterionRequest = {
         description: form.description.trim() || undefined,
         enumValues: dataType === 'Enum' ? form.enumValues : undefined,
@@ -98,9 +137,10 @@ export function EditCriterionDialog({
         });
       }
 
-      onSuccess(updated);
+      onSaved?.(updated);
+      onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update criterion');
+      setError(err instanceof Error ? err.message : 'Failed to save criterion');
     }
   };
 
@@ -108,11 +148,16 @@ export function EditCriterionDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Edit Criterion"
-      description="Update the criterion details."
+      title={criterion ? 'Edit Criterion' : 'Create Criterion'}
+      description={
+        criterion
+          ? 'Update the criterion details.'
+          : 'Define a new criterion for evaluating spaces and requests.'
+      }
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
-      submitLabel="Save Changes"
+      submitLabel={criterion ? 'Save Changes' : 'Create'}
+      submittingLabel={criterion ? undefined : 'Creating...'}
       error={error}
     >
       {/* Name */}
@@ -129,11 +174,11 @@ export function EditCriterionDialog({
 
       {/* Data Type — editable until the criterion has values, then locked */}
       <div className="space-y-2">
-        <Label htmlFor="dataType">Data Type{criterion.inUse ? '' : ' *'}</Label>
-        {criterion.inUse ? (
+        <Label htmlFor="dataType">Data Type{dataTypeLocked ? '' : ' *'}</Label>
+        {dataTypeLocked ? (
           <>
             <div className="px-3 py-2 bg-muted rounded-md">
-              <Badge variant="secondary">{criterion.dataType}</Badge>
+              <Badge variant="secondary">{dataType}</Badge>
             </div>
             <p className="text-xs text-amber-600 dark:text-amber-400">
               Data type is locked because this criterion has existing values
@@ -194,7 +239,11 @@ export function EditCriterionDialog({
           values={form.enumValues}
           onChange={form.setEnumValues}
           disabled={isSubmitting}
-          helpText="Warning: Removing values may cause validation errors for existing assignments"
+          helpText={
+            criterion
+              ? 'Warning: Removing values may cause validation errors for existing assignments'
+              : undefined
+          }
         />
       )}
 
@@ -205,17 +254,20 @@ export function EditCriterionDialog({
           {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-2">
               <Checkbox
-                id={`edit-applies-to-${key}`}
+                id={`applies-to-${key}`}
                 checked={form.resourceTypeKeys.includes(key)}
                 onCheckedChange={(checked) => form.toggleResourceType(key, !!checked)}
                 disabled={isSubmitting}
               />
-              <Label htmlFor={`edit-applies-to-${key}`} className="font-normal cursor-pointer">
+              <Label htmlFor={`applies-to-${key}`} className="font-normal cursor-pointer">
                 {label}
               </Label>
             </div>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground">
+          Select at least one resource domain this criterion applies to
+        </p>
       </div>
     </FormDialog>
   );

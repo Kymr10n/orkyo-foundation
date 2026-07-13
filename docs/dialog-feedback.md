@@ -47,6 +47,14 @@ useMutation({
 The `mutationMeta` shape is typed via a `declare module '@tanstack/react-query'` augmentation in
 `query-client.ts`, so `meta` is checked at compile time.
 
+`successMessage` may be a **function** `(data, variables) => string` when the toast text depends on
+the mutation result or its input — so a dynamic message still lives in `meta` rather than a
+hand-rolled `onSuccess` toast:
+
+```ts
+meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. Check your inbox.` },
+```
+
 ## Rules
 
 1. A mutation that wants feedback declares `meta`; it must **not** also call `toast.*` itself

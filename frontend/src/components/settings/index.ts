@@ -2,12 +2,9 @@
  * Settings Components Barrel Export
  */
 
-export { CreateCriterionDialog } from "./CreateCriterionDialog";
-export { CreateSiteDialog } from "./CreateSiteDialog";
 export { CreateTemplateDialog } from "./CreateTemplateDialog";
 export { CriteriaSettings } from "./CriteriaSettings";
-export { EditCriterionDialog } from "./EditCriterionDialog";
-export { EditSiteDialog } from "./EditSiteDialog";
+export { CriterionEditDialog } from "./CriterionEditDialog";
 export { EditTemplateDialog } from "./EditTemplateDialog";
 export { EditUserRoleDialog } from "./EditUserRoleDialog";
 export { GroupCapabilitiesEditor } from "./GroupCapabilitiesEditor";

@@ -102,4 +102,7 @@ public static class ConfigKeys
     public const string AlertEmailTo = "ALERT_EMAIL_TO";
     public const string ContactNotificationEmail = "CONTACT_NOTIFICATION_EMAIL";
     public const string FeedbackNotificationEmail = "FEEDBACK_NOTIFICATION_EMAIL";
+
+    // ── Reporting ───────────────────────────────────────────────────────────
+    public const string ReportingPeopleLevelEnabled = "reporting.people_level_enabled";
 }

@@ -9,9 +9,8 @@ import {
     createTemplate,
 } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { toast } from "sonner";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
@@ -30,7 +29,6 @@ interface TemplateSettingsProps {
 }
 
 export function TemplateSettings({ entityType = 'request' }: TemplateSettingsProps) {
-  const queryClient = useQueryClient();
   const canEdit = useCanEdit();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
@@ -65,24 +63,19 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   });
 
   useImportHandler('templates', async (file, format) => {
-    try {
-      const importedTemplates = await importTemplates(file, format);
-      if (!importedTemplates.length) {
-        throw new Error('No valid templates found in file');
-      }
-      // Create templates via API
-      for (const template of importedTemplates) {
-        await createTemplate(template as CreateTemplateRequest);
-      }
-      // Reload templates
-      queryClient.invalidateQueries({ queryKey: qk.templates(entityType) });
-      toast.success(`Imported ${importedTemplates.length} template${importedTemplates.length === 1 ? '' : 's'}`);
-    } catch (error) {
-      logger.error('Import failed:', error);
-      toast.error('Import failed', {
-        description: error instanceof Error ? error.message : 'Failed to import templates',
-      });
+    const importedTemplates = await importTemplates(file, format);
+    if (!importedTemplates.length) {
+      throw new Error('No valid templates found in file');
     }
+    // Create templates via API
+    for (const template of importedTemplates) {
+      await createTemplate(template as CreateTemplateRequest);
+    }
+    return importedTemplates.length;
+  }, {
+    successMessage: (count) => `Imported ${count} template${count === 1 ? '' : 's'}`,
+    errorMessage: 'Import failed',
+    invalidates: [qk.templates(entityType)],
   });
 
   const handleCreateSuccess = () => {

@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using FluentValidation;
@@ -24,7 +25,6 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            ITenantSettingsService settingsService,
             IEmailService emailService,
             ChangePasswordRequest request,
             IValidator<ChangePasswordRequest> validator,
@@ -35,11 +35,7 @@ public static class SecurityEndpoints
             {
                 var sub = principal.RequireExternalSubject();
 
-                var settings = await settingsService.GetSettingsAsync(ct);
-                if (request.NewPassword!.Length < settings.PasswordMinLength)
-                    return ErrorResponses.BadRequest($"New password must be at least {settings.PasswordMinLength} characters");
-
-                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword, ct);
+                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword!, ct);
                 logger.LogInformation("Password changed for user {Sub}", sub);
                 // Security confirmation (best-effort, non-blocking).
                 _ = emailService.SendPasswordChangedAsync(principal.Email, principal.DisplayName ?? principal.Email);
@@ -278,19 +274,21 @@ public static class SecurityEndpoints
             IKeycloakAdminService keycloakService,
             ISessionService sessionService,
             UpdateProfileRequest request,
+            IValidator<UpdateProfileRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
             var sub = principal.RequireExternalSubject();
-            if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.LastName))
-                return ErrorResponses.BadRequest("At least one name field is required");
-            var firstName = request.FirstName?.Trim() ?? string.Empty;
-            var lastName = request.LastName?.Trim() ?? string.Empty;
-            await keycloakService.UpdateUserProfileAsync(sub, firstName, lastName, ct);
-            var displayName = $"{firstName} {lastName}".Trim();
-            await sessionService.UpdateDisplayNameAsync(principal.RequireUserId(), displayName, ct);
-            logger.LogInformation("Profile updated for user {Sub}", sub);
-            return Results.Ok(new { message = "Profile updated successfully", displayName });
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var firstName = request.FirstName?.Trim() ?? string.Empty;
+                var lastName = request.LastName?.Trim() ?? string.Empty;
+                await keycloakService.UpdateUserProfileAsync(sub, firstName, lastName, ct);
+                var displayName = $"{firstName} {lastName}".Trim();
+                await sessionService.UpdateDisplayNameAsync(principal.RequireUserId(), displayName, ct);
+                logger.LogInformation("Profile updated for user {Sub}", sub);
+                return Results.Ok(new { message = "Profile updated successfully", displayName });
+            }, logger, "update profile");
         })
         .WithName("UpdateUserProfile")
         .WithSummary("Update user profile")
@@ -298,19 +296,14 @@ public static class SecurityEndpoints
 
         security.MapGet("/notification-preferences", async (
             ICurrentPrincipal principal,
-            IDbConnectionFactory dbFactory,
+            IPlatformUserRepository userRepository,
             CancellationToken ct) =>
         {
             var userId = principal.RequireUserId();
-            await using var db = dbFactory.CreateControlPlaneConnection();
-            await db.OpenAsync(ct);
-            await using var cmd = new Npgsql.NpgsqlCommand(
-                "SELECT announcement_email_opt_out FROM users WHERE id = @id", db);
-            cmd.Parameters.AddWithValue("id", userId);
-            var optOut = await cmd.ExecuteScalarAsync(ct);
+            var optOut = await userRepository.GetAnnouncementEmailOptOutAsync(userId, ct);
             if (optOut is null)
                 return ErrorResponses.NotFoundMessage("User not found");
-            return Results.Ok(new NotificationPreferencesResponse { AnnouncementEmailOptOut = (bool)optOut });
+            return Results.Ok(new NotificationPreferencesResponse { AnnouncementEmailOptOut = optOut.Value });
         })
         .WithName("GetNotificationPreferences")
         .WithSummary("Get notification preferences")
@@ -319,20 +312,13 @@ public static class SecurityEndpoints
         security.MapPut("/notification-preferences", async (
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
-            IDbConnectionFactory dbFactory,
+            IPlatformUserRepository userRepository,
             UpdateNotificationPreferencesRequest request,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
             var userId = principal.RequireUserId();
-            await using var db = dbFactory.CreateControlPlaneConnection();
-            await db.OpenAsync(ct);
-            await using var cmd = new Npgsql.NpgsqlCommand(@"
-                UPDATE users SET announcement_email_opt_out = @v, updated_at = NOW()
-                WHERE id = @id", db);
-            cmd.Parameters.AddWithValue("v", request.AnnouncementEmailOptOut);
-            cmd.Parameters.AddWithValue("id", userId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await userRepository.SetAnnouncementEmailOptOutAsync(userId, request.AnnouncementEmailOptOut, ct);
             logger.LogInformation("Announcement email opt-out set to {OptOut} for user {UserId}",
                 request.AnnouncementEmailOptOut, userId);
             return Results.Ok(new { message = "Notification preferences updated" });

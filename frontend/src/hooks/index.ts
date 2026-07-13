@@ -7,7 +7,12 @@ export {
   useDeleteCriterion,
   useUpdateCriterionApplicability,
 } from "./useCriteria";
-export { useExportHandler, useImportHandler } from "./useImportExport";
+export {
+  useEntityFormDialog,
+  type UseEntityFormDialogOptions,
+  type UseEntityFormDialogResult,
+} from "./useEntityFormDialog";
+export { useExportHandler, useImportHandler, type ImportFeedbackOptions } from "./useImportExport";
 export { usePageTitle } from "./usePageTitle";
 export { useCanEdit, useIsTenantAdmin, TENANT_ROLE } from "./usePermissions";
 export {

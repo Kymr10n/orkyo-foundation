@@ -69,6 +69,7 @@ export function MessagesTab() {
     },
     onSettled: () => {
       // Sync TopBar unread badge
+      // eslint-disable-next-line no-restricted-syntax -- optimistic-rollback mutation (onMutate snapshot): meta can't express it, invalidation stays hand-rolled (docs/dialog-feedback.md)
       queryClient.invalidateQueries({ queryKey: qk.announcements.unread() });
     },
   });

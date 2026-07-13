@@ -3,21 +3,52 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { UserSettings } from './UserSettings';
 import * as userApi from '@foundation/src/lib/api/user-api';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 vi.mock('@foundation/src/lib/api/user-api');
 const ioHandlers = vi.hoisted(() => ({
   exportCb: null as null | ((format: string) => Promise<void>),
-  importCb: null as null | ((file: File, format: string) => Promise<void>),
+  importCb: null as null | ((file: File, format: string) => Promise<number>),
 }));
 vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: (_k: string, cb: (format: string) => Promise<void>) => {
     ioHandlers.exportCb = cb;
   },
-  useImportHandler: (_k: string, cb: (file: File, format: string) => Promise<void>) => {
-    ioHandlers.importCb = cb;
+  useImportHandler: (
+    _k: string,
+    cb: (file: File, format: string) => Promise<number>,
+    options?: { successMessage?: string | ((n: number) => string); errorMessage?: string; invalidates?: readonly (readonly unknown[])[] },
+  ) => {
+    // Mirror the real hook's feedback behavior (mocked so tests can trigger
+    // it directly via ioHandlers.importCb) so success/error toasts still
+    // flow through the mocked `sonner` module the same way production does.
+    ioHandlers.importCb = async (file: File, format: string) => {
+      try {
+        const result = await cb(file, format);
+        if (options?.invalidates) {
+          // invalidation isn't asserted here; the real hook covers it in useImportExport.test.tsx
+        }
+        const successMessage =
+          typeof options?.successMessage === 'function' ? options.successMessage(result) : options?.successMessage;
+        if (successMessage) toast.success(successMessage);
+        return result;
+      } catch (error) {
+        if (options) {
+          toast.error(options.errorMessage ?? 'Import failed', {
+            description: error instanceof Error ? error.message : undefined,
+          });
+          return undefined as unknown as number;
+        }
+        throw error;
+      }
+    };
   },
 }));
 vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
@@ -69,11 +100,15 @@ describe('UserSettings', () => {
   ];
 
   beforeEach(() => {
+    // The UserSettings mutations declare `meta` (successMessage/errorMessage/invalidates)
+    // per docs/dialog-feedback.md, so tests wire the same feedback MutationCache as
+    // production — the toast now originates from the cache, not the component.
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
         mutations: { retry: false },
       },
+      mutationCache: createFeedbackMutationCache(() => queryClient, toast),
     });
     vi.clearAllMocks();
     vi.mocked(userApi.getUsers).mockResolvedValue(mockUsers);
@@ -85,9 +120,6 @@ describe('UserSettings', () => {
       ...mockUsers[0],
       role: 'editor',
     });
-
-    // Mock window.alert (window.confirm is no longer used — ConfirmDialog replaced it)
-    global.alert = vi.fn();
   });
 
   it('renders loading state initially', () => {
@@ -223,7 +255,7 @@ describe('UserSettings', () => {
       expect(userApi.resendInvitation).toHaveBeenCalled();
       const [[invitationId]] = vi.mocked(userApi.resendInvitation).mock.calls;
       expect(invitationId).toBe('inv-1');
-      expect(global.alert).toHaveBeenCalledWith('Invitation email resent successfully');
+      expect(toast.success).toHaveBeenCalledWith('Invitation email resent successfully');
     });
   });
 
@@ -410,33 +442,39 @@ describe('UserSettings', () => {
     expect(userApi.cancelInvitation).not.toHaveBeenCalled();
   });
 
-  it('alerts with a fallback message when a non-Error cancel failure is thrown', async () => {
+  it('shows an error toast with a fallback description when a non-Error cancel failure is thrown', async () => {
     vi.mocked(userApi.cancelInvitation).mockRejectedValueOnce('boom');
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
     await user.click(await screen.findByRole('button', { name: 'Cancel Invitation' }));
-    await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to cancel invitation'));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to cancel invitation', { description: undefined })
+    );
   });
 
-  it('alerts with a fallback message when a non-Error resend failure is thrown', async () => {
+  it('shows an error toast with a fallback description when a non-Error resend failure is thrown', async () => {
     vi.mocked(userApi.resendInvitation).mockRejectedValueOnce('boom');
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Resend invitation/i })[0]);
-    await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to resend invitation'));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to resend invitation', { description: undefined })
+    );
   });
 
-  it('alerts with a fallback message when a non-Error delete failure is thrown', async () => {
+  it('shows an error toast with a fallback description when a non-Error delete failure is thrown', async () => {
     vi.mocked(userApi.deleteUser).mockRejectedValueOnce('boom');
     const user = userEvent.setup();
     render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
     await waitFor(() => screen.getByText('Admin User'));
     await user.click(screen.getAllByRole('button', { name: /^Remove /i })[0]);
     await user.click(await screen.findByRole('button', { name: 'Remove' }));
-    await waitFor(() => expect(global.alert).toHaveBeenCalledWith('Failed to remove user'));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to remove user', { description: undefined })
+    );
   });
 
   describe('export / import handlers', () => {
@@ -459,23 +497,27 @@ describe('UserSettings', () => {
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'new@example.com', role: 'editor' });
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'demoted@example.com', role: 'viewer' });
       expect(userApi.createInvitation).not.toHaveBeenCalledWith(expect.objectContaining({ email: '' }));
-      expect(global.alert).toHaveBeenCalledWith('Successfully imported 3 users');
+      expect(toast.success).toHaveBeenCalledWith('Successfully imported 3 users');
     });
 
-    it('throws and alerts when the imported file has no valid users', async () => {
+    it('shows an error toast when the imported file has no valid users', async () => {
       vi.mocked(importUsers).mockResolvedValueOnce([]);
       render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
       await waitFor(() => screen.getByText('admin@example.com'));
       await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
-      expect(global.alert).toHaveBeenCalledWith('No valid users found in file');
+      expect(toast.error).toHaveBeenCalledWith('Failed to import users', {
+        description: 'No valid users found in file',
+      });
     });
 
-    it('alerts with the error message when import fails', async () => {
+    it('shows an error toast with the error message as description when import fails', async () => {
       vi.mocked(importUsers).mockRejectedValueOnce(new Error('Bad import'));
       render(<QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider>);
       await waitFor(() => screen.getByText('admin@example.com'));
       await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
-      expect(global.alert).toHaveBeenCalledWith('Bad import');
+      expect(toast.error).toHaveBeenCalledWith('Failed to import users', {
+        description: 'Bad import',
+      });
     });
   });
 });

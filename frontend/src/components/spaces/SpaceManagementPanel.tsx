@@ -110,22 +110,19 @@ export function SpaceManagementPanel({
   });
 
   useImportHandler('spaces', async (file, format) => {
-    try {
-      const importedSpaces = await importSpaces(file, format);
-      if (!importedSpaces.length) {
-        throw new Error('No valid spaces found in file');
-      }
-      // Create spaces via API
-      for (const space of importedSpaces) {
-        await createSpaceMutation.mutateAsync(space as CreateSpaceRequest);
-      }
-      toast.success(`Imported ${importedSpaces.length} spaces`);
-    } catch (error) {
-      logger.error('Import failed:', error);
-      toast.error('Failed to import spaces', {
-        description: error instanceof Error ? error.message : undefined,
-      });
+    const importedSpaces = await importSpaces(file, format);
+    if (!importedSpaces.length) {
+      throw new Error('No valid spaces found in file');
     }
+    // Create spaces via API
+    for (const space of importedSpaces) {
+      await createSpaceMutation.mutateAsync(space as CreateSpaceRequest);
+    }
+    return importedSpaces.length;
+  }, {
+    successMessage: (count) => `Imported ${count} spaces`,
+    errorMessage: 'Failed to import spaces',
+    invalidates: [qk.spaces.list(siteId)],
   });
 
   // Load floorplan metadata on mount

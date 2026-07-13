@@ -189,8 +189,8 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: updateUserProfile,
+    meta: { invalidates: [qk.userProfile.all()] },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: qk.userProfile.all() });
       // Update auth context so TopBar and header reflect the new name immediately
       if (appUser && data.displayName) {
         setAppUser({ ...appUser, displayName: data.displayName });
@@ -201,10 +201,14 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
   const emailChangeMutation = useMutation({
     mutationFn: (email: string) => requestEmailChange(email),
-    onSuccess: (_, email) => {
+    meta: {
+      successMessage: (_data, email) =>
+        `Confirmation email sent to ${email as string}. Check your inbox.`,
+      errorMessage: "Failed to request email change",
+    },
+    onSuccess: () => {
       setIsEditingEmail(false);
       setNewEmail("");
-      toast.success(`Confirmation email sent to ${email}. Check your inbox.`);
     },
   });
 

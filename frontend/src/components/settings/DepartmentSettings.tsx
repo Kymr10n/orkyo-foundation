@@ -7,6 +7,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import { Card } from '@foundation/src/components/ui/card';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { ShowInactiveToggle } from '@foundation/src/components/ui/ShowInactiveToggle';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
 import {
@@ -134,17 +135,11 @@ export function DepartmentSettings() {
         </Button>
       </SettingsPageHeader>
 
-      <div className="flex items-center gap-2">
-        <input
-          id="include-inactive-dept"
-          type="checkbox"
-          checked={includeInactive}
-          onChange={(e) => setIncludeInactive(e.target.checked)}
-        />
-        <label htmlFor="include-inactive-dept" className="text-sm text-muted-foreground">
-          Show inactive
-        </label>
-      </div>
+      <ShowInactiveToggle
+        id="include-inactive-dept"
+        checked={includeInactive}
+        onChange={setIncludeInactive}
+      />
 
       {error && (
         <Alert variant="destructive">

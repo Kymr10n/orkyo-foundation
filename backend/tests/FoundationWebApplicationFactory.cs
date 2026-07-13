@@ -251,6 +251,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISearchRepository, SearchRepository>();
         builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        builder.Services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
         builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
@@ -376,9 +377,14 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());
         builder.Services.AddScoped<IIdentityLinkService>(sp => Mock.Of<IIdentityLinkService>());
 
-        // Validators — register all from the foundation assembly
-        var foundationAssembly = typeof(SiteRequestValidator<>).Assembly;
-        foreach (var type in foundationAssembly.GetTypes()
+        // Validators — register all from the foundation assemblies (Core + Web; validators for
+        // request types declared alongside their endpoints live in the Web assembly).
+        var validatorAssemblies = new[]
+        {
+            typeof(SiteRequestValidator<>).Assembly,
+            typeof(Api.Endpoints.SecurityEndpoints).Assembly,
+        };
+        foreach (var type in validatorAssemblies.SelectMany(a => a.GetTypes())
             .Where(t => !t.IsAbstract && !t.IsGenericTypeDefinition &&
                         t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IValidator<>))))
         {

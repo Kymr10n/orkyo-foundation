@@ -1,6 +1,7 @@
 using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
+using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -38,7 +39,7 @@ public static class UserAnnouncementEndpoints
         app.MapGet("/api/announcements/unsubscribe", [AllowAnonymous] async (
             string? token,
             HttpContext httpContext,
-            IDbConnectionFactory dbFactory,
+            IPlatformUserRepository userRepository,
             IConfiguration configuration,
             CancellationToken ct,
             ILogger<EndpointLoggerCategory> logger) =>
@@ -54,16 +55,9 @@ public static class UserAnnouncementEndpoints
 
             try
             {
-                await using var db = dbFactory.CreateControlPlaneConnection();
-                await db.OpenAsync(ct);
-                await using var cmd = new Npgsql.NpgsqlCommand(@"
-                    UPDATE users
-                    SET announcement_email_opt_out = TRUE, updated_at = NOW()
-                    WHERE unsubscribe_token = @token", db);
-                cmd.Parameters.AddWithValue("token", unsubscribeToken);
-                var rows = await cmd.ExecuteNonQueryAsync(ct);
+                var found = await userRepository.SetAnnouncementOptOutByTokenAsync(unsubscribeToken, ct);
 
-                if (rows == 0)
+                if (!found)
                 {
                     logger.LogWarning("announcement unsubscribe: token not found");
                     return UnsubscribePage(appBaseUrl, success: false,

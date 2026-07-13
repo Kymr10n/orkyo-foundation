@@ -11,7 +11,7 @@ import {
 import { qk } from '@foundation/src/lib/api/query-keys';
 import type { Criterion, CriterionValue } from '@foundation/src/types/criterion';
 import { logger } from '@foundation/src/lib/core/logger';
-import { CreateCriterionDialog } from '../settings/CreateCriterionDialog';
+import { CriterionEditDialog } from '../settings/CriterionEditDialog';
 import { CriterionAssignmentEditor } from '../capabilities/CriterionAssignmentEditor';
 import { diffCapabilityAssignments } from '../capabilities/capability-diff';
 
@@ -90,7 +90,6 @@ export function PersonSkillsEditor({
     // Refresh the person-applicable criteria so the new one appears; preselect it.
     await queryClient.invalidateQueries({ queryKey: PERSON_CRITERIA_KEY });
     setSelectedCriterionId(criterion.id);
-    setCreateOpen(false);
   };
 
   return (
@@ -130,10 +129,11 @@ export function PersonSkillsEditor({
         }
       />
 
-      <CreateCriterionDialog
+      <CriterionEditDialog
+        criterion={null}
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onSuccess={handleCriterionCreated}
+        onSaved={handleCriterionCreated}
         defaultResourceType="person"
       />
     </>

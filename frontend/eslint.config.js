@@ -28,6 +28,28 @@ const banToLocaleDateTime = [
   },
 ];
 
+// Mutation-feedback guardrail (G1, deferred from Wave 0 to the Wave 2 flip):
+// toast/invalidation inside useMutation callbacks belongs in meta
+// {successMessage, errorMessage, invalidates} — the central MutationCache fires
+// it once. onSuccess/onError stay for non-feedback side effects only. The
+// documented exemption is optimistic-rollback mutations (onMutate snapshot),
+// which the meta convention can't express — those carry an eslint-disable with
+// a reason citing docs/dialog-feedback.md.
+const banMutationCallbackFeedback = [
+  {
+    selector:
+      "CallExpression[callee.name='useMutation'] Property[key.name=/^(onSuccess|onError|onSettled)$/] CallExpression[callee.object.name='toast']",
+    message:
+      'Toast inside a useMutation callback: declare meta { successMessage, errorMessage } instead — the central MutationCache toasts once. Optimistic-rollback mutations are the documented exemption (eslint-disable with reason). See docs/dialog-feedback.md.',
+  },
+  {
+    selector:
+      "CallExpression[callee.name='useMutation'] Property[key.name=/^(onSuccess|onError|onSettled)$/] CallExpression[callee.property.name='invalidateQueries']",
+    message:
+      'invalidateQueries inside a useMutation callback: declare meta.invalidates (prefix-style) instead. Optimistic-rollback mutations are the documented exemption (eslint-disable with reason). See docs/dialog-feedback.md.',
+  },
+];
+
 export default defineConfig(
   {
     ignores: [
@@ -143,6 +165,8 @@ export default defineConfig(
         // so the format ban is appended here (flat config's no-restricted-syntax
         // does not merge across config objects — last match wins).
         banInlineDateFormat,
+        // Mutation-feedback convergence (appended for the same non-merge reason).
+        ...banMutationCallbackFeedback,
       ],
     },
   },
@@ -153,7 +177,7 @@ export default defineConfig(
     files: ['src/**/*.{ts,tsx}', 'contracts/**/*.ts'],
     ignores: ['src/components/**/*.tsx', 'src/lib/formatters.ts'],
     rules: {
-      'no-restricted-syntax': ['error', banInlineDateFormat],
+      'no-restricted-syntax': ['error', banInlineDateFormat, ...banMutationCallbackFeedback],
     },
   },
 
@@ -183,6 +207,102 @@ export default defineConfig(
     },
   },
 
+  // ── Convention guardrails (enforcing since the Wave 2 sweep) ───────────────
+  // Dialog-shell + native-dialog + heavy-dep import bans. Landed as `warn` in
+  // Wave 0; flipped to `error` after the Wave 2 convention sweep converged the
+  // violators (alert() eradicated, form dialogs on FormDialog/ConfirmDialog) and
+  // the W1.2 barrel fix (jspdf). The triaged genuinely-special dialogs are
+  // enumerated in the exemption block below. These use `no-restricted-imports` /
+  // `no-restricted-globals`, distinct rules from the `no-restricted-syntax`
+  // colour/date bans above, so they compose without the flat-config
+  // last-match-wins clobber.
+  // See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G1, G3).
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [
+          {
+            name: 'jspdf',
+            message:
+              'jspdf is heavy: only src/lib/utils/gantt-pdf-export.ts may load it, via the existing dynamic import(). A static import drags it into the main chunk. See plan G3.',
+          },
+          {
+            name: '@foundation/src/components/ui/dialog',
+            importNames: ['Dialog', 'DialogContent'],
+            message:
+              'Hand-rolled dialog shell: use FormDialog (simple form dialogs) or ScaffoldDialog (multi-tab wizards). Composition helpers (DialogFooter, DialogHeader, ScrollableDialogBody, …) remain allowed. Genuinely-special dialogs (command palette, list pickers, read-only views) get an exemption entry once triaged. See docs/dialog-feedback.md (G1).',
+          },
+        ],
+      }],
+      'no-restricted-globals': ['error',
+        { name: 'alert', message: 'Native alert() blocks the UI and bypasses the toast convention: use toast (sonner) for feedback or ErrorAlert for in-context errors. See docs/dialog-feedback.md.' },
+        { name: 'confirm', message: 'Native confirm(): use ConfirmDialog (destructive, isPending). See docs/dialog-feedback.md.' },
+        { name: 'prompt', message: 'Native prompt(): use a FormDialog. See docs/dialog-feedback.md.' },
+      ],
+    },
+  },
+  // The sanctioned dialog shells and the sole jspdf loader are exempt — they
+  // ARE the primitives the bans steer everything else toward.
+  {
+    files: [
+      'src/components/ui/FormDialog.tsx',
+      'src/components/ui/ScaffoldDialog.tsx',
+      'src/lib/utils/gantt-pdf-export.ts',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+  // Triaged raw-Dialog consumers (G1 exemption list, enumerated at the Wave 2
+  // flip per docs/dialog-feedback.md's "genuinely special" categories). Adding a
+  // file here requires the same triage — most new dialogs belong on FormDialog /
+  // ScaffoldDialog / ConfirmDialog.
+  {
+    files: [
+      // Command palette — cmdk composition, named exempt in the rule message.
+      'src/components/layout/CommandPalette.tsx',
+      // Shared criterion/skill/capability assignment editor (doc-exempt shell).
+      'src/components/capabilities/CriterionAssignmentEditor.tsx',
+      // List / multi-select pickers and list-management views.
+      'src/components/resource-groups/ResourceGroupMembersEditor.tsx',
+      'src/components/people/PersonAbsenceList.tsx',
+      // Read-only / per-item-state-machine views.
+      'src/components/utilization/PersonAssignmentDialog.tsx',
+      'src/components/utilization/ScheduleSlotDialog.tsx',
+      'src/components/settings/ReportingApiSettings.tsx', // RawTokenDialog: show-once token view
+      'src/components/admin/FeedbackTab.tsx',
+      'src/components/admin/AnnouncementsTab.tsx',
+      // Compound in-place sub-forms / special flows — FormDialog convergence is
+      // tracked as follow-up work, not forced here (W2.2 backlog).
+      'src/components/layout/FeedbackButton.tsx',
+      'src/components/settings/PasswordSection.tsx',
+      'src/components/settings/PresetSettings.tsx',
+      'src/components/system/ImportExportDialog.tsx',
+      'src/components/requests/FloorplanUploadDialog.tsx',
+      'src/pages/AccountPage.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
+  // G3 (W1.2): the utils barrel must never re-export gantt-pdf-export — that is
+  // the exact line that dragged jspdf into the main chunk. `error` here (0
+  // violations since the re-export was removed) locks the fix. Scoped to the one
+  // file, so it overrides — not merges with — the date-format no-restricted-syntax
+  // ban above (index.ts has no date formatting, so nothing is lost).
+  {
+    files: ['src/lib/utils/index.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: "ExportAllDeclaration[source.value=/gantt-pdf-export/]",
+        message:
+          'Do not re-export gantt-pdf-export from the utils barrel: it statically imports jspdf, and this barrel is on the cn import path of ~48 modules. Reach it via the dynamic import() in export-handlers.ts. See plan G3.',
+      }],
+    },
+  },
+
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {
@@ -196,6 +316,9 @@ export default defineConfig(
       // Tests may mirror production date formatting to build expected values.
       'no-restricted-syntax': 'off',
       'no-restricted-properties': 'off',
+      // Tests may stub dialogs and mirror native prompts freely.
+      'no-restricted-imports': 'off',
+      'no-restricted-globals': 'off',
       'no-console': 'off',
     },
   },

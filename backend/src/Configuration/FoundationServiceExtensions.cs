@@ -42,6 +42,7 @@ public static class FoundationServiceExtensions
         services.AddHttpContextAccessor();
         services.AddHttpClient();
         services.AddValidatorsFromAssemblyContaining<CreateCriterionRequestValidator>(ServiceLifetime.Scoped);
+        services.AddValidatorsFromAssemblyContaining<RequestEmailChangeRequestValidator>(ServiceLifetime.Scoped);
 
         // ── Keycloak ──────────────────────────────────────────────────────────
         services.AddSingleton(KeycloakOptions.FromConfiguration(configuration));
@@ -91,6 +92,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         services.AddScoped<IJobTitleRepository, JobTitleRepository>();
         services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
+        services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();

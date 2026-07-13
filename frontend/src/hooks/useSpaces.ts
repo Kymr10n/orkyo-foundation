@@ -67,9 +67,11 @@ export function useDeleteSpace(siteId: string) {
       if (context?.previous !== undefined) {
         queryClient.setQueryData(qk.spaces.list(siteId), context.previous);
       }
+      // eslint-disable-next-line no-restricted-syntax -- optimistic-rollback mutation: meta can't express onMutate rollback, feedback stays hand-rolled (docs/dialog-feedback.md)
       toast.error("Failed to delete space", { description: errorMessage(err) });
     },
     onSuccess: () => {
+      // eslint-disable-next-line no-restricted-syntax -- optimistic-rollback mutation: meta can't express onMutate rollback, feedback stays hand-rolled (docs/dialog-feedback.md)
       toast.success("Space deleted");
     },
     onSettled: invalidate,
