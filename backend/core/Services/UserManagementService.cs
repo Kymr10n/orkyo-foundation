@@ -2,14 +2,15 @@ using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Npgsql;
+using Orkyo.Shared;
 
 namespace Api.Services;
 
 public interface IUserManagementService
 {
     Task<List<User>> GetAllUsersAsync(OrgContext org, CancellationToken ct = default);
-    Task<(bool success, string? error)> UpdateUserRoleAsync(OrgContext org, Guid userId, UserRole role, Guid updatedBy, CancellationToken ct = default);
-    Task<(bool success, string? error)> DeleteUserAsync(OrgContext org, Guid userId, Guid deletedBy, CancellationToken ct = default);
+    Task<Result> UpdateUserRoleAsync(OrgContext org, Guid userId, UserRole role, Guid updatedBy, CancellationToken ct = default);
+    Task<Result> DeleteUserAsync(OrgContext org, Guid userId, Guid deletedBy, CancellationToken ct = default);
     Task EnsureInitialAdminAsync(OrgContext org, string adminEmail, CancellationToken ct = default);
 
     /// <summary>Updates users.status globally. Accepts only <see cref="UserStatusConstants"/> values.</summary>
@@ -70,7 +71,7 @@ public class UserManagementService : IUserManagementService
     /// Update a user's role within a specific tenant.
     /// Prevents demoting the last active admin.
     /// </summary>
-    public async Task<(bool success, string? error)> UpdateUserRoleAsync(OrgContext org, Guid userId, UserRole role, Guid updatedBy, CancellationToken ct = default)
+    public async Task<Result> UpdateUserRoleAsync(OrgContext org, Guid userId, UserRole role, Guid updatedBy, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
@@ -81,7 +82,7 @@ public class UserManagementService : IUserManagementService
             if (isLastAdmin)
             {
                 _logger.LogWarning("Cannot demote user {UserId}: they are the last active admin in tenant {TenantId}", userId, org.OrgId);
-                return (false, "Cannot demote the last admin. Promote another user to admin first.");
+                return Result.Fail("Cannot demote the last admin. Promote another user to admin first.");
             }
         }
 
@@ -98,14 +99,14 @@ public class UserManagementService : IUserManagementService
         if (rowsAffected > 0)
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRoleUpdated, updatedBy, "user", userId.ToString(), new { newRole = role.ToString() });
 
-        return (rowsAffected > 0, null);
+        return new Result(rowsAffected > 0, null);
     }
 
     /// <summary>
     /// Remove a user from a tenant (deletes membership, not the user).
     /// Prevents removing the last active admin.
     /// </summary>
-    public async Task<(bool success, string? error)> DeleteUserAsync(OrgContext org, Guid userId, Guid deletedBy, CancellationToken ct = default)
+    public async Task<Result> DeleteUserAsync(OrgContext org, Guid userId, Guid deletedBy, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
@@ -114,7 +115,7 @@ public class UserManagementService : IUserManagementService
         if (isLastAdmin)
         {
             _logger.LogWarning("Cannot remove user {UserId}: they are the last active admin in tenant {TenantId}", userId, org.OrgId);
-            return (false, "Cannot remove the last admin. Promote another user to admin first.");
+            return Result.Fail("Cannot remove the last admin. Promote another user to admin first.");
         }
 
         await using var cmd = new NpgsqlCommand(@"
@@ -128,7 +129,7 @@ public class UserManagementService : IUserManagementService
         if (rowsAffected > 0)
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString());
 
-        return (rowsAffected > 0, null);
+        return new Result(rowsAffected > 0, null);
     }
 
     /// <summary>

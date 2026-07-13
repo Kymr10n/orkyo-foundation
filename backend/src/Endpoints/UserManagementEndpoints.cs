@@ -126,9 +126,9 @@ public static class UserManagementEndpoints
                 var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
-                var (success, error) = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
-                if (error != null) return ErrorResponses.BadRequest(error);
-                if (!success) throw new KeyNotFoundException("User not found");
+                var result = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
+                if (result.Error != null) return ErrorResponses.BadRequest(result.Error);
+                if (!result.Success) throw new KeyNotFoundException("User not found");
                 return Results.Ok(new { message = "User role updated successfully" });
             }, logger, "UpdateUserRole");
 
@@ -141,9 +141,9 @@ public static class UserManagementEndpoints
         var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
         var currentUserId = currentPrincipal.RequireUserId();
         if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
-        var (success, error) = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
-        if (error != null) return ErrorResponses.BadRequest(error);
-        if (!success) throw new KeyNotFoundException("User not found");
+        var result = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
+        if (result.Error != null) return ErrorResponses.BadRequest(result.Error);
+        if (!result.Success) throw new KeyNotFoundException("User not found");
         return Results.Ok(new { message = "User deleted successfully" });
     }
 
