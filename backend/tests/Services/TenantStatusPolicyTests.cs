@@ -28,4 +28,29 @@ public class TenantStatusPolicyTests
 
         result.Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData(TenantStatusConstants.Deleting, true)]
+    [InlineData("DELETING", true)]
+    [InlineData(TenantStatusConstants.Suspended, false)]
+    [InlineData(TenantStatusConstants.Active, false)]
+    public void IsPendingDeletion_ShouldInterpretStatus(string status, bool expected)
+    {
+        var result = TenantStatusPolicy.IsPendingDeletion(status);
+
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(TenantStatusConstants.Suspended, true)]
+    [InlineData(TenantStatusConstants.Deleting, true)]
+    [InlineData(TenantStatusConstants.Active, false)]
+    [InlineData(TenantStatusConstants.Pending, false)]
+    [InlineData(TenantStatusConstants.Deleted, false)]
+    public void IsBlocked_ShouldInterpretStatus(string status, bool expected)
+    {
+        var result = TenantStatusPolicy.IsBlocked(status);
+
+        result.Should().Be(expected);
+    }
 }

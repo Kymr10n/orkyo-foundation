@@ -44,6 +44,7 @@ import {
   AUTH_ERROR_MESSAGES,
   TENANT_STATUS,
   isPublicPath,
+  isBlockedTenantState,
 } from '@foundation/src/constants/auth';
 import {
   getCurrentSubdomain,
@@ -319,7 +320,7 @@ export const authMachine = setup({
     },
     membershipResolved: ({ event }) => {
       const output = getSessionOutput(event);
-      return output.kind === 'loaded' && output.membership !== null && output.membership.state !== TENANT_STATUS.SUSPENDED;
+      return output.kind === 'loaded' && output.membership !== null && !isBlockedTenantState(output.membership.state);
     },
     singleActiveTenant: ({ event }) => {
       const output = getSessionOutput(event);

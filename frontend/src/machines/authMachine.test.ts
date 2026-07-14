@@ -78,6 +78,8 @@ vi.mock('@foundation/src/constants/auth', () => ({
     DELETED: 'deleted',
     DELETING: 'deleting',
   },
+  isBlockedTenantState: (state: string | undefined) =>
+    state === 'suspended' || state === 'deleting',
 }));
 
 // Import after mocks are set up
@@ -320,6 +322,26 @@ describe('authMachine', () => {
       kind: 'loaded',
       session: { user: mockUser, tenants: [suspendedMembership], isSiteAdmin: false, tosRequired: false },
       membership: suspendedMembership,
+    });
+    const actor = createActor(machine);
+    actor.start();
+
+    const snapshot = await waitFor(actor, (s) => s.value === 'selecting_tenant', { timeout: 2000 });
+    expect(snapshot.value).toBe('selecting_tenant');
+    actor.stop();
+  });
+
+  it('deleting membership routes to selecting_tenant (restore page), not ready', async () => {
+    const deletingMembership = {
+      ...mockMembership,
+      state: 'deleting',
+      suspensionReason: 'inactivity',
+      canReactivate: true,
+    };
+    const machine = machineWithOutput({
+      kind: 'loaded',
+      session: { user: mockUser, tenants: [deletingMembership], isSiteAdmin: false, tosRequired: false },
+      membership: deletingMembership,
     });
     const actor = createActor(machine);
     actor.start();

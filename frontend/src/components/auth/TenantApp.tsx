@@ -27,7 +27,7 @@ import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoun
 import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS, ROUTE_ACCOUNT, ROUTE_TENANT_ADMIN } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ACCOUNT, ROUTE_TENANT_ADMIN, isBlockedTenantState } from '@foundation/src/constants/auth';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
@@ -118,10 +118,11 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
     );
   }
 
-  // Suspended tenant on its own subdomain — show the suspension page directly.
-  // The same-origin POST to /api/tenant/reactivate works here because the
-  // backend resolves the tenant from the subdomain.
-  if (authStage === AUTH_STAGES.SELECTING_TENANT && membership?.state === TENANT_STATUS.SUSPENDED) {
+  // Blocked tenant (suspended or scheduled for deletion) on its own subdomain —
+  // show the suspension/restore page directly. The same-origin POST to
+  // /api/tenant/reactivate works here because the backend resolves the tenant
+  // from the subdomain.
+  if (authStage === AUTH_STAGES.SELECTING_TENANT && isBlockedTenantState(membership?.state)) {
     return (
       <>
         <ThemeToggle variant="floating" />

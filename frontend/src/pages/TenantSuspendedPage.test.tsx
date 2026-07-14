@@ -110,6 +110,29 @@ describe('TenantSuspendedPage', () => {
     expect(screen.queryByRole('link', { name: /contact support/i })).not.toBeInTheDocument();
   });
 
+  it('shows deletion copy and Restore workspace button for a deleting membership', () => {
+    mockAuthState.membership = {
+      state: 'deleting',
+      suspensionReason: 'inactivity',
+      canReactivate: true,
+    };
+    render(<TenantSuspendedPage />);
+    expect(screen.getByText('Workspace scheduled for deletion')).toBeInTheDocument();
+    expect(screen.getByText(/scheduled for permanent deletion/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Restore workspace/ })).toBeInTheDocument();
+  });
+
+  it('shows restore-oriented helper text for a deleting membership without canReactivate', () => {
+    mockAuthState.membership = {
+      state: 'deleting',
+      suspensionReason: 'inactivity',
+      canReactivate: false,
+    };
+    render(<TenantSuspendedPage />);
+    expect(screen.getByText(/restore this organization/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Restore workspace/ })).not.toBeInTheDocument();
+  });
+
   it('always shows sign out button', () => {
     mockAuthState.membership = {
       state: 'suspended',
