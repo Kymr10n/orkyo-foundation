@@ -1,0 +1,120 @@
+name: reusable / auto-bump
+
+# Extracted from the `auto-bump` job — BYTE-IDENTICAL between:
+#   - orkyo-saas/.github/workflows/release-ci.yml      @ 74bc01cc9211a4dcf48b3f3b36ac0d5bc64339ea
+#   - orkyo-community/.github/workflows/release-ci.yml @ ec14ac98c304f81a61600fc73d2a0ddf0ae85358
+# (diffed byte-for-byte at extraction time — see the W6 PR description for the
+# `diff -u` proof; zero lines differ). orkyo-foundation has no `auto-bump` job
+# of its own — it is the publisher, not a consumer, of `foundation_updated`.
+#
+# No repo-specific behavior needed parameterizing, because none differs. The
+# two optional inputs below exist purely so a future third consumer with a
+# different script path or committer identity doesn't require forking this
+# file — they default to the exact values baked into both source jobs, so
+# saas/community migrate with zero behavior change.
+#
+# `github.event.client_payload.{version,channel}` and `github.sha` are read
+# directly from the run's triggering event context, which is shared with the
+# reusable workflow automatically (no input needed) — this job only runs when
+# the caller's run was triggered by a `repository_dispatch` event carrying
+# that payload.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
+# reference a local `./.github/actions/...` composite action — that breaks the
+# CALLER with an undiagnosable startup_failure. Every third-party action below
+# is pinned to the exact SHA the source jobs used. Consumers must pin their
+# `uses:` to this file by commit SHA, never `@main`. Call with `secrets: inherit`.
+#
+# Behavior must match the source job bodies byte-for-byte (modulo the two
+# opt-in-only inputs above) at extraction time.
+
+on:
+  workflow_call:
+    inputs:
+      bump-script-path:
+        description: 'Path to the foundation-pin bump script, relative to repo root'
+        required: false
+        type: string
+        default: 'scripts/bump-foundation.sh'
+      committer-name:
+        description: 'git user.name for the bump commit'
+        required: false
+        type: string
+        default: 'github-actions[bot]'
+      committer-email:
+        description: 'git user.email for the bump commit'
+        required: false
+        type: string
+        default: 'github-actions[bot]@users.noreply.github.com'
+    secrets:
+      GHCR_TOKEN:
+        description: 'Used for checkout (so the resulting commit triggers downstream CI) and for git push / gh issue creation'
+        required: true
+
+jobs:
+  auto-bump:
+    name: Auto-bump Foundation (${{ github.event.client_payload.channel }})
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    if: github.event_name == 'repository_dispatch'
+    permissions:
+      contents: write
+      issues: write
+
+    env:
+      FOUNDATION_VERSION: ${{ github.event.client_payload.version }}
+      CHANNEL: ${{ github.event.client_payload.channel }}
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # GHCR_TOKEN so the resulting commit triggers downstream CI
+          # (commits from GITHUB_TOKEN do not, by design).
+          token: ${{ secrets.GHCR_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure git
+        run: |
+          git config user.name "${{ inputs.committer-name }}"
+          git config user.email "${{ inputs.committer-email }}"
+
+      - name: Bump foundation pin
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: ${{ inputs.bump-script-path }} "${FOUNDATION_VERSION}"
+
+      - name: Commit and push to main
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes — foundation pin already at ${FOUNDATION_VERSION}"
+            exit 0
+          fi
+          # No [skip ci] — the push to main is the validation gate for the new Foundation version.
+          git commit -m "chore: bump foundation to ${FOUNDATION_VERSION} (${CHANNEL})"
+          git push origin HEAD:main
+
+      - name: Create failure issue if auto-bump fails
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          TITLE="Auto-bump failed: foundation ${FOUNDATION_VERSION} (${CHANNEL})"
+          BODY="The \`auto-bump\` job failed for foundation version \`${FOUNDATION_VERSION}\` on channel \`${CHANNEL}\`.
+
+          **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Check the run logs and re-trigger the bump manually if needed."
+          EXISTING=$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number // ""')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label "ci-failure"
+          fi
