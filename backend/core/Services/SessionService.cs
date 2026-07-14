@@ -11,6 +11,7 @@ public class SessionService : ISessionService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IConfiguration _configuration;
     private readonly ITenantPlanInfoProvider _planInfoProvider;
+    private readonly ITenantMembershipEnricher _membershipEnricher;
     private readonly ITenantSettingsService _tenantSettingsService;
     private readonly ILogger<SessionService> _logger;
 
@@ -18,12 +19,14 @@ public class SessionService : ISessionService
         IDbConnectionFactory connectionFactory,
         IConfiguration configuration,
         ITenantPlanInfoProvider planInfoProvider,
+        ITenantMembershipEnricher membershipEnricher,
         ITenantSettingsService tenantSettingsService,
         ILogger<SessionService> logger)
     {
         _connectionFactory = connectionFactory;
         _configuration = configuration;
         _planInfoProvider = planInfoProvider;
+        _membershipEnricher = membershipEnricher;
         _tenantSettingsService = tenantSettingsService;
         _logger = logger;
     }
@@ -349,7 +352,7 @@ public class SessionService : ISessionService
         // Plan label is a commercial concept owned by the edition, not foundation.
         var planInfo = await _planInfoProvider.GetPlanInfoAsync(rows.Select(r => r.TenantId).ToList(), ct);
 
-        return rows.Select(r => new TenantMembershipInfo
+        var memberships = rows.Select(r => new TenantMembershipInfo
         {
             TenantId = r.TenantId,
             Slug = r.Slug,
@@ -360,6 +363,10 @@ public class SessionService : ISessionService
             IsTenantAdmin = r.Role == RoleConstants.Admin,
             Tier = planInfo.TryGetValue(r.TenantId, out var info) ? info.PlanLabel : SinglePlanInfoProvider.PlanLabel,
         }).ToList();
+
+        // Suspension metadata is a commercial/edition concept — SaaS fills
+        // CanReactivate/SuspensionReason here; other editions pass through.
+        return (await _membershipEnricher.EnrichAsync(memberships, userId, ct)).ToList();
     }
 
     private async Task<bool> HasAcceptedTosInternalAsync(NpgsqlConnection db, Guid userId, string requiredVersion, CancellationToken ct = default)

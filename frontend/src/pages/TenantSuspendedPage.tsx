@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { PauseCircle, RefreshCw, LogOut, Mail } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
-import { AUTH_EVENTS, SUSPENSION_REASON } from '@foundation/src/constants/auth';
+import { AUTH_EVENTS, SUSPENSION_REASON, TENANT_STATUS } from '@foundation/src/constants/auth';
 import { API_BASE_URL, getApiHeaders } from '@foundation/src/lib/core/api-utils';
 import { runtimeConfig } from '@foundation/src/config/runtime';
 import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 
 export function TenantSuspendedPage() {
-  usePageTitle('Organization suspended');
   const { membership, send } = useAuth();
+  const isDeleting = membership?.state === TENANT_STATUS.DELETING;
+  usePageTitle(isDeleting ? 'Workspace scheduled for deletion' : 'Organization suspended');
   const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,11 +50,15 @@ export function TenantSuspendedPage() {
         <PauseCircle className="h-14 w-14 text-amber-500" />
 
         <div className="space-y-2">
-          <h1 className="text-xl font-semibold">Organization suspended</h1>
+          <h1 className="text-xl font-semibold">
+            {isDeleting ? 'Workspace scheduled for deletion' : 'Organization suspended'}
+          </h1>
           <p className="text-muted-foreground text-sm">
-            {isInactivity
-              ? 'This organization was automatically suspended due to 30 days of inactivity. All your data is safe.'
-              : 'This organization has been suspended. Please contact support for more information.'}
+            {isDeleting
+              ? 'This organization is scheduled for permanent deletion after a long period of inactivity. Restore it now to keep your data.'
+              : isInactivity
+                ? 'This organization was automatically suspended due to 30 days of inactivity. All your data is safe.'
+                : 'This organization has been suspended. Please contact support for more information.'}
           </p>
         </div>
 
@@ -61,7 +66,9 @@ export function TenantSuspendedPage() {
           <>
             <Button onClick={handleReactivate} disabled={reactivating}>
               <RefreshCw className={`mr-2 h-4 w-4 ${reactivating ? 'animate-spin' : ''}`} />
-              {reactivating ? 'Reactivating...' : 'Reactivate organization'}
+              {reactivating
+                ? isDeleting ? 'Restoring...' : 'Reactivating...'
+                : isDeleting ? 'Restore workspace' : 'Reactivate organization'}
             </Button>
             {error && <p className="text-destructive text-sm">{error}</p>}
           </>
@@ -70,7 +77,9 @@ export function TenantSuspendedPage() {
         {!canReactivate && (
           <div className="space-y-2">
             <p className="text-muted-foreground text-xs">
-              Ask an organization owner or admin to reactivate this organization, or contact support.
+              {isDeleting
+                ? 'Ask an organization owner or admin to restore this organization, or contact support.'
+                : 'Ask an organization owner or admin to reactivate this organization, or contact support.'}
             </p>
             {runtimeConfig.supportEmail && (
               <Button variant="outline" size="sm" asChild>

@@ -13,4 +13,18 @@ public static class TenantStatusPolicy
     {
         return string.Equals(status, TenantStatusConstants.Suspended, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static bool IsPendingDeletion(string status)
+    {
+        return string.Equals(status, TenantStatusConstants.Deleting, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Whether the tenant is blocked from normal use but restorable by an
+    /// owner/admin: suspended, or scheduled for deletion (grace window).
+    /// </summary>
+    public static bool IsBlocked(string status)
+    {
+        return IsSuspended(status) || IsPendingDeletion(status);
+    }
 }

@@ -46,4 +46,14 @@ public record TenantMembershipInfo
     public bool IsOwner { get; init; }
     public bool IsTenantAdmin { get; init; }
     public required string Tier { get; init; }
+
+    /// <summary>
+    /// Whether the caller may self-service restore this blocked (suspended/deleting)
+    /// tenant. Populated by the edition's <c>ITenantMembershipEnricher</c>; null when
+    /// the tenant is not blocked or the edition has no suspension concept.
+    /// </summary>
+    public bool? CanReactivate { get; init; }
+
+    /// <summary>Suspension reason for blocked tenants; edition-populated, see <see cref="CanReactivate"/>.</summary>
+    public string? SuspensionReason { get; init; }
 }

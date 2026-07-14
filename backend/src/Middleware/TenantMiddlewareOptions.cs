@@ -38,11 +38,7 @@ public class TenantMiddlewareOptions
     /// </para>
     /// </summary>
     public string? BuildTenantHostname(string slug)
-    {
-        if (string.IsNullOrEmpty(BaseDomain)) return null;
-        var prefix = SubdomainPrefix ?? "";
-        return $"{prefix}{slug}.{BaseDomain}";
-    }
+        => Orkyo.Shared.TenantHostnamePolicy.BuildHostname(BaseDomain, SubdomainPrefix, slug);
 
     /// <summary>
     /// Extract the tenant slug from a hostname, stripping port and the environment prefix.

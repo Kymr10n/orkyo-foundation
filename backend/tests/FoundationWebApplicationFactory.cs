@@ -275,6 +275,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaUsageRollup, Api.Security.Quotas.NoOpQuotaUsageRollup>();
         builder.Services.AddScoped<Api.Security.Features.IFeatureGate, Api.Security.Features.AllFeaturesEnabledGate>();
         builder.Services.AddScoped<Api.Security.Features.ITenantPlanInfoProvider, Api.Security.Features.SinglePlanInfoProvider>();
+        builder.Services.AddScoped<Api.Security.Features.ITenantMembershipEnricher, Api.Security.Features.PassThroughTenantMembershipEnricher>();
 
         // ── HTTP client factory (required by UserLifecycleService) ────────────
         builder.Services.AddHttpClient();

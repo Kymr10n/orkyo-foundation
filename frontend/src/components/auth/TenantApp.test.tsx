@@ -169,6 +169,24 @@ describe("TenantApp", () => {
     expect(screen.getByTestId("tenant-suspended-page")).toBeInTheDocument();
   });
 
+  it("renders TenantSuspendedPage when selecting_tenant with deleting membership", () => {
+    mockUseAuth.mockReturnValue(
+      authState({
+        authStage: AUTH_STAGES.SELECTING_TENANT,
+        membership: {
+          slug: "the-goo-factory",
+          state: TENANT_STATUS.DELETING,
+          canReactivate: true,
+          suspensionReason: "inactivity",
+        },
+      }),
+    );
+
+    renderAt("/");
+
+    expect(screen.getByTestId("tenant-suspended-page")).toBeInTheDocument();
+  });
+
   it("does not render TenantSuspendedPage when selecting_tenant without suspended membership", () => {
     mockUseAuth.mockReturnValue(
       authState({

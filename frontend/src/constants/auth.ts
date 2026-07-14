@@ -62,8 +62,17 @@ export const TENANT_STATUS = {
 } as const;
 
 /**
+ * Whether the tenant is blocked from normal use but restorable by an owner/admin:
+ * suspended, or scheduled for deletion (grace window). Mirrors the backend
+ * <c>TenantStatusPolicy.IsBlocked</c>.
+ */
+export function isBlockedTenantState(state: string | undefined): boolean {
+  return state === TENANT_STATUS.SUSPENDED || state === TENANT_STATUS.DELETING;
+}
+
+/**
  * Suspension reasons. Keep in sync with backend <c>SuspensionReasonConstants</c>.
- * Only {@link TENANT_STATUS.SUSPENDED} memberships carry this.
+ * Blocked ({@link TENANT_STATUS.SUSPENDED}/{@link TENANT_STATUS.DELETING}) memberships carry this.
  */
 export const SUSPENSION_REASON = {
   INACTIVITY: 'inactivity',
