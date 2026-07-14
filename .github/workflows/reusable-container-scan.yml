@@ -1,0 +1,142 @@
+name: reusable / container-scan
+
+# Extracted from the matrixed `container-scan` job — near-identical across:
+#   - orkyo-saas/.github/workflows/release-ci.yml      @ 74bc01cc9211a4dcf48b3f3b36ac0d5bc64339ea
+#   - orkyo-community/.github/workflows/release-ci.yml @ ec14ac98c304f81a61600fc73d2a0ddf0ae85358
+# (diffed byte-for-byte — the only differences were the service list, the
+# image-name prefix, and the TRIVY_SKIP_JAVA_DB_UPDATE value for the Keycloak
+# service). orkyo-foundation's own `container-scan` job is NOT extracted here:
+# it scans a single non-matrixed Keycloak image with a HIGH-report-only /
+# CRITICAL-blocking split that has no analogue in saas/community, and stays
+# untouched in foundation's release-ci.yml.
+#
+# Differences parameterized:
+#   - `image-name-prefix` — orkyo-saas | orkyo-community (image =
+#     ghcr.io/kymr10n/<prefix>-<service>:sha-<github.sha>)
+#   - `services` — JSON array of service names, e.g.
+#     '["api","worker","migrator","seed","frontend"]' (saas) or
+#     '["api","worker","migrator","frontend","keycloak"]' (community)
+#   - `java-services` — JSON array of services that ship JARs and need the
+#     Trivy Java DB (community's `keycloak`); everything else skips it. Both
+#     source jobs skip the non-root and .NET-runtime-load checks for
+#     `frontend` specifically — that's identical in both, so it's a literal
+#     `!= 'frontend'` guard, not a parameterized input.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
+# reference a local `./.github/actions/...` composite action — that breaks the
+# CALLER with an undiagnosable startup_failure. Every third-party action below
+# is pinned to the exact SHA the source jobs used. Consumers must pin their
+# `uses:` to this file by commit SHA, never `@main`. Call with `secrets: inherit`.
+#
+# Behavior must match the source job bodies byte-for-byte (modulo the inputs
+# above) at extraction time.
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry + namespace prefix'
+        required: false
+        type: string
+        default: 'ghcr.io/kymr10n'
+      image-name-prefix:
+        description: 'Image name prefix, e.g. orkyo-saas or orkyo-community (image = <registry>/<prefix>-<service>:sha-<sha>)'
+        required: true
+        type: string
+      services:
+        description: 'JSON array of service names to scan, e.g. ["api","worker","migrator","frontend"]'
+        required: true
+        type: string
+      java-services:
+        description: 'JSON array of services that ship JARs and need the Trivy Java DB (others set TRIVY_SKIP_JAVA_DB_UPDATE=true)'
+        required: false
+        type: string
+        default: '[]'
+    secrets:
+      GHCR_TOKEN:
+        description: 'GHCR login + SBOM registry auth'
+        required: true
+
+jobs:
+  container-scan:
+    name: Container Scan (${{ matrix.service }})
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(inputs.services) }}
+      fail-fast: false
+
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Trivy — image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ inputs.registry }}/${{ inputs.image-name-prefix }}-${{ matrix.service }}:sha-${{ github.sha }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          # Trivy 0.70 crashes with HTTP/2 PROTOCOL_ERROR when streaming MimeKit.dll
+          # from GHCR during layer analysis. Remove once trivy-action is upgraded past 0.70.
+          skip-files: 'app/MimeKit.dll'
+        env:
+          # .NET/nginx images contain no JARs — skip the 869 MB Java DB download.
+          # Java-shipping images (e.g. Keycloak) need it.
+          TRIVY_SKIP_JAVA_DB_UPDATE: ${{ !contains(fromJson(inputs.java-services), matrix.service) && 'true' || 'false' }}
+
+      - name: Verify non-root container
+        if: matrix.service != 'frontend'
+        run: |
+          uid=$(docker run --rm \
+            ${{ inputs.registry }}/${{ inputs.image-name-prefix }}-${{ matrix.service }}:sha-${{ github.sha }} \
+            id -u 2>/dev/null || echo "999")
+          echo "Container UID: $uid"
+          if [ "$uid" = "0" ]; then
+            echo "::error::${{ matrix.service }} runs as root — must use non-root user"
+            exit 1
+          fi
+
+      - name: Verify .NET runtime can load app
+        if: matrix.service != 'frontend'
+        run: |
+          # Boot the image briefly; the dotnet host fails fast with a clear
+          # message if the app's runtimeconfig references a framework the
+          # image doesn't have. Any startup error other than missing-framework
+          # is fine (env vars missing etc) — we only fail on the specific
+          # framework-resolution error.
+          set +e
+          output=$(timeout 5 docker run --rm \
+            ${{ inputs.registry }}/${{ inputs.image-name-prefix }}-${{ matrix.service }}:sha-${{ github.sha }} 2>&1)
+          set -e
+          if echo "$output" | grep -qE "No frameworks were found|framework.*was not found|To install missing framework"; then
+            echo "::error::${{ matrix.service }} image is missing a required .NET framework — runtimeconfig/base-image mismatch"
+            echo "$output" | tail -20
+            exit 1
+          fi
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ inputs.registry }}/${{ inputs.image-name-prefix }}-${{ matrix.service }}:sha-${{ github.sha }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-${{ matrix.service }}-${{ github.sha }}
+          path: sbom-${{ matrix.service }}.spdx.json
+          retention-days: 90

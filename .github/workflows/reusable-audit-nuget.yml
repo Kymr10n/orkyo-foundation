@@ -1,0 +1,75 @@
+name: reusable / audit-nuget
+
+# Extracted from the `audit-nuget` job — near-identical across:
+#   - orkyo-foundation/.github/workflows/release-ci.yml @ 5144f8e9f6094fbd600045048bc84c605722c32d
+#   - orkyo-saas/.github/workflows/release-ci.yml        @ 74bc01cc9211a4dcf48b3f3b36ac0d5bc64339ea
+#   - orkyo-community/.github/workflows/release-ci.yml   @ ec14ac98c304f81a61600fc73d2a0ddf0ae85358
+#
+# Differences parameterized:
+#   - `solution-path` — Orkyo.Foundation.slnx | Orkyo.Saas.slnx | Orkyo.Community.slnx
+#   - `with-private-registry` — saas/community restore from the private GitHub
+#     Packages NuGet feed (to pull @kymr10n/foundation's NuGet packages) via
+#     setup-dotnet's source-url + NUGET_AUTH_TOKEN=secrets.GITHUB_TOKEN;
+#     foundation has no such dependency and omits it.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
+# reference a local `./.github/actions/...` composite action — that breaks the
+# CALLER with an undiagnosable startup_failure. Every third-party action below
+# is pinned to the exact SHA the source jobs used. Consumers must pin their
+# `uses:` to this file by commit SHA, never `@main`.
+#
+# Behavior must match the source job bodies byte-for-byte (modulo the two
+# inputs above) at extraction time. secrets.GITHUB_TOKEN is the automatic,
+# run-scoped token — it needs no `secrets:` passthrough from the caller.
+
+on:
+  workflow_call:
+    inputs:
+      solution-path:
+        description: 'Path to the .slnx solution file to restore/check'
+        required: true
+        type: string
+      with-private-registry:
+        description: 'Restore from the private GitHub Packages NuGet feed (nuget.pkg.github.com/Kymr10n) using the automatic GITHUB_TOKEN'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  audit-nuget:
+    name: audit / NuGet
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup .NET
+        if: inputs.with-private-registry
+        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
+        with:
+          global-json-file: global.json
+          source-url: https://nuget.pkg.github.com/Kymr10n/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        if: ${{ !inputs.with-private-registry }}
+        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore ${{ inputs.solution-path }} --locked-mode
+
+      - name: Check for vulnerable packages
+        run: |
+          output=$(dotnet list ${{ inputs.solution-path }} package --vulnerable --include-transitive 2>&1)
+          echo "$output"
+          if echo "$output" | grep -qi "has the following vulnerable packages"; then
+            echo "::error::Vulnerable NuGet packages detected — update before merging"
+            exit 1
+          fi

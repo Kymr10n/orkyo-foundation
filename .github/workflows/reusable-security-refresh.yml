@@ -1,0 +1,139 @@
+name: reusable / security-refresh
+
+# W6.2. Extracted from the `refresh-frontend` job in the standalone
+# `security-refresh.yml` workflow — near-identical across:
+#   - orkyo-saas/.github/workflows/security-refresh.yml      @ 20e108f96d1f8a579f68424732eef550d71d3fde
+#   - orkyo-community/.github/workflows/security-refresh.yml @ c6ecbf3d84e4f63a812d6983fb405b1fb8e8012b
+# orkyo-foundation's OWN security-refresh.yml (refreshes the Keycloak base
+# image) is untouched by this PR — genuinely different subject, not extracted.
+#
+# Differences parameterized:
+#   - `image-name` — orkyo-saas-frontend | orkyo-community-frontend (image =
+#     ghcr.io/kymr10n/<image-name>:security-refresh)
+#   - `needs-ghcr-secret` — saas's frontend build passes
+#     `secrets: ghcr_token=...` to docker/build-push-action (its frontend
+#     Dockerfile needs it to install the private @kymr10n/foundation npm
+#     package during build); community's frontend build does not.
+#   - Cosmetic-only, not parameterized: saas/community differ in a few step
+#     names and the exact wording of the issue title/body
+#     ("saas-frontend"/"community-frontend", script-generated text). This
+#     reusable workflow unifies wording to use `inputs.image-name` verbatim in
+#     both places — functionally equivalent, textually not byte-identical to
+#     either source (see the PR's parameterization table).
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
+# reference a local `./.github/actions/...` composite action — that breaks the
+# CALLER with an undiagnosable startup_failure. Every third-party action below
+# is pinned to the exact SHA the source jobs used. Consumers must pin their
+# `uses:` to this file by commit SHA, never `@main`. Call with `secrets: inherit`.
+#
+# Behavior must match the source job bodies byte-for-byte (modulo the inputs
+# and the wording note above) at extraction time.
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry + namespace prefix'
+        required: false
+        type: string
+        default: 'ghcr.io/kymr10n'
+      image-name:
+        description: 'Image name, e.g. orkyo-saas-frontend or orkyo-community-frontend (image = <registry>/<image-name>:security-refresh)'
+        required: true
+        type: string
+      dockerfile-context:
+        description: 'Docker build context directory'
+        required: false
+        type: string
+        default: 'frontend'
+      dockerfile-path:
+        description: 'Path to the Dockerfile'
+        required: false
+        type: string
+        default: 'frontend/Dockerfile'
+      needs-ghcr-secret:
+        description: 'Pass ghcr_token=secrets.GHCR_TOKEN as a build secret (needed when the Dockerfile installs the private @kymr10n/foundation npm package during build)'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      GHCR_TOKEN:
+        description: 'GHCR login, and (when needs-ghcr-secret) the build secret ghcr_token'
+        required: true
+
+jobs:
+  refresh-frontend:
+    name: Refresh Frontend Base Image
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      issues: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build refreshed frontend image (no-cache on nginx runtime)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ${{ inputs.dockerfile-context }}
+          file: ${{ inputs.dockerfile-path }}
+          push: true
+          tags: ${{ inputs.registry }}/${{ inputs.image-name }}:security-refresh
+          no-cache: true
+          secrets: ${{ inputs.needs-ghcr-secret && format('ghcr_token={0}', secrets.GHCR_TOKEN) || '' }}
+
+      - name: Trivy — scan refreshed image
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ inputs.registry }}/${{ inputs.image-name }}:security-refresh
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+
+      - name: Create or reopen issue on vulnerability found
+        if: steps.trivy.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const imageName = '${{ inputs.image-name }}';
+            const title = `🔒 Security: HIGH/CRITICAL CVEs in ${imageName} base image`;
+            const body = [
+              `## Vulnerability detected in ${imageName} base image`,
+              `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `**Date:** ${new Date().toISOString()}`,
+              '',
+              '**Action required:** Update nginx base image in `frontend/Dockerfile` or add a time-bound `.trivyignore` exception.',
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'all', labels: ['security'], per_page: 10,
+            });
+            const existing = issues.find(i => i.title === title);
+            if (existing) {
+              if (existing.state === 'closed') {
+                await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'open' });
+              }
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number,
+                body: `Still present: ${new Date().toISOString()} — ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}` });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['security'] });
+            }
+
+      - name: Fail workflow if vulnerabilities found
+        if: steps.trivy.outcome == 'failure'
+        run: exit 1
