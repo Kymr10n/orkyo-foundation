@@ -335,6 +335,27 @@ backup-step gating, type-to-confirm disabled until slug matches);
 Cross-repo: `orkyo-foundation/scripts/test-downstream.sh` is **mandatory** (new `Map*Endpoints` +
 DI surface).
 
+### Coverage requirement (≥80% on all new transfer code)
+
+All new transfer code must reach **≥80% line coverage**, verified locally before push — not just
+via Codecov's existing 80% patch gate. In scope: backend `backend/core/Services/Transfer/*` and
+`backend/src/Endpoints/TransferEndpoints.cs` (foundation), the product guard/hook classes
+(`SaasTenantTransferGuard`, `CommunityTenantTransferImportHook`); frontend
+`lib/api/transfer-api.ts`, `components/settings/DataTransferSettings.tsx`,
+`hooks/useDataTransferAvailable.ts`. Pure registration glue (`FoundationServiceExtensions`
+additions) is exempt — `codecov.yml` already ignores DI/extension files; everything with logic is
+not exempt.
+
+Verification recipes:
+
+- **Backend**: `dotnet test --collect:"XPlat Code Coverage"`, then ReportGenerator as a dev-only
+  local dotnet tool (do NOT add it as a package reference) with a class filter on the Transfer
+  namespace + `TransferEndpoints`; the Lines column must be ≥80%.
+- **Frontend**: `npm test -- --run --coverage` (foundation) / `npm run test:coverage` (products);
+  the per-file table must show ≥80% lines for each new file. The foundation frontend now enforces
+  thresholds (lines 80 / statements 80 / branches 70 / functions 80) in `vitest.config.ts`, same
+  bar as the saas/community frontends, so the suite fails locally and in CI if the bar is missed.
+
 ## Verification (end-to-end)
 
 1. `dotnet format` + builds in all repos; foundation suite; `./scripts/test-downstream.sh`.

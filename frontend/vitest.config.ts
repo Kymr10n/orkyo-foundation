@@ -19,7 +19,15 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     include: ["contracts/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
     coverage: {
+      // "cobertura" is required: release-ci.yml uploads coverage/cobertura-coverage.xml
+      reporter: ["text", "lcov", "cobertura"],
+      include: ["src/**/*.{ts,tsx}", "contracts/**/*.ts"],
+      // Same bar as the saas/community frontends
+      thresholds: { lines: 80, statements: 80, branches: 70, functions: 80 },
       exclude: [
+        "src/test/**",
+        "**/*.test.{ts,tsx}",
+        "**/*.d.ts",
         // Pure type definitions — nothing to assert at runtime
         "src/components/utilization/scheduler-types.ts",
         // Canvas / SVG rendering — no DOM surface to test without a real browser
