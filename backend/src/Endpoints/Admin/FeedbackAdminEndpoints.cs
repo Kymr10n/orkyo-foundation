@@ -49,9 +49,9 @@ public static class FeedbackAdminEndpoints
         int? offset = null)
     {
         if (status is not null && !FeedbackStatuses.All.Contains(status))
-            return Results.BadRequest(new { error = "Unknown status filter" });
+            return ErrorResponses.BadRequest("Unknown status filter");
         if (type is not null && !FeedbackTypes.All.Contains(type))
-            return Results.BadRequest(new { error = "Unknown type filter" });
+            return ErrorResponses.BadRequest("Unknown type filter");
 
         var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
         var skip = Math.Max(offset ?? 0, 0);
@@ -76,19 +76,16 @@ public static class FeedbackAdminEndpoints
         CancellationToken ct)
     {
         if (request.Status is null && request.AdminNotes is null && request.GithubIssueUrl is null)
-            return Results.BadRequest(new { error = "Provide at least one of: status, adminNotes, githubIssueUrl" });
+            return ErrorResponses.BadRequest("Provide at least one of: status, adminNotes, githubIssueUrl");
         if (request.Status is not null && !FeedbackStatuses.All.Contains(request.Status))
-            return Results.BadRequest(new { error = "Status must be one of: " + string.Join(", ", FeedbackStatuses.All) });
+            return ErrorResponses.BadRequest("Status must be one of: " + string.Join(", ", FeedbackStatuses.All));
 
         var current = await repository.GetByIdAsync(id, ct);
         if (current is null)
-            return Results.NotFound(new { error = "Feedback not found" });
+            return ErrorResponses.NotFound("Feedback", id);
 
         var updated = await repository.UpdateAsync(id, request, ct);
-        if (updated is null)
-            return Results.NotFound(new { error = "Feedback not found" });
-
-        if (request.Status is not null && request.Status != current.Status)
+        if (updated is not null && request.Status is not null && request.Status != current.Status)
         {
             await auditService.RecordEventAsync(
                 principal.UserId, "feedback.status_changed", "feedback", id.ToString(),
@@ -97,6 +94,6 @@ public static class FeedbackAdminEndpoints
                 principal.UserId, id, current.Status, updated.Status);
         }
 
-        return Results.Ok(updated);
+        return EndpointHelpers.OkOrNotFound(updated, "Feedback", id);
     }
 }

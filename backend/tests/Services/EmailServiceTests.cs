@@ -7,6 +7,10 @@ namespace Orkyo.Foundation.Tests.Services;
 
 public class EmailServiceTests
 {
+    // Zero backoff keeps the unreachable-SMTP failure tests fast while still
+    // exercising the retry loop (3 attempts, as in production).
+    private static readonly EmailSendOptions FastRetry = new(MaxAttempts: 3, Backoff: _ => TimeSpan.Zero);
+
     private readonly Mock<IConfiguration> _mockConfiguration;
     private readonly EmailService _emailService;
 
@@ -25,7 +29,8 @@ public class EmailServiceTests
 
         _emailService = new EmailService(_mockConfiguration.Object,
             new Mock<ILogger<EmailService>>().Object,
-            CreateSettingsServiceMock());
+            CreateSettingsServiceMock(),
+            FastRetry);
     }
 
     private static ITenantSettingsService CreateSettingsServiceMock()
@@ -137,7 +142,8 @@ public class EmailServiceTests
         _mockConfiguration.Setup(c => c["SMTP_PORT"]).Returns("19999");
         return new EmailService(_mockConfiguration.Object,
             new Mock<ILogger<EmailService>>().Object,
-            CreateSettingsServiceMock());
+            CreateSettingsServiceMock(),
+            FastRetry);
     }
 
     [Fact]

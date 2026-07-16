@@ -17,6 +17,12 @@ using Orkyo.Shared;
 
 namespace Api.Endpoints.Reporting;
 
+/// <summary>
+/// The external reporting API. Error bodies here use the <c>{ error, message }</c> shape —
+/// the DELIBERATE, stable contract of the external reporting API surface, distinct from the
+/// internal <see cref="Api.Helpers.ErrorResponses"/> shape. Do not converge; external
+/// consumers depend on it.
+/// </summary>
 public static class ReportingEndpoints
 {
     public static void MapReportingEndpoints(this IEndpointRouteBuilder app)

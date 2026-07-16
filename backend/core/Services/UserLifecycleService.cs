@@ -1,13 +1,7 @@
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Api.Constants;
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
+using Api.Integrations.Keycloak;
+using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
-using Orkyo.Shared.Keycloak;
 
 namespace Api.Services;
 
@@ -26,81 +20,50 @@ namespace Api.Services;
 ///
 /// The DB connection is created via <see cref="IDbConnectionFactory.CreateControlPlaneConnection"/>.
 /// In Community, the factory maps this to the single deployment database.
+///
+/// Keycloak calls go through <see cref="IKeycloakAdminService"/> (which sets the
+/// X-Forwarded-Proto/Host headers the internal proxy policy requires) and emails through
+/// <see cref="IEmailService"/> — both resolved from a fresh scope per run, because the workers
+/// host this service as a singleton while those services may be typed-HttpClient/scoped.
 /// </summary>
 public sealed class UserLifecycleService
 {
-    private readonly IConfiguration _configuration;
     private readonly ILogger<UserLifecycleService> _logger;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IDbConnectionFactory _connectionFactory;
-    private readonly KeycloakOptions _kc;
-
-    private const int MaxRetries = 3;
-    private static readonly TimeSpan ExternalCallTimeout = TimeSpan.FromSeconds(15);
-
-    private static TimeSpan RetryBackoff(int attempt) => TimeSpan.FromSeconds(Math.Pow(2, attempt));
-
-    private readonly SemaphoreSlim _tokenLock = new(1, 1);
-    private static readonly SemaphoreSlim _emailThrottle = new(5, 5);
-    private string? _kcAccessToken;
-    private DateTime _kcTokenExpiry = DateTime.MinValue;
-
-    private readonly Lazy<SmtpConfig> _smtpConfig;
-
-    private string AppBaseUrl => _configuration[ConfigKeys.AppBaseUrl]
-        ?? throw new InvalidOperationException("APP_BASE_URL not configured");
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public UserLifecycleService(
-        IConfiguration configuration,
         ILogger<UserLifecycleService> logger,
-        IHttpClientFactory httpClientFactory,
         IDbConnectionFactory connectionFactory,
-        KeycloakOptions keycloakOptions)
+        IServiceScopeFactory scopeFactory)
     {
-        _configuration = configuration;
         _logger = logger;
-        _httpClientFactory = httpClientFactory;
         _connectionFactory = connectionFactory;
-        _kc = keycloakOptions;
-
-        _smtpConfig = new Lazy<SmtpConfig>(() => new SmtpConfig(
-            Host: configuration[ConfigKeys.SmtpHost]
-                ?? throw new InvalidOperationException("SMTP_HOST not configured"),
-            Port: int.TryParse(configuration[ConfigKeys.SmtpPort], out var p) ? p
-                : throw new InvalidOperationException("SMTP_PORT is not configured or is not a valid integer"),
-            UseSsl: bool.TryParse(configuration[ConfigKeys.SmtpUseSsl], out var s) ? s
-                : throw new InvalidOperationException("SMTP_USE_SSL is not configured or is not 'true'/'false'"),
-            Username: configuration[ConfigKeys.SmtpUsername],
-            Password: configuration[ConfigKeys.SmtpPassword],
-            FromEmail: configuration[ConfigKeys.SmtpFromEmail]
-                ?? throw new InvalidOperationException("SMTP_FROM_EMAIL not configured"),
-            FromName: configuration[ConfigKeys.SmtpFromName]
-                ?? throw new InvalidOperationException("SMTP_FROM_NAME not configured")
-        ));
+        _scopeFactory = scopeFactory;
     }
-
-    private sealed record SmtpConfig(
-        string Host, int Port, bool UseSsl,
-        string? Username, string? Password,
-        string FromEmail, string FromName);
 
     public async Task ProcessAsync(CancellationToken ct)
     {
         _logger.LogInformation("Starting user lifecycle run");
 
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var keycloakAdmin = scope.ServiceProvider.GetRequiredService<IKeycloakAdminService>();
+        var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+
         await using var db = _connectionFactory.CreateControlPlaneConnection();
         await db.OpenAsync(ct);
 
-        await SendWarningsAsync(db, 0, ct);
-        await SendWarningsAsync(db, 1, ct);
-        await SendWarningsAsync(db, 2, ct);
-        await DeactivatePersistentlyInactiveUsersAsync(db, ct);
-        await PurgeDormantUsersAsync(db, ct);
+        await SendWarningsAsync(db, emailService, 0, ct);
+        await SendWarningsAsync(db, emailService, 1, ct);
+        await SendWarningsAsync(db, emailService, 2, ct);
+        await DeactivatePersistentlyInactiveUsersAsync(db, keycloakAdmin, emailService, ct);
+        await PurgeDormantUsersAsync(db, keycloakAdmin, ct);
 
         _logger.LogInformation("User lifecycle run complete");
     }
 
-    private async Task SendWarningsAsync(Npgsql.NpgsqlConnection db, int currentWarningCount, CancellationToken ct)
+    private async Task SendWarningsAsync(
+        Npgsql.NpgsqlConnection db, IEmailService emailService, int currentWarningCount, CancellationToken ct)
     {
         var nextCount = currentWarningCount + 1;
 
@@ -140,7 +103,7 @@ public sealed class UserLifecycleService
                     lastWarnedAt: DateTime.UtcNow, dormantSince: null, confirmToken: token, ct);
                 await tx.CommitAsync(ct);
 
-                await SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount);
+                await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct);
                 _logger.LogInformation("Warning #{NextCount} sent to user {UserId}", nextCount, user.Id);
             }
             catch (Exception ex)
@@ -150,7 +113,8 @@ public sealed class UserLifecycleService
         }
     }
 
-    private async Task DeactivatePersistentlyInactiveUsersAsync(Npgsql.NpgsqlConnection db, CancellationToken ct)
+    private async Task DeactivatePersistentlyInactiveUsersAsync(
+        Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, IEmailService emailService, CancellationToken ct)
     {
         var cmd = new Npgsql.NpgsqlCommand($@"
             SELECT id, email, display_name, keycloak_id
@@ -170,10 +134,13 @@ public sealed class UserLifecycleService
             {
                 if (!string.IsNullOrEmpty(user.KeycloakId))
                 {
-                    var (success, error) = await SetKeycloakUserEnabledAsync(user.KeycloakId, enabled: false);
-                    if (!success)
+                    try
                     {
-                        _logger.LogError("Failed to disable Keycloak user {KeycloakId}: {Error}", user.KeycloakId, error);
+                        await keycloakAdmin.DisableUserAsync(user.KeycloakId, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to disable Keycloak user {KeycloakId}", user.KeycloakId);
                         continue;
                     }
                 }
@@ -184,7 +151,7 @@ public sealed class UserLifecycleService
                 await SetUserDbStatusAsync(db, user.Id, UserStatusConstants.Disabled, ct);
                 await tx.CommitAsync(ct);
 
-                await SendDormancyNoticeEmailAsync(user.Email, user.DisplayName);
+                await emailService.SendDormancyNoticeEmailAsync(user.Email, user.DisplayName, ct);
                 _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
             }
             catch (Exception ex)
@@ -194,7 +161,8 @@ public sealed class UserLifecycleService
         }
     }
 
-    private async Task PurgeDormantUsersAsync(Npgsql.NpgsqlConnection db, CancellationToken ct)
+    private async Task PurgeDormantUsersAsync(
+        Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, CancellationToken ct)
     {
         var cmd = new Npgsql.NpgsqlCommand($@"
             SELECT id, email, display_name, keycloak_id
@@ -213,9 +181,16 @@ public sealed class UserLifecycleService
             {
                 if (!string.IsNullOrEmpty(user.KeycloakId))
                 {
-                    var (success, error) = await DeleteKeycloakUserAsync(user.KeycloakId);
-                    if (!success)
-                        _logger.LogError("Failed to delete Keycloak user {KeycloakId}: {Error}", user.KeycloakId, error);
+                    try
+                    {
+                        await keycloakAdmin.DeleteUserAsync(user.KeycloakId, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log and proceed — the GDPR purge of app data must not be blocked
+                        // by a Keycloak failure (pre-existing behavior).
+                        _logger.LogError(ex, "Failed to delete Keycloak user {KeycloakId}", user.KeycloakId);
+                    }
                 }
 
                 await using var tx = await db.BeginTransactionAsync(ct);
@@ -265,7 +240,13 @@ public sealed class UserLifecycleService
         cmd.Parameters.AddWithValue("warningCount", warningCount);
         cmd.Parameters.AddWithValue("lastWarnedAt", (object?)lastWarnedAt ?? DBNull.Value);
         cmd.Parameters.AddWithValue("dormantSince", (object?)dormantSince ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("confirmToken", (object?)confirmToken ?? DBNull.Value);
+        // Explicitly typed: @confirmToken appears in "CASE WHEN @confirmToken IS NULL", where an
+        // untyped NULL makes Postgres fail parameter-type inference (42P08) — which silently broke
+        // the deactivate phase (the only caller passing a null token) until the service tests caught it.
+        cmd.Parameters.Add(new Npgsql.NpgsqlParameter("confirmToken", NpgsqlTypes.NpgsqlDbType.Text)
+        {
+            Value = (object?)confirmToken ?? DBNull.Value
+        });
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -276,208 +257,5 @@ public sealed class UserLifecycleService
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync(ct);
-    }
-
-    private async Task<(bool success, string? error)> SetKeycloakUserEnabledAsync(string keycloakId, bool enabled)
-        => await ExecuteKeycloakWithRetryAsync(async (http, token) =>
-        {
-            var req = new HttpRequestMessage(HttpMethod.Put,
-                $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            req.Content = new StringContent(JsonSerializer.Serialize(new { enabled }), Encoding.UTF8, "application/json");
-            return await http.SendAsync(req, new CancellationTokenSource(ExternalCallTimeout).Token);
-        });
-
-    private async Task<(bool success, string? error)> DeleteKeycloakUserAsync(string keycloakId)
-        => await ExecuteKeycloakWithRetryAsync(async (http, token) =>
-        {
-            var req = new HttpRequestMessage(HttpMethod.Delete,
-                $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            return await http.SendAsync(req, new CancellationTokenSource(ExternalCallTimeout).Token);
-        });
-
-    private async Task<(bool success, string? error)> ExecuteKeycloakWithRetryAsync(
-        Func<HttpClient, string, Task<HttpResponseMessage>> action)
-    {
-        var token = await GetKcAdminTokenAsync();
-        if (token == null) return (false, "Failed to get admin token");
-
-        var http = _httpClientFactory.CreateClient();
-
-        for (var attempt = 1; attempt <= MaxRetries; attempt++)
-        {
-            try
-            {
-                using var res = await action(http, token);
-                if (res.IsSuccessStatusCode) return (true, null);
-                var err = await res.Content.ReadAsStringAsync();
-                if ((int)res.StatusCode < 500) return (false, err);
-                if (attempt < MaxRetries)
-                {
-                    await Task.Delay(RetryBackoff(attempt));
-                    continue;
-                }
-                return (false, err);
-            }
-            catch (Exception ex) when (attempt < MaxRetries && ex is HttpRequestException or TaskCanceledException)
-            {
-                await Task.Delay(RetryBackoff(attempt));
-            }
-            catch (Exception ex)
-            {
-                return (false, ex.Message);
-            }
-        }
-        return (false, "Max retries exceeded");
-    }
-
-    private async Task<string?> GetKcAdminTokenAsync()
-    {
-        if (_kcAccessToken != null && DateTime.UtcNow < _kcTokenExpiry)
-            return _kcAccessToken;
-
-        await _tokenLock.WaitAsync();
-        try
-        {
-            if (_kcAccessToken != null && DateTime.UtcNow < _kcTokenExpiry)
-                return _kcAccessToken;
-
-            var http = _httpClientFactory.CreateClient();
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = _kc.BackendClientId,
-                ["client_secret"] = _kc.BackendClientSecret
-            });
-
-            using var cts = new CancellationTokenSource(ExternalCallTimeout);
-            var res = await http.PostAsync(
-                $"{_kc.EffectiveInternalBaseUrl}/realms/{_kc.Realm}/protocol/openid-connect/token",
-                content, cts.Token);
-
-            if (!res.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Failed to get Keycloak admin token: {Status}", res.StatusCode);
-                return null;
-            }
-
-            var json = await res.Content.ReadAsStringAsync(cts.Token);
-            var tr = JsonSerializer.Deserialize<KcTokenResponse>(json);
-            if (tr?.AccessToken == null) return null;
-
-            _kcAccessToken = tr.AccessToken;
-            _kcTokenExpiry = DateTime.UtcNow.AddSeconds(tr.ExpiresIn - 30);
-            return _kcAccessToken;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error obtaining Keycloak admin token");
-            return null;
-        }
-        finally
-        {
-            _tokenLock.Release();
-        }
-    }
-
-    private async Task SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber)
-    {
-        var confirmLink = $"{AppBaseUrl}/api/account/confirm-activity?token={Uri.EscapeDataString(confirmToken)}";
-        var urgency = warningNumber switch
-        {
-            1 => "We noticed you haven't logged in for a while.",
-            2 => "This is a reminder — we still haven't heard from you.",
-            _ => "This is your final reminder before your account is deactivated."
-        };
-        var subject = warningNumber == 1 ? "Is your account still active?"
-            : $"Reminder: confirm your account activity ({warningNumber}/3)";
-
-        var html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8""></head>
-<body style=""font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px"">
-  <div style=""background:#3b82f6;padding:30px;text-align:center;border-radius:10px 10px 0 0"">
-    <h1 style=""color:white;margin:0"">Account Activity Check</h1></div>
-  <div style=""background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px"">
-    <p>Hi {displayName},</p><p>{urgency}</p>
-    <div style=""text-align:center;margin:30px 0"">
-      <a href=""{confirmLink}"" style=""background:#3b82f6;color:white;padding:14px 30px;text-decoration:none;border-radius:5px;font-weight:bold"">Yes, keep my account active</a>
-    </div>
-    <p style=""font-size:13px;color:#999"">After three reminders without response, your account will be deactivated and deleted after {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days.</p>
-  </div></body></html>";
-
-        var text = $"Hi {displayName},\n\n{urgency}\n\nConfirm activity: {confirmLink}\n\nAfter three reminders, your account will be deleted after {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days.";
-
-        await SendEmailAsync(toEmail, displayName, subject, html, text);
-    }
-
-    private async Task SendDormancyNoticeEmailAsync(string toEmail, string displayName)
-    {
-        var html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8""></head>
-<body style=""font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px"">
-  <div style=""background:#e67e22;padding:30px;text-align:center;border-radius:10px 10px 0 0"">
-    <h1 style=""color:white;margin:0"">Account Deactivated</h1></div>
-  <div style=""background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px"">
-    <p>Hi {displayName},</p>
-    <p>Your account has been <strong>deactivated</strong> after three unanswered inactivity reminders.</p>
-    <p>Your data will be <strong>permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days</strong>. Contact support to reactivate.</p>
-    <p style=""font-size:13px;color:#999"">This action was taken in accordance with our data retention policy (GDPR Article 5).</p>
-  </div></body></html>";
-
-        var text = $"Hi {displayName},\n\nYour account has been deactivated after three unanswered inactivity reminders.\nData will be permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days. Contact support to reactivate.";
-
-        await SendEmailAsync(toEmail, displayName, "Your account has been deactivated", html, text);
-    }
-
-    private async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody)
-    {
-        var smtp = _smtpConfig.Value;
-
-        await _emailThrottle.WaitAsync();
-        try
-        {
-            for (var attempt = 1; attempt <= MaxRetries; attempt++)
-            {
-                try
-                {
-                    var message = new MimeMessage();
-                    message.From.Add(new MailboxAddress(smtp.FromName, smtp.FromEmail));
-                    message.To.Add(new MailboxAddress(toName, toEmail));
-                    message.Subject = subject;
-                    message.Body = new BodyBuilder { HtmlBody = htmlBody, TextBody = textBody }.ToMessageBody();
-
-                    using var client = new SmtpClient();
-                    client.Timeout = (int)ExternalCallTimeout.TotalMilliseconds;
-                    await client.ConnectAsync(smtp.Host, smtp.Port,
-                        smtp.UseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None);
-
-                    if (!string.IsNullOrEmpty(smtp.Username) && !string.IsNullOrEmpty(smtp.Password))
-                        await client.AuthenticateAsync(smtp.Username, smtp.Password);
-
-                    await client.SendAsync(message);
-                    await client.DisconnectAsync(true);
-                    _logger.LogInformation("Lifecycle email sent to {Email}: {Subject}", toEmail, subject);
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    if (attempt == MaxRetries)
-                    {
-                        _logger.LogError(ex, "Failed to send lifecycle email to {Email} after {Attempts} attempts", toEmail, MaxRetries);
-                        return;
-                    }
-                    await Task.Delay(RetryBackoff(attempt));
-                }
-            }
-        }
-        finally
-        {
-            _emailThrottle.Release();
-        }
-    }
-
-    private class KcTokenResponse
-    {
-        [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
-        [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
     }
 }

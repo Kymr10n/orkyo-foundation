@@ -47,11 +47,12 @@ public static class CriterionApplicabilityEndpoints
 
             if (request.ResourceTypeKeys is not null)
             {
+                // Resource types are a small catalog — one fetch replaces a per-key lookup loop.
+                var typesByKey = (await resourceTypeRepo.GetAllAsync(ct)).ToDictionary(rt => rt.Key);
                 var typeIds = new List<Guid>();
                 foreach (var key in request.ResourceTypeKeys)
                 {
-                    var rt = await resourceTypeRepo.GetByKeyAsync(key);
-                    if (rt is null)
+                    if (!typesByKey.TryGetValue(key, out var rt))
                         return ErrorResponses.BadRequest($"Unknown resource type key '{key}'");
                     typeIds.Add(rt.Id);
                 }

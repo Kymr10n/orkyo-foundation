@@ -10,7 +10,9 @@ public static class ErrorCodes
     public const string NotFound = "NOT_FOUND";
 
     /// <summary>Validation error (400)</summary>
-    public const string ValidationError = "VALIDATION_ERROR";
+    // Value matches what has always been emitted on the wire (formerly via nameof); aligning the
+    // casing to "VALIDATION_ERROR" is deferred to the next major (deliberate — breaking change).
+    public const string ValidationError = "ValidationError";
 
     /// <summary>Conflict error (409)</summary>
     public const string Conflict = "CONFLICT";
