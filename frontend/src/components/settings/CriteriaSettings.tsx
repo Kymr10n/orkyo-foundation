@@ -21,11 +21,11 @@ import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
 import {
-  CRITERIA_QUERY_KEY,
   useCriteria,
   useCreateCriterion,
   useDeleteCriterion,
 } from '@foundation/src/hooks/useCriteria';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
@@ -80,7 +80,7 @@ export function CriteriaSettings() {
     {
       successMessage: (count) => `Imported ${count} criterion${count === 1 ? '' : 'ia'}`,
       errorMessage: 'Failed to import criteria',
-      invalidates: [CRITERIA_QUERY_KEY],
+      invalidates: [qk.criteria.all()],
     },
   );
 

@@ -27,6 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@foundation/src/components/ui/tooltip';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 const feedbackTypes: { value: FeedbackType; label: string; icon: React.ReactNode; description: string }[] = [
   { value: 'bug', label: 'Bug Report', icon: <Bug className="h-4 w-4" />, description: 'Something isn\'t working correctly' },
@@ -83,7 +84,7 @@ export function FeedbackButton() {
         handleOpenChange(false);
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit feedback');
+      setError(errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

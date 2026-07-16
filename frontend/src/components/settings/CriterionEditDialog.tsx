@@ -28,6 +28,7 @@ import {
   CRITERION_RESOURCE_TYPE_OPTIONS as RESOURCE_TYPE_OPTIONS,
   useCriterionForm,
 } from './useCriterionForm';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface CriterionEditDialogProps {
   criterion: Criterion | null;
@@ -140,7 +141,7 @@ export function CriterionEditDialog({
       onSaved?.(updated);
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save criterion');
+      setError(errorMessage(err));
     }
   };
 

@@ -4,14 +4,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
-export const CRITERIA_QUERY_KEY = ["criteria"] as const;
-
 // Criteria drive request requirements; mutating them invalidates the request feed too.
-const CRITERIA_INVALIDATES = [CRITERIA_QUERY_KEY, qk.requests.all()] as const;
+const CRITERIA_INVALIDATES = [qk.criteria.all(), qk.requests.all()] as const;
 
 export const useCriteria = () =>
   useQuery({
-    queryKey: CRITERIA_QUERY_KEY,
+    queryKey: qk.criteria.all(),
     queryFn: () => getCriteria(),
     staleTime: STALE.OPERATIONAL,
   });
@@ -54,6 +52,6 @@ export const useUpdateCriterionApplicability = () =>
     // already toasts via useUpdateCriterion — a second success toast would double-fire.
     meta: {
       errorMessage: "Failed to update criterion applicability",
-      invalidates: [CRITERIA_QUERY_KEY],
+      invalidates: [qk.criteria.all()],
     },
   });

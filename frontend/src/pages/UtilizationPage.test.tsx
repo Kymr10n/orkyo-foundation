@@ -936,7 +936,7 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("shows fallback error for non-Error rejection", async () => {
+  it("stringifies a non-Error rejection via the shared errorMessage normalizer", async () => {
     mockUseAutoScheduleAvailable.mockReturnValue(true);
     mockApplyMutateAsync.mockRejectedValueOnce("something");
     const Wrapper = createWrapper();
@@ -949,7 +949,7 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("apply-schedule"));
     await waitFor(() => {
-      expect(screen.getByTestId("apply-error")).toHaveTextContent("Failed to apply schedule");
+      expect(screen.getByTestId("apply-error")).toHaveTextContent("something");
     });
   });
 

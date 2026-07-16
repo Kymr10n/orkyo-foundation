@@ -22,6 +22,7 @@ import { randomId } from "@foundation/src/lib/core/ids";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface RequestPeopleSectionProps {
   /** ID of an existing request. Undefined when creating a new request. */
@@ -201,7 +202,7 @@ export function RequestPeopleSection({
       invalidateRequestData(queryClient);
       removePendingRow(key);
     } catch (err) {
-      updatePendingRow(key, { saving: false, error: err instanceof Error ? err.message : 'Failed to save' });
+      updatePendingRow(key, { saving: false, error: errorMessage(err) });
     }
   };
 

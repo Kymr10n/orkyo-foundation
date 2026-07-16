@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { errorMessage } from './mutation-utils';
 
 /**
  * Shared scaffold for the standard entity edit dialog (see docs/dialog-feedback.md):
@@ -87,7 +88,7 @@ export function useEntityFormDialog<TEntity, TForm, TSaved>({
       onSaved?.(saved);
       onOpenChange(false);
     },
-    onError: (err) => setError(err instanceof Error ? err.message : 'Save failed'),
+    onError: (err) => setError(errorMessage(err)),
   });
 
   return {

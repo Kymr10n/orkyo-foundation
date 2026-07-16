@@ -1,4 +1,5 @@
-import { Bell, Loader2 } from "lucide-react";
+import { Bell } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import {
   Card,
   CardContent,
@@ -54,9 +55,7 @@ export function NotificationPreferencesSection({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <LoadingSpinner size="sm" muted fullScreen={false} className="py-4" />
         ) : (
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">

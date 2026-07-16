@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FeedbackTab } from './FeedbackTab';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+
+// The save mutation declares `meta.successMessage`, so render under the
+// production-identical feedback MutationCache (dialog-feedback.md).
+const render = (ui: React.ReactElement) =>
+  rtlRender(ui, { wrapper: createFeedbackTestQueryWrapper() });
 
 const mockGet = vi.fn();
 const mockGetOne = vi.fn();
@@ -86,6 +92,7 @@ describe('FeedbackTab', () => {
       'fb-1',
       expect.objectContaining({ adminNotes: 'On it.' }),
     ));
-    expect(mockToast.success).toHaveBeenCalled();
+    // The success toast now originates from the central MutationCache (meta).
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Feedback updated'));
   });
 });

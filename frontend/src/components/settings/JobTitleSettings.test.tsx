@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { JobTitleSettings } from './JobTitleSettings';
 import type { JobTitleInfo } from '@foundation/src/lib/api/job-titles-api';
 
@@ -19,6 +19,7 @@ vi.mock('./JobTitleEditDialog', () => ({
 }));
 
 import { getJobTitles, deleteJobTitle } from '@foundation/src/lib/api/job-titles-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 const mockJobTitles: JobTitleInfo[] = [
   {
@@ -40,9 +41,8 @@ const mockJobTitles: JobTitleInfo[] = [
 ];
 
 function renderComponent() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
       <JobTitleSettings />

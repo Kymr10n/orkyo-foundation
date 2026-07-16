@@ -21,6 +21,7 @@ import { canCreateTenant, createTenant, getStarterTemplates, getTenantMembership
 import { StarterTemplatePicker, type StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
 import { logger } from "@foundation/src/lib/core/logger";
 import { runtimeConfig } from "@foundation/src/config/runtime";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface OnboardingPageProps {
   /** Called after successful tenant creation (e.g. refresh the pipeline). */
@@ -122,7 +123,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
       await cancelTenantDeletion(tenantId);
       await onComplete();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to restore organization");
+      setError(errorMessage(err));
       setRestoringId(null);
     }
   };
@@ -171,7 +172,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
       await onComplete();
     } catch (err) {
       logger.error("Tenant creation error:", err);
-      setError(err instanceof Error ? err.message : "Failed to create organization");
+      setError(errorMessage(err));
     } finally {
       setSubmitting(false);
     }

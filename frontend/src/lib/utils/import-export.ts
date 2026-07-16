@@ -3,6 +3,8 @@
  * Implements requirements from requirements_import_export_v1.md
  */
 
+import { formatDateForInput } from './utils';
+
 export type ExportFormat = 'csv' | 'json' | 'pdf';
 export type ImportFormat = 'csv' | 'json';
 
@@ -145,7 +147,7 @@ export function downloadFile(content: string | Blob, filename: string, mimeType:
  * Get appropriate filename for export
  */
 export function getExportFilename(context: ExportContext, format: ExportFormat, siteId?: string): string {
-  const timestamp = new Date().toISOString().split('T')[0];
+  const timestamp = formatDateForInput(new Date());
   const sitePrefix = siteId ? `${siteId}-` : '';
   return `${sitePrefix}${context}-${timestamp}.${format}`;
 }

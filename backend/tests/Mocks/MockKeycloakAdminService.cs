@@ -1,7 +1,7 @@
 using Api.Integrations.Keycloak;
 using Microsoft.AspNetCore.Http;
 
-namespace Orkyo.Foundation.Tests.Mocks;
+namespace Orkyo.Tests.Mocks;
 
 /// <summary>
 /// Mock implementation of IKeycloakAdminService for testing security endpoints
@@ -9,6 +9,10 @@ namespace Orkyo.Foundation.Tests.Mocks;
 ///
 /// All methods throw <see cref="KeycloakAdminException"/> with the configured
 /// error message when their *Success flag is false.
+///
+/// Byte-identical across orkyo-foundation, orkyo-saas and orkyo-community
+/// (G4 synced-files manifest; source: orkyo-foundation). The shared
+/// Orkyo.Tests.Mocks namespace exists so the three copies stay identical.
 /// </summary>
 public class MockKeycloakAdminService : IKeycloakAdminService
 {
@@ -59,8 +63,8 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public bool IsFederatedUser { get; set; } = false;
     public string? FederatedIdentityProvider { get; set; }
 
-    public Task<FederationStatus> GetUserFederationStatusAsync(string keycloakSub, CancellationToken ct = default)
-        => Task.FromResult(new FederationStatus(IsFederatedUser, FederatedIdentityProvider));
+    public Task<FederationStatus> GetUserFederationStatusAsync(string keycloakSub, CancellationToken ct = default) =>
+        Task.FromResult(new FederationStatus(IsFederatedUser, FederatedIdentityProvider));
 
     // ── Create user ───────────────────────────────────────────────
     public bool CreateUserSuccess { get; set; } = true;
@@ -199,6 +203,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public string? UpdateEmailError { get; set; }
     public int UpdateEmailCallCount { get; private set; }
     public (string? keycloakSub, string? newEmail) LastUpdateEmailCall { get; private set; }
+    public int UpdateEmailForAccountCallCount { get; private set; }
     public (string? keycloakSub, string? currentEmail, string? newEmail) LastUpdateEmailForAccountCall { get; private set; }
 
     public Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default)
@@ -212,8 +217,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
     public Task UpdateEmailForAccountAsync(string? keycloakSub, string currentEmail, string newEmail, CancellationToken ct = default)
     {
-        UpdateEmailCallCount++;
-        LastUpdateEmailCall = (keycloakSub, newEmail);
+        UpdateEmailForAccountCallCount++;
         LastUpdateEmailForAccountCall = (keycloakSub, currentEmail, newEmail);
         if (!UpdateEmailSuccess)
             throw new KeycloakAdminException(UpdateEmailError ?? "Failed to update email");
@@ -298,24 +302,30 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         LogoutAllCallCount = 0;
         LastRevokedSessionId = null;
         LastChangePasswordCall = default;
+
         CreateUserSuccess = true;
         CreateUserError = null;
         CreateUserCallCount = 0;
         LastCreateUserCall = default;
+
         UserExistsResult = false;
         UserExistsCallCount = 0;
+
         DisableUserSuccess = true;
         DisableUserError = null;
         DisableUserCallCount = 0;
         LastDisabledKeycloakId = null;
+
         EnableUserSuccess = true;
         EnableUserError = null;
         EnableUserCallCount = 0;
         LastEnabledKeycloakId = null;
+
         DeleteUserSuccess = true;
         DeleteUserError = null;
         DeleteUserCallCount = 0;
         LastDeletedKeycloakId = null;
+
         MockMfaStatus = new MfaStatus { TotpEnabled = false, RecoveryCodesConfigured = false };
         GetMfaStatusError = null;
         GetMfaStatusCallCount = 0;
@@ -323,6 +333,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         DeleteCredentialError = null;
         DeleteCredentialCallCount = 0;
         LastDeletedCredentialId = null;
+
         MockUserProfile = new UserProfile { Email = "test@example.com", FirstName = "Test", LastName = "User", EmailVerified = true };
         GetUserProfileError = null;
         GetUserProfileCallCount = 0;
@@ -330,14 +341,18 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         UpdateProfileError = null;
         UpdateProfileCallCount = 0;
         LastUpdateProfileCall = default;
+
         UpdateEmailSuccess = true;
         UpdateEmailError = null;
         UpdateEmailCallCount = 0;
         LastUpdateEmailCall = default;
+        UpdateEmailForAccountCallCount = 0;
         LastUpdateEmailForAccountCall = default;
+
         EnableMfaSuccess = true;
         EnableMfaError = null;
         EnableMfaCallCount = 0;
+
         MockRealmRoles = new HashSet<string>();
         HasRealmRoleError_ = false;
         HasRealmRoleErrorStatusCode = null;

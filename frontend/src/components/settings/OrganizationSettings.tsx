@@ -32,7 +32,6 @@ import {
 } from "@foundation/src/components/ui/select";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import {
-  Loader2,
   Building2,
   UserCog,
   Trash2,
@@ -42,12 +41,15 @@ import {
   Check,
 } from "lucide-react";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { updateTenant, transferTenantOwnership } from "@foundation/src/lib/api/tenant-management-api";
 import { deleteTenant } from "@foundation/src/lib/api/tenant-account-api";
 import { getUsers, type UserWithRole } from "@foundation/src/lib/api/user-api";
 import { exportTenantData } from "@foundation/src/lib/api/export-api";
 import { downloadFile } from "@foundation/src/lib/utils/import-export";
+import { formatDateForInput } from "@foundation/src/lib/utils";
 import { logger } from "@foundation/src/lib/core/logger";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 export function OrganizationSettings() {
   const { membership, appUser, clearMembership } = useAuth();
@@ -119,11 +121,7 @@ export function OrganizationSettings() {
       setOriginalName(displayName.trim());
       setSuccess("Organization name updated successfully.");
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to update organization name.",
-      );
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -144,9 +142,7 @@ export function OrganizationSettings() {
       // Refresh the page to update membership state
       window.location.reload();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to transfer ownership.",
-      );
+      setError(errorMessage(err));
     } finally {
       setTransferring(false);
     }
@@ -163,14 +159,12 @@ export function OrganizationSettings() {
         includePlanningData,
       });
       const json = JSON.stringify(payload, null, 2);
-      const timestamp = new Date().toISOString().split("T")[0];
+      const timestamp = formatDateForInput(new Date());
       downloadFile(json, `${tenantSlug}-export-${timestamp}.json`, "application/json");
       setExportDone(true);
       setTimeout(() => setExportDone(false), 3000);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to export data.",
-      );
+      setError(errorMessage(err));
     } finally {
       setExporting(false);
     }
@@ -187,9 +181,7 @@ export function OrganizationSettings() {
       clearMembership();
       if (!navigateToApex("/")) window.location.href = "/";
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to delete organization.",
-      );
+      setError(errorMessage(err));
       setDeleting(false);
       setDeleteOrgOpen(false);
     }
@@ -197,9 +189,7 @@ export function OrganizationSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <LoadingSpinner size="sm" muted fullScreen={false} className="py-12" />
     );
   }
 

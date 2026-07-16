@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Monitor, Smartphone, Tablet, LogOut, Trash2, AlertCircle, Loader2 } from "lucide-react";
+import { Monitor, Smartphone, Tablet, LogOut, Trash2, AlertCircle } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -107,9 +108,7 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
         </CardHeader>
         <CardContent>
           {sessionsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
+            <LoadingSpinner size="sm" muted fullScreen={false} className="py-8" />
           ) : sessionsError ? (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

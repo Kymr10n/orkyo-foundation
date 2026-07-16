@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { DepartmentEditDialog } from './DepartmentEditDialog';
 import type { DepartmentInfo } from '@foundation/src/lib/api/departments-api';
 
@@ -36,6 +36,7 @@ import {
   updateDepartment,
   getDepartmentTree,
 } from '@foundation/src/lib/api/departments-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 const existingDept: DepartmentInfo = {
   id: 'd-1',
@@ -49,9 +50,8 @@ const existingDept: DepartmentInfo = {
 };
 
 function renderDialog(props: Partial<Parameters<typeof DepartmentEditDialog>[0]> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
       <DepartmentEditDialog

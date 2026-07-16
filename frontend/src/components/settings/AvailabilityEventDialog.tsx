@@ -35,6 +35,7 @@ import {
   type UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface ScopeDraft {
   targetType: ScopeTargetType;
@@ -113,7 +114,7 @@ function useScopePickerOptions() {
     staleTime: 60_000,
   });
   const { data: resourceTypes } = useQuery({
-    queryKey: ["resource-types"],
+    queryKey: qk.resourceTypes.all(),
     queryFn: () => apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES),
     staleTime: 300_000,
   });
@@ -501,7 +502,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
       }
       await onSave(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save.");
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }

@@ -33,6 +33,7 @@ import {
 import { ValidationIssueList } from "../requests/ValidationIssueList";
 import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
 import { formatMinutesHuman } from "@foundation/src/lib/utils";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
 export interface PersonAssignmentDialogProps {
@@ -87,13 +88,14 @@ type ItemStatus =
 
 export function formatPeriod(start: string, end: string): string {
   if (!start || !end) return "";
-  const fmt = new Intl.DateTimeFormat(undefined, {
+  const opts: Intl.DateTimeFormatOptions = {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  });
-  return `${fmt.format(new Date(start))} – ${fmt.format(new Date(end))}`;
+    hourCycle: HOUR_CYCLE,
+  };
+  return `${formatLocalized(new Date(start), opts)} – ${formatLocalized(new Date(end), opts)}`;
 }
 
 /** Compact duration between two ISO datetimes, e.g. "45m", "5h", "1h 30m". Empty when invalid. */

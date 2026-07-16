@@ -6,8 +6,8 @@ import {
   ShieldOff,
   Trash2,
   AlertCircle,
-  Loader2,
 } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -69,9 +69,7 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
               </AlertDescription>
             </Alert>
           ) : mfaLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
+            <LoadingSpinner size="sm" muted fullScreen={false} className="py-4" />
           ) : mfaStatus?.totpEnabled ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 rounded-lg border bg-card">

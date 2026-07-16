@@ -13,6 +13,7 @@
 
 scripts/ci/lint-migration-headers.sh	orkyo-foundation	orkyo-saas,orkyo-community
 global.json	orkyo-foundation	orkyo-saas,orkyo-community
+backend/tests/Mocks/MockKeycloakAdminService.cs	orkyo-foundation	orkyo-saas,orkyo-community
 scripts/check-env.sh	orkyo-saas	orkyo-community
 Directory.Build.props	orkyo-saas	orkyo-community
 nuget.config	orkyo-saas	orkyo-community

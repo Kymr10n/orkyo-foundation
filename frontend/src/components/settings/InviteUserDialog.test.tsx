@@ -1,24 +1,28 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { InviteUserDialog } from './InviteUserDialog';
 import * as userApi from '@foundation/src/lib/api/user-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 describe('InviteUserDialog', () => {
   let queryClient: QueryClient;
+  let invalidateSpy: ReturnType<typeof vi.spyOn>;
   const mockOnSuccess = vi.fn();
   const mockOnOpenChange = vi.fn();
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
+    // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
+    ({ queryClient, spy: invalidateSpy } = createFeedbackTestQueryClientWithSpy());
     vi.clearAllMocks();
     vi.mocked(userApi.createInvitation).mockResolvedValue({
       id: 'inv-1',
@@ -177,6 +181,13 @@ describe('InviteUserDialog', () => {
       });
       expect(mockOnSuccess).toHaveBeenCalled();
     });
+
+    // Central MutationCache feedback: toast + invitations invalidation from meta.
+    expect(toast.success).toHaveBeenCalledWith('Invitation sent');
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: qk.invitations.all(),
+      exact: false,
+    });
   });
 
   it('changes role selection', async () => {
@@ -298,6 +309,10 @@ describe('InviteUserDialog', () => {
     });
 
     expect(mockOnSuccess).not.toHaveBeenCalled();
+    // The error toast originates from the central MutationCache (meta.errorMessage).
+    expect(toast.error).toHaveBeenCalledWith('Failed to send invitation', {
+      description: 'User already invited',
+    });
   });
 
   it('disables form during submission', async () => {

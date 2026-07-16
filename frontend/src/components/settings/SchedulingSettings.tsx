@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Button } from "@foundation/src/components/ui/button";
 import { Label } from "@foundation/src/components/ui/label";
@@ -46,6 +47,7 @@ import type {
   UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
 import { AvailabilityEventDialog } from "./AvailabilityEventDialog";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 const COMMON_TIMEZONES = [
   "Europe/London",
@@ -195,7 +197,7 @@ export function SchedulingSettings() {
       await upsertMutation.mutateAsync(formState);
       setSaveStatus("saved");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save settings.");
+      setError(errorMessage(e));
       setSaveStatus("idle");
     }
   }, [selectedSiteId, upsertMutation]);
@@ -231,7 +233,7 @@ export function SchedulingSettings() {
       setInitializedForSite(null);
       setSaveStatus("saved");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to reset settings.");
+      setError(errorMessage(e));
     }
   };
 
@@ -278,9 +280,7 @@ export function SchedulingSettings() {
 
   if (settingsLoading || eventsLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <LoadingSpinner size="sm" muted fullScreen={false} className="h-64" />
     );
   }
 

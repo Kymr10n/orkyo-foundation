@@ -2,9 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AvailabilityEventDialog } from './AvailabilityEventDialog';
 import type { AvailabilityEventInfo } from '@foundation/src/lib/api/availability-events-api';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
 // ── API mocks ─────────────────────────────────────────────────────────────────
 
@@ -61,15 +61,12 @@ vi.mock('@foundation/src/components/ui/combobox', () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeQC() {
-  return new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-}
-
 function renderDialog(props: Partial<Parameters<typeof AvailabilityEventDialog>[0]> = {}) {
+  // Production-identical feedback MutationCache (dialog-feedback.md); the dialog's
+  // scope mutations run through the same cache as at runtime.
+  const Wrapper = createFeedbackTestQueryWrapper();
   return render(
-    <QueryClientProvider client={makeQC()}>
+    <Wrapper>
       <AvailabilityEventDialog
         open
         onOpenChange={vi.fn()}
@@ -78,7 +75,7 @@ function renderDialog(props: Partial<Parameters<typeof AvailabilityEventDialog>[
         onSave={vi.fn(() => Promise.resolve())}
         {...props}
       />
-    </QueryClientProvider>,
+    </Wrapper>,
   );
 }
 

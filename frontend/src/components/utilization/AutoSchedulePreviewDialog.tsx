@@ -1,5 +1,5 @@
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 
 interface Props {
@@ -44,9 +44,7 @@ export function AutoSchedulePreviewDialog({
       error={applyError ?? null}
     >
         {!preview ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <LoadingSpinner size="sm" muted fullScreen={false} className="py-8" />
         ) : (
           <div className="space-y-4">
             {/* Summary cards */}

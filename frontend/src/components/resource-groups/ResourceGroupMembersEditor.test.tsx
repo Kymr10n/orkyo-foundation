@@ -2,8 +2,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import { ResourceGroupMembersEditor } from "./ResourceGroupMembersEditor";
 import type { ResourceInfo, ResourcesResponse } from "@foundation/src/lib/api/resources-api";
 import type { ResourceGroupMembersResponse } from "@foundation/src/lib/api/resource-groups-api";
@@ -26,6 +24,7 @@ import {
   getResourceGroupMembers,
   setResourceGroupMembers,
 } from "@foundation/src/lib/api/resource-groups-api";
+import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
 
 function makeResource(id: string, name: string, typeKey = "person"): ResourceInfo {
   return {
@@ -59,12 +58,8 @@ function makeResourcesResponse(items: ResourceInfo[]): ResourcesResponse {
 }
 
 function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  return createFeedbackTestQueryWrapper();
 }
 
 describe("ResourceGroupMembersEditor", () => {

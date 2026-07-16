@@ -1,5 +1,6 @@
 import { apiGet, apiPost } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { downloadFile } from '../utils/import-export';
 
 // ============================================================================
 // Types
@@ -144,13 +145,5 @@ export function parsePresetFile(content: string): Preset {
  */
 export function downloadPreset(preset: Preset): void {
   const json = JSON.stringify(preset, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${preset.presetId}.preset.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadFile(json, `${preset.presetId}.preset.json`, 'application/json');
 }

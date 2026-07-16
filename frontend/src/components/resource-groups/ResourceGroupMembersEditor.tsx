@@ -22,6 +22,7 @@ import {
 } from "@foundation/src/lib/api/resource-groups-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 // Spaces are 1:1 with groups; people and other types may belong to several.
 const SPACE_TYPE_KEY = "space";
@@ -161,7 +162,7 @@ export function ResourceGroupMembersEditor({
     },
     onError: (err) => {
       logger.error("Failed to update group members:", err);
-      setError(err instanceof Error ? err.message : "Failed to update members");
+      setError(errorMessage(err));
     },
     onSettled: () => setPendingMoves(null),
   });

@@ -42,4 +42,18 @@ describe('LoadingSpinner', () => {
     render(<LoadingSpinner />);
     expect(screen.getByText('Loading')).toBeInTheDocument();
   });
+
+  it('renders a small muted icon for the section-loader variant', () => {
+    const { container } = render(<LoadingSpinner size="sm" muted fullScreen={false} />);
+    const icon = container.querySelector('.animate-spin') as HTMLElement;
+    expect(icon.classList.contains('h-6')).toBe(true);
+    expect(icon.classList.contains('text-muted-foreground')).toBe(true);
+  });
+
+  it('merges caller container classes over the contained-mode defaults', () => {
+    const { container } = render(<LoadingSpinner fullScreen={false} className="h-64" />);
+    const root = container.firstChild as HTMLElement;
+    expect(root.className).toMatch(/h-64/);
+    expect(root.className).not.toMatch(/h-full/);
+  });
 });

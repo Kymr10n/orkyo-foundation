@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
@@ -37,14 +35,11 @@ import {
   updateAvailabilityEvent,
   deleteAvailabilityEvent,
 } from '@foundation/src/lib/api/availability-events-api';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
 function makeWrapper() {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
+  // Production-identical feedback MutationCache: the hooks declare meta.
+  return createFeedbackTestQueryWrapper();
 }
 
 // ── useSchedulingSettings ─────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
@@ -13,6 +13,7 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
 }));
 
 import { createResourceGroup, updateResourceGroup } from '@foundation/src/lib/api/resource-groups-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 const mockGroup: ResourceGroupInfo = {
   id: 'g-1',
@@ -28,9 +29,8 @@ const mockGroup: ResourceGroupInfo = {
 type DialogProps = React.ComponentProps<typeof ResourceGroupEditDialog>;
 
 function renderDialog(props: Partial<DialogProps> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
       <ResourceGroupEditDialog

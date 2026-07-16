@@ -5,6 +5,7 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
+using Orkyo.Tests.Mocks;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -412,10 +413,10 @@ public class AccountEmailChangeEndpointsTests
         pending.Should().BeNull();
         storedToken.Should().BeNull();
 
-        // Keycloak: UpdateEmailAsync called with correct args
-        _mockKeycloak.UpdateEmailCallCount.Should().Be(1);
-        _mockKeycloak.LastUpdateEmailCall.newEmail.Should().Be("new@example.com");
-        _mockKeycloak.LastUpdateEmailCall.keycloakSub.Should().Be(keycloakId);
+        // Keycloak: UpdateEmailForAccountAsync called with correct args
+        _mockKeycloak.UpdateEmailForAccountCallCount.Should().Be(1);
+        _mockKeycloak.LastUpdateEmailForAccountCall.newEmail.Should().Be("new@example.com");
+        _mockKeycloak.LastUpdateEmailForAccountCall.keycloakSub.Should().Be(keycloakId);
         (await GetKeycloakIdentityEmailAsync()).Should().Be("new@example.com");
     }
 
@@ -433,7 +434,7 @@ public class AccountEmailChangeEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
         (await GetCurrentEmailAsync()).Should().Be("new@example.com");
-        _mockKeycloak.LastUpdateEmailCall.keycloakSub.Should().Be(keycloakId);
+        _mockKeycloak.LastUpdateEmailForAccountCall.keycloakSub.Should().Be(keycloakId);
     }
 
     [Fact]
@@ -448,7 +449,7 @@ public class AccountEmailChangeEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
         (await GetCurrentEmailAsync()).Should().Be("new@example.com");
-        _mockKeycloak.UpdateEmailCallCount.Should().Be(1);
+        _mockKeycloak.UpdateEmailForAccountCallCount.Should().Be(1);
         _mockKeycloak.LastUpdateEmailForAccountCall.keycloakSub.Should().BeNull();
         _mockKeycloak.LastUpdateEmailForAccountCall.currentEmail.Should().Be("old@example.com");
         _mockKeycloak.LastUpdateEmailForAccountCall.newEmail.Should().Be("new@example.com");
@@ -468,7 +469,7 @@ public class AccountEmailChangeEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=conflict");
         (await GetCurrentEmailAsync()).Should().Be("old@example.com");
-        _mockKeycloak.UpdateEmailCallCount.Should().Be(0);
+        _mockKeycloak.UpdateEmailForAccountCallCount.Should().Be(0);
     }
 
     [Fact]
@@ -507,7 +508,7 @@ public class AccountEmailChangeEndpointsTests
         var second = await _client.GetAsync($"/api/account/confirm-email?token={token}");
         second.Headers.Location!.ToString().Should().Contain("email-change=expired");
 
-        _mockKeycloak.UpdateEmailCallCount.Should().Be(1);
+        _mockKeycloak.UpdateEmailForAccountCallCount.Should().Be(1);
     }
 
     [Fact]

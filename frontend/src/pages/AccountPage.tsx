@@ -14,6 +14,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { Button } from "@foundation/src/components/ui/button";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import {
   Card,
   CardContent,
@@ -69,6 +70,7 @@ import {
 } from "@foundation/src/lib/utils/tenant-navigation";
 import { logger } from "@foundation/src/lib/core/logger";
 import { toast } from "sonner";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 type Membership = TenantMembership;
 type EmailChangeStatus = "confirmed" | "expired" | "invalid" | "error" | "conflict";
@@ -323,7 +325,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       await loadMemberships();
     } catch (err) {
       logger.error("Leave tenant error:", err);
-      setError(err instanceof Error ? err.message : "Failed to leave organization");
+      setError(errorMessage(err));
     } finally {
       setActionLoading(null);
       setLeaveDialogOpen(false);
@@ -350,7 +352,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       await loadMemberships();
     } catch (err) {
       logger.error("Delete tenant error:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete organization");
+      setError(errorMessage(err));
     } finally {
       setActionLoading(null);
       setDeleteDialogOpen(false);
@@ -433,9 +435,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             </CardHeader>
             <CardContent className="space-y-4">
               {profileLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
+                <LoadingSpinner size="sm" muted fullScreen={false} className="py-8" />
               ) : (
                 <>
                   <div className="space-y-4">
