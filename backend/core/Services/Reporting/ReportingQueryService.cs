@@ -23,7 +23,7 @@ public sealed class ReportingQueryService : IReportingQueryService
         (query.ToPageRequest(), query.From ?? DateTime.UtcNow.AddMonths(-1), query.To ?? DateTime.UtcNow);
 
     public async Task<ReportingResult<SpaceUtilizationRow>> GetSpaceUtilizationAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
+        TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
         var periodHours = (to - from).TotalHours;
@@ -90,7 +90,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     }
 
     public async Task<ReportingResult<ResourceUtilizationRow>> GetResourceUtilizationAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
+        TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
         var periodHours = (to - from).TotalHours;
@@ -158,7 +158,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     }
 
     public async Task<ReportingResult<AllocationRow>> GetAllocationsAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
+        TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
 
@@ -240,7 +240,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     }
 
     public async Task<ReportingResult<RequestThroughputRow>> GetRequestThroughputAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
+        TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
 
@@ -281,7 +281,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     }
 
     public async Task<ReportingResult<ConflictRow>> GetConflictsAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
+        TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
 
@@ -345,7 +345,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     }
 
     public async Task<ReportingResult<AbsenceRow>> GetAbsencesAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, bool peopleLevelEnabled,
+        TenantContext tenant, ReportingQuery query, bool peopleLevelEnabled,
         CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
@@ -412,7 +412,7 @@ public sealed class ReportingQueryService : IReportingQueryService
     }
 
     public async Task<ReportingResult<CapacityVsDemandRow>> GetCapacityVsDemandAsync(
-        Guid tenantId, TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
+        TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
     {
         var (paged, from, to) = ResolveWindow(query);
 

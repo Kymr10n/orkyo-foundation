@@ -146,7 +146,7 @@ public static class ReportingEndpoints
         string? sort = null, string? format = null) =>
         Run(ctx, from, to, updatedSince, page, pageSize, sort, format,
             "space-utilization.csv",
-            (q, ct) => qs.GetSpaceUtilizationAsync(tenant.TenantId, tenantCtx, q, ct));
+            (q, ct) => qs.GetSpaceUtilizationAsync(tenantCtx, q, ct));
 
     private static Task<IResult> GetResourceUtilization(
         HttpContext ctx,
@@ -158,7 +158,7 @@ public static class ReportingEndpoints
         string? sort = null, string? format = null) =>
         Run(ctx, from, to, updatedSince, page, pageSize, sort, format,
             "resource-utilization.csv",
-            (q, ct) => qs.GetResourceUtilizationAsync(tenant.TenantId, tenantCtx, q, ct));
+            (q, ct) => qs.GetResourceUtilizationAsync(tenantCtx, q, ct));
 
     private static Task<IResult> GetAllocations(
         HttpContext ctx,
@@ -170,7 +170,7 @@ public static class ReportingEndpoints
         string? sort = null, string? format = null) =>
         Run(ctx, from, to, updatedSince, page, pageSize, sort, format,
             "allocations.csv",
-            (q, ct) => qs.GetAllocationsAsync(tenant.TenantId, tenantCtx, q, ct));
+            (q, ct) => qs.GetAllocationsAsync(tenantCtx, q, ct));
 
     private static Task<IResult> GetRequestThroughput(
         HttpContext ctx,
@@ -182,7 +182,7 @@ public static class ReportingEndpoints
         string? format = null) =>
         Run(ctx, from, to, null, page, pageSize, null, format,
             "request-throughput.csv",
-            (q, ct) => qs.GetRequestThroughputAsync(tenant.TenantId, tenantCtx, q, ct),
+            (q, ct) => qs.GetRequestThroughputAsync(tenantCtx, q, ct),
             validatePageSize: false);
 
     private static Task<IResult> GetConflicts(
@@ -195,7 +195,7 @@ public static class ReportingEndpoints
         string? sort = null, string? format = null) =>
         Run(ctx, from, to, null, page, pageSize, sort, format,
             "conflicts.csv",
-            (q, ct) => qs.GetConflictsAsync(tenant.TenantId, tenantCtx, q, ct));
+            (q, ct) => qs.GetConflictsAsync(tenantCtx, q, ct));
 
     private static Task<IResult> GetAbsences(
         HttpContext ctx,
@@ -214,7 +214,7 @@ public static class ReportingEndpoints
                 var peopleLevelEnabled = allSettings.TryGetValue(ConfigKeys.ReportingPeopleLevelEnabled, out var v)
                     && string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
 
-                return await qs.GetAbsencesAsync(tenant.TenantId, tenantCtx, q, peopleLevelEnabled, ct);
+                return await qs.GetAbsencesAsync(tenantCtx, q, peopleLevelEnabled, ct);
             });
 
     private static Task<IResult> GetCapacityVsDemand(
@@ -227,7 +227,7 @@ public static class ReportingEndpoints
         string? granularity = "month", string? format = null) =>
         Run(ctx, from, to, null, page, pageSize, null, format,
             "capacity-vs-demand.csv",
-            (q, ct) => qs.GetCapacityVsDemandAsync(tenant.TenantId, tenantCtx, q, ct),
+            (q, ct) => qs.GetCapacityVsDemandAsync(tenantCtx, q, ct),
             adjustQuery: q => q with { Granularity = granularity });
 
     // ── Helpers ──────────────────────────────────────────────────────────────
