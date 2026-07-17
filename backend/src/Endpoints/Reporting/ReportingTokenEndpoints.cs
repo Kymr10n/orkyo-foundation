@@ -64,7 +64,7 @@ public static class ReportingTokenEndpoints
                 statusCode: StatusCodes.Status402PaymentRequired);
 
         if (string.IsNullOrWhiteSpace(request.Name))
-            return Results.BadRequest(new { error = "validation_failed", message = "Token name is required." });
+            return ErrorResponses.BadRequest("Token name is required.");
 
         var created = await tokenService.CreateAsync(
             tenant.TenantId,

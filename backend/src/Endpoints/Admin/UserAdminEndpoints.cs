@@ -188,28 +188,7 @@ public static class UserAdminEndpoints
 
         await identityReader.CloseAsync();
 
-        await using var membershipCmd = new NpgsqlCommand(@"
-            SELECT tm.tenant_id, t.slug, t.display_name, tm.role, tm.status, tm.created_at
-            FROM tenant_memberships tm
-            INNER JOIN tenants t ON tm.tenant_id = t.id
-            WHERE tm.user_id = @userId
-            ORDER BY t.display_name",
-            conn);
-        membershipCmd.Parameters.AddWithValue("userId", userId);
-
-        await using var membershipReader = await membershipCmd.ExecuteReaderAsync();
-        while (await membershipReader.ReadAsync())
-        {
-            user.Memberships.Add(new AdminUserMembership
-            {
-                TenantId = membershipReader.GetGuid(0),
-                TenantSlug = membershipReader.GetString(1),
-                TenantName = membershipReader.GetString(2),
-                Role = membershipReader.GetString(3),
-                Status = membershipReader.GetString(4),
-                JoinedAt = membershipReader.GetDateTime(5)
-            });
-        }
+        user.Memberships.AddRange(await userRepository.GetMembershipsAsync(userId, ct));
 
         return Results.Ok(user);
     }
@@ -217,41 +196,12 @@ public static class UserAdminEndpoints
     private static async Task<IResult> GetUserMemberships(
         Guid userId,
         IPlatformUserRepository userRepository,
-        IDbConnectionFactory connectionFactory,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
         if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT tm.tenant_id, t.slug, t.display_name, tm.role, tm.status, tm.created_at
-            FROM tenant_memberships tm
-            INNER JOIN tenants t ON tm.tenant_id = t.id
-            WHERE tm.user_id = @userId
-            ORDER BY t.display_name",
-            conn);
-        cmd.Parameters.AddWithValue("userId", userId);
-
-        var memberships = new List<AdminUserMembership>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-
-        while (await reader.ReadAsync())
-        {
-            memberships.Add(new AdminUserMembership
-            {
-                TenantId = reader.GetGuid(0),
-                TenantSlug = reader.GetString(1),
-                TenantName = reader.GetString(2),
-                Role = reader.GetString(3),
-                Status = reader.GetString(4),
-                JoinedAt = reader.GetDateTime(5)
-            });
-        }
-
+        var memberships = await userRepository.GetMembershipsAsync(userId, ct);
         return Results.Ok(new { memberships });
     }
 

@@ -91,4 +91,7 @@ public interface IPlatformUserRepository
 
     /// <summary>Opts a user out of announcement emails by their unsubscribe token. Returns true if a row matched.</summary>
     Task<bool> SetAnnouncementOptOutByTokenAsync(Guid unsubscribeToken, CancellationToken ct = default);
+
+    /// <summary>The user's tenant memberships (tenant + role + status), ordered by tenant display name.</summary>
+    Task<List<AdminUserMembership>> GetMembershipsAsync(Guid userId, CancellationToken ct = default);
 }

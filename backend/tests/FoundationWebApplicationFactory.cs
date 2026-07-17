@@ -528,57 +528,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         app.UseAuthorization();
 
-        // ── Map all foundation endpoints ──────────────────────────────────────
-        app.MapSiteEndpoints();
-        app.MapSpaceEndpoints();
-        app.MapResourceGroupEndpoints();
-        app.MapGroupCapabilityEndpoints();
-        app.MapInsightsEndpoints();
-        app.MapCriteriaEndpoints();
-        app.MapRequestEndpoints();
-        app.MapConflictsEndpoints();
-        app.MapSchedulingEndpoints();
-        app.MapAvailabilityEventEndpoints();
-        app.MapAutoScheduleEndpoints();
-        app.MapExportEndpoints();
-        app.MapPresetEndpoints();
-        app.MapTemplateEndpoints();
-        app.MapAnnouncementEndpoints();
-        app.MapUserAnnouncementEndpoints();
-        app.MapTenantAuditEndpoints();
-        app.MapSessionEndpoints();
-        app.MapSearchEndpoints();
-        app.MapFeedbackEndpoints();
-        app.MapSecurityEndpoints();
-        app.MapSettingsEndpoints();
-        app.MapUserManagementEndpoints();
-        app.MapUserPreferencesEndpoints();
-        app.MapContactEndpoints();
-        app.MapAccountLifecycleEndpoints();
-        app.MapAccountEmailChangeEndpoints();
-        app.MapBffAuthEndpoints();
-        app.MapResourceTypeEndpoints();
-        app.MapResourceEndpoints();
-        app.MapResourceAssignmentEndpoints();
-        app.MapCriterionApplicabilityEndpoints();
-        app.MapResourceGroupMemberEndpoints();
-        app.MapUtilizationEndpoints();
-        app.MapPersonProfileEndpoints();
-        app.MapJobTitleEndpoints();
-        app.MapDepartmentEndpoints();
-        app.MapQuotaEndpoints();
-        // Reporting endpoints
-        app.MapReportingEndpoints();
-        app.MapReportingTokenEndpoints();
-
-        // Admin endpoints
-        app.MapFloorplanEndpoints();
-        app.MapUserAdminEndpoints();
-        app.MapSettingsAdminEndpoints();
-        app.MapConfigurationAdminEndpoints();
-        app.MapDiagnosticsAdminEndpoints();
-        app.MapFeedbackAdminEndpoints();
-        app.MapAuditEndpoints();
+        // Map every foundation endpoint through the SAME extension production uses, so the
+        // test surface can never silently drift from FoundationEndpointExtensions (F1).
+        app.MapFoundationEndpoints();
 
         return app;
     }

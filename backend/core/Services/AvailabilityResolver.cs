@@ -44,27 +44,11 @@ public class AvailabilityResolver(
 {
     public async Task<List<BlockedPeriod>> GetBlockedPeriodsAsync(Guid resourceId, CancellationToken ct = default)
     {
-        var absences = await absenceRepository.GetByResourceAsync(resourceId, ct);
-        var blocked = AbsencesToBlockedPeriods(absences);
-
-        var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resourceId, ct);
-        if (siteId.HasValue)
-        {
-            var events = await eventRepository.GetEnabledBySiteWithScopesAsync(siteId.Value, ct);
-            var groupIds = await groupMemberRepository.GetGroupIdsForResourceAsync(resourceId, ct);
-            var resourceTypeIds = await schedulingRepository.GetResourceTypeIdsAsync([resourceId], ct);
-            var resourceTypeId = resourceTypeIds.GetValueOrDefault(resourceId);
-            var holidaysEnabled = await HolidaysEnabledAsync(siteId.Value, ct);
-
-            foreach (var ev in events)
-            {
-                var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
-                if (ShouldBlock(ev, effect, holidaysEnabled))
-                    blocked.Add(EventToBlockedPeriod(ev));
-            }
-        }
-
-        return blocked;
+        // Delegate to the multi-resource resolver (its doc contract is "semantically identical
+        // to calling this per resource") so the absence→blocked + event-scope assembly lives in
+        // exactly one place. Both paths filter to enabled absences (AbsencesToBlockedPeriods).
+        var byResource = await GetBlockedPeriodsForResourcesAsync([resourceId], ct);
+        return byResource[resourceId];
     }
 
     public async Task<Dictionary<Guid, List<BlockedPeriod>>> GetBlockedPeriodsForResourcesAsync(
