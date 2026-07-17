@@ -1,7 +1,7 @@
 using Api.Integrations.Keycloak;
 using Microsoft.AspNetCore.Http;
 
-namespace Orkyo.Tests.Mocks;
+namespace Orkyo.Foundation.TestSupport;
 
 /// <summary>
 /// Mock implementation of IKeycloakAdminService for testing security endpoints
