@@ -1,5 +1,6 @@
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Security;
 using Api.Security.Features;
 using Api.Services;
@@ -57,10 +58,6 @@ public static class TenantAuditEndpoints
         // Professional+ in SaaS; no-op (allow-all) in Community/foundation. Throws → 403.
         await featureGate.EnsureEnabledAsync(FeatureKeys.AuditLog, ct);
 
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 1;
-        if (pageSize > 200) pageSize = 200;
-
         // The connection targets THIS tenant's database, so every row already belongs to it —
         // no tenant_id predicate (and the tenant DB's audit_events has no such column).
         var org = currentTenant.ToOrgContext();
@@ -80,29 +77,18 @@ public static class TenantAuditEndpoints
         var where = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : string.Empty;
 
         await using var conn = connectionFactory.CreateOrgConnection(org);
-        await conn.OpenAsync(ct);
 
-        await using var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM audit_events a {where}", conn);
-        foreach (var p in parameters) countCmd.Parameters.Add(p.Clone());
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
-
-        var offset = (page - 1) * pageSize;
-        await using var pageCmd = new NpgsqlCommand($@"
-            SELECT {SelectColumns}
-            FROM audit_events a
-            LEFT JOIN users u ON u.id = a.actor_user_id
-            {where}
-            ORDER BY a.created_at DESC
-            LIMIT @pageSize OFFSET @offset", conn);
-        foreach (var p in parameters) pageCmd.Parameters.Add(p.Clone());
-        pageCmd.Parameters.AddWithValue("pageSize", pageSize);
-        pageCmd.Parameters.AddWithValue("offset", offset);
-
-        await using var reader = await pageCmd.ExecuteReaderAsync(ct);
-        var events = new List<TenantAuditEventDto>();
-        while (await reader.ReadAsync(ct))
-        {
-            events.Add(new TenantAuditEventDto
+        var result = await conn.QueryPagedAsync(
+            new PageRequest { Page = page, PageSize = pageSize },
+            $"SELECT COUNT(*) FROM audit_events a {where}",
+            $@"SELECT {SelectColumns}
+               FROM audit_events a
+               LEFT JOIN users u ON u.id = a.actor_user_id
+               {where}
+               ORDER BY a.created_at DESC
+               LIMIT @limit OFFSET @offset",
+            bind: p => { foreach (var wp in parameters) p.Add(wp.Clone()); },
+            map: reader => new TenantAuditEventDto
             {
                 Id = reader.GetGuid(0),
                 ActorUserId = reader.IsDBNull(1) ? null : reader.GetGuid(1),
@@ -114,16 +100,17 @@ public static class TenantAuditEndpoints
                 TargetId = reader.IsDBNull(7) ? null : reader.GetString(7),
                 Metadata = reader.IsDBNull(8) ? null : reader.GetString(8),
                 CreatedAt = reader.GetDateTime(9),
-            });
-        }
+            },
+            ct);
 
+        // Preserve the existing wire shape (events/totalCount) over the PagedResult envelope.
         return Results.Ok(new
         {
-            events,
-            page,
-            pageSize,
-            totalCount,
-            totalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+            events = result.Items,
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalCount = result.TotalItems,
+            totalPages = result.TotalPages,
         });
     }
 }

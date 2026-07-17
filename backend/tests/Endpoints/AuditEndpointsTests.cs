@@ -142,7 +142,7 @@ public class AuditEndpointsTests
     }
 
     [Fact]
-    public async Task GetAuditEvents_PageSizeCappedAt200()
+    public async Task GetAuditEvents_PageSizeCappedAt100()
     {
         var token = await CreateSiteAdminTokenAsync();
         var response = await _client.SendAsync(
@@ -150,7 +150,7 @@ public class AuditEndpointsTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(200, body.GetProperty("pageSize").GetInt32());
+        Assert.Equal(100, body.GetProperty("pageSize").GetInt32());
     }
 
     [Fact]

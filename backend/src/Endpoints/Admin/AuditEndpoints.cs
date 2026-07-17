@@ -1,5 +1,6 @@
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
@@ -47,12 +48,7 @@ public static class AuditEndpoints
         int pageSize = 50,
         CancellationToken ct = default)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 1;
-        if (pageSize > 200) pageSize = 200;
-
         await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
 
         var filter = new AuditEventListFilter(
             Action: action,
@@ -62,31 +58,20 @@ public static class AuditEndpoints
             FromUtc: from?.ToUniversalTime(),
             ToUtc: to?.ToUniversalTime());
 
-        var offset = (page - 1) * pageSize;
         var (whereClause, whereParams) = BuildWhereClause(filter);
+        var prefix = string.IsNullOrEmpty(whereClause) ? string.Empty : whereClause + "\n            ";
 
-        await using var countCmd = new NpgsqlCommand(
+        var result = await conn.QueryPagedAsync(
+            new PageRequest { Page = page, PageSize = pageSize },
             string.IsNullOrEmpty(whereClause)
                 ? "SELECT COUNT(*) FROM audit_events"
-                : $"SELECT COUNT(*) FROM audit_events {whereClause}", conn);
-        foreach (var p in whereParams) countCmd.Parameters.Add(p.Clone());
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
-
-        var prefix = string.IsNullOrEmpty(whereClause) ? string.Empty : whereClause + "\n            ";
-        await using var pageCmd = new NpgsqlCommand($@"
-            SELECT {SelectColumns}
-            FROM audit_events
-            {prefix}ORDER BY created_at DESC
-            LIMIT @pageSize OFFSET @offset", conn);
-        foreach (var p in whereParams) pageCmd.Parameters.Add(p.Clone());
-        pageCmd.Parameters.AddWithValue("pageSize", pageSize);
-        pageCmd.Parameters.AddWithValue("offset", offset);
-
-        await using var reader = await pageCmd.ExecuteReaderAsync(ct);
-        var events = new List<AuditEventDto>();
-        while (await reader.ReadAsync(ct))
-        {
-            events.Add(new AuditEventDto
+                : $"SELECT COUNT(*) FROM audit_events {whereClause}",
+            $@"SELECT {SelectColumns}
+               FROM audit_events
+               {prefix}ORDER BY created_at DESC
+               LIMIT @limit OFFSET @offset",
+            bind: p => { foreach (var wp in whereParams) p.Add(wp.Clone()); },
+            map: reader => new AuditEventDto
             {
                 Id = reader.GetGuid(0),
                 ActorUserId = reader.IsDBNull(1) ? null : reader.GetGuid(1),
@@ -98,19 +83,20 @@ public static class AuditEndpoints
                 RequestId = reader.IsDBNull(7) ? null : reader.GetString(7),
                 IpAddress = reader.IsDBNull(8) ? null : reader.GetString(8),
                 CreatedAt = reader.GetDateTime(9),
-            });
-        }
+            },
+            ct);
 
         logger.LogInformation("Admin queried audit events: {Count} of {Total} (page {Page})",
-            events.Count, totalCount, page);
+            result.Items.Count, result.TotalItems, result.Page);
 
+        // Preserve the existing wire shape (events/totalCount) over the PagedResult envelope.
         return Results.Ok(new
         {
-            events,
-            page,
-            pageSize,
-            totalCount,
-            totalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+            events = result.Items,
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalCount = result.TotalItems,
+            totalPages = result.TotalPages,
         });
     }
 
