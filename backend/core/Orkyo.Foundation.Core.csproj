@@ -18,8 +18,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Tests exercise a handful of internals (cache-clear hooks, SchedulingEngine/
+         SharedRecurrenceRules helpers). The Web entry was dropped in 0.8.0 when
+         NpgsqlQueryExtensions/UpdateBuilder became public — Web uses no core internals. -->
     <InternalsVisibleTo Include="Orkyo.Foundation.Tests" />
-    <InternalsVisibleTo Include="Orkyo.Foundation.Web" />
   </ItemGroup>
 
   <ItemGroup>

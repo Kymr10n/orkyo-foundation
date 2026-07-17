@@ -27,8 +27,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
-using Orkyo.Tests.Mocks;
 using Orkyo.Shared;
+using Orkyo.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests;
 
@@ -253,6 +253,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
         builder.Services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
+        builder.Services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
         builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();

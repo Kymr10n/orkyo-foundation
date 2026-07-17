@@ -108,6 +108,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         services.AddScoped<ISpaceRepository, SpaceRepository>();
         services.AddScoped<ITemplateRepository, TemplateRepository>();
+        services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
         services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
 

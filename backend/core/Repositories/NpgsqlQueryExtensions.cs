@@ -11,7 +11,13 @@ namespace Api.Repositories;
 /// <c>await using</c>); these helpers open it on first use, so a single connection can drive
 /// several calls (e.g. a fetch followed by an update) safely.
 /// </summary>
-internal static class NpgsqlQueryExtensions
+/// <remarks>
+/// Public API since 0.8.0 so product repositories/services can use the same helpers instead
+/// of re-rolling the loops. The helpers never enlist in an explicit transaction — commands
+/// that must run inside a <c>NpgsqlTransaction</c> should be constructed by hand with
+/// <c>new NpgsqlCommand(sql, conn, tx)</c>.
+/// </remarks>
+public static class NpgsqlQueryExtensions
 {
     /// <summary>
     /// Tables that may be passed to <see cref="ExistsAsync"/>. Prevents SQL injection via the
@@ -150,9 +156,9 @@ internal static class NpgsqlQueryExtensions
 /// <summary>
 /// Accumulates <c>column = @column</c> assignments plus their parameter values for a dynamic
 /// partial UPDATE. Replaces the hand-rolled <c>sets</c>/<c>setClauses</c> lists copy-pasted
-/// across repositories.
+/// across repositories. Public API since 0.8.0 (see <see cref="NpgsqlQueryExtensions"/>).
 /// </summary>
-internal sealed class UpdateBuilder
+public sealed class UpdateBuilder
 {
     private readonly List<string> _sets = [];
     private readonly List<(string Name, object Value)> _params = [];

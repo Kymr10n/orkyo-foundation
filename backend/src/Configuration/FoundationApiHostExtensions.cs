@@ -18,8 +18,9 @@ namespace Api.Configuration;
 /// Shared API-host wiring used identically by every product's <c>Program.cs</c>
 /// (CORS, the reporting-v1 Swagger document + UI, and the infrastructure health
 /// endpoints). Product-specific concerns — health-check <em>registration</em>
-/// (the connection string differs), rate limiting, Prometheus metrics, and the
-/// middleware ordering itself — stay in each product's Program.cs.
+/// (the connection string differs), rate limiting, and the middleware ordering
+/// itself — stay in each product's Program.cs. Prometheus metrics are the opt-in
+/// helpers in <see cref="OrkyoMetricsExtensions"/>.
 /// </summary>
 public static class FoundationApiHostExtensions
 {

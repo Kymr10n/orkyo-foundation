@@ -24,7 +24,7 @@ public class TenantMembershipEnricherTests
             },
         };
 
-        var result = await enricher.EnrichAsync(memberships, Guid.NewGuid());
+        var result = await enricher.EnrichAsync(memberships);
 
         result.Should().BeSameAs(memberships);
         result[0].CanReactivate.Should().BeNull("foundation has no suspension concept");
