@@ -31,6 +31,9 @@ public class AvailabilityResolverTests
         _schedulingRepo
             .Setup(r => r.GetResourceTypeIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, Guid>());
+        _schedulingRepo
+            .Setup(r => r.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, Guid>());
     }
 
     [Fact]
@@ -43,8 +46,8 @@ public class AvailabilityResolverTests
             CreateScope(ScopeTargetType.ResourceType, typeId, ScopeEffect.Closed),
         ]);
 
-        _schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(resourceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(siteId);
+        _schedulingRepo.Setup(r => r.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, Guid> { [resourceId] = siteId });
         _schedulingRepo.Setup(r => r.GetResourceTypeIdsAsync(
                 It.Is<IReadOnlyList<Guid>>(ids => ids.SequenceEqual(new[] { resourceId })),
                 It.IsAny<CancellationToken>()))
@@ -103,8 +106,8 @@ public class AvailabilityResolverTests
             CreateScope(ScopeTargetType.Resource, resourceId, ScopeEffect.Available),
         ]);
 
-        _schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(resourceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(siteId);
+        _schedulingRepo.Setup(r => r.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, Guid> { [resourceId] = siteId });
         _schedulingRepo.Setup(r => r.GetResourceTypeIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, Guid> { [resourceId] = typeId });
         _eventRepo.Setup(r => r.GetEnabledBySiteWithScopesAsync(siteId, It.IsAny<CancellationToken>()))
@@ -125,8 +128,8 @@ public class AvailabilityResolverTests
         var resourceId = Guid.NewGuid();
         var ev = CreateEvent(DefaultEffect.Closed, [], AvailabilityEventType.PublicHoliday);
 
-        _schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(resourceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(siteId);
+        _schedulingRepo.Setup(r => r.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, Guid> { [resourceId] = siteId });
         _eventRepo.Setup(r => r.GetEnabledBySiteWithScopesAsync(siteId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([ev]);
         _schedulingRepo.Setup(r => r.GetSettingsAsync(siteId, It.IsAny<CancellationToken>()))
@@ -144,8 +147,8 @@ public class AvailabilityResolverTests
         var resourceId = Guid.NewGuid();
         var ev = CreateEvent(DefaultEffect.Closed, [], AvailabilityEventType.PublicHoliday);
 
-        _schedulingRepo.Setup(r => r.GetSiteIdForResourceAsync(resourceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(siteId);
+        _schedulingRepo.Setup(r => r.GetSiteIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, Guid> { [resourceId] = siteId });
         _eventRepo.Setup(r => r.GetEnabledBySiteWithScopesAsync(siteId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([ev]);
         _schedulingRepo.Setup(r => r.GetSettingsAsync(siteId, It.IsAny<CancellationToken>()))

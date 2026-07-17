@@ -2,6 +2,7 @@ using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
@@ -34,19 +35,19 @@ public static class ContactEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 await using var conn = connectionFactory.CreateControlPlaneConnection();
-                await conn.OpenAsync(ct);
-
-                await using var cmd = new NpgsqlCommand(@"
+                await conn.ExecuteAsync(@"
                     INSERT INTO contact_submissions (id, name, email, company, subject, message, created_at_utc)
-                    VALUES (@id, @name, @email, @company, @subject, @message, @createdAt)", conn);
-                cmd.Parameters.AddWithValue("id", Guid.NewGuid());
-                cmd.Parameters.AddWithValue("name", request.Name.Trim());
-                cmd.Parameters.AddWithValue("email", request.Email.Trim());
-                cmd.Parameters.AddWithValue("company", (object?)request.Company?.Trim() ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("subject", request.Subject);
-                cmd.Parameters.AddWithValue("message", request.Message.Trim());
-                cmd.Parameters.AddWithValue("createdAt", DateTime.UtcNow);
-                await cmd.ExecuteNonQueryAsync(ct);
+                    VALUES (@id, @name, @email, @company, @subject, @message, @createdAt)",
+                    p =>
+                    {
+                        p.AddWithValue("id", Guid.NewGuid());
+                        p.AddWithValue("name", request.Name.Trim());
+                        p.AddWithValue("email", request.Email.Trim());
+                        p.AddNullable("company", request.Company?.Trim());
+                        p.AddWithValue("subject", request.Subject);
+                        p.AddWithValue("message", request.Message.Trim());
+                        p.AddWithValue("createdAt", DateTime.UtcNow);
+                    }, ct);
 
                 logger.LogInformation("Contact form submitted: {Email}, subject={Subject}", request.Email, request.Subject);
 

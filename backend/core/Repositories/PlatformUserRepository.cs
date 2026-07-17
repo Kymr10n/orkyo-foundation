@@ -337,4 +337,26 @@ public class PlatformUserRepository : IPlatformUserRepository
             p => p.AddWithValue("token", unsubscribeToken), ct);
         return rows > 0;
     }
+
+    public async Task<List<AdminUserMembership>> GetMembershipsAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.QueryListAsync(@"
+            SELECT tm.tenant_id, t.slug, t.display_name, tm.role, tm.status, tm.created_at
+            FROM tenant_memberships tm
+            INNER JOIN tenants t ON tm.tenant_id = t.id
+            WHERE tm.user_id = @userId
+            ORDER BY t.display_name",
+            p => p.AddWithValue("userId", userId),
+            reader => new AdminUserMembership
+            {
+                TenantId = reader.GetGuid(0),
+                TenantSlug = reader.GetString(1),
+                TenantName = reader.GetString(2),
+                Role = reader.GetString(3),
+                Status = reader.GetString(4),
+                JoinedAt = reader.GetDateTime(5),
+            },
+            ct);
+    }
 }

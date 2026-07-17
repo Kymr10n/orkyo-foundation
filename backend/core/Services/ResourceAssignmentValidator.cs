@@ -190,10 +190,15 @@ public class ResourceAssignmentValidator(
         if (request.RequestId is null) return;
 
         var requestInfo = await requestRepository.GetByIdAsync(request.RequestId.Value, includeRequirements: true, ct);
-        foreach (var req in requestInfo?.Requirements ?? [])
+        var requirements = requestInfo?.Requirements ?? [];
+        if (requirements.Count == 0) return;
+
+        // Load the resource's capabilities once, then match in memory — avoids the
+        // per-requirement N+1 the batch path (CheckCapabilitiesAsync above) already avoids.
+        var capabilities = await capabilityRepository.GetByResourceAsync(resource.Id, ct);
+        foreach (var req in requirements)
         {
-            var satisfied = await capabilityMatcher.ResourceSatisfiesRequirementAsync(resource.Id, req, ct);
-            if (!satisfied)
+            if (!capabilityMatcher.Satisfies(capabilities, req))
                 blockers.Add(CapabilityMissing(resource.Id, req));
         }
     }
