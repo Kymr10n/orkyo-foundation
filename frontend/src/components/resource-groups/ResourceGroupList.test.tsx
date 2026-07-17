@@ -23,6 +23,14 @@ import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('@foundation/src/lib/api/criteria-api', () => ({
+  getCriteria: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('@foundation/src/lib/api/group-capability-api', () => ({
+  getGroupCapabilities: vi.fn().mockResolvedValue([]),
+  addGroupCapability: vi.fn(),
+  deleteGroupCapability: vi.fn(),
+}));
 
 const mockGroups: ResourceGroupInfo[] = [
   {
@@ -91,6 +99,18 @@ describe('ResourceGroupList', () => {
     expect(screen.getByRole('menuitem', { name: /^Edit/ })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('menuitem', { name: /^Delete/ })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('menuitem', { name: /Manage members/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: /Manage capabilities/ })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('opens the group capabilities editor from the row actions', async () => {
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => expect(screen.getByText('Engineering')).toBeInTheDocument());
+    await openRowMenu(user, 'Engineering');
+    await user.click(screen.getByRole('menuitem', { name: /Manage capabilities/ }));
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: /Capabilities/i })).toBeInTheDocument(),
+    );
   });
 
   it('renders Add Group button', async () => {
