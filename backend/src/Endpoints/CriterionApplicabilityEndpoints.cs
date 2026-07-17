@@ -24,7 +24,7 @@ public static class CriterionApplicabilityEndpoints
             ICriterionApplicabilityRepository repo,
             CancellationToken ct) =>
         {
-            var info = await repo.GetByCriterionAsync(id);
+            var info = await repo.GetByCriterionAsync(id, ct);
             return EndpointHelpers.OkOrNotFound(info, "Criterion", id);
         })
             .WithName("GetCriterionApplicability")
@@ -38,12 +38,12 @@ public static class CriterionApplicabilityEndpoints
             ICriteriaRepository criteriaRepo,
             CancellationToken ct) =>
         {
-            var criterion = await criteriaRepo.GetByIdAsync(id);
+            var criterion = await criteriaRepo.GetByIdAsync(id, ct);
             if (criterion is null)
                 return ErrorResponses.NotFound("Criterion", id);
 
             if (request.ApplicableToRequests.HasValue)
-                await applicabilityRepo.SetApplicableToRequestsAsync(id, request.ApplicableToRequests.Value);
+                await applicabilityRepo.SetApplicableToRequestsAsync(id, request.ApplicableToRequests.Value, ct);
 
             if (request.ResourceTypeKeys is not null)
             {
@@ -56,10 +56,10 @@ public static class CriterionApplicabilityEndpoints
                         return ErrorResponses.BadRequest($"Unknown resource type key '{key}'");
                     typeIds.Add(rt.Id);
                 }
-                await applicabilityRepo.SetResourceTypeApplicabilityAsync(id, typeIds);
+                await applicabilityRepo.SetResourceTypeApplicabilityAsync(id, typeIds, ct);
             }
 
-            var updated = await applicabilityRepo.GetByCriterionAsync(id);
+            var updated = await applicabilityRepo.GetByCriterionAsync(id, ct);
             return Results.Ok(updated);
         })
             .WithName("UpdateCriterionApplicability")

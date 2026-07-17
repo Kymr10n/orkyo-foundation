@@ -40,19 +40,10 @@ public class ResourceService(
     {
         Validate(request.AllocationMode, request.BaseAvailabilityPercent, request.Name);
 
-        var resourceType = await resourceTypeRepository.GetByKeyAsync(request.ResourceTypeKey)
+        var resourceType = await resourceTypeRepository.GetByKeyAsync(request.ResourceTypeKey, ct)
             ?? throw new ArgumentException($"Resource type '{request.ResourceTypeKey}' not found");
 
-        return await resourceRepository.CreateAsync(
-            resourceType.Id,
-            resourceType.Key,
-            request.Name,
-            request.Description,
-            request.ExternalReference,
-            request.AllocationMode,
-            request.BaseAvailabilityPercent,
-            homeSiteId: request.HomeSiteId,
-            crossSiteAllowed: request.CrossSiteAllowed);
+        return await resourceRepository.CreateAsync(resourceType.Id, resourceType.Key, request.Name, request.Description, request.ExternalReference, request.AllocationMode, request.BaseAvailabilityPercent, homeSiteId: request.HomeSiteId, crossSiteAllowed: request.CrossSiteAllowed, ct: ct);
     }
 
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
@@ -65,14 +56,14 @@ public class ResourceService(
             throw new ArgumentException("Name cannot be blank");
 
         // Verify existence; Space deactivation flows through SpaceService, not here.
-        _ = await resourceRepository.GetByIdAsync(id)
+        _ = await resourceRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Resource {id} not found");
 
-        return await resourceRepository.UpdateAsync(id, request);
+        return await resourceRepository.UpdateAsync(id, request, ct);
     }
 
     public Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
-        => resourceRepository.DeactivateAsync(id);
+        => resourceRepository.DeactivateAsync(id, ct);
 
     private static void Validate(string allocationMode, int baseAvailabilityPercent, string name)
     {

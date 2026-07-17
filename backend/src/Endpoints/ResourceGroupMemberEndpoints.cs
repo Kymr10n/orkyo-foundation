@@ -22,7 +22,7 @@ public static class ResourceGroupMemberEndpoints
             Guid id,
             IResourceGroupMemberRepository repo,
             CancellationToken ct) =>
-            Results.Ok(await repo.GetMembersAsync(id)))
+            Results.Ok(await repo.GetMembersAsync(id, ct)))
             .WithName("GetResourceGroupMembers")
             .WithSummary("Get all members of a resource group");
 
@@ -32,8 +32,8 @@ public static class ResourceGroupMemberEndpoints
             IResourceGroupMemberRepository repo,
             CancellationToken ct) =>
         {
-            await repo.SetMembersAsync(id, request.ResourceIds);
-            return Results.Ok(await repo.GetMembersAsync(id));
+            await repo.SetMembersAsync(id, request.ResourceIds, ct);
+            return Results.Ok(await repo.GetMembersAsync(id, ct));
         })
             .WithName("SetResourceGroupMembers")
             .WithSummary("Replace all members of a resource group");

@@ -28,7 +28,7 @@ public class UtilizationService(
     public async Task<UtilizationResponse?> GetResourceUtilizationAsync(
         Guid resourceId, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
-        var resource = await resourceRepository.GetByIdAsync(resourceId);
+        var resource = await resourceRepository.GetByIdAsync(resourceId, ct);
         if (resource is null) return null;
 
         var buckets = await ComputeResourceBucketsAsync(resource, from, to, granularity, ct);
@@ -82,7 +82,7 @@ public class UtilizationService(
     public async Task<UtilizationResponse?> GetGroupUtilizationAsync(
         Guid groupId, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
-        var membersResponse = await groupMemberRepository.GetMembersAsync(groupId);
+        var membersResponse = await groupMemberRepository.GetMembersAsync(groupId, ct);
         var activeMembers = membersResponse.Members.Where(m => m.IsActive).ToList();
 
         if (activeMembers.Count == 0)
@@ -142,7 +142,7 @@ public class UtilizationService(
         string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
         var filter = new ResourceListFilter { IsActive = true, ResourceTypeKey = resourceTypeKey };
-        var resources = await resourceRepository.GetAllAsync(filter);
+        var resources = await resourceRepository.GetAllAsync(filter, ct);
 
         if (resources.Count == 0)
             return new UtilizationResponse
@@ -203,7 +203,7 @@ public class UtilizationService(
             SiteWindowFrom = siteId.HasValue ? from : null,
             SiteWindowTo = siteId.HasValue ? to : null,
         };
-        var resources = await resourceRepository.GetAllAsync(filter);
+        var resources = await resourceRepository.GetAllAsync(filter, ct);
 
         var bucketsById = await ComputeBucketsForResourcesAsync(resources, from, to, granularity, ct);
         return resources.Select(resource => new ResourceUtilizationResponse

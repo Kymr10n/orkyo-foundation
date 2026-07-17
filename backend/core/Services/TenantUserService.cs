@@ -75,7 +75,7 @@ public class TenantUserService : ITenantUserService
         {
             await using var conn = _connectionFactory.CreateOrgConnection(org);
             await conn.OpenAsync(ct);
-            await using var transaction = await conn.BeginTransactionAsync();
+            await using var transaction = await conn.BeginTransactionAsync(ct);
 
             var cmd = new NpgsqlCommand(@"
                 INSERT INTO audit_events (actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
@@ -93,7 +93,7 @@ public class TenantUserService : ITenantUserService
             });
 
             await cmd.ExecuteNonQueryAsync(ct);
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == "42P01")
         {

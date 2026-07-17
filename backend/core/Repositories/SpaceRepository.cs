@@ -194,7 +194,7 @@ public class SpaceRepository : ISpaceRepository
         if (!updates.Any())
         {
             // No updates to perform, return current space
-            return await GetByIdAsync(siteId, resourceId);
+            return await GetByIdAsync(siteId, resourceId, ct);
         }
 
         // Execute update
@@ -210,7 +210,7 @@ public class SpaceRepository : ISpaceRepository
         }
 
         await cmd.ExecuteNonQueryAsync(ct);
-        return await GetByIdAsync(siteId, resourceId);
+        return await GetByIdAsync(siteId, resourceId, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)

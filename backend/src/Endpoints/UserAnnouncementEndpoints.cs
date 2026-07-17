@@ -146,21 +146,21 @@ public static class UserAnnouncementEndpoints
     private static async Task<IResult> GetActive(IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
     {
         var userId = principal.RequireUserId();
-        var announcements = await service.GetActiveForUserAsync(userId);
+        var announcements = await service.GetActiveForUserAsync(userId, ct);
         return Results.Ok(new { announcements });
     }
 
     private static async Task<IResult> GetUnreadCount(IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
     {
         var userId = principal.RequireUserId();
-        var count = await service.GetUnreadCountAsync(userId);
+        var count = await service.GetUnreadCountAsync(userId, ct);
         return Results.Ok(new { unreadCount = count });
     }
 
     private static async Task<IResult> MarkRead(Guid id, IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
     {
         var userId = principal.RequireUserId();
-        await service.MarkReadAsync(id, userId);
+        await service.MarkReadAsync(id, userId, ct);
         return Results.NoContent();
     }
 }

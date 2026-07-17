@@ -84,11 +84,11 @@ public class RequestService : IRequestService
     {
         if (request.ParentRequestId.HasValue)
         {
-            var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value);
+            var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value, ct);
             if (parentMode == null) throw new NotFoundException("Parent request", request.ParentRequestId.Value);
             if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot add children to a leaf request");
         }
-        return await _repository.CreateAsync(request);
+        return await _repository.CreateAsync(request, ct);
     }
 
     public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
@@ -97,25 +97,25 @@ public class RequestService : IRequestService
         {
             if (request.ParentRequestId.Value == id)
                 throw new ArgumentException("A request cannot be its own parent");
-            var wouldCycle = await _repository.WouldCreateCycleAsync(id, request.ParentRequestId.Value);
+            var wouldCycle = await _repository.WouldCreateCycleAsync(id, request.ParentRequestId.Value, ct);
             if (wouldCycle) throw new ConflictException("This change would create a circular reference");
-            var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value);
+            var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value, ct);
             if (parentMode == null) throw new NotFoundException("Parent request", request.ParentRequestId.Value);
             if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot add children to a leaf request");
         }
 
         if (request.PlanningMode == PlanningMode.Leaf)
         {
-            var hasChildren = await _repository.HasChildrenAsync(id);
+            var hasChildren = await _repository.HasChildrenAsync(id, ct);
             if (hasChildren) throw new ConflictException("Cannot change to leaf mode while request has children");
         }
 
-        var existingMode = await _repository.GetPlanningModeAsync(id);
+        var existingMode = await _repository.GetPlanningModeAsync(id, ct);
         var effectiveMode = request.PlanningMode ?? existingMode;
         if (effectiveMode != PlanningMode.Leaf && (request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue))
             throw new ArgumentException("Only leaf requests can be directly scheduled to a space");
 
-        return await _repository.UpdateAsync(id, request);
+        return await _repository.UpdateAsync(id, request, ct);
     }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => _repository.DeleteAsync(id, ct);
@@ -127,11 +127,11 @@ public class RequestService : IRequestService
         var isSchedulingPayload = request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue;
         if (isSchedulingPayload)
         {
-            var mode = await _repository.GetPlanningModeAsync(id);
+            var mode = await _repository.GetPlanningModeAsync(id, ct);
             if (mode != null && mode != PlanningMode.Leaf)
                 throw new ArgumentException("Only leaf requests can be directly scheduled to a space");
         }
-        return await _repository.UpdateScheduleAsync(id, request);
+        return await _repository.UpdateScheduleAsync(id, request, ct);
     }
 
     public Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default)
@@ -149,13 +149,13 @@ public class RequestService : IRequestService
         {
             if (newParentId.Value == id)
                 throw new ArgumentException("A request cannot be its own parent");
-            if (await _repository.WouldCreateCycleAsync(id, newParentId.Value))
+            if (await _repository.WouldCreateCycleAsync(id, newParentId.Value, ct))
                 throw new ConflictException("Moving this request would create a circular reference");
-            var parentMode = await _repository.GetPlanningModeAsync(newParentId.Value);
+            var parentMode = await _repository.GetPlanningModeAsync(newParentId.Value, ct);
             if (parentMode == null) throw new NotFoundException("Parent request", newParentId.Value);
             if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot move a request under a leaf request");
         }
-        return await _repository.MoveAsync(id, newParentId, sortOrder);
+        return await _repository.MoveAsync(id, newParentId, sortOrder, ct);
     }
 
     public Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default)

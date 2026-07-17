@@ -63,7 +63,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
 
         try
         {
-            var overrides = await _repo.GetAllAsync();
+            var overrides = await _repo.GetAllAsync(ct);
 
             // Filter to only RuntimeConfig keys (site_settings may also contain
             // TenantSettings site-scoped overrides from the existing system).
@@ -97,7 +97,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
             RuntimeConfig.ValidateValue(key, value);
 
             var category = RuntimeConfig.CategoryForKey(key);
-            await _repo.UpsertAsync(key, value, category);
+            await _repo.UpsertAsync(key, value, category, ct);
         }
 
         // Invalidate cache
@@ -106,7 +106,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
         _logger.LogInformation("Updated {Count} runtime config setting(s): {Keys}",
             updates.Count, string.Join(", ", updates.Keys));
 
-        return await GetRuntimeConfigAsync();
+        return await GetRuntimeConfigAsync(ct);
     }
 
     public async Task<bool> ResetSettingAsync(string key, CancellationToken ct = default)
@@ -114,7 +114,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
         if (!RuntimeConfig.KeyMap.ContainsKey(key))
             throw new ArgumentException($"Unknown runtime config key: '{key}'");
 
-        var result = await _repo.DeleteAsync(key);
+        var result = await _repo.DeleteAsync(key, ct);
 
         if (result)
         {

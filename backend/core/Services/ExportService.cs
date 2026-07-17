@@ -53,13 +53,13 @@ public class ExportService : IExportService
     {
         const string schemaVersion = "1.0.0";
 
-        var criteria = await _criteriaRepo.GetAllAsync();
+        var criteria = await _criteriaRepo.GetAllAsync(ct);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => GenerateKey(c.Name));
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space);
+        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space, ct);
         var groupIdToKey = groups.ToDictionary(g => g.Id, g => GenerateKey(g.Name));
 
-        var allSites = await _siteRepo.GetAllAsync();
+        var allSites = await _siteRepo.GetAllAsync(ct);
         var filteredSites = request.SiteIds is { Count: > 0 }
             ? allSites.Where(s => request.SiteIds.Contains(s.Id)).ToList()
             : allSites;

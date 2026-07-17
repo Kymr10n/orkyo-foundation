@@ -48,13 +48,13 @@ public static class AnnouncementEndpoints
 
     private static async Task<IResult> GetAll(IAnnouncementService service, bool includeExpired = true, CancellationToken ct = default)
     {
-        var announcements = await service.GetAllAsync(includeExpired);
+        var announcements = await service.GetAllAsync(includeExpired, ct);
         return Results.Ok(new { announcements });
     }
 
     private static async Task<IResult> GetById(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {
-        var dto = await service.GetByIdAsync(id);
+        var dto = await service.GetByIdAsync(id, ct);
         return EndpointHelpers.OkOrNotFound(dto, "Announcement", id);
     }
 
@@ -64,7 +64,7 @@ public static class AnnouncementEndpoints
         CurrentPrincipal principal,
         CancellationToken ct = default)
     {
-        var announcement = await service.CreateAsync(request, principal.UserId);
+        var announcement = await service.CreateAsync(request, principal.UserId, ct);
         return Results.Created($"/api/admin/announcements/{announcement.Id}", announcement);
     }
 
@@ -75,13 +75,13 @@ public static class AnnouncementEndpoints
         CurrentPrincipal principal,
         CancellationToken ct = default)
     {
-        var result = await service.UpdateAsync(id, request, principal.UserId);
+        var result = await service.UpdateAsync(id, request, principal.UserId, ct);
         return result != null ? Results.Ok(result) : ErrorResponses.NotFound("Announcement");
     }
 
     private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {
-        var deleted = await service.DeleteAsync(id);
+        var deleted = await service.DeleteAsync(id, ct);
         return deleted ? Results.NoContent() : ErrorResponses.NotFound("Announcement", id);
     }
 }

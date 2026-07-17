@@ -36,7 +36,7 @@ public class SessionService : ISessionService
         await using var db = _connectionFactory.CreateControlPlaneConnection();
         await db.OpenAsync(ct);
 
-        var existingIdentity = await FindIdentityByKeycloakSubAsync(db, keycloakSub);
+        var existingIdentity = await FindIdentityByKeycloakSubAsync(db, keycloakSub, ct);
 
         Guid userId;
 
@@ -44,13 +44,13 @@ public class SessionService : ISessionService
         {
             userId = existingIdentity.UserId;
             _logger.LogInformation("Found existing identity for Keycloak sub={Sub}, user_id={UserId}", keycloakSub, userId);
-            await UpdateLastLoginAsync(db, userId);
+            await UpdateLastLoginAsync(db, userId, ct);
         }
         else
         {
             _logger.LogInformation("First login for Keycloak sub={Sub}, email={Email}", keycloakSub, email);
 
-            var existingUser = await FindUserByEmailAsync(db, email ?? "");
+            var existingUser = await FindUserByEmailAsync(db, email ?? "", ct);
 
             if (existingUser != null)
             {
@@ -59,24 +59,24 @@ public class SessionService : ISessionService
             }
             else
             {
-                userId = await CreateUserAsync(db, email ?? keycloakSub, displayName ?? email ?? "User");
+                userId = await CreateUserAsync(db, email ?? keycloakSub, displayName ?? email ?? "User", ct);
                 _logger.LogInformation("Created new user for Keycloak sub={Sub}, user_id={UserId}", keycloakSub, userId);
             }
 
-            await CreateIdentityLinkAsync(db, userId, keycloakSub, email);
-            await UpdateLastLoginAsync(db, userId);
+            await CreateIdentityLinkAsync(db, userId, keycloakSub, email, ct);
+            await UpdateLastLoginAsync(db, userId, ct);
         }
 
-        var userInfo = await GetUserByIdInternalAsync(db, userId);
+        var userInfo = await GetUserByIdInternalAsync(db, userId, ct);
         if (userInfo == null)
             throw new InvalidOperationException($"User {userId} not found after bootstrap");
 
-        var memberships = await GetTenantMembershipsAsync(db, userId);
+        var memberships = await GetTenantMembershipsAsync(db, userId, ct);
         var requiredTosVersion = GetRequiredTosVersion();
         var tosRequired = false;
 
         if (!string.IsNullOrEmpty(requiredTosVersion))
-            tosRequired = !await HasAcceptedTosInternalAsync(db, userId, requiredTosVersion);
+            tosRequired = !await HasAcceptedTosInternalAsync(db, userId, requiredTosVersion, ct);
 
         return new SessionBootstrapResponse
         {
@@ -94,10 +94,10 @@ public class SessionService : ISessionService
         await using var db = _connectionFactory.CreateControlPlaneConnection();
         await db.OpenAsync(ct);
 
-        var identity = await FindIdentityByKeycloakSubAsync(db, keycloakSub);
+        var identity = await FindIdentityByKeycloakSubAsync(db, keycloakSub, ct);
         if (identity == null) return null;
 
-        return await BuildSessionResponseAsync(db, identity.UserId);
+        return await BuildSessionResponseAsync(db, identity.UserId, ct);
     }
 
     public async Task<SessionBootstrapResponse?> GetSessionByUserIdAsync(Guid userId, CancellationToken ct = default)
@@ -105,23 +105,23 @@ public class SessionService : ISessionService
         await using var db = _connectionFactory.CreateControlPlaneConnection();
         await db.OpenAsync(ct);
 
-        return await BuildSessionResponseAsync(db, userId);
+        return await BuildSessionResponseAsync(db, userId, ct);
     }
 
     public async Task<SessionBootstrapResponse?> BuildSessionResponseAsync(Guid userId, CancellationToken ct = default)
-        => await GetSessionByUserIdAsync(userId);
+        => await GetSessionByUserIdAsync(userId, ct);
 
     private async Task<SessionBootstrapResponse?> BuildSessionResponseAsync(NpgsqlConnection db, Guid userId, CancellationToken ct = default)
     {
-        var userInfo = await GetUserByIdInternalAsync(db, userId);
+        var userInfo = await GetUserByIdInternalAsync(db, userId, ct);
         if (userInfo == null) return null;
 
-        var memberships = await GetTenantMembershipsAsync(db, userId);
+        var memberships = await GetTenantMembershipsAsync(db, userId, ct);
         var requiredTosVersion = GetRequiredTosVersion();
         var tosRequired = false;
 
         if (!string.IsNullOrEmpty(requiredTosVersion))
-            tosRequired = !await HasAcceptedTosInternalAsync(db, userId, requiredTosVersion);
+            tosRequired = !await HasAcceptedTosInternalAsync(db, userId, requiredTosVersion, ct);
 
         return new SessionBootstrapResponse
         {
@@ -178,7 +178,7 @@ public class SessionService : ISessionService
     {
         await using var db = _connectionFactory.CreateControlPlaneConnection();
         await db.OpenAsync(ct);
-        return await HasAcceptedTosInternalAsync(db, userId, requiredVersion);
+        return await HasAcceptedTosInternalAsync(db, userId, requiredVersion, ct);
     }
 
     public async Task AcceptTosAsync(Guid userId, string tosVersion, string? ipAddress, string? userAgent, CancellationToken ct = default)

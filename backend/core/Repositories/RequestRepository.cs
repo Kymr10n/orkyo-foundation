@@ -40,7 +40,7 @@ public class RequestRepository : IRequestRepository
             ct);
 
         if (includeRequirements && requests.Count > 0)
-            await LoadRequirementsForRequests(requests, db);
+            await LoadRequirementsForRequests(requests, db, ct);
 
         return requests;
     }
@@ -60,7 +60,7 @@ public class RequestRepository : IRequestRepository
         if (includeRequirements && result.Items.Count > 0)
         {
             var items = result.Items.ToList();
-            await LoadRequirementsForRequests(items, db);
+            await LoadRequirementsForRequests(items, db, ct);
             return result with { Items = items };
         }
 
@@ -310,7 +310,7 @@ public class RequestRepository : IRequestRepository
             return null;
 
         if (includeRequirements)
-            request = request with { Requirements = await LoadRequirements(id, db) };
+            request = request with { Requirements = await LoadRequirements(id, db, ct) };
 
         return request;
     }
@@ -376,7 +376,7 @@ public class RequestRepository : IRequestRepository
                 r => r.GetGuid(0), ct);
         }
 
-        await using var transaction = await db.BeginTransactionAsync();
+        await using var transaction = await db.BeginTransactionAsync(ct);
 
         try
         {
@@ -425,27 +425,24 @@ public class RequestRepository : IRequestRepository
             // Create resource assignment if a resource + time window was provided.
             if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
             {
-                await WriteResourceAssignmentAsync(
-                    db, transaction,
-                    requestId, request.ResourceId.Value,
-                    request.StartTs.Value, request.EndTs.Value);
+                await WriteResourceAssignmentAsync(db, transaction, requestId, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value, ct);
             }
 
             if (request.Requirements is { Count: > 0 })
             {
-                await CreateRequirements(requestId, request.Requirements, db, transaction);
+                await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
             }
 
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(ct);
 
             // Re-read from view to get full object with assignments
-            var createdRequest = await ReadByIdAsync(db, requestId);
+            var createdRequest = await ReadByIdAsync(db, requestId, ct);
 
             if (request.Requirements is { Count: > 0 })
             {
                 createdRequest = createdRequest with
                 {
-                    Requirements = await LoadRequirements(requestId, db),
+                    Requirements = await LoadRequirements(requestId, db, ct),
                 };
             }
             else
@@ -460,7 +457,7 @@ public class RequestRepository : IRequestRepository
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(ct);
             throw;
         }
     }
@@ -512,7 +509,7 @@ public class RequestRepository : IRequestRepository
         if (update.IsEmpty && request.Requirements == null && !request.ResourceId.HasValue)
             throw new ArgumentException("No fields to update");
 
-        await using var transaction = await db.BeginTransactionAsync();
+        await using var transaction = await db.BeginTransactionAsync(ct);
 
         if (!update.IsEmpty)
         {
@@ -530,9 +527,8 @@ public class RequestRepository : IRequestRepository
         // Update resource assignment if caller is changing the resource.
         if (request.ResourceId.HasValue && finalStartTs.HasValue && finalEndTs.HasValue)
         {
-            await CancelSpaceAssignmentAsync(db, transaction, id);
-            await WriteResourceAssignmentAsync(
-                db, transaction, id, request.ResourceId.Value, finalStartTs.Value, finalEndTs.Value);
+            await CancelSpaceAssignmentAsync(db, transaction, id, ct);
+            await WriteResourceAssignmentAsync(db, transaction, id, request.ResourceId.Value, finalStartTs.Value, finalEndTs.Value, ct);
         }
 
         // Replace requirements wholesale if the caller supplied a (possibly empty) list.
@@ -543,14 +539,14 @@ public class RequestRepository : IRequestRepository
             deleteCmd.Parameters.AddWithValue("request_id", id);
             await deleteCmd.ExecuteNonQueryAsync(ct);
             if (request.Requirements.Count > 0)
-                await CreateRequirements(id, request.Requirements, db, transaction);
+                await CreateRequirements(id, request.Requirements, db, transaction, ct);
         }
 
-        await transaction.CommitAsync();
+        await transaction.CommitAsync(ct);
 
         // Single re-read for the full object (view supplies assignments).
-        var updatedRequest = await ReadByIdAsync(db, id);
-        return updatedRequest with { Requirements = await LoadRequirements(id, db) };
+        var updatedRequest = await ReadByIdAsync(db, id, ct);
+        return updatedRequest with { Requirements = await LoadRequirements(id, db, ct) };
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
@@ -594,7 +590,7 @@ public class RequestRepository : IRequestRepository
             actualDurationUnit = "minutes";
         }
 
-        await using var tx = await db.BeginTransactionAsync();
+        await using var tx = await db.BeginTransactionAsync(ct);
 
         // Implicit site-on-schedule: a site-neutral request adopts the site of the space it is
         // scheduled into. COALESCE keeps an existing scope and is a no-op when no space is given
@@ -619,22 +615,21 @@ public class RequestRepository : IRequestRepository
         var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
         if (!updatedId.HasValue)
         {
-            await tx.RollbackAsync();
+            await tx.RollbackAsync(ct);
             return null;
         }
 
         // Cancel existing space assignment and write the new one.
-        await CancelSpaceAssignmentAsync(db, tx, updatedId.Value);
+        await CancelSpaceAssignmentAsync(db, tx, updatedId.Value, ct);
         if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
         {
-            await WriteResourceAssignmentAsync(
-                db, tx, updatedId.Value, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value);
+            await WriteResourceAssignmentAsync(db, tx, updatedId.Value, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value, ct);
         }
 
-        await tx.CommitAsync();
+        await tx.CommitAsync(ct);
 
         // Re-read from view to get full object with assignments
-        return await ReadByIdAsync(db, updatedId.Value);
+        return await ReadByIdAsync(db, updatedId.Value, ct);
     }
 
     public async Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates, CancellationToken ct = default)
@@ -643,7 +638,7 @@ public class RequestRepository : IRequestRepository
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
-        await using var tx = await db.BeginTransactionAsync();
+        await using var tx = await db.BeginTransactionAsync(ct);
 
         await using var batch = new NpgsqlBatch(db, tx);
         var requestUpdateCommands = new List<NpgsqlBatchCommand>(updates.Count);
@@ -698,7 +693,7 @@ public class RequestRepository : IRequestRepository
         // Only the request UPDATEs count — the assignment statements must not inflate the total.
         var rowsAffected = (int)requestUpdateCommands.Aggregate(0UL, (sum, c) => sum + c.Rows);
 
-        await tx.CommitAsync();
+        await tx.CommitAsync(ct);
         return rowsAffected;
     }
 
@@ -968,7 +963,7 @@ public class RequestRepository : IRequestRepository
             return null;
 
         // Re-read from view to get full object with assignments
-        return await ReadByIdAsync(db, updatedId.Value);
+        return await ReadByIdAsync(db, updatedId.Value, ct);
     }
 
     public async Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default)

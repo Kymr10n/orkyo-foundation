@@ -47,7 +47,7 @@ public class AnnouncementService : IAnnouncementService
             ExpiresAt = DateTime.UtcNow.AddDays(retentionDays),
         };
 
-        return await _repository.CreateAsync(announcement);
+        return await _repository.CreateAsync(announcement, ct);
     }
 
     public async Task<AnnouncementDto?> UpdateAsync(Guid id, UpdateAnnouncementRequest request, Guid userId, CancellationToken ct = default)
@@ -59,8 +59,7 @@ public class AnnouncementService : IAnnouncementService
         if (request.ExpiresAt.HasValue && request.ExpiresAt.Value <= DateTime.UtcNow)
             throw new ArgumentException("Expiration date must be in the future.");
 
-        return await _repository.UpdateAsync(id, request.Title.Trim(), request.Body.Trim(),
-            request.IsImportant, request.ExpiresAt, userId);
+        return await _repository.UpdateAsync(id, request.Title.Trim(), request.Body.Trim(), request.IsImportant, request.ExpiresAt, userId, ct);
     }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => _repository.DeleteAsync(id, ct);

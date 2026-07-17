@@ -54,7 +54,7 @@ public static class PersonProfileEndpoints
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
         {
-            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             var profile = await profileRepository.GetByResourceIdAsync(resourceId, ct);
@@ -88,7 +88,7 @@ public static class PersonProfileEndpoints
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
         {
-            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             // Reject if the user is already linked to a different person resource (tenant-wide constraint).
@@ -108,7 +108,7 @@ public static class PersonProfileEndpoints
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
         {
-            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             var success = await profileRepository.UnlinkUserAsync(resourceId, ct);

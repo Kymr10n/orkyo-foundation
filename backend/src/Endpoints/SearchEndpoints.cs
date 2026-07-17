@@ -26,7 +26,7 @@ public static class SearchEndpoints
                 : types.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             var settings = await settingsService.GetSettingsAsync(ct);
-            var results = await repository.SearchAsync(q, siteId, typeFilter, Math.Min(limit ?? settings.Search_DefaultPageSize, 50));
+            var results = await repository.SearchAsync(q, siteId, typeFilter, Math.Min(limit ?? settings.Search_DefaultPageSize, 50), ct);
             var canEdit = authContext.CanEdit;
             var resultsWithPermissions = results.Select(r => r with { Permissions = r.Permissions with { CanEdit = canEdit } }).ToList();
 

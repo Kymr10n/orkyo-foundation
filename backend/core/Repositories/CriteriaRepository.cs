@@ -107,7 +107,7 @@ public class CriteriaRepository : ICriteriaRepository
 
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
-        await using var tx = await db.BeginTransactionAsync();
+        await using var tx = await db.BeginTransactionAsync(ct);
 
         try
         {
@@ -171,12 +171,12 @@ public class CriteriaRepository : ICriteriaRepository
             var created = CriteriaMapper.MapFromReader(reader);
             await reader.CloseAsync();
 
-            await tx.CommitAsync();
+            await tx.CommitAsync(ct);
             return created;
         }
         catch
         {
-            await tx.RollbackAsync();
+            await tx.RollbackAsync(ct);
             throw;
         }
     }
@@ -273,7 +273,7 @@ public class CriteriaRepository : ICriteriaRepository
         }
 
         // Re-select via GetByIdAsync to return the full DTO with aggregate columns.
-        return await GetByIdAsync(id);
+        return await GetByIdAsync(id, ct);
     }
 
     // Mirrors the reference check in DeleteAsync and the in_use projection column: a criterion is

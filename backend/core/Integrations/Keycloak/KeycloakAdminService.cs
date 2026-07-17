@@ -69,10 +69,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/sessions";
         var request = CreateAdminRequest(HttpMethod.Get, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to retrieve sessions");
 
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<List<KeycloakSession>>(json) ?? new List<KeycloakSession>();
     }
 
@@ -83,7 +83,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/sessions/{sessionId}";
         var request = CreateAdminRequest(HttpMethod.Delete, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to revoke session");
 
         _logger.LogInformation("Session {SessionId} revoked", sessionId);
@@ -96,7 +96,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/logout";
         var request = CreateAdminRequest(HttpMethod.Post, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to logout from all sessions");
 
         _logger.LogInformation("All sessions logged out for user {Sub}", keycloakSub);
@@ -114,13 +114,13 @@ public class KeycloakAdminService : IKeycloakAdminService
             var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/federated-identity";
             var request = CreateAdminRequest(HttpMethod.Get, url, token);
 
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
                 return new FederationStatus(false, null);
             }
 
-            var json = await response.Content.ReadAsStringAsync();
+            var json = await response.Content.ReadAsStringAsync(ct);
             var identities = JsonSerializer.Deserialize<List<FederatedIdentity>>(json);
 
             return identities is { Count: > 0 }
@@ -139,7 +139,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     {
         var token = await GetAdminTokenAsync();
 
-        if (await UserExistsAsync(email))
+        if (await UserExistsAsync(email, ct))
         {
             throw new KeycloakAdminException("An account with this email already exists", 409);
         }
@@ -161,10 +161,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users";
         var request = CreateAdminRequest(HttpMethod.Post, url, token, userPayload);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync();
+            var body = await response.Content.ReadAsStringAsync(ct);
             _logger.LogWarning("Failed to create user: {Status} - {Body}", response.StatusCode, body);
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
@@ -196,10 +196,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users?email={Uri.EscapeDataString(email)}&exact=true";
         var request = CreateAdminRequest(HttpMethod.Get, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to check if user exists");
 
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync(ct);
         var users = JsonSerializer.Deserialize<List<KeycloakUser>>(json);
         return users is { Count: > 0 };
     }
@@ -215,7 +215,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}";
         var request = CreateAdminRequest(HttpMethod.Delete, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to delete user from Keycloak");
 
         _logger.LogInformation("Deleted user {KeycloakId} from Keycloak", keycloakId);
@@ -228,10 +228,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/credentials";
         var request = CreateAdminRequest(HttpMethod.Get, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to retrieve MFA status");
 
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync(ct);
         var credentials = JsonSerializer.Deserialize<List<KeycloakCredential>>(json) ?? new();
 
         var totpCred = credentials.FirstOrDefault(c => c.Type == "otp");
@@ -257,11 +257,11 @@ public class KeycloakAdminService : IKeycloakAdminService
         // Verify the credential belongs to this user before deleting
         var credUrl = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/credentials";
         var credRequest = CreateAdminRequest(HttpMethod.Get, credUrl, token);
-        var credResponse = await _httpClient.SendAsync(credRequest);
+        var credResponse = await _httpClient.SendAsync(credRequest, ct);
 
         if (credResponse.IsSuccessStatusCode)
         {
-            var credJson = await credResponse.Content.ReadAsStringAsync();
+            var credJson = await credResponse.Content.ReadAsStringAsync(ct);
             var credentials = JsonSerializer.Deserialize<List<KeycloakCredential>>(credJson) ?? new();
             if (!credentials.Any(c => c.Id == credentialId))
             {
@@ -272,7 +272,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/credentials/{credentialId}";
         var request = CreateAdminRequest(HttpMethod.Delete, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to remove credential");
 
         _logger.LogInformation("Deleted credential {CredentialId} for user {Sub}", credentialId, keycloakSub);
@@ -285,10 +285,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
         var request = CreateAdminRequest(HttpMethod.Get, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to retrieve profile");
 
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync(ct);
         var userData = JsonSerializer.Deserialize<KeycloakUserFull>(json)
             ?? throw new KeycloakAdminException("Failed to parse user profile");
 
@@ -308,7 +308,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
         var request = CreateAdminRequest(HttpMethod.Put, url, token, new { firstName, lastName });
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to update profile");
 
         _logger.LogInformation("Profile updated for user {Sub}", keycloakSub);
@@ -366,7 +366,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             requiredActions = new[] { "CONFIGURE_TOTP" }
         });
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to enable MFA");
 
         _logger.LogInformation("CONFIGURE_TOTP required action added for user {Sub}", keycloakSub);
@@ -379,10 +379,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}/role-mappings/realm";
         var request = CreateAdminRequest(HttpMethod.Get, url, token);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
         await EnsureSuccessAsync(response, "Failed to check realm roles");
 
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync(ct);
         var roles = JsonSerializer.Deserialize<List<KeycloakRole>>(json) ?? new();
         return roles.Any(r => r.Name == roleName);
     }
@@ -399,11 +399,11 @@ public class KeycloakAdminService : IKeycloakAdminService
 
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/roles/{Uri.EscapeDataString(roleName)}/users";
         var request = CreateAdminRequest(HttpMethod.Get, url, token);
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, ct);
 
         await EnsureSuccessAsync(response, $"Failed to count members of role '{roleName}'");
 
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync(ct);
         var users = JsonSerializer.Deserialize<JsonElement[]>(json);
         return users?.Length ?? 0;
     }

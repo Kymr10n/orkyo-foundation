@@ -68,7 +68,7 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync(ct);
-        await using var tx = await db.BeginTransactionAsync();
+        await using var tx = await db.BeginTransactionAsync(ct);
 
         try
         {
@@ -121,7 +121,7 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
                 updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
             }
 
-            await tx.CommitAsync();
+            await tx.CommitAsync(ct);
 
             return new ResourceCapabilityInfo
             {
@@ -135,7 +135,7 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
         }
         catch
         {
-            await tx.RollbackAsync();
+            await tx.RollbackAsync(ct);
             throw;
         }
     }

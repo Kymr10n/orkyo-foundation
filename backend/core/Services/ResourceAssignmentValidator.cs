@@ -44,7 +44,7 @@ public class ResourceAssignmentValidator(
         var blockers = new List<ValidationIssue>();
         var warnings = new List<ValidationIssue>();
 
-        var resource = await resourceRepository.GetByIdAsync(request.ResourceId);
+        var resource = await resourceRepository.GetByIdAsync(request.ResourceId, ct);
         if (resource is null)
         {
             blockers.Add(NotFound(request.ResourceId));
@@ -54,7 +54,7 @@ public class ResourceAssignmentValidator(
         if (!resource.IsActive)
             blockers.Add(Inactive(resource.Id));
 
-        await CheckCapabilitiesAsync(request, resource, blockers);
+        await CheckCapabilitiesAsync(request, resource, blockers, ct);
         await CheckSiteScopedWindowAsync(request, resource, warnings, ct);
         await CheckSiteMatchAsync(request, resource, blockers, warnings);
         await CheckAllocationAsync(request, resource, blockers);
@@ -160,13 +160,13 @@ public class ResourceAssignmentValidator(
     private async Task CheckSiteScopedWindowAsync(
         ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> warnings, CancellationToken ct = default)
     {
-        var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id);
+        var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id, ct);
         if (siteId is null) return;
 
         var blocked = await availabilityResolver.GetBlockedPeriodsAsync(resource.Id, ct);
         EvaluateBlockedPeriods(request, resource.Id, blocked, warnings);
 
-        var settings = await schedulingRepository.GetSettingsAsync(siteId.Value);
+        var settings = await schedulingRepository.GetSettingsAsync(siteId.Value, ct);
         EvaluateWeekends(request, resource.Id, settings, warnings);
     }
 

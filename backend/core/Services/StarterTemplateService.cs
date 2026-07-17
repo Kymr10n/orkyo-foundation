@@ -54,13 +54,13 @@ public class StarterTemplateService : IStarterTemplateService
 
         if (StarterTemplateCatalog.IsDemoTemplate(templateKey))
         {
-            await ApplyDemoTemplateAsync(tenantId, dbIdentifier);
+            await ApplyDemoTemplateAsync(tenantId, dbIdentifier, ct);
             return;
         }
 
         if (StarterTemplateCatalog.IsPresetTemplate(templateKey))
         {
-            await ApplyPresetTemplateAsync(dbIdentifier, templateKey);
+            await ApplyPresetTemplateAsync(dbIdentifier, templateKey, ct);
             return;
         }
 
@@ -79,17 +79,17 @@ public class StarterTemplateService : IStarterTemplateService
 
         await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
         await conn.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync();
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         try
         {
             await PresetApplier.ApplyAsync(conn, tx, preset);
-            await tx.CommitAsync();
+            await tx.CommitAsync(ct);
             _logger.LogInformation("Applied preset {PresetId} to tenant database {Db}", preset.PresetId, dbIdentifier);
         }
         catch
         {
-            await tx.RollbackAsync();
+            await tx.RollbackAsync(ct);
             throw;
         }
     }
@@ -103,7 +103,7 @@ public class StarterTemplateService : IStarterTemplateService
 
         await using var conn = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);
         await conn.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync();
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         try
         {
@@ -113,17 +113,17 @@ public class StarterTemplateService : IStarterTemplateService
             cmd.Parameters.AddWithValue("site2Id", site2Id);
             await cmd.ExecuteNonQueryAsync(ct);
 
-            await tx.CommitAsync();
+            await tx.CommitAsync(ct);
             _logger.LogInformation("Applied demo seed data to tenant {TenantId}", tenantId);
         }
         catch
         {
-            await tx.RollbackAsync();
+            await tx.RollbackAsync(ct);
             throw;
         }
 
         // Copy demo floorplan (best-effort, outside transaction)
-        await CopyDemoFloorplanAsync(dbIdentifier, tenantId, site1Id);
+        await CopyDemoFloorplanAsync(dbIdentifier, tenantId, site1Id, ct);
     }
 
     // -- Floorplan ----------------------------------------------------
@@ -146,7 +146,7 @@ public class StarterTemplateService : IStarterTemplateService
 
             // Use MemoryStream so we can read the stream twice (save + dimensions)
             using var ms = new MemoryStream();
-            await resourceStream.CopyToAsync(ms);
+            await resourceStream.CopyToAsync(ms, ct);
 
             var data = ms.ToArray();
             if (!ImageHeaderReader.TryGetDimensions(data, out var width, out var height))

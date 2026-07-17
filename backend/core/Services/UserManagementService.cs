@@ -97,7 +97,7 @@ public class UserManagementService : IUserManagementService
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
         if (rowsAffected > 0)
-            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRoleUpdated, updatedBy, "user", userId.ToString(), new { newRole = role.ToString() });
+            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRoleUpdated, updatedBy, "user", userId.ToString(), new { newRole = role.ToString() }, ct);
 
         return new Result(rowsAffected > 0, null);
     }
@@ -127,7 +127,7 @@ public class UserManagementService : IUserManagementService
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
         if (rowsAffected > 0)
-            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString());
+            await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString(), ct: ct);
 
         return new Result(rowsAffected > 0, null);
     }
@@ -163,7 +163,7 @@ public class UserManagementService : IUserManagementService
 
         _logger.LogInformation("Ensured admin membership for user {Email} in tenant {TenantId}", adminEmail, org.OrgId);
 
-        await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, userId, adminEmail);
+        await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, userId, adminEmail, ct);
     }
 
     public async Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default)

@@ -19,7 +19,7 @@ public static class UserPreferencesEndpoints
 
         prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId);
+            var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId, ct);
             return preferences == null ? Results.Ok(new { }) : Results.Ok(preferences);
         })
         .WithName("GetUserPreferences")
@@ -27,7 +27,7 @@ public static class UserPreferencesEndpoints
 
         prefs.MapPut("/", async (ICurrentPrincipal currentPrincipal, JsonDocument body, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            var success = await repo.UpdatePreferencesAsync(currentPrincipal.UserId, body);
+            var success = await repo.UpdatePreferencesAsync(currentPrincipal.UserId, body, ct);
             // 200 + { message } is the sibling success shape for command endpoints (SecurityEndpoints
             // et al.) and what the frontend api client JSON-parses — do not switch to 204.
             return success

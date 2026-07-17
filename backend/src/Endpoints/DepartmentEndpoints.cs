@@ -23,7 +23,7 @@ public static class DepartmentEndpoints
             bool? includeInactive,
             IDepartmentRepository repo,
             CancellationToken ct) =>
-            Results.Ok(await repo.GetAllAsync(includeInactive ?? false)))
+            Results.Ok(await repo.GetAllAsync(includeInactive ?? false, ct)))
             .WithName("GetDepartments")
             .WithSummary("List all departments (flat)");
 
@@ -31,7 +31,7 @@ public static class DepartmentEndpoints
             bool? includeInactive,
             IDepartmentRepository repo,
             CancellationToken ct) =>
-            Results.Ok(await repo.GetTreeAsync(includeInactive ?? false)))
+            Results.Ok(await repo.GetTreeAsync(includeInactive ?? false, ct)))
             .WithName("GetDepartmentTree")
             .WithSummary("List all departments as a nested tree");
 
@@ -40,7 +40,7 @@ public static class DepartmentEndpoints
             IDepartmentRepository repo,
             CancellationToken ct) =>
             {
-                var d = await repo.GetByIdAsync(id);
+                var d = await repo.GetByIdAsync(id, ct);
                 return EndpointHelpers.OkOrNotFound(d, "Department", id);
             })
             .WithName("GetDepartment");
@@ -75,7 +75,7 @@ public static class DepartmentEndpoints
             IDepartmentRepository repo,
             CancellationToken ct) =>
             {
-                var deleted = await repo.DeleteAsync(id);
+                var deleted = await repo.DeleteAsync(id, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("Department", id);
             })
             .WithName("DeleteDepartment");

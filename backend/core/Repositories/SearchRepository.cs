@@ -25,7 +25,7 @@ public class SearchRepository : ISearchRepository
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var isShortQuery = normalizedQuery.Length < SearchConstants.MinQueryLengthForFullSearch;
         var sql = isShortQuery ? BuildTrigramOnlySql(types, siteId) : BuildCombinedSearchSql(types, siteId);
-        var settings = await _settingsService.GetSettingsAsync();
+        var settings = await _settingsService.GetSettingsAsync(ct);
 
         await using var conn = _connectionFactory.CreateOrgConnection(_context);
         return await conn.QueryListAsync(sql, p =>

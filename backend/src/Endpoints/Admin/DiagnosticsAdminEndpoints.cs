@@ -65,17 +65,17 @@ public static class DiagnosticsAdminEndpoints
             try
             {
                 await using var conn = connectionFactory.CreateControlPlaneConnection();
-                await conn.OpenAsync();
+                await conn.OpenAsync(ct);
 
                 // Count applied migrations
                 await using var migCmd = new Npgsql.NpgsqlCommand("SELECT COUNT(*) FROM orkyo_schema_migrations", conn);
-                var migResult = await migCmd.ExecuteScalarAsync();
+                var migResult = await migCmd.ExecuteScalarAsync(ct);
                 migrationsApplied = migResult is null or DBNull ? 0 : Convert.ToInt32(migResult);
 
                 // Count active tenants
                 await using var tenantCmd = new Npgsql.NpgsqlCommand(
                     "SELECT COUNT(*) FROM tenants WHERE status != 'deleting'", conn);
-                var tenantResult = await tenantCmd.ExecuteScalarAsync();
+                var tenantResult = await tenantCmd.ExecuteScalarAsync(ct);
                 tenantCount = Convert.ToInt32(tenantResult);
             }
             catch (Exception ex)
@@ -100,7 +100,7 @@ public static class DiagnosticsAdminEndpoints
             var discoveryUrl = OidcDiscoveryUrlPolicy.BuildDiscoveryUrl(probeAuthority);
             if (discoveryUrl is not null)
             {
-                var response = await http.GetAsync(discoveryUrl);
+                var response = await http.GetAsync(discoveryUrl, ct);
                 authStatus = OidcDiscoveryUrlPolicy.InterpretProbeOutcome(response.IsSuccessStatusCode);
             }
             else
@@ -122,12 +122,12 @@ public static class DiagnosticsAdminEndpoints
         try
         {
             await using var conn = connectionFactory.CreateControlPlaneConnection();
-            await conn.OpenAsync();
+            await conn.OpenAsync(ct);
 
             // Check for recent audit events or tenant lifecycle activity
             await using var cmd = new Npgsql.NpgsqlCommand(
                 $"SELECT MAX(created_at) FROM audit_events WHERE created_at > NOW() - INTERVAL '2 hours'", conn);
-            var recent = (await cmd.ExecuteScalarAsync()) as DateTime?;
+            var recent = (await cmd.ExecuteScalarAsync(ct)) as DateTime?;
             if (recent.HasValue)
             {
                 workerStatus = "running";

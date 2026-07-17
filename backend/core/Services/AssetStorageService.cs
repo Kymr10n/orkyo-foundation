@@ -72,7 +72,7 @@ public class AssetStorageService(
         if (!await assetRepository.OwnerExistsAsync(AssetOwnerTypes.Site, siteId, ct))
             throw new KeyNotFoundException($"Site {siteId} not found");
 
-        var settings = await settingsService.GetSettingsAsync();
+        var settings = await settingsService.GetSettingsAsync(ct);
         var validated = await ValidateFloorplanAsync(request, settings, ct);
 
         // Storage quota: delta-aware (upsert may replace an existing asset).

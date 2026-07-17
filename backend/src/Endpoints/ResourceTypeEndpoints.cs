@@ -17,13 +17,13 @@ public static class ResourceTypeEndpoints
             .RequireMemberReadEditorWrite();
 
         group.MapGet("/", async (IResourceTypeRepository repo, CancellationToken ct) =>
-            Results.Ok(await repo.GetAllAsync()))
+            Results.Ok(await repo.GetAllAsync(ct)))
             .WithName("GetResourceTypes")
             .WithSummary("Get all resource types");
 
         group.MapGet("/{id:guid}", async (Guid id, IResourceTypeRepository repo, CancellationToken ct) =>
         {
-            var rt = await repo.GetByIdAsync(id);
+            var rt = await repo.GetByIdAsync(id, ct);
             return EndpointHelpers.OkOrNotFound(rt, "ResourceType", id);
         })
             .WithName("GetResourceTypeById")
