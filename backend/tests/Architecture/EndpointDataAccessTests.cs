@@ -35,7 +35,6 @@ public partial class EndpointDataAccessTests
         "Admin/AuditEndpoints.cs",
         "Admin/DiagnosticsAdminEndpoints.cs",
         "Admin/UserAdminEndpoints.cs",
-        "ContactEndpoints.cs",
         "QuotaEndpoints.cs",
         "TenantAuditEndpoints.cs",
     ];
