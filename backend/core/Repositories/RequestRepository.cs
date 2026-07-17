@@ -397,20 +397,20 @@ public class RequestRepository : IRequestRepository
                 db, transaction);
 
             cmd.Parameters.AddWithValue("name", request.Name);
-            cmd.Parameters.AddWithValue("description", (object?)request.Description ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("parent_request_id", (object?)request.ParentRequestId ?? DBNull.Value);
+            cmd.Parameters.AddNullable("description", request.Description);
+            cmd.Parameters.AddNullable("parent_request_id", request.ParentRequestId);
             cmd.Parameters.AddWithValue("planning_mode", EnumMapper.ToDbValue(request.PlanningMode));
             cmd.Parameters.AddWithValue("sort_order", request.SortOrder);
-            cmd.Parameters.AddWithValue("site_id", (object?)effectiveSiteId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("request_item_id", (object?)request.RequestItemId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("icon", (object?)request.Icon ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("earliest_start_ts", (object?)request.EarliestStartTs ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("latest_end_ts", (object?)request.LatestEndTs ?? DBNull.Value);
+            cmd.Parameters.AddNullable("site_id", effectiveSiteId);
+            cmd.Parameters.AddNullable("request_item_id", request.RequestItemId);
+            cmd.Parameters.AddNullable("icon", request.Icon);
+            cmd.Parameters.AddNullable("start_ts", request.StartTs);
+            cmd.Parameters.AddNullable("end_ts", request.EndTs);
+            cmd.Parameters.AddNullable("earliest_start_ts", request.EarliestStartTs);
+            cmd.Parameters.AddNullable("latest_end_ts", request.LatestEndTs);
             cmd.Parameters.AddWithValue("minimal_duration_value", request.MinimalDurationValue);
             cmd.Parameters.AddWithValue("minimal_duration_unit", EnumMapper.ToDbValue(request.MinimalDurationUnit));
-            cmd.Parameters.AddWithValue("actual_duration_value", (object?)request.ActualDurationValue ?? DBNull.Value);
+            cmd.Parameters.AddNullable("actual_duration_value", request.ActualDurationValue);
             cmd.Parameters.AddWithValue("actual_duration_unit", request.ActualDurationUnit.HasValue
                 ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value)
                 : (object)DBNull.Value);
@@ -610,11 +610,11 @@ public class RequestRepository : IRequestRepository
             db, tx);
 
         cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("resource_id", (object?)request.ResourceId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("actual_duration_unit", (object?)actualDurationUnit ?? DBNull.Value);
+        cmd.Parameters.AddNullable("resource_id", request.ResourceId);
+        cmd.Parameters.AddNullable("start_ts", request.StartTs);
+        cmd.Parameters.AddNullable("end_ts", request.EndTs);
+        cmd.Parameters.AddNullable("actual_duration_value", actualDurationValue);
+        cmd.Parameters.AddNullable("actual_duration_unit", actualDurationUnit);
 
         var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
         if (!updatedId.HasValue)
@@ -667,10 +667,10 @@ public class RequestRepository : IRequestRepository
                       actual_duration_unit  = @actual_duration_unit
                   WHERE id = @id");
             cmd.Parameters.AddWithValue("id", id);
-            cmd.Parameters.AddWithValue("start_ts", (object?)request.StartTs ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("end_ts", (object?)request.EndTs ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("actual_duration_value", (object?)actualDurationValue ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("actual_duration_unit", (object?)actualDurationUnit ?? DBNull.Value);
+            cmd.Parameters.AddNullable("start_ts", request.StartTs);
+            cmd.Parameters.AddNullable("end_ts", request.EndTs);
+            cmd.Parameters.AddNullable("actual_duration_value", actualDurationValue);
+            cmd.Parameters.AddNullable("actual_duration_unit", actualDurationUnit);
             batch.BatchCommands.Add(cmd);
             requestUpdateCommands.Add(cmd);
 
@@ -961,7 +961,7 @@ public class RequestRepository : IRequestRepository
             p =>
             {
                 p.AddWithValue("id", id);
-                p.AddWithValue("parent_id", (object?)newParentId ?? DBNull.Value);
+                p.AddNullable("parent_id", newParentId);
                 p.AddWithValue("sort_order", sortOrder);
             }, ct);
         if (!updatedId.HasValue)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Api.Constants;
 using Api.Models.Preset;
+using Api.Repositories;
 using Npgsql;
 
 namespace Api.Services;
@@ -189,11 +190,11 @@ public static class PresetApplier
             VALUES (@name, @description, @dataType, @enumValues::jsonb, @unit)
             RETURNING id", conn, tx);
         cmd.Parameters.AddWithValue("name", criterion.Name);
-        cmd.Parameters.AddWithValue("description", (object?)criterion.Description ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", criterion.Description);
         cmd.Parameters.AddWithValue("dataType", criterion.DataType.ToString());
         cmd.Parameters.AddWithValue("enumValues",
             criterion.EnumValues != null ? JsonSerializer.Serialize(criterion.EnumValues) : DBNull.Value);
-        cmd.Parameters.AddWithValue("unit", (object?)criterion.Unit ?? DBNull.Value);
+        cmd.Parameters.AddNullable("unit", criterion.Unit);
 
         return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
@@ -209,10 +210,10 @@ public static class PresetApplier
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = @id", conn, tx);
         cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("description", (object?)criterion.Description ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", criterion.Description);
         cmd.Parameters.AddWithValue("enumValues",
             criterion.EnumValues != null ? JsonSerializer.Serialize(criterion.EnumValues) : DBNull.Value);
-        cmd.Parameters.AddWithValue("unit", (object?)criterion.Unit ?? DBNull.Value);
+        cmd.Parameters.AddNullable("unit", criterion.Unit);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -268,8 +269,8 @@ public static class PresetApplier
             SELECT @name, @description, @color, @displayOrder, id FROM resource_types WHERE key = 'space'
             RETURNING id", conn, tx);
         cmd.Parameters.AddWithValue("name", group.Name);
-        cmd.Parameters.AddWithValue("description", (object?)group.Description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("color", (object?)group.Color ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", group.Description);
+        cmd.Parameters.AddNullable("color", group.Color);
         cmd.Parameters.AddWithValue("displayOrder", group.DisplayOrder);
         return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
@@ -285,8 +286,8 @@ public static class PresetApplier
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = @id", conn, tx);
         cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("description", (object?)group.Description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("color", (object?)group.Color ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", group.Description);
+        cmd.Parameters.AddNullable("color", group.Color);
         cmd.Parameters.AddWithValue("displayOrder", group.DisplayOrder);
         await cmd.ExecuteNonQueryAsync();
     }
@@ -366,10 +367,10 @@ public static class PresetApplier
                     @fixedStart, @fixedEnd, @fixedDuration)
             RETURNING id", conn, tx);
         cmd.Parameters.AddWithValue("name", template.Name);
-        cmd.Parameters.AddWithValue("description", (object?)template.Description ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", template.Description);
         cmd.Parameters.AddWithValue("entityType", entityType);
-        cmd.Parameters.AddWithValue("durationValue", (object?)template.DurationValue ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("durationUnit", (object?)template.DurationUnit ?? DBNull.Value);
+        cmd.Parameters.AddNullable("durationValue", template.DurationValue);
+        cmd.Parameters.AddNullable("durationUnit", template.DurationUnit);
         cmd.Parameters.AddWithValue("fixedStart", template.FixedStart);
         cmd.Parameters.AddWithValue("fixedEnd", template.FixedEnd);
         cmd.Parameters.AddWithValue("fixedDuration", template.FixedDuration);
@@ -402,9 +403,9 @@ public static class PresetApplier
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = @id", conn, tx);
         cmd.Parameters.AddWithValue("id", templateId);
-        cmd.Parameters.AddWithValue("description", (object?)template.Description ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("durationValue", (object?)template.DurationValue ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("durationUnit", (object?)template.DurationUnit ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", template.Description);
+        cmd.Parameters.AddNullable("durationValue", template.DurationValue);
+        cmd.Parameters.AddNullable("durationUnit", template.DurationUnit);
         cmd.Parameters.AddWithValue("fixedStart", template.FixedStart);
         cmd.Parameters.AddWithValue("fixedEnd", template.FixedEnd);
         cmd.Parameters.AddWithValue("fixedDuration", template.FixedDuration);
