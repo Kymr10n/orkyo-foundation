@@ -102,12 +102,12 @@ public class TenantAuditEndpointsTests
     }
 
     [Fact]
-    public async Task Get_TenantAdmin_PageSizeCappedAt200()
+    public async Task Get_TenantAdmin_PageSizeCappedAt100()
     {
         using var client = _fixture.CreateClientWithRole("admin");
         var response = await client.GetAsync("/api/audit/?pageSize=999");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(200, body.GetProperty("pageSize").GetInt32());
+        Assert.Equal(100, body.GetProperty("pageSize").GetInt32());
     }
 }
