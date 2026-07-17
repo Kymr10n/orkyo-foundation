@@ -4,12 +4,13 @@ import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
-import { Plus, Pencil, Trash2, Users, type LucideIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Settings, type LucideIcon } from 'lucide-react';
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
+import { GroupCapabilitiesEditor } from '../settings/GroupCapabilitiesEditor';
 
 interface ResourceGroupListProps {
   resourceTypeKey: string;
@@ -24,6 +25,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [managingMembersFor, setManagingMembersFor] = useState<ResourceGroupInfo | null>(null);
+  const [managingCapabilitiesFor, setManagingCapabilitiesFor] = useState<ResourceGroupInfo | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<ResourceGroupInfo | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
@@ -70,6 +72,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
       triggerLabel={`Actions for ${group.name}`}
       actions={[
         { label: 'Manage members', icon: MembersIcon, onSelect: () => setManagingMembersFor(group), disabled: !canEdit },
+        { label: 'Manage capabilities', icon: Settings, onSelect: () => setManagingCapabilitiesFor(group), disabled: !canEdit },
         { label: 'Edit', icon: Pencil, onSelect: () => handleEdit(group), disabled: !canEdit },
         { label: 'Delete', icon: Trash2, onSelect: () => setDeletingGroup(group), disabled: !canEdit, destructive: true },
       ]}
@@ -161,6 +164,15 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
           groupId={managingMembersFor.id}
           groupName={managingMembersFor.name}
           resourceTypeKey={resourceTypeKey}
+        />
+      )}
+
+      {managingCapabilitiesFor && (
+        <GroupCapabilitiesEditor
+          open={!!managingCapabilitiesFor}
+          onOpenChange={(open) => !open && setManagingCapabilitiesFor(null)}
+          groupId={managingCapabilitiesFor.id}
+          groupName={managingCapabilitiesFor.name}
         />
       )}
 
