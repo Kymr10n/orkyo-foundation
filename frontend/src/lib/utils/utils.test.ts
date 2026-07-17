@@ -18,22 +18,29 @@ import type { RequestFormData } from '@foundation/src/components/requests/Reques
 
 describe('Date/Time Utilities', () => {
   describe('formatDateForInput', () => {
+    // Local-date constructors (new Date(y, mIdx, d, …)) so these assert the local
+    // calendar date independent of the test runner's timezone.
     it('should format date to YYYY-MM-DD', () => {
-      const date = new Date('2026-01-29T14:30:00Z');
-      const result = formatDateForInput(date);
+      const result = formatDateForInput(new Date(2026, 0, 29, 14, 30));
       expect(result).toBe('2026-01-29');
     });
 
     it('should handle dates with single digit months and days', () => {
-      const date = new Date('2026-03-05T00:00:00Z');
-      const result = formatDateForInput(date);
+      const result = formatDateForInput(new Date(2026, 2, 5));
       expect(result).toBe('2026-03-05');
     });
 
     it('should handle year boundaries correctly', () => {
-      const date = new Date('2025-12-31T23:59:59Z');
-      const result = formatDateForInput(date);
+      const result = formatDateForInput(new Date(2025, 11, 31, 23, 59, 59));
       expect(result).toBe('2025-12-31');
+    });
+
+    it('uses the local calendar date near midnight, not UTC (no off-by-one)', () => {
+      // Late local evening — toISOString() would slip to the next day in +UTC zones
+      // and this asserts the local day regardless of runner timezone.
+      expect(formatDateForInput(new Date(2026, 0, 29, 23, 30))).toBe('2026-01-29');
+      // Early local morning — the mirror case that slips to the previous day.
+      expect(formatDateForInput(new Date(2026, 0, 29, 0, 30))).toBe('2026-01-29');
     });
   });
 
