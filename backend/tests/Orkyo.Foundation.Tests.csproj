@@ -31,6 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\testsupport\Orkyo.Foundation.TestSupport.csproj" />
     <ProjectReference Include="..\core\Orkyo.Foundation.Core.csproj" />
     <ProjectReference Include="..\src\Orkyo.Foundation.Web.csproj" />
     <ProjectReference Include="..\seeding\Orkyo.Foundation.Seed.csproj" />

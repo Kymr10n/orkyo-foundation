@@ -615,6 +615,12 @@
           "Npgsql": "[10.0.3, )"
         }
       },
+      "orkyo.foundation.testsupport": {
+        "type": "Project",
+        "dependencies": {
+          "Npgsql": "[10.0.3, )"
+        }
+      },
       "orkyo.foundation.web": {
         "type": "Project",
         "dependencies": {

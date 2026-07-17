@@ -11,7 +11,21 @@ public static class TestConstants
     /// <summary>ASP.NET environment name used by the integration test host.</summary>
     public const string EnvironmentName = "Test";
 
-    public static string TestBearerToken { get; } = Convert.ToBase64String(
+    /// <summary>Base64-encoded 32-byte AES-256 master key for tests (deterministic, non-secret).</summary>
+    public static string MasterEncryptionKey { get; } = Convert.ToBase64String(new byte[32]);
+
+    /// <summary>
+    /// Pre-encoded Bearer token for the shared test user carrying the default "user" role
+    /// (which the factory treats as tenant Admin). Decoded by <see cref="TestAuthHandler"/>.
+    /// </summary>
+    public static string TestBearerToken { get; } = BearerTokenForRole("user");
+
+    /// <summary>
+    /// Builds a Bearer token for the shared test user carrying a specific tenant
+    /// <paramref name="role"/> ("admin" | "editor" | "viewer"). Used by authorization
+    /// boundary tests to exercise role-gated endpoints.
+    /// </summary>
+    public static string BearerTokenForRole(string role) => Convert.ToBase64String(
         System.Text.Encoding.UTF8.GetBytes(
             System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -21,6 +35,6 @@ public static class TestConstants
                 TenantId = "00000000-0000-0000-0000-000000000001",
                 TenantSlug = "test",
                 IsTenantAdmin = false,
-                Role = "user"
+                Role = role
             })));
 }
