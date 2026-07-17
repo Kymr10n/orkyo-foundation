@@ -29,7 +29,7 @@ public class SchedulingProblemBuilder
         AutoSchedulePreviewRequest request,
         CancellationToken cancellationToken)
     {
-        var settings = await _schedulingRepository.GetSettingsAsync(request.SiteId);
+        var settings = await _schedulingRepository.GetSettingsAsync(request.SiteId, cancellationToken);
 
         // The schedulable backlog is every leaf that isn't fully scheduled, in two disjoint fetches
         // that together reproduce the old tenant-wide `!IsScheduled` leaf filter without the heavy
@@ -55,7 +55,7 @@ public class SchedulingProblemBuilder
             eligibleRequests = eligibleRequests.Where(r => requestIdSet.Contains(r.Id));
         }
 
-        var spaces = await _spaceRepository.GetAllAsync(request.SiteId);
+        var spaces = await _spaceRepository.GetAllAsync(request.SiteId, cancellationToken);
         var capabilitiesBySpace = (await _capabilityRepository.GetByResourcesAsync(
                 spaces.Select(s => s.Id).ToList(), cancellationToken))
             .GroupBy(c => c.ResourceId)

@@ -216,7 +216,7 @@ public static class SecurityEndpoints
             if (status.TotpEnabled)
                 return ErrorResponses.BadRequest("MFA is already enabled");
             await keycloakService.EnableMfaAsync(sub, ct);
-            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true);
+            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true, ct: ct);
             return Results.Ok(new { message = "MFA enrollment enabled. You will be prompted to set up TOTP on your next login." });
         })
         .WithName("EnableMfa")

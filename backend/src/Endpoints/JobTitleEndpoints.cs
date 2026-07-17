@@ -23,7 +23,7 @@ public static class JobTitleEndpoints
             bool? includeInactive,
             IJobTitleRepository repo,
             CancellationToken ct) =>
-            Results.Ok(await repo.GetAllAsync(includeInactive ?? false)))
+            Results.Ok(await repo.GetAllAsync(includeInactive ?? false, ct)))
             .WithName("GetJobTitles")
             .WithSummary("List all job titles");
 
@@ -32,7 +32,7 @@ public static class JobTitleEndpoints
             IJobTitleRepository repo,
             CancellationToken ct) =>
             {
-                var jt = await repo.GetByIdAsync(id);
+                var jt = await repo.GetByIdAsync(id, ct);
                 return EndpointHelpers.OkOrNotFound(jt, "JobTitle", id);
             })
             .WithName("GetJobTitle");
@@ -67,7 +67,7 @@ public static class JobTitleEndpoints
             IJobTitleRepository repo,
             CancellationToken ct) =>
             {
-                var deleted = await repo.DeleteAsync(id);
+                var deleted = await repo.DeleteAsync(id, ct);
                 return deleted ? Results.NoContent() : ErrorResponses.NotFound("JobTitle", id);
             })
             .WithName("DeleteJobTitle");

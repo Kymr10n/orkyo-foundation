@@ -20,14 +20,14 @@ public static class ResourceGroupEndpoints
 
         group.MapGet("/", async (string resourceTypeKey, IResourceGroupRepository repo, CancellationToken ct) =>
         {
-            return Results.Ok(await repo.GetByTypeKeyAsync(resourceTypeKey));
+            return Results.Ok(await repo.GetByTypeKeyAsync(resourceTypeKey, ct));
         })
         .WithName("GetResourceGroups")
         .WithSummary("List resource groups for a given resource type");
 
         group.MapGet("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct) =>
         {
-            var result = await repo.GetByIdAsync(id);
+            var result = await repo.GetByIdAsync(id, ct);
             return EndpointHelpers.OkOrNotFound(result, "Resource group", id);
         })
         .WithName("GetResourceGroup")
@@ -57,7 +57,7 @@ public static class ResourceGroupEndpoints
 
         group.MapDelete("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct) =>
         {
-            var deleted = await repo.DeleteAsync(id);
+            var deleted = await repo.DeleteAsync(id, ct);
             return deleted ? Results.NoContent() : ErrorResponses.NotFound("Resource group", id);
         })
         .WithName("DeleteResourceGroup")

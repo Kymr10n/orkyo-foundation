@@ -88,7 +88,7 @@ public static class UserAdminEndpoints
         {
             try
             {
-                if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole))
+                if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct))
                     users[index] = users[index] with { IsSiteAdmin = true };
             }
             catch (KeycloakAdminException ex)
@@ -143,7 +143,7 @@ public static class UserAdminEndpoints
         };
 
         await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         if (user.OwnedTenantId is Guid ownedTenantId)
         {
@@ -153,12 +153,12 @@ public static class UserAdminEndpoints
         }
 
         // Check site-admin role via Keycloak (best-effort — failures shouldn't hide the user)
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
+        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
         if (keycloakId != null)
         {
             try
             {
-                if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole))
+                if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct))
                     user = user with { IsSiteAdmin = true };
             }
             catch (KeycloakAdminException ex)
@@ -170,9 +170,9 @@ public static class UserAdminEndpoints
         await using var identityCmd = new Npgsql.NpgsqlCommand(
             "SELECT id, provider, provider_subject, provider_email, created_at FROM user_identities WHERE user_id = @userId", conn);
         identityCmd.Parameters.AddWithValue("userId", userId);
-        await using var identityReader = await identityCmd.ExecuteReaderAsync();
+        await using var identityReader = await identityCmd.ExecuteReaderAsync(ct);
         var identityRows = new List<(Guid Id, string Provider, string ProviderSubject, string? ProviderEmail, DateTime CreatedAt)>();
-        while (await identityReader.ReadAsync())
+        while (await identityReader.ReadAsync(ct))
             identityRows.Add((identityReader.GetGuid(0), identityReader.GetString(1), identityReader.GetString(2), identityReader.IsDBNull(3) ? null : identityReader.GetString(3), identityReader.GetDateTime(4)));
         foreach (var (Id, Provider, ProviderSubject, ProviderEmail, CreatedAt) in identityRows)
         {
@@ -214,12 +214,12 @@ public static class UserAdminEndpoints
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
+        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
         if (keycloakId != null)
         {
             try
             {
-                await keycloak.DisableUserAsync(keycloakId);
+                await keycloak.DisableUserAsync(keycloakId, ct);
             }
             catch (KeycloakAdminException ex)
             {
@@ -241,12 +241,12 @@ public static class UserAdminEndpoints
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
+        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
         if (keycloakId != null)
         {
             try
             {
-                await keycloak.EnableUserAsync(keycloakId);
+                await keycloak.EnableUserAsync(keycloakId, ct);
             }
             catch (KeycloakAdminException ex)
             {
@@ -254,7 +254,7 @@ public static class UserAdminEndpoints
             }
         }
 
-        await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Active);
+        await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Active, ct);
         logger.LogInformation("Admin {AdminId} reactivated user {UserId}", principal.UserId, userId);
         return Results.NoContent();
     }
@@ -268,12 +268,12 @@ public static class UserAdminEndpoints
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
+        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
         if (keycloakId != null)
         {
             try
             {
-                await keycloak.DeleteUserAsync(keycloakId);
+                await keycloak.DeleteUserAsync(keycloakId, ct);
             }
             catch (KeycloakAdminException ex)
             {
@@ -293,12 +293,12 @@ public static class UserAdminEndpoints
     private static async Task<string?> GetKeycloakIdAsync(Guid userId, IDbConnectionFactory connectionFactory, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
         await using var cmd = new Npgsql.NpgsqlCommand(
             "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1", conn);
         cmd.Parameters.AddWithValue("userId", userId);
-        return (await cmd.ExecuteScalarAsync()) as string;
+        return (await cmd.ExecuteScalarAsync(ct)) as string;
     }
 
     private static async Task<IResult> PromoteSiteAdmin(
@@ -313,16 +313,16 @@ public static class UserAdminEndpoints
         if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
+        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
         if (keycloakId == null)
             return ErrorResponses.UnprocessableEntity("User has no Keycloak identity — cannot manage realm roles");
 
         try
         {
-            if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole))
+            if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct))
                 return ErrorResponses.Conflict("User already has the site-admin role");
 
-            await keycloak.AssignRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole);
+            await keycloak.AssignRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct);
         }
         catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status404NotFound)
         {
@@ -350,21 +350,21 @@ public static class UserAdminEndpoints
         if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory);
+        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
         if (keycloakId == null)
             return ErrorResponses.UnprocessableEntity("User has no Keycloak identity — cannot manage realm roles");
 
         try
         {
-            if (!await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole))
+            if (!await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct))
                 return ErrorResponses.Conflict("User does not have the site-admin role");
 
             // Prevent revoking the last site-admin
-            var memberCount = await keycloak.CountRealmRoleMembersAsync(KeycloakClaims.SiteAdminRole);
+            var memberCount = await keycloak.CountRealmRoleMembersAsync(KeycloakClaims.SiteAdminRole, ct);
             if (memberCount <= 1)
                 return ErrorResponses.BadRequest("Cannot revoke the last site-admin. Promote another user first.");
 
-            await keycloak.RevokeRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole);
+            await keycloak.RevokeRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct);
         }
         catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status404NotFound)
         {

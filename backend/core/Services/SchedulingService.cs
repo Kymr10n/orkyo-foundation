@@ -44,9 +44,9 @@ public class SchedulingService : ISchedulingService
 
     public async Task RecalculateScheduledRequestsAsync(Guid siteId, CancellationToken ct = default)
     {
-        var settings = await _schedulingRepository.GetSettingsAsync(siteId)
+        var settings = await _schedulingRepository.GetSettingsAsync(siteId, ct)
             ?? SchedulingSettingsInfo.Default(siteId);
-        var toRecalculate = await _requestRepository.GetScheduledBySiteAsync(siteId);
+        var toRecalculate = await _requestRepository.GetScheduledBySiteAsync(siteId, ct);
 
         if (toRecalculate.Count == 0) return;
 
@@ -92,7 +92,7 @@ public class SchedulingService : ISchedulingService
         }
 
         if (updates.Count > 0)
-            await _requestRepository.BatchUpdateSchedulesAsync(updates);
+            await _requestRepository.BatchUpdateSchedulesAsync(updates, ct);
 
         _logger.LogInformation("Recalculated {Count} requests for site {SiteId}",
             updates.Count, siteId);
@@ -119,7 +119,7 @@ public class SchedulingService : ISchedulingService
     public async Task<UpdateRequestRequest> ApplySchedulingToUpdateAsync(
         Guid requestId, UpdateRequestRequest request, CancellationToken ct = default)
     {
-        var existing = await _requestRepository.GetByIdAsync(requestId);
+        var existing = await _requestRepository.GetByIdAsync(requestId, ct: ct);
         if (existing == null) return request;
 
         var applyScheduling = request.SchedulingSettingsApply ?? existing.SchedulingSettingsApply;
@@ -154,7 +154,7 @@ public class SchedulingService : ISchedulingService
     {
         if (request.ResourceId == null || request.StartTs == null) return request;
 
-        var existing = await _requestRepository.GetByIdAsync(requestId);
+        var existing = await _requestRepository.GetByIdAsync(requestId, ct: ct);
         if (existing == null || !existing.SchedulingSettingsApply) return request;
 
         if (request.EndTs != null) return request;

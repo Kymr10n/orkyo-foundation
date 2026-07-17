@@ -43,7 +43,7 @@ public static class ResourceEndpoints
             IResourceService service,
             CancellationToken ct) =>
         {
-            var r = await service.GetByIdAsync(id);
+            var r = await service.GetByIdAsync(id, ct);
             return EndpointHelpers.OkOrNotFound(r, "Resource", id);
         })
             .WithName("GetResourceById")
@@ -54,7 +54,7 @@ public static class ResourceEndpoints
             IResourceService service,
             CancellationToken ct) =>
         {
-            var r = await service.CreateAsync(request);
+            var r = await service.CreateAsync(request, ct);
             return Results.Created($"/api/resources/{r.Id}", r);
         })
             .WithName("CreateResource")
@@ -66,7 +66,7 @@ public static class ResourceEndpoints
             IResourceService service,
             CancellationToken ct) =>
         {
-            var r = await service.UpdateAsync(id, request);
+            var r = await service.UpdateAsync(id, request, ct);
             return EndpointHelpers.OkOrNotFound(r, "Resource", id);
         })
             .WithName("UpdateResource")
@@ -77,7 +77,7 @@ public static class ResourceEndpoints
             IResourceService service,
             CancellationToken ct) =>
         {
-            var deactivated = await service.DeactivateAsync(id);
+            var deactivated = await service.DeactivateAsync(id, ct);
             return deactivated ? Results.NoContent() : ErrorResponses.NotFound("Resource", id);
         })
             .WithName("DeactivateResource")
@@ -105,7 +105,7 @@ public static class ResourceEndpoints
             DateTime end,
             CancellationToken ct) =>
         {
-            if (await resourceService.GetByIdAsync(id) is null)
+            if (await resourceService.GetByIdAsync(id, ct) is null)
                 return ErrorResponses.NotFound("Resource", id);
 
             var candidates = await requestRepository.GetCandidatesOverlappingAsync(id, start, end, ct);
@@ -134,9 +134,9 @@ public static class ResourceEndpoints
             IResourceCapabilityRepository repository,
             CancellationToken ct) =>
         {
-            if (await service.GetByIdAsync(id) is null)
+            if (await service.GetByIdAsync(id, ct) is null)
                 return ErrorResponses.NotFound("Resource", id);
-            return Results.Ok(await repository.GetByResourceAsync(id));
+            return Results.Ok(await repository.GetByResourceAsync(id, ct));
         })
             .WithName("GetResourceCapabilities")
             .WithSummary("Get all capabilities for a resource");
@@ -149,7 +149,7 @@ public static class ResourceEndpoints
             ICriteriaService criteriaService,
             CancellationToken ct) =>
         {
-            var resource = await service.GetByIdAsync(id);
+            var resource = await service.GetByIdAsync(id, ct);
             if (resource is null)
                 return ErrorResponses.NotFound("Resource", id);
 
@@ -161,7 +161,7 @@ public static class ResourceEndpoints
                 return ErrorResponses.BadRequest(
                     $"Criterion '{criterion.Name}' is not applicable to resource type '{resource.ResourceTypeKey}'.");
 
-            var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value);
+            var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value, ct);
             return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);
         })
             .WithName("AddResourceCapability")
@@ -173,7 +173,7 @@ public static class ResourceEndpoints
             IResourceCapabilityRepository repository,
             CancellationToken ct) =>
         {
-            var deleted = await repository.DeleteAsync(id, capabilityId);
+            var deleted = await repository.DeleteAsync(id, capabilityId, ct);
             return deleted ? Results.NoContent() : ErrorResponses.NotFound("Capability", capabilityId);
         })
             .WithName("DeleteResourceCapability")

@@ -75,11 +75,11 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         await conn.OpenAsync(ct);
 
         // First, check if this Keycloak identity is already linked
-        var existingPrincipal = await FindByExternalIdentityAsync(AuthProvider.Keycloak, token.Subject);
+        var existingPrincipal = await FindByExternalIdentityAsync(AuthProvider.Keycloak, token.Subject, ct);
         if (existingPrincipal != null)
         {
             _logger.LogDebug("Identity already linked: {Subject} -> {UserId}", token.Subject, existingPrincipal.UserId);
-            await UpdateLastLoginAsync(conn, existingPrincipal.UserId);
+            await UpdateLastLoginAsync(conn, existingPrincipal.UserId, ct);
             return IdentityLinkResult.Linked(
                 existingPrincipal.UserId,
                 existingPrincipal.Email,
@@ -112,8 +112,8 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             }
 
             // Link the Keycloak identity to the existing user
-            await CreateIdentityLinkAsync(conn, userId, token.Subject, token.Email);
-            await UpdateLastLoginAsync(conn, userId);
+            await CreateIdentityLinkAsync(conn, userId, token.Subject, token.Email, ct);
+            await UpdateLastLoginAsync(conn, userId, ct);
 
             _logger.LogInformation(
                 "Linked Keycloak identity {Subject} to existing user {UserId} ({Email})",
@@ -131,20 +131,20 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             "Creating new user for Keycloak identity {Subject} with email {Email}",
             token.Subject, token.Email);
 
-        var newUser = await CreateUserFromKeycloakAsync(conn, token);
+        var newUser = await CreateUserFromKeycloakAsync(conn, token, ct);
         if (newUser == null)
         {
             return IdentityLinkResult.Failed("Failed to create user account", ApiErrorCodes.Auth.IdentityNotLinked);
         }
 
-        _ = _emailService.SendNewUserAlertAsync(newUser.Email, newUser.DisplayName ?? newUser.Email);
+        _ = _emailService.SendNewUserAlertAsync(newUser.Email, newUser.DisplayName ?? newUser.Email, ct);
 
         return IdentityLinkResult.Linked(newUser.UserId, newUser.Email, newUser.DisplayName, isNew: true);
     }
 
     private async Task<PrincipalContext?> CreateUserFromKeycloakAsync(NpgsqlConnection conn, ExternalIdentityToken token, CancellationToken ct = default)
     {
-        await using var transaction = await conn.BeginTransactionAsync();
+        await using var transaction = await conn.BeginTransactionAsync(ct);
 
         try
         {
@@ -171,7 +171,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             linkCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
             await linkCmd.ExecuteNonQueryAsync(ct);
 
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(ct);
 
             _logger.LogInformation(
                 "Created new user {UserId} ({Email}) with Keycloak identity {Subject}",
@@ -188,7 +188,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(ct);
             _logger.LogError(ex, "Failed to create user for Keycloak identity {Subject}", token.Subject);
             return null;
         }

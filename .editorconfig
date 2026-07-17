@@ -37,3 +37,5 @@ csharp_new_line_before_open_brace = all
 csharp_indent_case_contents = true
 csharp_indent_switch_labels = true
 dotnet_sort_system_directives_first = true
+# CA2016: forward CancellationToken to methods that accept one (holds the ct sweep — F7)
+dotnet_diagnostic.CA2016.severity = warning

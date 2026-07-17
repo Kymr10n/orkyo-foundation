@@ -103,7 +103,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 }))
             .ToList();
 
-        var created = await _requestRepository.BatchUpdateSchedulesAsync(updates);
+        var created = await _requestRepository.BatchUpdateSchedulesAsync(updates, cancellationToken);
 
         _logger.LogInformation("Auto-schedule applied: {Count} assignments created for site {SiteId}",
             created, request.SiteId);

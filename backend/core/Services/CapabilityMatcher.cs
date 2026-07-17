@@ -31,7 +31,7 @@ public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepositor
         if (requiredCriterionIds.Count == 0)
             return true;
 
-        var capabilities = await capabilityRepository.GetByResourceAsync(resourceId);
+        var capabilities = await capabilityRepository.GetByResourceAsync(resourceId, ct);
         var presentIds = capabilities.Select(c => c.CriterionId).ToHashSet();
 
         // Fallback to presence match for backwards compatibility
@@ -43,7 +43,7 @@ public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepositor
         Guid resourceId,
         RequestRequirementInfo requirement, CancellationToken ct = default)
     {
-        var capabilities = await capabilityRepository.GetByResourceAsync(resourceId);
+        var capabilities = await capabilityRepository.GetByResourceAsync(resourceId, ct);
         return Satisfies(capabilities, requirement);
     }
 

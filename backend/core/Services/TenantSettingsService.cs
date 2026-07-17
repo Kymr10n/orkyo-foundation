@@ -64,7 +64,7 @@ public class TenantSettingsService : ITenantSettingsService
             var tenantOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                tenantOverrides = await _tenantRepo.GetAllAsync();
+                tenantOverrides = await _tenantRepo.GetAllAsync(ct);
             }
             catch (Exception ex)
             {
@@ -124,7 +124,7 @@ public class TenantSettingsService : ITenantSettingsService
                 _orgContext.OrgId, updates.Count, string.Join(", ", updates.Keys));
         }
 
-        return await GetSettingsAsync();
+        return await GetSettingsAsync(ct);
     }
 
     public async Task<bool> ResetSettingAsync(string key, CancellationToken ct = default)
@@ -135,7 +135,7 @@ public class TenantSettingsService : ITenantSettingsService
 
         if (IsSiteContext)
         {
-            result = await _siteRepo.DeleteAsync(key);
+            result = await _siteRepo.DeleteAsync(key, ct);
             if (result)
             {
                 lock (_siteCacheLock) { _siteCache = null; }
@@ -144,7 +144,7 @@ public class TenantSettingsService : ITenantSettingsService
         }
         else
         {
-            result = await _tenantRepo.DeleteAsync(key);
+            result = await _tenantRepo.DeleteAsync(key, ct);
             if (result)
             {
                 _cache.TryRemove(_orgContext.OrgId, out _);

@@ -148,20 +148,20 @@ public class EmailService : IEmailService
                         // Connect to SMTP server
                         // MailHog doesn't support SSL/TLS, so we need to use None for local development
                         var secureSocketOptions = smtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
-                        await client.ConnectAsync(smtpHost, smtpPort, secureSocketOptions);
+                        await client.ConnectAsync(smtpHost, smtpPort, secureSocketOptions, ct);
 
                         _logger.LogDebug("Connected to SMTP server");
 
                         // Authenticate if credentials are provided
                         if (!string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
                         {
-                            await client.AuthenticateAsync(smtpUsername, smtpPassword);
+                            await client.AuthenticateAsync(smtpUsername, smtpPassword, ct);
                             _logger.LogDebug("SMTP authentication successful");
                         }
 
                         // Send email
                         await client.SendAsync(message);
-                        await client.DisconnectAsync(true);
+                        await client.DisconnectAsync(true, ct);
 
                         _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
                         return true;

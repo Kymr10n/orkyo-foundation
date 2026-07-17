@@ -39,18 +39,18 @@ public class PresetService : IPresetService
 
     public async Task<PresetApplicationResult> ApplyAsync(Preset preset, Guid userId, CancellationToken ct = default)
     {
-        var validation = await ValidateAsync(preset);
+        var validation = await ValidateAsync(preset, ct);
         if (!validation.IsValid)
             return new PresetApplicationResult { Success = false, Error = string.Join("; ", validation.Errors) };
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
-        await using var transaction = await conn.BeginTransactionAsync();
+        await using var transaction = await conn.BeginTransactionAsync(ct);
 
         try
         {
             var stats = await PresetApplier.ApplyAsync(conn, transaction, preset, userId);
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(ct);
 
             _logger.LogInformation(
                 "Applied preset {PresetId} v{Version}: {CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
@@ -64,7 +64,7 @@ public class PresetService : IPresetService
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(ct);
             _logger.LogError(ex, "Failed to apply preset {PresetId}", preset.PresetId);
             return new PresetApplicationResult { Success = false, Error = $"Failed to apply preset: {ex.Message}" };
         }
@@ -72,7 +72,7 @@ public class PresetService : IPresetService
 
     public async Task<Preset> ExportAsync(string presetId, string name, string? description = null, CancellationToken ct = default)
     {
-        var criteria = await _criteriaRepo.GetAllAsync();
+        var criteria = await _criteriaRepo.GetAllAsync(ct);
         var presetCriteria = criteria.Select(c => new PresetCriterion
         {
             Key = GenerateKey(c.Name),
@@ -86,7 +86,7 @@ public class PresetService : IPresetService
         var criterionKeyMap = presetCriteria.ToDictionary(c => c.Name, c => c.Key);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => criterionKeyMap[c.Name]);
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space);
+        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space, ct);
         var presetGroups = groups.Select(g => new PresetSpaceGroup
         {
             Key = GenerateKey(g.Name),
@@ -98,9 +98,9 @@ public class PresetService : IPresetService
 
         var presetTemplates = new PresetTemplates
         {
-            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space), criterionIdToKey),
-            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group), criterionIdToKey),
-            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request), criterionIdToKey)
+            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space, ct), criterionIdToKey),
+            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group, ct), criterionIdToKey),
+            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request, ct), criterionIdToKey)
         };
 
         return new Preset

@@ -38,7 +38,7 @@ public static class ResourceAssignmentEndpoints
             }
             if (requestId is null)
                 return ErrorResponses.BadRequest("requestId query parameter is required");
-            var assignments = await repo.GetByRequestAsync(requestId.Value);
+            var assignments = await repo.GetByRequestAsync(requestId.Value, ct);
             return Results.Ok(assignments);
         })
             .WithName("ListResourceAssignmentsByRequest")
@@ -49,7 +49,7 @@ public static class ResourceAssignmentEndpoints
             IResourceAssignmentRepository repo,
             CancellationToken ct) =>
         {
-            var a = await repo.GetByIdAsync(id);
+            var a = await repo.GetByIdAsync(id, ct);
             return EndpointHelpers.OkOrNotFound(a, "ResourceAssignment", id);
         })
             .WithName("GetResourceAssignmentById")
@@ -60,7 +60,7 @@ public static class ResourceAssignmentEndpoints
             IResourceAssignmentService service,
             CancellationToken ct) =>
         {
-            var (assignment, conflict) = await service.CreateAsync(request);
+            var (assignment, conflict) = await service.CreateAsync(request, ct);
             if (conflict is not null)
                 return Results.Json(new[] { conflict }, statusCode: StatusCodes.Status409Conflict);
             return Results.Created($"/api/resource-assignments/{assignment!.Id}", assignment);
@@ -73,7 +73,7 @@ public static class ResourceAssignmentEndpoints
             IResourceAssignmentService service,
             CancellationToken ct) =>
         {
-            var cancelled = await service.CancelAsync(id);
+            var cancelled = await service.CancelAsync(id, ct);
             return cancelled ? Results.NoContent() : ErrorResponses.NotFound("ResourceAssignment", id);
         })
             .WithName("CancelResourceAssignment")
@@ -84,7 +84,7 @@ public static class ResourceAssignmentEndpoints
             IResourceAssignmentValidator validator,
             CancellationToken ct) =>
         {
-            var result = await validator.ValidateAsync(request);
+            var result = await validator.ValidateAsync(request, ct);
             return Results.Ok(result);
         })
             .WithName("ValidateResourceAssignment")

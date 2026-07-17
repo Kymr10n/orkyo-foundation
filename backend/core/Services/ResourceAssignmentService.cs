@@ -66,7 +66,7 @@ public class ResourceAssignmentService(
             AllocationMode = null // Use resource's default
         };
 
-        var result = await validator.ValidateAsync(validationRequest);
+        var result = await validator.ValidateAsync(validationRequest, ct);
 
         // Soft constraints (see SoftBlockerCodes) are surfaced but never block a manual
         // assignment. Only hard-block on genuine resource/allocation errors.
@@ -77,7 +77,7 @@ public class ResourceAssignmentService(
         if (hardBlockers.Count > 0)
             return (null, ToConflict(hardBlockers[0], request.ResourceId));
 
-        var assignment = await assignmentRepository.CreateAsync(request);
+        var assignment = await assignmentRepository.CreateAsync(request, ct);
         return (assignment, null);
     }
 

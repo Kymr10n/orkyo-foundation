@@ -156,7 +156,7 @@ public static class BffAuthEndpoints
                 return ErrorResponses.BadRequest("Missing code or state parameter");
 
             // Atomic get-and-remove — a replayed state returns null immediately
-            var pkceState = await pkceStore.GetAndRemoveAsync(state);
+            var pkceState = await pkceStore.GetAndRemoveAsync(state, ct);
             if (pkceState is null)
             {
                 logger.LogWarning("BFF callback: state not found, expired, or already consumed");
@@ -166,8 +166,7 @@ public static class BffAuthEndpoints
                 return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=invalid_state");
             }
 
-            var tokenResponse = await ExchangeCodeForTokensAsync(
-                httpClientFactory, keycloakOptions, bffOptions, code, pkceState.CodeVerifier, logger);
+            var tokenResponse = await ExchangeCodeForTokensAsync(httpClientFactory, keycloakOptions, bffOptions, code, pkceState.CodeVerifier, logger, ct);
 
             if (tokenResponse is null)
                 return ErrorResponses.BadRequest("Token exchange failed");
@@ -200,14 +199,7 @@ public static class BffAuthEndpoints
             await sessionEstablisher.EstablishAsync(
                 ctx, linkResult.UserId.Value, tokenProfile, tokenResponse);
 
-            var returnTo = await ResolvePostLoginRedirectAsync(
-                pkceState.ReturnTo,
-                linkResult.UserId.Value,
-                tokenProfile.IsSiteAdmin,
-                bffOptions,
-                sessionService,
-                tenantMiddlewareOpts.Value,
-                logger);
+            var returnTo = await ResolvePostLoginRedirectAsync(pkceState.ReturnTo, linkResult.UserId.Value, tokenProfile.IsSiteAdmin, bffOptions, sessionService, tenantMiddlewareOpts.Value, logger, ct);
 
             // Log only the host component — path may contain invite tokens or other PII
             logger.LogInformation("BFF session created for user {UserId}, redirecting to {ReturnToHost}",
@@ -335,7 +327,7 @@ public static class BffAuthEndpoints
             ["code_verifier"] = codeVerifier,
         });
 
-        var response = await client.PostAsync(tokenEndpoint, tokenRequest);
+        var response = await client.PostAsync(tokenEndpoint, tokenRequest, ct);
         return await ParseTokenResponseAsync(response, logger);
     }
 

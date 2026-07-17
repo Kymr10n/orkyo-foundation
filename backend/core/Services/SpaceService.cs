@@ -58,22 +58,19 @@ public class SpaceService : ISpaceService
         Guid siteId, string name, string? code, string? description,
         bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)
     {
-        var currentCount = await _repository.GetEstimatedCountAsync();
+        var currentCount = await _repository.GetEstimatedCountAsync(ct);
         await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.Spaces, currentCount, 1, ct);
 
         // Create the resources row first (spaces.id FK → resources.id).
-        var spaceType = await _resourceTypeRepository.GetByKeyAsync(ResourceTypeKeys.Space)
+        var spaceType = await _resourceTypeRepository.GetByKeyAsync(ResourceTypeKeys.Space, ct)
             ?? throw new InvalidOperationException("Space resource type not found");
 
         var resourceId = Guid.NewGuid();
         // Spaces are immovable: their site lives in spaces.site_id, so the generic
         // location columns stay null and cross-site is always false.
-        await _resourceRepository.CreateAsync(
-            spaceType.Id, spaceType.Key, name, description,
-            externalReference: null, AllocationModes.Exclusive, 100,
-            crossSiteAllowed: false, id: resourceId);
+        await _resourceRepository.CreateAsync(spaceType.Id, spaceType.Key, name, description, externalReference: null, AllocationModes.Exclusive, 100, crossSiteAllowed: false, id: resourceId, ct: ct);
 
-        var space = await _repository.CreateAsync(resourceId, siteId, code, isPhysical, geometry, properties, capacity);
+        var space = await _repository.CreateAsync(resourceId, siteId, code, isPhysical, geometry, properties, capacity, ct);
         await _rollup.RecordDeltaAsync(QuotaResourceTypes.Spaces, 1, ct);
         return space;
     }
@@ -89,18 +86,18 @@ public class SpaceService : ISpaceService
             {
                 Name = name,
                 Description = description,
-            });
+            }, ct);
         }
 
-        return await _repository.UpdateAsync(siteId, resourceId, code, geometry, properties, capacity);
+        return await _repository.UpdateAsync(siteId, resourceId, code, geometry, properties, capacity, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
     {
-        var deleted = await _repository.DeleteAsync(siteId, resourceId);
+        var deleted = await _repository.DeleteAsync(siteId, resourceId, ct);
         if (deleted)
         {
-            await _resourceRepository.DeactivateAsync(resourceId);
+            await _resourceRepository.DeactivateAsync(resourceId, ct);
             await _rollup.RecordDeltaAsync(QuotaResourceTypes.Spaces, -1, ct);
         }
         return deleted;

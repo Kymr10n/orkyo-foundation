@@ -72,7 +72,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
 
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync(ct);
-        await using var tx = await db.BeginTransactionAsync();
+        await using var tx = await db.BeginTransactionAsync(ct);
 
         // Block removing applicability for a resource type while assignments of
         // that type still reference this criterion. Without this guard, the
@@ -148,6 +148,6 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
             await ins.ExecuteNonQueryAsync(ct);
         }
 
-        await tx.CommitAsync();
+        await tx.CommitAsync(ct);
     }
 }

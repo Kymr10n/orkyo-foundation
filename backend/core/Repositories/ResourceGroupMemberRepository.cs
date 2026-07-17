@@ -79,7 +79,7 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
             }
         }
 
-        await using var tx = await db.BeginTransactionAsync();
+        await using var tx = await db.BeginTransactionAsync(ct);
 
         await using var del = new NpgsqlCommand(
             "DELETE FROM resource_group_members WHERE resource_group_id = @groupId", db, tx);
@@ -115,7 +115,7 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
             await ins.ExecuteNonQueryAsync(ct);
         }
 
-        await tx.CommitAsync();
+        await tx.CommitAsync(ct);
     }
 
     public async Task<IReadOnlyList<Guid>> GetGroupIdsForResourceAsync(Guid resourceId, CancellationToken ct = default)
