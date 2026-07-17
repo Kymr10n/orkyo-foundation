@@ -26,6 +26,15 @@
           "StackExchange.Redis": "2.7.27"
         }
       },
+      "prometheus-net.AspNetCore": {
+        "type": "Direct",
+        "requested": "[8.2.1, )",
+        "resolved": "8.2.1",
+        "contentHash": "/4TfTvbwIDqpaKTiWvEsjUywiHYF9zZvGZF5sK15avoDsUO/WPQbKsF8TiMaesuphdFQPK2z52P0zk6j26V0rQ==",
+        "dependencies": {
+          "prometheus-net": "8.2.1"
+        }
+      },
       "Serilog.AspNetCore": {
         "type": "Direct",
         "requested": "[10.0.0, )",
@@ -211,6 +220,11 @@
         "type": "Transitive",
         "resolved": "10.0.3",
         "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
+      },
+      "prometheus-net": {
+        "type": "Transitive",
+        "resolved": "8.2.1",
+        "contentHash": "3wVgdEPOCBF752s2xps5T+VH+c9mJK8S8GKEDg49084P6JZMumTZI5Te6aJ9MQpX0sx7om6JOnBpIi7ZBmmiDQ=="
       },
       "RESPite": {
         "type": "Transitive",

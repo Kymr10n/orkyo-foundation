@@ -15,6 +15,7 @@ import type { Space } from "@foundation/src/types/space";
 import { useEffect, useMemo, useState } from "react";
 import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface EditSpaceDialogProps {
   space: Space;
@@ -84,7 +85,7 @@ export function EditSpaceDialog({
       onSuccess(space); // Just close dialog, cache will update
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update space");
+      setError(errorMessage(err));
     }
   };
 

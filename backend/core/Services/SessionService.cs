@@ -366,7 +366,7 @@ public class SessionService : ISessionService
 
         // Suspension metadata is a commercial/edition concept — SaaS fills
         // CanReactivate/SuspensionReason here; other editions pass through.
-        return (await _membershipEnricher.EnrichAsync(memberships, userId, ct)).ToList();
+        return (await _membershipEnricher.EnrichAsync(memberships, ct)).ToList();
     }
 
     private async Task<bool> HasAcceptedTosInternalAsync(NpgsqlConnection db, Guid userId, string requiredVersion, CancellationToken ct = default)

@@ -54,6 +54,7 @@ import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 export function UtilizationPage() {
   usePageTitle("Utilization");
@@ -313,6 +314,9 @@ export function UtilizationPage() {
     }
   }, [selectedSiteId, horizonStart, horizonEnd, previewMutation]);
 
+  // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
+  // the success toast interpolates the preview's dynamic count, and the catch
+  // classifies the preview-fingerprint 409 into an in-dialog error.
   const handleAutoScheduleApply = useCallback(async () => {
     if (!selectedSiteId) return;
     setAutoScheduleError(null);
@@ -333,7 +337,7 @@ export function UtilizationPage() {
           : "Auto-schedule applied",
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to apply schedule";
+      const message = errorMessage(err);
       if (message.startsWith("API Error (409)")) {
         setAutoScheduleError(
           "The scheduling data has changed since this preview was generated. Please close and re-run the auto-schedule."

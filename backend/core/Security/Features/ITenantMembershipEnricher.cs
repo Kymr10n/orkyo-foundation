@@ -12,7 +12,6 @@ public interface ITenantMembershipEnricher
 {
     Task<IReadOnlyList<TenantMembershipInfo>> EnrichAsync(
         IReadOnlyList<TenantMembershipInfo> memberships,
-        Guid userId,
         CancellationToken ct = default);
 }
 
@@ -21,7 +20,6 @@ public sealed class PassThroughTenantMembershipEnricher : ITenantMembershipEnric
 {
     public Task<IReadOnlyList<TenantMembershipInfo>> EnrichAsync(
         IReadOnlyList<TenantMembershipInfo> memberships,
-        Guid userId,
         CancellationToken ct = default)
         => Task.FromResult(memberships);
 }

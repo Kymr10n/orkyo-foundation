@@ -14,6 +14,7 @@ import { logger } from '@foundation/src/lib/core/logger';
 import { CriterionEditDialog } from '../settings/CriterionEditDialog';
 import { CriterionAssignmentEditor } from '../capabilities/CriterionAssignmentEditor';
 import { diffCapabilityAssignments } from '../capabilities/capability-diff';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface PersonSkillsEditorProps {
   open: boolean;
@@ -22,7 +23,7 @@ interface PersonSkillsEditorProps {
   personName: string;
 }
 
-const PERSON_CRITERIA_KEY = ['criteria', { resourceType: 'person' }] as const;
+const PERSON_CRITERIA_KEY = qk.criteria.byResourceType('person');
 
 /**
  * Per-person skill (criterion) assignment editor. A thin wrapper over the shared
@@ -82,7 +83,7 @@ export function PersonSkillsEditor({
     },
     onError: (err) => {
       logger.error('Failed to save person skills:', err);
-      setSaveError(err instanceof Error ? err.message : 'Failed to save skills');
+      setSaveError(errorMessage(err));
     },
   });
 

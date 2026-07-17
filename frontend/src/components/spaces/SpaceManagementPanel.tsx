@@ -242,10 +242,8 @@ export function SpaceManagementPanel({
 
       await moveSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
     } catch (error) {
+      // Feedback owned by useMoveSpace's meta.errorMessage (central MutationCache).
       logger.error("Failed to move space:", error);
-      toast.error("Failed to move space", {
-        description: error instanceof Error ? error.message : undefined,
-      });
     }
   };
 
@@ -259,10 +257,8 @@ export function SpaceManagementPanel({
 
       await resizeSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
     } catch (error) {
+      // Feedback owned by useMoveSpace's meta.errorMessage (central MutationCache).
       logger.error("Failed to resize space:", error);
-      toast.error("Failed to resize space", {
-        description: error instanceof Error ? error.message : undefined,
-      });
     }
   };
 

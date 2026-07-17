@@ -66,6 +66,7 @@ import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/util
 import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { invalidateRequestData, REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
+import { errorMessage as toErrorMessage } from "@foundation/src/hooks/mutation-utils";
 
 const EMPTY_REQUESTS: Request[] = [];
 
@@ -270,7 +271,7 @@ export function RequestsPage() {
       }
     } catch (err) {
       logger.error("Failed to move request:", err);
-      setError(err instanceof Error ? err.message : "Failed to move request");
+      setError(toErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -312,7 +313,7 @@ export function RequestsPage() {
       toast.success("Request deleted");
     } catch (err) {
       logger.error("Failed to delete request:", err);
-      const message = err instanceof Error ? err.message : "Failed to delete request";
+      const message = toErrorMessage(err);
       setError(message);
       toast.error("Failed to delete request", { description: message });
     } finally {
@@ -340,7 +341,7 @@ export function RequestsPage() {
       return created;
     } catch (err) {
       logger.error("Failed to save request:", err);
-      const message = err instanceof Error ? err.message : "Failed to save request";
+      const message = toErrorMessage(err);
       setError(message);
       toast.error(dialog?.kind === "edit" ? "Failed to update request" : "Failed to create request", {
         description: message,

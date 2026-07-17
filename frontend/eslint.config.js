@@ -35,6 +35,9 @@ const banToLocaleDateTime = [
 // documented exemption is optimistic-rollback mutations (onMutate snapshot),
 // which the meta convention can't express — those carry an eslint-disable with
 // a reason citing docs/dialog-feedback.md.
+// Known gap: the selector inspects useMutation() props only, so it cannot see a
+// double-toast at a mutateAsync call site (try/catch around mutateAsync that
+// toasts again) — code review remains the net for that class.
 const banMutationCallbackFeedback = [
   {
     selector:

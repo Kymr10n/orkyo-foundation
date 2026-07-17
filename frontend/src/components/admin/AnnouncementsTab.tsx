@@ -38,6 +38,7 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
 } from '@foundation/src/lib/api/announcement-api';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 /** Selectable delivery channels for new announcements (label + hint). */
 const CHANNEL_OPTIONS: { value: AnnouncementChannel; label: string; hint: string }[] = [
@@ -84,7 +85,7 @@ export function AnnouncementsTab() {
       setDeletingAnnouncement(null);
       loadAnnouncements();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete announcement');
+      setError(errorMessage(err));
       setDeletingAnnouncement(null);
     } finally {
       setDeleting(false);
@@ -383,7 +384,7 @@ function AnnouncementFormDialog({
 
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save announcement');
+      setError(errorMessage(err));
     } finally {
       setLoading(false);
     }

@@ -19,6 +19,7 @@ import {
 } from '@foundation/src/lib/api/admin-api';
 import { logger } from '@foundation/src/lib/core/logger';
 import { CheckCircle2, Loader2, Lock, Save } from 'lucide-react';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 // Common IANA timezones — use Intl API when available, fall back to curated list
 const TIMEZONES: string[] = (() => {
@@ -94,7 +95,7 @@ export function SettingsTab() {
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       logger.error('Failed to save settings:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save settings');
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }

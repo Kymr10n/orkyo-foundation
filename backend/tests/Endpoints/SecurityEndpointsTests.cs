@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
+using Orkyo.Tests.Mocks;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;

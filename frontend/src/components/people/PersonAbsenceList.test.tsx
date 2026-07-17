@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { PersonAbsenceList } from './PersonAbsenceList';
 import type { ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
 
@@ -24,6 +24,7 @@ vi.mock('./PersonAbsenceEditDialog', () => ({
 }));
 
 import { getResourceAbsences, deleteResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 const mockAbsences: ResourceAbsenceInfo[] = [
   {
@@ -41,9 +42,8 @@ const mockAbsences: ResourceAbsenceInfo[] = [
 ];
 
 function renderList(props: Partial<React.ComponentProps<typeof PersonAbsenceList>> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
       <PersonAbsenceList

@@ -30,7 +30,6 @@ import {
 } from "@foundation/src/lib/api/preset-api";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { CRITERIA_QUERY_KEY } from "@foundation/src/hooks/useCriteria";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
 import { toast } from "sonner";
 import {
@@ -87,7 +86,7 @@ export function PresetSettings() {
     meta: {
       invalidates: [
         qk.presetApplications.all(),
-        CRITERIA_QUERY_KEY,
+        qk.criteria.all(),
         // Presets write space groups; their queries live under the
         // resource-groups key for the space type.
         qk.resourceGroups.byType(RESOURCE_TYPE_KEY.SPACE),

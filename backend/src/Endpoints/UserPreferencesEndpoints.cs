@@ -19,7 +19,6 @@ public static class UserPreferencesEndpoints
 
         prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            if (!currentPrincipal.IsAuthenticated) return Results.Unauthorized();
             var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId);
             return preferences == null ? Results.Ok(new { }) : Results.Ok(preferences);
         })
@@ -28,9 +27,12 @@ public static class UserPreferencesEndpoints
 
         prefs.MapPut("/", async (ICurrentPrincipal currentPrincipal, JsonDocument body, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            if (!currentPrincipal.IsAuthenticated) return Results.Unauthorized();
             var success = await repo.UpdatePreferencesAsync(currentPrincipal.UserId, body);
-            return success ? Results.Ok(new { message = "Preferences updated successfully" }) : Results.Problem("Failed to update preferences");
+            // 200 + { message } is the sibling success shape for command endpoints (SecurityEndpoints
+            // et al.) and what the frontend api client JSON-parses — do not switch to 204.
+            return success
+                ? Results.Ok(new { message = "Preferences updated successfully" })
+                : ErrorResponses.NotFound("Preferences");
         })
         .WithName("UpdateUserPreferences")
         .WithSummary("Update current user preferences");

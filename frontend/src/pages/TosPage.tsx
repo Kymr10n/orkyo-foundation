@@ -14,6 +14,7 @@ import { FileText } from "lucide-react";
 import { acceptTos } from "@foundation/src/lib/api/session-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface TosPageProps {
   /** Called after successful TOS acceptance (e.g. refresh the pipeline). */
@@ -80,7 +81,7 @@ export function TosPage({ onAccept, onCancel, tosVersion, tosText }: TosPageProp
       await onAccept();
     } catch (err) {
       logger.error("ToS acceptance error:", err);
-      setError(err instanceof Error ? err.message : "Failed to accept Terms of Service");
+      setError(errorMessage(err));
     } finally {
       setSubmitting(false);
     }

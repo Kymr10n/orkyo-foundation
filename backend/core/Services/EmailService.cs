@@ -45,20 +45,39 @@ public interface IEmailService
     Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Retry policy for outbound SMTP sends. The default matches the behavior ported from the former
+/// private UserLifecycleService email path: 3 attempts with exponential backoff (2^attempt seconds).
+/// Tests pass a zero-backoff instance to keep failure paths fast.
+/// </summary>
+public sealed record EmailSendOptions(int MaxAttempts, Func<int, TimeSpan> Backoff)
+{
+    public static EmailSendOptions Default { get; } = new(3, attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+}
+
 public class EmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
     private readonly ITenantSettingsService _settingsService;
+    private readonly EmailSendOptions _sendOptions;
+
+    /// <summary>
+    /// At most 5 concurrent SMTP sends process-wide — protects the SMTP server during bulk
+    /// runs (e.g. lifecycle warnings). Ported from the former private UserLifecycleService path.
+    /// </summary>
+    private static readonly SemaphoreSlim SendThrottle = new(5, 5);
 
     public EmailService(
         IConfiguration configuration,
         ILogger<EmailService> logger,
-        ITenantSettingsService settingsService)
+        ITenantSettingsService settingsService,
+        EmailSendOptions? sendOptions = null)
     {
         _configuration = configuration;
         _logger = logger;
         _settingsService = settingsService;
+        _sendOptions = sendOptions ?? EmailSendOptions.Default;
     }
 
     private async Task<EmailBranding> GetBrandingAsync()
@@ -114,31 +133,53 @@ public class EmailService : IEmailService
             };
             message.Body = bodyBuilder.ToMessageBody();
 
-            using var client = new SmtpClient();
-
-            _logger.LogInformation("Attempting to send email via {Host}:{Port} (SSL: {UseSsl})",
-                smtpHost, smtpPort, smtpUseSsl);
-
-            // Connect to SMTP server
-            // MailHog doesn't support SSL/TLS, so we need to use None for local development
-            var secureSocketOptions = smtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
-            await client.ConnectAsync(smtpHost, smtpPort, secureSocketOptions);
-
-            _logger.LogDebug("Connected to SMTP server");
-
-            // Authenticate if credentials are provided
-            if (!string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
+            await SendThrottle.WaitAsync(ct);
+            try
             {
-                await client.AuthenticateAsync(smtpUsername, smtpPassword);
-                _logger.LogDebug("SMTP authentication successful");
+                for (var attempt = 1; attempt <= _sendOptions.MaxAttempts; attempt++)
+                {
+                    try
+                    {
+                        using var client = new SmtpClient();
+
+                        _logger.LogInformation("Attempting to send email via {Host}:{Port} (SSL: {UseSsl})",
+                            smtpHost, smtpPort, smtpUseSsl);
+
+                        // Connect to SMTP server
+                        // MailHog doesn't support SSL/TLS, so we need to use None for local development
+                        var secureSocketOptions = smtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
+                        await client.ConnectAsync(smtpHost, smtpPort, secureSocketOptions);
+
+                        _logger.LogDebug("Connected to SMTP server");
+
+                        // Authenticate if credentials are provided
+                        if (!string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
+                        {
+                            await client.AuthenticateAsync(smtpUsername, smtpPassword);
+                            _logger.LogDebug("SMTP authentication successful");
+                        }
+
+                        // Send email
+                        await client.SendAsync(message);
+                        await client.DisconnectAsync(true);
+
+                        _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
+                        return true;
+                    }
+                    catch (Exception ex) when (attempt < _sendOptions.MaxAttempts)
+                    {
+                        _logger.LogWarning(ex, "Email send attempt {Attempt}/{MaxAttempts} failed (subject: {Subject}); retrying",
+                            attempt, _sendOptions.MaxAttempts, subject);
+                        await Task.Delay(_sendOptions.Backoff(attempt), ct);
+                    }
+                }
+
+                return false; // unreachable — the final attempt either returns true or throws
             }
-
-            // Send email
-            await client.SendAsync(message);
-            await client.DisconnectAsync(true);
-
-            _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
-            return true;
+            finally
+            {
+                SendThrottle.Release();
+            }
         }
         catch (Exception ex)
         {

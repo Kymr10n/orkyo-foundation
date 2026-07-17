@@ -10,6 +10,7 @@ import type { Criterion, CriterionValue } from "@foundation/src/types/criterion"
 import { logger } from "@foundation/src/lib/core/logger";
 import { CriterionAssignmentEditor } from "../capabilities/CriterionAssignmentEditor";
 import { diffCapabilityAssignments } from "../capabilities/capability-diff";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface SpaceCapabilitiesEditorProps {
   open: boolean;
@@ -83,7 +84,7 @@ export function SpaceCapabilitiesEditor({
     },
     onError: (err) => {
       logger.error("Failed to save capabilities:", err);
-      setSaveError(err instanceof Error ? err.message : "Failed to save capabilities");
+      setSaveError(errorMessage(err));
     },
   });
 

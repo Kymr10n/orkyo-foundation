@@ -1,5 +1,6 @@
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { AlertCircle, Loader2, Lock } from "lucide-react";
+import { AlertCircle, Lock } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 import { getSecurityInfo } from "@foundation/src/lib/api/security-api";
@@ -22,9 +23,7 @@ export function SecuritySettings() {
 
   if (securityInfoLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <LoadingSpinner muted fullScreen={false} className="py-12" />
     );
   }
 

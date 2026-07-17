@@ -6,7 +6,6 @@
 export * from "./api-client";
 export * from "./api-paths";
 export * from "./api-utils";
-export * from "./error-handler";
 export * from "./logger";
 export * from "./query-client";
 export * from "./stale-chunk";

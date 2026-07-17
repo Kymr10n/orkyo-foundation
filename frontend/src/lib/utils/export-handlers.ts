@@ -10,6 +10,7 @@ import {
   arrayToCSV,
   csvToArray,
   downloadFile,
+  getExportFilename,
   type ExportContext,
   type ExportFormat,
   type ImportFormat,
@@ -19,10 +20,6 @@ import {
 // ============================================================================
 // SHARED HELPERS
 // ============================================================================
-
-function generateFilename(entity: string, format: ExportFormat): string {
-  return `${entity}-${new Date().toISOString().split('T')[0]}.${format}`;
-}
 
 function buildJsonExport(context: ExportContext, data: unknown): string {
   const metadata: ExportMetadata = {
@@ -58,7 +55,7 @@ export async function exportUtilization(
 // ============================================================================
 
 export async function exportSpaces(spaces: Space[], format: ExportFormat, _siteId?: string) {
-  const filename = generateFilename('spaces', format);
+  const filename = getExportFilename('spaces', format);
 
   if (format === 'csv') {
     const data = spaces.map(space => ({
@@ -110,7 +107,7 @@ export async function importSpaces(file: File, format: ImportFormat): Promise<Sp
 // ============================================================================
 
 export async function exportRequests(requests: Request[], format: ExportFormat) {
-  const filename = generateFilename('requests', format);
+  const filename = getExportFilename('requests', format);
 
   if (format === 'csv') {
     const data = requests.map(request => ({
@@ -166,7 +163,7 @@ export async function importRequests(file: File, format: ImportFormat): Promise<
 // ============================================================================
 
 export async function exportConflicts(conflicts: Conflict[], format: ExportFormat) {
-  const filename = generateFilename('conflicts', format);
+  const filename = getExportFilename('conflicts', format);
 
   if (format === 'csv') {
     const data = conflicts.map(conflict => ({
@@ -186,7 +183,7 @@ export async function exportConflicts(conflicts: Conflict[], format: ExportForma
 // ============================================================================
 
 export async function exportCriteria(criteria: Criterion[], format: ExportFormat) {
-  const filename = generateFilename('criteria', format);
+  const filename = getExportFilename('criteria', format);
 
   if (format === 'csv') {
     const data = criteria.map(criterion => ({
@@ -235,7 +232,7 @@ export async function importCriteria(file: File, format: ImportFormat): Promise<
 // ============================================================================
 
 export async function exportSites(sites: Site[], format: ExportFormat) {
-  const filename = generateFilename('sites', format);
+  const filename = getExportFilename('sites', format);
 
   if (format === 'csv') {
     const data = sites.map(site => ({
@@ -279,7 +276,7 @@ export async function importSites(file: File, format: ImportFormat): Promise<Par
 // ============================================================================
 
 export async function exportTemplates(templates: Template[], format: ExportFormat) {
-  const filename = generateFilename('templates', format);
+  const filename = getExportFilename('templates', format);
 
   if (format === 'csv') {
     const data = templates.map(template => ({
@@ -320,7 +317,7 @@ export async function importTemplates(file: File, format: ImportFormat): Promise
 // ============================================================================
 
 export async function exportUsers(users: User[], format: ExportFormat) {
-  const filename = generateFilename('users', format);
+  const filename = getExportFilename('users', format);
 
   if (format === 'csv') {
     const data = users.map(user => ({

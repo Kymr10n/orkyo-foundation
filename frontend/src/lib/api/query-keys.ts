@@ -83,6 +83,18 @@ export const qk = {
     allFlat: () => ["resource-groups-all"] as const,
   },
 
+  resourceTypes: {
+    /** The tenant's resource types (also its own invalidation prefix). */
+    all: () => ["resource-types"] as const,
+  },
+
+  criteria: {
+    /** Broad prefix — every criteria query (use for invalidation). */
+    all: () => ["criteria"] as const,
+    /** Criteria applicable to one resource type (e.g. person skills editor). */
+    byResourceType: (resourceType: string) => ["criteria", { resourceType }] as const,
+  },
+
   floorplan: {
     /** Floorplan view data (metadata + image) for one site. */
     viewData: (siteId: string | null) => ["floorplan-view-data", siteId] as const,

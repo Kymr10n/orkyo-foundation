@@ -11,6 +11,12 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Api.Endpoints.Reporting;
 
+/// <summary>
+/// Token management for the external reporting API. Error bodies here use the
+/// <c>{ error, message }</c> shape — the DELIBERATE, stable contract of the external
+/// reporting API surface, distinct from the internal <see cref="Api.Helpers.ErrorResponses"/>
+/// shape. Do not converge; external consumers depend on it.
+/// </summary>
 public static class ReportingTokenEndpoints
 {
     public static void MapReportingTokenEndpoints(this IEndpointRouteBuilder app)

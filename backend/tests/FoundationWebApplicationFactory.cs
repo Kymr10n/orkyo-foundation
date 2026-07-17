@@ -28,6 +28,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 using Orkyo.Shared;
+using Orkyo.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests;
 
@@ -252,6 +253,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
         builder.Services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
+        builder.Services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
         builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
@@ -277,7 +279,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Security.Features.ITenantPlanInfoProvider, Api.Security.Features.SinglePlanInfoProvider>();
         builder.Services.AddScoped<Api.Security.Features.ITenantMembershipEnricher, Api.Security.Features.PassThroughTenantMembershipEnricher>();
 
-        // ── HTTP client factory (required by UserLifecycleService) ────────────
+        // ── HTTP client factory ───────────────────────────────────────────────
         builder.Services.AddHttpClient();
 
         // ── Keycloak options (test stub — not used for real Keycloak calls) ───

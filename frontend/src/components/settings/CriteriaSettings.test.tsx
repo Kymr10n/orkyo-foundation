@@ -11,7 +11,6 @@ const mockRefetch = vi.fn();
 let mockCriteriaData: { data: unknown[]; isLoading: boolean; error: Error | null; refetch?: () => void };
 
 vi.mock('@foundation/src/hooks/useCriteria', () => ({
-  CRITERIA_QUERY_KEY: ['criteria'],
   useCriteria: () => mockCriteriaData,
   useCreateCriterion: () => ({ mutateAsync: mockCreateMutateAsync, isPending: false }),
   useDeleteCriterion: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),

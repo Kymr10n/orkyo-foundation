@@ -44,7 +44,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { CRITERIA_QUERY_KEY } from "@foundation/src/hooks/useCriteria";
 import { useSpaces } from "@foundation/src/hooks/useSpaces";
 
 const EMPTY_CRITERIA: Criterion[] = [];
@@ -64,6 +63,7 @@ import { RequestRequirementsSection } from "./RequestRequirementsSection";
 import { RequestResourcesSection } from "./RequestResourcesSection";
 import { RequestChildrenSection } from "./RequestChildrenSection";
 import { logger } from "@foundation/src/lib/core/logger";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface RequestFormDialogProps {
   open: boolean;
@@ -188,7 +188,7 @@ export function RequestFormDialog({
   // Reference data for the form — fetched only while the dialog is open and
   // cached under the shared keys, so other surfaces reuse the same data.
   const { data: availableCriteria = EMPTY_CRITERIA, isLoading: criteriaLoading } = useQuery({
-    queryKey: CRITERIA_QUERY_KEY,
+    queryKey: qk.criteria.all(),
     queryFn: () => getCriteria(),
     enabled: open,
   });
@@ -354,7 +354,7 @@ export function RequestFormDialog({
       setNewChildName("");
     } catch (error) {
       logger.error("Failed to add child request:", error);
-      setValidationError(error instanceof Error ? error.message : "Failed to add child request");
+      setValidationError(errorMessage(error));
     } finally {
       setIsAddingChild(false);
     }
@@ -446,7 +446,7 @@ export function RequestFormDialog({
       closeAddExisting();
     } catch (error) {
       logger.error("Failed to add existing requests:", error);
-      setValidationError(error instanceof Error ? error.message : "Failed to add existing requests");
+      setValidationError(errorMessage(error));
     } finally {
       setIsAddingExisting(false);
     }
@@ -463,7 +463,7 @@ export function RequestFormDialog({
       invalidateRequestData(queryClient);
     } catch (error) {
       logger.error("Failed to remove child from group:", error);
-      setValidationError(error instanceof Error ? error.message : "Failed to remove child from group");
+      setValidationError(errorMessage(error));
     }
   };
 
@@ -677,7 +677,7 @@ export function RequestFormDialog({
       onOpenChange(false);
     } catch (error) {
       logger.error("Failed to save request:", error);
-      setValidationError(error instanceof Error ? error.message : "Failed to save request");
+      setValidationError(errorMessage(error));
     } finally {
       setIsSaving(false);
     }

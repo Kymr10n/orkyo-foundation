@@ -1,14 +1,21 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { EditUserRoleDialog } from './EditUserRoleDialog';
 import * as userApi from '@foundation/src/lib/api/user-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 describe('EditUserRoleDialog', () => {
   let queryClient: QueryClient;
+  let invalidateSpy: ReturnType<typeof vi.spyOn>;
   const mockOnSuccess = vi.fn();
   const mockOnOpenChange = vi.fn();
 
@@ -23,12 +30,9 @@ describe('EditUserRoleDialog', () => {
   };
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
+    // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
+    ({ queryClient, spy: invalidateSpy } = createFeedbackTestQueryClientWithSpy());
     vi.clearAllMocks();
     vi.mocked(userApi.updateUserRole).mockResolvedValue({
       ...mockUser,
@@ -150,6 +154,13 @@ describe('EditUserRoleDialog', () => {
     await waitFor(() => {
       expect(userApi.updateUserRole).toHaveBeenCalledWith('1', { role: 'editor' });
       expect(mockOnSuccess).toHaveBeenCalled();
+    });
+
+    // Central MutationCache feedback: toast + users invalidation from meta.
+    expect(toast.success).toHaveBeenCalledWith('User role updated');
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: qk.users.all(),
+      exact: false,
     });
   });
 
@@ -284,6 +295,10 @@ describe('EditUserRoleDialog', () => {
     });
 
     expect(mockOnSuccess).not.toHaveBeenCalled();
+    // The error toast originates from the central MutationCache (meta.errorMessage).
+    expect(toast.error).toHaveBeenCalledWith('Failed to update user role', {
+      description: 'Permission denied',
+    });
   });
 
   it('disables form during submission', async () => {

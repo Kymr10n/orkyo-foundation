@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { apiGet, apiPost } from "@foundation/src/lib/core/api-client";
 import { API_PATHS } from "@foundation/src/lib/core/api-paths";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface InvitationDetails {
   email: string;
@@ -93,7 +94,7 @@ export function SignupPage() {
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create account");
+      setError(errorMessage(err));
     } finally {
       setIsLoading(false);
     }

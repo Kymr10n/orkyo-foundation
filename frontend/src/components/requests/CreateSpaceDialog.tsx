@@ -15,6 +15,7 @@ import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
 import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface CreateSpaceDialogProps {
   open: boolean;
@@ -71,7 +72,7 @@ export function CreateSpaceDialog({
       setDescription('');
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create space');
+      setError(errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

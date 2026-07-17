@@ -78,39 +78,56 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         // that type still reference this criterion. Without this guard, the
         // criterion could be silently rendered non-applicable to existing
         // assignments, leaving the system in an inconsistent state.
-        var currentTypeIds = await GetApplicableResourceTypeIdsAsync(criterionId, ct);
-        var removedTypeIds = currentTypeIds.Where(t => !newTypeIds.Contains(t)).ToList();
-
-        foreach (var typeId in removedTypeIds)
+        // Read the current ids on this transaction's connection — going through
+        // GetApplicableResourceTypeIdsAsync would open a second connection outside the tx.
+        var currentTypeIds = new List<Guid>();
+        await using (var currentCmd = new NpgsqlCommand(
+            "SELECT resource_type_id FROM criterion_resource_types WHERE criterion_id = @id", db, tx))
         {
+            currentCmd.Parameters.AddWithValue("id", criterionId);
+            await using var currentReader = await currentCmd.ExecuteReaderAsync(ct);
+            while (await currentReader.ReadAsync(ct))
+                currentTypeIds.Add(currentReader.GetGuid(0));
+        }
+
+        var removedTypeIds = currentTypeIds.Where(t => !newTypeIds.Contains(t)).ToArray();
+
+        if (removedTypeIds.Length > 0)
+        {
+            // One conflict check across all removed types (ordered by input position, so the
+            // first conflicting type reported matches the per-type loop this replaces).
             await using var checkCmd = new NpgsqlCommand(
-                "SELECT " +
+                "SELECT t.id, rt.key, " +
                 "  (SELECT COUNT(*) FROM resource_capabilities rc " +
                 "     JOIN resources r ON r.id = rc.resource_id " +
-                "    WHERE rc.criterion_id = @criterionId AND r.resource_type_id = @typeId) AS resources, " +
+                "    WHERE rc.criterion_id = @criterionId AND r.resource_type_id = t.id) AS resources, " +
                 "  (SELECT COUNT(*) FROM resource_group_capabilities rgc " +
                 "     JOIN resource_groups rg ON rg.id = rgc.resource_group_id " +
-                "    WHERE rgc.criterion_id = @criterionId AND rg.resource_type_id = @typeId) AS groups, " +
-                "  (SELECT key FROM resource_types WHERE id = @typeId) AS type_key",
+                "    WHERE rgc.criterion_id = @criterionId AND rg.resource_type_id = t.id) AS groups " +
+                "FROM unnest(@ids::uuid[]) WITH ORDINALITY AS t(id, ord) " +
+                "LEFT JOIN resource_types rt ON rt.id = t.id " +
+                "ORDER BY t.ord",
                 db, tx);
             checkCmd.Parameters.AddWithValue("criterionId", criterionId);
-            checkCmd.Parameters.AddWithValue("typeId", typeId);
+            checkCmd.Parameters.AddWithValue("ids", removedTypeIds);
 
             await using var reader = await checkCmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)) continue;
-            var resources = reader.GetInt64(0);
-            var groups = reader.GetInt64(1);
-            var typeKey = reader.IsDBNull(2) ? typeId.ToString() : reader.GetString(2);
-            await reader.CloseAsync();
-
-            if (resources > 0 || groups > 0)
+            while (await reader.ReadAsync(ct))
             {
-                var parts = new List<string>();
-                if (resources > 0) parts.Add($"{resources} resource assignment{(resources == 1 ? "" : "s")}");
-                if (groups > 0) parts.Add($"{groups} group assignment{(groups == 1 ? "" : "s")}");
-                throw new ConflictException(
-                    $"Cannot remove '{typeKey}' applicability: criterion still has {string.Join(", ", parts)} on {typeKey} resources. " +
-                    "Clear those assignments first.");
+                var typeId = reader.GetGuid(0);
+                var typeKey = reader.IsDBNull(1) ? typeId.ToString() : reader.GetString(1);
+                var resources = reader.GetInt64(2);
+                var groups = reader.GetInt64(3);
+
+                if (resources > 0 || groups > 0)
+                {
+                    var parts = new List<string>();
+                    if (resources > 0) parts.Add($"{resources} resource assignment{(resources == 1 ? "" : "s")}");
+                    if (groups > 0) parts.Add($"{groups} group assignment{(groups == 1 ? "" : "s")}");
+                    throw new ConflictException(
+                        $"Cannot remove '{typeKey}' applicability: criterion still has {string.Join(", ", parts)} on {typeKey} resources. " +
+                        "Clear those assignments first.");
+                }
             }
         }
 
@@ -120,13 +137,14 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         del.Parameters.AddWithValue("id", criterionId);
         await del.ExecuteNonQueryAsync(ct);
 
-        foreach (var typeId in newTypeIds)
+        if (newTypeIds.Count > 0)
         {
             await using var ins = new NpgsqlCommand(
                 "INSERT INTO criterion_resource_types (criterion_id, resource_type_id) " +
-                "VALUES (@criterionId, @typeId) ON CONFLICT DO NOTHING", db, tx);
+                "SELECT @criterionId, t.id FROM unnest(@ids::uuid[]) AS t(id) " +
+                "ON CONFLICT DO NOTHING", db, tx);
             ins.Parameters.AddWithValue("criterionId", criterionId);
-            ins.Parameters.AddWithValue("typeId", typeId);
+            ins.Parameters.AddWithValue("ids", newTypeIds.ToArray());
             await ins.ExecuteNonQueryAsync(ct);
         }
 

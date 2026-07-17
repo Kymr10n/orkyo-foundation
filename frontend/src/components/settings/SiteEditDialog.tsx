@@ -7,6 +7,7 @@ import { Textarea } from "@foundation/src/components/ui/textarea";
 import { useCreateSite, useUpdateSite } from "@foundation/src/hooks/useSites";
 import type { Site } from "@foundation/src/lib/api/site-api";
 import { isValidSlug } from "@foundation/src/lib/utils";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface SiteEditDialogProps {
   site: Site | null;
@@ -83,7 +84,7 @@ export function SiteEditDialog({ site, open, onOpenChange, onSaved }: SiteEditDi
       onSaved?.(saved);
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save site");
+      setError(errorMessage(err));
     }
   };
 

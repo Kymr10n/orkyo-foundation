@@ -56,8 +56,8 @@ public static class ErrorResponses
     /// Returns a 400 Bad Request response with a standard error format.
     /// </summary>
     /// <param name="message">The error message.</param>
-    /// <param name="code">Optional error code (defaults to VALIDATION_ERROR).</param>
-    public static IResult BadRequest(string message, string code = nameof(ErrorCodes.ValidationError))
+    /// <param name="code">Optional error code (defaults to <see cref="ErrorCodes.ValidationError"/>).</param>
+    public static IResult BadRequest(string message, string code = ErrorCodes.ValidationError)
     {
         return Results.BadRequest(new ErrorResponse
         {

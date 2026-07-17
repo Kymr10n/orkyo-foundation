@@ -1,8 +1,9 @@
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CreateTemplateDialog } from './CreateTemplateDialog';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
 vi.mock('@foundation/src/lib/api/template-api');
@@ -11,12 +12,8 @@ describe('CreateTemplateDialog', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    // Production-identical feedback MutationCache (dialog-feedback.md).
+    ({ queryClient } = createFeedbackTestQueryClientWithSpy());
     vi.clearAllMocks();
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue([]);
   });

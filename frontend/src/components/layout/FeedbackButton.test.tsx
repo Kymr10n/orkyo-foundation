@@ -81,12 +81,12 @@ describe('FeedbackButton', () => {
     await waitFor(() => expect(screen.getByText('Server unavailable')).toBeInTheDocument());
   });
 
-  it('shows generic error when API throws a non-Error', async () => {
+  it('stringifies a non-Error rejection via the shared errorMessage normalizer', async () => {
     vi.mocked(submitFeedback).mockRejectedValueOnce('oops');
     const user = await openDialog();
     await user.type(screen.getByLabelText(/title/i), 'Something');
     await user.click(screen.getByRole('button', { name: /^submit$/i }));
-    await waitFor(() => expect(screen.getByText('Failed to submit feedback')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('oops')).toBeInTheDocument());
   });
 
   it('closes dialog when Cancel is clicked', async () => {

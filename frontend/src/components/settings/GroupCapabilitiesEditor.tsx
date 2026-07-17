@@ -10,6 +10,7 @@ import type { Criterion, CriterionValue } from "@foundation/src/types/criterion"
 import { logger } from "@foundation/src/lib/core/logger";
 import { CriterionAssignmentEditor } from "../capabilities/CriterionAssignmentEditor";
 import { diffCapabilityAssignments } from "../capabilities/capability-diff";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface GroupCapabilitiesEditorProps {
   open: boolean;
@@ -98,7 +99,7 @@ export function GroupCapabilitiesEditor({
     },
     onError: (err) => {
       logger.error("Failed to save group capabilities:", err);
-      setSaveError(err instanceof Error ? err.message : "Failed to save group capabilities");
+      setSaveError(errorMessage(err));
     },
   });
 

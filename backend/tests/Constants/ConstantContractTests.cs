@@ -20,7 +20,10 @@ public class ConstantContractTests
 
     [Fact]
     public void ErrorCodes_ValidationError_ShouldMatchContract() =>
-        ErrorCodes.ValidationError.Should().Be("VALIDATION_ERROR");
+        // "ValidationError" is what has always been emitted on the wire (formerly via nameof in
+        // ErrorResponses.BadRequest); casing alignment to "VALIDATION_ERROR" is deferred to the
+        // next major. The frontend contract mirror must be updated to this value alongside.
+        ErrorCodes.ValidationError.Should().Be("ValidationError");
 
     [Fact]
     public void ErrorCodes_Conflict_ShouldMatchContract() =>

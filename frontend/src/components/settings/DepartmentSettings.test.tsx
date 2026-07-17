@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { DepartmentSettings } from './DepartmentSettings';
 import type { DepartmentTreeNode } from '@foundation/src/lib/api/departments-api';
 
@@ -19,6 +19,7 @@ vi.mock('./DepartmentEditDialog', () => ({
 }));
 
 import { getDepartmentTree, deleteDepartment } from '@foundation/src/lib/api/departments-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 const toastError = vi.fn();
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
@@ -50,9 +51,8 @@ const mockTree: DepartmentTreeNode[] = [
 ];
 
 function renderComponent() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
       <DepartmentSettings />

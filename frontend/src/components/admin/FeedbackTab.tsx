@@ -30,8 +30,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@foundation/src/components/ui/dialog';
-import { MessageSquare, Eye, Loader2 } from 'lucide-react';
+import { MessageSquare, Eye } from 'lucide-react';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { toast } from 'sonner';
+import { useMutation } from '@tanstack/react-query';
 import {
   type FeedbackSummary,
   type FeedbackDetail,
@@ -64,6 +66,7 @@ export function FeedbackTab() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selected, setSelected] = useState<FeedbackDetail | null>(null);
 
+  // Deliberate manual load (not useQuery) for this operator surface — see dialog-feedback.md rule 3.
   const load = useCallback(async (status: string) => {
     try {
       setError(null);
@@ -172,7 +175,7 @@ export function FeedbackTab() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <LoadingSpinner size="sm" muted fullScreen={false} className="h-auto w-auto" />
           <span className="ml-2 text-muted-foreground">Loading feedback…</span>
         </CardContent>
       </Card>
@@ -238,7 +241,18 @@ function FeedbackDetailDialog({
   const [status, setStatus] = useState<FeedbackStatus>('new');
   const [notes, setNotes] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
-  const [saving, setSaving] = useState(false);
+
+  const saveMutation = useMutation({
+    mutationFn: (input: { id: string; status: FeedbackStatus; adminNotes: string; githubIssueUrl: string }) =>
+      updateFeedback(input.id, { status: input.status, adminNotes: input.adminNotes, githubIssueUrl: input.githubIssueUrl }),
+    // No `invalidates`: the tab loads manually (not useQuery), so there is no cached
+    // consumer — onSaved() re-runs load() instead (dialog-feedback rule 3).
+    meta: {
+      successMessage: 'Feedback updated',
+      errorMessage: 'Failed to update feedback',
+    },
+    onSuccess: () => onSaved(),
+  });
 
   useEffect(() => {
     if (feedback) {
@@ -255,17 +269,8 @@ function FeedbackDetailDialog({
     (notes ?? '') !== (feedback.adminNotes ?? '') ||
     (githubUrl ?? '') !== (feedback.githubIssueUrl ?? '');
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await updateFeedback(feedback.id, { status, adminNotes: notes, githubIssueUrl: githubUrl });
-      toast.success('Feedback updated');
-      onSaved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update feedback');
-    } finally {
-      setSaving(false);
-    }
+  const handleSave = () => {
+    saveMutation.mutate({ id: feedback.id, status, adminNotes: notes, githubIssueUrl: githubUrl });
   };
 
   const Field = ({ label, value }: { label: string; value: string | null }) => (
@@ -325,8 +330,8 @@ function FeedbackDetailDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} loading={saving} disabled={saving || !dirty}>
+          <Button variant="outline" onClick={onClose} disabled={saveMutation.isPending}>Cancel</Button>
+          <Button onClick={handleSave} loading={saveMutation.isPending} disabled={saveMutation.isPending || !dirty}>
             Save
           </Button>
         </DialogFooter>

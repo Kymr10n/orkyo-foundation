@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { useAppStore } from '@foundation/src/store/app-store';
 import { useSpaces, useDeleteSpace } from '@foundation/src/hooks/useSpaces';
 import type { Space } from '@foundation/src/types/space';
@@ -40,10 +39,8 @@ export function SpaceListView() {
       await deleteSpaceMutation.mutateAsync(deletingSpace.id);
       setDeletingSpace(null);
     } catch (err) {
+      // Feedback owned by useDeleteSpace's onError toast (optimistic-rollback hook).
       logger.error('Failed to delete space:', err);
-      toast.error('Failed to delete space', {
-        description: err instanceof Error ? err.message : undefined,
-      });
     }
   };
 

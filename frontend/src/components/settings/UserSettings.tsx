@@ -14,7 +14,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   getUsers,
   getInvitations,
@@ -37,7 +37,6 @@ import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 
 export function UserSettings() {
-  const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [cancelingInvitation, setCancelingInvitation] = useState<Invitation | null>(null);
@@ -450,10 +449,8 @@ export function UserSettings() {
       <InviteUserDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
-        onSuccess={() => {
-          setInviteDialogOpen(false);
-          queryClient.invalidateQueries({ queryKey: qk.invitations.all() });
-        }}
+        // Invalidation is owned by the dialog's meta.invalidates (central MutationCache).
+        onSuccess={() => setInviteDialogOpen(false)}
       />
 
       {editingUser && (
@@ -461,10 +458,8 @@ export function UserSettings() {
           open={!!editingUser}
           onOpenChange={(open) => !open && setEditingUser(null)}
           user={editingUser}
-          onSuccess={() => {
-            setEditingUser(null);
-            queryClient.invalidateQueries({ queryKey: qk.users.all() });
-          }}
+          // Invalidation is owned by the dialog's meta.invalidates (central MutationCache).
+          onSuccess={() => setEditingUser(null)}
         />
       )}
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { JobTitleEditDialog } from './JobTitleEditDialog';
 import type { JobTitleInfo } from '@foundation/src/lib/api/job-titles-api';
 
@@ -23,6 +23,7 @@ vi.mock('@foundation/src/components/ui/dialog', () => ({
 }));
 
 import { createJobTitle, updateJobTitle } from '@foundation/src/lib/api/job-titles-api';
+import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
 const existingJobTitle: JobTitleInfo = {
   id: 'jt-1',
@@ -34,9 +35,8 @@ const existingJobTitle: JobTitleInfo = {
 };
 
 function renderDialog(props: Partial<Parameters<typeof JobTitleEditDialog>[0]> = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
       <JobTitleEditDialog

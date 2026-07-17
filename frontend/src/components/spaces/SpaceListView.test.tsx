@@ -2,8 +2,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { SpaceListView } from './SpaceListView';
 
 vi.mock('@foundation/src/store/app-store', () => ({ useAppStore: vi.fn() }));
@@ -25,14 +23,11 @@ vi.mock('./SpaceCapabilitiesEditor', () => ({
 import { useAppStore } from '@foundation/src/store/app-store';
 import { useSpaces, useDeleteSpace } from '@foundation/src/hooks/useSpaces';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
 function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  // Production-identical feedback MutationCache (dialog-feedback.md).
+  return createFeedbackTestQueryWrapper();
 }
 
 function setSite(siteId: string | null) {
