@@ -58,7 +58,7 @@ public static class PersonProfileEndpoints
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             var profile = await profileRepository.GetByResourceIdAsync(resourceId, ct);
-            return profile is null ? Results.NotFound() : Results.Ok(profile);
+            return profile is null ? ErrorResponses.NotFound("Person profile") : Results.Ok(profile);
         })
             .WithName("GetPersonProfile")
             .WithSummary("Get a person profile by resource ID");
@@ -112,7 +112,7 @@ public static class PersonProfileEndpoints
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             var success = await profileRepository.UnlinkUserAsync(resourceId, ct);
-            return success ? Results.NoContent() : Results.NotFound();
+            return success ? Results.NoContent() : ErrorResponses.NotFound("Person profile");
         })
             .WithName("UnlinkUserFromPersonProfile")
             .WithSummary("Unlink a user from a person profile");

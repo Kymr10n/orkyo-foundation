@@ -76,7 +76,7 @@ public static class AnnouncementEndpoints
         CancellationToken ct = default)
     {
         var result = await service.UpdateAsync(id, request, principal.UserId);
-        return result != null ? Results.Ok(result) : Results.NotFound();
+        return result != null ? Results.Ok(result) : ErrorResponses.NotFound("Announcement");
     }
 
     private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)

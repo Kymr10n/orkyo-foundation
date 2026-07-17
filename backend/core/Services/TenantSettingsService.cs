@@ -84,6 +84,9 @@ public class TenantSettingsService : ITenantSettingsService
 
     public async Task<TenantSettings> UpdateSettingsAsync(Dictionary<string, string> updates, CancellationToken ct = default)
     {
+        // Validate every key BEFORE writing any, then upsert in one atomic statement —
+        // a mid-list invalid key can no longer leave a half-applied config behind.
+        var toUpsert = new List<(string Key, string Value, string Category)>(updates.Count);
         foreach (var (key, value) in updates)
         {
             if (!TenantSettingDescriptorCatalog.ByKey.TryGetValue(key, out var descriptor))
@@ -95,14 +98,16 @@ public class TenantSettingsService : ITenantSettingsService
 
             TenantSettingsValidator.Validate(descriptor, value);
 
-            if (IsSiteContext)
-            {
-                await _siteRepo.UpsertAsync(key, value, descriptor.Category);
-            }
-            else
-            {
-                await _tenantRepo.UpsertAsync(key, value, descriptor.Category);
-            }
+            toUpsert.Add((key, value, descriptor.Category));
+        }
+
+        if (IsSiteContext)
+        {
+            await _siteRepo.UpsertManyAsync(toUpsert, ct);
+        }
+        else
+        {
+            await _tenantRepo.UpsertManyAsync(toUpsert, ct);
         }
 
         // Invalidate the relevant cache
