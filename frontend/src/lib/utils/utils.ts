@@ -8,10 +8,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format a Date object to ISO date string (YYYY-MM-DD)
+ * Format a Date object to a YYYY-MM-DD string using its **local** calendar date.
+ * Must not use toISOString() — that converts to UTC and slips to the adjacent day
+ * for times near midnight in non-UTC zones (e.g. a local evening in the Americas).
  */
 export function formatDateForInput(date: Date): string {
-  return date.toISOString().split("T")[0];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 /**

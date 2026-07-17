@@ -566,6 +566,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapPersonProfileEndpoints();
         app.MapJobTitleEndpoints();
         app.MapDepartmentEndpoints();
+        app.MapQuotaEndpoints();
         // Reporting endpoints
         app.MapReportingEndpoints();
         app.MapReportingTokenEndpoints();
