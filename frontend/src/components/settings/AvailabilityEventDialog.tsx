@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { cn } from "@foundation/src/lib/utils";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Button } from "@foundation/src/components/ui/button";
@@ -186,16 +186,14 @@ function ServerScopeRow({
   siteId,
   eventId,
   scope,
-  onDeleted,
 }: {
   siteId: string;
   eventId: string;
   scope: AvailabilityEventScopeInfo;
-  onDeleted: () => void;
 }) {
   const deleteScope = useMutation({
     mutationFn: () => deleteAvailabilityEventScope(siteId, eventId, scope.id),
-    onSuccess: onDeleted,
+    meta: { invalidates: [qk.scheduling.availabilityEventsAll()] },
   });
 
   return (
@@ -387,6 +385,7 @@ function ServerAddScopeForm({
   const addScope = useMutation({
     mutationFn: (req: ScopeDraft) =>
       addAvailabilityEventScope(siteId, eventId, req),
+    meta: { invalidates: [qk.scheduling.availabilityEventsAll()] },
     onSuccess: () => {
       setError(null);
       onAdded();
@@ -406,7 +405,6 @@ function ServerAddScopeForm({
 // ── Main dialog ──────────────────────────────────────────────────────────────
 
 export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onSave }: Props) {
-  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
   const [eventType, setEventType] = useState<AvailabilityEventType>("public_holiday");
@@ -506,10 +504,6 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
     } finally {
       setSaving(false);
     }
-  };
-
-  const invalidateEvent = () => {
-    void queryClient.invalidateQueries({ queryKey: qk.scheduling.availabilityEventsAll() });
   };
 
   return (
@@ -635,10 +629,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
                 <ServerAddScopeForm
                   siteId={siteId}
                   eventId={event.id}
-                  onAdded={() => {
-                    setShowAddScope(false);
-                    invalidateEvent();
-                  }}
+                  onAdded={() => setShowAddScope(false)}
                 />
               ) : (
                 <AddScopeForm
@@ -663,7 +654,6 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
                       siteId={siteId}
                       eventId={event.id}
                       scope={scope}
-                      onDeleted={invalidateEvent}
                     />
                   ))}
                 </div>
