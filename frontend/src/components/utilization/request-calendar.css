@@ -130,3 +130,12 @@
   text-overflow: ellipsis;
   overflow: hidden;
 }
+
+/* FullCalendar sets a color on the inner .fc-event-main wrapper, which breaks the
+   per-status text colour (text-foreground! / text-muted-foreground!) applied to the
+   outer .fc-event — so the custom event label rendered inside it fell back to FC's
+   near-white default. Force the wrapper to inherit the event's colour so the label
+   reads as dark foreground in light mode (matching the Spaces/People grids). */
+.orkyo-calendar .orkyo-cal-event .fc-event-main {
+  color: inherit;
+}
