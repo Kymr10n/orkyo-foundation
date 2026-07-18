@@ -1,6 +1,7 @@
 using Api.Constants;
 using Api.Models;
 using Api.Models.Reporting;
+using Api.Repositories;
 using Npgsql;
 
 namespace Api.Services.Reporting;
@@ -29,9 +30,9 @@ public sealed class ReportingQueryService : IReportingQueryService
         var periodHours = (to - from).TotalHours;
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand($@"
+        var totalCount = 0;
+        var rows = await conn.QueryListAsync($@"
             SELECT
                 si.name                                       AS site_name,
                 r.name                                        AS space_name,
@@ -56,35 +57,33 @@ public sealed class ReportingQueryService : IReportingQueryService
                   AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
             GROUP BY si.name, s.id, r.name, rg.name
             ORDER BY si.name, r.name
-            LIMIT @limit OFFSET @offset", conn);
-
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        cmd.Parameters.AddWithValue("limit", paged.PageSize);
-        cmd.Parameters.AddWithValue("offset", paged.Offset);
-
-        var rows = new List<SpaceUtilizationRow>();
-        var totalCount = 0;
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            if (rows.Count == 0) totalCount = reader.GetInt32(7);
-            var allocated = reader.GetDouble(5);
-            var utilPct = periodHours > 0 ? Math.Round(allocated / periodHours * 100, 1) : 0;
-            rows.Add(new SpaceUtilizationRow
+            LIMIT @limit OFFSET @offset",
+            p =>
             {
-                SiteName = reader.GetString(0),
-                SpaceName = reader.GetString(1),
-                SpaceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                PeriodStartUtc = from,
-                PeriodEndUtc = to,
-                AvailableHours = periodHours,
-                AllocatedHours = Math.Round(allocated, 2),
-                UtilizationPercent = utilPct,
-                OverbookedHours = 0,
-                RequestCount = reader.GetInt32(6),
-            });
-        }
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+                p.AddWithValue("limit", paged.PageSize);
+                p.AddWithValue("offset", paged.Offset);
+            },
+            reader =>
+            {
+                totalCount = reader.GetInt32(7);
+                var allocated = reader.GetDouble(5);
+                var utilPct = periodHours > 0 ? Math.Round(allocated / periodHours * 100, 1) : 0;
+                return new SpaceUtilizationRow
+                {
+                    SiteName = reader.GetString(0),
+                    SpaceName = reader.GetString(1),
+                    SpaceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    PeriodStartUtc = from,
+                    PeriodEndUtc = to,
+                    AvailableHours = periodHours,
+                    AllocatedHours = Math.Round(allocated, 2),
+                    UtilizationPercent = utilPct,
+                    OverbookedHours = 0,
+                    RequestCount = reader.GetInt32(6),
+                };
+            }, ct);
 
         return ReportingResult<SpaceUtilizationRow>.Create(rows, totalCount, paged, query.ToMetadata());
     }
@@ -96,9 +95,9 @@ public sealed class ReportingQueryService : IReportingQueryService
         var periodHours = (to - from).TotalHours;
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand($@"
+        var totalCount = 0;
+        var rows = await conn.QueryListAsync($@"
             SELECT
                 rt.key                                        AS resource_type,
                 r.name                                        AS resource_name,
@@ -123,36 +122,34 @@ public sealed class ReportingQueryService : IReportingQueryService
                   AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
             GROUP BY rt.key, r.id, r.name, r.base_availability_percent, rg.name
             ORDER BY rt.key, r.name
-            LIMIT @limit OFFSET @offset", conn);
-
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        cmd.Parameters.AddWithValue("limit", paged.PageSize);
-        cmd.Parameters.AddWithValue("offset", paged.Offset);
-
-        var rows = new List<ResourceUtilizationRow>();
-        var totalCount = 0;
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            if (rows.Count == 0) totalCount = reader.GetInt32(8);
-            var availPct = reader.IsDBNull(5) ? 100.0 : reader.GetDouble(5);
-            var effectiveHours = periodHours * availPct / 100.0;
-            var allocated = reader.GetDouble(6);
-            var utilPct = effectiveHours > 0 ? Math.Round(allocated / effectiveHours * 100, 1) : 0;
-            rows.Add(new ResourceUtilizationRow
+            LIMIT @limit OFFSET @offset",
+            p =>
             {
-                ResourceType = reader.GetString(0),
-                ResourceName = reader.GetString(1),
-                ResourceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                PeriodStartUtc = from,
-                PeriodEndUtc = to,
-                AvailableHours = Math.Round(effectiveHours, 2),
-                AllocatedHours = Math.Round(allocated, 2),
-                UtilizationPercent = utilPct,
-                OverbookedHours = Math.Max(0, Math.Round(allocated - effectiveHours, 2)),
-            });
-        }
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+                p.AddWithValue("limit", paged.PageSize);
+                p.AddWithValue("offset", paged.Offset);
+            },
+            reader =>
+            {
+                totalCount = reader.GetInt32(8);
+                var availPct = reader.IsDBNull(5) ? 100.0 : reader.GetDouble(5);
+                var effectiveHours = periodHours * availPct / 100.0;
+                var allocated = reader.GetDouble(6);
+                var utilPct = effectiveHours > 0 ? Math.Round(allocated / effectiveHours * 100, 1) : 0;
+                return new ResourceUtilizationRow
+                {
+                    ResourceType = reader.GetString(0),
+                    ResourceName = reader.GetString(1),
+                    ResourceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    PeriodStartUtc = from,
+                    PeriodEndUtc = to,
+                    AvailableHours = Math.Round(effectiveHours, 2),
+                    AllocatedHours = Math.Round(allocated, 2),
+                    UtilizationPercent = utilPct,
+                    OverbookedHours = Math.Max(0, Math.Round(allocated - effectiveHours, 2)),
+                };
+            }, ct);
 
         return ReportingResult<ResourceUtilizationRow>.Create(rows, totalCount, paged, query.ToMetadata());
     }
@@ -163,13 +160,20 @@ public sealed class ReportingQueryService : IReportingQueryService
         var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
         var updatedSinceFilter = query.UpdatedSince.HasValue
             ? "AND ra.updated_at >= @updatedSince"
             : "";
 
-        await using var countCmd = new NpgsqlCommand($@"
+        void BindFilters(NpgsqlParameterCollection p)
+        {
+            p.AddWithValue("from", from);
+            p.AddWithValue("to", to);
+            if (query.UpdatedSince.HasValue)
+                p.AddWithValue("updatedSince", query.UpdatedSince.Value);
+        }
+
+        var totalCount = (int)await conn.ExecuteScalarAsync<long>($@"
             SELECT COUNT(*)
             FROM resource_assignments ra
             JOIN requests req ON req.id = ra.request_id
@@ -177,14 +181,9 @@ public sealed class ReportingQueryService : IReportingQueryService
             JOIN resource_types rt ON rt.id = r.resource_type_id
             WHERE ra.start_utc < @to AND ra.end_utc > @from
               AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
-              {updatedSinceFilter}", conn);
-        countCmd.Parameters.AddWithValue("from", from);
-        countCmd.Parameters.AddWithValue("to", to);
-        if (query.UpdatedSince.HasValue)
-            countCmd.Parameters.AddWithValue("updatedSince", query.UpdatedSince.Value);
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
+              {updatedSinceFilter}", BindFilters, ct);
 
-        await using var cmd = new NpgsqlCommand($@"
+        var rows = await conn.QueryListAsync($@"
             SELECT
                 ra.id                                         AS allocation_id,
                 req.request_item_id                           AS request_reference,
@@ -207,20 +206,14 @@ public sealed class ReportingQueryService : IReportingQueryService
               AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
               {updatedSinceFilter}
             ORDER BY ra.start_utc DESC
-            LIMIT @limit OFFSET @offset", conn);
-
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        if (query.UpdatedSince.HasValue)
-            cmd.Parameters.AddWithValue("updatedSince", query.UpdatedSince.Value);
-        cmd.Parameters.AddWithValue("limit", paged.PageSize);
-        cmd.Parameters.AddWithValue("offset", paged.Offset);
-
-        var rows = new List<AllocationRow>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            rows.Add(new AllocationRow
+            LIMIT @limit OFFSET @offset",
+            p =>
+            {
+                BindFilters(p);
+                p.AddWithValue("limit", paged.PageSize);
+                p.AddWithValue("offset", paged.Offset);
+            },
+            reader => new AllocationRow
             {
                 AllocationId = $"rpt_alloc_{reader.GetGuid(0):N}",
                 RequestReference = reader.IsDBNull(1) ? null : reader.GetString(1),
@@ -233,8 +226,7 @@ public sealed class ReportingQueryService : IReportingQueryService
                 DurationHours = Math.Round(reader.GetDouble(8), 2),
                 Status = reader.GetString(9),
                 UpdatedAtUtc = reader.GetDateTime(10),
-            });
-        }
+            }, ct);
 
         return ReportingResult<AllocationRow>.Create(rows, totalCount, paged, query.ToMetadata());
     }
@@ -245,9 +237,9 @@ public sealed class ReportingQueryService : IReportingQueryService
         var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand($@"
+        // Single aggregate row (always returned, even with zero requests).
+        var row = await conn.QuerySingleOrDefaultAsync($@"
             SELECT
                 COUNT(*) FILTER (WHERE created_at >= @from AND created_at < @to)          AS created,
                 COUNT(*) FILTER (WHERE status = '{RequestStatuses.InProgress}'
@@ -259,25 +251,24 @@ public sealed class ReportingQueryService : IReportingQueryService
                 AVG(EXTRACT(EPOCH FROM (start_ts - created_at)) / 3600)
                     FILTER (WHERE start_ts IS NOT NULL AND status != '{RequestStatuses.New}'
                               AND created_at >= @from AND created_at < @to)              AS avg_lead_hours
-            FROM requests", conn);
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
+            FROM requests",
+            p =>
+            {
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+            },
+            reader => new RequestThroughputRow
+            {
+                PeriodStartUtc = from,
+                PeriodEndUtc = to,
+                CreatedCount = reader.GetInt32(0),
+                InProgressCount = reader.GetInt32(1),
+                CompletedCount = reader.GetInt32(2),
+                CancelledCount = reader.GetInt32(3),
+                AverageLeadTimeHours = reader.IsDBNull(4) ? null : Math.Round(reader.GetDouble(4), 1),
+            }, ct);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-
-        var row = new RequestThroughputRow
-        {
-            PeriodStartUtc = from,
-            PeriodEndUtc = to,
-            CreatedCount = reader.GetInt32(0),
-            InProgressCount = reader.GetInt32(1),
-            CompletedCount = reader.GetInt32(2),
-            CancelledCount = reader.GetInt32(3),
-            AverageLeadTimeHours = reader.IsDBNull(4) ? null : Math.Round(reader.GetDouble(4), 1),
-        };
-
-        return ReportingResult<RequestThroughputRow>.Create([row], 1, paged, query.ToMetadata());
+        return ReportingResult<RequestThroughputRow>.Create(row is null ? [] : [row], row is null ? 0 : 1, paged, query.ToMetadata());
     }
 
     public async Task<ReportingResult<ConflictRow>> GetConflictsAsync(
@@ -286,10 +277,10 @@ public sealed class ReportingQueryService : IReportingQueryService
         var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
         // Detect overbooking: same resource, overlapping non-cancelled assignments
-        await using var cmd = new NpgsqlCommand($@"
+        var totalCount = 0;
+        var rows = await conn.QueryListAsync($@"
             SELECT
                 rt.key                                        AS resource_type,
                 res.name                                      AS resource_name,
@@ -316,30 +307,28 @@ public sealed class ReportingQueryService : IReportingQueryService
             WHERE ra1.assignment_status != '{AssignmentStatuses.Cancelled}'
               AND ra1.start_utc < @to AND ra1.end_utc > @from
             ORDER BY overlap_start DESC
-            LIMIT @limit OFFSET @offset", conn);
-
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        cmd.Parameters.AddWithValue("limit", paged.PageSize);
-        cmd.Parameters.AddWithValue("offset", paged.Offset);
-
-        var rows = new List<ConflictRow>();
-        var totalCount = 0;
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            if (rows.Count == 0) totalCount = reader.GetInt32(6);
-            rows.Add(new ConflictRow
+            LIMIT @limit OFFSET @offset",
+            p =>
             {
-                ConflictType = "Overbooking",
-                ResourceType = reader.GetString(0),
-                ResourceName = reader.GetString(1),
-                RequestReference = reader.IsDBNull(2) ? null : reader.GetString(2),
-                StartsAtUtc = reader.GetDateTime(3),
-                EndsAtUtc = reader.GetDateTime(4),
-                OverbookedHours = Math.Round(reader.GetDouble(5), 2),
-            });
-        }
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+                p.AddWithValue("limit", paged.PageSize);
+                p.AddWithValue("offset", paged.Offset);
+            },
+            reader =>
+            {
+                totalCount = reader.GetInt32(6);
+                return new ConflictRow
+                {
+                    ConflictType = "Overbooking",
+                    ResourceType = reader.GetString(0),
+                    ResourceName = reader.GetString(1),
+                    RequestReference = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    StartsAtUtc = reader.GetDateTime(3),
+                    EndsAtUtc = reader.GetDateTime(4),
+                    OverbookedHours = Math.Round(reader.GetDouble(5), 2),
+                };
+            }, ct);
 
         return ReportingResult<ConflictRow>.Create(rows, totalCount, paged, query.ToMetadata());
     }
@@ -351,22 +340,24 @@ public sealed class ReportingQueryService : IReportingQueryService
         var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
-        await using var countCmd = new NpgsqlCommand(@"
+        void BindWindow(NpgsqlParameterCollection p)
+        {
+            p.AddWithValue("from", from);
+            p.AddWithValue("to", to);
+        }
+
+        var totalCount = (int)await conn.ExecuteScalarAsync<long>(@"
             SELECT COUNT(*)
             FROM resource_absences ra
             JOIN resources r ON r.id = ra.resource_id
             WHERE ra.start_ts < @to AND ra.end_ts > @from
-              AND ra.enabled = true", conn);
-        countCmd.Parameters.AddWithValue("from", from);
-        countCmd.Parameters.AddWithValue("to", to);
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
+              AND ra.enabled = true", BindWindow, ct);
 
         // When people-level is disabled, mask resource names and aggregate by group
         var nameExpr = peopleLevelEnabled ? "r.name" : "NULL::text";
 
-        await using var cmd = new NpgsqlCommand($@"
+        var rows = await conn.QueryListAsync($@"
             SELECT
                 rt.key                                        AS resource_type,
                 {nameExpr}                                    AS resource_name,
@@ -385,18 +376,14 @@ public sealed class ReportingQueryService : IReportingQueryService
             WHERE ra.start_ts < @to AND ra.end_ts > @from
               AND ra.enabled = true
             ORDER BY ra.start_ts DESC
-            LIMIT @limit OFFSET @offset", conn);
-
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        cmd.Parameters.AddWithValue("limit", paged.PageSize);
-        cmd.Parameters.AddWithValue("offset", paged.Offset);
-
-        var rows = new List<AbsenceRow>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            rows.Add(new AbsenceRow
+            LIMIT @limit OFFSET @offset",
+            p =>
+            {
+                BindWindow(p);
+                p.AddWithValue("limit", paged.PageSize);
+                p.AddWithValue("offset", paged.Offset);
+            },
+            reader => new AbsenceRow
             {
                 ResourceType = reader.GetString(0),
                 ResourceName = reader.IsDBNull(1) ? null : reader.GetString(1),
@@ -405,8 +392,7 @@ public sealed class ReportingQueryService : IReportingQueryService
                 StartsAtUtc = reader.GetDateTime(4),
                 EndsAtUtc = reader.GetDateTime(5),
                 AbsenceHours = Math.Round(reader.GetDouble(6), 2),
-            });
-        }
+            }, ct);
 
         return ReportingResult<AbsenceRow>.Create(rows, totalCount, paged, query.ToMetadata());
     }
@@ -417,16 +403,14 @@ public sealed class ReportingQueryService : IReportingQueryService
         var (paged, from, to) = ResolveWindow(query);
 
         await using var conn = _db.CreateTenantConnection(tenant);
-        await conn.OpenAsync(ct);
 
         // Group by resource type + group, compute capacity from base_availability_percent
-        await using var countCmd = new NpgsqlCommand(@"
+        var totalCount = (int)await conn.ExecuteScalarAsync<long>(@"
             SELECT COUNT(DISTINCT CONCAT(rt.key, '|', COALESCE(rg.name, '')))
             FROM resources r
             JOIN resource_types rt ON rt.id = r.resource_type_id
             LEFT JOIN resource_group_members rgm ON rgm.resource_id = r.id
-            LEFT JOIN resource_groups rg ON rg.id = rgm.resource_group_id", conn);
-        var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct) ?? 0);
+            LEFT JOIN resource_groups rg ON rg.id = rgm.resource_group_id", null, ct);
 
         var periodHours = (to - from).TotalHours;
 
@@ -434,7 +418,7 @@ public sealed class ReportingQueryService : IReportingQueryService
         // counted once per group it belongs to — NOT once per (group × assignment), which the previous
         // single-statement join did (Cartesian-inflating available_hours). allocated_hours and
         // demand_hours are unchanged: they were already one row per (resource, group, assignment).
-        await using var cmd = new NpgsqlCommand($@"
+        var rows = await conn.QueryListAsync($@"
             WITH resource_groups_expanded AS (
                 -- one row per (resource, group); group_name NULL when the resource is in no group
                 SELECT r.id                       AS resource_id,
@@ -496,34 +480,33 @@ public sealed class ReportingQueryService : IReportingQueryService
                    ON d.resource_type = c.resource_type
                   AND d.group_name IS NOT DISTINCT FROM c.group_name
             ORDER BY c.resource_type, c.group_name
-            LIMIT @limit OFFSET @offset", conn);
-
-        cmd.Parameters.AddWithValue("from", from);
-        cmd.Parameters.AddWithValue("to", to);
-        cmd.Parameters.AddWithValue("periodHours", periodHours);
-        cmd.Parameters.AddWithValue("limit", paged.PageSize);
-        cmd.Parameters.AddWithValue("offset", paged.Offset);
-
-        var rows = new List<CapacityVsDemandRow>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            var available = reader.GetDouble(4);
-            var allocated = reader.GetDouble(5);
-            var demand = reader.GetDouble(6);
-            rows.Add(new CapacityVsDemandRow
+            LIMIT @limit OFFSET @offset",
+            p =>
             {
-                ResourceType = reader.GetString(0),
-                ResourceGroupName = reader.IsDBNull(1) ? null : reader.GetString(1),
-                PeriodStartUtc = from,
-                PeriodEndUtc = to,
-                AvailableHours = Math.Round(available, 2),
-                DemandHours = Math.Round(demand, 2),
-                AllocatedHours = Math.Round(allocated, 2),
-                UnallocatedDemandHours = Math.Round(Math.Max(0, demand - allocated), 2),
-                CapacityGapHours = Math.Round(Math.Max(0, demand - available), 2),
-            });
-        }
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+                p.AddWithValue("periodHours", periodHours);
+                p.AddWithValue("limit", paged.PageSize);
+                p.AddWithValue("offset", paged.Offset);
+            },
+            reader =>
+            {
+                var available = reader.GetDouble(4);
+                var allocated = reader.GetDouble(5);
+                var demand = reader.GetDouble(6);
+                return new CapacityVsDemandRow
+                {
+                    ResourceType = reader.GetString(0),
+                    ResourceGroupName = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    PeriodStartUtc = from,
+                    PeriodEndUtc = to,
+                    AvailableHours = Math.Round(available, 2),
+                    DemandHours = Math.Round(demand, 2),
+                    AllocatedHours = Math.Round(allocated, 2),
+                    UnallocatedDemandHours = Math.Round(Math.Max(0, demand - allocated), 2),
+                    CapacityGapHours = Math.Round(Math.Max(0, demand - available), 2),
+                };
+            }, ct);
 
         return ReportingResult<CapacityVsDemandRow>.Create(rows, totalCount, paged, query.ToMetadata());
     }
