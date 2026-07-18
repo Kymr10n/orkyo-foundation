@@ -282,12 +282,12 @@ public class BffAuthenticationServiceExtensionsTests
         // If schemes == null, AddAuthentication() was never called — BFF scheme definitely absent
     }
 
-    // ── ConnectionStrings:Valkey fallback ─────────────────────────────────────
+    // ── No Valkey connection → in-memory stores ───────────────────────────────
 
     [Fact]
-    public void AddBffAuthentication_WithConnectionStringValkeyKey_RegistersInMemoryStores_WhenMissingActualConnection()
+    public void AddBffAuthentication_RegistersInMemoryStores_WhenNoValkeyConnection()
     {
-        // ConnectionStrings:Valkey key absent — should fall back to in-memory
+        // No VALKEY_CONNECTION → fall back to in-memory
         var provider = BuildProvider(valkeyConnection: null);
 
         provider.GetRequiredService<IBffSessionStore>().Should().BeOfType<InMemoryBffSessionStore>();

@@ -22,7 +22,6 @@ public static class ConfigKeys
     public const string ConnectionStringControlPlaneEnvVar = "ConnectionStrings__ControlPlane";
     /// <summary>Legacy alias for <see cref="ConnectionStringControlPlaneEnvVar"/> still honored by the migrator.</summary>
     public const string ControlPlaneConnectionLegacyEnvVar = "CONTROL_PLANE_CONNECTION_STRING";
-    public const string ConnectionStringValkey = "ConnectionStrings:Valkey";
     public const string ValkeyConnection = "VALKEY_CONNECTION";
 
     // ── OIDC / Keycloak ─────────────────────────────────────────────────────

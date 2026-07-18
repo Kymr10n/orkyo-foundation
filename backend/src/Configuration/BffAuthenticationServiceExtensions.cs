@@ -70,7 +70,7 @@ public static class BffAuthenticationServiceExtensions
 
         // Register PKCE state store — Valkey (atomic GETDEL) in production,
         // in-memory (ConcurrentDictionary.TryRemove) in development / test.
-        var valkeyConnection = configuration[ConfigKeys.ValkeyConnection] ?? configuration[ConfigKeys.ConnectionStringValkey];
+        var valkeyConnection = configuration[ConfigKeys.ValkeyConnection];
         if (!string.IsNullOrEmpty(valkeyConnection))
         {
             services.AddSingleton<IBffSessionStore, ValkeyBffSessionStore>();

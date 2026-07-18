@@ -3,7 +3,6 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
-using Orkyo.Tests.Mocks;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;

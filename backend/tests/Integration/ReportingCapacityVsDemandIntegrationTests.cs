@@ -64,7 +64,7 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
             };
 
             var result = await svc.GetCapacityVsDemandAsync(
-                tenant.TenantId, tenant, new ReportingQuery { From = from, To = to, PageSize = 5000 });
+                tenant, new ReportingQuery { From = from, To = to, PageSize = 5000 });
 
             var row = result.Items.Single(r => r.ResourceGroupName == group.Name);
 
