@@ -105,6 +105,15 @@ export function getUrlAuthError(): string | null {
   );
 }
 
+/** Minimal boundary check for the required fields of the session-bootstrap payload. */
+function isSessionBootstrapResponse(data: Record<string, unknown>): data is Record<string, unknown> & SessionBootstrapResponse {
+  return (
+    typeof data.user === 'object' && data.user !== null &&
+    typeof data.tosRequired === 'boolean' &&
+    Array.isArray(data.tenants)
+  );
+}
+
 async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
   let res: Response;
 
@@ -135,7 +144,12 @@ async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
     return urlError ? { kind: 'empty_with_error', error: urlError } : { kind: 'empty' };
   }
 
-  const session = data as unknown as SessionBootstrapResponse;
+  // Validate the shape at the boundary before it drives the whole auth machine — a
+  // server-side contract drift should fail loudly here, not far downstream on a cast.
+  if (!isSessionBootstrapResponse(data)) {
+    return { kind: 'backend_error', status: res.status };
+  }
+  const session = data;
 
   // Resolve membership — subdomain is the authoritative source in production.
   let membership: TenantMembership | null = null;

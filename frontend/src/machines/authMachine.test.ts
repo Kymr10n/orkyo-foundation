@@ -497,6 +497,24 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
     vi.unstubAllGlobals();
   });
 
+  it('malformed session payload (authenticated but tenants missing) → error_backend', async () => {
+    mockGetCurrentSubdomain.mockReturnValue(null);
+    // user present so it passes the empty check, but 'tenants' is absent → fails the
+    // boundary guard, so the machine surfaces a backend error instead of casting blindly.
+    mockFetchResponse({
+      authenticated: true,
+      user: siteAdmin,
+      tosRequired: false,
+    });
+
+    const actor = createActor(machineWithRealFetch());
+    actor.start();
+
+    const snapshot = await waitFor(actor, (s) => s.value === 'error_backend', { timeout: 2000 });
+    expect(snapshot.value).toBe('error_backend');
+    actor.stop();
+  });
+
   it('site admin on tenant subdomain WITH break-glass cookie → ready (break-glass membership)', async () => {
     mockGetCurrentSubdomain.mockReturnValue('acme');
     mockConsumeBreakGlassCookie.mockReturnValue({ sessionId: 'bg-session-1', tenantId: 'tid-1' });
