@@ -1,8 +1,11 @@
-import type { Request } from "@foundation/src/types/requests";
+import type { Conflict, Request } from "@foundation/src/types/requests";
 import { getRequestIcon, getPlanningModeIcon } from "@foundation/src/constants";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
+import { cn } from "@foundation/src/lib/utils";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusBadge";
+import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
+import { getEventConflictSeverity } from "./request-calendar-events";
 
 export interface UtilizationAgendaProps {
   /** Scheduled requests for the active window. */
@@ -10,6 +13,8 @@ export interface UtilizationAgendaProps {
   /** Open a request (tap-to-act on touch). */
   onOpen: (request: Request) => void;
   emptyMessage?: string;
+  /** Optional requestId → conflicts map; when provided, conflicted cards get a severity icon. */
+  conflicts?: Map<string, Conflict[]>;
 }
 
 /**
@@ -23,6 +28,7 @@ export function UtilizationAgenda({
   requests,
   onOpen,
   emptyMessage = "No scheduled work in this window.",
+  conflicts,
 }: UtilizationAgendaProps) {
   const sorted = requests
     .filter((r) => r.startTs)
@@ -36,6 +42,8 @@ export function UtilizationAgenda({
     <div className="h-full space-y-2 overflow-auto p-1" role="list">
       {sorted.map((request) => {
         const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
+        const severity = conflicts ? getEventConflictSeverity(request.id, conflicts) : null;
+        const presentation = severity ? severityPresentation(severity) : null;
         return (
           <div
             key={request.id}
@@ -48,7 +56,14 @@ export function UtilizationAgenda({
                 <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 <span className="truncate font-medium">{request.name}</span>
               </div>
-              <RequestStatusBadge status={request.status} />
+              <div className="flex flex-shrink-0 items-center gap-1.5">
+                {presentation && (
+                  <span data-testid="agenda-conflict-icon" title={presentation.label}>
+                    <presentation.icon className={cn("h-4 w-4", presentation.iconClass)} />
+                  </span>
+                )}
+                <RequestStatusBadge status={request.status} />
+              </div>
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {request.startTs && request.endTs
