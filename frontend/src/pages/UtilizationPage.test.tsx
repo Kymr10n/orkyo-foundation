@@ -9,6 +9,7 @@ import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
+import { addDays, addMonths, startOfDay, startOfMonth } from "date-fns";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -37,6 +38,17 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
   }),
   getAuthTokenSync: () => "test-token",
   getTenantSlugSync: () => "demo",
+}));
+
+// Breakpoint — configurable per test; default desktop so all pre-existing tests are unaffected.
+let mockDevice: "phone" | "tablet" | "desktop" = "desktop";
+vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
+  useBreakpoint: () => ({
+    device: mockDevice,
+    isPhone: mockDevice === "phone",
+    isTablet: mockDevice === "tablet",
+    isDesktop: mockDevice === "desktop",
+  }),
 }));
 
 // Mock the store — configurable per test
@@ -117,7 +129,8 @@ vi.mock("@foundation/src/hooks/useAutoSchedule", () => ({
 
 vi.mock("@foundation/src/hooks/useUtilization", () => ({
   // The grid's bar feed; reuse the existing mock driver so test cases that set request data work.
-  useScheduledRequests: (..._args: any[]) => mockUseRequests(),
+  // Args are forwarded so window-shape tests can assert the from/to the page computed.
+  useScheduledRequests: (...args: any[]) => mockUseRequests(...args),
   useBacklogRequests: () => ({ data: [], isLoading: false }),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
@@ -325,6 +338,7 @@ describe("UtilizationPage", () => {
     capturedOnScheduleExisting = null;
     capturedOnCreateNew = null;
     mockStoreOverrides = {};
+    mockDevice = "desktop";
   });
 
   it("renders heading and toolbar controls", () => {
@@ -767,6 +781,108 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("close-form"));
     await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+  });
+
+  // --- Phone calendar agenda (month grid replaced by the drag-free agenda) ---
+
+  describe("phone calendar agenda", () => {
+    // Store anchor is 2024-01-15 (see buildMockState) → viewed month is January 2024.
+    const janRequest = makeRequest({
+      id: "r-jan", name: "January job",
+      startTs: "2024-01-10T08:00:00Z", endTs: "2024-01-12T16:00:00Z",
+    });
+    const marRequest = makeRequest({
+      id: "r-mar", name: "March job",
+      startTs: "2024-03-05T08:00:00Z", endTs: "2024-03-06T16:00:00Z",
+    });
+    const spanningRequest = makeRequest({
+      id: "r-span", name: "Year-end changeover",
+      startTs: "2023-12-20T08:00:00Z", endTs: "2024-01-03T16:00:00Z",
+    });
+
+    beforeEach(() => {
+      mockDevice = "phone";
+    });
+
+    it("renders the agenda instead of the calendar grid", () => {
+      mockUseRequests.mockReturnValue({ data: [janRequest], isLoading: false });
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(screen.queryByTestId("request-calendar")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("listitem")).toHaveLength(1);
+      expect(screen.getByText("January job")).toBeInTheDocument();
+    });
+
+    it("desktop keeps the calendar grid and shows no agenda", () => {
+      mockDevice = "desktop";
+      mockUseRequests.mockReturnValue({ data: [janRequest], isLoading: false });
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(screen.getByTestId("request-calendar")).toBeInTheDocument();
+      expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    });
+
+    it("clips the buffered scheduled set to the viewed month (boundary-spanners included)", () => {
+      mockUseRequests.mockReturnValue({ data: [janRequest, marRequest, spanningRequest], isLoading: false });
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(screen.getAllByRole("listitem")).toHaveLength(2);
+      expect(screen.getByText("January job")).toBeInTheDocument();
+      expect(screen.getByText("Year-end changeover")).toBeInTheDocument();
+      expect(screen.queryByText("March job")).not.toBeInTheDocument();
+    });
+
+    it("shows the month empty message when nothing overlaps the viewed month", () => {
+      mockUseRequests.mockReturnValue({ data: [marRequest], isLoading: false });
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(screen.getByText("No scheduled work this month.")).toBeInTheDocument();
+      expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    });
+
+    it("pages by whole months, not navigateTime's week-sized 'month' step", () => {
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      const anchor = new Date("2024-01-15");
+      fireEvent.click(screen.getByTestId("nav-next"));
+      expect(mockSetAnchorTs).toHaveBeenCalledWith(addMonths(anchor, 1));
+      fireEvent.click(screen.getByTestId("nav-prev"));
+      expect(mockSetAnchorTs).toHaveBeenCalledWith(addMonths(anchor, -1));
+    });
+
+    it("forces a month-sized fetch window even when the stored grid scale is day", () => {
+      mockStoreOverrides = { scale: "day", anchorTs: new Date() };
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      const monthStart = startOfMonth(new Date());
+      expect(mockUseRequests).toHaveBeenCalledWith("site-1", addMonths(monthStart, -2), addMonths(monthStart, 3));
+    });
+
+    it("keeps the day-sized fetch window on desktop with day scale (regression guard)", () => {
+      mockDevice = "desktop";
+      const anchor = new Date();
+      mockStoreOverrides = { scale: "day", anchorTs: anchor };
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      const dayStart = startOfDay(anchor);
+      expect(mockUseRequests).toHaveBeenCalledWith("site-1", addDays(dayStart, -7), addDays(dayStart, 8));
+    });
+
+    it("tapping an agenda card opens the request editor", async () => {
+      mockUseRequests.mockReturnValue({ data: [janRequest], isLoading: false });
+      const Wrapper = createWrapper("calendar");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      fireEvent.click(screen.getByText("January job"));
+      await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+    });
   });
 
   it("closing the create-child dialog clears the parent", async () => {

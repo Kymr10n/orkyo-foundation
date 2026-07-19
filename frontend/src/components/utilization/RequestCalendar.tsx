@@ -8,7 +8,6 @@ import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundatio
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
 import { calendarViewToScale, SEVERITY_SWATCH } from "./request-calendar-events";
 import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
-import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { cn } from "@foundation/src/lib/utils";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import "./request-calendar.css";
@@ -72,21 +71,6 @@ export function RequestCalendar({
   onDatesSet,
 }: RequestCalendarProps) {
   const plugins = useMemo(() => [dayGridPlugin, timeGridPlugin, interactionPlugin], []);
-
-  // Phone tuning: the time-grid views (Day/Week) render an hour axis + wide day
-  // columns that overflow a ~390px screen, so phones open on a compressed month
-  // grid and get a trimmed prev/next/today toolbar (no view switcher). Tablet and
-  // desktop keep the full Outlook-style toolbar and all views. The @fullcalendar/list
-  // pack isn't a dependency, so dayGridMonth is the phone view (not listWeek).
-  const { isPhone } = useBreakpoint();
-  const effectiveInitialView: CalendarView = isPhone ? "dayGridMonth" : initialView;
-  const headerToolbar = isPhone
-    ? { left: "prev,next", center: "title", right: "today" }
-    : {
-        left: "prev,next today",
-        center: "title",
-        right: "timeGridDay,timeGridWeek,dayGridMonth",
-      };
 
   // Format dates/times (slot labels, day headers, event times, title) per the
   // user's browser locale — e.g. 24-hour "06:00" vs 12-hour "6 AM", and locale
@@ -156,9 +140,13 @@ export function RequestCalendar({
       <FullCalendar
         plugins={plugins}
         locale={locale}
-        initialView={effectiveInitialView}
+        initialView={initialView}
         initialDate={initialDate}
-        headerToolbar={headerToolbar}
+        headerToolbar={{
+          left: "prev,next today",
+          center: "title",
+          right: "timeGridDay,timeGridWeek,dayGridMonth",
+        }}
         buttonText={{ today: "Today", day: "Day", week: "Week", month: "Month" }}
         height="100%"
         expandRows

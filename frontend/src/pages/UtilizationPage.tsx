@@ -178,7 +178,15 @@ export function UtilizationPage() {
     };
   }, [handleToday]);
 
-  const fetchWindow = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
+  // On phone the Calendar tab renders a month agenda, so the fetch/conflict window must cover the
+  // viewed month regardless of the stored grid scale (the day/hour buffer is only ±7d). Derived
+  // rather than setScale("month"): mutating the store would clobber the scale the user chose for
+  // the other tabs, and an effect-based force would render one frame with the wrong window.
+  const isPhoneCalendar = isPhone && activeTab === 'calendar';
+  const fetchWindow = useMemo(
+    () => getFetchWindow(isPhoneCalendar ? 'month' : scale, anchorTs),
+    [isPhoneCalendar, scale, anchorTs],
+  );
   const { data: rawScheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
   const { data: rawBacklog = [] } = useBacklogRequests();
   // Recompute the active lifecycle (new → in_progress → done) live on the client off one ticking clock,
@@ -257,6 +265,20 @@ export function UtilizationPage() {
     () => requestsToCalendarEvents(scheduled, conflicts, canEdit),
     [scheduled, conflicts, canEdit],
   );
+
+  // Phone agenda: clip the buffered `scheduled` set (−2/+3 months) to the viewed month —
+  // half-open [monthStart, nextMonthStart) overlap in local time, matching what the month
+  // grid would display. A request touching the boundary with zero overlap is excluded.
+  const agendaMonthRequests = useMemo(() => {
+    const monthStart = startOfMonth(anchorTs);
+    const monthEnd = addMonths(monthStart, 1);
+    return scheduled.filter((r) => {
+      if (!r.startTs) return false;
+      const start = new Date(r.startTs);
+      const end = r.endTs ? new Date(r.endTs) : start;
+      return start < monthEnd && end > monthStart;
+    });
+  }, [scheduled, anchorTs]);
 
   // Calendar empty-slot scheduling flow.
   const [slotSelection, setSlotSelection] = useState<{ start: Date; end: Date } | null>(null);
@@ -351,11 +373,21 @@ export function UtilizationPage() {
   const handlePrevious = () => setAnchorTs(navigateTime(anchorTs, scale, -1));
   const handleNext = () => setAnchorTs(navigateTime(anchorTs, scale, 1));
 
+  // Phone-calendar month stepping. NOT navigateTime(anchorTs, "month", ±1): that pans by
+  // a *week* (grid-column semantics); the agenda pages by whole months.
+  const handleMonthPrevious = () => setAnchorTs(addMonths(anchorTs, -1));
+  const handleMonthNext = () => setAnchorTs(addMonths(anchorTs, 1));
+
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {
     const request = requests.find(r => r.id === requestId);
     if (request) openRequestEditor(request, conflicts.get(requestId) ?? []);
   }, [requests, openRequestEditor, conflicts]);
+
+  // Tap on a phone-calendar agenda card — the touch equivalent of a calendar event click.
+  const handleAgendaOpen = useCallback((request: Request) => {
+    openRequestEditor(request, conflicts.get(request.id) ?? []);
+  }, [openRequestEditor, conflicts]);
 
   // Handle "Add child" from RequestsPanel
   const handleCreateChild = useCallback((parentId: string) => {
@@ -627,6 +659,31 @@ export function UtilizationPage() {
 
         {/* Calendar tab — Outlook-style time view of scheduled requests */}
         <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
+          {isPhone ? (
+            // Phone: FullCalendar's month grid is unusable at ~390px ("+N more" overlaps the
+            // day numbers), so render the drag-free agenda over the same scheduled data, with
+            // a slim month navigator replacing FullCalendar's toolbar.
+            <div className="h-full flex flex-col overflow-hidden rounded-xl border bg-background p-3 gap-2">
+              <div className="flex justify-center shrink-0 border-b pb-2">
+                <TimeNavigator
+                  scale="month"
+                  anchorTs={anchorTs}
+                  onAnchorChange={setAnchorTs}
+                  onPrevious={handleMonthPrevious}
+                  onNext={handleMonthNext}
+                  onToday={handleToday}
+                />
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <UtilizationAgenda
+                  requests={agendaMonthRequests}
+                  conflicts={conflicts}
+                  onOpen={handleAgendaOpen}
+                  emptyMessage="No scheduled work this month."
+                />
+              </div>
+            </div>
+          ) : (
           <div className="h-full rounded-xl border bg-background p-3">
             <RequestCalendar
               events={calendarEvents}
@@ -646,6 +703,7 @@ export function UtilizationPage() {
               onDatesSet={handleCalendarDatesSet}
             />
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
