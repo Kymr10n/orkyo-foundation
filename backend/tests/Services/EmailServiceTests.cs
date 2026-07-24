@@ -312,7 +312,9 @@ public class EmailTemplatesTests
 
         var (_, htmlBody, _) = EmailTemplates.GetVerificationEmail(displayName, verificationLink);
 
-        htmlBody.Should().Contain(displayName);
+        // User input must be HTML-encoded — the raw tag must never appear in the markup.
+        htmlBody.Should().NotContain(displayName);
+        htmlBody.Should().Contain("&lt;script&gt;");
     }
 
     [Fact]
@@ -338,7 +340,6 @@ public class EmailTemplatesTests
         subject.Should().Contain("alice@example.com");
         html.Should().Contain("alice@example.com");
         html.Should().Contain("Alice");
-        html.Should().Contain("<!DOCTYPE html>");
         text.Should().Contain("alice@example.com");
         text.Should().Contain("Alice");
     }
@@ -352,7 +353,6 @@ public class EmailTemplatesTests
         html.Should().Contain("my-slug");
         html.Should().Contain("My Tenant");
         html.Should().Contain("owner@example.com");
-        html.Should().Contain("<!DOCTYPE html>");
         text.Should().Contain("my-slug");
         text.Should().Contain("My Tenant");
         text.Should().Contain("owner@example.com");

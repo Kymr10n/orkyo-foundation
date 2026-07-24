@@ -18,8 +18,8 @@ public class EmailTemplatesTests
 
         subject.Should().Be("Verify your email address");
         htmlBody.Should().Contain("Welcome to Orkyo!");
-        htmlBody.Should().Contain("#667eea");
-        htmlBody.Should().Contain("#764ba2");
+        htmlBody.Should().Contain(BrandTokens.GradientFrom);
+        htmlBody.Should().Contain(BrandTokens.GradientTo);
         htmlBody.Should().Contain("https://app.test/verify");
         textBody.Should().Contain("Welcome to Orkyo!");
         textBody.Should().Contain("https://app.test/verify");
@@ -95,7 +95,7 @@ public class EmailTemplatesTests
         htmlBody.Should().Contain("Hi Alex,");
         htmlBody.Should().Contain("https://app.test/confirm-email?token=abc");
         htmlBody.Should().Contain("expire in 24 hours");
-        htmlBody.Should().Contain("#667eea");
+        htmlBody.Should().Contain(BrandTokens.GradientFrom);
         textBody.Should().Contain("https://app.test/confirm-email?token=abc");
         textBody.Should().Contain("expire in 24 hours");
     }
@@ -291,5 +291,55 @@ public class EmailTemplatesTests
             .And.NotContain("token=x");
         text.Should().Contain("regardless of email preferences")
             .And.NotContain("token=x");
+    }
+
+    // ── HTML-encoding of user-supplied values (XSS regression) ──────────────────
+
+    [Theory]
+    [InlineData("<script>alert(1)</script>")]
+    [InlineData("<img src=x onerror=alert(1)>")]
+    public void UserSuppliedValues_AreHtmlEncoded_AcrossTemplates(string hostile)
+    {
+        var samples = new[]
+        {
+            EmailTemplates.GetWelcomeEmail(hostile).htmlBody,
+            EmailTemplates.GetLifecycleWarningEmail(hostile, "https://x/confirm", 1).htmlBody,
+            EmailTemplates.GetDormancyNoticeEmail(hostile).htmlBody,
+            EmailTemplates.GetNewUserAlertEmail("a@x.com", hostile).htmlBody,
+            EmailTemplates.GetNewTenantAlertEmail("slug", hostile, "o@x.com").htmlBody,
+            EmailTemplates.GetTenantSuspendedEmail(hostile, "https://x", 30).htmlBody,
+            EmailTemplates.GetOwnershipTransferredEmail("Tenant", hostile).htmlBody,
+            EmailTemplates.GetEmailChangedEmail("Alex", hostile).htmlBody,
+            EmailTemplates.GetAnnouncementEmail(hostile, hostile, false, "https://x/unsub").htmlBody,
+            EmailTemplates.GetDesignPartnerConfirmationEmail(hostile).htmlBody,
+        };
+
+        foreach (var html in samples)
+        {
+            html.Should().NotContain(hostile, "user input must be HTML-encoded before interpolation");
+            html.Should().Contain("&lt;", "the encoded form should appear instead");
+        }
+    }
+
+    [Fact]
+    public void Layout_FixedChrome_UsesBrandTokens()
+    {
+        var (_, html, _) = EmailTemplates.GetWelcomeEmail("Alex");
+
+        html.Should().Contain(BrandTokens.FontStack)
+            .And.Contain(BrandTokens.Text)
+            .And.Contain(BrandTokens.PanelBg)
+            .And.NotContain("Arial")
+            .And.NotContain("#667eea");
+    }
+
+    [Fact]
+    public void GetDesignPartnerConfirmationEmail_IsBrandedAndPersonalized()
+    {
+        var (subject, html, text) = EmailTemplates.GetDesignPartnerConfirmationEmail("Dana");
+
+        subject.Should().Contain("Design Partner application was received");
+        html.Should().Contain("Hi Dana,").And.Contain("<!DOCTYPE html>");
+        text.Should().Contain("Design Partner Program");
     }
 }
