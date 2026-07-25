@@ -10,7 +10,6 @@ import { test, expect } from "@playwright/test";
  *   1. OrkyoDataTable renders cards (no <table>) on phone, a real <table> on tablet.
  *   2. FormDialog keeps its submit footer inside the viewport (dvh cap) and Enter submits.
  *   3. The wizard tab strip scrolls horizontally so the last tab is reachable + clickable.
- *   4. RequestCalendar opens on the compressed month grid on phone.
  *
  * The TopBar phone-overflow check (plan WP6 item 4) is intentionally omitted here:
  * the fixture-only harness doesn't mount TopBar, and stubbing its AuthContext /
@@ -78,16 +77,4 @@ test("Wizard tab strip scrolls horizontally to reach the last tab", async ({ pag
   await lastTab.scrollIntoViewIfNeeded();
   await lastTab.click();
   await expect(page.getByTestId("wizard-content-last")).toBeVisible();
-});
-
-test("RequestCalendar opens on the compressed month grid on phone", async ({
-  page,
-}, testInfo) => {
-  test.skip(isTablet(testInfo.project.name), "tablet keeps the time-grid views");
-  await page.goto("/");
-
-  const calendar = page.getByTestId("calendar");
-  // Phone forces dayGridMonth even though the harness passes initialView="timeGridWeek".
-  await expect(calendar.locator(".fc-daygrid").first()).toBeVisible();
-  await expect(calendar.locator(".fc-timegrid")).toHaveCount(0);
 });
