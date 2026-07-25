@@ -35,7 +35,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { useAuth, type TenantMembership } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT, ROUTE_SITE_ADMIN, isPublicPath } from '@foundation/src/constants/auth';
 import { LoginPage } from '@foundation/src/pages/LoginPage';

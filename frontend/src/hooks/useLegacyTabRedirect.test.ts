@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 import { createElement } from 'react';
 import { useLegacyTabRedirect } from './useLegacyTabRedirect';
 

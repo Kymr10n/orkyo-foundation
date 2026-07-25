@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "@foundation/src/components/ui/button";
 import { Badge } from "@foundation/src/components/ui/badge";
 import {

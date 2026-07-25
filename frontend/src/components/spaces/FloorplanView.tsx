@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { useAppStore } from '@foundation/src/store/app-store';
 import { SpaceManagementPanel } from './SpaceManagementPanel';
 

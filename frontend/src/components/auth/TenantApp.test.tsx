@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import type * as ReactRouterDom from "react-router-dom";
+import { MemoryRouter } from "react-router";
+import type * as ReactRouterDom from "react-router";
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from "@foundation/src/constants/auth";
 
 // ── Mock page components ────────────────────────────────────────────────
@@ -10,7 +10,7 @@ import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from "@foundation/src/constan
 vi.mock("@foundation/src/components/layout/AppLayout", async () => {
   const { Outlet } =
     await vi.importActual<typeof ReactRouterDom>(
-      "react-router-dom",
+      "react-router",
     );
   return {
     AppLayout: () => (

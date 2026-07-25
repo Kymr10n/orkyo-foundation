@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Lock } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 

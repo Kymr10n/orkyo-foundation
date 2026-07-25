@@ -9,7 +9,7 @@ import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-as
 import type { Request } from "@foundation/src/types/requests";
 import { ChevronDown, ChevronUp, GripHorizontal, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 interface CollapsibleFloorplanProps {
   isCollapsed: boolean;

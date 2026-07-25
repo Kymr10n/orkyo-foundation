@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router';
 
 // Mock the store
 vi.mock('@foundation/src/store/app-store', () => ({
@@ -19,7 +19,7 @@ vi.mock('@foundation/src/store/app-store', () => ({
 // Since it's not exported, we re-implement the same logic for testing.
 // Alternatively, we test via the App component, but that requires many mocks.
 // The cleanest approach: extract and test the conditional logic.
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 
 const APP_LAYOUT_ROUTES = ["/", "/spaces", "/requests", "/conflicts", "/settings", "/site-admin"];

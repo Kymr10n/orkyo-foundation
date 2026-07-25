@@ -53,7 +53,7 @@ import {
     User,
     UserCog,
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 import { lazy, Suspense, useState } from "react";
 import type { ExportContext, ExportFormat, ImportFormat } from "@foundation/src/lib/utils/import-export";
 import { isImportSupported } from "@foundation/src/lib/utils/import-export";

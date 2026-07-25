@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 import { OrganizationSettings } from './OrganizationSettings';
 import * as tenantApi from '@foundation/src/lib/api/tenant-management-api';
 import * as tenantsApi from '@foundation/src/lib/api/tenant-account-api';
@@ -16,8 +16,8 @@ vi.mock('@foundation/src/lib/api/user-api');
 const mockNavigate = vi.fn();
 const mockClearMembership = vi.fn();
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useNavigate: () => mockNavigate,

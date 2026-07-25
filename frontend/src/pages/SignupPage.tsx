@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";

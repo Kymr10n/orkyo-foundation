@@ -47,10 +47,10 @@ vi.mock('@foundation/src/lib/core/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
 }));
 
-// ── react-router-dom ─────────────────────────────────────────────────────────
+// ── react-router ─────────────────────────────────────────────────────────
 
 const mockSetSearchParams = vi.fn();
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useSearchParams: () => [new URLSearchParams(), mockSetSearchParams],
 }));
 
