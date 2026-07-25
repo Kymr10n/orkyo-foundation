@@ -22,6 +22,16 @@ import { GroupHeader } from "./GroupHeader";
  * grids differ in data + bar interactions, which stay in their own components.
  */
 
+// The virtualizer positions each row absolutely, so a plain width:100% resolves
+// to the scroll *viewport* width — on a narrow screen the row's border-b, tints
+// and hover then truncate at the viewport edge while the columns scroll on past
+// it, so the grid lines "disappear". Anchoring every row to the full column
+// width (label + all columns at their min width) fixes it. These MUST stay in
+// sync with TimelineRow's `w-52` label cell and `min-w-[60px]` column cells (and
+// the header row in this file).
+const LABEL_COL_PX = 208; // w-52
+const MIN_COL_PX = 60; // min-w-[60px]
+
 export interface ShellGroup<R> {
   id: string;
   name: string;
@@ -155,7 +165,11 @@ export function TimelineGridShell<R>({
         style={{
           position: 'absolute',
           top: 0,
+          // width:100% fills wide viewports; minWidth anchors the row to the full
+          // column width so grid lines/tints span the whole horizontal scroll on
+          // narrow screens (see LABEL_COL_PX/MIN_COL_PX note above).
           width: '100%',
+          minWidth: `${LABEL_COL_PX + columns.length * MIN_COL_PX}px`,
           transform: `translateY(${vItem.start}px)`,
         }}
       >
