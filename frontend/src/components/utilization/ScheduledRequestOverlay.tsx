@@ -26,6 +26,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   onRequestClick,
   onRequestDoubleClick,
   onRequestResize,
+  editable = true,
 }: {
   request: Request;
   entry: PreviewEntry;
@@ -35,6 +36,10 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
+  /** Whether the caller can edit (= canEdit). Editors get drag-to-move + resize
+   *  on every device (mouse-move / touch long-press; quick tap still opens via
+   *  the tap detection below). Viewers get a plain tappable button. */
+  editable?: boolean;
 }) {
   // Scheduler store — interaction actions only (no validation, no display state)
   const startResize = useSchedulerStore((s) => s.startResize);
@@ -47,9 +52,17 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     useDraggable({
       id: `scheduled-${request.id}`,
       data: { ...request, isScheduled: true },
+      disabled: !editable,
     });
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
+
+  // Touch tap-vs-drag: dnd-kit's TouchSensor suppresses the synthesized click on
+  // touch, so a plain onClick never fires for a draggable bar on a phone. We
+  // detect the tap ourselves — a touchend under the sensor's drag threshold
+  // (<250ms, <8px, no drag started) opens the request; a longer press / real
+  // move is left to dnd-kit as a reschedule drag.
+  const tapRef = useRef<{ t: number; x: number; y: number } | null>(null);
 
   // Document-level resize gesture hook — replaces inline pointer handlers
   // and the setPointerCapture approach on 2px handles.
@@ -161,13 +174,37 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       ref={combinedRef}
       style={style}
       className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition motion-reduce:transition-none hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
-        isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
+        !editable
+          ? 'cursor-pointer'
+          : isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
       }`}
       onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); } }}
       title={tooltipText}
       aria-label={ariaLabel}
-      {...attributes}
-      {...listeners}
+      {...(editable ? attributes : { role: 'button', tabIndex: 0 })}
+      {...(editable ? listeners : {})}
+      // Tap-vs-drag on touch — MUST come after {...listeners} so these compose
+      // over (not get overridden by) dnd-kit's own onTouchStart activator. dnd
+      // eats the synthesized click, so we detect the tap ourselves; dnd's
+      // activator still runs (called explicitly) to keep long-press drag working.
+      onTouchStart={editable ? (e) => {
+        (listeners?.onTouchStart as ((ev: React.TouchEvent) => void) | undefined)?.(e);
+        const t = e.touches[0];
+        tapRef.current = { t: Date.now(), x: t.clientX, y: t.clientY };
+      } : undefined}
+      onTouchEnd={editable ? (e) => {
+        (listeners?.onTouchEnd as ((ev: React.TouchEvent) => void) | undefined)?.(e);
+        const s = tapRef.current;
+        tapRef.current = null;
+        if (!s || isDragging || isResizing) return;
+        const c = e.changedTouches[0];
+        const moved = Math.hypot(c.clientX - s.x, c.clientY - s.y);
+        if (Date.now() - s.t < 250 && moved < 8 && Date.now() - lastCommitMsRef.current > 300) {
+          e.preventDefault(); // suppress any follow-up synthesized click (no double-open)
+          onRequestClick(request.id);
+          onRequestDoubleClick?.(request.id);
+        }
+      } : undefined}
       onKeyDown={(e) => {
         // Enter/Space opens the request (details) rather than starting a keyboard
         // drag — grid drops resolve their time from pointer coordinates, so a
@@ -189,20 +226,25 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       {STATUS_PATTERN_CLASS[status] && (
         <div className={`absolute inset-0 ${STATUS_PATTERN_CLASS[status]}`} aria-hidden="true" />
       )}
-      {/* Left resize handle — only needs onPointerDown; move/up go to document */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity motion-reduce:transition-none rounded-l z-20"
-        style={{ touchAction: 'none' }}
-        onPointerDown={(e) => handleResizePointerDown(e, 'left')}
-        onClick={(e) => e.stopPropagation()}
-      />
-      {/* Right resize handle — only needs onPointerDown; move/up go to document */}
-      <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity motion-reduce:transition-none rounded-r z-20"
-        style={{ touchAction: 'none' }}
-        onPointerDown={(e) => handleResizePointerDown(e, 'right')}
-        onClick={(e) => e.stopPropagation()}
-      />
+      {/* Resize handles — desktop/tablet only (phone is view + tap-to-open). */}
+      {editable && (
+        <>
+          {/* Left resize handle — only needs onPointerDown; move/up go to document */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity motion-reduce:transition-none rounded-l z-20"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e) => handleResizePointerDown(e, 'left')}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Right resize handle — only needs onPointerDown; move/up go to document */}
+          <div
+            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 hover:bg-foreground/10 transition-opacity motion-reduce:transition-none rounded-r z-20"
+            style={{ touchAction: 'none' }}
+            onPointerDown={(e) => handleResizePointerDown(e, 'right')}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </>
+      )}
       <div className="relative z-10 flex items-center gap-1">
         {displayData.hasConflict && (
           <AlertCircle className="w-3 h-3 flex-shrink-0" />

@@ -50,6 +50,8 @@ interface SchedulerGridProps {
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
   workingDayEnd?: string;
+  /** Drag-to-move + resize bars (desktop/tablet). Phone is tap-to-open only. */
+  editable?: boolean;
 }
 
 export function SchedulerGrid({
@@ -69,6 +71,7 @@ export function SchedulerGrid({
   workingHoursEnabled = false,
   workingDayStart = "08:00",
   workingDayEnd = "17:00",
+  editable = true,
 }: SchedulerGridProps) {
   const workingHours: WorkingHoursConfig | null = workingHoursEnabled
     ? { enabled: true, start: parseTimeToHour(workingDayStart), end: parseTimeToHour(workingDayEnd) }
@@ -427,9 +430,10 @@ export function SchedulerGrid({
         onRequestDoubleClick={onRequestDoubleClick}
         onRequestResize={onRequestResize}
         offTimeRanges={offTimeRanges}
+        editable={editable}
       />
     ),
-    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges],
+    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges, editable],
   );
 
   return (

@@ -40,7 +40,7 @@ import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
-import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
 import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
@@ -81,10 +81,17 @@ export function UtilizationPage() {
   // scheduling/reorder drags can't be initiated at all (writes also 403 server-side).
   const canEdit = useCanEdit();
 
-  // Require 8px of movement before activating a drag so that plain clicks
-  // on scheduled requests don't trigger handleDragEnd and re-schedule them.
-  const pointerSensor = useSensor(PointerSensor, {
+  // Separate mouse + touch sensors so tap-to-open and drag-to-reschedule coexist
+  // on every device. Mouse: 8px of movement before a drag (plain clicks open the
+  // request, never re-schedule it). Touch: a 250ms press-hold before a drag, so a
+  // quick tap falls through to onClick (opens the dialog) while a long-press
+  // starts the drag. A unified PointerSensor can't give mouse and touch different
+  // activation rules, which is why touch taps were being swallowed.
+  const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 8 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 8 },
   });
   // KeyboardSensor makes the row-reorder drag (Spaces) keyboard-operable — that
   // path resolves its target purely from element ids, so it is keyboard-correct.
@@ -95,7 +102,7 @@ export function UtilizationPage() {
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
-  const sensors = useSensors(...(canEdit ? [pointerSensor, keyboardSensor] : []));
+  const sensors = useSensors(...(canEdit ? [mouseSensor, touchSensor, keyboardSensor] : []));
 
   // Scope collision detection to the active drag's intent so a single set of
   // droppables can serve two modes unambiguously: dragging a space-row only
@@ -718,11 +725,15 @@ export function UtilizationPage() {
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
                     nowMs={nowMs}
-                    // Phone: single tap opens the editor (no hover/double-click on
-                    // touch); no resize handles — the grid is view-only there.
+                    // Phone has no hover/double-click, so a single tap opens the
+                    // editor; desktop keeps single-click-selects / double-opens.
+                    // Drag-to-reschedule works on both (mouse-move / touch long-
+                    // press via the sensors above). Precise duration edits happen
+                    // in the dialog's Timing tab — better on touch than 2px handles.
                     onRequestClick={isPhone ? handleRequestDoubleClick : setSelectedRequestId}
                     onRequestDoubleClick={handleRequestDoubleClick}
-                    onRequestResize={isPhone ? undefined : handleResizeRequest}
+                    onRequestResize={handleResizeRequest}
+                    editable={canEdit}
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
