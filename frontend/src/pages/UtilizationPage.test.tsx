@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
@@ -53,6 +53,7 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
 // Mock the store — configurable per test
 let mockStoreOverrides: Record<string, any> = {};
 const mockSetSpaceOrder = vi.fn();
+const mockSetScale = vi.fn();
 const mockSetAnchorTs = vi.fn();
 const mockSetTimeCursorTs = vi.fn();
 const mockSetIsFloorplanCollapsed = vi.fn();
@@ -65,7 +66,7 @@ const buildMockState = (): any => ({
   selectedSiteId: "site-1",
   conflicts: new Map(),
   scale: "month" as const,
-  setScale: vi.fn(),
+  setScale: mockSetScale,
   anchorTs: new Date("2024-01-15"),
   setAnchorTs: mockSetAnchorTs,
   timeCursorTs: new Date(),
@@ -276,7 +277,7 @@ vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
 let capturedOnSlotSelect: ((start: Date, end: Date) => void) | null = null;
 let capturedOnEventClick: ((requestId: string) => void) | null = null;
 let capturedOnEventMove: ((requestId: string, start: Date, end: Date) => void) | null = null;
-let capturedOnDatesSet: ((scale: "day" | "week" | "month", start: Date) => void) | null = null;
+let capturedOnDatesSet: ((start: Date) => void) | null = null;
 vi.mock("@foundation/src/components/utilization/RequestCalendar", () => ({
   RequestCalendar: ({ onSlotSelect, onEventClick, onEventMove, onDatesSet }: any) => {
     capturedOnSlotSelect = onSlotSelect;
@@ -461,6 +462,26 @@ describe("UtilizationPage", () => {
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("nav-today"));
     expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+
+  it("Calendar tab steps by a full period; grid tabs pan by a sub-period", () => {
+    const anchor = new Date("2024-01-15"); // matches the mocked store anchor; scale = month
+
+    const CalWrapper = createWrapper("calendar");
+    const { unmount } = render(<CalWrapper><UtilizationPage /></CalWrapper>);
+    mockSetAnchorTs.mockClear(); // ignore any on-mount snap
+    fireEvent.click(screen.getByTestId("nav-next"));
+    // Calendar pages a whole month (addMonths), not the grid's addWeeks pan.
+    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateCalendarPeriod(anchor, "month", 1));
+    expect(mockSetAnchorTs).not.toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
+    unmount();
+
+    const GridWrapper = createWrapper("space");
+    render(<GridWrapper><UtilizationPage /></GridWrapper>);
+    mockSetAnchorTs.mockClear();
+    fireEvent.click(screen.getByTestId("nav-next"));
+    // Grid pans by the sub-period (addWeeks for month scale).
+    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
   });
 
   // --- Stale-anchor reconcile (frozen default anchor drifts on a long-lived tab) ---
@@ -753,13 +774,15 @@ describe("UtilizationPage", () => {
     );
   });
 
-  it("calendar dates-set syncs the shared scale/anchor window", () => {
+  it("calendar dates-set syncs the shared anchor (scale is page-controlled)", () => {
     const Wrapper = createWrapper("calendar");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     const start = new Date("2026-07-01T00:00:00Z");
-    capturedOnDatesSet!("week", start);
+    capturedOnDatesSet!(start);
     expect(mockSetAnchorTs).toHaveBeenCalledWith(start);
+    // Scale is owned by the page's selector now — the calendar never sets it.
+    expect(mockSetScale).not.toHaveBeenCalled();
   });
 
   it("drag start sets the overlay label and drag cancel clears it", async () => {

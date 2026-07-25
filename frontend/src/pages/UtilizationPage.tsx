@@ -52,7 +52,7 @@ import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
-import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 export function UtilizationPage() {
@@ -347,8 +347,14 @@ export function UtilizationPage() {
     }
   }, [selectedSiteId, horizonStart, horizonEnd, applyMutation, autoSchedulePreview, queryClient]);
 
-  const handlePrevious = () => setAnchorTs(navigateTime(anchorTs, scale, -1));
-  const handleNext = () => setAnchorTs(navigateTime(anchorTs, scale, 1));
+  // The Calendar tab pages by whole periods (one click = one week/month); the
+  // Spaces/People timeline grids pan by a sub-period. Same controls, tab-aware step.
+  const stepAnchor = (direction: 1 | -1) =>
+    activeTab === 'calendar'
+      ? navigateCalendarPeriod(anchorTs, scale, direction)
+      : navigateTime(anchorTs, scale, direction);
+  const handlePrevious = () => setAnchorTs(stepAnchor(-1));
+  const handleNext = () => setAnchorTs(stepAnchor(1));
 
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {
@@ -576,12 +582,14 @@ export function UtilizationPage() {
     setCalendarForm(null);
   }, [calendarForm, queryClient]);
 
-  // Keep the shared store window (scale + anchor) aligned with the calendar's
-  // current view so useScheduledRequests fetches the right range.
-  const handleCalendarDatesSet = useCallback((nextScale: "day" | "week" | "month", activeStart: Date) => {
-    setScale(nextScale);
+  // The calendar is driven by the page's scale selector + date navigator (shared
+  // with the Spaces/People tabs), so scale is page-owned; the calendar only
+  // reports the visible range's start, which we mirror into the anchor so
+  // useScheduledRequests fetches the right window when the view snaps to a
+  // period boundary.
+  const handleCalendarDatesSet = useCallback((activeStart: Date) => {
     setAnchorTs(activeStart);
-  }, [setScale, setAnchorTs]);
+  }, [setAnchorTs]);
 
   const tabs: PageTab[] = [
     { value: 'calendar', label: 'Calendar' },
@@ -589,11 +597,11 @@ export function UtilizationPage() {
     { value: 'people', label: 'People' },
   ];
 
-  // Scale + time navigation (Spaces/People tabs only; the Calendar tab uses
-  // FullCalendar's own toolbar). On desktop/tablet these sit in the header's
-  // actions slot; on phones they'd overlap the title, so they move to their own
-  // row below the tab strip (PageTabs `toolbar`).
-  const schedulingControls = activeTab !== 'calendar' ? (
+  // Scale + time navigation shared across all three tabs (the calendar is
+  // page-controlled — its built-in toolbar is disabled). On desktop/tablet these
+  // sit in the header's actions slot; on phones they'd overlap the title, so they
+  // move to their own row below the tab strip (PageTabs `toolbar`).
+  const schedulingControls = (
     <>
       {autoScheduleAvailable && canEdit && activeTab === 'space' && (
         <AutoScheduleButton
@@ -613,7 +621,7 @@ export function UtilizationPage() {
         compact={isPhone}
       />
     </>
-  ) : null;
+  );
 
   return (
     <PageLayout>
@@ -643,8 +651,9 @@ export function UtilizationPage() {
                 end: schedulingSettings.workingDayEnd,
               } : undefined}
               editable={canEdit}
-              initialView={scaleToCalendarView(scale)}
+              initialView={scaleToCalendarView(scale, { phone: isPhone })}
               initialDate={anchorTs}
+              active={activeTab === 'calendar'}
               onEventClick={handleCalendarEventClick}
               onEventMove={handleCalendarReschedule}
               onEventResize={handleCalendarReschedule}

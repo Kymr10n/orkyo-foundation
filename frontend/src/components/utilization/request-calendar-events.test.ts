@@ -118,7 +118,7 @@ describe("requestsToCalendarEvents", () => {
 });
 
 describe("scale <-> calendar view mapping", () => {
-  it("maps store scales to calendar views", () => {
+  it("maps store scales to grid views (desktop)", () => {
     expect(scaleToCalendarView("day")).toBe("timeGridDay");
     expect(scaleToCalendarView("hour")).toBe("timeGridDay");
     expect(scaleToCalendarView("week")).toBe("timeGridWeek");
@@ -126,11 +126,20 @@ describe("scale <-> calendar view mapping", () => {
     expect(scaleToCalendarView("year")).toBe("dayGridMonth");
   });
 
-  it("maps calendar views back to scales", () => {
+  it("maps store scales to agenda list views on phones", () => {
+    expect(scaleToCalendarView("day", { phone: true })).toBe("listDay");
+    expect(scaleToCalendarView("hour", { phone: true })).toBe("listDay");
+    expect(scaleToCalendarView("week", { phone: true })).toBe("listWeek");
+    expect(scaleToCalendarView("month", { phone: true })).toBe("listMonth");
+    expect(scaleToCalendarView("year", { phone: true })).toBe("listMonth");
+  });
+
+  it("maps calendar views back to scales (grid + list)", () => {
     expect(calendarViewToScale("timeGridDay")).toBe("day");
     expect(calendarViewToScale("timeGridWeek")).toBe("week");
     expect(calendarViewToScale("dayGridMonth")).toBe("month");
-    // Phone agenda view fetches the same window as the week grid.
+    expect(calendarViewToScale("listDay")).toBe("day");
     expect(calendarViewToScale("listWeek")).toBe("week");
+    expect(calendarViewToScale("listMonth")).toBe("month");
   });
 });

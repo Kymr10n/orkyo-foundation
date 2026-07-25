@@ -6,12 +6,17 @@ import { render, screen } from "@testing-library/react";
 // real library (and without a browser layout engine). The stub captures the
 // props FullCalendar would receive so we can invoke its callbacks directly.
 let capturedProps: Record<string, any> = {};
-vi.mock("@fullcalendar/react", () => ({
-  default: (props: any) => {
-    capturedProps = props;
-    return null;
-  },
-}));
+vi.mock("@fullcalendar/react", async () => {
+  const { forwardRef } = await import("react");
+  return {
+    // forwardRef so the component's calendarRef doesn't warn; the ref stays null
+    // (no getApi), so the view/date sync effects are inert under test.
+    default: forwardRef((props: any, _ref: any) => {
+      capturedProps = props;
+      return null;
+    }),
+  };
+});
 vi.mock("@fullcalendar/daygrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/list", () => ({ default: {} }));
@@ -57,6 +62,7 @@ function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCa
       editable
       initialView="timeGridWeek"
       initialDate={new Date("2026-04-17T00:00:00Z")}
+      active
       {...handlers}
       {...overrides}
     />,
@@ -78,22 +84,20 @@ describe("RequestCalendar", () => {
     expect(capturedProps.initialView).toBe("timeGridWeek");
   });
 
-  it("keeps the requested view and full toolbar on desktop", () => {
+  it("is page-controlled: forwards the resolved view and disables FC's toolbar", () => {
+    // The view is resolved upstream (scaleToCalendarView + breakpoint) and passed
+    // in; the component forwards it verbatim and turns off FullCalendar's own
+    // toolbar so the page's scale selector + date navigator are the only controls.
     renderCalendar({ initialView: "dayGridMonth" });
     expect(capturedProps.initialView).toBe("dayGridMonth");
-    expect(capturedProps.headerToolbar.right).toContain("dayGridMonth");
+    expect(capturedProps.headerToolbar).toBe(false);
   });
 
-  it("opens phones on the agenda (listWeek) view with a trimmed toolbar", () => {
+  it("forwards a phone list view unchanged (no in-component remapping)", () => {
     mockIsPhone = true;
-    renderCalendar({ initialView: "dayGridMonth" });
-    // Phone ignores the requested grid view — grids overflow a ~390px screen.
+    renderCalendar({ initialView: "listWeek" });
     expect(capturedProps.initialView).toBe("listWeek");
-    expect(capturedProps.headerToolbar).toEqual({
-      left: "prev,next",
-      center: "title",
-      right: "today",
-    });
+    expect(capturedProps.headerToolbar).toBe(false);
   });
 
   it("localizes date/time formatting to the user's browser locale", () => {
@@ -155,11 +159,17 @@ describe("RequestCalendar", () => {
     expect(onSlotSelect).toHaveBeenCalledWith(start, end);
   });
 
-  it("translates datesSet into a store scale + anchor", () => {
+  it("reports the visible range start on datesSet (anchor sync)", () => {
     const { onDatesSet } = renderCalendar();
     const currentStart = new Date("2026-04-13T00:00:00Z");
     capturedProps.datesSet({ view: { type: "timeGridWeek", currentStart } });
-    expect(onDatesSet).toHaveBeenCalledWith("week", currentStart);
+    expect(onDatesSet).toHaveBeenCalledWith(currentStart);
+  });
+
+  it("stays silent on datesSet while inactive (hidden tab must not touch the anchor)", () => {
+    const { onDatesSet } = renderCalendar({ active: false });
+    capturedProps.datesSet({ view: { type: "timeGridWeek", currentStart: new Date() } });
+    expect(onDatesSet).not.toHaveBeenCalled();
   });
 
   // --- Legend ---
