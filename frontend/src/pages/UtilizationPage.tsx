@@ -600,7 +600,7 @@ export function UtilizationPage() {
   // Scale + time navigation shared across all three tabs (the calendar is
   // page-controlled — its built-in toolbar is disabled). On desktop/tablet these
   // sit in the header's actions slot; on phones they'd overlap the title, so they
-  // move to their own row below the tab strip (PageTabs `toolbar`).
+  // get their own row under the heading (above the tabs; see the render below).
   const schedulingControls = (
     <>
       {autoScheduleAvailable && canEdit && activeTab === 'space' && (
@@ -630,11 +630,16 @@ export function UtilizationPage() {
         description="Schedule space allocations and review people utilization"
         actions={isPhone ? undefined : schedulingControls}
       />
+      {/* Phone: controls can't fit beside the title, so they get their own row
+          under the heading (above the tabs) — mirroring desktop's
+          heading→controls→tabs order. */}
+      {isPhone && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">{schedulingControls}</div>
+      )}
       <PageTabs
         tabs={tabs}
         value={activeTab}
         onChange={handleTabChange}
-        toolbar={isPhone ? schedulingControls : undefined}
       >
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
