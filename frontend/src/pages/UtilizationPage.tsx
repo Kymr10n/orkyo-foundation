@@ -22,7 +22,6 @@ import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule 
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
-import { UtilizationAgenda } from "@foundation/src/components/utilization/UtilizationAgenda";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
@@ -590,38 +589,45 @@ export function UtilizationPage() {
     { value: 'people', label: 'People' },
   ];
 
+  // Scale + time navigation (Spaces/People tabs only; the Calendar tab uses
+  // FullCalendar's own toolbar). On desktop/tablet these sit in the header's
+  // actions slot; on phones they'd overlap the title, so they move to their own
+  // row below the tab strip (PageTabs `toolbar`).
+  const schedulingControls = activeTab !== 'calendar' ? (
+    <>
+      {autoScheduleAvailable && canEdit && activeTab === 'space' && (
+        <AutoScheduleButton
+          onClick={handleAutoScheduleClick}
+          loading={previewMutation.isPending}
+          disabled={!selectedSiteId}
+        />
+      )}
+      <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
+      <TimeNavigator
+        scale={scale}
+        anchorTs={anchorTs}
+        onAnchorChange={setAnchorTs}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        onToday={handleToday}
+        compact={isPhone}
+      />
+    </>
+  ) : null;
+
   return (
     <PageLayout>
       <PageHeader
         title="Utilization"
         description="Schedule space allocations and review people utilization"
-        actions={
-          <>
-            {autoScheduleAvailable && canEdit && activeTab === 'space' && (
-              <AutoScheduleButton
-                onClick={handleAutoScheduleClick}
-                loading={previewMutation.isPending}
-                disabled={!selectedSiteId}
-              />
-            )}
-            {/* Calendar uses FullCalendar's own toolbar. */}
-            {activeTab !== 'calendar' && (
-              <>
-                <ScaleSelect value={scale} onChange={setScale} />
-                <TimeNavigator
-                  scale={scale}
-                  anchorTs={anchorTs}
-                  onAnchorChange={setAnchorTs}
-                  onPrevious={handlePrevious}
-                  onNext={handleNext}
-                  onToday={handleToday}
-                />
-              </>
-            )}
-          </>
-        }
+        actions={isPhone ? undefined : schedulingControls}
       />
-      <PageTabs tabs={tabs} value={activeTab} onChange={handleTabChange}>
+      <PageTabs
+        tabs={tabs}
+        value={activeTab}
+        onChange={handleTabChange}
+        toolbar={isPhone ? schedulingControls : undefined}
+      >
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
 
@@ -649,13 +655,10 @@ export function UtilizationPage() {
         </TabsContent>
 
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          {isPhone ? (
-            // Phone: drag-free agenda over the same scheduled data; the heavy
-            // DnD grid and floorplan canvas are desktop/tablet only.
-            <div className="h-full overflow-hidden">
-              <UtilizationAgenda requests={scheduled} onOpen={openRequestEditor} />
-            </div>
-          ) : (
+          {/* One DndContext across breakpoints — the grid's TimelineGridShell uses
+              dnd-kit SortableContext/useSortable and must have a context ancestor
+              even on phone. Phones drop the heavy floorplan canvas + backlog panel
+              and get a scroll-only, tap-to-open, drag-free grid. */}
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
@@ -664,26 +667,30 @@ export function UtilizationPage() {
             collisionDetection={collisionDetection}
           >
             <div className="h-full flex flex-col overflow-hidden gap-3">
-              {/* Collapsible Floorplan */}
-              <CollapsibleFloorplan
-                isCollapsed={isFloorplanCollapsed}
-                onToggle={() => setIsFloorplanCollapsed(!isFloorplanCollapsed)}
-                timeCursorTs={timeCursorTs}
-                requests={requests}
-                conflicts={conflictingRequestIds}
-                height={floorplanHeight}
-                onHeightChange={setFloorplanHeight}
-              />
-
-              {/* Scheduler + Requests Panel */}
-              <div className="flex-1 flex overflow-hidden rounded-xl border bg-background">
-                <RequestsPanel
+              {/* Collapsible Floorplan — desktop/tablet only */}
+              {!isPhone && (
+                <CollapsibleFloorplan
+                  isCollapsed={isFloorplanCollapsed}
+                  onToggle={() => setIsFloorplanCollapsed(!isFloorplanCollapsed)}
+                  timeCursorTs={timeCursorTs}
                   requests={requests}
-                  isLoading={requestsLoading}
-                  onCreateChild={canEdit ? handleCreateChild : undefined}
-                  onRequestClick={openRequestEditor}
-                  onScheduleTo={canEdit ? setScheduleToRequest : undefined}
+                  conflicts={conflictingRequestIds}
+                  height={floorplanHeight}
+                  onHeightChange={setFloorplanHeight}
                 />
+              )}
+
+              {/* Scheduler + Requests Panel (backlog panel is desktop/tablet only) */}
+              <div className="flex-1 flex overflow-hidden rounded-xl border bg-background">
+                {!isPhone && (
+                  <RequestsPanel
+                    requests={requests}
+                    isLoading={requestsLoading}
+                    onCreateChild={canEdit ? handleCreateChild : undefined}
+                    onRequestClick={openRequestEditor}
+                    onScheduleTo={canEdit ? setScheduleToRequest : undefined}
+                  />
+                )}
 
                 {spacesLoading || requestsLoading ? (
                   <div className="flex-1">
@@ -697,9 +704,11 @@ export function UtilizationPage() {
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
                     nowMs={nowMs}
-                    onRequestClick={setSelectedRequestId}
+                    // Phone: single tap opens the editor (no hover/double-click on
+                    // touch); no resize handles — the grid is view-only there.
+                    onRequestClick={isPhone ? handleRequestDoubleClick : setSelectedRequestId}
                     onRequestDoubleClick={handleRequestDoubleClick}
-                    onRequestResize={handleResizeRequest}
+                    onRequestResize={isPhone ? undefined : handleResizeRequest}
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
@@ -724,7 +733,6 @@ export function UtilizationPage() {
               ) : null}
             </DragOverlay>
           </DndContext>
-          )}
         </TabsContent>
 
         {/* People tab */}

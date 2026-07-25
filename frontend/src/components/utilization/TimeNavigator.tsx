@@ -17,6 +17,8 @@ interface TimeNavigatorProps {
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
+  /** Phone: shrink buttons + drop the fixed-width date field so the row fits one line. */
+  compact?: boolean;
 }
 
 export function TimeNavigator({
@@ -26,6 +28,7 @@ export function TimeNavigator({
   onPrevious,
   onNext,
   onToday,
+  compact = false,
 }: TimeNavigatorProps) {
   const formatAnchor = () => {
     // Locale-aware (date ordering + 12h/24h per the user's settings) — see formatLocalized.
@@ -63,10 +66,10 @@ export function TimeNavigator({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn("flex items-center", compact ? "gap-1" : "gap-2")}>
       <Button
         variant="outline"
-        size="icon"
+        size={compact ? "icon-sm" : "icon"}
         onClick={onPrevious}
         title={`Previous ${scale}`}
         aria-label={`Previous ${scale}`}
@@ -75,7 +78,12 @@ export function TimeNavigator({
       </Button>
 
       <div className="flex items-center gap-1">
-        <Button variant="outline" onClick={onToday}>
+        <Button
+          variant="outline"
+          size={compact ? "sm" : "default"}
+          className={cn(compact && "h-8 px-2 text-xs")}
+          onClick={onToday}
+        >
           {scale === "hour" ? "Now" : "Today"}
         </Button>
 
@@ -83,11 +91,13 @@ export function TimeNavigator({
           <PopoverTrigger asChild>
             <Button
               variant="outline"
+              size={compact ? "sm" : "default"}
               className={cn(
-                "min-w-[200px] justify-start text-left font-normal",
+                "justify-start text-left font-normal",
+                compact ? "h-8 min-w-0 px-2 text-xs" : "min-w-[200px]",
               )}
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
+              {!compact && <CalendarIcon className="mr-2 h-4 w-4" />}
               {formatAnchor()}
             </Button>
           </PopoverTrigger>
@@ -104,7 +114,7 @@ export function TimeNavigator({
 
       <Button
         variant="outline"
-        size="icon"
+        size={compact ? "icon-sm" : "icon"}
         onClick={onNext}
         title={`Next ${scale}`}
         aria-label={`Next ${scale}`}

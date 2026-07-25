@@ -98,4 +98,19 @@ describe('TimeNavigator', () => {
     renderNavigator();
     expect(screen.getByRole('button', { name: /Mar 15, 2026/i })).toBeInTheDocument();
   });
+
+  it('compact mode keeps behavior and drops the calendar glyph', () => {
+    const { container } = renderNavigator({ compact: true });
+    // Date button shows only the text (no leading calendar icon) to save width.
+    const dateButton = screen.getByRole('button', { name: /Mar 15, 2026/i });
+    expect(dateButton.querySelector('svg')).toBeNull();
+    // Prev/next still carry their icons and fire their handlers.
+    fireEvent.click(screen.getByTitle('Previous week'));
+    fireEvent.click(screen.getByTitle('Next week'));
+    fireEvent.click(screen.getByText('Today'));
+    expect(defaultProps.onPrevious).toHaveBeenCalled();
+    expect(defaultProps.onNext).toHaveBeenCalled();
+    expect(defaultProps.onToday).toHaveBeenCalled();
+    expect(container.querySelectorAll('svg').length).toBeGreaterThan(0);
+  });
 });

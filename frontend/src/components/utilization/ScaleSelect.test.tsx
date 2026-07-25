@@ -32,4 +32,12 @@ describe('ScaleSelect', () => {
     fireEvent.click(screen.getByText('Month'));
     expect(defaultProps.onChange).toHaveBeenCalledWith('month');
   });
+
+  it('still works in compact mode', () => {
+    render(<ScaleSelect {...defaultProps} compact />);
+    expect(screen.getByText('Week')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click(screen.getByText('Day'));
+    expect(defaultProps.onChange).toHaveBeenCalledWith('day');
+  });
 });

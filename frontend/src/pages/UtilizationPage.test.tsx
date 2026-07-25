@@ -19,6 +19,17 @@ let capturedExportHandler: ((format: string) => Promise<void>) | null = null;
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: null }));
 const mockUseAvailabilityEvents = vi.fn((_?: any): any => ({ data: [] }));
 
+// Breakpoint — default desktop; flip per-test to exercise the phone Spaces layout.
+let mockIsPhone = false;
+vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
+  useBreakpoint: () => ({
+    isPhone: mockIsPhone,
+    isTablet: false,
+    isDesktop: !mockIsPhone,
+    device: mockIsPhone ? "phone" : "desktop",
+  }),
+}));
+
 // Mock AuthContext — default: admin
 let mockRole = "admin";
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
@@ -307,6 +318,7 @@ describe("UtilizationPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRole = "admin";
+    mockIsPhone = false;
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);
     mockUseRequests.mockReturnValue({ data: [], isLoading: false });
@@ -369,6 +381,20 @@ describe("UtilizationPage", () => {
 
     expect(screen.getByTestId("collapsible-floorplan")).toBeInTheDocument();
     expect(screen.getByTestId("requests-panel")).toBeInTheDocument();
+  });
+
+  it("on phones shows the Spaces grid without the floorplan or backlog panel", () => {
+    mockIsPhone = true;
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    // Grid stays; the heavy floorplan canvas + backlog side panel are dropped.
+    expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("collapsible-floorplan")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("requests-panel")).not.toBeInTheDocument();
+    // Scale/nav controls remain reachable (relocated below the tabs).
+    expect(screen.getByTestId("scale-select")).toBeInTheDocument();
+    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
   });
 
   it("shows Auto-Schedule button when available and user is admin", () => {
