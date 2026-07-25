@@ -627,7 +627,7 @@ export function UtilizationPage() {
 
         {/* Calendar tab — Outlook-style time view of scheduled requests */}
         <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <div className="h-full rounded-xl border bg-background p-3">
+          <div className="h-full rounded-xl border bg-background p-2 md:p-3">
             <RequestCalendar
               events={calendarEvents}
               offTimeRanges={offTimeRanges}

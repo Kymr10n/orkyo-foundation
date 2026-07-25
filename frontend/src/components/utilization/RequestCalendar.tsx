@@ -3,6 +3,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
+import listPlugin from "@fullcalendar/list";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
 import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
@@ -71,15 +72,16 @@ export function RequestCalendar({
   onSlotSelect,
   onDatesSet,
 }: RequestCalendarProps) {
-  const plugins = useMemo(() => [dayGridPlugin, timeGridPlugin, interactionPlugin], []);
+  const plugins = useMemo(() => [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin], []);
 
-  // Phone tuning: the time-grid views (Day/Week) render an hour axis + wide day
-  // columns that overflow a ~390px screen, so phones open on a compressed month
-  // grid and get a trimmed prev/next/today toolbar (no view switcher). Tablet and
-  // desktop keep the full Outlook-style toolbar and all views. The @fullcalendar/list
-  // pack isn't a dependency, so dayGridMonth is the phone view (not listWeek).
+  // Phone tuning: every grid view (time-grid Day/Week's hour axis + wide columns,
+  // and the month grid's tiny cells with overlapping event bars) overflows a
+  // ~390px screen. Phones instead open on an agenda-style week list — full-width,
+  // readable rows with no horizontal overflow — and get a trimmed prev/next/today
+  // toolbar (no view switcher). Tablet and desktop keep the full Outlook-style
+  // toolbar and all views.
   const { isPhone } = useBreakpoint();
-  const effectiveInitialView: CalendarView = isPhone ? "dayGridMonth" : initialView;
+  const effectiveInitialView: string = isPhone ? "listWeek" : initialView;
   const headerToolbar = isPhone
     ? { left: "prev,next", center: "title", right: "today" }
     : {
@@ -142,16 +144,21 @@ export function RequestCalendar({
   };
 
   return (
-    <div className="orkyo-calendar flex flex-col h-full">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
-        <LegendItem className="bg-blue-500/15 dark:bg-blue-500/25 border-blue-500/40" label="New" />
-        <LegendItem className="bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/40" label="In Progress" />
-        <LegendItem className="bg-emerald-500/15 dark:bg-emerald-500/25 border-emerald-500/40" label="Done" />
-        <LegendItem className="bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40" label="Deferred" />
-        <LegendItem className="bg-muted border-muted-foreground/30" label="Canceled" />
-        <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
-        <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
-      </div>
+    <div className={cn("orkyo-calendar flex flex-col h-full", isPhone && "orkyo-calendar--phone")}>
+      {/* Legend is hidden on phones: the list (agenda) view conveys status via
+          each row's background tint, so the 7-item key (which wraps to ~3 rows on
+          a narrow screen) is redundant there. Desktop/tablet keep it. */}
+      {!isPhone && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
+          <LegendItem className="bg-blue-500/15 dark:bg-blue-500/25 border-blue-500/40" label="New" />
+          <LegendItem className="bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/40" label="In Progress" />
+          <LegendItem className="bg-emerald-500/15 dark:bg-emerald-500/25 border-emerald-500/40" label="Done" />
+          <LegendItem className="bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40" label="Deferred" />
+          <LegendItem className="bg-muted border-muted-foreground/30" label="Canceled" />
+          <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
+          <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
+        </div>
+      )}
       <div className="flex-1 min-h-0">
       <FullCalendar
         plugins={plugins}
@@ -191,6 +198,11 @@ export function RequestCalendar({
         select={handleSelect}
         datesSet={handleDatesSet}
         eventContent={(arg) => {
+          // List (agenda) views — phone only — render FullCalendar's native row
+          // (time column + colored dot + full, wrapping title). The compact
+          // truncated layout below is tuned for narrow grid cells and would clip
+          // titles in a full-width list; returning true keeps the default row.
+          if (arg.view?.type?.startsWith("list")) return true;
           const severity = arg.event.extendedProps?.conflictSeverity as ConflictSeverity | undefined;
           const presentation = severity ? severityPresentation(severity) : null;
           return (

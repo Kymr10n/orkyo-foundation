@@ -157,6 +157,7 @@ export function calendarViewToScale(view: string): "day" | "week" | "month" {
     case "timeGridDay":
       return "day";
     case "timeGridWeek":
+    case "listWeek":
       return "week";
     default:
       return "month";

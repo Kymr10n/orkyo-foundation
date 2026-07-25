@@ -130,5 +130,7 @@ describe("scale <-> calendar view mapping", () => {
     expect(calendarViewToScale("timeGridDay")).toBe("day");
     expect(calendarViewToScale("timeGridWeek")).toBe("week");
     expect(calendarViewToScale("dayGridMonth")).toBe("month");
+    // Phone agenda view fetches the same window as the week grid.
+    expect(calendarViewToScale("listWeek")).toBe("week");
   });
 });

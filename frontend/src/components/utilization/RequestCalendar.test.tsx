@@ -14,8 +14,21 @@ vi.mock("@fullcalendar/react", () => ({
 }));
 vi.mock("@fullcalendar/daygrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
+vi.mock("@fullcalendar/list", () => ({ default: {} }));
 vi.mock("@fullcalendar/interaction", () => ({ default: {} }));
 vi.mock("./request-calendar.css", () => ({}));
+
+// Breakpoint is mocked so phone vs desktop view selection is deterministic
+// (the real hook reads matchMedia). Defaults to desktop; flip per-test.
+let mockIsPhone = false;
+vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
+  useBreakpoint: () => ({
+    isPhone: mockIsPhone,
+    isTablet: false,
+    isDesktop: !mockIsPhone,
+    device: mockIsPhone ? "phone" : "desktop",
+  }),
+}));
 
 import { RequestCalendar } from "./RequestCalendar";
 import type { CalendarEvent } from "./request-calendar-events";
@@ -53,6 +66,7 @@ function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCa
 
 beforeEach(() => {
   capturedProps = {};
+  mockIsPhone = false;
 });
 
 describe("RequestCalendar", () => {
@@ -62,6 +76,24 @@ describe("RequestCalendar", () => {
     expect(capturedProps.editable).toBe(true);
     expect(capturedProps.selectable).toBe(true);
     expect(capturedProps.initialView).toBe("timeGridWeek");
+  });
+
+  it("keeps the requested view and full toolbar on desktop", () => {
+    renderCalendar({ initialView: "dayGridMonth" });
+    expect(capturedProps.initialView).toBe("dayGridMonth");
+    expect(capturedProps.headerToolbar.right).toContain("dayGridMonth");
+  });
+
+  it("opens phones on the agenda (listWeek) view with a trimmed toolbar", () => {
+    mockIsPhone = true;
+    renderCalendar({ initialView: "dayGridMonth" });
+    // Phone ignores the requested grid view — grids overflow a ~390px screen.
+    expect(capturedProps.initialView).toBe("listWeek");
+    expect(capturedProps.headerToolbar).toEqual({
+      left: "prev,next",
+      center: "title",
+      right: "today",
+    });
   });
 
   it("localizes date/time formatting to the user's browser locale", () => {
@@ -142,6 +174,14 @@ describe("RequestCalendar", () => {
     expect(screen.getByText("Warnings")).toBeInTheDocument();
   });
 
+  it("hides the legend on phones (row tint conveys status in the list view)", () => {
+    mockIsPhone = true;
+    renderCalendar();
+    expect(screen.queryByText("New")).toBeNull();
+    expect(screen.queryByText("Conflicts")).toBeNull();
+    expect(screen.queryByText("Warnings")).toBeNull();
+  });
+
   // --- eventContent ---
 
   it("passes eventContent to FullCalendar", () => {
@@ -180,5 +220,16 @@ describe("RequestCalendar", () => {
     );
     expect(container.querySelector("svg")).toBeNull();
     expect(container.textContent).toContain("Fine Task");
+  });
+
+  it("eventContent defers to FullCalendar's native row in list (agenda) views", () => {
+    renderCalendar();
+    // Returning true tells FullCalendar to render its default list row (time
+    // column + full title) instead of the compact grid-cell layout.
+    const result = capturedProps.eventContent({
+      view: { type: "listWeek" },
+      event: { title: "Agenda Task", start: new Date(2026, 3, 17, 9, 0), extendedProps: { conflictSeverity: "error" } },
+    });
+    expect(result).toBe(true);
   });
 });

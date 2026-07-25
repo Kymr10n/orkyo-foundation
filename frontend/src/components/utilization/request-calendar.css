@@ -139,3 +139,66 @@
 .orkyo-calendar .orkyo-cal-event .fc-event-main {
   color: inherit;
 }
+
+/* ── Agenda (list) view — phone only ──────────────────────────────────────
+   Phones swap the month/time grids for listWeek: full-width, readable rows
+   with no horizontal overflow. Status colour rides in on the event's utility
+   classNames (bg tint + border, same as the grid blocks) applied to the <tr>.
+   FullCalendar's separate status dot derives from FC's event border, which we
+   set transparent, so it renders empty — hide it and let the row tint carry
+   status. */
+.orkyo-calendar {
+  --fc-list-event-hover-bg-color: hsl(var(--muted) / 0.5);
+}
+
+.orkyo-calendar .fc .fc-list-event-graphic {
+  display: none;
+}
+
+/* Day section header — align with the grid column-header cushions. */
+.orkyo-calendar .fc .fc-list-day-cushion {
+  background-color: hsl(var(--muted));
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Comfortable tap targets on each event row. */
+.orkyo-calendar .fc .fc-list-event > td {
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+}
+
+/* The status classNames land on the <tr>; the .orkyo-cal-event grid-block box
+   (border + radius + cell padding) is meaningless on a table row — neutralise
+   it so only the background tint remains. */
+.orkyo-calendar .fc-list-event.orkyo-cal-event {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* Empty-state ("no events this week") — muted, centered by FC; just tone it. */
+.orkyo-calendar .fc .fc-list-empty {
+  background-color: transparent;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ── Phone toolbar density ─────────────────────────────────────────────────
+   Applied via the .orkyo-calendar--phone modifier (set from useBreakpoint) so
+   the compaction is breakpoint-token-driven, not a raw media-query width. The
+   default toolbar buttons + 1.5em bottom margin push the agenda list well down
+   a ~390px screen; shrink them so prev/next · title · today fit one tight row. */
+.orkyo-calendar--phone .fc .fc-header-toolbar {
+  margin-bottom: 0.5rem;
+  gap: 0.25rem 0.5rem;
+}
+
+.orkyo-calendar--phone .fc .fc-toolbar-title {
+  font-size: 0.9rem;
+}
+
+.orkyo-calendar--phone .fc .fc-button {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
