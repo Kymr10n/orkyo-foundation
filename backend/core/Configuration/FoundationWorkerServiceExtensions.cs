@@ -25,6 +25,9 @@ public static class FoundationWorkerServiceExtensions
         services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>();
         // Org connections resolve through whichever IDbConnectionFactory the product registered.
         services.AddSingleton<IOrgDbConnectionFactory>(sp => sp.GetRequiredService<IDbConnectionFactory>());
+        // Cross-instance, restart-safe scheduling guard for the worker loops (journal +
+        // per-job advisory lock). Both editions consume it so the semantics stay identical.
+        services.AddSingleton<IWorkerJobCoordinator, WorkerJobCoordinator>();
         // The worker runs outside any tenant context, so branding falls back to defaults.
         services.AddSingleton<ITenantSettingsService, WorkerTenantSettingsService>();
         services.AddSingleton<IEmailService, EmailService>();
