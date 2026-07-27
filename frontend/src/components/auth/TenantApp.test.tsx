@@ -53,6 +53,9 @@ vi.mock("@foundation/src/components/layout/ThemeToggle", () => ({
 vi.mock("@foundation/src/pages/TenantSuspendedPage", () => ({
   TenantSuspendedPage: () => <div data-testid="tenant-suspended-page">Suspended</div>,
 }));
+vi.mock("@foundation/src/pages/TenantNoAccessPage", () => ({
+  TenantNoAccessPage: () => <div data-testid="tenant-no-access-page">No access</div>,
+}));
 
 // ── Mock RequireAuth — pass through children ────────────────────────────
 
@@ -187,19 +190,6 @@ describe("TenantApp", () => {
     expect(screen.getByTestId("tenant-suspended-page")).toBeInTheDocument();
   });
 
-  it("does not render TenantSuspendedPage when selecting_tenant without suspended membership", () => {
-    mockUseAuth.mockReturnValue(
-      authState({
-        authStage: AUTH_STAGES.SELECTING_TENANT,
-        membership: null,
-      }),
-    );
-
-    renderAt("/");
-
-    expect(screen.queryByTestId("tenant-suspended-page")).not.toBeInTheDocument();
-  });
-
   it("does not render TenantSuspendedPage when selecting_tenant with active membership", () => {
     mockUseAuth.mockReturnValue(
       authState({
@@ -214,5 +204,46 @@ describe("TenantApp", () => {
     renderAt("/");
 
     expect(screen.queryByTestId("tenant-suspended-page")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tenant-no-access-page")).not.toBeInTheDocument();
+  });
+
+  // ── #102: non-member on a tenant subdomain ──────────────────────────────
+  // These stages must NOT reach the route tree: RequireAuth would render
+  // "Redirecting to sign in…" and send UNAUTHORIZED into a state that (before
+  // the machine fix) ignored it — a permanent spinner.
+
+  it("renders TenantNoAccessPage when selecting_tenant without any membership", () => {
+    mockUseAuth.mockReturnValue(
+      authState({
+        authStage: AUTH_STAGES.SELECTING_TENANT,
+        membership: null,
+      }),
+    );
+
+    renderAt("/about");
+
+    expect(screen.getByTestId("tenant-no-access-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("tenant-suspended-page")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("about-page")).not.toBeInTheDocument();
+  });
+
+  it("renders TenantNoAccessPage when the user has no tenants at all", () => {
+    mockUseAuth.mockReturnValue(
+      authState({ authStage: AUTH_STAGES.NO_TENANTS, membership: null }),
+    );
+
+    renderAt("/");
+
+    expect(screen.getByTestId("tenant-no-access-page")).toBeInTheDocument();
+  });
+
+  it("renders TenantNoAccessPage for a site admin with no tenants", () => {
+    mockUseAuth.mockReturnValue(
+      authState({ authStage: AUTH_STAGES.NO_TENANTS_ADMIN, membership: null }),
+    );
+
+    renderAt("/");
+
+    expect(screen.getByTestId("tenant-no-access-page")).toBeInTheDocument();
   });
 });
