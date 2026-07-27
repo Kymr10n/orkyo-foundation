@@ -30,7 +30,8 @@ public interface ITenantRegistry
 /// <summary>
 /// Description of a single tenant database the runner should target.
 /// </summary>
-/// <param name="Id">Stable tenant identifier (typically a UUID). Used in lock keys and logs.</param>
+/// <param name="Id">Stable tenant identifier (typically a UUID). Used in logs. (The migration
+/// advisory lock keys on the database name, matching TenantProvisioningService.)</param>
 /// <param name="Slug">Human-meaningful slug for CLI filtering (e.g. <c>--tenant-slug demo</c>).</param>
 /// <param name="ConnectionString">
 /// Open-able connection string for the tenant database. The product implementation is

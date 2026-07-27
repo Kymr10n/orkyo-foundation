@@ -44,4 +44,27 @@ public class TenantConnectionStringHelperTests
 
         new NpgsqlConnectionStringBuilder(tenantConnection).MinPoolSize.Should().Be(0);
     }
+
+    [Fact]
+    public void BuildTenantDatabaseConnectionString_ShouldCapMaxPoolSize()
+    {
+        // Npgsql pools per tenant database; without a cap each tenant defaults to 100, so a
+        // handful of tenants can exhaust the shared Postgres max_connections.
+        const string controlPlane = "Host=localhost;Database=control_plane;Username=postgres;Password=postgres";
+
+        var tenantConnection = TenantConnectionStringHelper.BuildTenantDatabaseConnectionString(controlPlane, "tenant_acme");
+
+        new NpgsqlConnectionStringBuilder(tenantConnection).MaxPoolSize
+            .Should().Be(TenantConnectionStringHelper.DefaultMaxPoolSize);
+    }
+
+    [Fact]
+    public void BuildTenantDatabaseConnectionString_ShouldHonorExplicitMaxPoolSize()
+    {
+        const string controlPlane = "Host=localhost;Database=control_plane;Username=postgres;Password=postgres";
+
+        var tenantConnection = TenantConnectionStringHelper.BuildTenantDatabaseConnectionString(controlPlane, "tenant_acme", maxPoolSize: 25);
+
+        new NpgsqlConnectionStringBuilder(tenantConnection).MaxPoolSize.Should().Be(25);
+    }
 }
