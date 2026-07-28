@@ -168,7 +168,7 @@ describe('api-utils', () => {
       const response = {
         status: 500,
         statusText: 'Internal Server Error',
-        json: async () => ({ error: 'Database connection failed' }),
+        json: async () => ({ detail: 'Database connection failed' }),
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
@@ -199,7 +199,7 @@ describe('api-utils', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers(),
-        json: async () => ({ error: 'Token expired' }),
+        json: async () => ({ detail: 'Token expired' }),
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
@@ -224,7 +224,7 @@ describe('api-utils', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers(),
-        json: async () => ({ error: 'API key is required' }),
+        json: async () => ({ detail: 'API key is required' }),
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
@@ -246,7 +246,7 @@ describe('api-utils', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers(),
-        json: async () => ({ error: 'Invalid API key' }),
+        json: async () => ({ detail: 'Invalid API key' }),
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
@@ -256,15 +256,44 @@ describe('api-utils', () => {
       expect(localStorage.getItem('active_membership')).toBeNull();
     });
 
-    it('extracts message from different error formats', async () => {
+    it('prefers RFC 7807 detail over the generic title', async () => {
       const response = {
         status: 400,
         statusText: 'Bad Request',
-        json: async () => ({ message: 'Validation failed' }),
+        json: async () => ({ title: 'Bad Request', detail: 'Validation failed' }),
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
         'API Error (400): Validation failed'
+      );
+    });
+
+    it('falls back to title when the problem carries no detail', async () => {
+      const response = {
+        status: 409,
+        statusText: 'Conflict',
+        json: async () => ({ title: 'Conflict', code: 'conflict' }),
+      } as Response;
+
+      await expect(handleApiError(response)).rejects.toThrow('API Error (409): Conflict');
+    });
+
+    it('surfaces field-level validation messages instead of the generic detail', async () => {
+      // The backend's validation problem carries a generic detail plus per-field messages;
+      // showing the user "One or more fields failed validation." tells them nothing.
+      const response = {
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => ({
+          title: 'Bad Request',
+          detail: 'One or more fields failed validation.',
+          code: 'validation_error',
+          errors: { Name: ['Name must not be empty.'], EndUtc: ['EndUtc must be after StartUtc'] },
+        }),
+      } as Response;
+
+      await expect(handleApiError(response)).rejects.toThrow(
+        'API Error (400): Name must not be empty. EndUtc must be after StartUtc'
       );
     });
 
@@ -276,7 +305,7 @@ describe('api-utils', () => {
         status: 403,
         statusText: 'Forbidden',
         json: async () => ({
-          error: 'Break-glass session ended',
+          detail: 'Break-glass session ended',
           code: 'break_glass_expired',
           returnTo: '/site-admin',
         }),
@@ -299,7 +328,7 @@ describe('api-utils', () => {
         status: 410,
         statusText: 'Gone',
         json: async () => ({
-          error: 'Hard cap reached',
+          detail: 'Hard cap reached',
           code: 'break_glass_hard_cap_reached',
           returnTo: '/site-admin',
         }),
@@ -317,7 +346,7 @@ describe('api-utils', () => {
         status: 404,
         statusText: 'Not Found',
         json: async () => ({
-          error: 'Session expired',
+          detail: 'Session expired',
           code: 'break_glass_expired',
         }),
       } as unknown as Response;

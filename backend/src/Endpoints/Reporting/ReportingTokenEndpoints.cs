@@ -68,7 +68,10 @@ public static class ReportingTokenEndpoints
         // The name/expiry shape guards live in CreateReportingTokenRequestValidator; the
         // entitlement check above stays here because it is authorization, not shape.
         var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid) return Results.ValidationProblem(shape.ToDictionary());
+        if (!shape.IsValid)
+            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
+                Api.Constants.ErrorCodes.ValidationError,
+                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
 
         var created = await tokenService.CreateAsync(
             tenant.TenantId,

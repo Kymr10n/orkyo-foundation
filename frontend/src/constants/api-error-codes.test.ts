@@ -23,19 +23,35 @@ describe("API_ERROR_CODES", () => {
 });
 
 describe("ApiErrorBody", () => {
-  it("accepts a valid error body shape", () => {
+  // Mirrors the backend's OrkyoProblemDetails: RFC 7807 plus the extensions the frontend
+  // switches on. The pre-#96 `{error, message}` fields are gone, not aliased.
+  it("accepts a full problem body", () => {
     const body: ApiErrorBody = {
-      error: "session_expired",
-      message: "Your session has expired",
+      type: "https://orkyo.app/problems/session_expired",
+      title: "Unauthorized",
+      detail: "Your session has expired",
+      status: 401,
       code: API_ERROR_CODES.SESSION_EXPIRED,
       returnTo: "/site-admin",
     };
     expect(body.code).toBe("session_expired");
+    expect(body.detail).toBe("Your session has expired");
     expect(body.returnTo).toBe("/site-admin");
+  });
+
+  it("accepts a validation problem carrying per-field errors", () => {
+    const body: ApiErrorBody = {
+      title: "Bad Request",
+      detail: "One or more fields failed validation.",
+      status: 400,
+      code: "validation_error",
+      errors: { Name: ["Name must not be empty."] },
+    };
+    expect(body.errors?.Name).toEqual(["Name must not be empty."]);
   });
 
   it("accepts a minimal error body", () => {
     const body: ApiErrorBody = {};
-    expect(body.error).toBeUndefined();
+    expect(body.detail).toBeUndefined();
   });
 });

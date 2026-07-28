@@ -23,7 +23,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("error").GetString().Should().Contain("Auto-Schedule");
+        body.GetProperty("detail").GetString().Should().Contain("Auto-Schedule");
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class AppExceptionHandlerTests
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         var body = await ReadJsonAsync(ctx);
         body.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
-        body.GetProperty("error").GetString().Should().Be("kc missing");
+        body.GetProperty("detail").GetString().Should().Be("kc missing");
     }
 
     [Fact]

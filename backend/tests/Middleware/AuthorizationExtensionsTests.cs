@@ -25,7 +25,7 @@ public class AuthorizationExtensionsTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
         payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.SessionExpired);
-        payload.GetProperty("error").GetString().Should().Be("Not authenticated");
+        payload.GetProperty("detail").GetString().Should().Be("Not authenticated");
     }
 
     [Fact]

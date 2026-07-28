@@ -15,6 +15,19 @@ namespace Api.Helpers;
 public static class EndpointHelpers
 {
     /// <summary>
+    /// The single rendering of a FluentValidation failure: the canonical problem body with the
+    /// per-field messages in <c>errors</c>. Framework <c>Results.ValidationProblem</c> emits a
+    /// ProblemDetails without our <c>code</c> extension, which would leave the frontend unable to
+    /// switch on it — the whole reason #96 consolidated the shapes.
+    /// </summary>
+    private static IResult ValidationFailed(FluentValidation.Results.ValidationResult result)
+        => ProblemResults.Problem(
+            StatusCodes.Status400BadRequest,
+            Api.Constants.ErrorCodes.ValidationError,
+            detail: "One or more fields failed validation.",
+            errors: result.ToDictionary());
+
+    /// <summary>
     /// Return <c>200 OK</c> with <paramref name="value"/>, or a standard <c>404 Not Found</c>
     /// (via <see cref="ErrorResponses.NotFound(string, Guid?)"/>) when it is null. Replaces the
     /// repeated <c>value is null ? ErrorResponses.NotFound(...) : Results.Ok(value)</c> ternary.
@@ -44,7 +57,7 @@ public static class EndpointHelpers
                 validationResult.Errors.Count,
                 string.Join(", ", validationResult.Errors.Select(e => e.PropertyName).Distinct()),
                 context);
-            return Results.ValidationProblem(validationResult.ToDictionary());
+            return ValidationFailed(validationResult);
         }
 
         return await handler();
@@ -62,7 +75,7 @@ public static class EndpointHelpers
     {
         var validationResult = await validator.ValidateAsync(request);
         if (!validationResult.IsValid)
-            return Results.ValidationProblem(validationResult.ToDictionary());
+            return ValidationFailed(validationResult);
 
         var result = await handler();
         return Results.Ok(result);
@@ -80,7 +93,7 @@ public static class EndpointHelpers
     {
         var validationResult = await validator.ValidateAsync(request);
         if (!validationResult.IsValid)
-            return Results.ValidationProblem(validationResult.ToDictionary());
+            return ValidationFailed(validationResult);
 
         return await handler();
     }

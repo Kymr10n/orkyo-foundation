@@ -90,7 +90,7 @@ describe('SignupPage', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        json: () => Promise.resolve({ error: 'Invitation expired' }),
+        json: () => Promise.resolve({ detail: 'Invitation expired' }),
         content: { readAsStringAsync: () => Promise.resolve('') },
       }),
     ));
@@ -220,7 +220,7 @@ describe('SignupPage', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        json: () => Promise.resolve({ error: 'Invitation expired' }),
+        json: () => Promise.resolve({ detail: 'Invitation expired' }),
         content: { readAsStringAsync: () => Promise.resolve('') },
       }),
     ));

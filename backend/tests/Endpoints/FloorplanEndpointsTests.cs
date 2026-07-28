@@ -101,7 +101,7 @@ public class FloorplanEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Contain("No file");
+        body.GetProperty("detail").GetString().Should().Contain("No file");
     }
 
     [Fact]

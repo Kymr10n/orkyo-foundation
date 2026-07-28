@@ -1,4 +1,6 @@
 using Api.Configuration;
+using Api.Constants;
+using Api.Helpers;
 using Api.Security;
 using Microsoft.Extensions.Options;
 
@@ -55,8 +57,15 @@ public sealed class CsrfMiddleware
         {
             _logger.LogWarning("CSRF validation failed for {Method} {Path}", context.Request.Method, context.Request.Path);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new { error = "CSRF token mismatch" });
+            context.Response.ContentType = "application/problem+json";
+            await context.Response.WriteAsJsonAsync(new OrkyoProblemDetails
+            {
+                Type = OrkyoProblemDetails.TypeFor(ApiErrorCodes.CsrfTokenMismatch),
+                Title = "Forbidden",
+                Detail = "CSRF token mismatch",
+                Status = StatusCodes.Status403Forbidden,
+                Code = ApiErrorCodes.CsrfTokenMismatch,
+            });
             return;
         }
 
