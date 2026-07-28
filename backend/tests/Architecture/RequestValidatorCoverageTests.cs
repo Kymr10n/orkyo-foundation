@@ -1,4 +1,3 @@
-using FluentValidation;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
@@ -66,12 +65,12 @@ public class RequestValidatorCoverageTests
     [Fact]
     public void EveryRequestType_HasValidatorOrIsAllowlisted()
     {
-        var requestTypes = RequestTypes().ToList();
+        var requestTypes = RequestValidationReflection.RequestTypes().ToList();
 
         // Sanity: a zero-count scan would make the guard vacuous if the assemblies/namespaces move.
         Assert.NotEmpty(requestTypes);
 
-        var validated = ValidatedRequestTypes();
+        var validated = RequestValidationReflection.ValidatedRequestTypes();
 
         var offenders = requestTypes
             .Where(t => !validated.Contains(t))
@@ -91,10 +90,10 @@ public class RequestValidatorCoverageTests
     [Fact]
     public void Allowlist_HasNoStaleEntries()
     {
-        var requestFullNames = RequestTypes()
+        var requestFullNames = RequestValidationReflection.RequestTypes()
             .Select(t => t.FullName!)
             .ToHashSet(StringComparer.Ordinal);
-        var validatedFullNames = ValidatedRequestTypes()
+        var validatedFullNames = RequestValidationReflection.ValidatedRequestTypes()
             .Select(t => t.FullName!)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -118,50 +117,4 @@ public class RequestValidatorCoverageTests
             "ratchets forward and can't silently regress:\n  " + string.Join("\n  ", nowValidated));
     }
 
-    // *Request DTOs live in the Core assembly (Api.Models + endpoint-adjacent records) and the Web
-    // assembly (records declared alongside their endpoints). Anchor one known type in each to force
-    // both assemblies loaded before reflecting over them.
-    private static IEnumerable<Type> RequestTypes() =>
-        new[]
-            {
-                typeof(Api.Validators.ContactRequestValidator).Assembly, // Orkyo.Foundation.Core
-                typeof(Api.Endpoints.SecurityEndpoints).Assembly,        // Orkyo.Foundation.Web
-            }
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.IsVisible)
-            .Where(t => t.Name.EndsWith("Request", StringComparison.Ordinal))
-            .Distinct();
-
-    // Every T for which a closed AbstractValidator<T> subclass exists. Validators live in both
-    // the Core assembly (Api.Models request types) and the Web assembly (records declared
-    // alongside their endpoints), mirroring RequestTypes() above.
-    private static HashSet<Type> ValidatedRequestTypes()
-    {
-        var validated = new HashSet<Type>();
-        var assemblies = new[]
-        {
-            typeof(Api.Validators.ContactRequestValidator).Assembly, // Orkyo.Foundation.Core
-            typeof(Api.Endpoints.SecurityEndpoints).Assembly,        // Orkyo.Foundation.Web
-        };
-        foreach (var assembly in assemblies)
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type is not { IsClass: true, IsAbstract: false })
-                {
-                    continue;
-                }
-
-                for (var b = type.BaseType; b is not null; b = b.BaseType)
-                {
-                    if (b.IsGenericType && b.GetGenericTypeDefinition() == typeof(AbstractValidator<>))
-                    {
-                        validated.Add(b.GetGenericArguments()[0]);
-                        break;
-                    }
-                }
-            }
-
-        return validated;
-    }
 }
