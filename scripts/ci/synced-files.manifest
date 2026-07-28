@@ -19,3 +19,7 @@ nuget.config	orkyo-saas	orkyo-community
 frontend/eslint.config.js	orkyo-saas	orkyo-community
 frontend/src/index.css	orkyo-saas	orkyo-community
 scripts/bump-foundation.sh	orkyo-saas	orkyo-community
+frontend/scripts/sync-foundation-build.mjs	orkyo-saas	orkyo-community
+frontend/scripts/validate-foundation-imports.mjs	orkyo-saas	orkyo-community
+frontend/scripts/check-dedupe-sync.mjs	orkyo-saas	orkyo-community
+frontend/src/test/vite-config.test.ts	orkyo-saas	orkyo-community
