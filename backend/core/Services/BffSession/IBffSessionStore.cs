@@ -17,6 +17,15 @@ public sealed record BffSessionRecord
     public DateTimeOffset TokenExpiresAt { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset LastActivityAt { get; set; }
+    /// <summary>
+    /// Name of the OAuth client this session's tokens were issued to, resolved to
+    /// credentials by <c>IBffAuthClientRegistry</c> at refresh time. Null (the
+    /// default, and the value for every session predating this field) means the
+    /// primary backend client. A refresh_token grant MUST present the credentials
+    /// of the issuing client — Keycloak rejects a refresh token issued to one
+    /// client when presented with another's credentials.
+    /// </summary>
+    public string? AuthClient { get; init; }
 }
 
 /// <summary>

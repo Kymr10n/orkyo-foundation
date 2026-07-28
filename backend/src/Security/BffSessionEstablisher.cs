@@ -19,12 +19,17 @@ namespace Api.Security;
 /// </summary>
 public interface IBffSessionEstablisher
 {
+    /// <param name="authClient">
+    /// Registry name of the OAuth client the tokens were issued to (see
+    /// <see cref="IBffAuthClientRegistry"/>); null = the primary backend client.
+    /// </param>
     Task EstablishAsync(
         HttpContext ctx,
         Guid userId,
         KeycloakTokenProfile tokenProfile,
         BffAuthEndpoints.TokenResponse tokenResponse,
-        TimeSpan? sessionLifetimeOverride = null);
+        TimeSpan? sessionLifetimeOverride = null,
+        string? authClient = null);
 }
 
 public sealed class BffSessionEstablisher : IBffSessionEstablisher
@@ -64,7 +69,8 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         Guid userId,
         KeycloakTokenProfile tokenProfile,
         BffAuthEndpoints.TokenResponse tokenResponse,
-        TimeSpan? sessionLifetimeOverride = null)
+        TimeSpan? sessionLifetimeOverride = null,
+        string? authClient = null)
     {
         var lifetime = sessionLifetimeOverride ?? _bffOptions.SessionDuration;
         var sessionId = Guid.NewGuid().ToString("N");
@@ -81,6 +87,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
             TokenExpiresAt = now.AddSeconds(tokenResponse.ExpiresInSeconds),
             CreatedAt = now,
             LastActivityAt = now,
+            AuthClient = authClient,
         };
 
         await _sessionStore.SetAsync(session);

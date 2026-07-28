@@ -350,6 +350,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IUserSessionService, UserSessionService>();
         builder.Services.AddSingleton<Api.Security.IClientIpAccessor, Api.Security.ClientIpAccessor>();
         builder.Services.AddScoped<Api.Security.IBffSessionEstablisher, Api.Security.BffSessionEstablisher>();
+        builder.Services.AddSingleton<Api.Security.IBffAuthClientRegistry, Api.Security.DefaultBffAuthClientRegistry>();
         builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
         builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();

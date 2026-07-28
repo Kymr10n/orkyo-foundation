@@ -65,7 +65,8 @@ public class BffCookieAuthenticationHandlerTests
 
     private string EncryptSessionId(string sessionId) => _protector.Protect(sessionId);
 
-    private BffSessionRecord CreateSession(string? accessToken = null, DateTimeOffset? tokenExpiresAt = null) =>
+    private BffSessionRecord CreateSession(
+        string? accessToken = null, DateTimeOffset? tokenExpiresAt = null, string? authClient = null) =>
         new()
         {
             SessionId = TestSessionId,
@@ -78,9 +79,11 @@ public class BffCookieAuthenticationHandlerTests
             TokenExpiresAt = tokenExpiresAt ?? DateTimeOffset.UtcNow.AddMinutes(5),
             CreatedAt = DateTimeOffset.UtcNow,
             LastActivityAt = DateTimeOffset.UtcNow,
+            AuthClient = authClient,
         };
 
-    private async Task<AuthenticateResult> RunAuthenticateAsync(HttpContext httpContext)
+    private async Task<AuthenticateResult> RunAuthenticateAsync(
+        HttpContext httpContext, IBffAuthClientRegistry? authClientRegistry = null)
     {
         var scheme = new AuthenticationScheme(BffCookieAuthenticationHandler.SchemeName, null, typeof(BffCookieAuthenticationHandler));
         var optionsMonitor = new Mock<IOptionsMonitor<AuthenticationSchemeOptions>>();
@@ -88,7 +91,9 @@ public class BffCookieAuthenticationHandlerTests
         var handler = new BffCookieAuthenticationHandler(
             optionsMonitor.Object, NullLoggerFactory.Instance, UrlEncoder.Default,
             _sessionStore.Object, _dataProtectionProvider, Options.Create(_bffOptions),
-            _keycloakOptions, _httpClientFactory.Object);
+            _keycloakOptions,
+            authClientRegistry ?? new DefaultBffAuthClientRegistry(_keycloakOptions),
+            _httpClientFactory.Object);
         await handler.InitializeAsync(scheme, httpContext);
         return await handler.AuthenticateAsync();
     }
@@ -259,6 +264,52 @@ public class BffCookieAuthenticationHandlerTests
     }
 
     [Fact]
+    public async Task Refresh_UsesTheSessionsAuthClientCredentials()
+    {
+        // A refresh token is bound to its issuing client: a session established
+        // through a secondary client (AuthClient = "demo") must refresh with that
+        // client's credentials, and a default session with the backend client's.
+        var registry = new Mock<IBffAuthClientRegistry>();
+        registry.Setup(r => r.Resolve("demo")).Returns(("demo-client", "demo-secret"));
+
+        var session = CreateSession(
+            tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10), authClient: "demo");
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var responseJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            access_token = CreateTestJwt(),
+            refresh_token = "new-refresh-token",
+            expires_in = 300,
+        });
+        var mockHandler = new MockHttpMessageHandler(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(responseJson, System.Text.Encoding.UTF8, "application/json"),
+        });
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(
+            CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)), registry.Object);
+
+        result.Succeeded.Should().BeTrue();
+        registry.Verify(r => r.Resolve("demo"), Times.Once);
+        mockHandler.LastRequestBody.Should().Contain("client_id=demo-client")
+            .And.Contain("client_secret=demo-secret");
+    }
+
+    [Fact]
+    public void DefaultRegistry_ResolvesEverythingToTheBackendClient()
+    {
+        var registry = new DefaultBffAuthClientRegistry(_keycloakOptions);
+
+        registry.Resolve(null).Should().Be((_keycloakOptions.BackendClientId, _keycloakOptions.BackendClientSecret));
+        registry.Resolve("demo").Should().Be((_keycloakOptions.BackendClientId, _keycloakOptions.BackendClientSecret),
+            "the foundation default knows no secondary clients — editions that add one must replace the registration");
+    }
+
+    [Fact]
     public async Task RefreshLockNotAcquired_SkipsRefresh_UsesCurrentToken()
     {
         // When another request/instance holds the single-flight refresh lock, this request must
@@ -298,11 +349,16 @@ public class BffCookieAuthenticationHandlerTests
         public MockHttpMessageHandler(HttpResponseMessage response) => _response = response;
         public MockHttpMessageHandler(Exception exception) => _exception = exception;
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        /// <summary>Form body of the last request, for asserting grant parameters.</summary>
+        public string? LastRequestBody { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (request.Content is not null)
+                LastRequestBody = await request.Content.ReadAsStringAsync(cancellationToken);
             if (_exception is not null) throw _exception;
-            return Task.FromResult(_response!);
+            return _response!;
         }
     }
 }

@@ -34,6 +34,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     private readonly IDataProtector _protector;
     private readonly Configuration.BffOptions _bffOptions;
     private readonly KeycloakOptions _keycloakOptions;
+    private readonly IBffAuthClientRegistry _authClientRegistry;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public BffCookieAuthenticationHandler(
@@ -44,6 +45,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         IDataProtectionProvider dataProtection,
         IOptions<Configuration.BffOptions> bffOptions,
         KeycloakOptions keycloakOptions,
+        IBffAuthClientRegistry authClientRegistry,
         IHttpClientFactory httpClientFactory)
         : base(options, logger, encoder)
     {
@@ -51,6 +53,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         _protector = dataProtection.CreateProtector("BffSession");
         _bffOptions = bffOptions.Value;
         _keycloakOptions = keycloakOptions;
+        _authClientRegistry = authClientRegistry;
         _httpClientFactory = httpClientFactory;
     }
 
@@ -138,11 +141,15 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             var tokenEndpoint = $"{_keycloakOptions.InternalAuthority}/protocol/openid-connect/token";
             var client = _httpClientFactory.CreateClient("BffKeycloak");
 
+            // A refresh token is bound to the client it was issued to — a session
+            // established through a secondary client (session.AuthClient) must
+            // refresh with that client's credentials or Keycloak rejects the grant.
+            var (clientId, clientSecret) = _authClientRegistry.Resolve(session.AuthClient);
             var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "refresh_token",
-                ["client_id"] = _keycloakOptions.BackendClientId,
-                ["client_secret"] = _keycloakOptions.BackendClientSecret,
+                ["client_id"] = clientId,
+                ["client_secret"] = clientSecret,
                 ["refresh_token"] = session.RefreshToken,
             });
 

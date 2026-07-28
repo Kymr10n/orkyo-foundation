@@ -11,6 +11,7 @@ using Api.Services.Reporting;
 using Api.Validators;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orkyo.Shared.Keycloak;
 
 namespace Api.Configuration;
@@ -83,6 +84,10 @@ public static class FoundationServiceExtensions
         services.AddSingleton<IClientIpAccessor, ClientIpAccessor>();
         // Single seam for establishing a BFF session (record + cookies + device capture).
         services.AddScoped<IBffSessionEstablisher, BffSessionEstablisher>();
+        // Refresh-time credential resolution per session AuthClient. TryAdd so an
+        // edition that adds secondary clients (SaaS demo) can register its own first
+        // or Replace() after — the default knows only the primary backend client.
+        services.TryAddSingleton<IBffAuthClientRegistry, DefaultBffAuthClientRegistry>();
 
         // ── Repositories ──────────────────────────────────────────────────────
         services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
