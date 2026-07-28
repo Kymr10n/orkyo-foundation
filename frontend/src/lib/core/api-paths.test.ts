@@ -60,22 +60,18 @@ describe('api-paths', () => {
     });
   });
 
-  describe('Groups paths', () => {
-    it('has correct groups collection path', () => {
-      expect(API_PATHS.GROUPS).toBe('/api/groups');
-    });
-
-    it('generates correct group path', () => {
-      expect(API_PATHS.group('group-123')).toBe('/api/groups/group-123');
-    });
-
+  describe('Group capability paths', () => {
+    // These pinned the /api/groups prefix for ten weeks after the backend renamed it to
+    // /api/resource-groups, locking in a defect instead of catching it. The backend route
+    // is /api/resource-groups/{groupId:guid}/capabilities (GroupCapabilityEndpoints.cs).
     it('generates correct group capabilities path', () => {
-      expect(API_PATHS.groupCapabilities('group-123')).toBe('/api/groups/group-123/capabilities');
+      expect(API_PATHS.groupCapabilities('group-123'))
+        .toBe('/api/resource-groups/group-123/capabilities');
     });
 
     it('generates correct group capability path', () => {
       expect(API_PATHS.groupCapability('group-123', 'cap-456'))
-        .toBe('/api/groups/group-123/capabilities/cap-456');
+        .toBe('/api/resource-groups/group-123/capabilities/cap-456');
     });
   });
 
