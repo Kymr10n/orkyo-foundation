@@ -25,41 +25,19 @@ public class RequestValidatorCoverageTests
     // fails if an entry goes stale (renamed away, or gained a validator). Wave 3.4 shrinks this.
     private static readonly HashSet<string> NoShapeValidationNeeded = new(StringComparer.Ordinal)
     {
-        // --- genuinely shape-less: pure paging / single-flag toggles (expected to stay) ---
-        "Api.Models.PageRequest",                       // page/pageSize only
-        "Api.Models.Reporting.ReportingPageRequest",    // page/pageSize only
-        "Api.Endpoints.TosAcceptRequest",               // single accept flag
+        // --- pure paging / single-field payloads: no cross-field or format invariant exists ---
+        "Api.Models.PageRequest",                              // page/pageSize only
+        "Api.Models.Reporting.ReportingPageRequest",           // page/pageSize only
+        "Api.Endpoints.TosAcceptRequest",                      // single accept flag
+        "Api.Endpoints.UpdateNotificationPreferencesRequest",  // single bool opt-out flag
+        "Api.Models.UpdateRequestRequirementRequest",          // single JsonElement; shape is the
+                                                               // criterion datatype's business
 
-        // --- transitional baseline: carry real invariants, want a validator. Wave 3.4 (W3.4)
-        //     adds AbstractValidator<T> for these and removes the entry here as each lands. ---
-        "Api.Endpoints.AddGroupCapabilityRequest",
-        "Api.Endpoints.AddResourceCapabilityRequest",
-        "Api.Endpoints.Admin.UpdateSettingsRequest",
-        "Api.Endpoints.Reporting.CreateReportingTokenRequest",
-        "Api.Endpoints.UpdateNotificationPreferencesRequest",
-        "Api.Endpoints.UpdateSettingsRequest",
-        "Api.Models.AddRequirementRequest",
-        "Api.Models.AutoScheduleApplyRequest",
-        "Api.Models.AutoSchedulePreviewRequest",
-        "Api.Models.CreateAnnouncementRequest",
-        "Api.Models.CreateRequestRequirementRequest",
-        "Api.Models.CreateResourceAssignmentRequest",
-        "Api.Models.CreateResourceRequest",
-        "Api.Models.CreateTemplateItemRequest",
-        "Api.Models.CreateTemplateRequest",
-        "Api.Models.Export.ExportRequest",
-        "Api.Models.LinkUserToPersonProfileRequest",
-        "Api.Models.SetResourceGroupMembersRequest",
-        "Api.Models.UpdateAnnouncementRequest",
-        "Api.Models.UpdateCriterionApplicabilityRequest",
-        "Api.Models.UpdateFeedbackRequest",
-        "Api.Models.UpdateRequestRequirementRequest",
-        "Api.Models.UpdateResourceRequest",
-        "Api.Models.UpdateTemplateRequest",
+        // --- invariants owned elsewhere: a static validator would duplicate the real policy ---
+        // Server-constructed from the multipart form in FloorplanEndpoints (never model-bound),
+        // and its rules are settings-driven — size cap and MIME allowlist come from tenant
+        // settings via FloorplanUploadValidationPolicy, which no static validator can express.
         "Api.Models.UploadFloorplanRequest",
-        "Api.Models.UpsertResourceCapabilityRequest",
-        "Api.Models.ValidateResourceAssignmentBatchRequest",
-        "Api.Models.ValidateResourceAssignmentRequest",
     };
 
     [Fact]

@@ -4,6 +4,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -54,17 +55,17 @@ public static class SettingsEndpoints
 internal static class TenantSettingsWrites
 {
     public static async Task<IResult> UpdateSettings(
-        UpdateSettingsRequest request, HttpContext ctx, ICurrentPrincipal principal,
+        UpdateSettingsRequest request, IValidator<UpdateSettingsRequest> validator,
+        HttpContext ctx, ICurrentPrincipal principal,
         ITenantSettingsService settingsService, ITenantUserService tenantAudit, CancellationToken ct)
+        => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
     {
-        if (request.Settings == null || request.Settings.Count == 0)
-            return ErrorResponses.BadRequest("At least one setting is required");
         var updated = await settingsService.UpdateSettingsAsync(request.Settings, ct);
         await tenantAudit.RecordAuditEventAsync(
             ctx.GetOrgContext(), TenantAuditActions.SettingsUpdated, principal.UserId, "settings", null,
             new { keys = request.Settings.Keys.ToArray() }, ct);
         return Results.Ok(new { settings = SettingsEndpointHandlers.Project(settingsService, updated) });
-    }
+    });
 
     public static async Task<IResult> ResetSetting(
         string key, HttpContext ctx, ICurrentPrincipal principal,
@@ -98,13 +99,13 @@ internal static class SettingsEndpointHandlers
     }
 
     public static async Task<IResult> UpdateSettings(
-        UpdateSettingsRequest request, ITenantSettingsService settingsService, CancellationToken ct)
-    {
-        if (request.Settings == null || request.Settings.Count == 0)
-            return ErrorResponses.BadRequest("At least one setting is required");
-        var updated = await settingsService.UpdateSettingsAsync(request.Settings, ct);
-        return Results.Ok(new { settings = Project(settingsService, updated) });
-    }
+        UpdateSettingsRequest request, IValidator<UpdateSettingsRequest> validator,
+        ITenantSettingsService settingsService, CancellationToken ct)
+        => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            var updated = await settingsService.UpdateSettingsAsync(request.Settings, ct);
+            return Results.Ok(new { settings = Project(settingsService, updated) });
+        });
 
     public static async Task<IResult> ResetSetting(
         string key, ITenantSettingsService settingsService, CancellationToken ct)

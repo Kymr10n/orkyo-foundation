@@ -84,9 +84,11 @@ public static class PersonProfileEndpoints
         group.MapPost("/{resourceId:guid}/link", async (
             Guid resourceId,
             [FromBody] LinkUserToPersonProfileRequest request,
+            IValidator<LinkUserToPersonProfileRequest> validator,
             IResourceRepository resourceRepository,
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
@@ -98,7 +100,7 @@ public static class PersonProfileEndpoints
 
             var success = await profileRepository.LinkUserAsync(resourceId, request.UserId, ct);
             return success ? Results.NoContent() : ErrorResponses.NotFound("PersonProfile", resourceId);
-        })
+        }))
             .WithName("LinkUserToPersonProfile")
             .WithSummary("Link a user to a person profile");
 

@@ -3,6 +3,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -57,14 +58,16 @@ public static class ResourceAssignmentEndpoints
 
         group.MapPost("/", async (
             [FromBody] CreateResourceAssignmentRequest request,
+            IValidator<CreateResourceAssignmentRequest> shapeValidator,
             IResourceAssignmentService service,
             CancellationToken ct) =>
-        {
-            var (assignment, conflict) = await service.CreateAsync(request, ct);
-            if (conflict is not null)
-                return Results.Json(new[] { conflict }, statusCode: StatusCodes.Status409Conflict);
-            return Results.Created($"/api/resource-assignments/{assignment!.Id}", assignment);
-        })
+            await EndpointHelpers.ExecuteAsync(request, shapeValidator, async () =>
+            {
+                var (assignment, conflict) = await service.CreateAsync(request, ct);
+                if (conflict is not null)
+                    return Results.Json(new[] { conflict }, statusCode: StatusCodes.Status409Conflict);
+                return Results.Created($"/api/resource-assignments/{assignment!.Id}", assignment);
+            }))
             .WithName("CreateResourceAssignment")
             .WithSummary("Create a resource assignment");
 
@@ -81,24 +84,28 @@ public static class ResourceAssignmentEndpoints
 
         group.MapPost("/validate", async (
             [FromBody] ValidateResourceAssignmentRequest request,
+            IValidator<ValidateResourceAssignmentRequest> shapeValidator,
             IResourceAssignmentValidator validator,
             CancellationToken ct) =>
-        {
-            var result = await validator.ValidateAsync(request, ct);
-            return Results.Ok(result);
-        })
+            await EndpointHelpers.ExecuteAsync(request, shapeValidator, async () =>
+            {
+                var result = await validator.ValidateAsync(request, ct);
+                return Results.Ok(result);
+            }))
             .WithName("ValidateResourceAssignment")
             .WithSummary("Validate a resource assignment without creating it")
             .AllowMemberWrite();
 
         group.MapPost("/validate-batch", async (
             [FromBody] ValidateResourceAssignmentBatchRequest request,
+            IValidator<ValidateResourceAssignmentBatchRequest> shapeValidator,
             IResourceAssignmentValidator validator,
             CancellationToken ct) =>
-        {
-            var results = await validator.ValidateBatchAsync(request.Items, ct);
-            return Results.Ok(results);
-        })
+            await EndpointHelpers.ExecuteAsync(request, shapeValidator, async () =>
+            {
+                var results = await validator.ValidateBatchAsync(request.Items, ct);
+                return Results.Ok(results);
+            }))
             .WithName("ValidateResourceAssignmentBatch")
             .WithSummary("Validate many resource assignments without creating them")
             .AllowMemberWrite();

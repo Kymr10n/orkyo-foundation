@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Middleware;
 using Api.Repositories;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -24,11 +25,14 @@ public static class GroupCapabilityEndpoints
         .WithName("GetGroupCapabilities")
         .WithSummary("Get all capabilities for a space group");
 
-        capabilities.MapPost("/", async (Guid groupId, AddGroupCapabilityRequest request, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
-        {
-            var capability = await groupCapabilityRepository.CreateAsync(groupId, request.CriterionId, request.Value, ct);
-            return Results.Created($"/api/resource-groups/{groupId}/capabilities/{capability.Id}", capability);
-        })
+        capabilities.MapPost("/", async (Guid groupId, AddGroupCapabilityRequest request,
+            IValidator<AddGroupCapabilityRequest> validator,
+            IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var capability = await groupCapabilityRepository.CreateAsync(groupId, request.CriterionId, request.Value, ct);
+                return Results.Created($"/api/resource-groups/{groupId}/capabilities/{capability.Id}", capability);
+            }))
         .WithName("AddGroupCapability")
         .WithSummary("Add a capability to a resource group");
 

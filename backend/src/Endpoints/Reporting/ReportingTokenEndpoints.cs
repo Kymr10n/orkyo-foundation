@@ -5,6 +5,7 @@ using Api.Security;
 using Api.Security.Features;
 using Api.Services;
 using Api.Services.Reporting;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -50,6 +51,7 @@ public static class ReportingTokenEndpoints
 
     private static async Task<IResult> CreateToken(
         CreateReportingTokenRequest request,
+        IValidator<CreateReportingTokenRequest> validator,
         IReportingTokenService tokenService,
         ICurrentTenant tenant,
         ICurrentPrincipal principal,
@@ -63,8 +65,10 @@ public static class ReportingTokenEndpoints
                 new { error = "upgrade_required", message = "Reporting API access requires a paid plan." },
                 statusCode: StatusCodes.Status402PaymentRequired);
 
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return ErrorResponses.BadRequest("Token name is required.");
+        // The name/expiry shape guards live in CreateReportingTokenRequestValidator; the
+        // entitlement check above stays here because it is authorization, not shape.
+        var shape = await validator.ValidateAsync(request, ct);
+        if (!shape.IsValid) return Results.ValidationProblem(shape.ToDictionary());
 
         var created = await tokenService.CreateAsync(
             tenant.TenantId,

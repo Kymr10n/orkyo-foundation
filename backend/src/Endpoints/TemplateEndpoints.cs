@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -28,11 +29,13 @@ public static class TemplateEndpoints
             return EndpointHelpers.OkOrNotFound(template, "Template", id);
         });
 
-        group.MapPost("", async (ITemplateRepository templateRepo, CreateTemplateRequest request) =>
-        {
-            var template = await templateRepo.CreateAsync(request);
-            return Results.Created($"/api/templates/{template.Id}", template);
-        });
+        group.MapPost("", async (ITemplateRepository templateRepo, CreateTemplateRequest request,
+            IValidator<CreateTemplateRequest> validator) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var template = await templateRepo.CreateAsync(request);
+                return Results.Created($"/api/templates/{template.Id}", template);
+            }));
 
         group.MapDelete("{id:guid}", async (ITemplateRepository templateRepo, Guid id) =>
         {
@@ -40,11 +43,13 @@ public static class TemplateEndpoints
             return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template", id);
         });
 
-        group.MapPut("{id:guid}", async (ITemplateRepository templateRepo, Guid id, UpdateTemplateRequest request) =>
-        {
-            var template = await templateRepo.UpdateAsync(id, request);
-            return EndpointHelpers.OkOrNotFound(template, "Template", id);
-        });
+        group.MapPut("{id:guid}", async (ITemplateRepository templateRepo, Guid id, UpdateTemplateRequest request,
+            IValidator<UpdateTemplateRequest> validator) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var template = await templateRepo.UpdateAsync(id, request);
+                return EndpointHelpers.OkOrNotFound(template, "Template", id);
+            }));
 
         group.MapGet("{id:guid}/items", async (ITemplateRepository templateRepo, Guid id) =>
         {
@@ -53,12 +58,14 @@ public static class TemplateEndpoints
             return Results.Ok(await templateRepo.GetTemplateItemsAsync(id));
         });
 
-        group.MapPost("{id:guid}/items", async (ITemplateRepository templateRepo, Guid id, CreateTemplateItemRequest request) =>
-        {
-            var item = new TemplateItem { TemplateId = id, CriterionId = request.CriterionId, Value = request.Value };
-            var created = await templateRepo.CreateTemplateItemAsync(item);
-            return Results.Created($"/api/templates/{id}/items/{created.Id}", created);
-        });
+        group.MapPost("{id:guid}/items", async (ITemplateRepository templateRepo, Guid id, CreateTemplateItemRequest request,
+            IValidator<CreateTemplateItemRequest> validator) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var item = new TemplateItem { TemplateId = id, CriterionId = request.CriterionId, Value = request.Value };
+                var created = await templateRepo.CreateTemplateItemAsync(item);
+                return Results.Created($"/api/templates/{id}/items/{created.Id}", created);
+            }));
 
         group.MapDelete("{templateId:guid}/items/{itemId:guid}", async (ITemplateRepository templateRepo, Guid templateId, Guid itemId) =>
         {

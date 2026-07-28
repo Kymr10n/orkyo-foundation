@@ -92,15 +92,17 @@ public static class SpaceEndpoints
         spaces.MapPost("/{resourceId:guid}/capabilities", async (
             Guid siteId, Guid resourceId,
             [FromBody] AddResourceCapabilityRequest request,
+            IValidator<AddResourceCapabilityRequest> validator,
             ISpaceService spaceService,
             IResourceCapabilityRepository capabilityRepository,
             CancellationToken ct) =>
-        {
-            if (await spaceService.GetByIdAsync(siteId, resourceId, ct) is null)
-                return ErrorResponses.NotFound("Space", resourceId);
-            var capability = await capabilityRepository.UpsertAsync(resourceId, request.CriterionId, request.Value, ct);
-            return Results.Created($"/api/sites/{siteId}/spaces/{resourceId}/capabilities/{capability.Id}", capability);
-        })
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                if (await spaceService.GetByIdAsync(siteId, resourceId, ct) is null)
+                    return ErrorResponses.NotFound("Space", resourceId);
+                var capability = await capabilityRepository.UpsertAsync(resourceId, request.CriterionId, request.Value, ct);
+                return Results.Created($"/api/sites/{siteId}/spaces/{resourceId}/capabilities/{capability.Id}", capability);
+            }))
             .WithName("AddSpaceCapability")
             .WithSummary("Add or update a capability for a space");
 

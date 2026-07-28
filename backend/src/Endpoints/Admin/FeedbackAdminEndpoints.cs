@@ -5,6 +5,7 @@ using Api.Models;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -69,17 +70,16 @@ public static class FeedbackAdminEndpoints
     private static async Task<IResult> Update(
         Guid id,
         UpdateFeedbackRequest request,
+        IValidator<UpdateFeedbackRequest> validator,
         IFeedbackRepository repository,
         IAdminAuditService auditService,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct)
+        => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
     {
-        if (request.Status is null && request.AdminNotes is null && request.GithubIssueUrl is null)
-            return ErrorResponses.BadRequest("Provide at least one of: status, adminNotes, githubIssueUrl");
-        if (request.Status is not null && !FeedbackStatuses.All.Contains(request.Status))
-            return ErrorResponses.BadRequest("Status must be one of: " + string.Join(", ", FeedbackStatuses.All));
-
+        // The at-least-one-field and status-vocabulary guards that used to live here are now
+        // UpdateFeedbackRequestValidator's — one owner, and they surface as ValidationProblem.
         var current = await repository.GetByIdAsync(id, ct);
         if (current is null)
             return ErrorResponses.NotFound("Feedback", id);
@@ -95,5 +95,5 @@ public static class FeedbackAdminEndpoints
         }
 
         return EndpointHelpers.OkOrNotFound(updated, "Feedback", id);
-    }
+    });
 }

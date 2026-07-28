@@ -3,6 +3,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -33,10 +34,12 @@ public static class CriterionApplicabilityEndpoints
         group.MapPut("/{id:guid}/applicability", async (
             Guid id,
             [FromBody] UpdateCriterionApplicabilityRequest request,
+            IValidator<UpdateCriterionApplicabilityRequest> validator,
             ICriterionApplicabilityRepository applicabilityRepo,
             IResourceTypeRepository resourceTypeRepo,
             ICriteriaRepository criteriaRepo,
             CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             var criterion = await criteriaRepo.GetByIdAsync(id, ct);
             if (criterion is null)
@@ -61,7 +64,7 @@ public static class CriterionApplicabilityEndpoints
 
             var updated = await applicabilityRepo.GetByCriterionAsync(id, ct);
             return Results.Ok(updated);
-        })
+        }))
             .WithName("UpdateCriterionApplicability")
             .WithSummary("Update applicability settings for a criterion");
     }
