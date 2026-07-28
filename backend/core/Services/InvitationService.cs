@@ -295,6 +295,45 @@ public sealed class InvitationService : IInvitationService
         return rowsAffected > 0;
     }
 
+    public async Task<bool> ResendInvitationAsync(
+        TenantContext tenant, Guid invitationId, Guid resentBy, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        await conn.OpenAsync(ct);
+
+        // A new token every time: only the hash is stored, so the original is unrecoverable —
+        // and rotating invalidates a link that may have leaked since the first send.
+        var token = GenerateSecureToken();
+        var settings = await _settingsService.GetSettingsAsync(ct);
+
+        // Tenant-scoped in the WHERE: resending another tenant's invitation must be impossible.
+        await using var cmd = new NpgsqlCommand(@"
+            UPDATE invitations
+            SET token_hash = @tokenHash, expires_at = @expiresAt, updated_at = NOW()
+            WHERE id = @invitationId AND tenant_id = @tenantId AND accepted_at IS NULL
+            RETURNING email, expires_at", conn);
+        cmd.Parameters.AddWithValue("tokenHash", HashToken(token));
+        cmd.Parameters.AddWithValue("expiresAt", DateTime.UtcNow.AddDays(settings.Invitation_ExpiryDays));
+        cmd.Parameters.AddWithValue("invitationId", invitationId);
+        cmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
+
+        string email;
+        DateTime expiresAt;
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct)) return false;
+            email = reader.GetString(0);
+            expiresAt = reader.GetDateTime(1);
+        }
+
+        await _emailService.SendInvitationEmailAsync(email, token, expiresAt, ct);
+        await _tenantUserService.RecordAuditEventAsync(
+            tenant.ToOrgContext(), TenantAuditActions.InvitationResent, resentBy,
+            "invitation", invitationId.ToString(), new { email }, ct);
+
+        return true;
+    }
+
     private static Models.Invitation MapInvitation(NpgsqlDataReader reader) => new()
     {
         Id = reader.GetGuid(0),
