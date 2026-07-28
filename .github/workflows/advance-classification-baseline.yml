@@ -1,0 +1,72 @@
+name: Advance Classification Baseline
+
+# Receiver for orkyo-infra deploy.yml's baseline advance (infra#31): after a
+# successful production migration run, the deploy pipeline used to clone this
+# repo and push the baseline commit itself with a broad foundation-write token.
+# Now it sends a repository_dispatch and this workflow — living in the repo
+# that owns the file — performs the single-file commit; the infra token only
+# needs dispatch rights.
+#
+# ⚠️ repository_dispatch returns 204 even when nothing is listening. deploy.yml
+# assumes this workflow exists on main under this event type; renaming either
+# side stalls baseline advancement SILENTLY, and the migration gate then starts
+# false-flagging migrations that already deployed. Change both sides together
+# and verify with a manual dispatch.
+
+on:
+  repository_dispatch:
+    types: [advance-classification-baseline]
+
+# Staging and production deploys can dispatch back-to-back — serialize the
+# commits instead of racing the push.
+concurrency:
+  group: advance-classification-baseline
+
+permissions:
+  contents: read # the push authenticates with GHCR_TOKEN (ruleset bypass), not GITHUB_TOKEN
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate payload
+        env:
+          SHA: ${{ github.event.client_payload.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::client_payload.sha must be a 40-hex commit SHA (got '${SHA}')"
+            exit 1
+          fi
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          token: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Commit baseline
+        env:
+          SHA: ${{ github.event.client_payload.sha }}
+        run: |
+          set -euo pipefail
+          # The payload must name a commit that actually exists here — a deploy
+          # can only have run migrations from a real foundation SHA. Shallow
+          # fetch by SHA doubles as the existence check.
+          if ! git fetch --depth 1 origin "${SHA}"; then
+            echo "::error::${SHA} is not a commit in this repository — refusing to advance the baseline"
+            exit 1
+          fi
+
+          BASELINE="backend/migrations-foundation/sql/.classification-baseline"
+          echo "${SHA}" > "${BASELINE}"
+          git add "${BASELINE}"
+          if git diff --cached --quiet; then
+            echo "Baseline already at ${SHA} — nothing to commit"
+            exit 0
+          fi
+
+          git config user.name "Orkyo CI"
+          git config user.email "ci@orkyo.com"
+          git commit -m "chore: advance migration classification baseline to ${SHA:0:7} [skip ci]"
+          git push origin HEAD:main
+          echo "Baseline advanced to ${SHA}"
