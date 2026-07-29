@@ -163,6 +163,10 @@ export const API_PATHS = {
     EXPORT: '/api/admin/export',
     SETTINGS: '/api/admin/settings',
     DIAGNOSTICS: '/api/admin/diagnostics',
+    // Control-plane audit (all tenants, includes ip_address/request_id). NOT the
+    // tenant-scoped /api/audit, which needs a resolved tenant and therefore cannot
+    // work on the site-admin apex host.
+    AUDIT: '/api/admin/audit',
     tenant: (tenantId: string) => `/api/admin/tenants/${tenantId}`,
     tenantTier: (tenantId: string) => `/api/admin/tenants/${tenantId}/tier`,
     tenantMembers: (tenantId: string) => `/api/admin/tenants/${tenantId}/members`,
