@@ -23,6 +23,14 @@ public record SessionBootstrapResponse
     public List<TenantMembershipInfo> Tenants { get; init; } = new();
     public string? SuggestedTenantSlug { get; init; }
     public bool IsSiteAdmin { get; init; }
+
+    /// <summary>
+    /// The secondary OAuth client this session was established through, or null for an ordinary
+    /// login. Non-null marks the session as ephemeral (today: the SaaS public demo), which the
+    /// SPA uses to send the visitor back to the marketing site when it ends rather than to a
+    /// credentials form they never had.
+    /// </summary>
+    public string? AuthClient { get; init; }
 }
 
 public record UserInfo

@@ -215,6 +215,34 @@ describe('api-utils', () => {
       expect(mockRedirectToLogin).toHaveBeenCalled();
     });
 
+    it('sends an ephemeral (demo) session back to the marketing site, not to login', async () => {
+      // A demo visitor never had credentials, so ending their session at a Keycloak password
+      // form is a dead end. AuthContext marks the session on bootstrap; this is the payoff.
+      sessionStorage.setItem('orkyo:session-end-redirect', 'https://orkyo.com/');
+      const replace = vi.fn();
+      // A minimal stand-in rather than a spread of the real Location: spreading a class
+      // instance drops its prototype (and eslint rightly flags it). The 401 branch only
+      // needs replace() and the hostname clearTenantState reads.
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: { hostname: 'acme.orkyo.com', href: 'https://acme.orkyo.com/app', replace },
+      });
+
+      const response = {
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: new Headers(),
+        json: async () => ({ detail: 'Token expired' }),
+      } as unknown as Response;
+
+      await expect(handleApiError(response)).rejects.toThrow('Token expired');
+
+      expect(replace).toHaveBeenCalledWith('https://orkyo.com/');
+      expect(mockRedirectToLogin).not.toHaveBeenCalled();
+      // Single-use: a subsequent real login must still end at the login flow.
+      expect(sessionStorage.getItem('orkyo:session-end-redirect')).toBeNull();
+    });
+
     it('handles 401 API key error by clearing session', async () => {
       localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');

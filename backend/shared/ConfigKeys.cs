@@ -40,7 +40,8 @@ public static class ConfigKeys
     public const string BffCookieSecure = "BFF_COOKIE_SECURE";
     public const string BffRedirectUri = "BFF_REDIRECT_URI";
     public const string BffAllowedHosts = "BFF_ALLOWED_HOSTS";
-    public const string BffSessionDuration = "BFF_SESSION_DURATION";
+    public const string BffSessionIdleDuration = "BFF_SESSION_IDLE_DURATION";
+    public const string BffSessionMaxDuration = "BFF_SESSION_MAX_DURATION";
     public const string BffScopes = "BFF_SCOPES";
 
     // ── SMTP ────────────────────────────────────────────────────────────────

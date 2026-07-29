@@ -317,7 +317,11 @@ public static class BffAuthEndpoints
         if (result is null)
             return Results.Ok(new { authenticated = false });
 
-        return Results.Ok(result with { IsSiteAdmin = tokenProfile.IsSiteAdmin });
+        return Results.Ok(result with
+        {
+            IsSiteAdmin = tokenProfile.IsSiteAdmin,
+            AuthClient = authResult.Principal!.FindFirst(BffCookieAuthenticationHandler.AuthClientClaim)?.Value,
+        });
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

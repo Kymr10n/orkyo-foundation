@@ -29,8 +29,23 @@ public sealed class BffOptions
     /// <summary>Whether to set the Secure flag on cookies.</summary>
     public bool CookieSecure { get; set; } = true;
 
-    /// <summary>How long a BFF session lasts before requiring re-auth.</summary>
-    public TimeSpan SessionDuration { get; set; } = TimeSpan.FromHours(8);
+    /// <summary>
+    /// Idle window: how long a BFF session survives without activity. Every authenticated
+    /// request past the half-way point slides this forward (see
+    /// <c>BffCookieAuthenticationHandler</c>), so an active user is never signed out mid-work.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately mirrors the Keycloak realm SSO policy (7d idle / 14d max, set 2026-06-26)
+    /// so the BFF envelope can never outlive the refresh tokens backing it. Idle + absolute is
+    /// the OWASP-recommended pair: sliding alone never expires an abandoned session.
+    /// </remarks>
+    public TimeSpan SessionIdleDuration { get; set; } = TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// Absolute cap: the hard ceiling a sliding session can never pass, however active the
+    /// user is. Counted from login.
+    /// </summary>
+    public TimeSpan SessionMaxDuration { get; set; } = TimeSpan.FromDays(14);
 
     /// <summary>
     /// The single OIDC redirect URI registered in Keycloak

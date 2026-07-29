@@ -15,6 +15,7 @@ import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/sr
 import { logger } from "@foundation/src/lib/core/logger";
 import { randomId } from "@foundation/src/lib/core/ids";
 import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@foundation/src/lib/utils/tenant-navigation";
+import { takeSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
 
 /**
  * Get common headers for API requests.
@@ -160,9 +161,16 @@ export async function handleApiError(response: Response): Promise<never> {
   }
 
   if (response.status === 401) {
-    // Session expired or unauthenticated — clear state and redirect to login.
+    // Session expired or unauthenticated — clear state and redirect.
     clearTenantState();
-    redirectToLogin();
+    // An ephemeral session (the public demo) ends on the marketing site, not at a credentials
+    // form its visitor never had. Same shape as the break-glass branch above.
+    const sessionEnd = takeSessionEndRedirect();
+    if (sessionEnd) {
+      window.location.replace(sessionEnd);
+    } else {
+      redirectToLogin();
+    }
     throw new Error(errorMessage || "Your session has expired. Please log in again.");
   }
 

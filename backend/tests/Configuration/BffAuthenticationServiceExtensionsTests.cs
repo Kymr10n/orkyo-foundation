@@ -225,16 +225,31 @@ public class BffAuthenticationServiceExtensionsTests
     }
 
     [Fact]
-    public void AddBffAuthentication_BffOptions_SetsSessionDuration_WhenConfigured()
+    public void AddBffAuthentication_BffOptions_SetsSessionWindows_WhenConfigured()
     {
         var provider = BuildProvider(valkeyConnection: null, extra: new()
         {
-            [ConfigKeys.BffSessionDuration] = "12:00:00"
+            [ConfigKeys.BffSessionIdleDuration] = "12:00:00",
+            [ConfigKeys.BffSessionMaxDuration] = "2.00:00:00",
         });
 
         var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
 
-        opts.SessionDuration.Should().Be(TimeSpan.FromHours(12));
+        opts.SessionIdleDuration.Should().Be(TimeSpan.FromHours(12));
+        opts.SessionMaxDuration.Should().Be(TimeSpan.FromDays(2));
+    }
+
+    [Fact]
+    public void AddBffAuthentication_BffOptions_DefaultsToTheRealmSsoPolicy()
+    {
+        // 7d idle / 14d absolute deliberately mirrors the Keycloak realm SSO policy, so the BFF
+        // envelope can never outlive the refresh tokens backing it.
+        var provider = BuildProvider(valkeyConnection: null);
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        opts.SessionIdleDuration.Should().Be(TimeSpan.FromDays(7));
+        opts.SessionMaxDuration.Should().Be(TimeSpan.FromDays(14));
     }
 
     [Fact]

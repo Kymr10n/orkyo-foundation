@@ -53,6 +53,7 @@ import {
   getApexOrigin,
   buildBffLoginUrl,
 } from '@foundation/src/lib/utils/tenant-navigation';
+import { rememberSessionEndRedirect, takeSessionEndRedirect } from '@foundation/src/lib/utils/session-end';
 import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -151,6 +152,10 @@ async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
   }
   const session = data;
 
+  // Record (or clear) where this session should end. Ephemeral sessions — the public demo —
+  // return the visitor to the marketing site instead of a credentials form.
+  rememberSessionEndRedirect(session.authClient);
+
   // Resolve membership — subdomain is the authoritative source in production.
   let membership: TenantMembership | null = null;
   const subdomain = getCurrentSubdomain();
@@ -248,6 +253,14 @@ export const authMachine = setup({
     // the page can render normally.
     performLogin: ({ event }) => {
       if (isPublicPath(window.location.pathname)) return;
+
+      // An ephemeral session (the public demo) has ended: send the visitor back to the
+      // marketing site rather than to Keycloak, where they have no credentials to enter.
+      const sessionEnd = takeSessionEndRedirect();
+      if (sessionEnd) {
+        window.location.replace(sessionEnd);
+        return;
+      }
 
       const loginEvent = event.type === AUTH_EVENTS.LOGIN
         ? (event as { returnTo?: string })

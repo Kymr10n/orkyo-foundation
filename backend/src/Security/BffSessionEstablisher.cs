@@ -23,13 +23,19 @@ public interface IBffSessionEstablisher
     /// Registry name of the OAuth client the tokens were issued to (see
     /// <see cref="IBffAuthClientRegistry"/>); null = the primary backend client.
     /// </param>
+    /// <param name="slidingEnabled">
+    /// Whether activity extends the session's idle deadline up to the absolute cap. Pass false
+    /// for ephemeral sessions (the SaaS demo) whose window is a deliberate limit on anonymous
+    /// access rather than a convenience.
+    /// </param>
     Task EstablishAsync(
         HttpContext ctx,
         Guid userId,
         KeycloakTokenProfile tokenProfile,
         BffAuthEndpoints.TokenResponse tokenResponse,
         TimeSpan? sessionLifetimeOverride = null,
-        string? authClient = null);
+        string? authClient = null,
+        bool slidingEnabled = true);
 }
 
 public sealed class BffSessionEstablisher : IBffSessionEstablisher
@@ -70,11 +76,13 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         KeycloakTokenProfile tokenProfile,
         BffAuthEndpoints.TokenResponse tokenResponse,
         TimeSpan? sessionLifetimeOverride = null,
-        string? authClient = null)
+        string? authClient = null,
+        bool slidingEnabled = true)
     {
-        var lifetime = sessionLifetimeOverride ?? _bffOptions.SessionDuration;
+        var lifetime = sessionLifetimeOverride ?? _bffOptions.SessionIdleDuration;
         var sessionId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
+        var expiresAt = now.Add(lifetime);
         var session = new BffSessionRecord
         {
             SessionId = sessionId,
@@ -83,7 +91,11 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
             AccessToken = tokenResponse.AccessToken,
             RefreshToken = tokenResponse.RefreshToken,
             IdToken = tokenResponse.IdToken,
-            ExpiresAt = now.Add(lifetime),
+            ExpiresAt = expiresAt,
+            // A non-sliding session's cap IS its idle deadline — the two coincide, which is what
+            // makes the demo's 45 minutes a hard limit rather than a renewable one.
+            AbsoluteExpiresAt = slidingEnabled ? now.Add(_bffOptions.SessionMaxDuration) : expiresAt,
+            SlidingEnabled = slidingEnabled,
             TokenExpiresAt = now.AddSeconds(tokenResponse.ExpiresInSeconds),
             CreatedAt = now,
             LastActivityAt = now,
@@ -93,27 +105,9 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         await _sessionStore.SetAsync(session);
 
         var protector = _dataProtection.CreateProtector(DataProtectionPurpose);
-        ctx.Response.Cookies.Append(_bffOptions.CookieName, protector.Protect(sessionId), new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = _bffOptions.CookieSecure,
-            SameSite = SameSiteMode.Lax,
-            Domain = _bffOptions.CookieDomain,
-            Path = "/",
-            MaxAge = lifetime,
-        });
-
-        // 32-byte (256-bit) CSRF token — NOT HttpOnly so JS can read it
-        ctx.Response.Cookies.Append(_bffOptions.CsrfCookieName,
-            Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(CsrfTokenLength)), new CookieOptions
-            {
-                HttpOnly = false,
-                Secure = _bffOptions.CookieSecure,
-                SameSite = SameSiteMode.Lax,
-                Domain = _bffOptions.CookieDomain,
-                Path = "/",
-                MaxAge = lifetime,
-            });
+        BffSessionCookies.WriteSessionCookie(ctx, _bffOptions, protector.Protect(sessionId), lifetime);
+        BffSessionCookies.WriteCsrfCookie(ctx, _bffOptions,
+            Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(CsrfTokenLength)), lifetime);
 
         await CaptureDeviceAsync(ctx, userId, tokenProfile);
 

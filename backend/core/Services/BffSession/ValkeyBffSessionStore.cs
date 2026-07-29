@@ -124,6 +124,44 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
         }
     }
 
+    public async Task SlideExpiryAsync(string sessionId, DateTimeOffset expiresAt, CancellationToken ct = default)
+    {
+        try
+        {
+            var db = _valkey.GetDatabase();
+            var json = (string?)await db.StringGetAsync(SessionKey(sessionId));
+            if (string.IsNullOrEmpty(json))
+                return;
+
+            var session = JsonSerializer.Deserialize<BffSessionRecord>(json);
+            if (session is null)
+                return;
+
+            // Never shorten: a concurrent request may already have slid further.
+            if (expiresAt <= session.ExpiresAt)
+                return;
+
+            var updated = session with
+            {
+                ExpiresAt = expiresAt,
+                LastActivityAt = DateTimeOffset.UtcNow,
+            };
+
+            var ttl = expiresAt - DateTimeOffset.UtcNow;
+            if (ttl <= TimeSpan.Zero)
+                return;
+
+            await db.StringSetAsync(SessionKey(sessionId), JsonSerializer.Serialize(updated), ttl);
+            _logger.LogDebug("BFF session expiry slid in Valkey: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
+                sessionId[..8], expiresAt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Valkey error sliding BFF session expiry SessionId={SessionIdPrefix}…",
+                sessionId[..Math.Min(8, sessionId.Length)]);
+        }
+    }
+
     public async Task<bool> TryAcquireRefreshLockAsync(string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
         try

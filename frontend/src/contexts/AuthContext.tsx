@@ -66,6 +66,12 @@ export interface SessionBootstrapResponse {
   tenants: TenantMembership[];
   suggestedTenantSlug?: string;
   isSiteAdmin?: boolean;
+  /**
+   * Secondary OAuth client this session came through, or absent for an ordinary login.
+   * Present = the session is ephemeral (today: the public demo), which changes where the
+   * visitor is sent when it ends — see `session-end.ts`.
+   */
+  authClient?: string | null;
 }
 
 // ── Context shape ─────────────────────────────────────────────────────────────

@@ -20,6 +20,14 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
 {
     public const string SchemeName = "BffCookie";
 
+    /// <summary>
+    /// Orkyo-internal claim carrying <see cref="BffSessionRecord.AuthClient"/> — the secondary
+    /// OAuth client a session was established through (null for ordinary logins). Namespaced so
+    /// it can never collide with a Keycloak claim; deliberately not in <c>KeycloakClaims</c>,
+    /// which is strictly the Keycloak JWT contract.
+    /// </summary>
+    public const string AuthClientClaim = "orkyo:auth_client";
+
     /// <summary>How far before expiry to trigger a proactive token refresh.</summary>
     private static readonly TimeSpan RefreshWindow = TimeSpan.FromSeconds(60);
 
@@ -29,6 +37,14 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     /// later request before the access token actually expires.
     /// </summary>
     private static readonly TimeSpan RefreshLockTtl = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Slide only once the session is past the half-way point of its idle window (standard
+    /// ASP.NET sliding-expiration semantics). This is what keeps the slide cheap: at most one
+    /// store write and one Set-Cookie per half-window per session, however many requests the SPA
+    /// fires. With a 7-day window that is one write every ~3.5 days of continuous use.
+    /// </summary>
+    private const double SlideThreshold = 0.5;
 
     private readonly IBffSessionStore _sessionStore;
     private readonly IDataProtector _protector;
@@ -103,6 +119,8 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             }
         }
 
+        await SlideSessionIfDueAsync(session);
+
         // Parse the access token to extract claims (no signature validation —
         // the token was validated at exchange time and is stored server-side)
         var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
@@ -127,11 +145,60 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             claims.Add(new Claim(claim.Type, claim.Value, claim.ValueType));
         }
 
+        // Carry the session's originating client onto the principal so /me can tell the SPA that
+        // this session is ephemeral (see BffAuthEndpoints.HandleMe).
+        if (!string.IsNullOrEmpty(session.AuthClient))
+            claims.Add(new Claim(AuthClientClaim, session.AuthClient));
+
         var identity = new ClaimsIdentity(claims, SchemeName, KeycloakClaims.PreferredUsername, KeycloakClaims.RealmRolesClaim);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);
 
         return AuthenticateResult.Success(ticket);
+    }
+
+    /// <summary>
+    /// Extends an active session's idle deadline, clamped to its absolute cap, and re-issues both
+    /// cookies to match. This is what makes an active user's session GitHub-like: it survives as
+    /// long as they keep working, and stops dead at the cap regardless.
+    /// </summary>
+    private async Task SlideSessionIfDueAsync(BffSessionRecord session)
+    {
+        // Sessions written before sliding existed decode with AbsoluteExpiresAt = default and
+        // SlidingEnabled = false, so they keep their original fixed deadline and simply run out —
+        // no migration, no surprise extension of a session established under the old policy.
+        if (!session.SlidingEnabled)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Already at the cap — nothing left to give.
+        if (session.AbsoluteExpiresAt <= now)
+            return;
+
+        var remaining = session.ExpiresAt - now;
+        if (remaining > _bffOptions.SessionIdleDuration * SlideThreshold)
+            return;
+
+        var target = now.Add(_bffOptions.SessionIdleDuration);
+        if (target > session.AbsoluteExpiresAt)
+            target = session.AbsoluteExpiresAt;
+
+        // Clamping can leave nothing to do once the cap is close.
+        if (target <= session.ExpiresAt)
+            return;
+
+        await _sessionStore.SlideExpiryAsync(session.SessionId, target, Context.RequestAborted);
+
+        // The browser copy must move too, or the cookie would lapse while the server-side session
+        // is still alive — the user would be logged out despite the extension.
+        var cookieValue = Request.Cookies[_bffOptions.CookieName];
+        var csrfValue = Request.Cookies[_bffOptions.CsrfCookieName];
+        var lifetime = target - now;
+        if (!string.IsNullOrEmpty(cookieValue))
+            BffSessionCookies.WriteSessionCookie(Context, _bffOptions, cookieValue, lifetime);
+        if (!string.IsNullOrEmpty(csrfValue))
+            BffSessionCookies.WriteCsrfCookie(Context, _bffOptions, csrfValue, lifetime);
     }
 
     private async Task<BffSessionRecord?> TryRefreshTokensAsync(BffSessionRecord session)
