@@ -132,9 +132,8 @@ public class CriteriaRepository : ICriteriaRepository
 
             // Insert applicability rows. Resolve resource_type_ids by key one
             // by one — this keeps the SQL simple and gives us per-key error
-            // messages if anything is unknown. Validation runs upstream so all
-            // keys are guaranteed to be in the known set; this is the DB-level
-            // backstop.
+            // messages if anything is unknown. Tenants define their own resource
+            // types, so this lookup is the authority on which keys are valid.
             var keys = resourceTypeKeys.Distinct(StringComparer.Ordinal).ToArray();
             foreach (var key in keys)
             {

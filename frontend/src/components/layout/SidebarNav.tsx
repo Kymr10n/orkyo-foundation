@@ -4,8 +4,10 @@ import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import {
   Box,
+  Boxes,
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
@@ -45,8 +47,15 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
   const { membership } = useAuth();
   const canEdit = useCanEdit();
   const isTenantAdmin = membership?.isTenantAdmin === true;
+  // Built-in types have purpose-built pages above; user-defined ones get a generic
+  // page each, listed after the core items in the order the API returns them.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const customNavItems = resourceTypes
+    .filter((type) => !type.isSystem)
+    .map((type) => ({ to: `/resources/${type.key}`, label: type.displayName, icon: Boxes }));
   const navItems = [
     ...coreNavItems,
+    ...customNavItems,
     ...(canEdit ? [settingsNavItem] : []),
     ...(isTenantAdmin ? [adminNavItem] : []),
   ];

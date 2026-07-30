@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Api.Models;
 
 public record ResourceTypeInfo
@@ -35,8 +37,26 @@ public record ResourceInfo
     /// <summary>Whether the resource may be assigned to requests at another site.</summary>
     public bool CrossSiteAllowed { get; init; } = true;
 
+    /// <summary>Custom field values keyed by field definition key (see <see cref="ResourceTypeFieldInfo"/>).
+    /// Null when the resource has no custom field values.</summary>
+    public JsonElement? Metadata { get; init; }
+
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+}
+
+public record CreateResourceTypeRequest
+{
+    public required string Key { get; init; }
+    public required string DisplayName { get; init; }
+    public string? Description { get; init; }
+}
+
+public record UpdateResourceTypeRequest
+{
+    public string? DisplayName { get; init; }
+    public string? Description { get; init; }
+    public bool? IsActive { get; init; }
 }
 
 public record CreateResourceRequest
@@ -50,6 +70,10 @@ public record CreateResourceRequest
 
     public Guid? HomeSiteId { get; init; }
     public bool CrossSiteAllowed { get; init; } = true;
+
+    /// <summary>Custom field values keyed by field definition key. Validated against the
+    /// type's field definitions; unknown keys and constraint violations are rejected.</summary>
+    public Dictionary<string, JsonElement>? Metadata { get; init; }
 }
 
 public record UpdateResourceRequest
@@ -63,6 +87,10 @@ public record UpdateResourceRequest
 
     public Guid? HomeSiteId { get; init; }
     public bool? CrossSiteAllowed { get; init; }
+
+    /// <summary>Custom field values keyed by field definition key. Null leaves the stored
+    /// document untouched; a non-null value replaces the whole document after validation.</summary>
+    public Dictionary<string, JsonElement>? Metadata { get; init; }
 }
 
 public record ResourceListFilter

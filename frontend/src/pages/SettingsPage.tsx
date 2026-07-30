@@ -38,6 +38,7 @@ export function SettingsPage() {
 
   const tabs = useMemo<PageTab[]>(() => [
     { value: 'criteria', label: 'Criteria' },
+    { value: 'resource-types', label: 'Resource Types' },
     { value: 'templates', label: 'Templates' },
     { value: 'presets', label: 'Presets' },
     { value: 'scheduling', label: 'Scheduling' },

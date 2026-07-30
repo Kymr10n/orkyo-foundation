@@ -25,7 +25,9 @@ public class CreateCriterionRequestValidator : AbstractValidator<CreateCriterion
         When(x => x.Unit != null, () =>
             RuleFor(x => x.Unit!).MaximumLength(DomainLimits.CriterionUnitMaxLength));
 
-        // Applicability: required, ≥1 entry, known keys only, no duplicates.
+        // Applicability: required, ≥1 entry, no duplicates or blanks. Whether each key names an
+        // existing resource type is a database question (tenants define their own types), so it
+        // is resolved when the applicability rows are written in CriteriaRepository.
         RuleFor(x => x.ResourceTypeKeys)
             .NotNull().WithMessage("At least one applicability value is required.")
             .Must(keys => keys is { Count: > 0 })
@@ -34,7 +36,6 @@ public class CreateCriterionRequestValidator : AbstractValidator<CreateCriterion
                 .WithMessage("Duplicate applicability values are not allowed.");
 
         RuleForEach(x => x.ResourceTypeKeys!)
-            .Must(ResourceTypeKeys.IsKnown)
-            .WithMessage("Unknown applicability value. Allowed: space, person, tool.");
+            .NotEmpty().WithMessage("Applicability values cannot be empty.");
     }
 }

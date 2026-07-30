@@ -18,6 +18,15 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({ membership: authState.membership }),
 }));
 
+// User-defined resource types become nav entries; mocked so the nav stays renderable
+// without a QueryClient, matching how the store and auth context are handled above.
+const resourceTypesState: { data: { key: string; displayName: string; isSystem: boolean }[] } = {
+  data: [],
+};
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({ data: resourceTypesState.data }),
+}));
+
 function renderSidebar(
   initialPath = '/',
   props: { forceCollapsed?: boolean; onNavigate?: () => void } = {},
@@ -35,6 +44,7 @@ describe('SidebarNav', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.membership = null;
+    resourceTypesState.data = [];
   });
 
   it('renders all navigation links', () => {
@@ -60,6 +70,20 @@ describe('SidebarNav', () => {
     expect(hrefs).toContain('/requests');
     expect(hrefs).toContain('/insights');
     expect(hrefs).toContain('/settings');
+  });
+
+  it('lists user-defined resource types and skips built-in ones', () => {
+    resourceTypesState.data = [
+      { key: 'space', displayName: 'Space', isSystem: true },
+      { key: 'car', displayName: 'Car', isSystem: false },
+    ];
+    renderSidebar();
+
+    expect(screen.getByText('Car')).toBeInTheDocument();
+    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+    expect(hrefs).toContain('/resources/car');
+    // The built-in type keeps its purpose-built page rather than gaining a second entry.
+    expect(hrefs).not.toContain('/resources/space');
   });
 
   it('hides the Administration item for non-admins', () => {

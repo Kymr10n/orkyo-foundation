@@ -1,6 +1,7 @@
 using System.Data;
 using Api.Models;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Api.Repositories;
 
@@ -151,6 +152,17 @@ public static class NpgsqlQueryExtensions
     /// </summary>
     public static NpgsqlParameter AddNullable(this NpgsqlParameterCollection parameters, string name, object? value)
         => parameters.AddWithValue(name, value ?? DBNull.Value);
+
+    /// <summary>
+    /// Add a <c>jsonb</c> parameter from raw JSON text (null → SQL NULL). Typing the parameter
+    /// explicitly means the SQL needs no <c>::jsonb</c> cast and a null value cannot fall foul
+    /// of parameter type inference.
+    /// </summary>
+    public static NpgsqlParameter AddJsonb(this NpgsqlParameterCollection parameters, string name, string? json)
+        => parameters.Add(new NpgsqlParameter(name, NpgsqlDbType.Jsonb)
+        {
+            Value = (object?)json ?? DBNull.Value,
+        });
 }
 
 /// <summary>

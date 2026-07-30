@@ -6,6 +6,29 @@ behaviour delivered to the consuming editions ([orkyo-community](https://github.
 orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **User-definable resource types.** Tenants can create their own resource types (cars, cameras, …)
+  alongside the built-in space/person/tool types, each with its own custom fields — text, number,
+  boolean, date, or choice list, with optional required/min/max/pattern constraints. Field values are
+  stored per resource and validated server-side against the type's definitions. Custom types flow
+  through the existing machinery unchanged: criteria/capabilities, availability, off-times,
+  assignments, groups, and sites all work for them.
+  - New endpoints on `/api/resource-types`: create, update, delete (deactivates instead when
+    resources still reference the type), plus `…/{id}/fields` CRUD for field definitions.
+  - `CreateResourceRequest` / `UpdateResourceRequest` / `ResourceInfo` gained an optional `metadata`
+    document. On update, a supplied document replaces the stored one; omitting it leaves values alone.
+  - Settings gains a **Resource Types** tab (type builder + field editor); user-defined types get a
+    generic management page at `/resources/:typeKey` and their own sidebar entry.
+  - Built-in types stay protected — their identity and lifecycle are read-only — but they may gain
+    custom fields, which is immediately useful for `tool`.
+
+### Changed
+- Resource type keys are no longer validated against a hard-coded list. Criteria applicability accepts
+  any type that exists in the database, so criteria can be attached to user-defined types.
+  `ResourceTypeKeys` now documents the *system* types only.
+
 ## [0.6.14] — 2026-07-05
 
 ### Fixed

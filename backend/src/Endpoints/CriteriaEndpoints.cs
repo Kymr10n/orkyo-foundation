@@ -1,7 +1,7 @@
-using Api.Constants;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
+using Api.Repositories;
 using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
@@ -16,13 +16,13 @@ public static class CriteriaEndpoints
     {
         var group = app.MapGroup("/api/criteria").WithTags("Criteria").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        group.MapGet("/", async (ICriteriaService criteriaService, int? page, int? pageSize, string? resourceType, CancellationToken ct) =>
+        group.MapGet("/", async (ICriteriaService criteriaService, IResourceTypeRepository resourceTypeRepository, int? page, int? pageSize, string? resourceType, CancellationToken ct) =>
         {
             if (!string.IsNullOrWhiteSpace(resourceType))
             {
-                if (!ResourceTypeKeys.IsKnown(resourceType))
-                    return ErrorResponses.BadRequest(
-                        $"Unknown resource type '{resourceType}'. Allowed: {string.Join(", ", ResourceTypeKeys.All)}.");
+                // Tenants define their own resource types, so the set of valid keys lives in the DB.
+                if (await resourceTypeRepository.GetByKeyAsync(resourceType, ct) is null)
+                    return ErrorResponses.BadRequest($"Unknown resource type '{resourceType}'.");
                 return Results.Ok(await criteriaService.GetByResourceTypeAsync(resourceType, ct));
             }
             if (page.HasValue || pageSize.HasValue)

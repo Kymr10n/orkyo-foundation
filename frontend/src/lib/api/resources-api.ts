@@ -23,6 +23,8 @@ export interface ResourceInfo {
   currentSiteId?: string | null;
   /** Whether the resource may be assigned to requests at another site (backend defaults true). */
   crossSiteAllowed?: boolean;
+  /** Custom field values, keyed by the resource type's field keys. */
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +38,8 @@ export interface CreateResourceRequest {
   baseAvailabilityPercent?: number;
   homeSiteId?: string | null;
   crossSiteAllowed?: boolean;
+  /** Custom field values. Validated server-side against the type's field definitions. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateResourceRequest {
@@ -47,6 +51,8 @@ export interface UpdateResourceRequest {
   isActive?: boolean;
   homeSiteId?: string | null;
   crossSiteAllowed?: boolean;
+  /** Omit to leave stored values untouched; a supplied document replaces them wholesale. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface ResourcesResponse {
