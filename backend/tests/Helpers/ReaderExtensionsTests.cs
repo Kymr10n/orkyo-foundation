@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Api.Helpers;
 using Npgsql;
 
@@ -35,7 +36,10 @@ public class ReaderExtensionsTests
             true::boolean                                     AS bool_col,
             '2024-06-15 12:00:00'::timestamp                  AS dt_col,
             NULL::timestamp                                   AS nullable_dt_null,
-            '2024-06-15 12:00:00'::timestamp                  AS nullable_dt_set";
+            '2024-06-15 12:00:00'::timestamp                  AS nullable_dt_set,
+            '{""name"": ""bay-1"", ""size"": 3}'::jsonb        AS json_col,
+            NULL::jsonb                                       AS nullable_json_null,
+            '[1, 2, 3]'::jsonb                                AS nullable_json_set";
 
     private async Task<NpgsqlDataReader> OpenReaderAsync()
     {
@@ -166,5 +170,67 @@ public class ReaderExtensionsTests
         await using var reader = await OpenReaderAsync();
         await reader.ReadAsync();
         reader.GetNullableDateTime("nullable_dt_set").Should().Be(new DateTime(2024, 6, 15, 12, 0, 0));
+    }
+
+    // --- GetJsonElement / GetNullableJsonElement ---
+    //
+    // These parse a pooled JsonDocument and return a Clone(). The clone is the point:
+    // it detaches the element from the document so the value stays valid after the
+    // document is disposed and its ArrayPool buffer returned.
+
+    [Fact]
+    public async Task GetJsonElement_ReturnsValueByColumnName()
+    {
+        await using var reader = await OpenReaderAsync();
+        await reader.ReadAsync();
+        var el = reader.GetJsonElement("json_col");
+        el.GetProperty("name").GetString().Should().Be("bay-1");
+        el.GetProperty("size").GetInt32().Should().Be(3);
+    }
+
+    [Fact]
+    public async Task GetJsonElement_ReturnsValueByOrdinal()
+    {
+        // The ordinal overload exists for mappers reading a JOIN by position.
+        await using var reader = await OpenReaderAsync();
+        await reader.ReadAsync();
+        var ordinal = reader.GetOrdinal("json_col");
+        reader.GetJsonElement(ordinal).GetProperty("name").GetString().Should().Be("bay-1");
+    }
+
+    [Fact]
+    public async Task GetNullableJsonElement_ReturnsNull_WhenColumnIsNull()
+    {
+        await using var reader = await OpenReaderAsync();
+        await reader.ReadAsync();
+        reader.GetNullableJsonElement("nullable_json_null").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetNullableJsonElement_ReturnsValue_WhenColumnIsNotNull()
+    {
+        await using var reader = await OpenReaderAsync();
+        await reader.ReadAsync();
+        var el = reader.GetNullableJsonElement("nullable_json_set");
+        el.Should().NotBeNull();
+        el!.Value.GetArrayLength().Should().Be(3);
+        el.Value[0].GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetJsonElement_ValueSurvivesReaderAndDocumentDisposal()
+    {
+        // The regression this whole change turns on: without Clone(), disposing the
+        // document (which the helper does, to return its pooled buffer) would leave the
+        // returned element pointing at recycled memory.
+        JsonElement el;
+        await using (var reader = await OpenReaderAsync())
+        {
+            await reader.ReadAsync();
+            el = reader.GetJsonElement("json_col");
+        }
+
+        el.GetProperty("name").GetString().Should().Be("bay-1");
+        el.GetRawText().Should().Contain("bay-1");
     }
 }

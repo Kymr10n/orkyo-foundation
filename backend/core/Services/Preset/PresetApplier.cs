@@ -454,7 +454,8 @@ public static class PresetApplier
         {
             try
             {
-                JsonDocument.Parse(value);
+                // Parsed purely to test validity; dispose returns the pooled buffer.
+                using var _ = JsonDocument.Parse(value);
                 return true;
             }
             catch

@@ -209,7 +209,7 @@ public class TemplateRepository : ITemplateRepository
             throw new ArgumentException($"Template not found: {item.TemplateId}");
         if (string.IsNullOrEmpty(item.Value))
             throw new ArgumentException("Value is required");
-        try { JsonDocument.Parse(item.Value); }
+        try { using var _ = JsonDocument.Parse(item.Value); }
         catch (JsonException) { throw new ArgumentException("Value must be valid JSON"); }
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);

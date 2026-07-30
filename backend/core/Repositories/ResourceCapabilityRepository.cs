@@ -150,13 +150,15 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
 
     private static ResourceCapabilityInfo Map(NpgsqlDataReader r)
     {
-        var valueJson = r.GetString(r.GetOrdinal("value"));
         return new ResourceCapabilityInfo
         {
             Id = r.GetGuid(r.GetOrdinal("id")),
             ResourceId = r.GetGuid(r.GetOrdinal("resource_id")),
             CriterionId = r.GetGuid(r.GetOrdinal("criterion_id")),
-            Value = JsonDocument.Parse(valueJson).RootElement,
+            // Was Parse(...).RootElement — undisposed AND unCloned, so the element pinned the
+            // whole document for the DTO's lifetime and adding a bare `using` would have made
+            // it a use-after-dispose. The helper does both.
+            Value = r.GetJsonElement("value"),
             Criterion = new CriterionMetadata
             {
                 Id = r.GetGuid(r.GetOrdinal("criterion_id")),
