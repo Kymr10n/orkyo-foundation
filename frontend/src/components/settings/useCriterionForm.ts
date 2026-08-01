@@ -1,16 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { CriterionDataType, ResourceTypeKey } from '@foundation/src/types/criterion';
-
-export const CRITERION_RESOURCE_TYPE_OPTIONS: { key: ResourceTypeKey; label: string }[] = [
-  { key: 'space', label: 'Spaces' },
-  { key: 'person', label: 'People' },
-];
+import type { CriterionDataType } from '@foundation/src/types/criterion';
 
 export interface CriterionFormState {
   description: string;
   unit: string;
   enumValues: string[];
-  resourceTypeKeys: ResourceTypeKey[];
+  resourceTypeKeys: string[];
 }
 
 export interface UseCriterionFormResult {
@@ -20,9 +15,9 @@ export interface UseCriterionFormResult {
   setUnit: (v: string) => void;
   enumValues: string[];
   setEnumValues: (v: string[]) => void;
-  resourceTypeKeys: ResourceTypeKey[];
-  setResourceTypeKeys: (v: ResourceTypeKey[]) => void;
-  toggleResourceType: (key: ResourceTypeKey, checked: boolean) => void;
+  resourceTypeKeys: string[];
+  setResourceTypeKeys: (v: string[]) => void;
+  toggleResourceType: (key: string, checked: boolean) => void;
   /** Returns an error message if validation fails, else null. Pass the dataType in scope. */
   validate: (dataType: CriterionDataType) => string | null;
   reset: (init?: Partial<CriterionFormState>) => void;
@@ -44,11 +39,11 @@ export function useCriterionForm(initial?: Partial<CriterionFormState>): UseCrit
   const [description, setDescription] = useState(initial?.description ?? '');
   const [unit, setUnit] = useState(initial?.unit ?? '');
   const [enumValues, setEnumValues] = useState<string[]>(initial?.enumValues ?? []);
-  const [resourceTypeKeys, setResourceTypeKeys] = useState<ResourceTypeKey[]>(
+  const [resourceTypeKeys, setResourceTypeKeys] = useState<string[]>(
     initial?.resourceTypeKeys ?? [],
   );
 
-  const toggleResourceType = useCallback((key: ResourceTypeKey, checked: boolean) => {
+  const toggleResourceType = useCallback((key: string, checked: boolean) => {
     setResourceTypeKeys((prev) =>
       checked ? [...prev, key] : prev.filter((k) => k !== key),
     );
@@ -99,7 +94,7 @@ export function useSeedCriterionForm(
     description?: string | null;
     unit?: string | null;
     enumValues?: string[] | null;
-    resourceTypeKeys?: ResourceTypeKey[] | null;
+    resourceTypeKeys?: string[] | null;
   } | undefined,
 ) {
   // We deliberately depend on the source object identity to seed on prop change.

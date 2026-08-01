@@ -11,6 +11,18 @@ const mockRefetch = vi.fn();
 
 let mockCriteriaData: { data: unknown[]; isLoading: boolean; error: Error | null; refetch?: () => void };
 
+// Filter tabs and applicability badges are driven by the API now, so the page needs a
+// QueryClient it never had before; mocked in the same style as useCriteria below.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({
+    data: [
+      { id: 'rt-space', key: 'space', displayName: 'Space', isSystem: true, isActive: true },
+      { id: 'rt-person', key: 'person', displayName: 'Person', isSystem: true, isActive: true },
+      { id: 'rt-tool', key: 'tool', displayName: 'Tool', isSystem: true, isActive: true },
+    ],
+  }),
+}));
+
 vi.mock('@foundation/src/hooks/useCriteria', () => ({
   useCriteria: () => mockCriteriaData,
   useCreateCriterion: () => ({ mutateAsync: mockCreateMutateAsync, isPending: false }),
@@ -226,12 +238,13 @@ describe('CriteriaSettings', () => {
   });
 
   describe('filter tabs', () => {
-    it('renders three filter tabs (tools hidden until tools feature ships)', () => {
+    it('renders one filter tab per active resource type, plus All', () => {
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Spaces' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'People' })).toBeInTheDocument();
-      expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Space' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Person' })).toBeInTheDocument();
+      // Tools had no tab at all before the list became data-driven.
+      expect(screen.getByRole('tab', { name: 'Tool' })).toBeInTheDocument();
     });
 
     it('All tab shows all criteria by default', () => {
@@ -241,19 +254,19 @@ describe('CriteriaSettings', () => {
       expect(screen.getByText('PersonSkill')).toBeInTheDocument();
     });
 
-    it('Spaces tab filters to space criteria only', async () => {
+    it('Space tab filters to space criteria only', async () => {
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.click(screen.getByRole('tab', { name: 'Spaces' }));
+      await user.click(screen.getByRole('tab', { name: 'Space' }));
       expect(screen.getByText('Capacity')).toBeInTheDocument();
       expect(screen.getByText('HasProjector')).toBeInTheDocument();
       expect(screen.queryByText('PersonSkill')).not.toBeInTheDocument();
     });
 
-    it('People tab filters to person criteria only', async () => {
+    it('Person tab filters to person criteria only', async () => {
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.click(screen.getByRole('tab', { name: 'People' }));
+      await user.click(screen.getByRole('tab', { name: 'Person' }));
       expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
       expect(screen.getByText('PersonSkill')).toBeInTheDocument();
     });
@@ -270,7 +283,7 @@ describe('CriteriaSettings', () => {
       };
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.click(screen.getByRole('tab', { name: 'People' }));
+      await user.click(screen.getByRole('tab', { name: 'Person' }));
       await waitFor(() => {
         expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
       });
@@ -375,10 +388,10 @@ describe('CriteriaSettings', () => {
   describe('applicability badges', () => {
     it('renders resourceTypeKey badges on each criterion card', () => {
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      // Each label appears as tab + badge; Tools appears only as a badge (no tab until tools ships)
-      expect(screen.getAllByText('Spaces').length).toBeGreaterThanOrEqual(2); // tab + at least one badge
-      expect(screen.getAllByText('People').length).toBeGreaterThanOrEqual(2); // tab + badge
-      expect(screen.getAllByText('Tools').length).toBeGreaterThanOrEqual(1); // badge only (c2 has ['space','tool'])
+      // Every label now appears at least twice — as a filter tab and as a badge.
+      expect(screen.getAllByText('Space').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('Person').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('Tool').length).toBeGreaterThanOrEqual(2); // c2 has ['space','tool']
     });
   });
 });

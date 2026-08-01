@@ -26,6 +26,9 @@ public class CreateResourceTypeRequestValidator : AbstractValidator<CreateResour
             .Matches(ResourceTypeKeyRules.Pattern).WithMessage(ResourceTypeKeyRules.Message);
 
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(100);
+
+        When(x => x.Icon is not null, () =>
+            RuleFor(x => x.Icon!).MaximumLength(50));
     }
 }
 
@@ -35,6 +38,9 @@ public class UpdateResourceTypeRequestValidator : AbstractValidator<UpdateResour
     {
         When(x => x.DisplayName is not null, () =>
             RuleFor(x => x.DisplayName!).NotEmpty().MaximumLength(100));
+
+        When(x => x.Icon is not null, () =>
+            RuleFor(x => x.Icon!).MaximumLength(50));
     }
 }
 

@@ -102,6 +102,71 @@ public class ResourceTypeFieldEndpointTests
     }
 
     [Fact]
+    public async Task CreateResourceType_RoundTripsIcon()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("van"),
+            DisplayName = "Van",
+            Icon = "Truck",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<ResourceTypeInfo>();
+        Assert.Equal("Truck", created!.Icon);
+    }
+
+    [Fact]
+    public async Task CreateResourceType_LeavesIconNull_WhenOmitted()
+    {
+        var created = await CreateTypeAsync();
+
+        Assert.Null(created.Icon);
+    }
+
+    [Fact]
+    public async Task UpdateResourceType_ChangesIcon()
+    {
+        var created = await CreateTypeAsync();
+
+        var response = await _client.PutAsJsonAsync($"/api/resource-types/{created.Id}",
+            new UpdateResourceTypeRequest { Icon = "Car" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<ResourceTypeInfo>();
+        Assert.Equal("Car", updated!.Icon);
+        // Icon-only updates must not disturb the rest of the row.
+        Assert.Equal(created.DisplayName, updated.DisplayName);
+    }
+
+    /// <summary>
+    /// Icons are a frontend concern — the server stores the name verbatim and does not police
+    /// the allow-list, so an unknown name is accepted here and degrades to a default in the UI.
+    /// </summary>
+    [Fact]
+    public async Task CreateResourceType_Rejects_IconOverMaxLength()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("bus"),
+            DisplayName = "Bus",
+            Icon = new string('x', 51),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SystemTypes_HaveSeededIcons()
+    {
+        var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
+
+        Assert.Equal("Box", Assert.Single(types!, t => t.Key == "space").Icon);
+        Assert.Equal("Users", Assert.Single(types!, t => t.Key == "person").Icon);
+        Assert.Equal("Wrench", Assert.Single(types!, t => t.Key == "tool").Icon);
+    }
+
+    [Fact]
     public async Task DeleteResourceType_RemovesUnusedType()
     {
         var created = await CreateTypeAsync();

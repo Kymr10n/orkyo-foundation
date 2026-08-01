@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
@@ -16,7 +16,7 @@ import {
 import { CriterionEditDialog } from './CriterionEditDialog';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
-import type { CreateCriterionRequest, ResourceTypeKey } from '@foundation/src/types/criterion';
+import type { CreateCriterionRequest } from '@foundation/src/types/criterion';
 import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
@@ -27,37 +27,43 @@ import {
 } from '@foundation/src/hooks/useCriteria';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 
-type FilterTab = 'all' | ResourceTypeKey;
+/** 'all', or a resource type key. */
+type FilterTab = string;
 
-const FILTER_TABS: { value: FilterTab; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'space', label: 'Spaces' },
-  { value: 'person', label: 'People' },
-];
-
-// 'tool' is intentionally kept so existing tool criteria render a correct badge.
-// Remove once the tools feature is built and the filter tab is re-added.
-const RESOURCE_TYPE_LABELS: Record<ResourceTypeKey, string> = {
-  space: 'Spaces',
-  person: 'People',
-  tool: 'Tools',
-};
+const ALL_TAB = 'all';
 
 export function CriteriaSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>(ALL_TAB);
   const [deletingCriterion, setDeletingCriterion] = useState<Criterion | null>(null);
 
   // Use React Query for criteria data
   const { data: criteria = [], isLoading, error, refetch } = useCriteria();
+  const { data: resourceTypes = [] } = useResourceTypes(true);
   const createMutation = useCreateCriterion();
   const deleteMutation = useDeleteCriterion();
   const canEdit = useCanEdit();
+
+  const filterTabs = useMemo(
+    () => [
+      { value: ALL_TAB, label: 'All' },
+      ...resourceTypes.map((t) => ({ value: t.key, label: t.displayName })),
+    ],
+    [resourceTypes],
+  );
+
+  // A criterion can reference a type that was since deactivated or removed; fall back to
+  // the raw key so the badge still says something truthful rather than "undefined".
+  const labelForType = useCallback(
+    (key: string) => resourceTypes.find((t) => t.key === key)?.displayName ?? key,
+    [resourceTypes],
+  );
 
   // Open the edit dialog when arriving with ?edit=<id> from global search.
   useEditQueryParam(criteria, setEditingCriterion, { ready: !isLoading });
@@ -99,7 +105,7 @@ export function CriteriaSettings() {
     }
   };
 
-  const filteredCriteria = activeFilter === 'all'
+  const filteredCriteria = activeFilter === ALL_TAB
     ? criteria
     : criteria.filter((c) => c.resourceTypeKeys?.includes(activeFilter));
 
@@ -165,7 +171,7 @@ export function CriteriaSettings() {
           <div className="flex flex-wrap gap-1">
             {criterion.resourceTypeKeys.map((key) => (
               <Badge key={key} variant="outline" className="text-xs">
-                {RESOURCE_TYPE_LABELS[key]}
+                {labelForType(key)}
               </Badge>
             ))}
           </div>
@@ -207,7 +213,7 @@ export function CriteriaSettings() {
         <div className="flex flex-wrap gap-1">
           {row.original.resourceTypeKeys?.map((key) => (
             <Badge key={key} variant="outline" className="text-xs">
-              {RESOURCE_TYPE_LABELS[key]}
+              {labelForType(key)}
             </Badge>
           ))}
         </div>
@@ -259,9 +265,9 @@ export function CriteriaSettings() {
   // Context-aware empty message for tabs that filter to zero rows. The truly-empty
   // case (no criteria at all) is handled by the CTA card below, not the table.
   const emptyMessage =
-    activeFilter === 'all'
+    activeFilter === ALL_TAB
       ? 'No criteria match your search.'
-      : `No criteria defined for ${RESOURCE_TYPE_LABELS[activeFilter]} yet. Create a criterion and mark it as applicable to ${RESOURCE_TYPE_LABELS[activeFilter]}.`;
+      : `No criteria defined for ${labelForType(activeFilter)} yet. Create a criterion and mark it as applicable to ${labelForType(activeFilter)}.`;
 
   if (isLoading) {
     return (
@@ -298,9 +304,9 @@ export function CriteriaSettings() {
       )}
 
       {/* Filter Tabs */}
-      <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterTab)}>
+      <Tabs value={activeFilter} onValueChange={setActiveFilter}>
         <TabsList>
-          {FILTER_TABS.map(({ value, label }) => (
+          {filterTabs.map(({ value, label }) => (
             <TabsTrigger key={value} value={value}>
               {label}
             </TabsTrigger>

@@ -8,6 +8,8 @@ public record ResourceTypeInfo
     public required string Key { get; init; }
     public required string DisplayName { get; init; }
     public string? Description { get; init; }
+    /// <summary>lucide-react icon name; the frontend falls back to a default when null or unrecognised.</summary>
+    public string? Icon { get; init; }
     public required bool IsSystem { get; init; }
     public required bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -50,12 +52,14 @@ public record CreateResourceTypeRequest
     public required string Key { get; init; }
     public required string DisplayName { get; init; }
     public string? Description { get; init; }
+    public string? Icon { get; init; }
 }
 
 public record UpdateResourceTypeRequest
 {
     public string? DisplayName { get; init; }
     public string? Description { get; init; }
+    public string? Icon { get; init; }
     public bool? IsActive { get; init; }
 }
 

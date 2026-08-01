@@ -19,6 +19,8 @@ export interface ResourceTypeInfo {
   key: string;
   displayName: string;
   description?: string;
+  /** lucide-react icon name; unknown or absent names fall back to a default. */
+  icon?: string | null;
   /** Seeded types (space, person, tool) — identity and lifecycle are read-only. */
   isSystem: boolean;
   isActive: boolean;
@@ -30,11 +32,13 @@ export interface CreateResourceTypeRequest {
   key: string;
   displayName: string;
   description?: string;
+  icon?: string;
 }
 
 export interface UpdateResourceTypeRequest {
   displayName?: string;
   description?: string;
+  icon?: string;
   isActive?: boolean;
 }
 

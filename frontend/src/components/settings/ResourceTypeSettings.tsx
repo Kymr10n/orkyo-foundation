@@ -15,6 +15,7 @@ import {
   useResourceTypes,
 } from '@foundation/src/hooks/useResourceTypes';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { resourceTypeIcon } from '@foundation/src/components/resources/resource-type-icon';
 import type {
   ResourceTypeFieldInfo,
   ResourceTypeInfo,
@@ -185,6 +186,10 @@ export function ResourceTypeSettings() {
                     )}
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
+                        {(() => {
+                          const Icon = resourceTypeIcon(type.icon);
+                          return <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />;
+                        })()}
                         <span className="truncate font-medium">{type.displayName}</span>
                         {type.isSystem && <Badge variant="secondary">Built-in</Badge>}
                         {!type.isActive && <StatusBadge status="inactive" label="Inactive" />}

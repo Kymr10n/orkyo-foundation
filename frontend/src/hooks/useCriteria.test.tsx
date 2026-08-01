@@ -9,7 +9,7 @@ import {
   useUpdateCriterionApplicability,
 } from './useCriteria';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
-import type { Criterion, ResourceTypeKey } from '@foundation/src/types/criterion';
+import type { Criterion } from '@foundation/src/types/criterion';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createTestQueryWrapper, createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
@@ -124,7 +124,7 @@ describe('useCriteria', () => {
       const applicabilityResult = {
         criterionId: 'criterion-1',
         applicableToRequests: true,
-        resourceTypeKeys: ['space', 'person'] as ResourceTypeKey[],
+        resourceTypeKeys: ['space', 'person'],
       };
       vi.mocked(criteriaApi.updateCriterionApplicability).mockResolvedValue(applicabilityResult);
 

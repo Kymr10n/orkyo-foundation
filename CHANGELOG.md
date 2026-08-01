@@ -23,11 +23,20 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
     generic management page at `/resources/:typeKey` and their own sidebar entry.
   - Built-in types stay protected — their identity and lifecycle are read-only — but they may gain
     custom fields, which is immediately useful for `tool`.
+- **Per-type icons.** A resource type can carry a `lucide` icon name (`resource_types.icon`, settable
+  on create and update), chosen from a curated picker in the type dialog and shown in the sidebar and
+  the type list. Unknown or absent names fall back to a default, so tenant data and the frontend
+  allow-list can drift safely.
 
 ### Changed
 - Resource type keys are no longer validated against a hard-coded list. Criteria applicability accepts
   any type that exists in the database, so criteria can be attached to user-defined types.
   `ResourceTypeKeys` now documents the *system* types only.
+- **Criterion applicability is no longer limited to spaces and people.** The "Applies to" checkboxes
+  and the criteria filter tabs are generated from the resource types that exist, rather than from a
+  hard-coded two-entry list — which had made it impossible to tag a criterion for `tool`, a seeded
+  type since the resource-model migration. Labels now come from each type's display name, so they read
+  "Space"/"Person"/"Tool" (and whatever tenants name their own types) instead of "Spaces"/"People".
 
 ## [0.6.14] — 2026-07-05
 

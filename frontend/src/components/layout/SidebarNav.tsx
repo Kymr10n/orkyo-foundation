@@ -5,9 +5,9 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
+import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
 import {
   Box,
-  Boxes,
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
@@ -52,7 +52,11 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
   const { data: resourceTypes = [] } = useResourceTypes(true);
   const customNavItems = resourceTypes
     .filter((type) => !type.isSystem)
-    .map((type) => ({ to: `/resources/${type.key}`, label: type.displayName, icon: Boxes }));
+    .map((type) => ({
+      to: `/resources/${type.key}`,
+      label: type.displayName,
+      icon: resourceTypeIcon(type.icon),
+    }));
   const navItems = [
     ...coreNavItems,
     ...customNavItems,

@@ -1,12 +1,11 @@
-import type { CriterionValue, ResourceTypeKey } from './criterion';
+import type { CriterionValue } from './criterion';
 
-export type { ResourceTypeKey };
 export type AssignmentStatus = 'Planned' | 'Confirmed' | 'Tentative' | 'Cancelled';
 
 export interface ResourceAssignment {
   id: string;
   resourceId: string;
-  resourceTypeKey: ResourceTypeKey;
+  resourceTypeKey: string;
   startUtc: string;
   endUtc: string;
   allocationPercent?: number | null;
