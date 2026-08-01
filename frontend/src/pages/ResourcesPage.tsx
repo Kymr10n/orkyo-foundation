@@ -1,4 +1,4 @@
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router';
 import { PageLayout } from '@foundation/src/components/layout';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { ResourceList } from '@foundation/src/components/resources/ResourceList';

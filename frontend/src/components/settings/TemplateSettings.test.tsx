@@ -33,7 +33,7 @@ vi.mock('./CreateTemplateDialog', () => ({
 }));
 
 vi.mock('./EditTemplateDialog', () => ({
-  EditTemplateDialog: ({ open, template }: any) =>
+  EditTemplateDialog: ({ open, template }: { open: boolean; template: unknown }) =>
     open && template ? <div data-testid="edit-template-dialog" /> : null,
 }));
 

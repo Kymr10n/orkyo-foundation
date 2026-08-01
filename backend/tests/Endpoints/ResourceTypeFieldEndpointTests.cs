@@ -203,7 +203,9 @@ public class ResourceTypeFieldEndpointTests
         var type = await CreateTypeAsync();
         await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
         {
-            Key = "mileage", Label = "Mileage", DataType = "number",
+            Key = "mileage",
+            Label = "Mileage",
+            DataType = "number",
         });
 
         var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/fields",
@@ -243,7 +245,9 @@ public class ResourceTypeFieldEndpointTests
         var key = $"purchased_{Guid.NewGuid():N}"[..20];
         var field = await AddFieldAsync(tool.Id, new CreateResourceTypeFieldRequest
         {
-            Key = key, Label = "Purchase date", DataType = "date",
+            Key = key,
+            Label = "Purchase date",
+            DataType = "date",
         });
 
         Assert.Equal(key, field.Key);
@@ -255,7 +259,9 @@ public class ResourceTypeFieldEndpointTests
         var type = await CreateTypeAsync();
         var field = await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
         {
-            Key = "mileage", Label = "Mileage", DataType = "number",
+            Key = "mileage",
+            Label = "Mileage",
+            DataType = "number",
         });
 
         var response = await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}/fields/{field.Id}",
@@ -274,7 +280,9 @@ public class ResourceTypeFieldEndpointTests
         var typeB = await CreateTypeAsync();
         var field = await AddFieldAsync(typeA.Id, new CreateResourceTypeFieldRequest
         {
-            Key = "mileage", Label = "Mileage", DataType = "number",
+            Key = "mileage",
+            Label = "Mileage",
+            DataType = "number",
         });
 
         var response = await _client.PutAsJsonAsync($"/api/resource-types/{typeB.Id}/fields/{field.Id}",
@@ -289,7 +297,9 @@ public class ResourceTypeFieldEndpointTests
         var type = await CreateTypeAsync();
         var field = await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
         {
-            Key = "mileage", Label = "Mileage", DataType = "number",
+            Key = "mileage",
+            Label = "Mileage",
+            DataType = "number",
         });
 
         var response = await _client.DeleteAsync($"/api/resource-types/{type.Id}/fields/{field.Id}");
@@ -310,11 +320,17 @@ public class ResourceTypeFieldEndpointTests
         var type = await CreateTypeAsync();
         await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
         {
-            Key = "second", Label = "Second", DataType = "text", SortOrder = 2,
+            Key = "second",
+            Label = "Second",
+            DataType = "text",
+            SortOrder = 2,
         });
         await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
         {
-            Key = "first", Label = "First", DataType = "text", SortOrder = 1,
+            Key = "first",
+            Label = "First",
+            DataType = "text",
+            SortOrder = 1,
         });
 
         var fields = await _client.GetFromJsonAsync<List<ResourceTypeFieldInfo>>(

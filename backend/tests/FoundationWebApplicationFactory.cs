@@ -259,6 +259,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         // ── Resource model (Phase 1) ──────────────────────────────────────────
         builder.Services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
+        builder.Services.AddScoped<IResourceTypeFieldRepository, ResourceTypeFieldRepository>();
         builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
         builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
         builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
@@ -333,6 +334,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
+        builder.Services.AddScoped<IResourceTypeService, ResourceTypeService>();
+        builder.Services.AddScoped<IResourceMetadataValidator, ResourceMetadataValidator>();
         builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         builder.Services.AddScoped<IConflictService, ConflictService>();
         builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
