@@ -215,80 +215,46 @@ describe('CommandPalette', () => {
 
       fireEvent.keyDown(input, { key: 'Enter' });
 
-      expect(mockNavigate).toHaveBeenCalledWith('/spaces');
       expect(onOpenChange).toHaveBeenCalledWith(false);
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/spaces/floorplan?edit=space-123');
+      });
     });
   });
 
-  describe('result navigation', () => {
-    it('navigates to spaces page for space results', async () => {
-      const onOpenChange = vi.fn();
-      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
-      renderCommandPalette({ open: true, onOpenChange });
+  describe('result navigation opens the detail dialog via ?edit=', () => {
+    // Clicking a result routes to its owning page with `?edit=<id>`, which that
+    // page reads to open the item's detail dialog. Groups route by resource type.
+    const cases: {
+      type: SearchResult['type'];
+      title: string;
+      path: string;
+      extra?: Partial<SearchResult>;
+    }[] = [
+      { type: 'space', title: 'A Space', path: '/spaces/floorplan?edit=x-1' },
+      { type: 'request', title: 'A Request', path: '/requests?edit=x-1' },
+      { type: 'person', title: 'A Person', path: '/people/list?edit=x-1' },
+      { type: 'site', title: 'A Site', path: '/tenant-admin/sites?edit=x-1' },
+      { type: 'template', title: 'A Template', path: '/settings/templates?edit=x-1' },
+      { type: 'criterion', title: 'A Criterion', path: '/settings/criteria?edit=x-1' },
+      { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      { type: 'group', title: 'A Space Group', path: '/spaces/groups?edit=x-1', extra: { resourceTypeKey: 'space' } },
+    ];
 
-      const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
-
-      await waitFor(() => {
-        expect(screen.getByText('Conference Room A')).toBeInTheDocument();
-      }, { timeout: 500 });
-
-      fireEvent.click(screen.getByText('Conference Room A'));
-
-      expect(mockNavigate).toHaveBeenCalledWith('/spaces');
-    });
-
-    it('navigates to requests page for request results', async () => {
-      const requestResult: SearchResult = {
-        ...mockSearchResult,
-        type: 'request',
-        title: 'Setup Request',
-      };
-      vi.mocked(searchApi.globalSearch).mockResolvedValue({
-        query: 'setup',
-        results: [requestResult],
-      });
+    it.each(cases)('routes a $type result to $path', async ({ type, title, path, extra }) => {
+      const result: SearchResult = { ...mockSearchResult, type, id: 'x-1', title, ...extra };
+      vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: 'q', results: [result] });
 
       const onOpenChange = vi.fn();
       renderCommandPalette({ open: true, onOpenChange });
 
-      const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'setup');
+      await userEvent.type(screen.getByPlaceholderText(/search/i), 'q');
+      await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument(), { timeout: 500 });
 
-      await waitFor(() => {
-        expect(screen.getByText('Setup Request')).toBeInTheDocument();
-      }, { timeout: 500 });
+      fireEvent.click(screen.getByText(title));
 
-      fireEvent.click(screen.getByText('Setup Request'));
-
-      expect(mockNavigate).toHaveBeenCalledWith('/requests');
-    });
-
-    it('navigates to settings page for site results', async () => {
-      const siteResult: SearchResult = {
-        ...mockSearchResult,
-        type: 'site',
-        title: 'Headquarters',
-        id: 'site-2',
-      };
-      vi.mocked(searchApi.globalSearch).mockResolvedValue({
-        query: 'head',
-        results: [siteResult],
-      });
-
-      const onOpenChange = vi.fn();
-      renderCommandPalette({ open: true, onOpenChange });
-
-      const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'head');
-
-      await waitFor(() => {
-        expect(screen.getByText('Headquarters')).toBeInTheDocument();
-      }, { timeout: 500 });
-
-      fireEvent.click(screen.getByText('Headquarters'));
-
-      expect(mockNavigate).toHaveBeenCalledWith('/settings');
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith(path));
     });
   });
 
@@ -344,64 +310,6 @@ describe('CommandPalette', () => {
       // Now resolve the search
       resolveSearch!({ query: 'test', results: [] });
       await waitFor(() => {});
-    });
-  });
-
-  describe('edit button', () => {
-    it('shows Edit button for results with canEdit permission', async () => {
-      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
-      renderCommandPalette({ open: true });
-
-      const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
-      }, { timeout: 500 });
-    });
-
-    it('does not show Edit button when canEdit is false', async () => {
-      const noEditResult: SearchResult = {
-        ...mockSearchResult,
-        permissions: { canRead: true, canEdit: false },
-      };
-      vi.mocked(searchApi.globalSearch).mockResolvedValue({
-        query: 'test',
-        results: [noEditResult],
-      });
-      renderCommandPalette({ open: true });
-
-      const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'test');
-
-      await waitFor(() => {
-        expect(screen.getByText('Conference Room A')).toBeInTheDocument();
-      }, { timeout: 500 });
-
-      expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
-    });
-
-    it('navigates to edit URL when Edit button is clicked', async () => {
-      const onOpenChange = vi.fn();
-      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
-      renderCommandPalette({ open: true, onOpenChange });
-
-      const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
-      }, { timeout: 500 });
-
-      fireEvent.click(screen.getByRole('button', { name: /edit/i }));
-
-      // Dialog should close
-      expect(onOpenChange).toHaveBeenCalledWith(false);
-
-      // Navigation happens async via setTimeout
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/spaces?edit=space-123');
-      }, { timeout: 100 });
     });
   });
 

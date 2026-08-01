@@ -11,6 +11,7 @@ import { SiteEditDialog } from "./SiteEditDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportSites, importSites } from '@foundation/src/lib/utils/export-handlers';
 import { useSites, useDeleteSite, useCreateSite } from "@foundation/src/hooks/useSites";
+import { useEditQueryParam } from "@foundation/src/hooks/useEditQueryParam";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
@@ -28,6 +29,9 @@ export function SiteSettings() {
     error,
     refetch,
   } = useSites();
+
+  // Open the edit dialog when arriving with ?edit=<id> from global search.
+  useEditQueryParam(sites, setEditingSite, { ready: !isLoading });
 
   // Mutations
   const deleteMutation = useDeleteSite();

@@ -2,6 +2,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SiteSettings } from './SiteSettings';
 import type * as siteApi from '@foundation/src/lib/api/site-api';
@@ -93,7 +94,7 @@ describe('SiteSettings', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -103,7 +104,7 @@ describe('SiteSettings', () => {
   it('displays sites list after loading', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -115,10 +116,22 @@ describe('SiteSettings', () => {
     });
   });
 
+  it('opens the edit dialog from an ?edit= query param (global-search deep-link)', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/tenant-admin/sites?edit=1']}>
+          <SiteSettings />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByTestId('edit-site-dialog')).toBeInTheDocument();
+  });
+
   it('shows add site button', () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -128,7 +141,7 @@ describe('SiteSettings', () => {
   it('displays header and description', () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -140,7 +153,7 @@ describe('SiteSettings', () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -164,7 +177,7 @@ describe('SiteSettings', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -192,7 +205,7 @@ describe('SiteSettings', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -210,7 +223,7 @@ describe('SiteSettings', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -221,7 +234,7 @@ describe('SiteSettings', () => {
   it('shows edit button for each site', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -239,7 +252,7 @@ describe('SiteSettings', () => {
   it('displays site codes', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -255,7 +268,7 @@ describe('SiteSettings', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -278,7 +291,7 @@ describe('SiteSettings', () => {
   it('renders MapPin icons for sites', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -314,7 +327,7 @@ describe('SiteSettings', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -328,7 +341,7 @@ describe('SiteSettings', () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -351,7 +364,7 @@ describe('SiteSettings', () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -363,7 +376,7 @@ describe('SiteSettings', () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -391,7 +404,7 @@ describe('SiteSettings', () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 
@@ -403,7 +416,7 @@ describe('SiteSettings', () => {
   it('wires the import handler to the centralized feedback options (no alert())', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <SiteSettings />
+        <MemoryRouter><SiteSettings /></MemoryRouter>
       </QueryClientProvider>
     );
 

@@ -19,6 +19,7 @@ import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import { EditTemplateDialog } from "./EditTemplateDialog";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/export-handlers';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
@@ -45,6 +46,9 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     queryKey: qk.templates(entityType),
     queryFn: () => getTemplates(entityType),
   });
+
+  // Open the edit dialog when arriving with ?edit=<id> from global search.
+  useEditQueryParam(templates, setEditingTemplate, { ready: !isLoading });
 
   // Delete mutation
   const deleteMutation = useMutation({

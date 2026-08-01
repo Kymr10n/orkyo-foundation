@@ -196,6 +196,31 @@ public class SearchEndpointsTests
         result!.Results.Should().Contain(r => r.Type == "criterion" && r.Title.Contains("UniqueSearchCriterion"));
     }
 
+    [Fact]
+    public async Task Search_FindsGroups_AndCarriesResourceTypeKey()
+    {
+        // Group results are routed by resource type on the client, so the search
+        // result must surface the group's resourceTypeKey (person vs space).
+        var uniqueName = $"UniqueSearchGroup_{Guid.NewGuid():N}";
+        var createResponse = await _client.PostAsJsonAsync("/api/resource-groups", new
+        {
+            resourceTypeKey = "person",
+            name = uniqueName
+        });
+        createResponse.EnsureSuccessStatusCode();
+
+        // Wait for trigger sync
+        await Task.Delay(100);
+
+        var response = await _client.GetAsync($"/api/search?q={uniqueName.Substring(0, 20)}&types=group");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        result.Should().NotBeNull();
+        result!.Results.Should().Contain(r =>
+            r.Type == "group" && r.Title.Contains("UniqueSearchGroup") && r.ResourceTypeKey == "person");
+    }
+
     #endregion
 
     #region Fuzzy Search Tests

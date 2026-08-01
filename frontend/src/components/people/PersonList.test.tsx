@@ -191,6 +191,12 @@ describe('PersonList', () => {
     });
   });
 
+  it('opens the edit dialog from an ?edit= query param (global-search deep-link)', async () => {
+    renderList(['/people/list?edit=person-1']);
+    const dialog = await screen.findByTestId('person-edit-dialog');
+    expect(dialog).toHaveAttribute('data-person-id', 'person-1');
+  });
+
   it('shows empty state when API returns an empty list', async () => {
     vi.mocked(getResources).mockResolvedValue(emptyResponse);
     renderList();

@@ -27,7 +27,7 @@ import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
-import { ROUTE_SETTINGS } from "@foundation/src/constants/auth";
+import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
 import { logger } from "@foundation/src/lib/core/logger";
 
 // Icon mapping for entity types
@@ -62,6 +62,31 @@ const typeBadgeVariants: Record<SearchResult["type"], "default" | "secondary" | 
   criterion: "outline",
   person: "secondary",
 };
+
+// Maps a search result to the URL that opens its detail dialog. Each destination
+// page reads `?edit=<id>` and opens that item (view or edit mode by permission).
+export function editPathForResult(result: SearchResult): string {
+  const edit = `edit=${result.id}`;
+  switch (result.type) {
+    case "space":
+      return `/spaces/floorplan?${edit}`;
+    case "request":
+      return `/requests?${edit}`;
+    case "person":
+      return `/people/list?${edit}`;
+    case "group":
+      // Person groups and space groups live on different pages.
+      return `${result.resourceTypeKey === "space" ? "/spaces/groups" : "/people/teams"}?${edit}`;
+    case "site":
+      return `${ROUTE_TENANT_ADMIN}/sites?${edit}`;
+    case "template":
+      return `${ROUTE_SETTINGS}/templates?${edit}`;
+    case "criterion":
+      return `${ROUTE_SETTINGS}/criteria?${edit}`;
+    default:
+      return "/";
+  }
+}
 
 interface CommandPaletteProps {
   open: boolean;
@@ -135,97 +160,20 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     });
   }, [selectedIndex]);
 
-  // Navigate to selected result
-  const navigateToResult = useCallback(
+  // Open the selected result's detail dialog. The destination page reads the
+  // `?edit=<id>` param (see editPathForResult) and opens the item in view or edit
+  // mode by permission. Close the palette first, then navigate on the next tick so
+  // the dialog has torn down before the route change.
+  const openResult = useCallback(
     (result: SearchResult) => {
-      // If navigating to a different site, update the selected site
+      onOpenChange(false);
+
+      // Switch to the result's site first so its page loads the item to open.
       if (result.siteId && result.siteId !== selectedSiteId) {
         setSelectedSiteId(result.siteId);
       }
 
-      // Build the navigation path from the result's open property
-      const { route: _route, params: _params } = result.open;
-
-      // Map the route pattern to actual navigation
-      switch (result.type) {
-        case "space":
-          // Navigate to spaces page, could also select the space
-          navigate("/spaces");
-          break;
-        case "request":
-          // Navigate to requests page
-          navigate("/requests");
-          break;
-        case "group":
-          // Groups are managed in spaces page
-          navigate("/spaces");
-          break;
-        case "site":
-          // Sites are in settings, switch to that site
-          if (result.id !== selectedSiteId) {
-            setSelectedSiteId(result.id);
-          }
-          navigate(ROUTE_SETTINGS);
-          break;
-        case "template":
-        case "criterion":
-          // Templates and criteria are in settings
-          navigate(ROUTE_SETTINGS);
-          break;
-        case "person":
-          navigate("/people/list");
-          break;
-        default:
-          navigate("/");
-      }
-
-      onOpenChange(false);
-    },
-    [navigate, onOpenChange, selectedSiteId, setSelectedSiteId]
-  );
-
-  // Navigate to edit mode for a result
-  const navigateToEdit = useCallback(
-    (result: SearchResult) => {
-      // Close dialog first to ensure navigation works
-      onOpenChange(false);
-
-      // If navigating to a different site, update the selected site
-      if (result.siteId && result.siteId !== selectedSiteId) {
-        setSelectedSiteId(result.siteId);
-      }
-
-      // Navigate with edit query param after a small delay to ensure dialog closes
-      setTimeout(() => {
-        switch (result.type) {
-          case "space":
-            navigate(`/spaces?edit=${result.id}`);
-            break;
-          case "request":
-            navigate(`/requests?edit=${result.id}`);
-            break;
-          case "group":
-            navigate(`${ROUTE_SETTINGS}?tab=groups&edit=${result.id}`);
-            break;
-          case "site":
-            if (result.id !== selectedSiteId) {
-              setSelectedSiteId(result.id);
-            }
-            navigate(`${ROUTE_SETTINGS}?tab=sites`);
-            break;
-          case "template":
-            navigate(`${ROUTE_SETTINGS}?tab=templates&edit=${result.id}`);
-            break;
-          case "criterion":
-            navigate(`${ROUTE_SETTINGS}?tab=criteria&edit=${result.id}`);
-            break;
-          case "person":
-            navigate(`/people/list?edit=${result.id}`);
-            break;
-          default:
-            navigate("/");
-        }
-      }, 0);
+      setTimeout(() => navigate(editPathForResult(result)), 0);
     },
     [navigate, onOpenChange, selectedSiteId, setSelectedSiteId]
   );
@@ -245,7 +193,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         case "Enter":
           e.preventDefault();
           if (results[selectedIndex]) {
-            navigateToResult(results[selectedIndex]);
+            openResult(results[selectedIndex]);
           }
           break;
         case "Escape":
@@ -254,7 +202,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           break;
       }
     },
-    [results, selectedIndex, navigateToResult, onOpenChange]
+    [results, selectedIndex, openResult, onOpenChange]
   );
 
   return (
@@ -316,7 +264,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-muted"
                   )}
-                  onClick={() => navigateToResult(result)}
+                  onClick={() => openResult(result)}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
                   {/* Type Icon */}
@@ -338,25 +286,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <Badge variant={typeBadgeVariants[result.type]} className="shrink-0">
                     {typeLabels[result.type]}
                   </Badge>
-
-                  {/* Edit button */}
-                  {result.permissions.canEdit && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        navigateToEdit(result);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  )}
                 </div>
               ))}
             </div>

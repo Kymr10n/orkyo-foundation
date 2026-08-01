@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
@@ -14,6 +13,7 @@ import { getPersonProfiles, type PersonProfileInfo } from '@foundation/src/lib/a
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 
 export function PersonList() {
   const canEdit = useCanEdit();
@@ -22,24 +22,17 @@ export function PersonList() {
   const [skillsPerson, setSkillsPerson] = useState<ResourceInfo | null>(null);
   const [absencePerson, setAbsencePerson] = useState<ResourceInfo | null>(null);
   const [deletingPerson, setDeletingPerson] = useState<ResourceInfo | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: people, isLoading, error, refetch } = useQuery({
     queryKey: qk.resources.byType(RESOURCE_TYPE_KEY.PERSON),
     queryFn: () => getResources({ resourceTypeKey: 'person' }),
   });
 
-  // Open edit dialog when navigated here with ?edit=<id> (e.g. from search)
-  useEffect(() => {
-    const editId = searchParams.get('edit');
-    if (!editId || !people?.data) return;
-    const target = people.data.find((p: ResourceInfo) => p.id === editId);
-    if (target) {
-      setEditingPerson(target);
-      setIsDialogOpen(true);
-      setSearchParams({}, { replace: true });
-    }
-  }, [searchParams, people, setSearchParams]);
+  // Open the edit dialog when navigated here with ?edit=<id> from global search.
+  useEditQueryParam(people?.data, (person: ResourceInfo) => {
+    setEditingPerson(person);
+    setIsDialogOpen(true);
+  });
 
   // Fetch every person's profile in one batched request (replaces the old
   // per-row fan-out). Resources without a profile row are simply absent from the

@@ -27,6 +27,7 @@ import {
 } from '@foundation/src/hooks/useCriteria';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 
@@ -57,6 +58,9 @@ export function CriteriaSettings() {
   const createMutation = useCreateCriterion();
   const deleteMutation = useDeleteCriterion();
   const canEdit = useCanEdit();
+
+  // Open the edit dialog when arriving with ?edit=<id> from global search.
+  useEditQueryParam(criteria, setEditingCriterion, { ready: !isLoading });
 
   // Handle export/import
   useExportHandler('criteria', async (format) => {
