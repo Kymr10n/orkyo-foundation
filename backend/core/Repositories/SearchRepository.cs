@@ -54,9 +54,18 @@ public class SearchRepository : ISearchRepository
             Score = reader.GetDouble(5),
             UpdatedAt = reader.GetDateTime(6),
             Open = GetOpenRoute(entityType, entityId, resultSiteId),
-            Permissions = new SearchResultPermissions { CanRead = true, CanEdit = false }
+            Permissions = new SearchResultPermissions { CanRead = true, CanEdit = false },
+            ResourceTypeKey = reader.IsDBNull(7) ? null : reader.GetString(7)
         };
     }
+
+    // Group results live under different pages depending on their resource type
+    // (person groups vs space groups); surface the key so the client can route.
+    // Correlated subquery so the generic search SELECT stays untouched for other types.
+    private static string ResourceTypeKeySubquery(string source) => $@"
+                (SELECT rt.key FROM resource_groups g
+                 JOIN resource_types rt ON rt.id = g.resource_type_id
+                 WHERE {source}.entity_type = 'group' AND g.id = {source}.entity_id) AS resource_type_key";
 
     private static string BuildCombinedSearchSql(string[]? types, Guid? siteId)
     {
@@ -73,7 +82,7 @@ public class SearchRepository : ISearchRepository
                 FROM search_documents {whereStr}
             )
             SELECT entity_type, entity_id, title, subtitle, site_id,
-                (fts_score * 10 + trgm_score)::float8 AS score, updated_at
+                (fts_score * 10 + trgm_score)::float8 AS score, updated_at,{ResourceTypeKeySubquery("ranked")}
             FROM ranked
             WHERE fts_score > 0 OR trgm_score > @primaryThreshold
             ORDER BY score DESC, updated_at DESC LIMIT @limit";
@@ -95,7 +104,7 @@ public class SearchRepository : ISearchRepository
                     CASE WHEN lower(title) LIKE @query || '%' THEN 1.0 ELSE 0.0 END,
                     similarity(title, @query),
                     similarity(COALESCE(keywords, ''), @query) * 0.8
-                )::float8 AS score, updated_at
+                )::float8 AS score, updated_at,{ResourceTypeKeySubquery("search_documents")}
             FROM search_documents {whereStr}
             ORDER BY score DESC, updated_at DESC LIMIT @limit";
     }

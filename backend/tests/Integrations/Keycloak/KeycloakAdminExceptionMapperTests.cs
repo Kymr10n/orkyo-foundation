@@ -18,7 +18,7 @@ public class KeycloakAdminExceptionMapperTests
 
         status.Should().Be(StatusCodes.Status400BadRequest);
         payload.GetProperty("code").GetString().Should().Be(nameof(ErrorCodes.ValidationError));
-        payload.GetProperty("error").GetString().Should().Be("bad input");
+        payload.GetProperty("detail").GetString().Should().Be("bad input");
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class KeycloakAdminExceptionMapperTests
 
         status.Should().Be(StatusCodes.Status404NotFound);
         payload.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
-        payload.GetProperty("error").GetString().Should().Be("kc missing");
+        payload.GetProperty("detail").GetString().Should().Be("kc missing");
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class KeycloakAdminExceptionMapperTests
 
         status.Should().Be(StatusCodes.Status409Conflict);
         payload.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
-        payload.GetProperty("error").GetString().Should().Be("conflict");
+        payload.GetProperty("detail").GetString().Should().Be("conflict");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class KeycloakAdminExceptionMapperTests
 
         status.Should().Be(StatusCodes.Status418ImATeapot);
         payload.GetProperty("code").GetString().Should().Be("KEYCLOAK_ERROR");
-        payload.GetProperty("error").GetString().Should().Be("kc upstream");
+        payload.GetProperty("detail").GetString().Should().Be("kc upstream");
     }
 
     [Fact]

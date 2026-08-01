@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { TemplateSettings } from './TemplateSettings';
 import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 import { getTemplates, deleteTemplate } from '@foundation/src/lib/api/template-api';
@@ -32,7 +33,8 @@ vi.mock('./CreateTemplateDialog', () => ({
 }));
 
 vi.mock('./EditTemplateDialog', () => ({
-  EditTemplateDialog: () => null,
+  EditTemplateDialog: ({ open, template }: any) =>
+    open && template ? <div data-testid="edit-template-dialog" /> : null,
 }));
 
 const mockTemplates = [
@@ -40,10 +42,14 @@ const mockTemplates = [
   { id: 't2', name: 'Quick Standup', description: '', entityType: 'request' as const, durationValue: 15, durationUnit: 'minutes', createdAt: '2024-02-01T00:00:00Z', items: [] },
 ];
 
-function renderTemplateSettings() {
+function renderTemplateSettings(initialEntries: string[] = ['/settings/templates']) {
   // Delete flows through useMutation; the feedback wrapper's MutationCache mirrors
-  // production so the meta-driven delete toast fires in tests.
-  return render(<TemplateSettings />, { wrapper: createFeedbackTestQueryWrapper() });
+  // production so the meta-driven delete toast fires in tests. MemoryRouter supplies
+  // the router context the ?edit= deep-link hook needs.
+  return render(
+    <MemoryRouter initialEntries={initialEntries}><TemplateSettings /></MemoryRouter>,
+    { wrapper: createFeedbackTestQueryWrapper() },
+  );
 }
 
 describe('TemplateSettings', () => {
@@ -64,6 +70,12 @@ describe('TemplateSettings', () => {
   it('shows loading state', () => {
     renderTemplateSettings();
     expect(screen.getByText('Loading request templates…')).toBeInTheDocument();
+  });
+
+  it('opens the edit dialog from an ?edit= query param (global-search deep-link)', async () => {
+    mockGetTemplates.mockResolvedValue(mockTemplates);
+    renderTemplateSettings(['/settings/templates?edit=t1']);
+    expect(await screen.findByTestId('edit-template-dialog')).toBeInTheDocument();
   });
 
   it('shows empty state when no templates', async () => {

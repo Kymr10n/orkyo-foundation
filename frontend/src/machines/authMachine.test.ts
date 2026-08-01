@@ -446,7 +446,8 @@ describe('authMachine', () => {
     actor.stop();
   });
 
-  it('single active tenant with no resolved membership → redirecting_to_tenant', async () => {
+  it('single active tenant with no resolved membership, on APEX → redirecting_to_tenant', async () => {
+    mockGetCurrentSubdomain.mockReturnValue(null); // apex
     const machine = machineWithOutput({
       kind: 'loaded',
       session: { user: mockUser, tenants: [mockMembership], isSiteAdmin: false, tosRequired: false },
@@ -459,6 +460,108 @@ describe('authMachine', () => {
     expect(['redirecting_to_tenant', 'ready']).toContain(snapshot.value);
     actor.stop();
   });
+
+  // ── #102: non-member on a tenant subdomain ────────────────────────────────
+
+  it('single active tenant but on ANOTHER tenant subdomain → selecting_tenant (no silent hijack)', async () => {
+    // The user asked for beta.orkyo.com but is only a member of acme. Redirecting
+    // them to acme would silently swallow a typo / stale link / revoked access.
+    mockGetCurrentSubdomain.mockReturnValue('beta');
+    const machine = machineWithOutput({
+      kind: 'loaded',
+      session: { user: mockUser, tenants: [mockMembership], isSiteAdmin: false, tosRequired: false },
+      membership: null,
+    });
+    const actor = createActor(machine);
+    actor.start();
+
+    const snapshot = await waitFor(actor, (s) => s.value !== 'initializing', { timeout: 2000 });
+    expect(snapshot.value).toBe('selecting_tenant');
+    actor.stop();
+  });
+
+  it('member of several other tenants, on a non-member subdomain → selecting_tenant', async () => {
+    // The exact production repro: session valid, membership for THIS subdomain
+    // revoked (demo reset), other memberships intact.
+    mockGetCurrentSubdomain.mockReturnValue('demo');
+    const machine = machineWithOutput({
+      kind: 'loaded',
+      session: {
+        user: mockUser,
+        tenants: [mockMembership, { ...mockMembership, tenantId: 't2', slug: 'beta', displayName: 'Beta' }],
+        isSiteAdmin: false,
+        tosRequired: false,
+      },
+      membership: null,
+    });
+    const actor = createActor(machine);
+    actor.start();
+
+    const snapshot = await waitFor(actor, (s) => s.value !== 'initializing', { timeout: 2000 });
+    expect(snapshot.value).toBe('selecting_tenant');
+    expect(snapshot.context.membership).toBeNull();
+    actor.stop();
+  });
+});
+
+// ── #102: no signed-in state may silently drop an auth-loss event ───────────
+// RequireAuth (and api-utils on a 401) send these while the user sits on one of
+// the "signed in but no workspace resolved" screens. Before the fix only `ready`
+// handled them, so the event vanished and any spinner waited forever.
+describe('authMachine — UNAUTHORIZED / SESSION_EXPIRED are never dropped', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setLocation({ pathname: '/about' });
+  });
+
+  const cases: { state: string; output: Record<string, unknown> }[] = [
+    {
+      state: 'selecting_tenant',
+      output: {
+        kind: 'loaded',
+        session: {
+          user: mockUser,
+          tenants: [mockMembership, { ...mockMembership, tenantId: 't2', slug: 'beta' }],
+          isSiteAdmin: false,
+          tosRequired: false,
+        },
+        membership: null,
+      },
+    },
+    {
+      state: 'no_tenants',
+      output: {
+        kind: 'loaded',
+        session: { user: mockUser, tenants: [], isSiteAdmin: false, tosRequired: false },
+        membership: null,
+      },
+    },
+    {
+      state: 'no_tenants_admin',
+      output: {
+        kind: 'loaded',
+        session: { user: mockUser, tenants: [], isSiteAdmin: true, tosRequired: false },
+        membership: null,
+      },
+    },
+  ];
+
+  for (const { state, output } of cases) {
+    for (const event of ['UNAUTHORIZED', 'SESSION_EXPIRED'] as const) {
+      it(`${state} handles ${event} → redirecting_login`, async () => {
+        mockGetCurrentSubdomain.mockReturnValue('demo');
+        const actor = createActor(machineWithOutput(output));
+        actor.start();
+        await waitFor(actor, (s) => s.value === state, { timeout: 2000 });
+
+        actor.send({ type: event });
+
+        expect(actor.getSnapshot().value).toBe('redirecting_login');
+        expect(actor.getSnapshot().context.membership).toBeNull();
+        actor.stop();
+      });
+    }
+  }
 });
 
 // ── fetchSessionFromBff integration tests ──────────────────────────────────
@@ -605,7 +708,7 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
     actor.stop();
   });
 
-  it('non-admin user on tenant subdomain without membership → redirecting_login', async () => {
+  it('non-admin user on tenant subdomain with no tenants at all → no_tenants', async () => {
     mockGetCurrentSubdomain.mockReturnValue('acme');
     mockFetchResponse({
       authenticated: true,

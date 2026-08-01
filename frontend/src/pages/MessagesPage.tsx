@@ -4,7 +4,7 @@
  * Standalone page for viewing platform announcements.
  */
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "@foundation/src/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";

@@ -19,9 +19,9 @@
       },
       "Microsoft.AspNetCore.DataProtection.StackExchangeRedis": {
         "type": "Direct",
-        "requested": "[10.0.9, )",
-        "resolved": "10.0.9",
-        "contentHash": "pfD7OIaDAUwPy5uITVnkTfQID0iIr2YAgltY/VBnwefu9gH3J8bTjRW/vzm38mlSlT9vo6KWRL6qoqSKBUBAjA==",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "cbAS0fCaHRF201gdtopfEwxW3CbWRX5/ScaAixbG0h33fQIoHUFMktCSVvpnfCvgUs6l9fmn/ZU2FeJGZ2/rGg==",
         "dependencies": {
           "StackExchange.Redis": "2.7.27"
         }

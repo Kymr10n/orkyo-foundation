@@ -22,15 +22,6 @@
   --fc-event-border-color: transparent;
   --fc-event-text-color: inherit;
 
-  /* Toolbar buttons → primary tokens */
-  --fc-button-text-color: hsl(var(--primary-foreground));
-  --fc-button-bg-color: hsl(var(--primary));
-  --fc-button-border-color: hsl(var(--primary));
-  --fc-button-hover-bg-color: hsl(var(--primary) / 0.9);
-  --fc-button-hover-border-color: hsl(var(--primary) / 0.9);
-  --fc-button-active-bg-color: hsl(var(--primary) / 0.8);
-  --fc-button-active-border-color: hsl(var(--primary) / 0.8);
-
   color: hsl(var(--foreground));
 }
 
@@ -38,18 +29,8 @@
   height: 100%;
 }
 
-.orkyo-calendar .fc .fc-toolbar-title {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-/* Let the header toolbar wrap onto multiple rows instead of overflowing on
-   narrow (tablet/phone) viewports. Breakpoint-free: wrapping is harmless at
-   any width and only engages when the row runs out of room. */
-.orkyo-calendar .fc .fc-header-toolbar {
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-}
+/* The calendar is page-controlled — FullCalendar's built-in toolbar is disabled
+   (headerToolbar={false}), so there are no fc-toolbar/fc-button styles here. */
 
 /* Column header cells — align with the timeline grid (text-xs / font-medium / muted-foreground / px-3 py-2) */
 .orkyo-calendar .fc .fc-col-header-cell-cushion {
@@ -58,19 +39,6 @@
   color: hsl(var(--muted-foreground));
   text-decoration: none;
   padding: 0.5rem 0.75rem;
-}
-
-.orkyo-calendar .fc .fc-button {
-  border-radius: calc(var(--radius) - 0.5rem);
-  text-transform: capitalize;
-  box-shadow: none;
-  font-size: 0.8125rem;
-  padding: 0.375rem 0.75rem;
-}
-
-.orkyo-calendar .fc .fc-button:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
 }
 
 /* Non-business hours (outside working hours) — time-grid views only */
@@ -138,4 +106,49 @@
    reads as dark foreground in light mode (matching the Spaces/People grids). */
 .orkyo-calendar .orkyo-cal-event .fc-event-main {
   color: inherit;
+}
+
+/* ── Agenda (list) view — phone only ──────────────────────────────────────
+   Phones swap the month/time grids for list views (listDay/listWeek/listMonth):
+   full-width, readable rows with no horizontal overflow. Status colour rides in
+   on the event's utility
+   classNames (bg tint + border, same as the grid blocks) applied to the <tr>.
+   FullCalendar's separate status dot derives from FC's event border, which we
+   set transparent, so it renders empty — hide it and let the row tint carry
+   status. */
+.orkyo-calendar {
+  --fc-list-event-hover-bg-color: hsl(var(--muted) / 0.5);
+}
+
+.orkyo-calendar .fc .fc-list-event-graphic {
+  display: none;
+}
+
+/* Day section header — align with the grid column-header cushions. */
+.orkyo-calendar .fc .fc-list-day-cushion {
+  background-color: hsl(var(--muted));
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Comfortable tap targets on each event row. */
+.orkyo-calendar .fc .fc-list-event > td {
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+}
+
+/* The status classNames land on the <tr>; the .orkyo-cal-event grid-block box
+   (border + radius + cell padding) is meaningless on a table row — neutralise
+   it so only the background tint remains. */
+.orkyo-calendar .fc-list-event.orkyo-cal-event {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* Empty-state ("no events this week") — muted, centered by FC; just tone it. */
+.orkyo-calendar .fc .fc-list-empty {
+  background-color: transparent;
+  color: hsl(var(--muted-foreground));
 }

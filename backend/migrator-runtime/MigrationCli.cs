@@ -2,6 +2,7 @@ using DbUp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Orkyo.Migrations.Abstractions;
 
 namespace Orkyo.Migrator;
@@ -113,10 +114,15 @@ public static class MigrationCli
                     // if absent — this is a no-op for already-provisioned tenants.
                     EnsureDatabase.For.PostgresqlDatabase(tenant.ConnectionString);
 
+                    // Lock on the DATABASE NAME, not the tenant UUID: TenantProvisioningService
+                    // locks the same database as `orkyo:tenant:{dbIdentifier}` while creating it,
+                    // and the two keys must hash identically or a migrate run and a concurrent
+                    // provisioning of the same DB would not mutually exclude.
+                    var tenantDbName = new NpgsqlConnectionStringBuilder(tenant.ConnectionString).Database;
                     var tResults = await runner.RunAsync(
                         tenant.ConnectionString,
                         MigrationTargetDatabase.Tenant,
-                        $"orkyo:tenant:{tenant.Id}",
+                        $"orkyo:tenant:{tenantDbName}",
                         tenantOptions,
                         cancellationToken);
                     ReportRun(logger, $"tenant:{tenant.Slug}", tResults);

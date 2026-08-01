@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { PersonList } from './PersonList';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { ResourceInfo, ResourcesResponse } from '@foundation/src/lib/api/resources-api';
@@ -189,6 +189,12 @@ describe('PersonList', () => {
       expect(screen.getByText('Alice')).toBeInTheDocument();
       expect(screen.getByText('Bob')).toBeInTheDocument();
     });
+  });
+
+  it('opens the edit dialog from an ?edit= query param (global-search deep-link)', async () => {
+    renderList(['/people/list?edit=person-1']);
+    const dialog = await screen.findByTestId('person-edit-dialog');
+    expect(dialog).toHaveAttribute('data-person-id', 'person-1');
   });
 
   it('shows empty state when API returns an empty list', async () => {

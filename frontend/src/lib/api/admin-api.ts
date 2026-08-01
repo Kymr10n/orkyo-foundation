@@ -454,3 +454,63 @@ export async function deleteAdminQuotaOverride(
 ): Promise<void> {
   await apiDelete(API_PATHS.ADMIN.tenantQuotaOverride(tenantId, quotaKey));
 }
+
+// ============================================================================
+// Platform Audit (control plane)
+// ============================================================================
+
+/**
+ * A control-plane `audit_events` row: platform-wide, across all tenants, and
+ * carrying the sensitive fields (`ipAddress`, `requestId`) that the tenant-facing
+ * `/api/audit` deliberately omits.
+ *
+ * Distinct from `TenantAuditEvent` in `audit-api.ts` by design — that one reads the
+ * tenant's OWN database and therefore requires a resolved tenant, which the
+ * site-admin apex host never has.
+ */
+export interface PlatformAuditEvent {
+  id: string;
+  actorUserId: string | null;
+  actorType: string; // 'user' | 'system' | 'api'
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: string | null; // JSON string
+  requestId: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
+export interface PlatformAuditPage {
+  events: PlatformAuditEvent[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export interface PlatformAuditFilters {
+  action?: string;
+  actorId?: string;
+  targetType?: string;
+  targetId?: string;
+  from?: string;
+  to?: string;
+  page?: number; // 1-based (backend)
+  pageSize?: number;
+}
+
+export async function getPlatformAuditEvents(
+  filters?: PlatformAuditFilters,
+): Promise<PlatformAuditPage> {
+  const params: Record<string, string | number> = {};
+  if (filters?.action) params.action = filters.action;
+  if (filters?.actorId) params.actorId = filters.actorId;
+  if (filters?.targetType) params.targetType = filters.targetType;
+  if (filters?.targetId) params.targetId = filters.targetId;
+  if (filters?.from) params.from = filters.from;
+  if (filters?.to) params.to = filters.to;
+  if (filters?.page !== undefined) params.page = filters.page;
+  if (filters?.pageSize !== undefined) params.pageSize = filters.pageSize;
+  return apiGet<PlatformAuditPage>(API_PATHS.ADMIN.AUDIT, { params });
+}

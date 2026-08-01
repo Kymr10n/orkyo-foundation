@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Api.Services.BffSession;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -149,7 +150,7 @@ public class BffAuthEndpointsTests
     // endpoint. id_token_hint is in the Location header, never in a JSON body.
 
     [Fact]
-    public async Task Logout_WithoutSession_RedirectsToKeycloakEndSession()
+    public async Task Logout_WithoutSession_RedirectsToKeycloakEndSessionWithClientId()
     {
         var response = await _client.GetAsync("/api/auth/bff/logout");
 
@@ -157,6 +158,50 @@ public class BffAuthEndpointsTests
         var location = response.Headers.Location?.ToString();
         location.Should().NotBeNull();
         location.Should().Contain("/protocol/openid-connect/logout");
+        // With no session there is no id_token_hint — client_id is then the only
+        // way Keycloak can validate post_logout_redirect_uri. Without it Keycloak
+        // returns a raw 400 error page (#103).
+        location.Should().Contain("client_id=test-backend");
+        location.Should().NotContain("id_token_hint=");
+    }
+
+    [Fact]
+    public async Task Logout_WithSession_SendsBothIdTokenHintAndClientId()
+    {
+        // Seed a real session and present its data-protected cookie, mirroring what
+        // HandleCallback stores — the logout handler unprotects the cookie, loads the
+        // session, and must forward id_token_hint alongside the always-present client_id.
+        var sessionId = Guid.NewGuid().ToString("N");
+        var sessionStore = _factory.Services.GetRequiredService<IBffSessionStore>();
+        await sessionStore.SetAsync(new BffSessionRecord
+        {
+            SessionId = sessionId,
+            UserId = Guid.NewGuid().ToString(),
+            ExternalSubject = Guid.NewGuid().ToString(),
+            AccessToken = "at",
+            RefreshToken = "rt",
+            IdToken = "header.payload.signature",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        var protector = _factory.Services
+            .GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("BffSession");
+        var cookieValue = protector.Protect(sessionId);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/bff/logout");
+        request.Headers.Add("Cookie", $"orkyo-session={cookieValue}");
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var location = response.Headers.Location?.ToString();
+        location.Should().NotBeNull();
+        location.Should().Contain("/protocol/openid-connect/logout");
+        location.Should().Contain("id_token_hint=");
+        location.Should().Contain("client_id=test-backend");
+
+        // Logout is single-use: the session must be gone from the store.
+        (await sessionStore.GetAsync(sessionId)).Should().BeNull();
     }
 
     [Fact]

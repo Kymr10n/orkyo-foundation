@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { User, LogOut, Settings } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import {

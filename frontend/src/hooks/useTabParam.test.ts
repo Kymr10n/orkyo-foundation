@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 import { describe, it, expect } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { MemoryRouter, useSearchParams } from 'react-router-dom';
+import { MemoryRouter, useSearchParams } from 'react-router';
 import { createElement } from 'react';
 import { useTabParam } from './useTabParam';
 

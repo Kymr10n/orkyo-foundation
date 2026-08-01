@@ -66,11 +66,11 @@ public sealed record TenantSettings
     /// <summary>Product/organization name used in email templates.</summary>
     public string Branding_ProductName { get; init; } = "Orkyo";
 
-    /// <summary>Primary brand color (hex) used in email templates.</summary>
-    public string Branding_PrimaryColor { get; init; } = "#667eea";
+    /// <summary>Primary brand color (hex) used in email templates. Default follows the Orkyo marketing brand (<see cref="Api.Services.BrandTokens"/>).</summary>
+    public string Branding_PrimaryColor { get; init; } = Api.Services.BrandTokens.GradientFrom;
 
-    /// <summary>Secondary brand color (hex) used in email gradient.</summary>
-    public string Branding_SecondaryColor { get; init; } = "#764ba2";
+    /// <summary>Secondary brand color (hex) used in email gradient. Default follows the Orkyo marketing brand (<see cref="Api.Services.BrandTokens"/>).</summary>
+    public string Branding_SecondaryColor { get; init; } = Api.Services.BrandTokens.GradientTo;
 
     // ── Scheduling ───────────────────────────────────────────────────────
     /// <summary>Whether auto-scheduling is enabled for this tenant. Requires Professional tier or above.</summary>

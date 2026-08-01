@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { CriteriaSettings } from './CriteriaSettings';
 
 const mockDeleteMutateAsync = vi.fn(() => Promise.resolve());
@@ -71,33 +72,43 @@ describe('CriteriaSettings', () => {
   });
 
   it('renders header and create button', () => {
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Criteria Definitions')).toBeInTheDocument();
     expect(screen.getByText('Add Criterion')).toBeInTheDocument();
   });
 
+  it('opens the edit dialog from an ?edit= query param (global-search deep-link)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/criteria?edit=c1']}>
+        <CriteriaSettings />
+      </MemoryRouter>,
+    );
+    // The mocked CriterionEditDialog renders 'Confirm Edit' only when opened with a criterion.
+    expect(await screen.findByTestId('edit-success-btn')).toBeInTheDocument();
+  });
+
   it('renders criteria list', () => {
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Capacity')).toBeInTheDocument();
     expect(screen.getByText('HasProjector')).toBeInTheDocument();
     expect(screen.getByText('PersonSkill')).toBeInTheDocument();
   });
 
   it('shows data type badges', () => {
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Number')).toBeInTheDocument();
     expect(screen.getAllByText('Boolean').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows loading state', () => {
     mockCriteriaData = { data: [], isLoading: true, error: null };
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Loading criteria…')).toBeInTheDocument();
   });
 
   it('shows empty state when no criteria', () => {
     mockCriteriaData = { data: [], isLoading: false, error: null };
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('No criteria defined yet')).toBeInTheDocument();
     expect(screen.getByText('Create your first criterion')).toBeInTheDocument();
   });
@@ -105,31 +116,31 @@ describe('CriteriaSettings', () => {
   it('shows error state', () => {
     mockCriteriaData = { data: [], isLoading: false, error: new Error('Network error') };
     mockCriteriaData.refetch = mockRefetch;
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Network error')).toBeInTheDocument();
     expect(screen.getByText('Try again')).toBeInTheDocument();
   });
 
   it('shows unit for Number criteria', () => {
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('(seats)')).toBeInTheDocument();
   });
 
   it('shows description when present', () => {
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Room capacity')).toBeInTheDocument();
     expect(screen.getByText('A person skill')).toBeInTheDocument();
   });
 
   it('shows enum values as badges', () => {
     // No Enum criteria in fixture; verify component renders without crashing
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Capacity')).toBeInTheDocument();
   });
 
   it('deletes a criterion with confirmation', async () => {
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await waitFor(() => {
@@ -143,7 +154,7 @@ describe('CriteriaSettings', () => {
 
   it('does not delete when confirmation is declined', async () => {
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
@@ -153,7 +164,7 @@ describe('CriteriaSettings', () => {
   it('swallows delete errors (toast handled by useDeleteCriterion hook)', async () => {
     mockDeleteMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
     await user.click(deleteButtons[0]);
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
@@ -167,7 +178,7 @@ describe('CriteriaSettings', () => {
 
   it('clicking Add Criterion button opens create dialog', async () => {
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     const addBtn = screen.getAllByRole('button').find(b => b.textContent?.includes('Add') || b.textContent?.includes('Criterion') || b.textContent?.includes('Create'));
     if (addBtn) await user.click(addBtn);
     await waitFor(() => expect(screen.getByTestId('create-success-btn')).toBeInTheDocument());
@@ -175,7 +186,7 @@ describe('CriteriaSettings', () => {
 
   it('handleCreateSuccess closes create dialog when onSuccess called', async () => {
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     const addBtn = screen.getAllByRole('button').find(b => b.textContent?.includes('Add') || b.textContent?.includes('Criterion') || b.textContent?.includes('Create'));
     if (addBtn) await user.click(addBtn);
     await waitFor(() => screen.getByTestId('create-success-btn'));
@@ -185,7 +196,7 @@ describe('CriteriaSettings', () => {
 
   it('clicking edit icon opens edit dialog (setEditingCriterion)', async () => {
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     // Find edit buttons (pencil/edit icon, not delete)
     const nonDestructiveIconBtns = screen.getAllByRole('button').filter(
       b => !b.querySelector('.text-destructive') && !b.textContent?.trim() && b.querySelector('svg'),
@@ -196,7 +207,7 @@ describe('CriteriaSettings', () => {
 
   it('handleUpdateSuccess closes edit dialog when onSuccess called', async () => {
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     const editBtns = screen.getAllByRole('button').filter(
       b => !b.querySelector('.text-destructive') && !b.textContent?.trim() && b.querySelector('svg'),
     );
@@ -209,14 +220,14 @@ describe('CriteriaSettings', () => {
   it('Try again button in error state calls refetch', async () => {
     mockCriteriaData = { data: [], isLoading: false, error: new Error('Failed'), refetch: mockRefetch };
     const user = userEvent.setup();
-    render(<CriteriaSettings />);
+    render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     await user.click(screen.getByRole('button', { name: /Try again/i }));
     expect(mockRefetch).toHaveBeenCalled();
   });
 
   describe('filter tabs', () => {
     it('renders three filter tabs (tools hidden until tools feature ships)', () => {
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Spaces' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'People' })).toBeInTheDocument();
@@ -224,7 +235,7 @@ describe('CriteriaSettings', () => {
     });
 
     it('All tab shows all criteria by default', () => {
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       expect(screen.getByText('Capacity')).toBeInTheDocument();
       expect(screen.getByText('HasProjector')).toBeInTheDocument();
       expect(screen.getByText('PersonSkill')).toBeInTheDocument();
@@ -232,7 +243,7 @@ describe('CriteriaSettings', () => {
 
     it('Spaces tab filters to space criteria only', async () => {
       const user = userEvent.setup();
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       await user.click(screen.getByRole('tab', { name: 'Spaces' }));
       expect(screen.getByText('Capacity')).toBeInTheDocument();
       expect(screen.getByText('HasProjector')).toBeInTheDocument();
@@ -241,7 +252,7 @@ describe('CriteriaSettings', () => {
 
     it('People tab filters to person criteria only', async () => {
       const user = userEvent.setup();
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       await user.click(screen.getByRole('tab', { name: 'People' }));
       expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
       expect(screen.getByText('PersonSkill')).toBeInTheDocument();
@@ -258,7 +269,7 @@ describe('CriteriaSettings', () => {
         refetch: mockRefetch,
       };
       const user = userEvent.setup();
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       await user.click(screen.getByRole('tab', { name: 'People' }));
       await waitFor(() => {
         expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
@@ -288,14 +299,14 @@ describe('CriteriaSettings', () => {
     });
 
     it('disables the delete button for an in-use criterion and enables it otherwise', () => {
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       expect(screen.getByLabelText('Delete Locked')).toBeDisabled();
       expect(screen.getByLabelText('Delete Deletable')).not.toBeDisabled();
     });
 
     it('explains why deletion is blocked via tooltip for an in-use criterion', async () => {
       const user = userEvent.setup();
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       await user.hover(screen.getByLabelText('Delete Locked').closest('span')!);
       await waitFor(() =>
         expect(
@@ -306,7 +317,7 @@ describe('CriteriaSettings', () => {
 
     it('shows the default delete tooltip for a deletable criterion', async () => {
       const user = userEvent.setup();
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       await user.hover(screen.getByLabelText('Delete Deletable').closest('span')!);
       await waitFor(() =>
         expect(screen.getAllByText('Delete criterion').length).toBeGreaterThan(0),
@@ -316,13 +327,13 @@ describe('CriteriaSettings', () => {
 
   describe('export / import handlers', () => {
     it('exports the current criteria in the requested format', async () => {
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       await ioHandlers.exportCb!('csv');
       expect(exportCriteria).toHaveBeenCalledWith(mockCriteria, 'csv');
     });
 
     it('registers the import handler with centralized feedback options', () => {
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       expect(useImportHandler).toHaveBeenCalledWith(
         'criteria',
         expect.any(Function),
@@ -341,7 +352,7 @@ describe('CriteriaSettings', () => {
       vi.mocked(importCriteria).mockResolvedValueOnce([
         { name: 'Imported', dataType: 'Number' } as any,
       ]);
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       const [, handler] = vi.mocked(useImportHandler).mock.calls[0];
       const result = await handler(new File(['x'], 'criteria.csv'), 'csv' as any);
       expect(mockCreateMutateAsync).toHaveBeenCalledWith(
@@ -352,7 +363,7 @@ describe('CriteriaSettings', () => {
 
     it('throws when the imported file contains no valid criteria', async () => {
       vi.mocked(importCriteria).mockResolvedValueOnce([]);
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       const [, handler] = vi.mocked(useImportHandler).mock.calls[0];
       await expect(handler(new File(['x'], 'criteria.csv'), 'csv' as any)).rejects.toThrow(
         'No valid criteria found in file',
@@ -363,7 +374,7 @@ describe('CriteriaSettings', () => {
 
   describe('applicability badges', () => {
     it('renders resourceTypeKey badges on each criterion card', () => {
-      render(<CriteriaSettings />);
+      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       // Each label appears as tab + badge; Tools appears only as a badge (no tab until tools ships)
       expect(screen.getAllByText('Spaces').length).toBeGreaterThanOrEqual(2); // tab + at least one badge
       expect(screen.getAllByText('People').length).toBeGreaterThanOrEqual(2); // tab + badge

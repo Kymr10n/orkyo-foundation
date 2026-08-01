@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router';
 import { PeoplePage } from './PeoplePage';
 
 // Tab-content children are mocked — this test only covers the routing shell.

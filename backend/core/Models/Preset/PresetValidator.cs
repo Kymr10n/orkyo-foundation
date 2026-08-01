@@ -295,7 +295,7 @@ public static partial class PresetValidator
                 {
                     try
                     {
-                        JsonDocument.Parse(item.Value);
+                        using var _ = JsonDocument.Parse(item.Value);
                     }
                     catch (JsonException)
                     {

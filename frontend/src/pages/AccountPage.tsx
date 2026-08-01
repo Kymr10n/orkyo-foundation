@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { Button } from "@foundation/src/components/ui/button";

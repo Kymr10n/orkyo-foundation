@@ -33,4 +33,11 @@ public interface IInvitationService
 
     /// <summary>Revokes an invitation so it can no longer be accepted. Returns <c>false</c> if not found.</summary>
     Task<bool> RevokeInvitationAsync(TenantContext tenant, Guid invitationId, Guid revokedBy, CancellationToken ct = default);
+
+    /// <summary>
+    /// Re-sends a pending invitation with a freshly generated token and a reset expiry, invalidating
+    /// the previous link. Returns <c>false</c> if no pending invitation with that id exists in the
+    /// tenant. The stored token is only a hash, so the original can never be re-sent as-is.
+    /// </summary>
+    Task<bool> ResendInvitationAsync(TenantContext tenant, Guid invitationId, Guid resentBy, CancellationToken ct = default);
 }

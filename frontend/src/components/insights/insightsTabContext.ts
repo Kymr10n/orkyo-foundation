@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { InsightsBucket } from '@foundation/src/lib/api/insights-api';
 
 /**

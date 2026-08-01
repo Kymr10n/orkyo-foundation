@@ -40,6 +40,9 @@ public static class UserManagementEndpoints
         group.MapDelete("/invitations/{invitationId:guid}", RevokeInvitation).WithName("RevokeInvitation")
             .WithDescription("Revoke a pending invitation (Admin only)");
 
+        group.MapPost("/invitations/{invitationId:guid}/resend", ResendInvitation).WithName("ResendInvitation")
+            .WithDescription("Resend a pending invitation email with a fresh token (Admin only)");
+
         // Public invitation endpoints (no auth, no tenant)
         app.MapGet("/api/invitations/validate", async ([FromServices] IInvitationService invitationService, [FromQuery] string? token, CancellationToken ct) =>
         {
@@ -174,6 +177,18 @@ public static class UserManagementEndpoints
         var success = await invitationService.RevokeInvitationAsync(tc, invitationId, userId, ct);
         if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
         return Results.Ok(new { message = "Invitation revoked successfully" });
+    }
+
+    private static async Task<IResult> ResendInvitation(
+        HttpContext context, IInvitationService invitationService,
+        ICurrentPrincipal currentPrincipal, Guid invitationId,
+        CancellationToken ct = default)
+    {
+        var tc = context.GetTenantContext();
+        var userId = currentPrincipal.RequireUserId();
+        var success = await invitationService.ResendInvitationAsync(tc, invitationId, userId, ct);
+        if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
+        return Results.Ok(new { message = "Invitation resent successfully" });
     }
 }
 // InviteUserRequest, AcceptInvitationRequest, UpdateUserRoleRequest moved to Api.Models (Core)

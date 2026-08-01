@@ -272,5 +272,6 @@ export const qk = {
     tenantMembersFor: (tenantId: string | null) => ["admin", "tenant-members", tenantId] as const,
     subscriptionTiers: () => ["admin", "subscription-tiers"] as const,
     tenantQuotas: (tenantId: string) => ["admin", "tenant-quotas", tenantId] as const,
+    audit: (page: number, action: string | null) => ["admin", "audit", page, action] as const,
   },
 } as const;

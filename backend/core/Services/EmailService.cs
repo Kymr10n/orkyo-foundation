@@ -87,9 +87,11 @@ public class EmailService : IEmailService
             var settings = await _settingsService.GetSettingsAsync();
             return settings.ToEmailBranding();
         }
-        catch
+        catch (Exception ex)
         {
-            // Fallback to defaults if tenant context is unavailable (e.g., pre-auth flows)
+            // Fallback to defaults if tenant context is unavailable (e.g., pre-auth flows).
+            // Logged so real settings-service failures don't hide behind the fallback.
+            _logger.LogWarning(ex, "Falling back to default email branding (tenant settings unavailable)");
             return EmailBranding.Default;
         }
     }
@@ -160,7 +162,7 @@ public class EmailService : IEmailService
                         }
 
                         // Send email
-                        await client.SendAsync(message);
+                        await client.SendAsync(message, ct);
                         await client.DisconnectAsync(true, ct);
 
                         _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
@@ -174,7 +176,9 @@ public class EmailService : IEmailService
                     }
                 }
 
-                return false; // unreachable — the final attempt either returns true or throws
+                // Unreachable with a valid EmailSendOptions (MaxAttempts >= 1): the final attempt
+                // either returns true or throws past the retry filter to the outer catch.
+                throw new System.Diagnostics.UnreachableException("EmailSendOptions.MaxAttempts must be >= 1");
             }
             finally
             {
@@ -314,21 +318,11 @@ public class EmailService : IEmailService
     public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default) =>
         SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetEmailChangedEmail(displayName, newEmail, b), ct);
 
-    private async Task SendAdminAlertAsync((string subject, string htmlBody, string textBody) template, string logContext)
-    {
-        var adminEmail = _configuration.GetOptionalString(ConfigKeys.AlertEmailTo);
-        if (string.IsNullOrEmpty(adminEmail))
-            return;
-
-        try
-        {
-            await SendEmailAsync(adminEmail, "Admin", template.subject, template.htmlBody, template.textBody);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send admin alert for {Context}", logContext);
-        }
-    }
+    // Delegates to the shared best-effort helper so there is exactly one notification-send shape.
+    private Task SendAdminAlertAsync((string subject, string htmlBody, string textBody) template, string logContext) =>
+        this.TrySendNotificationAsync(
+            _configuration.GetOptionalString(ConfigKeys.AlertEmailTo),
+            template.subject, template.htmlBody, template.textBody, _logger, $"admin alert for {logContext}");
 }
 
 /// <summary>

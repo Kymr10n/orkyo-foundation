@@ -30,6 +30,15 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.NotFound(knf.Message, Guid.Empty),
             CapabilityNotApplicableException cna
                 => ErrorResponses.BadRequest(cna.Message),
+            // Guard-clause failures (ThrowIfNull etc.) are programming errors, not
+            // client errors: their messages carry internal parameter names and were
+            // being echoed to clients as 400 bodies (#96). Let them fall through to
+            // the framework's generic 500 ProblemDetails, which discloses nothing.
+            ArgumentNullException or ArgumentOutOfRangeException
+                => null,
+            // Plain ArgumentException remains the deliberate boundary-validation
+            // signal (~90 endpoint/service sites) whose message IS the user-facing
+            // error contract.
             ArgumentException arg
                 => ErrorResponses.BadRequest(arg.Message),
             UnauthorizedAccessException

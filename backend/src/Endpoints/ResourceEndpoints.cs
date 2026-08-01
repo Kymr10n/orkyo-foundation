@@ -51,24 +51,28 @@ public static class ResourceEndpoints
 
         group.MapPost("/", async (
             [FromBody] CreateResourceRequest request,
+            IValidator<CreateResourceRequest> validator,
             IResourceService service,
             CancellationToken ct) =>
-        {
-            var r = await service.CreateAsync(request, ct);
-            return Results.Created($"/api/resources/{r.Id}", r);
-        })
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var r = await service.CreateAsync(request, ct);
+                return Results.Created($"/api/resources/{r.Id}", r);
+            }))
             .WithName("CreateResource")
             .WithSummary("Create a new resource");
 
         group.MapPut("/{id:guid}", async (
             Guid id,
             [FromBody] UpdateResourceRequest request,
+            IValidator<UpdateResourceRequest> validator,
             IResourceService service,
             CancellationToken ct) =>
-        {
-            var r = await service.UpdateAsync(id, request, ct);
-            return EndpointHelpers.OkOrNotFound(r, "Resource", id);
-        })
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var r = await service.UpdateAsync(id, request, ct);
+                return EndpointHelpers.OkOrNotFound(r, "Resource", id);
+            }))
             .WithName("UpdateResource")
             .WithSummary("Update a resource");
 
@@ -144,10 +148,12 @@ public static class ResourceEndpoints
         group.MapPost("/{id:guid}/capabilities", async (
             Guid id,
             AddResourceCapabilityRequest request,
+            IValidator<AddResourceCapabilityRequest> validator,
             IResourceService service,
             IResourceCapabilityRepository repository,
             ICriteriaService criteriaService,
             CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             var resource = await service.GetByIdAsync(id, ct);
             if (resource is null)
@@ -163,7 +169,7 @@ public static class ResourceEndpoints
 
             var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value, ct);
             return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);
-        })
+        }))
             .WithName("AddResourceCapability")
             .WithSummary("Add or update a capability for a resource");
 

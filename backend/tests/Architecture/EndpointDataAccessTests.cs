@@ -43,7 +43,7 @@ public partial class EndpointDataAccessTests
     [Fact]
     public void NoNewEndpointFile_IssuesRawAdoNet()
     {
-        var endpointsDir = FindDirectory("backend", "src", "Endpoints");
+        var endpointsDir = TestRepoPaths.FindDirectory("backend", "src", "Endpoints");
         endpointsDir.Should().NotBeNull("could not locate backend/src/Endpoints");
 
         var files = Directory.GetFiles(endpointsDir!, "*.cs", SearchOption.AllDirectories);
@@ -65,7 +65,7 @@ public partial class EndpointDataAccessTests
     [Fact]
     public void BaselineFiles_StillContainRawAdoNet()
     {
-        var endpointsDir = FindDirectory("backend", "src", "Endpoints");
+        var endpointsDir = TestRepoPaths.FindDirectory("backend", "src", "Endpoints");
         endpointsDir.Should().NotBeNull("could not locate backend/src/Endpoints");
 
         var stale = KnownRawDataAccessFiles
@@ -85,19 +85,4 @@ public partial class EndpointDataAccessTests
 
     private static string RelativeEndpointPath(string endpointsDir, string file) =>
         Path.GetRelativePath(endpointsDir, file).Replace('\\', '/');
-
-    private static string? FindDirectory(params string[] pathSegments)
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12; i++)
-        {
-            var candidate = Path.Combine([dir, .. pathSegments]);
-            if (Directory.Exists(candidate)) return candidate;
-
-            var parent = Directory.GetParent(dir)?.FullName;
-            if (parent == null) break;
-            dir = parent;
-        }
-        return null;
-    }
 }

@@ -53,6 +53,7 @@ import {
   getApexOrigin,
   buildBffLoginUrl,
 } from '@foundation/src/lib/utils/tenant-navigation';
+import { rememberSessionEndRedirect, takeSessionEndRedirect } from '@foundation/src/lib/utils/session-end';
 import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -150,6 +151,10 @@ async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
     return { kind: 'backend_error', status: res.status };
   }
   const session = data;
+
+  // Record (or clear) where this session should end. Ephemeral sessions — the public demo —
+  // return the visitor to the marketing site instead of a credentials form.
+  rememberSessionEndRedirect(session.authClient);
 
   // Resolve membership — subdomain is the authoritative source in production.
   let membership: TenantMembership | null = null;
@@ -249,6 +254,14 @@ export const authMachine = setup({
     performLogin: ({ event }) => {
       if (isPublicPath(window.location.pathname)) return;
 
+      // An ephemeral session (the public demo) has ended: send the visitor back to the
+      // marketing site rather than to Keycloak, where they have no credentials to enter.
+      const sessionEnd = takeSessionEndRedirect();
+      if (sessionEnd) {
+        window.location.replace(sessionEnd);
+        return;
+      }
+
       const loginEvent = event.type === AUTH_EVENTS.LOGIN
         ? (event as { returnTo?: string })
         : null;
@@ -339,6 +352,12 @@ export const authMachine = setup({
     singleActiveTenant: ({ event }) => {
       const output = getSessionOutput(event);
       if (output.kind !== 'loaded') return false;
+      // Apex only. On a tenant subdomain this guard is reached solely when the
+      // user is NOT a member of the workspace they asked for (membershipResolved
+      // already failed), and auto-redirecting them to their own tenant would
+      // silently swallow a typo, a stale link or revoked access. Fall through to
+      // selecting_tenant instead — TenantApp renders the no-access page (#102).
+      if (getCurrentSubdomain()) return false;
       const tenants = output.session.tenants;
       return tenants.length === 1 && tenants[0].state === TENANT_STATUS.ACTIVE;
     },
@@ -425,10 +444,16 @@ export const authMachine = setup({
 
 
 
+    // The three "signed in, but no workspace resolved" states below all accept
+    // UNAUTHORIZED / SESSION_EXPIRED. Without them a 401 raised while sitting on
+    // one of these screens is dropped silently and any guard showing a spinner
+    // waits forever (#102). Same shape as `ready` — clear state, re-login.
     no_tenants: {
       on: {
         [AUTH_EVENTS.TENANT_CREATED]: { target: 'initializing' },
         [AUTH_EVENTS.LOGOUT]:         { target: 'logging_out' },
+        [AUTH_EVENTS.UNAUTHORIZED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
+        [AUTH_EVENTS.SESSION_EXPIRED]: { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
       },
     },
 
@@ -440,6 +465,8 @@ export const authMachine = setup({
         },
         [AUTH_EVENTS.REFRESH]: { target: 'initializing' },
         [AUTH_EVENTS.LOGOUT]:  { target: 'logging_out' },
+        [AUTH_EVENTS.UNAUTHORIZED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
+        [AUTH_EVENTS.SESSION_EXPIRED]: { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
       },
     },
 
@@ -456,6 +483,8 @@ export const authMachine = setup({
         [AUTH_EVENTS.REACTIVATE]: { target: 'initializing' },
         [AUTH_EVENTS.REFRESH]:    { target: 'initializing' },
         [AUTH_EVENTS.LOGOUT]:     { target: 'logging_out' },
+        [AUTH_EVENTS.UNAUTHORIZED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
+        [AUTH_EVENTS.SESSION_EXPIRED]: { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
       },
     },
 

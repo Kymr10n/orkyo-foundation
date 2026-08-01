@@ -65,7 +65,13 @@ public class BffCookieAuthenticationHandlerTests
 
     private string EncryptSessionId(string sessionId) => _protector.Protect(sessionId);
 
-    private BffSessionRecord CreateSession(string? accessToken = null, DateTimeOffset? tokenExpiresAt = null) =>
+    private BffSessionRecord CreateSession(
+        string? accessToken = null,
+        DateTimeOffset? tokenExpiresAt = null,
+        string? authClient = null,
+        DateTimeOffset? expiresAt = null,
+        DateTimeOffset? absoluteExpiresAt = null,
+        bool slidingEnabled = false) =>
         new()
         {
             SessionId = TestSessionId,
@@ -74,13 +80,17 @@ public class BffCookieAuthenticationHandlerTests
             AccessToken = accessToken ?? CreateTestJwt(),
             RefreshToken = "refresh-token-value",
             IdToken = "id-token-value",
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(8),
+            ExpiresAt = expiresAt ?? DateTimeOffset.UtcNow.AddHours(8),
+            AbsoluteExpiresAt = absoluteExpiresAt ?? default,
+            SlidingEnabled = slidingEnabled,
             TokenExpiresAt = tokenExpiresAt ?? DateTimeOffset.UtcNow.AddMinutes(5),
             CreatedAt = DateTimeOffset.UtcNow,
             LastActivityAt = DateTimeOffset.UtcNow,
+            AuthClient = authClient,
         };
 
-    private async Task<AuthenticateResult> RunAuthenticateAsync(HttpContext httpContext)
+    private async Task<AuthenticateResult> RunAuthenticateAsync(
+        HttpContext httpContext, IBffAuthClientRegistry? authClientRegistry = null)
     {
         var scheme = new AuthenticationScheme(BffCookieAuthenticationHandler.SchemeName, null, typeof(BffCookieAuthenticationHandler));
         var optionsMonitor = new Mock<IOptionsMonitor<AuthenticationSchemeOptions>>();
@@ -88,7 +98,9 @@ public class BffCookieAuthenticationHandlerTests
         var handler = new BffCookieAuthenticationHandler(
             optionsMonitor.Object, NullLoggerFactory.Instance, UrlEncoder.Default,
             _sessionStore.Object, _dataProtectionProvider, Options.Create(_bffOptions),
-            _keycloakOptions, _httpClientFactory.Object);
+            _keycloakOptions,
+            authClientRegistry ?? new DefaultBffAuthClientRegistry(_keycloakOptions),
+            _httpClientFactory.Object);
         await handler.InitializeAsync(scheme, httpContext);
         return await handler.AuthenticateAsync();
     }
@@ -259,6 +271,52 @@ public class BffCookieAuthenticationHandlerTests
     }
 
     [Fact]
+    public async Task Refresh_UsesTheSessionsAuthClientCredentials()
+    {
+        // A refresh token is bound to its issuing client: a session established
+        // through a secondary client (AuthClient = "demo") must refresh with that
+        // client's credentials, and a default session with the backend client's.
+        var registry = new Mock<IBffAuthClientRegistry>();
+        registry.Setup(r => r.Resolve("demo")).Returns(("demo-client", "demo-secret"));
+
+        var session = CreateSession(
+            tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10), authClient: "demo");
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var responseJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            access_token = CreateTestJwt(),
+            refresh_token = "new-refresh-token",
+            expires_in = 300,
+        });
+        var mockHandler = new MockHttpMessageHandler(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(responseJson, System.Text.Encoding.UTF8, "application/json"),
+        });
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(
+            CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)), registry.Object);
+
+        result.Succeeded.Should().BeTrue();
+        registry.Verify(r => r.Resolve("demo"), Times.Once);
+        mockHandler.LastRequestBody.Should().Contain("client_id=demo-client")
+            .And.Contain("client_secret=demo-secret");
+    }
+
+    [Fact]
+    public void DefaultRegistry_ResolvesEverythingToTheBackendClient()
+    {
+        var registry = new DefaultBffAuthClientRegistry(_keycloakOptions);
+
+        registry.Resolve(null).Should().Be((_keycloakOptions.BackendClientId, _keycloakOptions.BackendClientSecret));
+        registry.Resolve("demo").Should().Be((_keycloakOptions.BackendClientId, _keycloakOptions.BackendClientSecret),
+            "the foundation default knows no secondary clients — editions that add one must replace the registration");
+    }
+
+    [Fact]
     public async Task RefreshLockNotAcquired_SkipsRefresh_UsesCurrentToken()
     {
         // When another request/instance holds the single-flight refresh lock, this request must
@@ -288,6 +346,160 @@ public class BffCookieAuthenticationHandlerTests
         result.Principal!.Claims.Select(c => c.Type).Should().NotContain("typ");
     }
 
+    // ── Sliding expiry ─────────────────────────────────────────────────────
+    //
+    // The behaviour users actually feel: an active session must not expire mid-work, and an
+    // abandoned one must still die. Both halves are asserted here.
+
+    private static readonly TimeSpan Idle = TimeSpan.FromDays(7);
+    private static readonly TimeSpan Max = TimeSpan.FromDays(14);
+
+    private void UseSlidingWindows()
+    {
+        _bffOptions.SessionIdleDuration = Idle;
+        _bffOptions.SessionMaxDuration = Max;
+    }
+
+    [Fact]
+    public async Task SlidingSession_PastHalfWindow_ExtendsExpiryAndReissuesCookies()
+    {
+        UseSlidingWindows();
+        var now = DateTimeOffset.UtcNow;
+        // Only 1 day of the 7-day idle window left — well past the half-way point.
+        var session = CreateSession(
+            expiresAt: now.AddDays(1), absoluteExpiresAt: now.AddDays(10), slidingEnabled: true);
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+
+        var ctx = CreateHttpContext();
+        ctx.Request.Headers.Cookie = $"{CookieName}={EncryptSessionId(TestSessionId)}; orkyo-csrf=csrf-value";
+        var result = await RunAuthenticateAsync(ctx);
+
+        result.Succeeded.Should().BeTrue();
+        _sessionStore.Verify(s => s.SlideExpiryAsync(TestSessionId,
+            It.Is<DateTimeOffset>(d => d > now.AddDays(6)), It.IsAny<CancellationToken>()), Times.Once);
+
+        // The browser copy must move with the server's, or the cookie lapses while the session
+        // is still alive and the user is logged out despite the extension.
+        var setCookies = ctx.Response.Headers.SetCookie.ToString();
+        setCookies.Should().Contain(CookieName);
+        setCookies.Should().Contain("orkyo-csrf");
+    }
+
+    [Fact]
+    public async Task SlidingSession_BeforeHalfWindow_DoesNotWriteOrReissue()
+    {
+        UseSlidingWindows();
+        var now = DateTimeOffset.UtcNow;
+        // 6 of 7 days left — nothing to do. This is what keeps the slide cheap under a burst
+        // of parallel SPA requests.
+        var session = CreateSession(
+            expiresAt: now.AddDays(6), absoluteExpiresAt: now.AddDays(13), slidingEnabled: true);
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+
+        var ctx = CreateHttpContext(CookieName, EncryptSessionId(TestSessionId));
+        var result = await RunAuthenticateAsync(ctx);
+
+        result.Succeeded.Should().BeTrue();
+        _sessionStore.Verify(s => s.SlideExpiryAsync(It.IsAny<string>(), It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        ctx.Response.Headers.SetCookie.ToString().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SlidingSession_NeverExtendsPastTheAbsoluteCap()
+    {
+        UseSlidingWindows();
+        var now = DateTimeOffset.UtcNow;
+        var cap = now.AddHours(2); // cap is closer than a full idle window
+        var session = CreateSession(
+            expiresAt: now.AddHours(1), absoluteExpiresAt: cap, slidingEnabled: true);
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+
+        await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        _sessionStore.Verify(s => s.SlideExpiryAsync(TestSessionId,
+            It.Is<DateTimeOffset>(d => d <= cap), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SlidingSession_AtTheCap_DoesNotSlide()
+    {
+        UseSlidingWindows();
+        var now = DateTimeOffset.UtcNow;
+        var session = CreateSession(
+            expiresAt: now.AddMinutes(5), absoluteExpiresAt: now.AddMinutes(-1), slidingEnabled: true);
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+
+        await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        _sessionStore.Verify(s => s.SlideExpiryAsync(It.IsAny<string>(), It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NonSlidingSession_IsNeverExtended()
+    {
+        // The demo case: a 45-minute window that must be a cap on anonymous access, not a
+        // renewable one. Deep into the window, and still no slide.
+        UseSlidingWindows();
+        var now = DateTimeOffset.UtcNow;
+        var session = CreateSession(
+            authClient: "demo", expiresAt: now.AddMinutes(2),
+            absoluteExpiresAt: now.AddMinutes(2), slidingEnabled: false);
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+
+        var ctx = CreateHttpContext(CookieName, EncryptSessionId(TestSessionId));
+        var result = await RunAuthenticateAsync(ctx);
+
+        result.Succeeded.Should().BeTrue();
+        _sessionStore.Verify(s => s.SlideExpiryAsync(It.IsAny<string>(), It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        ctx.Response.Headers.SetCookie.ToString().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task LegacySessionRecord_NeitherSlidesNorThrows()
+    {
+        // Records written before sliding existed decode with SlidingEnabled=false and
+        // AbsoluteExpiresAt=default. They must keep their original deadline — a deploy must not
+        // silently extend sessions established under the old policy.
+        UseSlidingWindows();
+        var session = CreateSession(expiresAt: DateTimeOffset.UtcNow.AddMinutes(1));
+        session.AbsoluteExpiresAt.Should().Be(default);
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        _sessionStore.Verify(s => s.SlideExpiryAsync(It.IsAny<string>(), It.IsAny<DateTimeOffset>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SessionWithAuthClient_CarriesItOntoThePrincipal()
+    {
+        // /me reads this claim to tell the SPA the session is ephemeral.
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSession(authClient: "demo"));
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.FindFirst(BffCookieAuthenticationHandler.AuthClientClaim)!.Value.Should().Be("demo");
+    }
+
+    [Fact]
+    public async Task OrdinarySession_CarriesNoAuthClientClaim()
+    {
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSession());
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal!.FindFirst(BffCookieAuthenticationHandler.AuthClientClaim).Should().BeNull();
+    }
+
     // ── Mock HTTP message handler ──────────────────────────────────────────
 
     private sealed class MockHttpMessageHandler : HttpMessageHandler
@@ -298,11 +510,16 @@ public class BffCookieAuthenticationHandlerTests
         public MockHttpMessageHandler(HttpResponseMessage response) => _response = response;
         public MockHttpMessageHandler(Exception exception) => _exception = exception;
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        /// <summary>Form body of the last request, for asserting grant parameters.</summary>
+        public string? LastRequestBody { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (request.Content is not null)
+                LastRequestBody = await request.Content.ReadAsStringAsync(cancellationToken);
             if (_exception is not null) throw _exception;
-            return Task.FromResult(_response!);
+            return _response!;
         }
     }
 }

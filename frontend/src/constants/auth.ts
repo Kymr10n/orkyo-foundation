@@ -129,6 +129,11 @@ export const AUTH_ERROR_MESSAGES = {
   auth_failed:
     'Sign-in failed. Please try again. If the problem persists, contact support.',
   invalid_state: 'Your sign-in session expired. Please try again.',
+  // Emitted by the SaaS demo-login endpoint when the demo is disabled or Keycloak is
+  // unreachable. Without an entry here it fell through to DEFAULT ("Sign-in failed"), which
+  // tells a demo visitor — who was never signing in — nothing useful.
+  demo_unavailable:
+    'The live demo is temporarily unavailable. Please try again shortly.',
   DEFAULT: 'Sign-in failed. Please try again.',
 } as const;
 

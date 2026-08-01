@@ -22,7 +22,6 @@ import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule 
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
-import { UtilizationAgenda } from "@foundation/src/components/utilization/UtilizationAgenda";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
@@ -41,7 +40,7 @@ import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
-import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
 import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
@@ -53,7 +52,7 @@ import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
-import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 export function UtilizationPage() {
@@ -82,10 +81,17 @@ export function UtilizationPage() {
   // scheduling/reorder drags can't be initiated at all (writes also 403 server-side).
   const canEdit = useCanEdit();
 
-  // Require 8px of movement before activating a drag so that plain clicks
-  // on scheduled requests don't trigger handleDragEnd and re-schedule them.
-  const pointerSensor = useSensor(PointerSensor, {
+  // Separate mouse + touch sensors so tap-to-open and drag-to-reschedule coexist
+  // on every device. Mouse: 8px of movement before a drag (plain clicks open the
+  // request, never re-schedule it). Touch: a 250ms press-hold before a drag, so a
+  // quick tap falls through to onClick (opens the dialog) while a long-press
+  // starts the drag. A unified PointerSensor can't give mouse and touch different
+  // activation rules, which is why touch taps were being swallowed.
+  const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 8 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 8 },
   });
   // KeyboardSensor makes the row-reorder drag (Spaces) keyboard-operable — that
   // path resolves its target purely from element ids, so it is keyboard-correct.
@@ -96,7 +102,7 @@ export function UtilizationPage() {
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
-  const sensors = useSensors(...(canEdit ? [pointerSensor, keyboardSensor] : []));
+  const sensors = useSensors(...(canEdit ? [mouseSensor, touchSensor, keyboardSensor] : []));
 
   // Scope collision detection to the active drag's intent so a single set of
   // droppables can serve two modes unambiguously: dragging a space-row only
@@ -178,15 +184,7 @@ export function UtilizationPage() {
     };
   }, [handleToday]);
 
-  // On phone the Calendar tab renders a month agenda, so the fetch/conflict window must cover the
-  // viewed month regardless of the stored grid scale (the day/hour buffer is only ±7d). Derived
-  // rather than setScale("month"): mutating the store would clobber the scale the user chose for
-  // the other tabs, and an effect-based force would render one frame with the wrong window.
-  const isPhoneCalendar = isPhone && activeTab === 'calendar';
-  const fetchWindow = useMemo(
-    () => getFetchWindow(isPhoneCalendar ? 'month' : scale, anchorTs),
-    [isPhoneCalendar, scale, anchorTs],
-  );
+  const fetchWindow = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
   const { data: rawScheduled = [], isLoading: scheduledLoading } = useScheduledRequests(selectedSiteId, fetchWindow.from, fetchWindow.to);
   const { data: rawBacklog = [] } = useBacklogRequests();
   // Recompute the active lifecycle (new → in_progress → done) live on the client off one ticking clock,
@@ -265,20 +263,6 @@ export function UtilizationPage() {
     () => requestsToCalendarEvents(scheduled, conflicts, canEdit),
     [scheduled, conflicts, canEdit],
   );
-
-  // Phone agenda: clip the buffered `scheduled` set (−2/+3 months) to the viewed month —
-  // half-open [monthStart, nextMonthStart) overlap in local time, matching what the month
-  // grid would display. A request touching the boundary with zero overlap is excluded.
-  const agendaMonthRequests = useMemo(() => {
-    const monthStart = startOfMonth(anchorTs);
-    const monthEnd = addMonths(monthStart, 1);
-    return scheduled.filter((r) => {
-      if (!r.startTs) return false;
-      const start = new Date(r.startTs);
-      const end = r.endTs ? new Date(r.endTs) : start;
-      return start < monthEnd && end > monthStart;
-    });
-  }, [scheduled, anchorTs]);
 
   // Calendar empty-slot scheduling flow.
   const [slotSelection, setSlotSelection] = useState<{ start: Date; end: Date } | null>(null);
@@ -370,24 +354,20 @@ export function UtilizationPage() {
     }
   }, [selectedSiteId, horizonStart, horizonEnd, applyMutation, autoSchedulePreview, queryClient]);
 
-  const handlePrevious = () => setAnchorTs(navigateTime(anchorTs, scale, -1));
-  const handleNext = () => setAnchorTs(navigateTime(anchorTs, scale, 1));
-
-  // Phone-calendar month stepping. NOT navigateTime(anchorTs, "month", ±1): that pans by
-  // a *week* (grid-column semantics); the agenda pages by whole months.
-  const handleMonthPrevious = () => setAnchorTs(addMonths(anchorTs, -1));
-  const handleMonthNext = () => setAnchorTs(addMonths(anchorTs, 1));
+  // The Calendar tab pages by whole periods (one click = one week/month); the
+  // Spaces/People timeline grids pan by a sub-period. Same controls, tab-aware step.
+  const stepAnchor = (direction: 1 | -1) =>
+    activeTab === 'calendar'
+      ? navigateCalendarPeriod(anchorTs, scale, direction)
+      : navigateTime(anchorTs, scale, direction);
+  const handlePrevious = () => setAnchorTs(stepAnchor(-1));
+  const handleNext = () => setAnchorTs(stepAnchor(1));
 
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {
     const request = requests.find(r => r.id === requestId);
     if (request) openRequestEditor(request, conflicts.get(requestId) ?? []);
   }, [requests, openRequestEditor, conflicts]);
-
-  // Tap on a phone-calendar agenda card — the touch equivalent of a calendar event click.
-  const handleAgendaOpen = useCallback((request: Request) => {
-    openRequestEditor(request, conflicts.get(request.id) ?? []);
-  }, [openRequestEditor, conflicts]);
 
   // Handle "Add child" from RequestsPanel
   const handleCreateChild = useCallback((parentId: string) => {
@@ -609,12 +589,14 @@ export function UtilizationPage() {
     setCalendarForm(null);
   }, [calendarForm, queryClient]);
 
-  // Keep the shared store window (scale + anchor) aligned with the calendar's
-  // current view so useScheduledRequests fetches the right range.
-  const handleCalendarDatesSet = useCallback((nextScale: "day" | "week" | "month", activeStart: Date) => {
-    setScale(nextScale);
+  // The calendar is driven by the page's scale selector + date navigator (shared
+  // with the Spaces/People tabs), so scale is page-owned; the calendar only
+  // reports the visible range's start, which we mirror into the anchor so
+  // useScheduledRequests fetches the right window when the view snaps to a
+  // period boundary.
+  const handleCalendarDatesSet = useCallback((activeStart: Date) => {
     setAnchorTs(activeStart);
-  }, [setScale, setAnchorTs]);
+  }, [setAnchorTs]);
 
   const tabs: PageTab[] = [
     { value: 'calendar', label: 'Calendar' },
@@ -622,69 +604,56 @@ export function UtilizationPage() {
     { value: 'people', label: 'People' },
   ];
 
+  // Scale + time navigation shared across all three tabs (the calendar is
+  // page-controlled — its built-in toolbar is disabled). On desktop/tablet these
+  // sit in the header's actions slot; on phones they'd overlap the title, so they
+  // get their own row under the heading (above the tabs; see the render below).
+  const schedulingControls = (
+    <>
+      {autoScheduleAvailable && canEdit && activeTab === 'space' && (
+        <AutoScheduleButton
+          onClick={handleAutoScheduleClick}
+          loading={previewMutation.isPending}
+          disabled={!selectedSiteId}
+        />
+      )}
+      <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
+      <TimeNavigator
+        scale={scale}
+        anchorTs={anchorTs}
+        onAnchorChange={setAnchorTs}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        onToday={handleToday}
+        compact={isPhone}
+      />
+    </>
+  );
+
   return (
     <PageLayout>
       <PageHeader
         title="Utilization"
         description="Schedule space allocations and review people utilization"
-        actions={
-          <>
-            {autoScheduleAvailable && canEdit && activeTab === 'space' && (
-              <AutoScheduleButton
-                onClick={handleAutoScheduleClick}
-                loading={previewMutation.isPending}
-                disabled={!selectedSiteId}
-              />
-            )}
-            {/* Calendar uses FullCalendar's own toolbar. */}
-            {activeTab !== 'calendar' && (
-              <>
-                <ScaleSelect value={scale} onChange={setScale} />
-                <TimeNavigator
-                  scale={scale}
-                  anchorTs={anchorTs}
-                  onAnchorChange={setAnchorTs}
-                  onPrevious={handlePrevious}
-                  onNext={handleNext}
-                  onToday={handleToday}
-                />
-              </>
-            )}
-          </>
-        }
+        actions={isPhone ? undefined : schedulingControls}
       />
-      <PageTabs tabs={tabs} value={activeTab} onChange={handleTabChange}>
+      {/* Phone: controls can't fit beside the title, so they get their own row
+          under the heading (above the tabs) — mirroring desktop's
+          heading→controls→tabs order. */}
+      {isPhone && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">{schedulingControls}</div>
+      )}
+      <PageTabs
+        tabs={tabs}
+        value={activeTab}
+        onChange={handleTabChange}
+      >
         {/* Radix hides the inactive tab via data-[state=inactive]:hidden
             (display:none), so the active one takes h-full of the wrapper. */}
 
         {/* Calendar tab — Outlook-style time view of scheduled requests */}
         <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          {isPhone ? (
-            // Phone: FullCalendar's month grid is unusable at ~390px ("+N more" overlaps the
-            // day numbers), so render the drag-free agenda over the same scheduled data, with
-            // a slim month navigator replacing FullCalendar's toolbar.
-            <div className="h-full flex flex-col overflow-hidden rounded-xl border bg-background p-3 gap-2">
-              <div className="flex justify-center shrink-0 border-b pb-2">
-                <TimeNavigator
-                  scale="month"
-                  anchorTs={anchorTs}
-                  onAnchorChange={setAnchorTs}
-                  onPrevious={handleMonthPrevious}
-                  onNext={handleMonthNext}
-                  onToday={handleToday}
-                />
-              </div>
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <UtilizationAgenda
-                  requests={agendaMonthRequests}
-                  conflicts={conflicts}
-                  onOpen={handleAgendaOpen}
-                  emptyMessage="No scheduled work this month."
-                />
-              </div>
-            </div>
-          ) : (
-          <div className="h-full rounded-xl border bg-background p-3">
+          <div className="h-full rounded-xl border bg-background p-2 md:p-3">
             <RequestCalendar
               events={calendarEvents}
               offTimeRanges={offTimeRanges}
@@ -694,8 +663,9 @@ export function UtilizationPage() {
                 end: schedulingSettings.workingDayEnd,
               } : undefined}
               editable={canEdit}
-              initialView={scaleToCalendarView(scale)}
+              initialView={scaleToCalendarView(scale, { phone: isPhone })}
               initialDate={anchorTs}
+              active={activeTab === 'calendar'}
               onEventClick={handleCalendarEventClick}
               onEventMove={handleCalendarReschedule}
               onEventResize={handleCalendarReschedule}
@@ -703,17 +673,13 @@ export function UtilizationPage() {
               onDatesSet={handleCalendarDatesSet}
             />
           </div>
-          )}
         </TabsContent>
 
         <TabsContent value="space" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          {isPhone ? (
-            // Phone: drag-free agenda over the same scheduled data; the heavy
-            // DnD grid and floorplan canvas are desktop/tablet only.
-            <div className="h-full overflow-hidden">
-              <UtilizationAgenda requests={scheduled} onOpen={openRequestEditor} />
-            </div>
-          ) : (
+          {/* One DndContext across breakpoints — the grid's TimelineGridShell uses
+              dnd-kit SortableContext/useSortable and must have a context ancestor
+              even on phone. Phones drop the heavy floorplan canvas + backlog panel
+              and get a scroll-only, tap-to-open, drag-free grid. */}
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
@@ -722,26 +688,30 @@ export function UtilizationPage() {
             collisionDetection={collisionDetection}
           >
             <div className="h-full flex flex-col overflow-hidden gap-3">
-              {/* Collapsible Floorplan */}
-              <CollapsibleFloorplan
-                isCollapsed={isFloorplanCollapsed}
-                onToggle={() => setIsFloorplanCollapsed(!isFloorplanCollapsed)}
-                timeCursorTs={timeCursorTs}
-                requests={requests}
-                conflicts={conflictingRequestIds}
-                height={floorplanHeight}
-                onHeightChange={setFloorplanHeight}
-              />
-
-              {/* Scheduler + Requests Panel */}
-              <div className="flex-1 flex overflow-hidden rounded-xl border bg-background">
-                <RequestsPanel
+              {/* Collapsible Floorplan — desktop/tablet only */}
+              {!isPhone && (
+                <CollapsibleFloorplan
+                  isCollapsed={isFloorplanCollapsed}
+                  onToggle={() => setIsFloorplanCollapsed(!isFloorplanCollapsed)}
+                  timeCursorTs={timeCursorTs}
                   requests={requests}
-                  isLoading={requestsLoading}
-                  onCreateChild={canEdit ? handleCreateChild : undefined}
-                  onRequestClick={openRequestEditor}
-                  onScheduleTo={canEdit ? setScheduleToRequest : undefined}
+                  conflicts={conflictingRequestIds}
+                  height={floorplanHeight}
+                  onHeightChange={setFloorplanHeight}
                 />
+              )}
+
+              {/* Scheduler + Requests Panel (backlog panel is desktop/tablet only) */}
+              <div className="flex-1 flex overflow-hidden rounded-xl border bg-background">
+                {!isPhone && (
+                  <RequestsPanel
+                    requests={requests}
+                    isLoading={requestsLoading}
+                    onCreateChild={canEdit ? handleCreateChild : undefined}
+                    onRequestClick={openRequestEditor}
+                    onScheduleTo={canEdit ? setScheduleToRequest : undefined}
+                  />
+                )}
 
                 {spacesLoading || requestsLoading ? (
                   <div className="flex-1">
@@ -755,9 +725,15 @@ export function UtilizationPage() {
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
                     nowMs={nowMs}
-                    onRequestClick={setSelectedRequestId}
+                    // Phone has no hover/double-click, so a single tap opens the
+                    // editor; desktop keeps single-click-selects / double-opens.
+                    // Drag-to-reschedule works on both (mouse-move / touch long-
+                    // press via the sensors above). Precise duration edits happen
+                    // in the dialog's Timing tab — better on touch than 2px handles.
+                    onRequestClick={isPhone ? handleRequestDoubleClick : setSelectedRequestId}
                     onRequestDoubleClick={handleRequestDoubleClick}
                     onRequestResize={handleResizeRequest}
+                    editable={canEdit}
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
@@ -782,7 +758,6 @@ export function UtilizationPage() {
               ) : null}
             </DragOverlay>
           </DndContext>
-          )}
         </TabsContent>
 
         {/* People tab */}

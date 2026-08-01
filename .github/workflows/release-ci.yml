@@ -809,6 +809,8 @@ jobs:
           fi
           VERSION="${BASE}-nightly.$(date +%Y%m%d).${GITHUB_SHA:0:7}"
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          # MAJOR is the carry-forward source for the Keycloak image tag below.
+          echo "MAJOR=${BASE%%.*}" >> "$GITHUB_OUTPUT"
           echo "Nightly version: $VERSION"
 
       - name: Setup .NET
@@ -882,6 +884,50 @@ jobs:
       - name: Update dist-tag next → this nightly
         run: npm dist-tag add @kymr10n/foundation@${{ steps.version.outputs.VERSION }} next
         working-directory: frontend
+
+      # ── Keycloak image for this nightly ───────────────────────────────────
+      # The nightly version is what the saas auto-bump pins into
+      # Directory.Build.props, and infra's deploy.yml reads that pin as
+      # KEYCLOAK_TAG and pulls <KC_IMAGE>:<KC_VERSION>-orkyo-<version>. Without
+      # this, every nightly dispatches a version whose Keycloak tag was never
+      # created, and the next prod deploy dies at its provenance gate.
+      # Mirrors the promote / carry-forward / verify trio in the stable `publish`
+      # job; kept as a small duplication rather than a shared composite action,
+      # because local composite actions have caused startup_failure here before.
+      # Runs BEFORE the dispatches so an incomplete nightly is never announced.
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Tag Keycloak image for this nightly
+        env:
+          SHA_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}
+          MAJOR_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.MAJOR }}
+          V_TAG: ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-${{ steps.version.outputs.VERSION }}
+        run: |
+          # Only the exact nightly version tag is created. The floating minor and
+          # major tags belong to stable releases — moving them here would make a
+          # stable deploy pull a nightly Keycloak image.
+          if docker manifest inspect "$SHA_TAG" > /dev/null 2>&1; then
+            echo "Keycloak image built from this commit — tagging it as the nightly version"
+            docker buildx imagetools create -t "$V_TAG" "$SHA_TAG"
+          elif docker manifest inspect "$MAJOR_TAG" > /dev/null 2>&1; then
+            echo "No Keycloak change in this commit — carrying $MAJOR_TAG forward"
+            docker buildx imagetools create -t "$V_TAG" "$MAJOR_TAG"
+          else
+            echo "::error::No Keycloak image to tag: neither $SHA_TAG nor $MAJOR_TAG exists. A new major line must change keycloak/** so an image is built."
+            exit 1
+          fi
+          if ! docker manifest inspect "$V_TAG" > /dev/null 2>&1; then
+            echo "::error::Nightly incomplete — $V_TAG was not created."
+            exit 1
+          fi
+          echo "Keycloak nightly image present: $V_TAG"
 
       - name: Dispatch foundation_updated to SaaS (nightly)
         env:

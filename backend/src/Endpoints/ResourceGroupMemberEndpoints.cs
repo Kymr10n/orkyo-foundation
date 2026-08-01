@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -29,12 +30,14 @@ public static class ResourceGroupMemberEndpoints
         group.MapPut("/{id:guid}/members", async (
             Guid id,
             [FromBody] SetResourceGroupMembersRequest request,
+            IValidator<SetResourceGroupMembersRequest> validator,
             IResourceGroupMemberRepository repo,
             CancellationToken ct) =>
-        {
-            await repo.SetMembersAsync(id, request.ResourceIds, ct);
-            return Results.Ok(await repo.GetMembersAsync(id, ct));
-        })
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                await repo.SetMembersAsync(id, request.ResourceIds, ct);
+                return Results.Ok(await repo.GetMembersAsync(id, ct));
+            }))
             .WithName("SetResourceGroupMembers")
             .WithSummary("Replace all members of a resource group");
     }

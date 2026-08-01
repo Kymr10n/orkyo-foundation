@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -74,15 +75,14 @@ public static class SettingsAdminEndpoints
 
     private static async Task<IResult> UpdateSettings(
         UpdateSettingsRequest request,
+        IValidator<UpdateSettingsRequest> validator,
         ISiteSettingsService siteSettingsService,
         IAdminAuditService auditService,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
+        => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
     {
-        if (request.Settings == null || request.Settings.Count == 0)
-            return ErrorResponses.BadRequest("No settings provided");
-
         // Map property-style keys to DB keys
         var dbUpdates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in request.Settings)
@@ -135,7 +135,7 @@ public static class SettingsAdminEndpoints
         {
             return ErrorResponses.BadRequest(ex.Message);
         }
-    }
+    });
 }
 
 // ── Response / Request DTOs ──────────────────────────────────────────────

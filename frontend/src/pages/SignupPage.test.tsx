@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { SignupPage } from './SignupPage';
 import type * as ApiUtils from '@foundation/src/lib/core/api-utils';
 
@@ -90,7 +90,7 @@ describe('SignupPage', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        json: () => Promise.resolve({ error: 'Invitation expired' }),
+        json: () => Promise.resolve({ detail: 'Invitation expired' }),
         content: { readAsStringAsync: () => Promise.resolve('') },
       }),
     ));
@@ -220,7 +220,7 @@ describe('SignupPage', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        json: () => Promise.resolve({ error: 'Invitation expired' }),
+        json: () => Promise.resolve({ detail: 'Invitation expired' }),
         content: { readAsStringAsync: () => Promise.resolve('') },
       }),
     ));

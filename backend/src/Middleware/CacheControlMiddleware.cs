@@ -9,7 +9,7 @@ public class CacheControlMiddleware
     private static readonly string[] CacheablePrefixes =
     [
         "/api/criteria",
-        "/api/groups",
+        "/api/resource-groups",
         "/api/settings",
     ];
 

@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, Users, Settings, type LucideIcon } from 'lucide-r
 import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
 import { GroupCapabilitiesEditor } from '../settings/GroupCapabilitiesEditor';
@@ -56,6 +57,9 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
     setEditingGroup(group);
     setIsDialogOpen(true);
   };
+
+  // Open the edit dialog when arriving with ?edit=<id> from global search.
+  useEditQueryParam(groups, handleEdit, { ready: !isLoading });
 
   const handleClose = () => {
     setIsDialogOpen(false);

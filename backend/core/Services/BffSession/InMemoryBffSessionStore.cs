@@ -69,6 +69,26 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         return Task.CompletedTask;
     }
 
+    public Task SlideExpiryAsync(string sessionId, DateTimeOffset expiresAt, CancellationToken ct = default)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var existing))
+            return Task.CompletedTask;
+
+        // Never shorten: a concurrent request may already have slid further.
+        if (expiresAt <= existing.ExpiresAt)
+            return Task.CompletedTask;
+
+        _sessions[sessionId] = existing with
+        {
+            ExpiresAt = expiresAt,
+            LastActivityAt = DateTimeOffset.UtcNow,
+        };
+
+        _logger.LogDebug("BFF session expiry slid: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
+            sessionId[..8], expiresAt);
+        return Task.CompletedTask;
+    }
+
     public Task<bool> TryAcquireRefreshLockAsync(string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;

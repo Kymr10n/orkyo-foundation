@@ -2,7 +2,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { runtimeConfig } from "@foundation/src/config/runtime";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 
 /**
  * Redirects `?tab=<legacy>` query-param routes to their new path-based equivalents.

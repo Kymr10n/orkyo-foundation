@@ -2,14 +2,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { navigateTime } from "@foundation/src/lib/utils/time-navigation";
+import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
-import { addDays, addMonths, startOfDay, startOfMonth } from "date-fns";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -19,6 +18,17 @@ const mockUseAutoScheduleAvailable = vi.fn((_?: any): any => false);
 let capturedExportHandler: ((format: string) => Promise<void>) | null = null;
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: null }));
 const mockUseAvailabilityEvents = vi.fn((_?: any): any => ({ data: [] }));
+
+// Breakpoint — default desktop; flip per-test to exercise the phone Spaces layout.
+let mockIsPhone = false;
+vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
+  useBreakpoint: () => ({
+    isPhone: mockIsPhone,
+    isTablet: false,
+    isDesktop: !mockIsPhone,
+    device: mockIsPhone ? "phone" : "desktop",
+  }),
+}));
 
 // Mock AuthContext — default: admin
 let mockRole = "admin";
@@ -40,20 +50,10 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
   getTenantSlugSync: () => "demo",
 }));
 
-// Breakpoint — configurable per test; default desktop so all pre-existing tests are unaffected.
-let mockDevice: "phone" | "tablet" | "desktop" = "desktop";
-vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
-  useBreakpoint: () => ({
-    device: mockDevice,
-    isPhone: mockDevice === "phone",
-    isTablet: mockDevice === "tablet",
-    isDesktop: mockDevice === "desktop",
-  }),
-}));
-
 // Mock the store — configurable per test
 let mockStoreOverrides: Record<string, any> = {};
 const mockSetSpaceOrder = vi.fn();
+const mockSetScale = vi.fn();
 const mockSetAnchorTs = vi.fn();
 const mockSetTimeCursorTs = vi.fn();
 const mockSetIsFloorplanCollapsed = vi.fn();
@@ -66,7 +66,7 @@ const buildMockState = (): any => ({
   selectedSiteId: "site-1",
   conflicts: new Map(),
   scale: "month" as const,
-  setScale: vi.fn(),
+  setScale: mockSetScale,
   anchorTs: new Date("2024-01-15"),
   setAnchorTs: mockSetAnchorTs,
   timeCursorTs: new Date(),
@@ -129,8 +129,7 @@ vi.mock("@foundation/src/hooks/useAutoSchedule", () => ({
 
 vi.mock("@foundation/src/hooks/useUtilization", () => ({
   // The grid's bar feed; reuse the existing mock driver so test cases that set request data work.
-  // Args are forwarded so window-shape tests can assert the from/to the page computed.
-  useScheduledRequests: (...args: any[]) => mockUseRequests(...args),
+  useScheduledRequests: (..._args: any[]) => mockUseRequests(),
   useBacklogRequests: () => ({ data: [], isLoading: false }),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
@@ -195,7 +194,8 @@ vi.mock("@dnd-kit/core", () => ({
   },
   DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
   useDndMonitor: vi.fn(),
-  PointerSensor: vi.fn(),
+  MouseSensor: vi.fn(),
+  TouchSensor: vi.fn(),
   KeyboardSensor: vi.fn(),
   pointerWithin: vi.fn(),
   useSensor: vi.fn(() => ({})),
@@ -278,7 +278,7 @@ vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
 let capturedOnSlotSelect: ((start: Date, end: Date) => void) | null = null;
 let capturedOnEventClick: ((requestId: string) => void) | null = null;
 let capturedOnEventMove: ((requestId: string, start: Date, end: Date) => void) | null = null;
-let capturedOnDatesSet: ((scale: "day" | "week" | "month", start: Date) => void) | null = null;
+let capturedOnDatesSet: ((start: Date) => void) | null = null;
 vi.mock("@foundation/src/components/utilization/RequestCalendar", () => ({
   RequestCalendar: ({ onSlotSelect, onEventClick, onEventMove, onDatesSet }: any) => {
     capturedOnSlotSelect = onSlotSelect;
@@ -320,6 +320,7 @@ describe("UtilizationPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRole = "admin";
+    mockIsPhone = false;
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);
     mockUseRequests.mockReturnValue({ data: [], isLoading: false });
@@ -338,7 +339,6 @@ describe("UtilizationPage", () => {
     capturedOnScheduleExisting = null;
     capturedOnCreateNew = null;
     mockStoreOverrides = {};
-    mockDevice = "desktop";
   });
 
   it("renders heading and toolbar controls", () => {
@@ -383,6 +383,20 @@ describe("UtilizationPage", () => {
 
     expect(screen.getByTestId("collapsible-floorplan")).toBeInTheDocument();
     expect(screen.getByTestId("requests-panel")).toBeInTheDocument();
+  });
+
+  it("on phones shows the Spaces grid without the floorplan or backlog panel", () => {
+    mockIsPhone = true;
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    // Grid stays; the heavy floorplan canvas + backlog side panel are dropped.
+    expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("collapsible-floorplan")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("requests-panel")).not.toBeInTheDocument();
+    // Scale/nav controls remain reachable (relocated below the tabs).
+    expect(screen.getByTestId("scale-select")).toBeInTheDocument();
+    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
   });
 
   it("shows Auto-Schedule button when available and user is admin", () => {
@@ -449,6 +463,26 @@ describe("UtilizationPage", () => {
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("nav-today"));
     expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+
+  it("Calendar tab steps by a full period; grid tabs pan by a sub-period", () => {
+    const anchor = new Date("2024-01-15"); // matches the mocked store anchor; scale = month
+
+    const CalWrapper = createWrapper("calendar");
+    const { unmount } = render(<CalWrapper><UtilizationPage /></CalWrapper>);
+    mockSetAnchorTs.mockClear(); // ignore any on-mount snap
+    fireEvent.click(screen.getByTestId("nav-next"));
+    // Calendar pages a whole month (addMonths), not the grid's addWeeks pan.
+    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateCalendarPeriod(anchor, "month", 1));
+    expect(mockSetAnchorTs).not.toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
+    unmount();
+
+    const GridWrapper = createWrapper("space");
+    render(<GridWrapper><UtilizationPage /></GridWrapper>);
+    mockSetAnchorTs.mockClear();
+    fireEvent.click(screen.getByTestId("nav-next"));
+    // Grid pans by the sub-period (addWeeks for month scale).
+    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
   });
 
   // --- Stale-anchor reconcile (frozen default anchor drifts on a long-lived tab) ---
@@ -741,13 +775,15 @@ describe("UtilizationPage", () => {
     );
   });
 
-  it("calendar dates-set syncs the shared scale/anchor window", () => {
+  it("calendar dates-set syncs the shared anchor (scale is page-controlled)", () => {
     const Wrapper = createWrapper("calendar");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     const start = new Date("2026-07-01T00:00:00Z");
-    capturedOnDatesSet!("week", start);
+    capturedOnDatesSet!(start);
     expect(mockSetAnchorTs).toHaveBeenCalledWith(start);
+    // Scale is owned by the page's selector now — the calendar never sets it.
+    expect(mockSetScale).not.toHaveBeenCalled();
   });
 
   it("drag start sets the overlay label and drag cancel clears it", async () => {
@@ -781,108 +817,6 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("close-form"));
     await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
-  });
-
-  // --- Phone calendar agenda (month grid replaced by the drag-free agenda) ---
-
-  describe("phone calendar agenda", () => {
-    // Store anchor is 2024-01-15 (see buildMockState) → viewed month is January 2024.
-    const janRequest = makeRequest({
-      id: "r-jan", name: "January job",
-      startTs: "2024-01-10T08:00:00Z", endTs: "2024-01-12T16:00:00Z",
-    });
-    const marRequest = makeRequest({
-      id: "r-mar", name: "March job",
-      startTs: "2024-03-05T08:00:00Z", endTs: "2024-03-06T16:00:00Z",
-    });
-    const spanningRequest = makeRequest({
-      id: "r-span", name: "Year-end changeover",
-      startTs: "2023-12-20T08:00:00Z", endTs: "2024-01-03T16:00:00Z",
-    });
-
-    beforeEach(() => {
-      mockDevice = "phone";
-    });
-
-    it("renders the agenda instead of the calendar grid", () => {
-      mockUseRequests.mockReturnValue({ data: [janRequest], isLoading: false });
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      expect(screen.queryByTestId("request-calendar")).not.toBeInTheDocument();
-      expect(screen.getAllByRole("listitem")).toHaveLength(1);
-      expect(screen.getByText("January job")).toBeInTheDocument();
-    });
-
-    it("desktop keeps the calendar grid and shows no agenda", () => {
-      mockDevice = "desktop";
-      mockUseRequests.mockReturnValue({ data: [janRequest], isLoading: false });
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      expect(screen.getByTestId("request-calendar")).toBeInTheDocument();
-      expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
-    });
-
-    it("clips the buffered scheduled set to the viewed month (boundary-spanners included)", () => {
-      mockUseRequests.mockReturnValue({ data: [janRequest, marRequest, spanningRequest], isLoading: false });
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      expect(screen.getAllByRole("listitem")).toHaveLength(2);
-      expect(screen.getByText("January job")).toBeInTheDocument();
-      expect(screen.getByText("Year-end changeover")).toBeInTheDocument();
-      expect(screen.queryByText("March job")).not.toBeInTheDocument();
-    });
-
-    it("shows the month empty message when nothing overlaps the viewed month", () => {
-      mockUseRequests.mockReturnValue({ data: [marRequest], isLoading: false });
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      expect(screen.getByText("No scheduled work this month.")).toBeInTheDocument();
-      expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
-    });
-
-    it("pages by whole months, not navigateTime's week-sized 'month' step", () => {
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      const anchor = new Date("2024-01-15");
-      fireEvent.click(screen.getByTestId("nav-next"));
-      expect(mockSetAnchorTs).toHaveBeenCalledWith(addMonths(anchor, 1));
-      fireEvent.click(screen.getByTestId("nav-prev"));
-      expect(mockSetAnchorTs).toHaveBeenCalledWith(addMonths(anchor, -1));
-    });
-
-    it("forces a month-sized fetch window even when the stored grid scale is day", () => {
-      mockStoreOverrides = { scale: "day", anchorTs: new Date() };
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      const monthStart = startOfMonth(new Date());
-      expect(mockUseRequests).toHaveBeenCalledWith("site-1", addMonths(monthStart, -2), addMonths(monthStart, 3));
-    });
-
-    it("keeps the day-sized fetch window on desktop with day scale (regression guard)", () => {
-      mockDevice = "desktop";
-      const anchor = new Date();
-      mockStoreOverrides = { scale: "day", anchorTs: anchor };
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      const dayStart = startOfDay(anchor);
-      expect(mockUseRequests).toHaveBeenCalledWith("site-1", addDays(dayStart, -7), addDays(dayStart, 8));
-    });
-
-    it("tapping an agenda card opens the request editor", async () => {
-      mockUseRequests.mockReturnValue({ data: [janRequest], isLoading: false });
-      const Wrapper = createWrapper("calendar");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      fireEvent.click(screen.getByText("January job"));
-      await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
-    });
   });
 
   it("closing the create-child dialog clears the parent", async () => {

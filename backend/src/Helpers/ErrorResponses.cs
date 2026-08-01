@@ -3,138 +3,65 @@ using Api.Constants;
 namespace Api.Helpers;
 
 /// <summary>
-/// Standard error response helpers for consistent API error responses.
+/// Standard error response helpers. Every one emits the single canonical body shape
+/// (<see cref="OrkyoProblemDetails"/> — RFC 7807 plus a machine-readable <c>code</c>); this class
+/// stays as the vocabulary of common failures so callers never hand-roll a status/code pair.
 /// </summary>
 public static class ErrorResponses
 {
     /// <summary>
-    /// Returns a 401 Unauthorized response with a structured body the frontend can switch on.
+    /// 401 Unauthorized. The frontend switches on the code: <c>session_expired</c> clears state
+    /// and redirects to login.
     /// </summary>
     public static IResult Unauthorized(string code = ApiErrorCodes.SessionExpired, string? message = null)
-    {
-        return Results.Json(new ErrorResponse
-        {
-            Error = message ?? "Not authenticated",
-            Code = code,
-        }, statusCode: StatusCodes.Status401Unauthorized);
-    }
+        => ProblemResults.Problem(StatusCodes.Status401Unauthorized, code, message ?? "Not authenticated");
 
     /// <summary>
-    /// Returns a 403 Forbidden response with a structured body. The frontend switches behavior on the code:
-    /// a plain <c>forbidden</c> shows a toast, <c>break_glass_expired</c> exits the tenant to <paramref name="returnTo"/>.
+    /// 403 Forbidden. A plain <c>forbidden</c> shows a toast; <c>break_glass_expired</c> exits the
+    /// tenant to <paramref name="returnTo"/>.
     /// </summary>
     public static IResult Forbidden(string code = ApiErrorCodes.Forbidden, string? message = null, string? returnTo = null)
-    {
-        return Results.Json(new ErrorResponse
-        {
-            Error = message ?? "Forbidden",
-            Code = code,
-            ReturnTo = returnTo,
-        }, statusCode: StatusCodes.Status403Forbidden);
-    }
+        => ProblemResults.Problem(StatusCodes.Status403Forbidden, code, message ?? "Forbidden", returnTo: returnTo);
 
-    /// <summary>
-    /// Returns a 404 Not Found response with a standard error format.
-    /// </summary>
+    /// <summary>404 for a resource/id miss.</summary>
     /// <param name="resource">The resource type (e.g., "Request", "Space").</param>
     /// <param name="id">The ID that was not found.</param>
     public static IResult NotFound(string resource, Guid? id = null)
-    {
-        var message = id.HasValue
-            ? $"{resource} with ID {id} not found"
-            : $"{resource} not found";
+        => ProblemResults.Problem(
+            StatusCodes.Status404NotFound, ErrorCodes.NotFound,
+            id.HasValue ? $"{resource} with ID {id} not found" : $"{resource} not found",
+            resourceType: resource);
 
-        return Results.NotFound(new ErrorResponse
-        {
-            Error = message,
-            Code = ErrorCodes.NotFound,
-            ResourceType = resource
-        });
-    }
-
-    /// <summary>
-    /// Returns a 400 Bad Request response with a standard error format.
-    /// </summary>
+    /// <summary>400 Bad Request.</summary>
     /// <param name="message">The error message.</param>
     /// <param name="code">Optional error code (defaults to <see cref="ErrorCodes.ValidationError"/>).</param>
     public static IResult BadRequest(string message, string code = ErrorCodes.ValidationError)
-    {
-        return Results.BadRequest(new ErrorResponse
-        {
-            Error = message,
-            Code = code
-        });
-    }
+        => ProblemResults.Problem(StatusCodes.Status400BadRequest, code, message);
 
     /// <summary>
-    /// Returns a 404 Not Found response with a custom message (rather than the
-    /// "{resource} not found" form). Use when the 404 wording is not a simple
-    /// resource/id miss — e.g. "Unknown setting key: 'x'".
+    /// 404 with custom wording, for when the miss is not a simple resource/id lookup —
+    /// e.g. "Unknown setting key: 'x'".
     /// </summary>
-    /// <param name="message">The error message.</param>
     public static IResult NotFoundMessage(string message)
-    {
-        return Results.NotFound(new ErrorResponse
-        {
-            Error = message,
-            Code = ErrorCodes.NotFound
-        });
-    }
+        => ProblemResults.Problem(StatusCodes.Status404NotFound, ErrorCodes.NotFound, message);
 
-    /// <summary>
-    /// Returns a 409 Conflict response with a standard error format.
-    /// </summary>
-    /// <param name="message">The error message.</param>
+    /// <summary>409 Conflict.</summary>
     public static IResult Conflict(string message)
-    {
-        return Results.Conflict(new ErrorResponse
-        {
-            Error = message,
-            Code = ErrorCodes.Conflict
-        });
-    }
+        => ProblemResults.Problem(StatusCodes.Status409Conflict, ErrorCodes.Conflict, message);
 
     /// <summary>
-    /// Returns a 422 Unprocessable Entity response with a standard error format.
-    /// Use when the request is well-formed but cannot be acted on (e.g. a stale
-    /// identity link), as distinct from a 400 validation failure.
+    /// 422 Unprocessable Entity — well-formed but unactionable (e.g. a stale identity link),
+    /// as distinct from a 400 validation failure.
     /// </summary>
-    /// <param name="message">The error message.</param>
     public static IResult UnprocessableEntity(string message)
-    {
-        return Results.UnprocessableEntity(new ErrorResponse
-        {
-            Error = message,
-            Code = ErrorCodes.UnprocessableEntity
-        });
-    }
+        => ProblemResults.Problem(StatusCodes.Status422UnprocessableEntity, ErrorCodes.UnprocessableEntity, message);
 
     /// <summary>
-    /// Returns a 403 Forbidden response for a quota-limit hit. The frontend uses the
-    /// resource type and limit to render "You've reached your X limit (limit/limit)."
+    /// 403 for a quota-limit hit. The frontend renders "You've reached your X limit" from
+    /// the resource type and limit.
     /// </summary>
     public static IResult QuotaExceeded(string resourceType, long limit, string message)
-    {
-        return Results.Json(new ErrorResponse
-        {
-            Error = message,
-            Code = ApiErrorCodes.QuotaExceeded,
-            ResourceType = resourceType,
-            Limit = limit,
-        }, statusCode: StatusCodes.Status403Forbidden);
-    }
-}
-
-/// <summary>
-/// Standard error response format.
-/// </summary>
-public record ErrorResponse
-{
-    public required string Error { get; init; }
-    public required string Code { get; init; }
-    public string? ResourceType { get; init; }
-    /// <summary>Optional URL the frontend should navigate to after handling the error (e.g. "/admin" when a break-glass session ends).</summary>
-    public string? ReturnTo { get; init; }
-    /// <summary>Numeric limit associated with the error, e.g. the tier max for a <c>quota_exceeded</c> response.</summary>
-    public long? Limit { get; init; }
+        => ProblemResults.Problem(
+            StatusCodes.Status403Forbidden, ApiErrorCodes.QuotaExceeded, message,
+            resourceType: resourceType, limit: limit);
 }

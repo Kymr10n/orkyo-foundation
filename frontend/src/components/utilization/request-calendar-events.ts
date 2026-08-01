@@ -138,25 +138,40 @@ export function requestsToCalendarEvents(
 }
 
 /** Calendar view <-> shared TimeScale mapping (keeps the store window aligned). */
-export type CalendarView = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
+export type CalendarView =
+  | "timeGridDay"
+  | "timeGridWeek"
+  | "dayGridMonth"
+  | "listDay"
+  | "listWeek"
+  | "listMonth";
 
-export function scaleToCalendarView(scale: string): CalendarView {
+/**
+ * Map the page's TimeScale to a FullCalendar view. The extremes collapse
+ * (hour → day, year → month) — the calendar has no native hour/year view.
+ * Phones render agenda-style list views instead of grids (a ~390px screen
+ * can't fit an hour axis or a month grid).
+ */
+export function scaleToCalendarView(scale: string, opts?: { phone?: boolean }): CalendarView {
+  const phone = opts?.phone ?? false;
   switch (scale) {
     case "day":
     case "hour":
-      return "timeGridDay";
+      return phone ? "listDay" : "timeGridDay";
     case "week":
-      return "timeGridWeek";
+      return phone ? "listWeek" : "timeGridWeek";
     default:
-      return "dayGridMonth"; // month / year → month overview
+      return phone ? "listMonth" : "dayGridMonth"; // month / year → month overview
   }
 }
 
 export function calendarViewToScale(view: string): "day" | "week" | "month" {
   switch (view) {
     case "timeGridDay":
+    case "listDay":
       return "day";
     case "timeGridWeek":
+    case "listWeek":
       return "week";
     default:
       return "month";

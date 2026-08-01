@@ -11,7 +11,7 @@
  */
 
 import { useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router';
 import { Box } from 'lucide-react';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
@@ -20,6 +20,7 @@ import { AppLayout } from '@foundation/src/components/layout/AppLayout';
 import { LoginPage } from '@foundation/src/pages/LoginPage';
 import { TosPage } from '@foundation/src/pages/TosPage';
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
+import { TenantNoAccessPage } from '@foundation/src/pages/TenantNoAccessPage';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 import { Toaster } from '@foundation/src/components/ui/sonner';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
@@ -129,6 +130,23 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
       <>
         <ThemeToggle variant="floating" />
         <TenantSuspendedPage />
+      </>
+    );
+  }
+
+  // Authenticated, but not a member of THIS workspace (or a member of none).
+  // Terminal here — never fall through to the route tree: RequireAuth would
+  // render "Redirecting to sign in…" and send UNAUTHORIZED, which none of these
+  // states handle, so the machine would sit there forever (#102).
+  if (
+    (authStage === AUTH_STAGES.SELECTING_TENANT && !membership) ||
+    authStage === AUTH_STAGES.NO_TENANTS ||
+    authStage === AUTH_STAGES.NO_TENANTS_ADMIN
+  ) {
+    return (
+      <>
+        <ThemeToggle variant="floating" />
+        <TenantNoAccessPage />
       </>
     );
   }

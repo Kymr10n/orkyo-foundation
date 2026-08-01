@@ -13,9 +13,20 @@ public record EmailBranding(
     public static EmailBranding Default { get; } = new TenantSettings().ToEmailBranding();
 }
 
+/// <summary>
+/// All email content builders. Styling single-sources from <see cref="BrandTokens"/> (kept in
+/// sync with the marketing site by a test in orkyo-saas). User-supplied values (names, emails,
+/// tenant names, announcement text) are HTML-encoded via <see cref="E"/> at their interpolation
+/// sites; because <see cref="Layout"/> shares one paragraph list between the HTML and plain-text
+/// mirrors (which already carry literal markup like &lt;strong&gt;), encoded entities also appear
+/// in the text mirror for special-character inputs — a deliberate trade for injection safety.
+/// </summary>
 public static class EmailTemplates
 {
     private static EmailBranding Resolve(EmailBranding? b) => b ?? EmailBranding.Default;
+
+    /// <summary>HTML-encode a user-supplied value before interpolating it into email markup.</summary>
+    private static string E(string? s) => WebUtility.HtmlEncode(s ?? "");
 
     public static (string subject, string htmlBody, string textBody) GetVerificationEmail(
         string displayName, string verificationLink, EmailBranding? branding = null)
@@ -24,7 +35,7 @@ public static class EmailTemplates
         var (html, text) = Layout(b,
             $"Welcome to {b.ProductName}!",
             [
-                $"Hi {displayName},",
+                $"Hi {E(displayName)},",
                 $"Thank you for registering with {b.ProductName}. To complete your registration and activate your account, please verify your email address by clicking the button below.",
             ],
             cta: ("Verify Email Address", verificationLink),
@@ -39,7 +50,7 @@ public static class EmailTemplates
         var (html, text) = Layout(b,
             "Password Reset Request",
             [
-                $"Hi {displayName},",
+                $"Hi {E(displayName)},",
                 $"We received a request to reset your password for your {b.ProductName} account. Click the button below to create a new password.",
             ],
             cta: ("Reset Password", resetLink),
@@ -51,70 +62,15 @@ public static class EmailTemplates
         string displayName, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = $"Welcome to {b.ProductName}!";
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Welcome!</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">🎉 Welcome Aboard!</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            Your email has been verified successfully! You're now ready to start using {b.ProductName}
-            to manage your resources efficiently.
-        </p>
-
-        <h2 style=""color: {b.PrimaryColor}; font-size: 20px; margin-top: 30px;"">Getting Started</h2>
-
-        <ul style=""font-size: 16px; line-height: 2;"">
-            <li>Create your first site and spaces</li>
-            <li>Set up resource utilization schedules</li>
-            <li>Invite team members to collaborate</li>
-            <li>Track and optimize your resource utilization</li>
-        </ul>
-
-        <p style=""font-size: 16px; margin-top: 30px;"">
-            If you have any questions or need help getting started, feel free to reach out to our support team.
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"Welcome Aboard!
-
-Hi {displayName},
-
-Your email has been verified successfully! You're now ready to start using {b.ProductName} to manage your resources efficiently.
-
-Getting Started:
-- Create your first site and spaces
-- Set up resource utilization schedules
-- Invite team members to collaborate
-- Track and optimize your resource utilization
-
-If you have any questions or need help getting started, feel free to reach out to our support team.
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            "🎉 Welcome Aboard!",
+            [
+                $"Hi {E(displayName)},",
+                $"Your email has been verified successfully! You're now ready to start using {b.ProductName} to manage your resources efficiently.",
+                "<strong>Getting Started</strong><br>• Create your first site and spaces<br>• Set up resource utilization schedules<br>• Invite team members to collaborate<br>• Track and optimize your resource utilization",
+                "If you have any questions or need help getting started, feel free to reach out to our support team.",
+            ]);
+        return ($"Welcome to {b.ProductName}!", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetLifecycleWarningEmail(
@@ -132,251 +88,61 @@ The {b.ProductName} Team";
             _ => "This is your final reminder before your account is deactivated."
         };
 
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Account Activity Check</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">Account Activity Check</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            {urgency} To keep your {b.ProductName} account active, please confirm that you are still using it.
-        </p>
-
-        <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{confirmLink}""
-               style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none;
-                      border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">
-                Yes, keep my account active
-            </a>
-        </div>
-
-        <p style=""font-size: 14px; color: #666; margin-top: 30px;"">
-            If the button doesn't work, copy and paste this link into your browser:
-        </p>
-        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">
-            {confirmLink}
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            If you do not confirm within the next two weeks, we will send another reminder.
-            After three reminders without a response, your account will be temporarily deactivated
-            and permanently deleted after {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days, in line with our data retention policy.
-        </p>
-        <p style=""font-size: 13px; color: #999;"">
-            If you no longer wish to use {b.ProductName}, you can simply ignore this email.
-        </p>
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"Account Activity Check — {b.ProductName}
-
-Hi {displayName},
-
-{urgency} To keep your {b.ProductName} account active, please confirm that you are still using it by visiting the link below:
-
-{confirmLink}
-
-If you do not confirm within the next two weeks, we will send another reminder. After three reminders without a response, your account will be temporarily deactivated and permanently deleted after {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days.
-
-If you no longer wish to use {b.ProductName}, you can simply ignore this email.
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            "Account Activity Check",
+            [
+                $"Hi {E(displayName)},",
+                $"{urgency} To keep your {b.ProductName} account active, please confirm that you are still using it.",
+            ],
+            cta: ("Yes, keep my account active", confirmLink),
+            footerNote: $"If you do not confirm within the next two weeks, we will send another reminder. After three reminders without a response, your account will be temporarily deactivated and permanently deleted after {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days, in line with our data retention policy. If you no longer wish to use {b.ProductName}, you can simply ignore this email.");
+        return (subject, html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetDormancyNoticeEmail(
         string displayName, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = $"Your {b.ProductName} account has been deactivated";
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Account Deactivated</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, #e67e22 0%, #c0392b 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 28px;"">Account Deactivated</h1>
-    </div>
-
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px; margin-bottom: 20px;"">Hi {displayName},</p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            We sent you three reminders about your {b.ProductName} account inactivity and received no response,
-            so your account has now been <strong>deactivated</strong>.
-        </p>
-
-        <p style=""font-size: 16px; margin-bottom: 20px;"">
-            Your account and data will be <strong>permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days</strong>.
-            If you would like to reactivate your account before then, please contact our support team.
-        </p>
-
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">
-            This action was taken in accordance with our data retention and privacy policy (GDPR Article 5).
-        </p>
-
-        <p style=""font-size: 13px; color: #999; margin-top: 10px;"">
-            Best regards,<br>
-            The {b.ProductName} Team
-        </p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"Account Deactivated — {b.ProductName}
-
-Hi {displayName},
-
-We sent you three reminders about your {b.ProductName} account inactivity and received no response, so your account has now been deactivated.
-
-Your account and data will be permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days. If you would like to reactivate your account before then, please contact our support team.
-
-This action was taken in accordance with our data retention and privacy policy (GDPR Article 5).
-
-Best regards,
-The {b.ProductName} Team";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = Layout(b,
+            "Account Deactivated",
+            [
+                $"Hi {E(displayName)},",
+                $"We sent you three reminders about your {b.ProductName} account inactivity and received no response, so your account has now been <strong>deactivated</strong>.",
+                $"Your account and data will be <strong>permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days</strong>. If you would like to reactivate your account before then, please contact our support team.",
+            ],
+            footerNote: "This action was taken in accordance with our data retention and privacy policy (GDPR Article 5).");
+        return ($"Your {b.ProductName} account has been deactivated", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetNewUserAlertEmail(
         string userEmail, string displayName, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = $"[{b.ProductName}] New user registered: {userEmail}";
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>New User Registration</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 24px;"">New User Registered</h1>
-    </div>
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px;"">A new user has registered on <strong>{b.ProductName}</strong>.</p>
-        <table style=""width: 100%; border-collapse: collapse; margin-top: 16px;"">
-            <tr>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0; font-weight: bold; width: 40%;"">Email</td>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0;"">{userEmail}</td>
-            </tr>
-            <tr>
-                <td style=""padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold;"">Display Name</td>
-                <td style=""padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0;"">{displayName}</td>
-            </tr>
-            <tr>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0; font-weight: bold;"">Registered At</td>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0;"">{timestamp}</td>
-            </tr>
-        </table>
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        <p style=""font-size: 13px; color: #999;"">This is an automated alert from {b.ProductName}.</p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"New User Registered — {b.ProductName}
-
-A new user has registered on {b.ProductName}.
-
-Email:        {userEmail}
-Display Name: {displayName}
-Registered:   {timestamp}
-
-This is an automated alert from {b.ProductName}.";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = AdminNotification("New User Registered",
+            [
+                ("Email", userEmail),
+                ("Display Name", displayName),
+                ("Registered At", timestamp),
+            ],
+            body: $"This is an automated alert from {b.ProductName}.");
+        return ($"[{b.ProductName}] New user registered: {userEmail}", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetNewTenantAlertEmail(
         string tenantSlug, string tenantDisplayName, string ownerEmail, EmailBranding? branding = null)
     {
         var b = Resolve(branding);
-        var subject = $"[{b.ProductName}] New tenant created: {tenantSlug}";
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
-
-        var htmlBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>New Tenant Created</title>
-</head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 24px;"">New Tenant Created</h1>
-    </div>
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
-        <p style=""font-size: 16px;"">A new tenant has been created on <strong>{b.ProductName}</strong>.</p>
-        <table style=""width: 100%; border-collapse: collapse; margin-top: 16px;"">
-            <tr>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0; font-weight: bold; width: 40%;"">Slug</td>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0;"">{tenantSlug}</td>
-            </tr>
-            <tr>
-                <td style=""padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold;"">Display Name</td>
-                <td style=""padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0;"">{tenantDisplayName}</td>
-            </tr>
-            <tr>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0; font-weight: bold;"">Owner Email</td>
-                <td style=""padding: 8px 12px; background: #fff; border: 1px solid #e0e0e0;"">{ownerEmail}</td>
-            </tr>
-            <tr>
-                <td style=""padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold;"">Created At</td>
-                <td style=""padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0;"">{timestamp}</td>
-            </tr>
-        </table>
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        <p style=""font-size: 13px; color: #999;"">This is an automated alert from {b.ProductName}.</p>
-    </div>
-</body>
-</html>";
-
-        var textBody = $@"New Tenant Created — {b.ProductName}
-
-A new tenant has been created on {b.ProductName}.
-
-Slug:         {tenantSlug}
-Display Name: {tenantDisplayName}
-Owner Email:  {ownerEmail}
-Created:      {timestamp}
-
-This is an automated alert from {b.ProductName}.";
-
-        return (subject, htmlBody, textBody);
+        var (html, text) = AdminNotification("New Tenant Created",
+            [
+                ("Slug", tenantSlug),
+                ("Display Name", tenantDisplayName),
+                ("Owner Email", ownerEmail),
+                ("Created At", timestamp),
+            ],
+            body: $"This is an automated alert from {b.ProductName}.");
+        return ($"[{b.ProductName}] New tenant created: {tenantSlug}", html, text);
     }
 
     public static (string subject, string htmlBody, string textBody) GetInvitationEmail(
@@ -402,7 +168,7 @@ This is an automated alert from {b.ProductName}.";
         var (html, text) = Layout(b,
             "Confirm Your New Email",
             [
-                $"Hi {displayName},",
+                $"Hi {E(displayName)},",
                 $"You recently requested to change the email address on your {b.ProductName} account. Click the button below to confirm this is your new address. Your current email remains valid until you confirm.",
             ],
             cta: ("Confirm New Email Address", confirmUrl),
@@ -427,23 +193,23 @@ This is an automated alert from {b.ProductName}.";
         <div style=""text-align: center; margin: 30px 0;"">
             <a href=""{c.url}"" style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">{c.label}</a>
         </div>
-        <p style=""font-size: 14px; color: #666;"">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style=""font-size: 14px; color: {BrandTokens.MutedText};"">If the button doesn't work, copy and paste this link into your browser:</p>
         <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">{c.url}</p>" : "";
 
         var footerHtml = footerNote is null ? "" : $@"
-        <hr style=""border: none; border-top: 1px solid #ddd; margin: 30px 0;"">
-        <p style=""font-size: 13px; color: #999;"">{footerNote}</p>";
+        <hr style=""border: none; border-top: 1px solid {BrandTokens.Border}; margin: 30px 0;"">
+        <p style=""font-size: 13px; color: {BrandTokens.MutedText};"">{footerNote}</p>";
 
         var html = $@"<!DOCTYPE html>
 <html>
 <head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><title>{heading}</title></head>
-<body style=""font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;"">
+<body style=""font-family: {BrandTokens.FontStack}; line-height: 1.6; color: {BrandTokens.Text}; max-width: 600px; margin: 0 auto; padding: 20px;"">
     <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
         <h1 style=""color: white; margin: 0; font-size: 26px;"">{heading}</h1>
     </div>
-    <div style=""background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;"">
+    <div style=""background-color: {BrandTokens.PanelBg}; padding: 30px; border-radius: 0 0 10px 10px;"">
         {paras}{ctaHtml}{footerHtml}
-        <p style=""font-size: 13px; color: #999; margin-top: 20px;"">Best regards,<br>The {b.ProductName} Team</p>
+        <p style=""font-size: 13px; color: {BrandTokens.MutedText}; margin-top: 20px;"">Best regards,<br>The {b.ProductName} Team</p>
     </div>
 </body>
 </html>";
@@ -462,12 +228,12 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"Your {tenantName} workspace is going idle",
+            $"Your {E(tenantName)} workspace is going idle",
             [
-                $"We haven't seen any activity in your <strong>{tenantName}</strong> workspace recently.",
+                $"We haven't seen any activity in your <strong>{E(tenantName)}</strong> workspace recently.",
                 $"To keep it active, just sign in within the next {daysUntilSuspend} days. Otherwise the workspace will be automatically suspended to free up resources — it can still be reactivated afterwards.",
             ],
-            cta: ("Open " + tenantName, loginUrl));
+            cta: ("Open " + E(tenantName), loginUrl));
         return ($"Action needed: keep your {tenantName} workspace active", html, text);
     }
 
@@ -476,9 +242,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"{tenantName} has been suspended",
+            $"{E(tenantName)} has been suspended",
             [
-                $"Your <strong>{tenantName}</strong> workspace has been suspended after a period of inactivity. Your data is safe and nothing has been deleted.",
+                $"Your <strong>{E(tenantName)}</strong> workspace has been suspended after a period of inactivity. Your data is safe and nothing has been deleted.",
                 $"You can reactivate it any time. If left suspended, the workspace and its data will be permanently deleted after {deleteAfterDays} days.",
             ],
             cta: ("Reactivate workspace", reactivateUrl));
@@ -490,9 +256,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"Final notice: {tenantName} will be deleted",
+            $"Final notice: {E(tenantName)} will be deleted",
             [
-                $"Your suspended <strong>{tenantName}</strong> workspace is scheduled for <strong>permanent deletion in {daysUntilDelete} days</strong>.",
+                $"Your suspended <strong>{E(tenantName)}</strong> workspace is scheduled for <strong>permanent deletion in {daysUntilDelete} days</strong>.",
                 "Reactivate now to keep your data. After deletion this cannot be undone.",
             ],
             cta: ("Restore workspace", restoreUrl),
@@ -505,9 +271,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"{tenantName} has been deleted",
+            $"{E(tenantName)} has been deleted",
             [
-                $"Your <strong>{tenantName}</strong> workspace and its data have now been permanently deleted, as scheduled after the suspension grace period.",
+                $"Your <strong>{E(tenantName)}</strong> workspace and its data have now been permanently deleted, as scheduled after the suspension grace period.",
                 "If you believe this was a mistake, please contact support as soon as possible.",
             ]);
         return ($"Your {tenantName} workspace has been deleted", html, text);
@@ -518,9 +284,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"{tenantName} is active again",
-            [$"Welcome back — your <strong>{tenantName}</strong> workspace has been reactivated and is ready to use."],
-            cta: ("Open " + tenantName, appUrl));
+            $"{E(tenantName)} is active again",
+            [$"Welcome back — your <strong>{E(tenantName)}</strong> workspace has been reactivated and is ready to use."],
+            cta: ("Open " + E(tenantName), appUrl));
         return ($"Your {tenantName} workspace is active again", html, text);
     }
 
@@ -533,7 +299,7 @@ This is an automated alert from {b.ProductName}.";
         var (html, text) = Layout(b,
             $"Welcome to {b.ProductName}",
             [
-                $"Your <strong>{tenantName}</strong> workspace is ready. You're the owner — invite your team, set up resources, and start scheduling.",
+                $"Your <strong>{E(tenantName)}</strong> workspace is ready. You're the owner — invite your team, set up resources, and start scheduling.",
             ],
             cta: ("Open your workspace", appUrl));
         return ($"Welcome to {b.ProductName} — {tenantName} is ready", html, text);
@@ -546,9 +312,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"Your role in {tenantName} changed",
-            [$"An administrator updated your role in <strong>{tenantName}</strong>. You are now a <strong>{newRole}</strong>."],
-            cta: ("Open " + tenantName, appUrl));
+            $"Your role in {E(tenantName)} changed",
+            [$"An administrator updated your role in <strong>{E(tenantName)}</strong>. You are now a <strong>{newRole}</strong>."],
+            cta: ("Open " + E(tenantName), appUrl));
         return ($"Your role in {tenantName} changed", html, text);
     }
 
@@ -557,9 +323,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"You've been removed from {tenantName}",
+            $"You've been removed from {E(tenantName)}",
             [
-                $"Your access to the <strong>{tenantName}</strong> workspace has been removed by an administrator.",
+                $"Your access to the <strong>{E(tenantName)}</strong> workspace has been removed by an administrator.",
                 "If you think this was a mistake, contact a workspace administrator.",
             ]);
         return ($"You've been removed from {tenantName}", html, text);
@@ -570,9 +336,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"You're now the owner of {tenantName}",
-            [$"Ownership of the <strong>{tenantName}</strong> workspace has been transferred to you. You now have full control, including billing and deletion."],
-            cta: ("Open " + tenantName, appUrl));
+            $"You're now the owner of {E(tenantName)}",
+            [$"Ownership of the <strong>{E(tenantName)}</strong> workspace has been transferred to you. You now have full control, including billing and deletion."],
+            cta: ("Open " + E(tenantName), appUrl));
         return ($"You're now the owner of {tenantName}", html, text);
     }
 
@@ -581,8 +347,8 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"Ownership of {tenantName} was transferred",
-            [$"Ownership of the <strong>{tenantName}</strong> workspace has been transferred to {newOwnerEmail}. You are no longer the owner."],
+            $"Ownership of {E(tenantName)} was transferred",
+            [$"Ownership of the <strong>{E(tenantName)}</strong> workspace has been transferred to {E(newOwnerEmail)}. You are no longer the owner."],
             footerNote: "If you did not authorise this, contact support immediately.");
         return ($"Ownership of {tenantName} was transferred", html, text);
     }
@@ -595,7 +361,7 @@ This is an automated alert from {b.ProductName}.";
         var b = Resolve(branding);
         var (html, text) = Layout(b,
             $"You've reached your {resourceLabel} limit",
-            [$"Your <strong>{tenantName}</strong> workspace has reached its {resourceLabel} limit ({limit}). To add more, upgrade your plan or adjust your limits."],
+            [$"Your <strong>{E(tenantName)}</strong> workspace has reached its {resourceLabel} limit ({limit}). To add more, upgrade your plan or adjust your limits."],
             cta: ("Manage limits", manageUrl));
         return ($"You've reached your {resourceLabel} limit in {tenantName}", html, text);
     }
@@ -607,9 +373,9 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
         var (html, text) = Layout(b,
-            $"Your {tenantName} plan changed",
-            [$"The plan for your <strong>{tenantName}</strong> workspace is now <strong>{newPlan}</strong>. Your limits and features have been updated accordingly."],
-            cta: ("Open " + tenantName, appUrl));
+            $"Your {E(tenantName)} plan changed",
+            [$"The plan for your <strong>{E(tenantName)}</strong> workspace is now <strong>{newPlan}</strong>. Your limits and features have been updated accordingly."],
+            cta: ("Open " + E(tenantName), appUrl));
         return ($"Your {tenantName} plan changed", html, text);
     }
 
@@ -621,7 +387,7 @@ This is an automated alert from {b.ProductName}.";
         var b = Resolve(branding);
         var (html, text) = Layout(b,
             "Your password was changed",
-            [$"Hi {displayName}, the password on your {b.ProductName} account was just changed."],
+            [$"Hi {E(displayName)}, the password on your {b.ProductName} account was just changed."],
             footerNote: "If you didn't make this change, reset your password and contact support immediately.");
         return ($"Your {b.ProductName} password was changed", html, text);
     }
@@ -633,7 +399,7 @@ This is an automated alert from {b.ProductName}.";
         var what = enabled ? "enabled" : "disabled";
         var (html, text) = Layout(b,
             $"Two-factor authentication {what}",
-            [$"Hi {displayName}, two-factor authentication was just {what} on your {b.ProductName} account."],
+            [$"Hi {E(displayName)}, two-factor authentication was just {what} on your {b.ProductName} account."],
             footerNote: "If you didn't make this change, contact support immediately.");
         return ($"Two-factor authentication {what} on your {b.ProductName} account", html, text);
     }
@@ -645,7 +411,7 @@ This is an automated alert from {b.ProductName}.";
         var (html, text) = Layout(b,
             "Email change requested",
             [
-                $"Hi {displayName}, a request was made to change the email on your {b.ProductName} account to <strong>{newEmail}</strong>.",
+                $"Hi {E(displayName)}, a request was made to change the email on your {b.ProductName} account to <strong>{E(newEmail)}</strong>.",
                 "This address stays active until the new one is confirmed.",
             ],
             footerNote: "If you didn't request this, change your password and contact support immediately.");
@@ -658,7 +424,7 @@ This is an automated alert from {b.ProductName}.";
         var b = Resolve(branding);
         var (html, text) = Layout(b,
             "Your email was changed",
-            [$"Hi {displayName}, the email address on your {b.ProductName} account is now <strong>{newEmail}</strong>."],
+            [$"Hi {E(displayName)}, the email address on your {b.ProductName} account is now <strong>{E(newEmail)}</strong>."],
             footerNote: "If you didn't make this change, contact support immediately.");
         return ($"Your {b.ProductName} email address was changed", html, text);
     }
@@ -670,21 +436,38 @@ This is an automated alert from {b.ProductName}.";
     {
         var b = Resolve(branding);
 
-        // Render each non-empty line of the announcement body as its own paragraph.
+        // Render each non-empty line of the announcement body as its own (encoded) paragraph.
         var paragraphs = body
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (paragraphs.Length == 0) paragraphs = [body];
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(E)
+            .ToArray();
+        if (paragraphs.Length == 0) paragraphs = [E(body)];
 
         // Important announcements are sent to everyone regardless of opt-out, so the unsubscribe link
         // would be misleading — show a mandatory-notice instead. Normal announcements are unsubscribable.
         var footerNote = isImportant
             ? $"This is an important announcement and is sent to all {b.ProductName} users regardless of email preferences."
-            : $@"You're receiving this because you have a {b.ProductName} account. <a href=""{unsubscribeUrl}"" style=""color: #999;"">Unsubscribe from announcement emails</a> ({unsubscribeUrl}).";
+            : $@"You're receiving this because you have a {b.ProductName} account. <a href=""{unsubscribeUrl}"" style=""color: {BrandTokens.MutedText};"">Unsubscribe from announcement emails</a> ({unsubscribeUrl}).";
 
-        var (html, text) = Layout(b, title, paragraphs, footerNote: footerNote);
+        var (html, text) = Layout(b, E(title), paragraphs, footerNote: footerNote);
 
         var subject = isImportant ? $"[Important] {title}" : title;
         return (subject, html, text);
+    }
+
+    // ── Design partner program (saas marketing funnel) ──────────────────────────
+
+    public static (string subject, string htmlBody, string textBody) GetDesignPartnerConfirmationEmail(
+        string contactName, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            "Application received",
+            [
+                $"Hi {E(contactName)},",
+                $"Thank you for applying to the {b.ProductName} Design Partner Program. We will review your application and contact you if there is a strong fit for the current design partner group.",
+            ]);
+        return ($"Your {b.ProductName} Design Partner application was received", html, text);
     }
 
     // ── Admin notifications (feedback / contact) ────────────────────────────────
@@ -699,10 +482,12 @@ This is an automated alert from {b.ProductName}.";
     {
         static string Enc(string? s) => WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(s) ? "—" : s);
 
+        var cell = $@"padding: 6px 10px; border: 1px solid {BrandTokens.Border};";
         var tableRows = string.Concat(rows.Select(r =>
-            $"<tr><td><strong>{WebUtility.HtmlEncode(r.label)}</strong></td><td>{Enc(r.value)}</td></tr>"));
+            $@"<tr><td style=""{cell}""><strong>{WebUtility.HtmlEncode(r.label)}</strong></td><td style=""{cell}"">{Enc(r.value)}</td></tr>"));
         var bodyHtml = body is null ? "" : $"<hr/><p>{Enc(body).Replace("\n", "<br/>")}</p>";
-        var htmlBody = $"<h2>{WebUtility.HtmlEncode(heading)}</h2><table>{tableRows}</table>{bodyHtml}";
+        var htmlBody =
+            $@"<div style=""font-family: {BrandTokens.FontStack}; color: {BrandTokens.Text};""><h2>{WebUtility.HtmlEncode(heading)}</h2><table style=""border-collapse: collapse;"">{tableRows}</table>{bodyHtml}</div>";
 
         var textLines = rows.Select(r => $"{r.label}: {(string.IsNullOrWhiteSpace(r.value) ? "—" : r.value)}");
         var textBody = string.Join('\n', textLines) + (body is null ? "" : $"\n\n{body}");

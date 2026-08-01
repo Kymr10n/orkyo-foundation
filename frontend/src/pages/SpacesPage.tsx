@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router';
 import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/components/layout';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 import { usePageTitle } from '@foundation/src/hooks/usePageTitle';

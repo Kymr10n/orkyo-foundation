@@ -5,6 +5,7 @@ using Api.Models.Export;
 using Api.Security;
 using Api.Security.Features;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -21,12 +22,14 @@ public static class ExportEndpoints
             .RequireAdminArea()
             .WithTags("Export");
 
-        group.MapPost("/", async ([FromBody] ExportRequest request, IFeatureGate featureGate, IExportService exportService, CancellationToken ct) =>
-        {
-            await featureGate.EnsureEnabledAsync(FeatureKeys.DataExport, ct);
-            var payload = await exportService.ExportAsync(request, ct);
-            return Results.Json(payload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        })
+        group.MapPost("/", async ([FromBody] ExportRequest request, IValidator<ExportRequest> validator,
+            IFeatureGate featureGate, IExportService exportService, CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                await featureGate.EnsureEnabledAsync(FeatureKeys.DataExport, ct);
+                var payload = await exportService.ExportAsync(request, ct);
+                return Results.Json(payload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            }))
         .WithName("ExportTenantData")
         .WithDescription("Exports tenant data as a canonical JSON payload")
         .Produces<ExportPayload>(200)

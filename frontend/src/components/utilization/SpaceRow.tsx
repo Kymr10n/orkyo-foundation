@@ -27,6 +27,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestDoubleClick,
   onRequestResize,
   offTimeRanges = [],
+  editable = true,
 }: {
   space: Space;
   columns: TimeColumn[];
@@ -39,6 +40,8 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   offTimeRanges?: readonly OffTimeRange[];
+  /** Drag/resize bars (desktop/tablet). Phone is tap-to-open only. */
+  editable?: boolean;
 }) {
   // Build a requestId→Request map for O(1) lookup from preview entries
   const requestsById = useMemo(
@@ -131,6 +134,7 @@ export const SpaceRow = React.memo(function SpaceRow({
             onRequestClick={onRequestClick}
             onRequestDoubleClick={onRequestDoubleClick}
             onRequestResize={onRequestResize}
+            editable={editable}
           />
         );
       })}

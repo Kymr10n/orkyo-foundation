@@ -14,6 +14,8 @@ public record SearchResult
     public DateTime UpdatedAt { get; init; }
     public required SearchResultOpen Open { get; init; }
     public required SearchResultPermissions Permissions { get; init; }
+    /// <summary>Resource-type key ("person"/"space") for group results; null for other types. Lets the client route a group to its owning page.</summary>
+    public string? ResourceTypeKey { get; init; }
 }
 
 public record SearchResultOpen

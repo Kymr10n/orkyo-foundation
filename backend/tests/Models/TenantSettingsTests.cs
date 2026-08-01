@@ -55,8 +55,9 @@ public class TenantSettingsTests
         var settings = new TenantSettings();
 
         settings.Branding_ProductName.Should().Be("Orkyo");
-        settings.Branding_PrimaryColor.Should().Be("#667eea");
-        settings.Branding_SecondaryColor.Should().Be("#764ba2");
+        // Defaults follow the Orkyo marketing brand (BrandTokens); tenants may override.
+        settings.Branding_PrimaryColor.Should().Be(BrandTokens.GradientFrom);
+        settings.Branding_SecondaryColor.Should().Be(BrandTokens.GradientTo);
         settings.AutoSchedule_Enabled.Should().BeFalse();
     }
 

@@ -1,7 +1,7 @@
 import { useSites } from "@foundation/src/hooks/useSites";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useEffect, useRef, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet } from "react-router";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { SidebarNav } from "./SidebarNav";

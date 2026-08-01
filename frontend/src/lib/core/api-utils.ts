@@ -15,6 +15,7 @@ import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/sr
 import { logger } from "@foundation/src/lib/core/logger";
 import { randomId } from "@foundation/src/lib/core/ids";
 import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@foundation/src/lib/utils/tenant-navigation";
+import { takeSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
 
 /**
  * Get common headers for API requests.
@@ -106,9 +107,9 @@ function clearTenantState(): void {
 /**
  * Handle API errors consistently.
  *
- * The backend returns a structured `{ code, returnTo? }` body for 401/403/410
- * so the frontend can react differently for each case rather than treating any
- * 401/403 as "session expired":
+ * The backend returns one canonical body for every error — RFC 7807 ProblemDetails plus a
+ * machine-readable `code` (and `returnTo` where relevant) — so the frontend can react
+ * differently per case rather than treating any 401/403 as "session expired":
  *
  *   - `session_expired` (401)               → clear state, redirect to apex /login
  *   - `break_glass_expired` (403/404)       → clear tenant state, navigate to apex /site-admin
@@ -119,13 +120,26 @@ function clearTenantState(): void {
  * just timed out should land back on the admin console, not be sent through the
  * login flow as if their identity itself was invalid.
  */
+/**
+ * Join RFC 7807 `errors` into one readable sentence, or null when the body carries none.
+ * Without this a validation failure surfaces only the generic problem `detail`, which tells
+ * the user nothing about which field they got wrong.
+ */
+function flattenFieldErrors(body: ApiErrorBody): string | null {
+  const messages = Object.values(body.errors ?? {}).flat().filter(Boolean);
+  return messages.length > 0 ? messages.join(" ") : null;
+}
+
 export async function handleApiError(response: Response): Promise<never> {
   let errorMessage = response.statusText;
   let body: ApiErrorBody | null = null;
 
   try {
     body = await response.json() as ApiErrorBody;
-    errorMessage = body.error || body.message || errorMessage;
+    // RFC 7807: `detail` explains this occurrence, `title` is the generic summary.
+    // Field-level validation messages are flattened in so a 400 says what was wrong
+    // rather than the useless generic "One or more fields failed validation."
+    errorMessage = flattenFieldErrors(body) ?? body.detail ?? body.title ?? errorMessage;
   } catch {
     // Response might not be JSON
   }
@@ -147,9 +161,16 @@ export async function handleApiError(response: Response): Promise<never> {
   }
 
   if (response.status === 401) {
-    // Session expired or unauthenticated — clear state and redirect to login.
+    // Session expired or unauthenticated — clear state and redirect.
     clearTenantState();
-    redirectToLogin();
+    // An ephemeral session (the public demo) ends on the marketing site, not at a credentials
+    // form its visitor never had. Same shape as the break-glass branch above.
+    const sessionEnd = takeSessionEndRedirect();
+    if (sessionEnd) {
+      window.location.replace(sessionEnd);
+    } else {
+      redirectToLogin();
+    }
     throw new Error(errorMessage || "Your session has expired. Please log in again.");
   }
 

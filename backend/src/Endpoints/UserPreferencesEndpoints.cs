@@ -19,8 +19,12 @@ public static class UserPreferencesEndpoints
 
         prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct) =>
         {
-            var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId, ct);
-            return preferences == null ? Results.Ok(new { }) : Results.Ok(preferences);
+            // The repository hands over ownership of the JsonDocument, so it must be disposed here
+            // to return its pooled buffer. Clone() is load-bearing, not defensive: an IResult
+            // serializes AFTER this handler returns, so returning the document itself under a
+            // `using` disposes it before the body is written — verified, that yields a 500.
+            using var preferences = await repo.GetPreferencesAsync(currentPrincipal.UserId, ct);
+            return preferences is null ? Results.Ok(new { }) : Results.Ok(preferences.RootElement.Clone());
         })
         .WithName("GetUserPreferences")
         .WithSummary("Get current user preferences");

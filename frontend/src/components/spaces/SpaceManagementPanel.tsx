@@ -33,7 +33,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";

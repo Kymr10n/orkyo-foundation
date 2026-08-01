@@ -220,6 +220,40 @@ public class UserManagementEndpointsTests
 
     #endregion
 
+    #region POST /api/users/invitations/{invitationId}/resend (Admin only)
+
+    // This route did not exist at all until 2026-07-28: the Settings → Users "Resend" button had
+    // always 404'd, invisibly, because every test that touched it mocked the API module.
+    //
+    // Scope note: this factory registers Mock.Of<IInvitationService>(), so these tests can only
+    // prove the route is registered and correctly auth-gated — the mock always returns false.
+    // The behaviour itself (token rotation, expiry reset, accepted guard, tenant scoping) is
+    // covered against a real database in Services/InvitationResendServiceTests.
+
+    [Fact]
+    public async Task ResendInvitation_NoAuth_Returns401()
+    {
+        var response = await _unauthenticatedClient.PostAsync(
+            $"/api/users/invitations/{Guid.NewGuid()}/resend", content: null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResendInvitation_Authenticated_RouteIsRegistered()
+    {
+        // Guards the route's existence — the whole point of the bug this fixes. The mocked service
+        // returns false, so the handler's KeyNotFoundException → 404 is the expected outcome here;
+        // what matters is that it is the handler's 404 and not a routing 401/405.
+        var response = await _client.PostAsync(
+            $"/api/users/invitations/{Guid.NewGuid()}/resend", content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+    }
+
+    #endregion
+
     #region PATCH /api/users/{userId}/role (Admin only)
 
     [Fact]

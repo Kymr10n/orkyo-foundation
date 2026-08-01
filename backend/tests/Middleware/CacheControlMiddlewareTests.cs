@@ -28,7 +28,8 @@ public class CacheControlMiddlewareTests
     [Theory]
     [InlineData("/api/criteria")]
     [InlineData("/api/criteria/abc")]
-    [InlineData("/api/groups")]
+    [InlineData("/api/resource-groups")]
+    [InlineData("/api/resource-groups/abc/capabilities")]
     [InlineData("/api/settings")]
     public async Task GET_CacheablePath_SetsCacheHeader(string path)
     {

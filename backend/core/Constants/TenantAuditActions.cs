@@ -16,6 +16,7 @@ public static class TenantAuditActions
     public const string UserRoleUpdated = "user.role_updated";
     public const string UserRemovedFromTenant = "user.removed_from_tenant";
     public const string InvitationRevoked = "invitation.revoked";
+    public const string InvitationResent = "invitation.resent";
 
     public const string SiteCreated = "site.created";
     public const string SiteUpdated = "site.updated";

@@ -20,17 +20,31 @@ export const API_ERROR_CODES = {
 } as const;
 
 /**
- * Body shape for 401/403/404/410 responses that carry a structured code.
- * The optional `returnTo` is a relative path the frontend should navigate to
- * after handling the error (e.g. "/site-admin" when a break-glass session ends).
+ * The single error body shape the application API returns: RFC 7807 ProblemDetails plus the
+ * machine-readable extensions the frontend switches on. Mirrors the backend's
+ * `OrkyoProblemDetails` (backend/src/Helpers/OrkyoProblemDetails.cs).
+ *
+ * Consolidated from five coexisting shapes (#96). Note `/api/reporting/v1` is deliberately
+ * excluded — it is a versioned contract for external consumers and keeps its `{error, message}`
+ * body; nothing in this frontend calls it.
  */
 export interface ApiErrorBody {
-  error?: string;
-  message?: string;
+  /** URI reference identifying the problem type, derived from `code`. */
+  type?: string;
+  /** Short, stable human-readable summary (e.g. "Forbidden"). */
+  title?: string;
+  /** Human-readable explanation of this specific occurrence — the message to surface. */
+  detail?: string;
+  /** HTTP status, repeated in the body per RFC 7807. */
+  status?: number;
+  /** Machine-readable error code; the field behaviour switches on. */
   code?: string;
+  /** Relative path to navigate to after handling (e.g. "/site-admin" when break-glass ends). */
   returnTo?: string;
   /** Resource type the error refers to, e.g. "spaces" on a quota_exceeded response. */
   resourceType?: string;
   /** Numeric limit associated with the error, e.g. the tier max on quota_exceeded. */
   limit?: number;
+  /** Per-field validation messages, present only on validation failures. */
+  errors?: Record<string, string[]>;
 }

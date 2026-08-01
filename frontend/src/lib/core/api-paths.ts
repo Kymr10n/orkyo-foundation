@@ -41,12 +41,10 @@ export const API_PATHS = {
   spaceCapability: (siteId: string, resourceId: string, capabilityId: string) =>
     `/api/sites/${siteId}/spaces/${resourceId}/capabilities/${capabilityId}`,
 
-  // Groups
-  GROUPS: '/api/groups',
-  group: (groupId: string) => `/api/groups/${groupId}`,
-  groupCapabilities: (groupId: string) => `/api/groups/${groupId}/capabilities`,
+  // Group capabilities (the group itself is RESOURCE_GROUPS / resourceGroup below)
+  groupCapabilities: (groupId: string) => `/api/resource-groups/${groupId}/capabilities`,
   groupCapability: (groupId: string, capabilityId: string) =>
-    `/api/groups/${groupId}/capabilities/${capabilityId}`,
+    `/api/resource-groups/${groupId}/capabilities/${capabilityId}`,
 
   // Requests
   REQUESTS: '/api/requests',
@@ -80,7 +78,6 @@ export const API_PATHS = {
     `/api/resources/${resourceId}/capabilities/${capabilityId}`,
 
   // Person Profiles
-  PERSON_PROFILES: '/api/person-profiles',
   PERSON_PROFILE_JOB_TITLES: '/api/person-profiles/job-titles',
   PERSON_PROFILES_BATCH: '/api/person-profiles/batch',
   personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
@@ -170,6 +167,10 @@ export const API_PATHS = {
     EXPORT: '/api/admin/export',
     SETTINGS: '/api/admin/settings',
     DIAGNOSTICS: '/api/admin/diagnostics',
+    // Control-plane audit (all tenants, includes ip_address/request_id). NOT the
+    // tenant-scoped /api/audit, which needs a resolved tenant and therefore cannot
+    // work on the site-admin apex host.
+    AUDIT: '/api/admin/audit',
     tenant: (tenantId: string) => `/api/admin/tenants/${tenantId}`,
     tenantTier: (tenantId: string) => `/api/admin/tenants/${tenantId}/tier`,
     tenantMembers: (tenantId: string) => `/api/admin/tenants/${tenantId}/members`,

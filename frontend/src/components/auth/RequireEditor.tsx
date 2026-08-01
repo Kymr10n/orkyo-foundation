@@ -9,7 +9,7 @@
  */
 
 import { useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate } from "react-router";
 import { toast } from "sonner";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 

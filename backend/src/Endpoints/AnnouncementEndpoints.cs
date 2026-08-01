@@ -4,6 +4,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Security;
 using Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -60,24 +61,28 @@ public static class AnnouncementEndpoints
 
     private static async Task<IResult> Create(
         CreateAnnouncementRequest request,
+        IValidator<CreateAnnouncementRequest> validator,
         IAnnouncementService service,
         CurrentPrincipal principal,
         CancellationToken ct = default)
-    {
-        var announcement = await service.CreateAsync(request, principal.UserId, ct);
-        return Results.Created($"/api/admin/announcements/{announcement.Id}", announcement);
-    }
+        => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            var announcement = await service.CreateAsync(request, principal.UserId, ct);
+            return Results.Created($"/api/admin/announcements/{announcement.Id}", announcement);
+        });
 
     private static async Task<IResult> Update(
         Guid id,
         UpdateAnnouncementRequest request,
+        IValidator<UpdateAnnouncementRequest> validator,
         IAnnouncementService service,
         CurrentPrincipal principal,
         CancellationToken ct = default)
-    {
-        var result = await service.UpdateAsync(id, request, principal.UserId, ct);
-        return result != null ? Results.Ok(result) : ErrorResponses.NotFound("Announcement");
-    }
+        => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            var result = await service.UpdateAsync(id, request, principal.UserId, ct);
+            return result != null ? Results.Ok(result) : ErrorResponses.NotFound("Announcement");
+        });
 
     private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {

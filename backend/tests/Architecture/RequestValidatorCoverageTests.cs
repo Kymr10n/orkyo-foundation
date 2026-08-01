@@ -1,4 +1,3 @@
-using FluentValidation;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
@@ -26,52 +25,30 @@ public class RequestValidatorCoverageTests
     // fails if an entry goes stale (renamed away, or gained a validator). Wave 3.4 shrinks this.
     private static readonly HashSet<string> NoShapeValidationNeeded = new(StringComparer.Ordinal)
     {
-        // --- genuinely shape-less: pure paging / single-flag toggles (expected to stay) ---
-        "Api.Models.PageRequest",                       // page/pageSize only
-        "Api.Models.Reporting.ReportingPageRequest",    // page/pageSize only
-        "Api.Endpoints.TosAcceptRequest",               // single accept flag
+        // --- pure paging / single-field payloads: no cross-field or format invariant exists ---
+        "Api.Models.PageRequest",                              // page/pageSize only
+        "Api.Models.Reporting.ReportingPageRequest",           // page/pageSize only
+        "Api.Endpoints.TosAcceptRequest",                      // single accept flag
+        "Api.Endpoints.UpdateNotificationPreferencesRequest",  // single bool opt-out flag
+        "Api.Models.UpdateRequestRequirementRequest",          // single JsonElement; shape is the
+                                                               // criterion datatype's business
 
-        // --- transitional baseline: carry real invariants, want a validator. Wave 3.4 (W3.4)
-        //     adds AbstractValidator<T> for these and removes the entry here as each lands. ---
-        "Api.Endpoints.AddGroupCapabilityRequest",
-        "Api.Endpoints.AddResourceCapabilityRequest",
-        "Api.Endpoints.Admin.UpdateSettingsRequest",
-        "Api.Endpoints.Reporting.CreateReportingTokenRequest",
-        "Api.Endpoints.UpdateNotificationPreferencesRequest",
-        "Api.Endpoints.UpdateSettingsRequest",
-        "Api.Models.AddRequirementRequest",
-        "Api.Models.AutoScheduleApplyRequest",
-        "Api.Models.AutoSchedulePreviewRequest",
-        "Api.Models.CreateAnnouncementRequest",
-        "Api.Models.CreateRequestRequirementRequest",
-        "Api.Models.CreateResourceAssignmentRequest",
-        "Api.Models.CreateResourceRequest",
-        "Api.Models.CreateTemplateItemRequest",
-        "Api.Models.CreateTemplateRequest",
-        "Api.Models.Export.ExportRequest",
-        "Api.Models.LinkUserToPersonProfileRequest",
-        "Api.Models.SetResourceGroupMembersRequest",
-        "Api.Models.UpdateAnnouncementRequest",
-        "Api.Models.UpdateCriterionApplicabilityRequest",
-        "Api.Models.UpdateFeedbackRequest",
-        "Api.Models.UpdateRequestRequirementRequest",
-        "Api.Models.UpdateResourceRequest",
-        "Api.Models.UpdateTemplateRequest",
+        // --- invariants owned elsewhere: a static validator would duplicate the real policy ---
+        // Server-constructed from the multipart form in FloorplanEndpoints (never model-bound),
+        // and its rules are settings-driven — size cap and MIME allowlist come from tenant
+        // settings via FloorplanUploadValidationPolicy, which no static validator can express.
         "Api.Models.UploadFloorplanRequest",
-        "Api.Models.UpsertResourceCapabilityRequest",
-        "Api.Models.ValidateResourceAssignmentBatchRequest",
-        "Api.Models.ValidateResourceAssignmentRequest",
     };
 
     [Fact]
     public void EveryRequestType_HasValidatorOrIsAllowlisted()
     {
-        var requestTypes = RequestTypes().ToList();
+        var requestTypes = RequestValidationReflection.RequestTypes().ToList();
 
         // Sanity: a zero-count scan would make the guard vacuous if the assemblies/namespaces move.
         Assert.NotEmpty(requestTypes);
 
-        var validated = ValidatedRequestTypes();
+        var validated = RequestValidationReflection.ValidatedRequestTypes();
 
         var offenders = requestTypes
             .Where(t => !validated.Contains(t))
@@ -91,10 +68,10 @@ public class RequestValidatorCoverageTests
     [Fact]
     public void Allowlist_HasNoStaleEntries()
     {
-        var requestFullNames = RequestTypes()
+        var requestFullNames = RequestValidationReflection.RequestTypes()
             .Select(t => t.FullName!)
             .ToHashSet(StringComparer.Ordinal);
-        var validatedFullNames = ValidatedRequestTypes()
+        var validatedFullNames = RequestValidationReflection.ValidatedRequestTypes()
             .Select(t => t.FullName!)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -118,50 +95,4 @@ public class RequestValidatorCoverageTests
             "ratchets forward and can't silently regress:\n  " + string.Join("\n  ", nowValidated));
     }
 
-    // *Request DTOs live in the Core assembly (Api.Models + endpoint-adjacent records) and the Web
-    // assembly (records declared alongside their endpoints). Anchor one known type in each to force
-    // both assemblies loaded before reflecting over them.
-    private static IEnumerable<Type> RequestTypes() =>
-        new[]
-            {
-                typeof(Api.Validators.ContactRequestValidator).Assembly, // Orkyo.Foundation.Core
-                typeof(Api.Endpoints.SecurityEndpoints).Assembly,        // Orkyo.Foundation.Web
-            }
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.IsVisible)
-            .Where(t => t.Name.EndsWith("Request", StringComparison.Ordinal))
-            .Distinct();
-
-    // Every T for which a closed AbstractValidator<T> subclass exists. Validators live in both
-    // the Core assembly (Api.Models request types) and the Web assembly (records declared
-    // alongside their endpoints), mirroring RequestTypes() above.
-    private static HashSet<Type> ValidatedRequestTypes()
-    {
-        var validated = new HashSet<Type>();
-        var assemblies = new[]
-        {
-            typeof(Api.Validators.ContactRequestValidator).Assembly, // Orkyo.Foundation.Core
-            typeof(Api.Endpoints.SecurityEndpoints).Assembly,        // Orkyo.Foundation.Web
-        };
-        foreach (var assembly in assemblies)
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type is not { IsClass: true, IsAbstract: false })
-                {
-                    continue;
-                }
-
-                for (var b = type.BaseType; b is not null; b = b.BaseType)
-                {
-                    if (b.IsGenericType && b.GetGenericTypeDefinition() == typeof(AbstractValidator<>))
-                    {
-                        validated.Add(b.GetGenericArguments()[0]);
-                        break;
-                    }
-                }
-            }
-
-        return validated;
-    }
 }

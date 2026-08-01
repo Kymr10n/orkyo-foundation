@@ -258,7 +258,7 @@ public class SecurityEndpointsTests
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("incorrect");
+        content.GetProperty("detail").GetString().Should().Contain("incorrect");
     }
 
     [Fact]
@@ -455,7 +455,7 @@ public class SecurityEndpointsTests
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("not found");
+        content.GetProperty("detail").GetString().Should().Contain("not found");
     }
 
     [Fact]
@@ -663,7 +663,7 @@ public class SecurityEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         _mockKeycloak.EnableMfaCallCount.Should().Be(0);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
-        content.GetProperty("error").GetString().Should().Contain("already enabled");
+        content.GetProperty("detail").GetString().Should().Contain("already enabled");
     }
 
     #endregion

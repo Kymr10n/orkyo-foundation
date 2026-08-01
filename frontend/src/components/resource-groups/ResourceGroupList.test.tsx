@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { ResourceGroupList } from './ResourceGroupList';
 import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
@@ -55,7 +56,7 @@ const mockGroups: ResourceGroupInfo[] = [
   },
 ];
 
-function renderList(resourceTypeKey = 'person') {
+function renderList(resourceTypeKey = 'person', initialEntries: string[] = ['/people/teams']) {
   // Delete feedback flows through the meta-driven MutationCache (matching prod).
   const queryClient: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -63,7 +64,9 @@ function renderList(resourceTypeKey = 'person') {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ResourceGroupList resourceTypeKey={resourceTypeKey} />
+      <MemoryRouter initialEntries={initialEntries}>
+        <ResourceGroupList resourceTypeKey={resourceTypeKey} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -160,6 +163,12 @@ describe('ResourceGroupList', () => {
     await openRowMenu(user, 'Engineering');
     await user.click(screen.getByRole('menuitem', { name: /^Edit/ }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('opens the Edit dialog prefilled from an ?edit= query param (global-search deep-link)', async () => {
+    renderList('person', ['/people/teams?edit=g-1']);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByDisplayValue('Engineering')).toBeInTheDocument();
   });
 
   it('opens the Edit dialog prefilled when a row is clicked', async () => {

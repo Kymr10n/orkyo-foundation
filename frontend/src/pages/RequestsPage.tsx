@@ -12,6 +12,7 @@ import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { Input } from "@foundation/src/components/ui/input";
 import { PageLayout, PageHeader } from "@foundation/src/components/layout";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
+import { useEditQueryParam } from "@foundation/src/hooks/useEditQueryParam";
 import { toast } from "sonner";
 import {
     Tooltip,
@@ -57,7 +58,7 @@ import {
     TreePine,
 } from "lucide-react";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
@@ -91,7 +92,6 @@ export function RequestsPage() {
   const queryClient = useQueryClient();
   const canEdit = useCanEdit();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   // The request list lives in the query cache under the shared `requests`
   // prefix, so `invalidateRequestData` alone refreshes it after any mutation —
   // no manual re-fetch bookkeeping.
@@ -171,18 +171,10 @@ export function RequestsPage() {
     invalidates: REQUEST_DERIVED_QUERY_KEYS,
   });
 
-  // Handle ?edit=<id> query param from global search
-  useEffect(() => {
-    const editId = searchParams.get('edit');
-    if (editId && requests.length > 0 && !isLoading) {
-      const requestToEdit = requests.find(r => r.id === editId);
-      if (requestToEdit) {
-        setDialog({ kind: "edit", request: requestToEdit });
-        searchParams.delete('edit');
-        setSearchParams(searchParams, { replace: true });
-      }
-    }
-  }, [searchParams, requests, isLoading, setSearchParams]);
+  // Open the detail dialog when arriving with ?edit=<id> from global search.
+  useEditQueryParam(requests, (request) => setDialog({ kind: "edit", request }), {
+    ready: !isLoading,
+  });
 
   // Parent → child-ids map, built once per list change and shared by every
   // getDescendantIds call site below.

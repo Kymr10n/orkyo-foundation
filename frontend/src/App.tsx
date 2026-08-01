@@ -11,7 +11,7 @@
  * no duplicate routing controller. SPA routes are defined once in TenantApp.
  */
 
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router";
 import { AuthProvider, useAuth, debugAuth } from "./contexts/AuthContext";
 import { ApexGateway } from "./components/auth/ApexGateway";
 import { TenantApp } from "./components/auth/TenantApp";

@@ -25,6 +25,8 @@ export interface SearchResult {
   updatedAt: string;
   open: SearchResultOpen;
   permissions: SearchResultPermissions;
+  /** For group results only: 'person' or 'space', selecting which page owns the group. */
+  resourceTypeKey?: string;
 }
 
 export interface SearchResponse {

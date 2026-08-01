@@ -23,9 +23,9 @@ public static class KeycloakAdminExceptionMapper
     /// canonical <see cref="IResult"/>:
     /// <list type="bullet">
     ///   <item>400 → <see cref="ErrorResponses.BadRequest(string, string)"/></item>
-    ///   <item>404 → <see cref="Results.NotFound(object?)"/> with <see cref="ErrorCodes.NotFound"/></item>
+    ///   <item>404 → <see cref="ErrorResponses.NotFoundMessage(string)"/></item>
     ///   <item>409 → <see cref="ErrorResponses.Conflict(string)"/></item>
-    ///   <item>any other status → JSON body with <see cref="KeycloakErrorCode"/> at the same status</item>
+    ///   <item>any other status → problem body with <see cref="KeycloakErrorCode"/> at the same status</item>
     /// </list>
     /// </summary>
     public static IResult Map(KeycloakAdminException exception)
@@ -35,15 +35,9 @@ public static class KeycloakAdminExceptionMapper
         return exception.StatusCode switch
         {
             StatusCodes.Status400BadRequest => ErrorResponses.BadRequest(exception.Message),
-            StatusCodes.Status404NotFound => Results.NotFound(new ErrorResponse
-            {
-                Error = exception.Message,
-                Code = ErrorCodes.NotFound,
-            }),
+            StatusCodes.Status404NotFound => ErrorResponses.NotFoundMessage(exception.Message),
             StatusCodes.Status409Conflict => ErrorResponses.Conflict(exception.Message),
-            _ => Results.Json(
-                new ErrorResponse { Error = exception.Message, Code = KeycloakErrorCode },
-                statusCode: exception.StatusCode),
+            _ => ProblemResults.Problem(exception.StatusCode, KeycloakErrorCode, exception.Message),
         };
     }
 }

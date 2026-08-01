@@ -6,16 +6,34 @@ import { render, screen } from "@testing-library/react";
 // real library (and without a browser layout engine). The stub captures the
 // props FullCalendar would receive so we can invoke its callbacks directly.
 let capturedProps: Record<string, any> = {};
-vi.mock("@fullcalendar/react", () => ({
-  default: (props: any) => {
-    capturedProps = props;
-    return null;
-  },
-}));
+vi.mock("@fullcalendar/react", async () => {
+  const { forwardRef } = await import("react");
+  return {
+    // forwardRef so the component's calendarRef doesn't warn; the ref stays null
+    // (no getApi), so the view/date sync effects are inert under test.
+    default: forwardRef((props: any, _ref: any) => {
+      capturedProps = props;
+      return null;
+    }),
+  };
+});
 vi.mock("@fullcalendar/daygrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
+vi.mock("@fullcalendar/list", () => ({ default: {} }));
 vi.mock("@fullcalendar/interaction", () => ({ default: {} }));
 vi.mock("./request-calendar.css", () => ({}));
+
+// Breakpoint is mocked so phone vs desktop view selection is deterministic
+// (the real hook reads matchMedia). Defaults to desktop; flip per-test.
+let mockIsPhone = false;
+vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
+  useBreakpoint: () => ({
+    isPhone: mockIsPhone,
+    isTablet: false,
+    isDesktop: !mockIsPhone,
+    device: mockIsPhone ? "phone" : "desktop",
+  }),
+}));
 
 import { RequestCalendar } from "./RequestCalendar";
 import type { CalendarEvent } from "./request-calendar-events";
@@ -44,6 +62,7 @@ function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCa
       editable
       initialView="timeGridWeek"
       initialDate={new Date("2026-04-17T00:00:00Z")}
+      active
       {...handlers}
       {...overrides}
     />,
@@ -53,6 +72,7 @@ function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCa
 
 beforeEach(() => {
   capturedProps = {};
+  mockIsPhone = false;
 });
 
 describe("RequestCalendar", () => {
@@ -62,6 +82,22 @@ describe("RequestCalendar", () => {
     expect(capturedProps.editable).toBe(true);
     expect(capturedProps.selectable).toBe(true);
     expect(capturedProps.initialView).toBe("timeGridWeek");
+  });
+
+  it("is page-controlled: forwards the resolved view and disables FC's toolbar", () => {
+    // The view is resolved upstream (scaleToCalendarView + breakpoint) and passed
+    // in; the component forwards it verbatim and turns off FullCalendar's own
+    // toolbar so the page's scale selector + date navigator are the only controls.
+    renderCalendar({ initialView: "dayGridMonth" });
+    expect(capturedProps.initialView).toBe("dayGridMonth");
+    expect(capturedProps.headerToolbar).toBe(false);
+  });
+
+  it("forwards a phone list view unchanged (no in-component remapping)", () => {
+    mockIsPhone = true;
+    renderCalendar({ initialView: "listWeek" });
+    expect(capturedProps.initialView).toBe("listWeek");
+    expect(capturedProps.headerToolbar).toBe(false);
   });
 
   it("localizes date/time formatting to the user's browser locale", () => {
@@ -123,11 +159,17 @@ describe("RequestCalendar", () => {
     expect(onSlotSelect).toHaveBeenCalledWith(start, end);
   });
 
-  it("translates datesSet into a store scale + anchor", () => {
+  it("reports the visible range start on datesSet (anchor sync)", () => {
     const { onDatesSet } = renderCalendar();
     const currentStart = new Date("2026-04-13T00:00:00Z");
     capturedProps.datesSet({ view: { type: "timeGridWeek", currentStart } });
-    expect(onDatesSet).toHaveBeenCalledWith("week", currentStart);
+    expect(onDatesSet).toHaveBeenCalledWith(currentStart);
+  });
+
+  it("stays silent on datesSet while inactive (hidden tab must not touch the anchor)", () => {
+    const { onDatesSet } = renderCalendar({ active: false });
+    capturedProps.datesSet({ view: { type: "timeGridWeek", currentStart: new Date() } });
+    expect(onDatesSet).not.toHaveBeenCalled();
   });
 
   // --- Legend ---
@@ -140,6 +182,14 @@ describe("RequestCalendar", () => {
     expect(screen.getByText("Canceled")).toBeInTheDocument();
     expect(screen.getByText("Conflicts")).toBeInTheDocument();
     expect(screen.getByText("Warnings")).toBeInTheDocument();
+  });
+
+  it("hides the legend on phones (row tint conveys status in the list view)", () => {
+    mockIsPhone = true;
+    renderCalendar();
+    expect(screen.queryByText("New")).toBeNull();
+    expect(screen.queryByText("Conflicts")).toBeNull();
+    expect(screen.queryByText("Warnings")).toBeNull();
   });
 
   // --- eventContent ---
@@ -180,5 +230,16 @@ describe("RequestCalendar", () => {
     );
     expect(container.querySelector("svg")).toBeNull();
     expect(container.textContent).toContain("Fine Task");
+  });
+
+  it("eventContent defers to FullCalendar's native row in list (agenda) views", () => {
+    renderCalendar();
+    // Returning true tells FullCalendar to render its default list row (time
+    // column + full title) instead of the compact grid-cell layout.
+    const result = capturedProps.eventContent({
+      view: { type: "listWeek" },
+      event: { title: "Agenda Task", start: new Date(2026, 3, 17, 9, 0), extendedProps: { conflictSeverity: "error" } },
+    });
+    expect(result).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, MemoryRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestsPage } from '@foundation/src/pages/RequestsPage';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
@@ -48,7 +48,7 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
 }));
 
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async (importOriginal) => {
+vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, useNavigate: () => mockNavigate };
 });

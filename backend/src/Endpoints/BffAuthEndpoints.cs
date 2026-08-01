@@ -220,12 +220,14 @@ public static class BffAuthEndpoints
         IOptions<BffOptions> bffOpts,
         KeycloakOptions keycloakOptions,
         IBffSessionStore sessionStore,
+        IBffAuthClientRegistry authClientRegistry,
         IDataProtectionProvider dataProtection,
         ILogger<Log> logger)
     {
         var bffOptions = bffOpts.Value;
         var cookieValue = ctx.Request.Cookies[bffOptions.CookieName];
         string? idToken = null;
+        string? authClient = null;
 
         if (!string.IsNullOrEmpty(cookieValue))
         {
@@ -237,6 +239,7 @@ public static class BffAuthEndpoints
                 if (session is not null)
                 {
                     idToken = session.IdToken;
+                    authClient = session.AuthClient;
                     await sessionStore.RemoveAsync(sessionId);
                 }
             }
@@ -252,16 +255,31 @@ public static class BffAuthEndpoints
 
         returnTo ??= bffOptions.GetDefaultReturnToBase();
 
-        var logoutParams = new Dictionary<string, string?>();
+        // client_id is always sent (OIDC RP-Initiated Logout §2): it lets Keycloak
+        // validate post_logout_redirect_uri even when no id_token_hint is available
+        // (double-click logout, second tab, expired BFF session). Without it those
+        // cases got a raw Keycloak 400 page (#103). We still go through Keycloak
+        // rather than short-circuiting to returnTo, because the KC SSO cookie can
+        // outlive the BFF session — skipping end-session would leave the user
+        // silently re-authenticatable right after pressing Log out.
+        //
+        // It must be the ISSUING client's id: Keycloak rejects the request when
+        // client_id and id_token_hint disagree (verified on 26.6.1), and demo
+        // sessions' tokens are issued by the demo client, not the backend client.
+        // The registry maps session.AuthClient to that client; a null/unrecovered
+        // session resolves to the primary backend client, where no hint is sent
+        // and so no mismatch is possible.
+        var logoutParams = new Dictionary<string, string?>
+        {
+            ["client_id"] = authClientRegistry.Resolve(authClient).ClientId,
+        };
         if (!string.IsNullOrEmpty(idToken))
             logoutParams["id_token_hint"] = idToken;
         if (returnTo != null && bffOptions.IsReturnToAllowed(returnTo))
             logoutParams["post_logout_redirect_uri"] = returnTo;
 
         var endSessionBase = $"{keycloakOptions.Authority}/protocol/openid-connect/logout";
-        var keycloakLogoutUrl = logoutParams.Count > 0
-            ? QueryHelpers.AddQueryString(endSessionBase, logoutParams)
-            : endSessionBase;
+        var keycloakLogoutUrl = QueryHelpers.AddQueryString(endSessionBase, logoutParams);
 
         // Server-side redirect — id_token_hint is in the HTTP Location header,
         // never in a JSON response body where JS or logs could capture it.
@@ -299,7 +317,11 @@ public static class BffAuthEndpoints
         if (result is null)
             return Results.Ok(new { authenticated = false });
 
-        return Results.Ok(result with { IsSiteAdmin = tokenProfile.IsSiteAdmin });
+        return Results.Ok(result with
+        {
+            IsSiteAdmin = tokenProfile.IsSiteAdmin,
+            AuthClient = authResult.Principal!.FindFirst(BffCookieAuthenticationHandler.AuthClientClaim)?.Value,
+        });
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

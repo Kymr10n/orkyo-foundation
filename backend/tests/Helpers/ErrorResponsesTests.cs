@@ -18,7 +18,7 @@ public class ErrorResponsesTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
         payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.SessionExpired);
-        payload.GetProperty("error").GetString().Should().Be("Not authenticated");
+        payload.GetProperty("detail").GetString().Should().Be("Not authenticated");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class ErrorResponsesTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.BreakGlassExpired);
-        payload.GetProperty("error").GetString().Should().Be("Break-glass ended");
+        payload.GetProperty("detail").GetString().Should().Be("Break-glass ended");
         payload.GetProperty("returnTo").GetString().Should().Be("/admin");
     }
 
@@ -50,7 +50,7 @@ public class ErrorResponsesTests
         context.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         payload.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
         payload.GetProperty("resourceType").GetString().Should().Be("Tenant");
-        payload.GetProperty("error").GetString().Should().Contain("Tenant with ID");
+        payload.GetProperty("detail").GetString().Should().Contain("Tenant with ID");
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class ErrorResponsesTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         payload.GetProperty("code").GetString().Should().Be(nameof(ErrorCodes.ValidationError));
-        payload.GetProperty("error").GetString().Should().Be("Invalid payload");
+        payload.GetProperty("detail").GetString().Should().Be("Invalid payload");
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class ErrorResponsesTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
         payload.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
-        payload.GetProperty("error").GetString().Should().Be("Already exists");
+        payload.GetProperty("detail").GetString().Should().Be("Already exists");
     }
 
     private static DefaultHttpContext CreateHttpContext()

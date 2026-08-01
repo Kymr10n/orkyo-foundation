@@ -93,11 +93,13 @@ public static class RequestEndpoints
         .WithName("ScheduleRequest")
         .WithSummary("Schedule or unschedule a request");
 
-        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement, IRequestService requestService, CancellationToken ct) =>
-        {
-            var created = await requestService.AddRequirementAsync(id, requirement, ct);
-            return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
-        })
+        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement,
+            IValidator<AddRequirementRequest> validator, IRequestService requestService, CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(requirement, validator, async () =>
+            {
+                var created = await requestService.AddRequirementAsync(id, requirement, ct);
+                return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
+            }))
         .WithName("AddRequestRequirement")
         .WithSummary("Add a requirement to a request");
 

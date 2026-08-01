@@ -54,9 +54,13 @@ public static class BffAuthenticationServiceExtensions
                 if (!string.IsNullOrEmpty(allowedHosts))
                     opts.AllowedReturnToHosts = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-                var sessionDuration = config[ConfigKeys.BffSessionDuration];
-                if (TimeSpan.TryParse(sessionDuration, out var duration))
-                    opts.SessionDuration = duration;
+                var idleDuration = config[ConfigKeys.BffSessionIdleDuration];
+                if (TimeSpan.TryParse(idleDuration, out var idle))
+                    opts.SessionIdleDuration = idle;
+
+                var maxDuration = config[ConfigKeys.BffSessionMaxDuration];
+                if (TimeSpan.TryParse(maxDuration, out var max))
+                    opts.SessionMaxDuration = max;
 
                 var scopes = config[ConfigKeys.BffScopes];
                 if (!string.IsNullOrEmpty(scopes))
