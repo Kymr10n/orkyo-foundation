@@ -7,17 +7,14 @@ import { API_PATHS } from '../core/api-paths';
 vi.mock('../core/api-client');
 
 const mockSearchResult: SearchResult = {
-  type: 'space',
+  type: 'resource',
+  resourceTypeKey: 'space',
   id: 'space-123',
   title: 'Conference Room A',
   subtitle: 'Main Building - Floor 2',
   siteId: 'site-1',
   score: 0.95,
   updatedAt: '2024-01-15T10:30:00Z',
-  open: {
-    route: '/spaces/:id',
-    params: { id: 'space-123' },
-  },
   permissions: {
     canRead: true,
     canEdit: true,
@@ -59,10 +56,10 @@ describe('search-api', () => {
     it('includes types filter when provided', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockSearchResponse);
 
-      await globalSearch({ query: 'test', types: ['space', 'request'] });
+      await globalSearch({ query: 'test', types: ['resource', 'request'] });
 
       expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.SEARCH, {
-        params: { q: 'test', types: 'space,request' },
+        params: { q: 'test', types: 'resource,request' },
       });
     });
 
@@ -116,7 +113,7 @@ describe('search-api', () => {
   describe('SearchResult types', () => {
     it('correctly types all entity types', () => {
       const types: SearchResult['type'][] = [
-        'space',
+        'resource',
         'request',
         'group',
         'site',

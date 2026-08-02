@@ -83,7 +83,7 @@ public class SearchEndpointsTests
     [Fact]
     public async Task Search_WithTypeFilter_ReturnsOnlyFilteredTypes()
     {
-        var response = await _client.GetAsync("/api/search?q=test&types=space,request");
+        var response = await _client.GetAsync("/api/search?q=test&types=resource,request");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
@@ -92,7 +92,7 @@ public class SearchEndpointsTests
         // All results should be either space or request type
         foreach (var item in result!.Results)
         {
-            item.Type.Should().BeOneOf("space", "request");
+            item.Type.Should().BeOneOf("resource", "request");
         }
     }
 
@@ -138,9 +138,6 @@ public class SearchEndpointsTests
             firstResult.Id.Should().NotBe(Guid.Empty);
             firstResult.Type.Should().NotBeNullOrEmpty();
             firstResult.Title.Should().NotBeNullOrEmpty();
-            firstResult.Open.Should().NotBeNull();
-            firstResult.Open.Route.Should().NotBeNullOrEmpty();
-            firstResult.Open.Params.Should().NotBeNull();
             firstResult.Permissions.Should().NotBeNull();
         }
     }
@@ -224,6 +221,87 @@ public class SearchEndpointsTests
     #endregion
 
     #region Fuzzy Search Tests
+
+    [Fact]
+    public async Task Search_FindsToolResources()
+    {
+        // `tool` has been a seeded system type since migration 1300 but was never indexed:
+        // the only trigger on `resources` early-returned for anything that was not a person.
+        var uniqueName = $"UniqueSearchTool_{Guid.NewGuid():N}";
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = "tool",
+            name = uniqueName,
+            allocationMode = "Exclusive",
+        });
+        created.EnsureSuccessStatusCode();
+
+        await Task.Delay(100); // trigger sync
+
+        var response = await _client.GetAsync($"/api/search?q={uniqueName[..20]}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        result!.Results.Should().Contain(r =>
+            r.Type == "resource" && r.Title == uniqueName && r.ResourceTypeKey == "tool");
+    }
+
+    [Fact]
+    public async Task Search_FindsTenantDefinedResourceTypes()
+    {
+        // The point of the generic indexer: a type invented at runtime is searchable with no
+        // new trigger, no new entity_type, and no code change.
+        var typeKey = $"vehicle_{Guid.NewGuid():N}"[..24];
+        var typeResponse = await _client.PostAsJsonAsync("/api/resource-types", new
+        {
+            key = typeKey,
+            displayName = "Vehicle",
+        });
+        typeResponse.EnsureSuccessStatusCode();
+
+        var uniqueName = $"UniqueSearchVan_{Guid.NewGuid():N}";
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = typeKey,
+            name = uniqueName,
+            allocationMode = "Exclusive",
+        });
+        created.EnsureSuccessStatusCode();
+
+        await Task.Delay(100);
+
+        var response = await _client.GetAsync($"/api/search?q={uniqueName[..19]}");
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+
+        result!.Results.Should().Contain(r =>
+            r.Type == "resource" && r.Title == uniqueName && r.ResourceTypeKey == typeKey);
+    }
+
+    [Fact]
+    public async Task Search_ReindexesAResourceRenamedThroughItsOwnRow()
+    {
+        // The old space trigger fired on the spaces profile table only, so a rename — which
+        // writes resources.name — left a stale title in the index indefinitely.
+        var original = $"UniqueSearchRename_{Guid.NewGuid():N}";
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = "tool",
+            name = original,
+            allocationMode = "Exclusive",
+        });
+        var resource = await created.Content.ReadFromJsonAsync<ResourceInfo>();
+
+        var renamed = $"UniqueSearchRenamed_{Guid.NewGuid():N}";
+        var update = await _client.PutAsJsonAsync($"/api/resources/{resource!.Id}", new { name = renamed });
+        update.EnsureSuccessStatusCode();
+
+        await Task.Delay(100);
+
+        var response = await _client.GetAsync($"/api/search?q={renamed[..22]}");
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+
+        result!.Results.Should().Contain(r => r.Title == renamed);
+    }
 
     [Fact]
     public async Task Search_HandlesFuzzyMatching()

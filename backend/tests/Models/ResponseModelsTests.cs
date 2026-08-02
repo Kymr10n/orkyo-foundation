@@ -116,11 +116,6 @@ public class ResponseModelsTests
             SiteId = siteId,
             Score = 0.95,
             UpdatedAt = updated,
-            Open = new SearchResultOpen
-            {
-                Route = "/requests",
-                Params = new Dictionary<string, string> { ["id"] = id.ToString() }
-            },
             Permissions = new SearchResultPermissions
             {
                 CanRead = true,
@@ -135,18 +130,8 @@ public class ResponseModelsTests
         result.SiteId.Should().Be(siteId);
         result.Score.Should().Be(0.95);
         result.UpdatedAt.Should().Be(updated);
-        result.Open.Route.Should().Be("/requests");
-        result.Open.Params.Should().ContainKey("id");
         result.Permissions.CanRead.Should().BeTrue();
         result.Permissions.CanEdit.Should().BeTrue();
-    }
-
-    [Fact]
-    public void SearchResultOpen_EmptyParams_ByDefault()
-    {
-        var open = new SearchResultOpen { Route = "/spaces" };
-
-        open.Params.Should().BeEmpty();
     }
 
     [Fact]
@@ -168,11 +153,11 @@ public class ResponseModelsTests
             {
                 new()
                 {
-                    Type = "space",
+                    Type = "resource",
+                    ResourceTypeKey = "space",
                     Id = Guid.NewGuid(),
                     Title = "Hall A",
                     Score = 0.8,
-                    Open = new SearchResultOpen { Route = "/spaces" },
                     Permissions = new SearchResultPermissions()
                 }
             }

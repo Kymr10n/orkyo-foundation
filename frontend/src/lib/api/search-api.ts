@@ -5,27 +5,29 @@
 import { apiGet } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
-export interface SearchResultOpen {
-  route: string;
-  params: Record<string, string>;
-}
-
 export interface SearchResultPermissions {
   canRead: boolean;
   canEdit: boolean;
 }
 
 export interface SearchResult {
-  type: 'space' | 'request' | 'group' | 'site' | 'template' | 'criterion' | 'person';
+  /**
+   * Every resource — space, person, tool, or a tenant-defined type — indexes as 'resource';
+   * the specific type is in resourceTypeKey. The other members are entities that are not
+   * resources, so the list no longer grows when a tenant defines a type.
+   */
+  type: 'resource' | 'request' | 'group' | 'site' | 'template' | 'criterion';
   id: string;
   title: string;
   subtitle?: string;
   siteId?: string;
   score: number;
   updatedAt: string;
-  open: SearchResultOpen;
   permissions: SearchResultPermissions;
-  /** For group results only: 'person' or 'space', selecting which page owns the group. */
+  /**
+   * For 'resource' results, the type key — used to route and label. For 'group' results, the
+   * type the group holds, selecting which page owns it. Absent for everything else.
+   */
   resourceTypeKey?: string;
 }
 

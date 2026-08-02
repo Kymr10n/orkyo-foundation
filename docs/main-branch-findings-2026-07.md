@@ -110,14 +110,22 @@ had nowhere to go. This was a DTO-shape constraint, not a filter that could be r
 validates against the same table. The Overview KPI cards and the utilization trend charts are
 both generated from that list, so a tenant-defined type appears with no code change.
 
-### 2.2 Search indexes a fixed entity list — `tool` is already missing
+### 2.2 Search indexes a fixed entity list — `tool` is already missing — RESOLVED
 
 `backend/core/Constants/SearchEntityTypes.cs` enumerates `space, request, group, site, template,
 criterion, person` — **no `tool`**.
 
 Indexing is done by per-entity SQL triggers rather than a generic resource trigger:
 `1280.foundation.search.sql` (spaces, requests, …) and `1510.foundation.search_people.sql`
-(people). So **tools are unsearchable on `main` today**, and any user-defined type would be too.
+(people). So **tools were unsearchable on `main`**, and any user-defined type would have been too.
+
+**Fixed** on `claude/generic-resource-types-r9m82d` (migration 1690): one
+`refresh_search_resource()` function with thin triggers on `resources`, `spaces`,
+`person_profiles` and `resource_capabilities` replaces the per-type triggers. Every resource
+indexes as `entity_type='resource'` with the type in a `resource_type_key` facet, so the
+vocabulary no longer grows with the data. `SearchEntityTypes` and the backend-computed
+`SearchResultOpen` route are deleted — the client had never read the latter and its routes
+had drifted from the real ones.
 
 **Fix direction:** a single generic trigger over `resources` writing `entity_type = 'resource'`
 with the type key as a facet, retiring the per-type triggers over time.

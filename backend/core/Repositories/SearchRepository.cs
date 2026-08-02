@@ -42,30 +42,31 @@ public class SearchRepository : ISearchRepository
     private static SearchResult MapResult(NpgsqlDataReader reader)
     {
         var entityType = reader.GetString(0);
-        var entityId = reader.GetGuid(1);
         var resultSiteId = reader.IsDBNull(4) ? (Guid?)null : reader.GetGuid(4);
         return new SearchResult
         {
             Type = entityType,
-            Id = entityId,
+            Id = reader.GetGuid(1),
             Title = reader.GetString(2),
             Subtitle = reader.IsDBNull(3) ? null : reader.GetString(3),
             SiteId = resultSiteId,
             Score = reader.GetDouble(5),
             UpdatedAt = reader.GetDateTime(6),
-            Open = GetOpenRoute(entityType, entityId, resultSiteId),
             Permissions = new SearchResultPermissions { CanRead = true, CanEdit = false },
             ResourceTypeKey = reader.IsDBNull(7) ? null : reader.GetString(7)
         };
     }
 
-    // Group results live under different pages depending on their resource type
-    // (person groups vs space groups); surface the key so the client can route.
-    // Correlated subquery so the generic search SELECT stays untouched for other types.
+    // Resource documents carry their type in a column (migration 1690). Groups still need a
+    // lookup: a group row has a resource_type_id but no search_documents facet of its own,
+    // and the client routes person groups and space groups to different pages.
     private static string ResourceTypeKeySubquery(string source) => $@"
-                (SELECT rt.key FROM resource_groups g
-                 JOIN resource_types rt ON rt.id = g.resource_type_id
-                 WHERE {source}.entity_type = 'group' AND g.id = {source}.entity_id) AS resource_type_key";
+                COALESCE(
+                    {source}.resource_type_key,
+                    (SELECT rt.key FROM resource_groups g
+                     JOIN resource_types rt ON rt.id = g.resource_type_id
+                     WHERE {source}.entity_type = 'group' AND g.id = {source}.entity_id)
+                ) AS resource_type_key";
 
     private static string BuildCombinedSearchSql(string[]? types, Guid? siteId)
     {
@@ -76,7 +77,7 @@ public class SearchRepository : ISearchRepository
 
         return $@"
             WITH ranked AS (
-                SELECT entity_type, entity_id, title, subtitle, site_id, updated_at,
+                SELECT entity_type, entity_id, title, subtitle, site_id, resource_type_key, updated_at,
                     COALESCE(ts_rank(fts, plainto_tsquery('simple', @query)), 0) AS fts_score,
                     GREATEST(similarity(title, @query), similarity(COALESCE(keywords, ''), @query) * 0.8) AS trgm_score
                 FROM search_documents {whereStr}
@@ -109,16 +110,4 @@ public class SearchRepository : ISearchRepository
             ORDER BY score DESC, updated_at DESC LIMIT @limit";
     }
 
-    private static SearchResultOpen GetOpenRoute(string entityType, Guid entityId, Guid? siteId) =>
-        entityType switch
-        {
-            SearchEntityTypes.Space => new SearchResultOpen { Route = "/spaces", Params = new Dictionary<string, string> { ["resourceId"] = entityId.ToString(), ["mode"] = "edit" } },
-            SearchEntityTypes.Request => new SearchResultOpen { Route = "/requests", Params = new Dictionary<string, string> { ["requestId"] = entityId.ToString(), ["mode"] = "edit" } },
-            SearchEntityTypes.Group => new SearchResultOpen { Route = "/settings/groups", Params = new Dictionary<string, string> { ["groupId"] = entityId.ToString(), ["mode"] = "edit" } },
-            SearchEntityTypes.Site => new SearchResultOpen { Route = "/settings/sites", Params = new Dictionary<string, string> { ["siteId"] = entityId.ToString(), ["mode"] = "edit" } },
-            SearchEntityTypes.Template => new SearchResultOpen { Route = "/settings/templates", Params = new Dictionary<string, string> { ["templateId"] = entityId.ToString(), ["mode"] = "edit" } },
-            SearchEntityTypes.Criterion => new SearchResultOpen { Route = "/settings/criteria", Params = new Dictionary<string, string> { ["criterionId"] = entityId.ToString(), ["mode"] = "edit" } },
-            SearchEntityTypes.Person => new SearchResultOpen { Route = "/people/list", Params = new Dictionary<string, string> { ["personId"] = entityId.ToString() } },
-            _ => new SearchResultOpen { Route = "/", Params = new Dictionary<string, string>() }
-        };
 }
