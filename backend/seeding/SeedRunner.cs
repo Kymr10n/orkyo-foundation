@@ -115,7 +115,7 @@ public static class SeedRunner
             var includeTools = opts.ResourceTypes.HasFlag(SeedResourceTypes.Tools);
             var facilities = Narrative.FacilityModel.All;
             IReadOnlyList<ToolFactory.SeededTool> seededTools =
-                includeTools ? await ToolFactory.SeedAsync(conn, facilities) : [];
+                includeTools ? await ToolFactory.SeedAsync(conn, facilities, sites) : [];
             var skillCriteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools);
             var cohorts = Narrative.Cohorts.Build(facilities, sites, spaces, people, seededTools);
 

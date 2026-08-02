@@ -73,7 +73,7 @@ public class RequestTargetSeedingTests
         }
 
         var facilities = FacilityModel.All;
-        var tools = await ToolFactory.SeedAsync(conn, facilities);
+        var tools = await ToolFactory.SeedAsync(conn, facilities, fp.Sites);
         var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools);
         var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools);
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
@@ -92,6 +92,13 @@ public class RequestTargetSeedingTests
             "SELECT 0, count(*) FROM resource_capabilities WHERE resource_id = ANY(@toolIds)",
             ("toolIds", toolIds));
         toolCaps.Should().BeGreaterThan(0, "seeded tools carry capabilities (CNC operation, max load)");
+
+        // Its facility must be data, not a prefix on the name: the utilization tab filters by
+        // site, so a tool without a home site is missing from its own facility's board.
+        var (_, unsitedTools) = await TwoLongs(conn, tx,
+            "SELECT 0, count(*) FROM resources WHERE id = ANY(@toolIds) AND home_site_id IS NULL",
+            ("toolIds", toolIds));
+        unsitedTools.Should().Be(0, "every seeded tool is homed at the facility that owns it");
         var (_, toolAssignments) = await TwoLongs(conn, tx,
             "SELECT 0, count(*) FROM resource_assignments WHERE request_id = ANY(@ids) AND resource_id = ANY(@toolIds)",
             ("ids", seededIds), ("toolIds", toolIds));

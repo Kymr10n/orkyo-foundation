@@ -74,7 +74,7 @@ public class NarrativeYearSeederTests
         }
 
         var facilities = FacilityModel.All;
-        var tools = await ToolFactory.SeedAsync(conn, facilities);
+        var tools = await ToolFactory.SeedAsync(conn, facilities, fp.Sites);
         var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools: true);
         var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools);
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
