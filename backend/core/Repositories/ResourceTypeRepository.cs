@@ -23,7 +23,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
     : IResourceTypeRepository
 {
     private const string SelectColumns =
-        "id, key, display_name, description, icon, is_system, is_active, created_at, updated_at";
+        "id, key, display_name, display_name_plural, description, icon, is_system, is_active, created_at, updated_at";
 
     public async Task<List<ResourceTypeInfo>> GetAllAsync(CancellationToken ct = default)
     {
@@ -52,13 +52,14 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         return (await db.QuerySingleOrDefaultAsync(
-            $@"INSERT INTO resource_types (key, display_name, description, icon, is_system, is_active)
-               VALUES (@key, @displayName, @description, @icon, false, true)
+            $@"INSERT INTO resource_types (key, display_name, display_name_plural, description, icon, is_system, is_active)
+               VALUES (@key, @displayName, @displayNamePlural, @description, @icon, false, true)
                RETURNING {SelectColumns}",
             p =>
             {
                 p.AddWithValue("key", request.Key);
                 p.AddWithValue("displayName", request.DisplayName);
+                p.AddWithValue("displayNamePlural", request.DisplayNamePlural);
                 p.AddNullable("description", request.Description);
                 p.AddNullable("icon", request.Icon);
             }, Map, ct))!;
@@ -68,6 +69,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
     {
         var update = new UpdateBuilder();
         update.SetIfNotNull("display_name", request.DisplayName);
+        update.SetIfNotNull("display_name_plural", request.DisplayNamePlural);
         update.SetIfNotNull("description", request.Description);
         update.SetIfNotNull("icon", request.Icon);
         if (request.IsActive.HasValue) update.Set("is_active", request.IsActive.Value);
@@ -101,6 +103,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
         Id = r.GetGuid(r.GetOrdinal("id")),
         Key = r.GetString(r.GetOrdinal("key")),
         DisplayName = r.GetString(r.GetOrdinal("display_name")),
+        DisplayNamePlural = r.GetString(r.GetOrdinal("display_name_plural")),
         Description = r.IsDBNull(r.GetOrdinal("description")) ? null : r.GetString(r.GetOrdinal("description")),
         Icon = r.IsDBNull(r.GetOrdinal("icon")) ? null : r.GetString(r.GetOrdinal("icon")),
         IsSystem = r.GetBoolean(r.GetOrdinal("is_system")),

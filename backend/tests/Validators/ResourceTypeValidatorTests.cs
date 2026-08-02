@@ -20,6 +20,7 @@ public class ResourceTypeValidatorTests
         {
             Key = "car",
             DisplayName = "Car",
+            DisplayNamePlural = "Cars",
         });
 
         Assert.True(result.IsValid);
@@ -37,6 +38,7 @@ public class ResourceTypeValidatorTests
         {
             Key = key,
             DisplayName = "Car",
+            DisplayNamePlural = "Cars",
         });
 
         Assert.False(result.IsValid);
@@ -50,6 +52,7 @@ public class ResourceTypeValidatorTests
         {
             Key = "company_car_2",
             DisplayName = "Company car",
+            DisplayNamePlural = "Company cars",
         });
 
         Assert.True(result.IsValid);
@@ -58,7 +61,18 @@ public class ResourceTypeValidatorTests
     [Fact]
     public void CreateType_EmptyDisplayName_Fails()
     {
-        var result = _createType.Validate(new CreateResourceTypeRequest { Key = "car", DisplayName = "" });
+        var result = _createType.Validate(
+            new CreateResourceTypeRequest { Key = "car", DisplayName = "", DisplayNamePlural = "Cars" });
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void CreateType_EmptyDisplayNamePlural_Fails()
+    {
+        // The plural labels every list of this type; an empty one leaves those labels blank.
+        var result = _createType.Validate(
+            new CreateResourceTypeRequest { Key = "car", DisplayName = "Car", DisplayNamePlural = "" });
 
         Assert.False(result.IsValid);
     }

@@ -68,6 +68,7 @@ public class InsightsServiceTests
         Id = Guid.NewGuid(),
         Key = key,
         DisplayName = displayName,
+        DisplayNamePlural = displayName + "s",
         IsSystem = true,
         IsActive = true,
         CreatedAt = DateTime.UtcNow,

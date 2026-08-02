@@ -13,6 +13,8 @@ export interface ResourceTypeInfo {
   id: string;
   key: string;
   displayName: string;
+  /** Plural — labels a collection (sidebar entry, utilization tab, page title). */
+  displayNamePlural: string;
   description?: string;
   /** lucide-react icon name; unknown or absent names fall back to a default. */
   icon?: string | null;
@@ -26,12 +28,15 @@ export interface ResourceTypeInfo {
 export interface CreateResourceTypeRequest {
   key: string;
   displayName: string;
+  /** Plural — labels a collection (sidebar entry, utilization tab, page title). */
+  displayNamePlural: string;
   description?: string;
   icon?: string;
 }
 
 export interface UpdateResourceTypeRequest {
   displayName?: string;
+  displayNamePlural?: string;
   description?: string;
   icon?: string;
   isActive?: boolean;

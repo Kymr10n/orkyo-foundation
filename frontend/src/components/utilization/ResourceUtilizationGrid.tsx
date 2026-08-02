@@ -128,10 +128,10 @@ interface DialogState {
 
 export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId }: ResourceUtilizationGridProps) {
   const typeKey = resourceType.key;
-  // Tenant-defined names are arbitrary ("Forklift"), so strings read as "<Name> resources"
-  // rather than treating the display name as a collective noun.
+  // The column header names one row, so it stays singular; everything else here names the
+  // collection and uses the plural the type carries.
   const typeLabel = resourceType.displayName;
-  const typeNoun = `${typeLabel.toLowerCase()} resources`;
+  const typeNoun = resourceType.displayNamePlural.toLowerCase();
   const [search, setSearch] = useState('');
   // Defer the filter so typing stays responsive — the input echoes `search`
   // immediately while the (heavier) row regrouping trails by a render.

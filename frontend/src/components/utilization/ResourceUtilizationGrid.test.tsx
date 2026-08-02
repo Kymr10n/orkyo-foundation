@@ -101,6 +101,7 @@ const PERSON_TYPE = {
   id: 'type-person',
   key: 'person',
   displayName: 'Person',
+  displayNamePlural: 'People',
   isSystem: true,
   isActive: true,
   createdAt: '2026-01-01T00:00:00Z',
@@ -132,13 +133,13 @@ describe('ResourceUtilizationGrid', () => {
   it('shows loading state while people are loading', () => {
     vi.mocked(getResources).mockReturnValue(new Promise(() => {}));
     renderGrid();
-    expect(screen.getByText(/loading person resources/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading people/i)).toBeInTheDocument();
   });
 
   it('shows empty state when no people exist', async () => {
     vi.mocked(getResources).mockResolvedValue(emptyPeople);
     renderGrid();
-    await waitFor(() => expect(screen.getByText(/no active person resources/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/no active people/i)).toBeInTheDocument());
   });
 
   it('renders the grid container', async () => {
@@ -186,7 +187,7 @@ describe('ResourceUtilizationGrid', () => {
     vi.mocked(getUtilizationByResource).mockRejectedValue(new Error('boom'));
     renderGrid();
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t load person resources utilization/i),
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t load people utilization/i),
     );
   });
 
@@ -266,7 +267,7 @@ describe('ResourceUtilizationGrid', () => {
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/search person resources/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search people/i), {
       target: { value: 'Alice' },
     });
 
@@ -278,11 +279,11 @@ describe('ResourceUtilizationGrid', () => {
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    fireEvent.change(screen.getByPlaceholderText(/search person resources/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search people/i), {
       target: { value: 'xyz-no-match' },
     });
 
-    expect(screen.getByText(/no person resources match/i)).toBeInTheDocument();
+    expect(screen.getByText(/no people match/i)).toBeInTheDocument();
   });
 
   it('renders the legend strip', async () => {

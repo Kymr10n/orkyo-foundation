@@ -49,6 +49,7 @@ const carType: ResourceTypeInfo = {
   id: 'type-car',
   key: 'car',
   displayName: 'Car',
+  displayNamePlural: 'Cars',
   isSystem: false,
   isActive: true,
   createdAt: '2026-01-01T00:00:00Z',

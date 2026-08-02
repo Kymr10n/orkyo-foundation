@@ -25,6 +25,7 @@ interface ResourceTypeEditDialogProps {
 interface FormState {
   key: string;
   displayName: string;
+  displayNamePlural: string;
   description: string;
   icon: string;
 }
@@ -38,6 +39,11 @@ function DefaultIconPreview() {
 
 /** Keys are stable identifiers used in URLs and metadata documents; mirrors the server rule. */
 const KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/;
+
+/** Starting guess for the plural, editable — English is irregular and tenants aren't all English. */
+function defaultPlural(displayName: string): string {
+  return displayName.trim() ? `${displayName}s` : '';
+}
 
 /** Suggests "company_car" from "Company Car" so the key is one less thing to think about. */
 function toKey(displayName: string): string {
@@ -62,10 +68,11 @@ export function ResourceTypeEditDialog({
     open,
     onOpenChange,
     entity: resourceType,
-    emptyForm: () => ({ key: '', displayName: '', description: '', icon: '' }),
+    emptyForm: () => ({ key: '', displayName: '', displayNamePlural: '', description: '', icon: '' }),
     toForm: (rt) => ({
       key: rt.key,
       displayName: rt.displayName,
+      displayNamePlural: rt.displayNamePlural,
       description: rt.description ?? '',
       icon: rt.icon ?? '',
     }),
@@ -73,12 +80,14 @@ export function ResourceTypeEditDialog({
       rt
         ? updateResourceType(rt.id, {
             displayName: form.displayName,
+            displayNamePlural: form.displayNamePlural,
             description: form.description || undefined,
             icon: form.icon || undefined,
           })
         : createResourceType({
             key: form.key,
             displayName: form.displayName,
+            displayNamePlural: form.displayNamePlural,
             description: form.description || undefined,
             icon: form.icon || undefined,
           }),
@@ -89,15 +98,22 @@ export function ResourceTypeEditDialog({
 
   const isEdit = resourceType !== null;
   const keyValid = isEdit || KEY_PATTERN.test(form.key);
-  const canSubmit = form.displayName.trim().length > 0 && keyValid;
+  const canSubmit =
+    form.displayName.trim().length > 0 && form.displayNamePlural.trim().length > 0 && keyValid;
 
   // In create mode the key tracks the display name until the user edits it directly.
   const handleDisplayNameChange = (displayName: string) => {
-    setForm((prev) =>
-      isEdit || prev.key !== toKey(prev.displayName)
-        ? { ...prev, displayName }
-        : { ...prev, displayName, key: toKey(displayName) },
-    );
+    setForm((prev) => {
+      const next = { ...prev, displayName };
+      // Both the key and the plural track the name until the user edits them directly, so the
+      // common case is one field. "s" is only a starting guess — irregular nouns and other
+      // languages are exactly why the plural is stored rather than derived.
+      if (!isEdit && prev.key === toKey(prev.displayName)) next.key = toKey(displayName);
+      if (!isEdit && prev.displayNamePlural === defaultPlural(prev.displayName)) {
+        next.displayNamePlural = defaultPlural(displayName);
+      }
+      return next;
+    });
   };
 
   return (
@@ -126,6 +142,21 @@ export function ResourceTypeEditDialog({
           autoFocus
           required
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="rt-display-name-plural">Plural name</Label>
+        <Input
+          id="rt-display-name-plural"
+          value={form.displayNamePlural}
+          onChange={(e) => set({ displayNamePlural: e.target.value })}
+          maxLength={100}
+          placeholder="Cars"
+          required
+        />
+        <p className="text-sm text-muted-foreground">
+          Used wherever a list of them is named — the sidebar, the utilization tab, the page title.
+        </p>
       </div>
 
       <div className="space-y-2">

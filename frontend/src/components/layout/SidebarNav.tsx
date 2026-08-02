@@ -64,7 +64,7 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
     .filter((type) => !TYPES_WITH_DEDICATED_PAGES.has(type.key))
     .map((type) => ({
       to: `/resources/${type.key}`,
-      label: type.displayName,
+      label: type.displayNamePlural,
       icon: resourceTypeIcon(type.icon),
     }));
   const navItems = [

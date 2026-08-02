@@ -256,6 +256,7 @@ public class SearchEndpointsTests
         {
             key = typeKey,
             displayName = "Vehicle",
+            displayNamePlural = "Vehicles",
         });
         typeResponse.EnsureSuccessStatusCode();
 

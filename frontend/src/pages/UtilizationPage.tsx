@@ -643,7 +643,7 @@ export function UtilizationPage() {
   const tabs: PageTab[] = [
     { value: 'calendar', label: 'Calendar' },
     { value: RESOURCE_TYPE_KEY.SPACE, label: 'Spaces' },
-    ...gridTypes.map((t) => ({ value: t.key, label: t.displayName })),
+    ...gridTypes.map((t) => ({ value: t.key, label: t.displayNamePlural })),
   ];
 
   // Scale + time navigation shared across every tab (the calendar is

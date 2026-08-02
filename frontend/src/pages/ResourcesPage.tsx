@@ -24,7 +24,7 @@ export function ResourcesPage() {
   const active = useActiveTab('list', 3);
 
   const resourceType = types.find((t) => t.key === typeKey);
-  usePageTitle(resourceType?.displayName ?? 'Resources');
+  usePageTitle(resourceType?.displayNamePlural ?? 'Resources');
 
   if (isLoading) return <LoadingSpinner message="Loading…" />;
   // An unknown or removed type key is a dead link — send the user somewhere real.
@@ -33,8 +33,8 @@ export function ResourcesPage() {
   return (
     <PageLayout>
       <PageHeader
-        title={resourceType.displayName}
-        description={resourceType.description || `Manage ${resourceType.displayName.toLowerCase()} and groups`}
+        title={resourceType.displayNamePlural}
+        description={resourceType.description || `Manage ${resourceType.displayNamePlural.toLowerCase()} and groups`}
       />
       <PageTabs
         tabs={TABS}

@@ -38,6 +38,7 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
       tenantId: "tenant-1",
       slug: "demo",
       displayName: "Demo",
+      displayNamePlural: "Demos",
       get role() { return mockRole; },
       state: "active",
       isTenantAdmin: true,
@@ -256,18 +257,18 @@ vi.mock("@foundation/src/components/utilization/AutoScheduleButton", () => ({
   ),
 }));
 
-const mockResourceType = (key: string, displayName: string, isSystem = true) => ({
-  id: `type-${key}`, key, displayName, isSystem, isActive: true,
+const mockResourceType = (key: string, displayName: string, plural: string, isSystem = true) => ({
+  id: `type-${key}`, key, displayName, displayNamePlural: plural, isSystem, isActive: true,
   createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
 });
 // Tabs are derived from the active types: Spaces keeps its own scheduler tab, every other type
 // gets a grid tab. `forklift` stands in for a tenant-defined type.
 const mockResourceTypes = vi.fn(() => ({
   data: [
-    mockResourceType("space", "Space"),
-    mockResourceType("person", "Person"),
-    mockResourceType("tool", "Tool"),
-    mockResourceType("forklift", "Forklift", false),
+    mockResourceType("space", "Space", "Spaces"),
+    mockResourceType("person", "Person", "People"),
+    mockResourceType("tool", "Tool", "Tools"),
+    mockResourceType("forklift", "Forklift", "Forklifts", false),
   ],
   isSuccess: true,
 }));
@@ -1307,8 +1308,8 @@ describe("navigateTime", () => {
     const Wrapper = createWrapper("tool");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    expect(screen.getByRole("tab", { name: "Tool" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Forklift" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tools" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Forklifts" })).toBeInTheDocument();
     // Spaces keeps its own scheduler tab rather than a derived grid.
     expect(screen.queryByTestId("space-utilization-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("tool-utilization-grid")).toBeInTheDocument();

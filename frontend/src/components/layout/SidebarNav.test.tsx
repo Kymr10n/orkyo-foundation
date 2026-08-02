@@ -20,7 +20,9 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
 
 // User-defined resource types become nav entries; mocked so the nav stays renderable
 // without a QueryClient, matching how the store and auth context are handled above.
-const resourceTypesState: { data: { key: string; displayName: string; isSystem: boolean }[] } = {
+const resourceTypesState: {
+  data: { key: string; displayName: string; displayNamePlural: string; isSystem: boolean }[];
+} = {
   data: [],
 };
 vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
@@ -76,12 +78,17 @@ describe('SidebarNav', () => {
     // The test used to be `!isSystem`, which withheld an entry from `tool` — a built-in type
     // that has never had a page of its own, leaving it reachable only by typing the URL.
     resourceTypesState.data = [
-      { key: 'space', displayName: 'Space', isSystem: true },
-      { key: 'person', displayName: 'Person', isSystem: true },
-      { key: 'tool', displayName: 'Tool', isSystem: true },
-      { key: 'car', displayName: 'Car', isSystem: false },
+      { key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', isSystem: true },
+      { key: 'person', displayName: 'Person', displayNamePlural: 'People', isSystem: true },
+      { key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', isSystem: true },
+      { key: 'car', displayName: 'Car', displayNamePlural: 'Cars', isSystem: false },
     ];
     renderSidebar();
+
+    // A nav entry names a collection, so it uses the plural the type carries — deriving it
+    // would read "Persons", and tenants do not all name things in English.
+    expect(screen.getByText('Tools')).toBeInTheDocument();
+    expect(screen.getByText('Cars')).toBeInTheDocument();
 
     const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
     expect(hrefs).toContain('/resources/tool');
@@ -93,8 +100,8 @@ describe('SidebarNav', () => {
 
   it('places the derived type entries with the other resources, beneath People', () => {
     resourceTypesState.data = [
-      { key: 'space', displayName: 'Space', isSystem: true },
-      { key: 'tool', displayName: 'Tool', isSystem: true },
+      { key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', isSystem: true },
+      { key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', isSystem: true },
     ];
     renderSidebar();
 

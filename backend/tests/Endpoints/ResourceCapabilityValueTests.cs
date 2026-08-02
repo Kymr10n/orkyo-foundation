@@ -32,6 +32,7 @@ public class ResourceCapabilityValueTests
         {
             Key = $"car_{Guid.NewGuid():N}",
             DisplayName = "Car",
+            DisplayNamePlural = "Cars",
         })).Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
 
     private async Task<Guid> CreateCriterionAsync(

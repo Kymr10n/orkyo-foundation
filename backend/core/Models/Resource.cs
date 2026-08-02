@@ -6,7 +6,10 @@ public record ResourceTypeInfo
 {
     public required Guid Id { get; init; }
     public required string Key { get; init; }
+    /// <summary>Singular — labels one resource ("Edit Car", a request's Tool slot).</summary>
     public required string DisplayName { get; init; }
+    /// <summary>Plural — labels a collection (sidebar entry, utilization tab, page title).</summary>
+    public required string DisplayNamePlural { get; init; }
     public string? Description { get; init; }
     /// <summary>lucide-react icon name; the frontend falls back to a default when null or unrecognised.</summary>
     public string? Icon { get; init; }
@@ -48,6 +51,7 @@ public record CreateResourceTypeRequest
 {
     public required string Key { get; init; }
     public required string DisplayName { get; init; }
+    public required string DisplayNamePlural { get; init; }
     public string? Description { get; init; }
     public string? Icon { get; init; }
 }
@@ -55,6 +59,7 @@ public record CreateResourceTypeRequest
 public record UpdateResourceTypeRequest
 {
     public string? DisplayName { get; init; }
+    public string? DisplayNamePlural { get; init; }
     public string? Description { get; init; }
     public string? Icon { get; init; }
     public bool? IsActive { get; init; }

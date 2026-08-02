@@ -32,6 +32,7 @@ public class ResourceTypeCrudEndpointTests
         {
             Key = key ?? UniqueKey("car"),
             DisplayName = "Car",
+            DisplayNamePlural = "Cars",
             Description = "Fleet vehicle",
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -62,6 +63,7 @@ public class ResourceTypeCrudEndpointTests
         {
             Key = key,
             DisplayName = "Duplicate",
+            DisplayNamePlural = "Duplicates",
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -77,6 +79,7 @@ public class ResourceTypeCrudEndpointTests
         {
             Key = key,
             DisplayName = "Bad key",
+            DisplayNamePlural = "Bad keys",
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -102,6 +105,7 @@ public class ResourceTypeCrudEndpointTests
         {
             Key = UniqueKey("van"),
             DisplayName = "Van",
+            DisplayNamePlural = "Vans",
             Icon = "Truck",
         });
 
@@ -144,6 +148,7 @@ public class ResourceTypeCrudEndpointTests
         {
             Key = UniqueKey("bus"),
             DisplayName = "Bus",
+            DisplayNamePlural = "Buss",
             Icon = new string('x', 51),
         });
 
@@ -230,6 +235,7 @@ public class ResourceTypeCrudEndpointTests
         {
             Key = UniqueKey("viewer"),
             DisplayName = "Nope",
+            DisplayNamePlural = "Nopes",
         });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
