@@ -7,11 +7,11 @@ namespace Api.Services;
 /// <summary>
 /// Authoritative, tenant-wide conflicts registry for the Conflicts page and the Requests-page
 /// badges. Computes every scheduled request's conflicts server-side by evaluating its whole
-/// assignment set (room + people + tools) through the shared, bulk-optimized
+/// assignment set — whatever resource types it targets — through the shared, bulk-optimized
 /// <see cref="IResourceAssignmentValidator.ValidateBatchAsync"/> (overbook / capacity / off-time /
 /// weekend / site), checking capability at the request level (a requirement is satisfied iff ANY
-/// assigned resource satisfies it — so person-skills are matched against people and space-specs
-/// against the space), and adding the cheap request-intrinsic checks (below-min-duration,
+/// assigned resource satisfies it, so each capability lands on the resources whose type can carry
+/// it), and adding the cheap request-intrinsic checks (below-min-duration,
 /// before-earliest-start, after-latest-end). Computed on demand (no DB materialization).
 /// </summary>
 public interface IConflictService
@@ -91,9 +91,9 @@ public class ConflictService(
 
     /// <summary>
     /// Request-level capability: a requirement is satisfied iff at least one assigned resource has a
-    /// matching capability. Because only applicable resource types ever hold a given capability, this
-    /// matches person-skills against the assigned people and space-specs against the assigned space —
-    /// without falsely flagging a room for "missing" a person-skill. One conflict per unmet requirement.
+    /// matching capability. Because only applicable resource types ever hold a given capability, each
+    /// requirement is effectively matched against the assigned resources whose type can carry it —
+    /// without falsely flagging the others for "missing" it. One conflict per unmet requirement.
     /// </summary>
     private IEnumerable<ConflictInfo> CapabilityConflicts(
         RequestInfo request, IReadOnlyDictionary<Guid, IReadOnlyList<ResourceCapabilityInfo>> capsByResource)

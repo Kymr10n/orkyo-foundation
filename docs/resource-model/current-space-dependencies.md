@@ -1,5 +1,9 @@
 # Current Space Dependencies — Phase 0 Inventory
 
+> **Superseded — historical record.** The `spaces` and `person_profiles` side tables inventoried
+> below were dissolved into `resources` by migrations `1700` (expand) and `1710` (contract).
+> Kept as-is as the Phase 0 deliverable; do not read it as the current schema.
+
 Produced 2026-05-14 as the Phase 0 deliverable. This document is
 the ground truth for everything Phase 2 must touch during the
 rename + cutover.

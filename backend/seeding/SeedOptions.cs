@@ -2,21 +2,6 @@ namespace Orkyo.Foundation.Seed;
 
 public enum SeedMode { Reset, Append }
 
-/// <summary>
-/// Which resource samples the seeder generates. The default is everything — a demo that shows
-/// only people and spaces hides the third resource type entirely. The flags stay because future
-/// profiles (camping, education, …) select the subset they need.
-/// </summary>
-[Flags]
-public enum SeedResourceTypes
-{
-    Spaces = 1,
-    People = 2,
-    Tools = 4,
-    Default = Spaces | People | Tools,
-    All = Spaces | People | Tools,
-}
-
 public sealed record SeedOptions
 {
     /// <summary>Profile slug — must match an entry in <see cref="ProfileCatalog"/>.</summary>
@@ -56,7 +41,4 @@ public sealed record SeedOptions
     /// is set, because floorplan asset rows are scoped by <c>assets.tenant_id</c>.
     /// </summary>
     public Guid TenantId { get; init; }
-
-    /// <summary>Which resource samples to generate. Defaults to people + spaces + tools.</summary>
-    public SeedResourceTypes ResourceTypes { get; init; } = SeedResourceTypes.Default;
 }

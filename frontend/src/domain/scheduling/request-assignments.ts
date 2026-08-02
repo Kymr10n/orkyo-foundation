@@ -21,17 +21,10 @@ export function getAssignmentOfType(r: Request, resourceTypeKey: string): Resour
 }
 
 /**
- * Gets the space assignment from a request, if any.
- */
-export function getSpaceAssignment(r: Request): ResourceAssignment | null {
-  return getAssignmentOfType(r, 'space');
-}
-
-/**
  * Gets the space resource ID from a request, if any.
  */
 export function getSpaceResourceId(r: Request): string | null {
-  return getSpaceAssignment(r)?.resourceId ?? null;
+  return getAssignmentOfType(r, 'space')?.resourceId ?? null;
 }
 
 /**

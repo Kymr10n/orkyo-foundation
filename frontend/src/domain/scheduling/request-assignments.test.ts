@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  getSpaceAssignment,
   getSpaceResourceId,
   applySpaceAssignmentOptimistic,
   clearSpaceAssignmentOptimistic,
@@ -8,55 +7,6 @@ import {
 import { makeRequest, makeAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 describe('request-assignments helpers', () => {
-  describe('getSpaceAssignment', () => {
-    it('returns the space assignment when present', () => {
-      const spaceAssignment = makeAssignment('space-123', 'space');
-      const request = makeRequest({
-        assignments: [
-          spaceAssignment,
-          makeAssignment('person-456', 'person'),
-        ],
-      });
-      const result = getSpaceAssignment(request);
-      expect(result).toBe(spaceAssignment);
-    });
-
-    it('returns null when no space assignment exists', () => {
-      const request = makeRequest({
-        assignments: [
-          makeAssignment('person-456', 'person'),
-          makeAssignment('tool-789', 'tool'),
-        ],
-      });
-      const result = getSpaceAssignment(request);
-      expect(result).toBeNull();
-    });
-
-    it('returns null when assignments is empty', () => {
-      const request = makeRequest({ assignments: [] });
-      const result = getSpaceAssignment(request);
-      expect(result).toBeNull();
-    });
-
-    it('returns null when assignments is undefined (should not happen but defensive)', () => {
-      const request = makeRequest({ assignments: undefined as unknown as [] });
-      const result = getSpaceAssignment(request);
-      expect(result).toBeNull();
-    });
-
-    it('ignores cancelled space assignments', () => {
-      const cancelledAssignment = makeAssignment('space-123', 'space', {
-        assignmentStatus: 'Cancelled',
-      });
-      const activeAssignment = makeAssignment('space-456', 'space');
-      const request = makeRequest({
-        assignments: [cancelledAssignment, activeAssignment],
-      });
-      const result = getSpaceAssignment(request);
-      expect(result).toBe(activeAssignment);
-    });
-  });
-
   describe('getSpaceResourceId', () => {
     it('returns the space resource ID when assignment exists', () => {
       const request = makeRequest({
@@ -76,6 +26,12 @@ describe('request-assignments helpers', () => {
 
     it('returns null when assignments is empty', () => {
       const request = makeRequest({ assignments: [] });
+      const result = getSpaceResourceId(request);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when assignments is undefined (should not happen but defensive)', () => {
+      const request = makeRequest({ assignments: undefined as unknown as [] });
       const result = getSpaceResourceId(request);
       expect(result).toBeNull();
     });

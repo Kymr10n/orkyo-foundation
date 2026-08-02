@@ -12,6 +12,8 @@ public record SearchResult
     public Guid? SiteId { get; init; }
     public double Score { get; init; }
     public DateTime UpdatedAt { get; init; }
+    /// <summary>Vestigial: always CanRead=true / CanEdit=false and unread by any client.
+    /// Kept because it is part of the released response contract.</summary>
     public required SearchResultPermissions Permissions { get; init; }
     /// <summary>
     /// The resource type key for resource results ("space", "person", "tool", or a

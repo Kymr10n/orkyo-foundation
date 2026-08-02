@@ -4,11 +4,8 @@ import {
   getPersonProfile,
   getPersonJobTitles,
   upsertPersonProfile,
-  linkUserToPersonProfile,
-  unlinkUserFromPersonProfile,
   type PersonProfileInfo,
   type UpsertPersonProfileRequest,
-  type LinkUserToPersonProfileRequest,
 } from "./person-profiles-api";
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
@@ -155,42 +152,6 @@ describe("person-profiles-api", () => {
 
       const result = await upsertPersonProfile("res-1", request);
       expect(result.email).toBe(request.email);
-    });
-  });
-
-  describe("linkUserToPersonProfile", () => {
-    it("links a user to a person profile", async () => {
-      const request: LinkUserToPersonProfileRequest = {
-        userId: "user-123",
-      };
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(true),
-      });
-
-      const result = await linkUserToPersonProfile("res-1", request);
-      expect(result).toBe(true);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/person-profiles/res-1/link",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify(request),
-        })
-      );
-    });
-  });
-
-  describe("unlinkUserFromPersonProfile", () => {
-    it("sends DELETE to the profile link endpoint", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(undefined) });
-
-      await unlinkUserFromPersonProfile("res-1");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/person-profiles/res-1/link",
-        expect.objectContaining({ method: "DELETE" }),
-      );
     });
   });
 });

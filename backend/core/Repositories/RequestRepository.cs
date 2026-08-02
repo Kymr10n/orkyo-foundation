@@ -135,7 +135,7 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // All scheduled requests with a (non-cancelled) space assignment, tenant-wide. When a
+        // All fully assigned scheduled requests, tenant-wide. When a
         // [from,to] window is supplied (utilization grid) only bars overlapping it are returned;
         // without one (Conflicts page) the registry is all-time. No scheduling_settings_apply filter
         // — the registry mirrors what the grid surfaces for every scheduled bar.
@@ -195,8 +195,9 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
         // Scheduled requests for this site whose bar overlaps [from,to]: start_ts <= to AND end_ts >= from.
-        // A request belongs to the site if it is scoped to it (site_id) OR placed into one of its
-        // spaces. The site_id arm makes a scheduled, space-less request appear on its site's calendar.
+        // A request belongs to the site if it is scoped to it (site_id) OR holds a resource that
+        // lives there. The site_id arm makes a scheduled, unassigned request appear on its site's
+        // calendar.
         var requests = await db.QueryListAsync($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
@@ -211,7 +212,6 @@ public class RequestRepository : IRequestRepository
                 p.AddWithValue("siteId", siteId);
                 p.AddWithValue("from", from);
                 p.AddWithValue("to", to);
-                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
             },
             RequestMapper.MapFromReader,
@@ -267,8 +267,9 @@ public class RequestRepository : IRequestRepository
 
         // Leaf requests that carry a start_ts but are NOT fully scheduled — the exact complement of
         // GetUnscheduledAsync (start_ts IS NULL) among leaves. "Not fully scheduled" mirrors
-        // RequestInfo.IsScheduled = start_ts && end_ts && a non-cancelled Space assignment, so a timed
-        // leaf missing its end_ts OR its Space assignment qualifies. These stay auto-schedulable and
+        // RequestInfo.IsScheduled = start_ts && end_ts && every targeted resource type carrying a
+        // non-cancelled assignment, so a timed leaf missing its end_ts OR one of those assignments
+        // qualifies. These stay auto-schedulable and
         // would otherwise be invisible to the solver (they are excluded from both the unscheduled
         // backlog and the fixed-occupancy fetch, which filters IsScheduled).
         var requests = await db.QueryListAsync(
@@ -281,7 +282,6 @@ public class RequestRepository : IRequestRepository
                ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
             p =>
             {
-                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
             },
             RequestMapper.MapFromReader,

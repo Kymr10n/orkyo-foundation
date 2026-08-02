@@ -4,8 +4,8 @@ namespace Api.Repositories;
 
 /// <summary>
 /// Persistence layer for spaces — physical areas within a site (rooms, desks, zones).
-/// A space is stored as a join between the <c>resources</c> table (name, type) and
-/// the <c>spaces</c> table (geometry, site assignment, capacity).
+/// A space is a row in the <c>resources</c> table of type <c>space</c>; its placement
+/// (site, geometry, capacity) lives in that same row.
 /// </summary>
 public interface ISpaceRepository
 {

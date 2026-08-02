@@ -40,11 +40,6 @@ public class RequestTargetSeedingTests
         await using var tx = await conn.BeginTransactionAsync();
         var faker = new Faker { Random = new Randomizer(1337) };
 
-        // The point of the tools assertions below: whatever the default is, that is what the demo
-        // gets — no test-only opt-in. Flipping Tools back off must fail this test.
-        var includeTools = SeedResourceTypes.Default.HasFlag(SeedResourceTypes.Tools);
-        includeTools.Should().BeTrue("tools are part of the default seed");
-
         var spaceTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='space' LIMIT 1");
         var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
@@ -74,11 +69,11 @@ public class RequestTargetSeedingTests
 
         var facilities = FacilityModel.All;
         var tools = await ToolFactory.SeedAsync(conn, facilities, fp.Sites);
-        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn, includeTools);
+        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
         var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools);
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
         var cal = new YearCalendar(DateTime.UtcNow);
-        await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker, includeTools);
+        await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
         var year = await NarrativeYearSeeder.SeedAsync(
             conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker);
 

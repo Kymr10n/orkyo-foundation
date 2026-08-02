@@ -17,14 +17,11 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// </summary>
 public static class CapabilityFactory
 {
-    public static async Task<IReadOnlyDictionary<string, Guid>> SeedSkillCriteriaAsync(
-        NpgsqlConnection conn, bool includeTools)
+    public static async Task<IReadOnlyDictionary<string, Guid>> SeedSkillCriteriaAsync(NpgsqlConnection conn)
     {
         var now = DateTime.UtcNow;
         var map = new Dictionary<string, Guid>();
-        var skills = includeTools
-            ? SkillCatalog.All
-            : SkillCatalog.All.Where(s => s.Kind != SkillKind.ToolSpec).ToList();
+        var skills = SkillCatalog.All;
 
         using (var writer = await conn.BeginBinaryImportAsync(
             "COPY public.criteria (id, name, data_type, description, unit, enum_values, created_at, updated_at) FROM STDIN (FORMAT BINARY)"))
@@ -53,7 +50,7 @@ public static class CapabilityFactory
             "COPY public.criterion_resource_types (criterion_id, resource_type_id) FROM STDIN (FORMAT BINARY)"))
         {
             foreach (var s in skills)
-                foreach (var key in TypesFor(s.Key, includeTools))
+                foreach (var key in TypesFor(s.Key))
                 {
                     if (!typeIds.TryGetValue(key, out var rtId)) continue;
                     await writer.StartRowAsync();
@@ -145,9 +142,9 @@ public static class CapabilityFactory
         };
     }
 
-    private static string[] TypesFor(string key, bool includeTools) => key switch
+    private static string[] TypesFor(string key) => key switch
     {
-        SkillCatalog.CncOperation => includeTools ? ["person", "tool"] : ["person"],
+        SkillCatalog.CncOperation => ["person", "tool"],
         SkillCatalog.CleanRoom or SkillCatalog.Ventilated => ["space"],
         SkillCatalog.MaxLoadTons => ["tool", "space"],
         _ => ["person"],

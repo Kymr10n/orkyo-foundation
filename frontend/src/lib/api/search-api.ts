@@ -44,7 +44,7 @@ interface SearchParams {
 }
 
 /**
- * Search across all entities (spaces, requests, groups, sites, templates, criteria)
+ * Search across all entities (resources, requests, groups, sites, templates, criteria)
  */
 export async function globalSearch(params: SearchParams): Promise<SearchResponse> {
   const queryParams: Record<string, string> = {

@@ -6,8 +6,8 @@ using Api.Security.Quotas;
 namespace Api.Services;
 
 /// <summary>
-/// Service layer for spaces. Creates the underlying resource record (type=space)
-/// alongside the space record in a single transaction; enforces space quotas.
+/// Service layer for spaces. Creates the underlying resource record (type=space) and then
+/// fills in its placement columns; enforces space quotas.
 /// </summary>
 public interface ISpaceService
 {
@@ -22,7 +22,7 @@ public interface ISpaceService
     /// <summary>Updates a space. Returns <c>null</c> if not found. Group membership is managed
     /// separately via the resource-group members editor, not here.</summary>
     Task<SpaceInfo?> UpdateAsync(Guid siteId, Guid resourceId, string? name, string? code, string? description, SpaceGeometry? geometry, Dictionary<string, object>? properties, int? capacity = null, CancellationToken ct = default);
-    /// <summary>Deletes a space and its underlying resource record. Returns <c>false</c> if not found.</summary>
+    /// <summary>Deactivates a space's resource record. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);
 }
 
