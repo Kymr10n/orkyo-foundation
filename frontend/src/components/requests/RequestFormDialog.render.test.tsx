@@ -617,6 +617,28 @@ describe("RequestFormDialog", () => {
     );
   });
 
+  it("says why a picker is empty instead of offering an empty list", async () => {
+    // A dropdown holding only "none" reads as "I chose none", not "there are none". A
+    // tenant-defined type starts with zero resources, so this is the common first experience.
+    apiMocks.getResourceTypes.mockResolvedValue([
+      { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
+    ]);
+    apiMocks.getResources.mockResolvedValue({ data: [] });
+    renderDialog({
+      request: {
+        ...EXISTING,
+        assignments: [],
+        siteId: undefined,
+        targetResourceTypeKeys: ["tool"],
+      } as Request,
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
+
+    expect(await screen.findByText(/No active tool yet/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Tool" })).toBeDisabled();
+  });
+
   it("toggles scheduling settings and changes the duration unit", async () => {
     renderDialog();
     await userEvent.click(screen.getByRole("tab", { name: "Timing" }));

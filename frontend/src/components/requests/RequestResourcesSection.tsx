@@ -51,10 +51,17 @@ function ResourceTypePicker({
   readOnly: boolean;
 }) {
   const Icon = resourceTypeIcon(type.icon);
-  const { data: resources } = useQuery({
+  const { data: resources, isPending } = useQuery({
     queryKey: [...qk.resources.byType(type.key), { siteId: siteId || null }],
     queryFn: () => getResources({ resourceTypeKey: type.key, isActive: true, siteId: siteId || undefined }),
   });
+
+  const options = resources?.data ?? [];
+  // A dropdown holding only "none" is indistinguishable from one where the user chose none.
+  // Say why it is empty instead — and because the query is site-scoped, "none here" and "none
+  // at all" are different problems with different fixes.
+  const isEmpty = !isPending && options.length === 0;
+  const label = type.displayName.toLowerCase();
 
   return (
     <div>
@@ -67,7 +74,7 @@ function ResourceTypePicker({
         <Select
           value={selectedResourceId || RESOURCE_NONE_PLACEHOLDER}
           onValueChange={(value) => onSelect(value === RESOURCE_NONE_PLACEHOLDER ? "" : value)}
-          disabled={readOnly}
+          disabled={readOnly || isEmpty}
         >
           <SelectTrigger id={`resource-${type.key}`} aria-label={type.displayName}>
             <SelectValue placeholder={`No ${type.displayName.toLowerCase()} assigned (unscheduled)`} />
@@ -76,13 +83,20 @@ function ResourceTypePicker({
             <SelectItem value={RESOURCE_NONE_PLACEHOLDER}>
               <span className="text-muted-foreground">No {type.displayName.toLowerCase()} (unscheduled)</span>
             </SelectItem>
-            {(resources?.data ?? []).map((resource) => (
+            {options.map((resource) => (
               <SelectItem key={resource.id} value={resource.id}>
                 {resource.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {isEmpty && (
+          <p className="text-sm text-muted-foreground">
+            {siteId
+              ? `No active ${label} at this site. Add one, or move an existing ${label} here.`
+              : `No active ${label} yet. Add one before this request can be scheduled.`}
+          </p>
+        )}
       </div>
     </div>
   );
