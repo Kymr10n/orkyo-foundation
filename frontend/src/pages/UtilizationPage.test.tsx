@@ -279,18 +279,6 @@ vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
   useResourceTypes: (...args: unknown[]) => mockResourceTypes(...(args as [])),
 }));
 
-vi.mock("@foundation/src/components/utilization/AutoScheduleTypeSelect", () => ({
-  AutoScheduleTypeSelect: ({ value, onChange, disabled }: any) => (
-    <button
-      data-testid="auto-schedule-type"
-      data-value={value}
-      disabled={disabled}
-      onClick={() => onChange("tool")}
-    >
-      {value}
-    </button>
-  ),
-}));
 
 vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () => ({
   AutoSchedulePreviewDialog: ({ open, onApply, onClose, applyError }: any) => open ? (
@@ -657,13 +645,12 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("threads the chosen resource type into preview and apply", async () => {
+  it("solves for the tab's own type, in preview and apply alike", async () => {
+    // The tab names the type, so there is nothing to choose and nothing to keep in step:
+    // preview and apply cannot disagree about which type was solved for.
     mockUseAutoScheduleAvailable.mockReturnValue(true);
-    const Wrapper = createWrapper();
+    const Wrapper = createWrapper("tool");
     render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(screen.getByTestId("auto-schedule-type")).toHaveAttribute("data-value", "space");
-    fireEvent.click(screen.getByTestId("auto-schedule-type"));
 
     fireEvent.click(screen.getByTestId("auto-schedule-btn"));
     await waitFor(() => {
@@ -672,8 +659,6 @@ describe("UtilizationPage", () => {
       );
     });
 
-    // Apply must replay the preview's type, so the selector is locked while it is open.
-    expect(screen.getByTestId("auto-schedule-type")).toBeDisabled();
     fireEvent.click(screen.getByTestId("apply-schedule"));
     await waitFor(() => {
       expect(mockApplyMutateAsync).toHaveBeenCalledWith(
@@ -1325,14 +1310,16 @@ describe("navigateTime", () => {
     expect(screen.getByRole("tab", { name: "Calendar" })).toHaveAttribute("data-state", "active");
   });
 
-  it("seeds the auto-schedule type from the active tab", async () => {
-    const Wrapper = createWrapper("tool");
+  it("corrects the URL when it names a tab that no longer exists", async () => {
+    // Rendering Calendar while ?tab= still says "vanished-type" leaves reload and the back
+    // button disagreeing with the screen.
+    const Wrapper = createWrapper("vanished-type");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // Proposing spaces while looking at Tools would be a silent mismatch.
     await waitFor(() =>
-      expect(screen.getByTestId("auto-schedule-type")).toHaveAttribute("data-value", "tool"),
+      expect(screen.getByRole("tab", { name: "Calendar" })).toHaveAttribute("data-state", "active"),
     );
+    await waitFor(() => expect(window.location.search).not.toContain("vanished-type"));
   });
 
   it("offers auto-schedule on type tabs but not on Calendar", async () => {

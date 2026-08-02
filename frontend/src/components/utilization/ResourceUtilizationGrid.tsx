@@ -246,7 +246,15 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   }, [allAssignmentsFlat.length]);
 
   const { data: conflictedAssignmentIds = EMPTY_SET } = useQuery({
-    queryKey: qk.utilization.capabilityConflicts(allAssignmentsFlat.map((a) => a.id)),
+    // Keyed off the query that produced the assignments plus their count, not the id list
+    // itself: React Query hashes the key on every render, and stringifying a thousand uuids
+    // per keystroke into the search box is real main-thread time. The ids are a pure function
+    // of that query's result, so this identifies the same set.
+    queryKey: [
+      ...qk.utilization.assignmentsByType(typeKey, from, to),
+      'capability-conflicts',
+      allAssignmentsFlat.length,
+    ],
     queryFn: async (): Promise<Set<string>> => {
       const items: ValidateResourceAssignmentRequest[] = allAssignmentsFlat.map((a) => ({
         requestId: a.requestId,

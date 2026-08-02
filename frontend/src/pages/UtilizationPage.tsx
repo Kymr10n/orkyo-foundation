@@ -20,7 +20,6 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
-import { AutoScheduleTypeSelect } from "@foundation/src/components/utilization/AutoScheduleTypeSelect";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { ResourceUtilizationGrid } from "@foundation/src/components/utilization/ResourceUtilizationGrid";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
@@ -150,16 +149,30 @@ export function UtilizationPage() {
   // key, so the valid set is only known once the types load; judge the URL after that rather
   // than falling back early and flashing Calendar over a valid deep link.
   const [rawTab, handleTabChange] = useTabParam('calendar');
-  const activeTab = useMemo(() => {
-    if (rawTab === 'calendar' || rawTab === RESOURCE_TYPE_KEY.SPACE) return rawTab;
-    if (!resourceTypesLoaded) return rawTab;
-    return gridTypes.some((t) => t.key === rawTab) ? rawTab : 'calendar';
-  }, [rawTab, resourceTypesLoaded, gridTypes]);
+  const isKnownTab =
+    rawTab === 'calendar'
+    || rawTab === RESOURCE_TYPE_KEY.SPACE
+    || gridTypes.some((t) => t.key === rawTab);
+  // Until the types load the valid set is unknown, so an unrecognised value is held rather
+  // than replaced — otherwise a deep link to a real type tab flashes Calendar first.
+  const activeTab = !resourceTypesLoaded || isKnownTab ? rawTab : 'calendar';
+
+  // Correct the URL too. Rendering Calendar while ?tab= still names a type the tenant has
+  // since deactivated leaves reload and the back button disagreeing with the screen.
+  useEffect(() => {
+    if (resourceTypesLoaded && !isKnownTab) handleTabChange('calendar');
+  }, [resourceTypesLoaded, isKnownTab, handleTabChange]);
 
   const isCalendarTab = activeTab === 'calendar';
   const isSchedulerTab = activeTab === RESOURCE_TYPE_KEY.SPACE;
   /** Any derived per-type grid tab (person, tool, tenant-defined). */
   const isTypeGridTab = !isCalendarTab && !isSchedulerTab;
+
+  // Auto-schedule solves for the type whose tab you are on — the tab already names it, so a
+  // separate selector could only ever disagree with what is on screen, and keeping the two in
+  // step needed an effect and a lock while a preview was open. Calendar has no type of its
+  // own, so the controls do not appear there.
+  const autoScheduleTypeKey = isCalendarTab ? DEFAULT_TARGET_RESOURCE_TYPE_KEYS[0] : activeTab;
 
   // Floorplan height state
   const [floorplanHeight, setFloorplanHeight] = useState(280);
@@ -179,17 +192,8 @@ export function UtilizationPage() {
   const previewMutation = usePreviewAutoSchedule();
   const applyMutation = useApplyAutoSchedule();
   const [autoSchedulePreview, setAutoSchedulePreview] = useState<AutoSchedulePreviewResponse | null>(null);
-  const [autoScheduleTypeKey, setAutoScheduleTypeKey] = useState<string>(DEFAULT_TARGET_RESOURCE_TYPE_KEYS[0]);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
-
-  // Auto-schedule follows the tab you are looking at: on Tools, propose tools. The select still
-  // allows overriding it. Never while a preview is open — apply replays this key, so changing it
-  // mid-preview would apply a solution for a different type than the one shown.
-  useEffect(() => {
-    if (isCalendarTab || isPreviewDialogOpen) return;
-    setAutoScheduleTypeKey(activeTab);
-  }, [activeTab, isCalendarTab, isPreviewDialogOpen]);
 
 
   // Fetch data from API — scoped to the selected site + a buffered window for the grid bars, plus
@@ -654,12 +658,6 @@ export function UtilizationPage() {
     <>
       {autoScheduleAvailable && canEdit && !isCalendarTab && (
         <>
-          {/* Locked while a preview is open: apply must replay the type the preview solved for. */}
-          <AutoScheduleTypeSelect
-            value={autoScheduleTypeKey}
-            onChange={setAutoScheduleTypeKey}
-            disabled={!selectedSiteId || isPreviewDialogOpen}
-          />
           <AutoScheduleButton
             onClick={handleAutoScheduleClick}
             loading={previewMutation.isPending}

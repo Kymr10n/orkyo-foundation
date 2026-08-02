@@ -22,7 +22,8 @@ const TABS: PageTab[] = [
  */
 export function ResourcesPage() {
   const { typeKey } = useParams<{ typeKey: string }>();
-  const { data: types = [], isLoading } = useResourceTypes();
+  // isActive: true matches every other caller, so they share one cache entry.
+  const { data: types = [], isLoading } = useResourceTypes(true);
   const navigate = useNavigate();
   // The tab sits one segment deeper here than on the fixed pages: /resources/<key>/<tab>.
   const active = useActiveTab('list', 3);

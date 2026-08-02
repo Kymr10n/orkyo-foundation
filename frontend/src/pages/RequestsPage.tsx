@@ -364,7 +364,12 @@ export function RequestsPage() {
     handleNavigateToRequest(id);
   }, [requests, handleNavigateToRequest]);
 
-  // Build conflict count map for tree view (own + descendant conflicts)
+  // Build conflict count map for tree view (own + descendant conflicts).
+  //
+  // Deliberately unwindowed: the tree lists every request, so a windowed registry would leave
+  // rows outside the window silently unbadged — a wrong answer rather than a cheaper one. It
+  // is the most expensive query on the page; if it ever needs to shrink, the fix is to page
+  // the tree first so the window and the visible rows agree.
   const { conflictsByRequest: storeConflicts } = useConflictRegistry();
 
   const handleOpenConflicts = useCallback(
