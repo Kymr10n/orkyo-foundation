@@ -326,6 +326,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISpaceService, SpaceService>();
         // SpaceService now needs resource repos for Phase 2 coordination (already registered above)
         builder.Services.AddScoped<ICriteriaService, CriteriaService>();
+        builder.Services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();
         builder.Services.AddScoped<IAutoScheduleService, AutoScheduleService>();

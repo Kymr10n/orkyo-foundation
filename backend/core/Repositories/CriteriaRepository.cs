@@ -25,7 +25,7 @@ public class CriteriaRepository : ICriteriaRepository
     // aggregate sub-selects can correlate. `resource_type_keys` is a text[]; `in_use`
     // is a boolean computed from value references across five tables.
     private static readonly string SelectColumns =
-        "c.id, c.name, c.description, c.data_type, c.enum_values, c.unit, " +
+        "c.id, c.name, c.description, c.data_type, c.enum_values, c.unit, c.validation_json, " +
         "c.applicable_to_requests, c.created_at, c.updated_at, " +
         "COALESCE(" +
         "  (SELECT ARRAY_AGG(rt.key ORDER BY rt.key) " +
@@ -100,6 +100,7 @@ public class CriteriaRepository : ICriteriaRepository
         CriterionDataType dataType,
         List<string>? enumValues,
         string? unit,
+        JsonElement? validation,
         IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default)
     {
         if (resourceTypeKeys is null || resourceTypeKeys.Count == 0)
@@ -113,8 +114,8 @@ public class CriteriaRepository : ICriteriaRepository
         {
             // Insert criterion row.
             var insertCriterion = new NpgsqlCommand(
-                @"INSERT INTO criteria (name, description, data_type, enum_values, unit)
-                  VALUES (@name, @description, @data_type, @enum_values::jsonb, @unit)
+                @"INSERT INTO criteria (name, description, data_type, enum_values, unit, validation_json)
+                  VALUES (@name, @description, @data_type, @enum_values::jsonb, @unit, @validation::jsonb)
                   ON CONFLICT ((LOWER(name))) DO NOTHING
                   RETURNING id",
                 db, tx);
@@ -124,6 +125,8 @@ public class CriteriaRepository : ICriteriaRepository
             insertCriterion.Parameters.AddWithValue("enum_values",
                 enumValues != null ? JsonSerializer.Serialize(enumValues) : DBNull.Value);
             insertCriterion.Parameters.AddWithValue("unit", (object?)unit ?? DBNull.Value);
+            insertCriterion.Parameters.AddWithValue("validation",
+                validation is { ValueKind: not JsonValueKind.Null } v ? v.GetRawText() : DBNull.Value);
 
             var idObj = await insertCriterion.ExecuteScalarAsync(ct);
             if (idObj is null)
@@ -180,7 +183,7 @@ public class CriteriaRepository : ICriteriaRepository
         }
     }
 
-    public async Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default)
+    public async Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, JsonElement? validation, CriterionDataType? dataType, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
@@ -250,6 +253,14 @@ public class CriteriaRepository : ICriteriaRepository
         {
             updateFields.Add("unit = @unit");
             cmd.Parameters.AddWithValue("unit", unit);
+        }
+
+        if (validation is { } val)
+        {
+            // An explicit JSON null clears the constraints; anything else replaces them wholesale.
+            updateFields.Add("validation_json = @validation::jsonb");
+            cmd.Parameters.AddWithValue("validation",
+                val.ValueKind == JsonValueKind.Null ? DBNull.Value : val.GetRawText());
         }
 
         if (updateFields.Count == 0)

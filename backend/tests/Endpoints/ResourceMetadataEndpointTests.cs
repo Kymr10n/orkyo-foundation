@@ -224,6 +224,97 @@ public class ResourceMetadataEndpointTests
     }
 
     [Fact]
+    public async Task Capability_RejectsValueOfTheWrongType()
+    {
+        // The convergence point: criteria now type-check their values, which is what made the
+        // parallel resource_type_fields system redundant. Before this a Number criterion stored
+        // "banana" happily, and the mismatch surfaced later as a silent non-match in the solver.
+        var type = await CreateCarTypeAsync();
+        var criterion = await CreateCriterionAsync(type.Key, "Number", validation: "{\"min\":0,\"max\":100}");
+        var resourceId = await CreateCarIdAsync(type.Key, "Wrong-type car");
+
+        var response = await _client.PostAsJsonAsync($"/api/resources/{resourceId}/capabilities", new
+        {
+            criterionId = criterion,
+            value = "banana",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Capability_RejectsValueOutsideItsCriterionRange()
+    {
+        var type = await CreateCarTypeAsync();
+        var criterion = await CreateCriterionAsync(type.Key, "Number", validation: "{\"min\":0,\"max\":100}");
+        var resourceId = await CreateCarIdAsync(type.Key, "Out-of-range car");
+
+        var response = await _client.PostAsJsonAsync($"/api/resources/{resourceId}/capabilities", new
+        {
+            criterionId = criterion,
+            value = 500,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Capability_AcceptsDateValue()
+    {
+        // Date was the one data type the field system had and criteria lacked — the reason
+        // criteria could not simply absorb fields until now.
+        var type = await CreateCarTypeAsync();
+        var criterion = await CreateCriterionAsync(type.Key, "Date");
+        var resourceId = await CreateCarIdAsync(type.Key, "Dated car");
+
+        var response = await _client.PostAsJsonAsync($"/api/resources/{resourceId}/capabilities", new
+        {
+            criterionId = criterion,
+            value = "2026-08-02",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Capability_RejectsMalformedDate()
+    {
+        var type = await CreateCarTypeAsync();
+        var criterion = await CreateCriterionAsync(type.Key, "Date");
+        var resourceId = await CreateCarIdAsync(type.Key, "Bad-date car");
+
+        var response = await _client.PostAsJsonAsync($"/api/resources/{resourceId}/capabilities", new
+        {
+            criterionId = criterion,
+            value = "02-08-2026",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private async Task<Guid> CreateCriterionAsync(string typeKey, string dataType, string? validation = null)
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["name"] = $"c_{Guid.NewGuid():N}"[..20],
+            ["dataType"] = dataType,
+            ["resourceTypeKeys"] = new[] { typeKey },
+        };
+        if (validation is not null) body["validation"] = Json(validation);
+
+        var created = await _client.PostAsJsonAsync("/api/criteria", body);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        return (await created.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+    }
+
+    private async Task<Guid> CreateCarIdAsync(string typeKey, string name)
+    {
+        var created = await CreateCarAsync(typeKey, name, new { mileage = 1000 });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        return (await created.Content.ReadFromJsonAsync<ResourceInfo>())!.Id;
+    }
+
+    [Fact]
     public async Task Criteria_StillRejectUnknownResourceTypeKey()
     {
         var response = await _client.GetAsync("/api/criteria?resourceType=definitely_not_a_type");

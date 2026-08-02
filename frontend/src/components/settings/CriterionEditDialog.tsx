@@ -199,6 +199,7 @@ export function CriterionEditDialog({
               <SelectItem value="Number">Number (numeric value)</SelectItem>
               <SelectItem value="String">String (text)</SelectItem>
               <SelectItem value="Enum">Enum (predefined options)</SelectItem>
+              <SelectItem value="Date">Date (calendar date)</SelectItem>
             </SelectContent>
           </Select>
         )}
