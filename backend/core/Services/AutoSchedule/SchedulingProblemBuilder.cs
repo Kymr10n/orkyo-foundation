@@ -7,20 +7,20 @@ namespace Api.Services.AutoSchedule;
 public class SchedulingProblemBuilder
 {
     private readonly IRequestRepository _requestRepository;
-    private readonly ISpaceRepository _spaceRepository;
+    private readonly IResourceRepository _resourceRepository;
     private readonly IResourceCapabilityRepository _capabilityRepository;
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IAvailabilityResolver _resolver;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
-        ISpaceRepository spaceRepository,
+        IResourceRepository resourceRepository,
         IResourceCapabilityRepository capabilityRepository,
         ISchedulingRepository schedulingRepository,
         IAvailabilityResolver resolver)
     {
         _requestRepository = requestRepository;
-        _spaceRepository = spaceRepository;
+        _resourceRepository = resourceRepository;
         _capabilityRepository = capabilityRepository;
         _schedulingRepository = schedulingRepository;
         _resolver = resolver;
@@ -37,18 +37,27 @@ public class SchedulingProblemBuilder
         // GetAllAsync (which pulled every request, groups and finished ones included):
         //   • GetUnscheduledAsync — leaves with start_ts IS NULL (the drag-to-schedule backlog).
         //   • GetPartiallyScheduledLeavesAsync — leaves WITH a start_ts but still !IsScheduled
-        //     (no end_ts, or no Space assignment). These timed-but-spaceless leaves are excluded
-        //     from both the unscheduled backlog and the fixed-occupancy fetch, so without this
-        //     second set they'd be invisible to the solver despite being auto-schedulable before.
+        //     (no end_ts, or a target type with no assignment). These are excluded from both the
+        //     unscheduled backlog and the fixed-occupancy fetch, so without this second set
+        //     they'd be invisible to the solver despite being auto-schedulable before.
         var unscheduled = await _requestRepository.GetUnscheduledAsync(
             includeRequirements: true, ct: cancellationToken);
         var partiallyScheduled = await _requestRepository.GetPartiallyScheduledLeavesAsync(
             includeRequirements: true, ct: cancellationToken);
 
+        // One run solves one resource type: the pool is a single type, and the solver's
+        // no-overlap-per-node model has nothing to say about matching a room to a van. A request
+        // needing both is scheduled by two runs, one per type, each filling its own slot.
+        var targetTypeKey = request.ResourceTypeKey ?? ResourceTypeKeys.Space;
+
         var eligibleRequests = unscheduled
             .Concat(partiallyScheduled)
             .Where(r => r.Status is RequestStatus.New or RequestStatus.InProgress)
-            .Where(r => r.MinimalDurationValue > 0);
+            .Where(r => r.MinimalDurationValue > 0)
+            // Only requests that want this type and have not already got one. Without the second
+            // test a request whose room is already booked would be offered another one.
+            .Where(r => r.TargetResourceTypeKeys.Contains(targetTypeKey))
+            .Where(r => r.GetResourceIdForType(targetTypeKey) is null);
 
         if (request.RequestIds is { Count: > 0 })
         {
@@ -56,18 +65,25 @@ public class SchedulingProblemBuilder
             eligibleRequests = eligibleRequests.Where(r => requestIdSet.Contains(r.Id));
         }
 
-        var spaces = await _spaceRepository.GetAllAsync(request.SiteId, cancellationToken);
+        var candidates = await _resourceRepository.GetAllAsync(
+            new ResourceListFilter
+            {
+                ResourceTypeKey = targetTypeKey,
+                SiteId = request.SiteId,
+                IsActive = true,
+            },
+            cancellationToken);
         var capabilitiesByResource = (await _capabilityRepository.GetByResourcesAsync(
-                spaces.Select(s => s.Id).ToList(), cancellationToken))
+                candidates.Select(c => c.Id).ToList(), cancellationToken))
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => g.Select(c => c.CriterionId).ToHashSet());
-        var resourceNodes = spaces
-            .Select(s => new ResourceNode(s.Id, s.Name, capabilitiesByResource.GetValueOrDefault(s.Id) ?? []))
+        var resourceNodes = candidates
+            .Select(c => new ResourceNode(c.Id, c.Name, capabilitiesByResource.GetValueOrDefault(c.Id) ?? []))
             .ToList();
 
-        var spaceResourceIds = resourceNodes.Select(s => s.ResourceId).ToList();
+        var candidateIds = resourceNodes.Select(n => n.ResourceId).ToList();
         var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(
-            request.SiteId, spaceResourceIds, cancellationToken);
+            request.SiteId, candidateIds, cancellationToken);
 
         var requestNodes = new List<RequestNode>();
         foreach (var r in eligibleRequests)
@@ -86,23 +102,28 @@ public class SchedulingProblemBuilder
                 r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>()));
         }
 
-        // Fixed occupancies: scheduled requests in this site whose bar can touch the horizon.
-        // The solvers only consult occupancies on this site's spaces within the horizon, so the
+        // Fixed occupancies: requests in this site whose bar can touch the horizon. The solvers
+        // only consult occupancies on the candidate resources within the horizon, so the
         // site+window fetch is solver-equivalent to the previous tenant-wide scan. The upper bound
         // is exclusive-day so an assignment starting late on the last horizon day is still seen.
-        // No scheduling_settings_apply filter — manually scheduled requests occupy spaces too.
+        // No scheduling_settings_apply filter — manually scheduled requests occupy resources too.
         var scheduled = await _requestRepository.GetScheduledBySiteWindowAsync(
             request.SiteId,
             request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
             request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
             cancellationToken);
+        // Holding a resource of this type is what occupies it — not being fully scheduled. A
+        // request still waiting on its technician has its room booked all the same, and offering
+        // that room to someone else would double-book it.
         var fixedAssignments = scheduled
-            .Where(r => r.IsScheduled)
-            .Select(r => new FixedOccupancy(
-                r.Id,
-                r.GetResourceIdForType(ResourceTypeKeys.Space)!.Value,
-                DateOnly.FromDateTime(r.StartTs!.Value),
-                DateOnly.FromDateTime(r.EndTs!.Value)))
+            .Where(r => r.StartTs.HasValue && r.EndTs.HasValue)
+            .Select(r => (Request: r, ResourceId: r.GetResourceIdForType(targetTypeKey)))
+            .Where(x => x.ResourceId.HasValue)
+            .Select(x => new FixedOccupancy(
+                x.Request.Id,
+                x.ResourceId!.Value,
+                DateOnly.FromDateTime(x.Request.StartTs!.Value),
+                DateOnly.FromDateTime(x.Request.EndTs!.Value)))
             .ToList();
 
         return new SchedulingProblem(

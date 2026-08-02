@@ -14,7 +14,13 @@ export const DEFAULT_DURATION_VALUE = 1;
 export const DEFAULT_DURATION_UNIT = "days";
 
 // Form placeholders
-export const SPACE_NONE_PLACEHOLDER = "__none__";
+export const RESOURCE_NONE_PLACEHOLDER = "__none__";
+
+/**
+ * What a request needs when nobody said otherwise. Mirrors the backend's create default —
+ * every request meant "a space" before types could be named.
+ */
+export const DEFAULT_TARGET_RESOURCE_TYPE_KEYS = ["space"] as const;
 
 // Planning mode display config (user-facing names, NOT backend enum values)
 export const PLANNING_MODE_CONFIG: Record<PlanningMode, {

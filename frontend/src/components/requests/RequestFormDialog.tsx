@@ -11,7 +11,8 @@ import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
-import { createRequest, getRequestChildren, moveRequest } from "@foundation/src/lib/api/request-api";
+import { createRequest, getRequestChildren, moveRequest, updateRequest } from "@foundation/src/lib/api/request-api";
+import { getAssignmentOfType } from "@foundation/src/domain/scheduling/request-assignments";
 import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
@@ -37,18 +38,15 @@ import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Conflict, DurationUnit, PlanningMode, Request, RequestFormData } from "@foundation/src/types/requests";
 import { ConflictBanner, conflictDotClass } from "./ConflictIndicator";
 import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator";
-import type { Space } from "@foundation/src/types/space";
 import { AlertTriangle, ChevronRight, FileText, Layers } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { useSpaces } from "@foundation/src/hooks/useSpaces";
 
 const EMPTY_CRITERIA: Criterion[] = [];
 const EMPTY_TEMPLATES: Template[] = [];
-const EMPTY_SPACES: Space[] = [];
 
 type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources' | 'children';
 
@@ -177,9 +175,6 @@ export function RequestFormDialog({
     }
     return map;
   }, [conflicts]);
-  const spaceConflicts = state.selectedResourceId
-    ? conflictsByResourceId.get(state.selectedResourceId) ?? []
-    : [];
   // Tab dot colour reflects the worst severity of conflicts owned by that tab
   // (error → red, warning-only → amber), matching the per-row indicators.
   const resourceConflictDot = conflictDotClass(conflicts.filter((c) => c.resourceId));
@@ -197,9 +192,7 @@ export function RequestFormDialog({
     queryFn: () => getTemplates('request'),
     enabled: open,
   });
-  const { data: availableSpaces = EMPTY_SPACES, isLoading: spacesLoading } =
-    useSpaces(open ? selectedSiteId : null);
-  const isLoading = criteriaLoading || templatesLoading || spacesLoading;
+  const isLoading = criteriaLoading || templatesLoading;
 
   // Additional state not managed by the form hook
   const [isSaving, setIsSaving] = useState(false);
@@ -297,6 +290,35 @@ export function RequestFormDialog({
   const isGroup = !isLeaf;
   const hasEditableSchedule = isLeaf;
   const hasEditableConstraints = isLeaf || isContainer;
+
+  // The save payload can carry one resource, so the first targeted type rides along with it
+  // and the rest follow as their own writes.
+  const primaryTargetTypeKey: string | undefined = state.targetResourceTypeKeys[0];
+
+  /**
+   * Persists the picks for every targeted type after the first. Each is its own update
+   * because the backend routes a single resourceId to that resource's own type; a pick that
+   * already matches the stored assignment is skipped so unrelated edits don't re-assert it.
+   * Failures are surfaced per type — the saved request and whatever landed are kept.
+   */
+  const applyRemainingResourcePicks = async (saved: Request | null) => {
+    if (!saved) return;
+    let touched = false;
+    for (const key of state.targetResourceTypeKeys.slice(1)) {
+      const resourceId = state.selectedResourceIds[key];
+      if (!resourceId || resourceId === getAssignmentOfType(saved, key)?.resourceId) continue;
+      try {
+        await updateRequest(saved.id, { resourceId });
+        touched = true;
+      } catch (error) {
+        logger.error("Failed to assign resource:", error);
+        toast.error(`Failed to assign the ${key} for this request`, {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
+    }
+    if (touched) invalidateRequestData(queryClient);
+  };
 
   // Tree-derived surfaces — only available when the caller passes the full tree.
   // Breadcrumb (ancestors), direct children (Children tab), and the group
@@ -618,7 +640,11 @@ export function RequestFormDialog({
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
       siteId: state.siteId || null,
-      resourceId: isLeaf ? (state.selectedResourceId || undefined) : undefined,
+      // The payload carries a single resourceId, which the backend routes to that resource's
+      // own type. The first targeted type travels with the save; the rest are applied right
+      // after it (applyRemainingResourcePicks).
+      resourceId: isLeaf ? (state.selectedResourceIds[primaryTargetTypeKey ?? ''] || undefined) : undefined,
+      targetResourceTypeKeys: state.targetResourceTypeKeys,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
       earliestStartTs: hasEditableConstraints ? earliestStartTs : undefined,
@@ -640,6 +666,8 @@ export function RequestFormDialog({
     setIsSaving(true);
     try {
       const saved = await onSave(formData);
+      const savedRequest = saved && typeof saved === 'object' ? saved : null;
+      if (isLeaf) await applyRemainingResourcePicks(savedRequest ?? request ?? null);
       // Create mode, group: create the queued new children and reparent the
       // queued existing requests under the new group. Failures are surfaced per
       // item via toast — the group and whatever succeeded so far are kept; the
@@ -1102,10 +1130,9 @@ export function RequestFormDialog({
                   activeTab={activeTab}
                   state={state}
                   setField={setField}
-                  spaceConflicts={spaceConflicts}
-                  availableSpaces={availableSpaces}
                   readOnly={readOnly}
                   requestId={request?.id}
+                  siteId={state.siteId}
                   hasEditableSchedule={hasEditableSchedule}
                   onBlockersChange={setHasPeopleBlockers}
                   conflictsByResourceId={conflictsByResourceId}

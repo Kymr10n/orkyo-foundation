@@ -25,13 +25,15 @@ public static class ResourceEndpoints
             IResourceService service,
             string? resourceTypeKey,
             bool? isActive,
-            string? search) =>
+            string? search,
+            Guid? siteId) =>
         {
             var items = await service.GetAllAsync(new ResourceListFilter
             {
                 ResourceTypeKey = resourceTypeKey,
                 IsActive = isActive,
                 Search = search,
+                SiteId = siteId,
             });
             return Results.Ok(new { data = items, total = items.Count, page = 1, pageSize = items.Count });
         })

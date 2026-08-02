@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Orkyo.Migrations.Abstractions;
 
 namespace Orkyo.Migrator;
@@ -18,7 +19,7 @@ namespace Orkyo.Migrator;
 /// </list>
 /// Filesystem ordering is never trusted at runtime — the orderer sorts on <c>Id</c>.
 /// </remarks>
-public static class EmbeddedSqlLoader
+public static partial class EmbeddedSqlLoader
 {
     public static IReadOnlyCollection<MigrationScript> LoadFromAssembly(
         Assembly assembly,
@@ -56,11 +57,32 @@ public static class EmbeddedSqlLoader
                 TargetDatabase: target,
                 Sql: normalized,
                 Checksum: checksum,
-                DependsOn: Array.Empty<string>()));
+                DependsOn: Array.Empty<string>(),
+                SupersededChecksums: ParseSupersededChecksums(normalized)));
         }
 
         return scripts;
     }
+
+    // Declared in the file as `-- @supersedes-checksum: <sha>`, one per line, so the record of
+    // which text an edit replaces sits next to the edit and shows up in its diff.
+    //
+    // Read from the normalized SQL, which is also what the checksum is computed over — the
+    // directive is a comment, so it changes the new checksum but is otherwise inert.
+    public static IReadOnlyCollection<string> ParseSupersededChecksums(string sql)
+    {
+        List<string>? found = null;
+        foreach (var line in sql.Split('\n'))
+        {
+            var match = SupersedesDirective().Match(line);
+            if (!match.Success) continue;
+            (found ??= []).Add(match.Groups[1].Value);
+        }
+        return found ?? (IReadOnlyCollection<string>)Array.Empty<string>();
+    }
+
+    [GeneratedRegex(@"^\s*--\s*@supersedes-checksum:\s*([0-9a-fA-F]+)\s*$")]
+    private static partial Regex SupersedesDirective();
 
     private static MigrationTargetDatabase ParseTarget(string relative, string resourceName)
     {

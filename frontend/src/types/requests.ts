@@ -81,6 +81,13 @@ export interface Request {
   // All resource assignments for this request
   assignments: ResourceAssignment[];
 
+  /**
+   * The resource types this request needs, one assignment each. Always sent by the backend
+   * (sorted); optional here only because older fixtures predate it — read it through
+   * `targetResourceTypeKeys()` so the space default is applied in one place.
+   */
+  targetResourceTypeKeys?: string[];
+
   // Display icon (string ID from REQUEST_ICONS, resolved on the FE)
   icon?: string | null;
 
@@ -141,6 +148,8 @@ export interface CreateRequestRequest {
   siteId?: string | null;
   resourceId?: string;
   requestItemId?: string;
+  /** Omit to target spaces. An empty list is a real state: a request needing no resource. */
+  targetResourceTypeKeys?: string[];
   icon?: string | null;
   startTs?: string;
   endTs?: string;
@@ -171,6 +180,8 @@ export interface UpdateRequestRequest {
   changeSiteId?: boolean;
   resourceId?: string;
   requestItemId?: string;
+  /** Omit to leave the targets untouched; a supplied list replaces them wholesale. */
+  targetResourceTypeKeys?: string[];
   icon?: string | null;
   startTs?: string;
   endTs?: string;
@@ -208,6 +219,7 @@ export interface RequestFormData {
   /** Site scope. null/undefined = site-neutral (Any site). */
   siteId?: string | null;
   resourceId?: string;
+  targetResourceTypeKeys: string[];
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;

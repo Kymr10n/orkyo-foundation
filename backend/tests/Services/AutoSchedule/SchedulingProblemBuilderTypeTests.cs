@@ -1,0 +1,156 @@
+using Api.Constants;
+using Api.Models;
+using Api.Repositories;
+using Api.Services;
+using Api.Services.AutoSchedule;
+using AwesomeAssertions;
+using Moq;
+using Xunit;
+
+namespace Orkyo.Foundation.Tests.Services.AutoSchedule;
+
+/// <summary>
+/// One auto-schedule run fills one resource type's slot. Before requests could name a type the
+/// candidate pool came from ISpaceRepository, so the solver could only ever propose rooms; these
+/// cover the selection that replaced it.
+/// </summary>
+public class SchedulingProblemBuilderTypeTests
+{
+    private static readonly Guid SiteId = Guid.NewGuid();
+
+    private static RequestInfo Leaf(string[] targets, ResourceAssignmentInfo[]? assignments = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = "Leaf",
+        PlanningMode = PlanningMode.Leaf,
+        MinimalDurationValue = 1,
+        MinimalDurationUnit = DurationUnit.Days,
+        Status = RequestStatus.New,
+        SchedulingSettingsApply = true,
+        Assignments = assignments ?? [],
+        TargetResourceTypeKeys = targets,
+    };
+
+    private static ResourceInfo Resource(string typeKey, string name) => new()
+    {
+        Id = Guid.NewGuid(),
+        ResourceTypeId = Guid.NewGuid(),
+        ResourceTypeKey = typeKey,
+        Name = name,
+        AllocationMode = AllocationModes.Exclusive,
+        BaseAvailabilityPercent = 100,
+        IsActive = true,
+        CrossSiteAllowed = true,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+    };
+
+    /// <summary>Wires the builder with the given backlog and candidate pool; captures the filter.</summary>
+    private static (SchedulingProblemBuilder Builder, List<ResourceListFilter> Filters) Build(
+        List<RequestInfo> backlog, List<ResourceInfo> candidates)
+    {
+        var filters = new List<ResourceListFilter>();
+
+        var requests = new Mock<IRequestRepository>();
+        requests.Setup(r => r.GetUnscheduledAsync(
+                It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(backlog);
+        requests.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        requests.Setup(r => r.GetScheduledBySiteWindowAsync(
+                It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var resources = new Mock<IResourceRepository>();
+        resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .Callback((ResourceListFilter f, CancellationToken _) => filters.Add(f))
+            .ReturnsAsync(candidates);
+
+        var capabilities = new Mock<IResourceCapabilityRepository>();
+        capabilities.Setup(c => c.GetByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var scheduling = new Mock<ISchedulingRepository>();
+        scheduling.Setup(s => s.GetSettingsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SchedulingSettingsInfo?)null);
+
+        var resolver = new Mock<IAvailabilityResolver>();
+        resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<Guid>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        return (new SchedulingProblemBuilder(
+            requests.Object, resources.Object, capabilities.Object,
+            scheduling.Object, resolver.Object), filters);
+    }
+
+    private static AutoSchedulePreviewRequest Preview(string? typeKey) => new(
+        SiteId,
+        DateOnly.FromDateTime(DateTime.UtcNow),
+        DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+        ResourceTypeKey: typeKey);
+
+    [Fact]
+    public async Task PoolIsScopedToTheRequestedType()
+    {
+        var (builder, filters) = Build([Leaf([ResourceTypeKeys.Space])], [Resource("tool", "Drill")]);
+
+        await builder.BuildAsync(Preview("tool"), CancellationToken.None);
+
+        filters.Should().ContainSingle();
+        filters[0].ResourceTypeKey.Should().Be("tool");
+        filters[0].SiteId.Should().Be(SiteId);
+        // Deactivated resources must not be offered as candidates.
+        filters[0].IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task OmittingTheTypeStillMeansSpaces()
+    {
+        // Every run meant spaces before the type was selectable; existing callers keep working.
+        var (builder, filters) = Build([], []);
+
+        await builder.BuildAsync(Preview(null), CancellationToken.None);
+
+        filters[0].ResourceTypeKey.Should().Be(ResourceTypeKeys.Space);
+    }
+
+    [Fact]
+    public async Task OnlyRequestsWantingTheTypeAreScheduled()
+    {
+        var wantsTool = Leaf([ResourceTypeKeys.Space, "tool"]);
+        var wantsSpaceOnly = Leaf([ResourceTypeKeys.Space]);
+        var (builder, _) = Build([wantsTool, wantsSpaceOnly], [Resource("tool", "Drill")]);
+
+        var problem = await builder.BuildAsync(Preview("tool"), CancellationToken.None);
+
+        problem.Requests.Should().ContainSingle()
+            .Which.RequestId.Should().Be(wantsTool.Id);
+    }
+
+    [Fact]
+    public async Task RequestsThatAlreadyHaveThatTypeAreLeftAlone()
+    {
+        // Without this the solver would offer a second drill to a request already holding one.
+        var alreadyHasTool = Leaf(
+            [ResourceTypeKeys.Space, "tool"],
+            [new ResourceAssignmentInfo
+            {
+                Id = Guid.NewGuid(),
+                RequestId = Guid.NewGuid(),
+                ResourceId = Guid.NewGuid(),
+                ResourceTypeKey = "tool",
+                StartUtc = DateTime.UtcNow,
+                EndUtc = DateTime.UtcNow.AddDays(1),
+                AssignmentStatus = "Active",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            }]);
+        var (builder, _) = Build([alreadyHasTool], [Resource("tool", "Drill")]);
+
+        var problem = await builder.BuildAsync(Preview("tool"), CancellationToken.None);
+
+        problem.Requests.Should().BeEmpty();
+    }
+}

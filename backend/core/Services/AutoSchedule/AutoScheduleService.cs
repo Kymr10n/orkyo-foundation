@@ -75,10 +75,13 @@ public sealed class AutoScheduleService : IAutoScheduleService
         await EnsureAutoScheduleAvailableAsync();
         Validate(request.HorizonStart, request.HorizonEnd);
 
+        // ResourceTypeKey must cross into the rebuilt preview. Drop it and apply would silently
+        // re-solve for spaces, so a preview of van assignments would be applied as room ones —
+        // and the fingerprint would not catch it, being computed from whatever this call solved.
         var preview = await PreviewAsync(
             new AutoSchedulePreviewRequest(
                 request.SiteId, request.HorizonStart, request.HorizonEnd,
-                request.RequestIds, request.RespectSchedulingSettings),
+                request.RequestIds, request.RespectSchedulingSettings, request.ResourceTypeKey),
             cancellationToken);
 
         if (!string.IsNullOrEmpty(request.PreviewFingerprint) &&

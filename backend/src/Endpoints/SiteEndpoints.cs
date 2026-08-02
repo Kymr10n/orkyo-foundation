@@ -86,7 +86,7 @@ public static class SiteEndpoints
             return deleted ? Results.NoContent() : ErrorResponses.NotFound("Site", siteId);
         })
         .WithName("DeleteSite")
-        .WithDescription("Deletes a site and all its associated spaces")
+        .WithDescription("Deletes a site; its resources survive with their home site cleared")
         .Produces(StatusCodes.Status204NoContent)
         .Produces(StatusCodes.Status404NotFound);
     }

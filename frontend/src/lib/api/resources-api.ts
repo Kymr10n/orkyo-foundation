@@ -66,6 +66,8 @@ export interface ResourceListFilter {
   resourceTypeKey?: string;
   isActive?: boolean;
   search?: string;
+  /** Restricts to resources belonging to this site: its home site, or (people/tools) where they are now. */
+  siteId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -78,6 +80,7 @@ export async function getResources(filter?: ResourceListFilter): Promise<Resourc
   if (filter?.resourceTypeKey) params.append('resourceTypeKey', filter.resourceTypeKey);
   if (filter?.isActive !== undefined) params.append('isActive', String(filter.isActive));
   if (filter?.search) params.append('search', filter.search);
+  if (filter?.siteId) params.append('siteId', filter.siteId);
   if (filter?.page) params.append('page', String(filter.page));
   if (filter?.pageSize) params.append('pageSize', String(filter.pageSize));
 

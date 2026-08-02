@@ -19,6 +19,12 @@ export interface AutoSchedulePreviewRequest {
   horizonEnd: string;
   requestIds?: string[];
   respectSchedulingSettings?: boolean;
+  /**
+   * Which of a request's targeted types this run fills — one run fills one type's slot.
+   * Omit for spaces. Apply inherits it and must repeat the value the preview used, or the
+   * backend re-solves for a different type than the one the user saw.
+   */
+  resourceTypeKey?: string;
 }
 
 export interface AutoScheduleApplyRequest extends AutoSchedulePreviewRequest {

@@ -41,12 +41,18 @@ public enum SchedulingReasonCode
 
 // ── Request / Response DTOs ────────────────────────────────────────
 
+/// <param name="ResourceTypeKey">
+/// Which resource type to schedule. One run fills one type's slot, because the solver's model —
+/// no overlap per node, at most one node per request — has nothing to say about matching a room
+/// to a van. NULL means spaces, which is what every run meant before types were selectable.
+/// </param>
 public sealed record AutoSchedulePreviewRequest(
     Guid SiteId,
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds = null,
-    bool RespectSchedulingSettings = true);
+    bool RespectSchedulingSettings = true,
+    string? ResourceTypeKey = null);
 
 public sealed record AutoScheduleApplyRequest(
     Guid SiteId,
@@ -54,7 +60,8 @@ public sealed record AutoScheduleApplyRequest(
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
-    string? PreviewFingerprint = null);
+    string? PreviewFingerprint = null,
+    string? ResourceTypeKey = null);
 
 public sealed record AutoSchedulePreviewResponse(
     SolverKind SolverUsed,

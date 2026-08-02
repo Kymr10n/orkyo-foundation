@@ -4,7 +4,7 @@ import {
   DEFAULT_END_TIME,
   DEFAULT_DURATION_VALUE,
   DEFAULT_DURATION_UNIT,
-  SPACE_NONE_PLACEHOLDER,
+  RESOURCE_NONE_PLACEHOLDER,
   PLANNING_MODE_CONFIG,
   getPlanningModeLabel,
   getPlanningModeIcon,
@@ -41,11 +41,11 @@ describe("duration defaults", () => {
   });
 });
 
-// ── SPACE_NONE_PLACEHOLDER ────────────────────────────────────────────────────
+// ── RESOURCE_NONE_PLACEHOLDER ────────────────────────────────────────────────────
 
-describe("SPACE_NONE_PLACEHOLDER", () => {
+describe("RESOURCE_NONE_PLACEHOLDER", () => {
   it("is a string that cannot be mistaken for a real ID", () => {
-    expect(SPACE_NONE_PLACEHOLDER).toBe("__none__");
+    expect(RESOURCE_NONE_PLACEHOLDER).toBe("__none__");
   });
 });
 

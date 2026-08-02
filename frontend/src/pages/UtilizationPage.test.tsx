@@ -256,6 +256,19 @@ vi.mock("@foundation/src/components/utilization/AutoScheduleButton", () => ({
   ),
 }));
 
+vi.mock("@foundation/src/components/utilization/AutoScheduleTypeSelect", () => ({
+  AutoScheduleTypeSelect: ({ value, onChange, disabled }: any) => (
+    <button
+      data-testid="auto-schedule-type"
+      data-value={value}
+      disabled={disabled}
+      onClick={() => onChange("tool")}
+    >
+      {value}
+    </button>
+  ),
+}));
+
 vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () => ({
   AutoSchedulePreviewDialog: ({ open, onApply, onClose, applyError }: any) => open ? (
     <div data-testid="preview-dialog">
@@ -618,6 +631,31 @@ describe("UtilizationPage", () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId("preview-dialog")).toBeInTheDocument();
+    });
+  });
+
+  it("threads the chosen resource type into preview and apply", async () => {
+    mockUseAutoScheduleAvailable.mockReturnValue(true);
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.getByTestId("auto-schedule-type")).toHaveAttribute("data-value", "space");
+    fireEvent.click(screen.getByTestId("auto-schedule-type"));
+
+    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
+    await waitFor(() => {
+      expect(mockPreviewMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceTypeKey: "tool" }),
+      );
+    });
+
+    // Apply must replay the preview's type, so the selector is locked while it is open.
+    expect(screen.getByTestId("auto-schedule-type")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("apply-schedule"));
+    await waitFor(() => {
+      expect(mockApplyMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceTypeKey: "tool" }),
+      );
     });
   });
 

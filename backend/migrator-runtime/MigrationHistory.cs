@@ -112,6 +112,20 @@ internal sealed class MigrationHistory
         return rows == 1;
     }
 
+    /// <summary>
+    /// Rewrites an applied migration's stored checksum to the current text's, for a file that
+    /// declared the old hash as superseded. Leaves applied_at and applied_by_version alone: the
+    /// migration really did run then, and only its recorded text has changed.
+    /// </summary>
+    public async Task RefreshChecksumAsync(MigrationScript script, CancellationToken ct = default)
+    {
+        const string sql = $"UPDATE {TableName} SET checksum = @checksum WHERE id = @id";
+        await using var cmd = new NpgsqlCommand(sql, _connection);
+        cmd.Parameters.AddWithValue("id", script.Id);
+        cmd.Parameters.AddWithValue("checksum", script.Checksum);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     private static MigrationTargetDatabase ParseTarget(string raw) =>
         Enum.TryParse<MigrationTargetDatabase>(raw, ignoreCase: false, out var v)
             ? v

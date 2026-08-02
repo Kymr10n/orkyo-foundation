@@ -84,6 +84,15 @@ describe('resources-api', () => {
         expect.any(Object),
       );
     });
+
+    it('passes siteId filter as query param', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResponse) });
+      await getResources({ resourceTypeKey: 'tool', siteId: 'site-1' });
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('siteId=site-1'),
+        expect.any(Object),
+      );
+    });
   });
 
   describe('getResource', () => {

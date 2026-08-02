@@ -43,7 +43,7 @@ export function ResourceTypeSettings() {
     <div className="space-y-6">
       <SettingsPageHeader
         title="Resource Types"
-        description="The kinds of things your organization manages. Spaces, people, and tools are built in; add your own — cars, cameras, anything — and give each the fields it needs."
+        description="The kinds of things your organization manages. Spaces, people, and tools are built in; add your own — cars, cameras, anything — and describe each with criteria."
       >
         {canEdit && (
           <Button onClick={() => setCreateOpen(true)}>

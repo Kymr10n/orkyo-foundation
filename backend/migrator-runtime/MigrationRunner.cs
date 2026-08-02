@@ -88,7 +88,15 @@ public sealed class MigrationRunner
 
         var applied = await history.LoadAppliedAsync(ct);
 
-        ValidateAppliedChecksums(ordered, applied);
+        var superseded = ValidateAppliedChecksums(ordered, applied);
+        foreach (var script in superseded)
+        {
+            _logger.LogWarning(
+                "Migration '{Id}' (module '{Module}') declares the applied checksum as superseded; " +
+                "refreshing history to the current text. The SQL is not re-run.",
+                script.Id, script.Module);
+            await history.RefreshChecksumAsync(script, ct);
+        }
 
         if (options.Mode == MigrationExecutionMode.ValidateOnly)
         {
@@ -193,21 +201,40 @@ public sealed class MigrationRunner
         }
     }
 
-    private static void ValidateAppliedChecksums(
+    /// <summary>
+    /// Rejects edits to applied migrations, except where the file itself declares the checksum
+    /// it replaces. Returns the ids whose history rows need their checksum refreshed.
+    /// </summary>
+    private static List<MigrationScript> ValidateAppliedChecksums(
         IReadOnlyList<MigrationScript> ordered,
         IReadOnlyDictionary<string, AppliedMigration> applied)
     {
+        var superseded = new List<MigrationScript>();
+
         foreach (var script in ordered)
         {
             if (!applied.TryGetValue(script.Id, out var existing)) continue;
             if (string.Equals(existing.Checksum, script.Checksum, StringComparison.Ordinal)) continue;
 
+            // The file names this exact old hash, so the edit was made deliberately and with
+            // this installation's history in mind. Anything else is drift.
+            if (script.SupersededChecksums.Contains(existing.Checksum, StringComparer.Ordinal))
+            {
+                superseded.Add(script);
+                continue;
+            }
+
             throw new InvalidOperationException(
                 $"Checksum drift detected for already-applied migration '{script.Id}' " +
                 $"(module '{existing.Module}'). " +
                 $"History has '{existing.Checksum}', code has '{script.Checksum}'. " +
-                $"Applied migrations are immutable — author a new migration instead of editing this one.");
+                $"Applied migrations are immutable — author a new migration instead of editing " +
+                $"this one. If the edit is deliberate and equivalent for a database that already " +
+                $"ran the old text, declare the old hash in the file with " +
+                $"`-- @supersedes-checksum: {existing.Checksum}`.");
         }
+
+        return superseded;
     }
 
     private static IReadOnlyList<MigrationResult> BuildValidateOnlyResults(

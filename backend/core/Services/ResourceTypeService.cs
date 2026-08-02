@@ -6,9 +6,9 @@ using Api.Repositories;
 namespace Api.Services;
 
 /// <summary>
-/// Manages resource types and their custom field definitions. System types (seeded by
+/// Manages resource types. System types (seeded by
 /// migration 1300: space, person, tool) are protected: their identity and lifecycle are
-/// immutable through the API, but they may still gain custom field definitions.
+/// immutable through the API, but criteria can still be made applicable to them.
 /// </summary>
 public interface IResourceTypeService
 {

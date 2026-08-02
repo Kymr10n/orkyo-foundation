@@ -105,7 +105,7 @@ export function ResourceTypeEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? 'Edit Resource Type' : 'New Resource Type'}
-      description="Resource types define what your organization manages — spaces, people, tools, or anything you add. Each type can carry its own custom fields."
+      description="Resource types define what your organization manages — spaces, people, tools, or anything you add. Describe each type with criteria."
       onSubmit={() => {
         if (canSubmit) submit();
       }}

@@ -20,6 +20,7 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
+import { AutoScheduleTypeSelect } from "@foundation/src/components/utilization/AutoScheduleTypeSelect";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
@@ -35,6 +36,7 @@ import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-reque
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
+import { DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from "@foundation/src/constants";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
@@ -151,6 +153,7 @@ export function UtilizationPage() {
   const previewMutation = usePreviewAutoSchedule();
   const applyMutation = useApplyAutoSchedule();
   const [autoSchedulePreview, setAutoSchedulePreview] = useState<AutoSchedulePreviewResponse | null>(null);
+  const [autoScheduleTypeKey, setAutoScheduleTypeKey] = useState<string>(DEFAULT_TARGET_RESOURCE_TYPE_KEYS[0]);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
 
@@ -312,13 +315,14 @@ export function UtilizationPage() {
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
+        resourceTypeKey: autoScheduleTypeKey,
       });
       setAutoSchedulePreview(result);
       setIsPreviewDialogOpen(true);
     } catch {
       // Error handled by mutation state
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, previewMutation]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
 
   // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
   // the success toast interpolates the preview's dynamic count, and the catch
@@ -327,10 +331,13 @@ export function UtilizationPage() {
     if (!selectedSiteId) return;
     setAutoScheduleError(null);
     try {
+      // resourceTypeKey must be the one the preview solved for — the fingerprint alone
+      // doesn't pin it, so a changed selector would re-solve for a different type.
       await applyMutation.mutateAsync({
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
+        resourceTypeKey: autoScheduleTypeKey,
         previewFingerprint: autoSchedulePreview?.fingerprint,
       });
       setIsPreviewDialogOpen(false);
@@ -352,7 +359,7 @@ export function UtilizationPage() {
         setAutoScheduleError(message);
       }
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, applyMutation, autoSchedulePreview, queryClient]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, applyMutation, autoSchedulePreview, queryClient]);
 
   // The Calendar tab pages by whole periods (one click = one week/month); the
   // Spaces/People timeline grids pan by a sub-period. Same controls, tab-aware step.
@@ -611,11 +618,19 @@ export function UtilizationPage() {
   const schedulingControls = (
     <>
       {autoScheduleAvailable && canEdit && activeTab === 'space' && (
-        <AutoScheduleButton
-          onClick={handleAutoScheduleClick}
-          loading={previewMutation.isPending}
-          disabled={!selectedSiteId}
-        />
+        <>
+          {/* Locked while a preview is open: apply must replay the type the preview solved for. */}
+          <AutoScheduleTypeSelect
+            value={autoScheduleTypeKey}
+            onChange={setAutoScheduleTypeKey}
+            disabled={!selectedSiteId || isPreviewDialogOpen}
+          />
+          <AutoScheduleButton
+            onClick={handleAutoScheduleClick}
+            loading={previewMutation.isPending}
+            disabled={!selectedSiteId}
+          />
+        </>
       )}
       <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
       <TimeNavigator
