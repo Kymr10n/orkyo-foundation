@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { PersonAbsenceList } from './PersonAbsenceList';
+import { ResourceAbsenceList } from './ResourceAbsenceList';
 import type { ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
 
 vi.mock('@foundation/src/lib/api/resource-absences-api', () => ({
@@ -11,9 +11,9 @@ vi.mock('@foundation/src/lib/api/resource-absences-api', () => ({
   createResourceAbsence: vi.fn(),
 }));
 
-// PersonAbsenceEditDialog is heavyweight; stub it so this suite stays focused on the list.
-vi.mock('./PersonAbsenceEditDialog', () => ({
-  PersonAbsenceEditDialog: ({ isOpen, onClose, onSaved }: {
+// ResourceAbsenceEditDialog is heavyweight; stub it so this suite stays focused on the list.
+vi.mock('./ResourceAbsenceEditDialog', () => ({
+  ResourceAbsenceEditDialog: ({ isOpen, onClose, onSaved }: {
     isOpen: boolean; onClose: () => void; onSaved: () => void;
   }) => isOpen ? (
     <div data-testid="absence-edit-dialog">
@@ -41,23 +41,23 @@ const mockAbsences: ResourceAbsenceInfo[] = [
   },
 ];
 
-function renderList(props: Partial<React.ComponentProps<typeof PersonAbsenceList>> = {}) {
+function renderList(props: Partial<React.ComponentProps<typeof ResourceAbsenceList>> = {}) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
   const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
-      <PersonAbsenceList
+      <ResourceAbsenceList
         open={true}
         onOpenChange={() => {}}
-        personId="person-alice"
-        personName="Alice"
+        resourceId="person-alice"
+        resourceName="Alice"
         {...props}
       />
     </QueryClientProvider>,
   );
 }
 
-describe('PersonAbsenceList', () => {
+describe('ResourceAbsenceList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getResourceAbsences).mockResolvedValue(mockAbsences);
@@ -75,8 +75,8 @@ describe('PersonAbsenceList', () => {
     expect(screen.queryByText(/Select site/i)).not.toBeInTheDocument();
   });
 
-  it('fetches absences for the given personId without a siteId', async () => {
-    renderList({ personId: 'person-bob' });
+  it('fetches absences for the given resourceId without a siteId', async () => {
+    renderList({ resourceId: 'person-bob' });
     await waitFor(() =>
       expect(getResourceAbsences).toHaveBeenCalledWith('person-bob'),
     );
@@ -96,7 +96,7 @@ describe('PersonAbsenceList', () => {
     );
   });
 
-  it('calls deleteResourceAbsence with the correct personId and absenceId', async () => {
+  it('calls deleteResourceAbsence with the correct resourceId and absenceId', async () => {
     renderList();
     await waitFor(() => screen.getByText('Vacation'));
     const deleteBtn = screen.getByRole('button', { name: /Delete absence/i });

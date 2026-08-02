@@ -57,6 +57,8 @@ const DepartmentSettings = lazy(() => import('@foundation/src/components/setting
 const CriteriaSettings = lazy(() => import('@foundation/src/components/settings/CriteriaSettings').then(m => ({ default: m.CriteriaSettings })));
 const ResourceTypeSettings = lazy(() => import('@foundation/src/components/settings/ResourceTypeSettings').then(m => ({ default: m.ResourceTypeSettings })));
 const ResourcesPage = lazy(() => import('@foundation/src/pages/ResourcesPage').then(m => ({ default: m.ResourcesPage })));
+const ResourceListTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceListTab })));
+const ResourceGroupsTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceGroupsTab })));
 const SiteSettings = lazy(() => import('@foundation/src/components/settings/SiteSettings').then(m => ({ default: m.SiteSettings })));
 const TemplateSettings = lazy(() => import('@foundation/src/components/settings/TemplateSettings').then(m => ({ default: m.TemplateSettings })));
 const PresetSettings = lazy(() => import('@foundation/src/components/settings/PresetSettings').then(m => ({ default: m.PresetSettings })));
@@ -176,8 +178,13 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           {/* Back-compat: the old top-level Conflicts page is now the Insights → Conflicts tab. */}
           <Route path="conflicts" element={<Navigate to="/insights/conflicts" replace />} />
 
-          {/* User-defined resource types. Built-in types keep their own pages. */}
-          <Route path="resources/:typeKey" element={<ResourcesPage />} />
+          {/* User-defined resource types. Built-in types keep their own pages, but the
+              tabbed shape is the same so a custom type is not visibly a lesser citizen. */}
+          <Route path="resources/:typeKey" element={<ResourcesPage />}>
+            <Route index element={<Navigate to="list" replace />} />
+            <Route path="list" element={<ResourceListTab />} />
+            <Route path="groups" element={<ResourceGroupsTab />} />
+          </Route>
 
           {/* Settings — editor-open content. Viewers are redirected to root. */}
           <Route path="settings" element={<RequireEditor><SettingsPage /></RequireEditor>}>

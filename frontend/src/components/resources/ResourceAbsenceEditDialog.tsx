@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 
 interface PersonAbsenceEditDialogProps {
-  personId: string;
+  resourceId: string;
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -29,7 +29,7 @@ const absenceTypes: { value: AbsenceType; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
-export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
+export function ResourceAbsenceEditDialog({ resourceId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
   const [absenceType, setAbsenceType] = useState<AbsenceType>('vacation');
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -37,7 +37,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      createResourceAbsence(personId, {
+      createResourceAbsence(resourceId, {
         absenceType,
         title: title || absenceType,
         startTs: startDate!.toISOString(),
@@ -46,7 +46,7 @@ export function PersonAbsenceEditDialog({ personId, isOpen, onClose, onSaved }: 
     meta: {
       successMessage: 'Absence added',
       errorMessage: 'Failed to add absence',
-      invalidates: [qk.resources.absences(personId)],
+      invalidates: [qk.resources.absences(resourceId)],
     },
     onSuccess: () => {
       setAbsenceType('vacation');

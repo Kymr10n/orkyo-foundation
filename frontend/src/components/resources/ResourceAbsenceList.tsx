@@ -11,7 +11,7 @@ import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Plus, Trash2 } from 'lucide-react';
 import { getResourceAbsences, deleteResourceAbsence, type ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
+import { ResourceAbsenceEditDialog } from './ResourceAbsenceEditDialog';
 import { format } from 'date-fns';
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 
@@ -27,23 +27,23 @@ const ABSENCE_TYPE_LABELS: Record<string, string> = {
 interface PersonAbsenceListProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  personId: string;
-  personName: string;
+  resourceId: string;
+  resourceName: string;
 }
 
-export function PersonAbsenceList({ open, onOpenChange, personId, personName }: PersonAbsenceListProps) {
+export function ResourceAbsenceList({ open, onOpenChange, resourceId, resourceName }: PersonAbsenceListProps) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const { data: absences = [], isLoading } = useQuery({
-    queryKey: qk.resources.absences(personId),
-    queryFn: () => getResourceAbsences(personId),
+    queryKey: qk.resources.absences(resourceId),
+    queryFn: () => getResourceAbsences(resourceId),
     enabled: open,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (absenceId: string) => deleteResourceAbsence(personId, absenceId),
-    meta: { invalidates: [qk.resources.absences(personId)] },
+    mutationFn: (absenceId: string) => deleteResourceAbsence(resourceId, absenceId),
+    meta: { invalidates: [qk.resources.absences(resourceId)] },
   });
 
   const renderDeleteButton = (absence: ResourceAbsenceInfo) => (
@@ -76,7 +76,7 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>Absences — {personName}</DialogTitle>
+          <DialogTitle>Absences — {resourceName}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -132,12 +132,12 @@ export function PersonAbsenceList({ open, onOpenChange, personId, personName }: 
           />
         </div>
 
-        <PersonAbsenceEditDialog
-          personId={personId}
+        <ResourceAbsenceEditDialog
+          resourceId={resourceId}
           isOpen={isAddOpen}
           onClose={() => setIsAddOpen(false)}
           onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: qk.resources.absences(personId) });
+            queryClient.invalidateQueries({ queryKey: qk.resources.absences(resourceId) });
             setIsAddOpen(false);
           }}
         />

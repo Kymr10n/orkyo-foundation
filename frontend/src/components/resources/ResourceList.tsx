@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { CalendarOff, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { ResourceEditDialog } from './ResourceEditDialog';
+import { ResourceAbsenceList } from './ResourceAbsenceList';
+import { ResourceCapabilitiesEditor } from './ResourceCapabilitiesEditor';
 import {
   deleteResource,
   getResources,
@@ -21,15 +24,17 @@ interface ResourceListProps {
 }
 
 /**
- * List/create/edit for any resource type, built from the type's own field definitions.
- * The first few custom fields become table columns so a type's defining details are
- * visible without opening each row.
+ * List/create/edit for any resource type, with the same per-row reach the dedicated Spaces
+ * and People pages have: criterion values, absences and deactivation. A tenant-defined type
+ * is not a second-class citizen — the only thing it lacks is a bespoke page.
  */
 export function ResourceList({ resourceType }: ResourceListProps) {
   const canEdit = useCanEdit();
   const [editing, setEditing] = useState<ResourceInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<ResourceInfo | null>(null);
+  const [capabilitiesFor, setCapabilitiesFor] = useState<ResourceInfo | null>(null);
+  const [absencesFor, setAbsencesFor] = useState<ResourceInfo | null>(null);
 
 
   const {
@@ -52,29 +57,37 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     onSuccess: () => setRemoving(null),
   });
 
-  const renderActions = (r: ResourceInfo) =>
-    canEdit ? (
-      <div className="flex justify-end gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setEditing(r)}
-          aria-label={`Edit ${r.name}`}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-destructive hover:text-destructive"
-          onClick={() => setRemoving(r)}
-          aria-label={`Deactivate ${r.name}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    ) : null;
+  const label = resourceType.displayName;
 
+  // Shared by the desktop table cell and the phone card, so both surfaces expose the same
+  // reach — an action available on one but not the other is the bug this avoids.
+  const renderActions = (r: ResourceInfo) => (
+    <RowActions
+      triggerLabel={`Actions for ${r.name}`}
+      actions={[
+        { label: `Edit ${label}`, icon: Pencil, onSelect: () => setEditing(r), disabled: !canEdit },
+        {
+          label: 'Manage Capabilities',
+          icon: Sliders,
+          onSelect: () => setCapabilitiesFor(r),
+          disabled: !canEdit,
+        },
+        {
+          label: 'Manage Absences',
+          icon: CalendarOff,
+          onSelect: () => setAbsencesFor(r),
+          disabled: !canEdit,
+        },
+        {
+          label: `Deactivate ${label}`,
+          icon: Trash2,
+          onSelect: () => setRemoving(r),
+          disabled: !canEdit,
+          destructive: true,
+        },
+      ]}
+    />
+  );
 
   const columns: ColumnDef<ResourceInfo>[] = [
     {
@@ -155,6 +168,26 @@ export function ResourceList({ resourceType }: ResourceListProps) {
           resource={editing}
           open={!!editing}
           onOpenChange={(open) => !open && setEditing(null)}
+        />
+      )}
+
+      {capabilitiesFor && (
+        <ResourceCapabilitiesEditor
+          open={!!capabilitiesFor}
+          onOpenChange={(open) => !open && setCapabilitiesFor(null)}
+          resourceId={capabilitiesFor.id}
+          resourceName={capabilitiesFor.name}
+          resourceTypeKey={resourceType.key}
+          entityLabel={label.toLowerCase()}
+        />
+      )}
+
+      {absencesFor && (
+        <ResourceAbsenceList
+          open={!!absencesFor}
+          onOpenChange={(open) => !open && setAbsencesFor(null)}
+          resourceId={absencesFor.id}
+          resourceName={absencesFor.name}
         />
       )}
 

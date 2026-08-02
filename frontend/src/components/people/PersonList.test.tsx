@@ -52,19 +52,19 @@ vi.mock('./PersonSkillsEditor', () => ({
   PersonSkillsEditor: ({
     open,
     resourceId,
-    personName,
+    resourceName,
     onOpenChange,
   }: {
     open: boolean;
     resourceId: string;
-    personName: string;
+    resourceName: string;
     onOpenChange: (open: boolean) => void;
   }) =>
     open ? (
       <div
         data-testid="person-skills-editor"
         data-resource-id={resourceId}
-        data-person-name={personName}
+        data-person-name={resourceName}
       >
         <button data-testid="skills-close" onClick={() => onOpenChange(false)}>
           Close
@@ -73,23 +73,23 @@ vi.mock('./PersonSkillsEditor', () => ({
     ) : null,
 }));
 
-vi.mock('./PersonAbsenceList', () => ({
-  PersonAbsenceList: ({
+vi.mock('../resources/ResourceAbsenceList', () => ({
+  ResourceAbsenceList: ({
     open,
-    personId,
-    personName,
+    resourceId,
+    resourceName,
     onOpenChange,
   }: {
     open: boolean;
-    personId: string;
-    personName: string;
+    resourceId: string;
+    resourceName: string;
     onOpenChange: (open: boolean) => void;
   }) =>
     open ? (
       <div
         data-testid="person-absence-list"
-        data-person-id={personId}
-        data-person-name={personName}
+        data-person-id={resourceId}
+        data-person-name={resourceName}
       >
         <button data-testid="absence-close" onClick={() => onOpenChange(false)}>
           Close

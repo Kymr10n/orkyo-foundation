@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { PersonAbsenceEditDialog } from './PersonAbsenceEditDialog';
+import { ResourceAbsenceEditDialog } from './ResourceAbsenceEditDialog';
 
 vi.mock('@foundation/src/lib/api/resource-absences-api', () => ({
   createResourceAbsence: vi.fn(),
@@ -26,13 +26,13 @@ vi.mock('@foundation/src/components/ui/popover', () => ({
 import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
 import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
 
-function renderDialog(props: Partial<React.ComponentProps<typeof PersonAbsenceEditDialog>> = {}) {
+function renderDialog(props: Partial<React.ComponentProps<typeof ResourceAbsenceEditDialog>> = {}) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
   const { queryClient } = createFeedbackTestQueryClientWithSpy();
   return render(
     <QueryClientProvider client={queryClient}>
-      <PersonAbsenceEditDialog
-        personId="person-alice"
+      <ResourceAbsenceEditDialog
+        resourceId="person-alice"
         isOpen={true}
         onClose={() => {}}
         onSaved={() => {}}
@@ -42,7 +42,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof PersonAbsenceEd
   );
 }
 
-describe('PersonAbsenceEditDialog', () => {
+describe('ResourceAbsenceEditDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(createResourceAbsence).mockResolvedValue({
@@ -84,8 +84,8 @@ describe('PersonAbsenceEditDialog', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('calls createResourceAbsence with personId from props (no siteId)', async () => {
-    renderDialog({ personId: 'person-bob' });
+  it('calls createResourceAbsence with resourceId from props (no siteId)', async () => {
+    renderDialog({ resourceId: 'person-bob' });
 
     vi.mocked(createResourceAbsence).mockImplementation((resourceId, req) => {
       expect(resourceId).toBe('person-bob');

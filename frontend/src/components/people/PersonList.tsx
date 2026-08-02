@@ -7,7 +7,7 @@ import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Plus, Pencil, Trash2, Sliders, CalendarOff } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
-import { PersonAbsenceList } from './PersonAbsenceList';
+import { ResourceAbsenceList } from '../resources/ResourceAbsenceList';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfiles, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
@@ -189,16 +189,16 @@ export function PersonList() {
           open={!!skillsPerson}
           onOpenChange={(open) => !open && setSkillsPerson(null)}
           resourceId={skillsPerson.id}
-          personName={skillsPerson.name}
+          resourceName={skillsPerson.name}
         />
       )}
 
       {absencePerson && (
-        <PersonAbsenceList
+        <ResourceAbsenceList
           open={!!absencePerson}
           onOpenChange={(open) => !open && setAbsencePerson(null)}
-          personId={absencePerson.id}
-          personName={absencePerson.name}
+          resourceId={absencePerson.id}
+          resourceName={absencePerson.name}
         />
       )}
 
