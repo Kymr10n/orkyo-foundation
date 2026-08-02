@@ -7,16 +7,17 @@ using Xunit;
 namespace Orkyo.Foundation.Tests.Endpoints;
 
 /// <summary>
-/// User-defined resource types and their custom field definitions. The fixture database is
-/// shared across the suite, so every test mints its own type key.
+/// User-defined resource types: lifecycle, keys, icons, and the protections on system types.
+/// The fixture database is shared across the suite, so every test mints its own type key.
+/// Attribute definitions live on criteria — see ResourceCapabilityValueTests.
 /// </summary>
 [Collection("Database collection")]
-public class ResourceTypeFieldEndpointTests
+public class ResourceTypeCrudEndpointTests
 {
     private readonly HttpClient _client;
     private readonly DatabaseFixture _fixture;
 
-    public ResourceTypeFieldEndpointTests(DatabaseFixture databaseFixture)
+    public ResourceTypeCrudEndpointTests(DatabaseFixture databaseFixture)
     {
         _fixture = databaseFixture;
         _client = databaseFixture.CreateAuthorizedClient();
@@ -37,14 +38,7 @@ public class ResourceTypeFieldEndpointTests
         return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
     }
 
-    private async Task<ResourceTypeFieldInfo> AddFieldAsync(Guid typeId, CreateResourceTypeFieldRequest request)
-    {
-        var response = await _client.PostAsJsonAsync($"/api/resource-types/{typeId}/fields", request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeFieldInfo>())!;
-    }
 
-    private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement.Clone();
 
     // ── type lifecycle ────────────────────────────────────────────────────────
 
@@ -242,165 +236,4 @@ public class ResourceTypeFieldEndpointTests
     }
 
     // ── field definitions ─────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task AddField_CreatesDefinition()
-    {
-        var type = await CreateTypeAsync();
-
-        var field = await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "mileage",
-            Label = "Mileage",
-            DataType = "number",
-            IsRequired = true,
-            Validation = Json("""{"min":0}"""),
-        });
-
-        Assert.Equal("mileage", field.Key);
-        Assert.True(field.IsRequired);
-        Assert.True(field.IsActive);
-    }
-
-    [Fact]
-    public async Task AddField_RejectsDuplicateKeyOnSameType()
-    {
-        var type = await CreateTypeAsync();
-        await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "mileage",
-            Label = "Mileage",
-            DataType = "number",
-        });
-
-        var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/fields",
-            new CreateResourceTypeFieldRequest { Key = "mileage", Label = "Again", DataType = "number" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task AddField_RejectsSelectWithoutOptions()
-    {
-        var type = await CreateTypeAsync();
-
-        var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/fields",
-            new CreateResourceTypeFieldRequest { Key = "fuel", Label = "Fuel", DataType = "select" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task AddField_RejectsUnknownDataType()
-    {
-        var type = await CreateTypeAsync();
-
-        var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/fields",
-            new CreateResourceTypeFieldRequest { Key = "weird", Label = "Weird", DataType = "money" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SystemTypes_AcceptFieldDefinitions()
-    {
-        var all = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        var tool = all!.First(t => t.Key == "tool");
-
-        var key = $"purchased_{Guid.NewGuid():N}"[..20];
-        var field = await AddFieldAsync(tool.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = key,
-            Label = "Purchase date",
-            DataType = "date",
-        });
-
-        Assert.Equal(key, field.Key);
-    }
-
-    [Fact]
-    public async Task UpdateField_ChangesLabelAndRequiredFlag()
-    {
-        var type = await CreateTypeAsync();
-        var field = await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "mileage",
-            Label = "Mileage",
-            DataType = "number",
-        });
-
-        var response = await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}/fields/{field.Id}",
-            new UpdateResourceTypeFieldRequest { Label = "Odometer", IsRequired = true });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var updated = await response.Content.ReadFromJsonAsync<ResourceTypeFieldInfo>();
-        Assert.Equal("Odometer", updated!.Label);
-        Assert.True(updated.IsRequired);
-    }
-
-    [Fact]
-    public async Task UpdateField_Returns404_WhenFieldBelongsToAnotherType()
-    {
-        var typeA = await CreateTypeAsync();
-        var typeB = await CreateTypeAsync();
-        var field = await AddFieldAsync(typeA.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "mileage",
-            Label = "Mileage",
-            DataType = "number",
-        });
-
-        var response = await _client.PutAsJsonAsync($"/api/resource-types/{typeB.Id}/fields/{field.Id}",
-            new UpdateResourceTypeFieldRequest { Label = "Hijacked" });
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task DeactivateField_HidesItFromDefaultListing()
-    {
-        var type = await CreateTypeAsync();
-        var field = await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "mileage",
-            Label = "Mileage",
-            DataType = "number",
-        });
-
-        var response = await _client.DeleteAsync($"/api/resource-types/{type.Id}/fields/{field.Id}");
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
-        var active = await _client.GetFromJsonAsync<List<ResourceTypeFieldInfo>>(
-            $"/api/resource-types/{type.Id}/fields");
-        Assert.DoesNotContain(active!, f => f.Id == field.Id);
-
-        var all = await _client.GetFromJsonAsync<List<ResourceTypeFieldInfo>>(
-            $"/api/resource-types/{type.Id}/fields?includeInactive=true");
-        Assert.Contains(all!, f => f.Id == field.Id && !f.IsActive);
-    }
-
-    [Fact]
-    public async Task GetFields_OrdersBySortOrder()
-    {
-        var type = await CreateTypeAsync();
-        await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "second",
-            Label = "Second",
-            DataType = "text",
-            SortOrder = 2,
-        });
-        await AddFieldAsync(type.Id, new CreateResourceTypeFieldRequest
-        {
-            Key = "first",
-            Label = "First",
-            DataType = "text",
-            SortOrder = 1,
-        });
-
-        var fields = await _client.GetFromJsonAsync<List<ResourceTypeFieldInfo>>(
-            $"/api/resource-types/{type.Id}/fields");
-
-        Assert.Equal(["first", "second"], fields!.Select(f => f.Key));
-    }
 }

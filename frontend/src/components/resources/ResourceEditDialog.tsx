@@ -2,7 +2,6 @@ import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import { DynamicFieldsForm, hasRequiredValues, type ResourceMetadata } from './DynamicFieldsForm';
 import {
   createResource,
   updateResource,
@@ -10,7 +9,6 @@ import {
 } from '@foundation/src/lib/api/resources-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
-import { useResourceTypeFields } from '@foundation/src/hooks/useResourceTypes';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 
 interface ResourceEditDialogProps {
@@ -23,7 +21,6 @@ interface ResourceEditDialogProps {
 interface FormState {
   name: string;
   description: string;
-  metadata: ResourceMetadata;
 }
 
 export function ResourceEditDialog({
@@ -32,7 +29,6 @@ export function ResourceEditDialog({
   open,
   onOpenChange,
 }: ResourceEditDialogProps) {
-  const { data: fields = [] } = useResourceTypeFields(resourceType.id);
 
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ResourceInfo,
@@ -42,18 +38,16 @@ export function ResourceEditDialog({
     open,
     onOpenChange,
     entity: resource,
-    emptyForm: () => ({ name: '', description: '', metadata: {} }),
+    emptyForm: () => ({ name: '', description: '' }),
     toForm: (r) => ({
       name: r.name,
       description: r.description ?? '',
-      metadata: (r.metadata as ResourceMetadata) ?? {},
     }),
     save: (form, r) =>
       r
         ? updateResource(r.id, {
             name: form.name,
             description: form.description || undefined,
-            metadata: form.metadata,
           })
         : createResource({
             resourceTypeKey: resourceType.key,
@@ -61,13 +55,12 @@ export function ResourceEditDialog({
             description: form.description || undefined,
             // Exclusive matches the default for physical, one-at-a-time resources.
             allocationMode: 'Exclusive',
-            metadata: form.metadata,
           }),
     entityLabel: resourceType.displayName,
     invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
   });
 
-  const canSubmit = form.name.trim().length > 0 && hasRequiredValues(fields, form.metadata);
+  const canSubmit = form.name.trim().length > 0;
 
   return (
     <FormDialog
@@ -108,11 +101,6 @@ export function ResourceEditDialog({
         />
       </div>
 
-      <DynamicFieldsForm
-        fields={fields}
-        values={form.metadata}
-        onChange={(metadata) => set({ metadata })}
-      />
     </FormDialog>
   );
 }

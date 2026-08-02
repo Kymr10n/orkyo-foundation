@@ -29,8 +29,7 @@ public interface IResourceService
 
 public class ResourceService(
     IResourceRepository resourceRepository,
-    IResourceTypeRepository resourceTypeRepository,
-    IResourceMetadataValidator metadataValidator) : IResourceService
+    IResourceTypeRepository resourceTypeRepository) : IResourceService
 {
     public Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
         => resourceRepository.GetAllAsync(filter, ct);
@@ -48,9 +47,7 @@ public class ResourceService(
         if (!resourceType.IsActive)
             throw new ArgumentException($"Resource type '{resourceType.Key}' is not active");
 
-        var metadataJson = await ValidateMetadataAsync(resourceType.Id, request.Metadata, requireComplete: true, ct);
-
-        return await resourceRepository.CreateAsync(resourceType.Id, resourceType.Key, request.Name, request.Description, request.ExternalReference, request.AllocationMode, request.BaseAvailabilityPercent, homeSiteId: request.HomeSiteId, crossSiteAllowed: request.CrossSiteAllowed, metadataJson: metadataJson, ct: ct);
+        return await resourceRepository.CreateAsync(resourceType.Id, resourceType.Key, request.Name, request.Description, request.ExternalReference, request.AllocationMode, request.BaseAvailabilityPercent, homeSiteId: request.HomeSiteId, crossSiteAllowed: request.CrossSiteAllowed, ct: ct);
     }
 
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
@@ -63,30 +60,12 @@ public class ResourceService(
             throw new ArgumentException("Name cannot be blank");
 
         // Verify existence; Space deactivation flows through SpaceService, not here.
-        var existing = await resourceRepository.GetByIdAsync(id, ct)
+        _ = await resourceRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Resource {id} not found");
-
-        // A supplied Metadata document replaces the stored one wholesale, so it must be complete.
-        if (request.Metadata is not null)
-            await ValidateMetadataAsync(existing.ResourceTypeId, request.Metadata, requireComplete: true, ct);
 
         return await resourceRepository.UpdateAsync(id, request, ct);
     }
 
-    /// <summary>
-    /// Validates custom field values against the type's definitions and returns the document
-    /// to persist (null when there is nothing to store). Blockers surface as
-    /// <see cref="ArgumentException"/>, matching this service's other validation failures.
-    /// </summary>
-    private async Task<string?> ValidateMetadataAsync(
-        Guid resourceTypeId, Dictionary<string, JsonElement>? metadata, bool requireComplete, CancellationToken ct)
-    {
-        var result = await metadataValidator.ValidateAsync(resourceTypeId, metadata, requireComplete, ct);
-        if (!result.IsValid)
-            throw new ArgumentException(string.Join("; ", result.Blockers.Select(b => b.Message)));
-
-        return metadata is null ? null : JsonSerializer.Serialize(metadata);
-    }
 
     public Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
         => resourceRepository.DeactivateAsync(id, ct);

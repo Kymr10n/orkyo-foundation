@@ -107,7 +107,6 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
         services.AddScoped<IResourceRepository, ResourceRepository>();
         services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
-        services.AddScoped<IResourceTypeFieldRepository, ResourceTypeFieldRepository>();
         services.AddScoped<ISchedulingRepository, SchedulingRepository>();
         services.AddScoped<ISearchRepository, SearchRepository>();
         services.AddScoped<ISiteRepository, SiteRepository>();
@@ -139,7 +138,6 @@ public static class FoundationServiceExtensions
         services.AddScoped<IConflictService, ConflictService>();
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<IResourceTypeService, ResourceTypeService>();
-        services.AddScoped<IResourceMetadataValidator, ResourceMetadataValidator>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserSessionService, UserSessionService>();

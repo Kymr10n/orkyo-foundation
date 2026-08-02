@@ -7,125 +7,16 @@ import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { ResourceTypeEditDialog } from './ResourceTypeEditDialog';
-import { ResourceTypeFieldEditDialog } from './ResourceTypeFieldEditDialog';
 import {
-  useDeactivateResourceTypeField,
   useDeleteResourceType,
-  useResourceTypeFields,
   useResourceTypes,
 } from '@foundation/src/hooks/useResourceTypes';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { resourceTypeIcon } from '@foundation/src/components/resources/resource-type-icon';
 import type {
-  ResourceTypeFieldInfo,
   ResourceTypeInfo,
 } from '@foundation/src/lib/api/resource-types-api';
 
-const DATA_TYPE_LABELS: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  boolean: 'Yes / No',
-  date: 'Date',
-  select: 'Choice list',
-};
-
-/** Field list for one type. Mounted only while the type is expanded, so it fetches lazily. */
-function FieldList({ resourceType, canEdit }: { resourceType: ResourceTypeInfo; canEdit: boolean }) {
-  const { data: fields = [], isLoading } = useResourceTypeFields(resourceType.id);
-  const deactivateField = useDeactivateResourceTypeField();
-  const [editingField, setEditingField] = useState<ResourceTypeFieldInfo | null>(null);
-  const [creatingField, setCreatingField] = useState(false);
-  const [removingField, setRemovingField] = useState<ResourceTypeFieldInfo | null>(null);
-
-  return (
-    <div className="space-y-3 border-t px-4 py-3">
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading fields…</p>
-      ) : fields.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No custom fields yet. Add one to record details specific to {resourceType.displayName}.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {fields.map((field) => (
-            <li key={field.id} className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{field.label}</span>
-                  <Badge variant="secondary">
-                    {DATA_TYPE_LABELS[field.dataType] ?? field.dataType}
-                  </Badge>
-                  {field.isRequired && <Badge variant="outline">Required</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground">{field.key}</p>
-              </div>
-              {canEdit && (
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setEditingField(field)}
-                    aria-label={`Edit ${field.label}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => setRemovingField(field)}
-                    aria-label={`Deactivate ${field.label}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {canEdit && (
-        <Button variant="outline" size="sm" onClick={() => setCreatingField(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Field
-        </Button>
-      )}
-
-      <ResourceTypeFieldEditDialog
-        resourceTypeId={resourceType.id}
-        field={null}
-        open={creatingField}
-        onOpenChange={setCreatingField}
-      />
-      {editingField && (
-        <ResourceTypeFieldEditDialog
-          resourceTypeId={resourceType.id}
-          field={editingField}
-          open={!!editingField}
-          onOpenChange={(open) => !open && setEditingField(null)}
-        />
-      )}
-
-      <ConfirmDialog
-        open={!!removingField}
-        onOpenChange={(open) => !open && setRemovingField(null)}
-        title={`Deactivate "${removingField?.label}"?`}
-        description="The field stops appearing on forms. Values already recorded are kept."
-        confirmLabel="Deactivate"
-        destructive
-        isPending={deactivateField.isPending}
-        onConfirm={() => {
-          if (!removingField) return;
-          deactivateField.mutate(
-            { resourceTypeId: resourceType.id, fieldId: removingField.id },
-            { onSuccess: () => setRemovingField(null) },
-          );
-        }}
-      />
-    </div>
-  );
-}
 
 export function ResourceTypeSettings() {
   const canEdit = useCanEdit();
@@ -223,7 +114,6 @@ export function ResourceTypeSettings() {
                   )}
                 </div>
 
-                {isExpanded && <FieldList resourceType={type} canEdit={canEdit} />}
               </li>
             );
           })}

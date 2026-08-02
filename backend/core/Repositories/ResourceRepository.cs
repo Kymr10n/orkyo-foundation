@@ -12,7 +12,7 @@ public interface IResourceRepository
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
     Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<ResourceInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default);
-    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? homeSiteId = null, bool crossSiteAllowed = true, Guid? id = null, string? metadataJson = null, CancellationToken ct = default);
+    Task<ResourceInfo> CreateAsync(Guid resourceTypeId, string typeKey, string name, string? description, string? externalReference, string allocationMode, int baseAvailabilityPercent, Guid? homeSiteId = null, bool crossSiteAllowed = true, Guid? id = null, CancellationToken ct = default);
     Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
     Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
 }
@@ -54,7 +54,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         "r.id, r.resource_type_id, rt.key as resource_type_key, r.name, r.description, " +
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
         "r.home_site_id, " + CurrentSiteExpr + " AS current_site_id, r.cross_site_allowed, " +
-        "r.metadata_json, r.is_active, r.created_at, r.updated_at";
+        "r.is_active, r.created_at, r.updated_at";
 
     public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
     {
@@ -134,7 +134,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         Guid resourceTypeId, string typeKey, string name, string? description,
         string? externalReference, string allocationMode, int baseAvailabilityPercent,
         Guid? homeSiteId = null, bool crossSiteAllowed = true,
-        Guid? id = null, string? metadataJson = null, CancellationToken ct = default)
+        Guid? id = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         var insertedId = id ?? Guid.NewGuid();
@@ -143,12 +143,12 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             INSERT INTO resources
                 (id, resource_type_id, name, description, external_reference,
                  allocation_mode, base_availability_percent,
-                 home_site_id, cross_site_allowed, metadata_json)
+                 home_site_id, cross_site_allowed)
             VALUES
                 (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent,
-                 @homeSiteId, @crossSiteAllowed, @metadataJson)
-            RETURNING id, created_at, updated_at, metadata_json",
+                 @homeSiteId, @crossSiteAllowed)
+            RETURNING id, created_at, updated_at",
             p =>
             {
                 p.AddWithValue("id", insertedId);
@@ -160,7 +160,6 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 p.AddWithValue("baseAvailabilityPercent", baseAvailabilityPercent);
                 p.AddNullable("homeSiteId", homeSiteId);
                 p.AddWithValue("crossSiteAllowed", crossSiteAllowed);
-                p.AddJsonb("metadataJson", metadataJson);
             },
             r => new ResourceInfo
             {
@@ -176,7 +175,6 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 // A freshly created resource has no assignments yet, so it is at its home site.
                 CurrentSiteId = homeSiteId,
                 CrossSiteAllowed = crossSiteAllowed,
-                Metadata = ReadJson(r, "metadata_json"),
                 IsActive = true,
                 CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
                 UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
@@ -198,19 +196,12 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             update.Set("is_active", request.IsActive.Value);
         if (request.HomeSiteId.HasValue) update.Set("home_site_id", request.HomeSiteId.Value);
         if (request.CrossSiteAllowed.HasValue) update.Set("cross_site_allowed", request.CrossSiteAllowed.Value);
-        // JSONB needs a typed parameter, so it bypasses UpdateBuilder's parameter binding.
-        // A non-null Metadata replaces the whole document; null leaves it untouched.
-        var metadataJson = request.Metadata is null
-            ? null
-            : JsonSerializer.Serialize(request.Metadata);
-        if (metadataJson is not null) update.SetExpression("metadata_json = @metadataJson");
 
         await db.ExecuteAsync($"UPDATE resources SET {update.SetClause} WHERE id = @id",
             p =>
             {
                 p.AddWithValue("id", id);
                 update.Apply(p);
-                if (metadataJson is not null) p.AddJsonb("metadataJson", metadataJson);
             }, ct);
 
         return await GetByIdAsync(id, ct);
@@ -237,17 +228,9 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         HomeSiteId = r.IsDBNull(r.GetOrdinal("home_site_id")) ? null : r.GetGuid(r.GetOrdinal("home_site_id")),
         CurrentSiteId = r.IsDBNull(r.GetOrdinal("current_site_id")) ? null : r.GetGuid(r.GetOrdinal("current_site_id")),
         CrossSiteAllowed = r.GetBoolean(r.GetOrdinal("cross_site_allowed")),
-        Metadata = ReadJson(r, "metadata_json"),
         IsActive = r.GetBoolean(r.GetOrdinal("is_active")),
         CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
         UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
     };
 
-    private static JsonElement? ReadJson(NpgsqlDataReader r, string column)
-    {
-        var ordinal = r.GetOrdinal(column);
-        if (r.IsDBNull(ordinal)) return null;
-        using var doc = JsonDocument.Parse(r.GetString(ordinal));
-        return doc.RootElement.Clone();
-    }
 }

@@ -22,9 +22,7 @@ export {
 } from "./usePreferences";
 export {
   useResourceTypes,
-  useResourceTypeFields,
   useDeleteResourceType,
-  useDeactivateResourceTypeField,
   RESOURCE_TYPE_INVALIDATES,
 } from "./useResourceTypes";
 export {

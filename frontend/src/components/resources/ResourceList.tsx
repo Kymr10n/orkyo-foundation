@@ -6,7 +6,6 @@ import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { ResourceEditDialog } from './ResourceEditDialog';
-import { toInputValue } from './DynamicFieldsForm';
 import {
   deleteResource,
   getResources,
@@ -14,18 +13,8 @@ import {
 } from '@foundation/src/lib/api/resources-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { useResourceTypeFields } from '@foundation/src/hooks/useResourceTypes';
-import type {
-  ResourceTypeFieldInfo,
-  ResourceTypeInfo,
-} from '@foundation/src/lib/api/resource-types-api';
+import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 
-/** Renders a stored custom value for the list, formatted by its declared type. */
-function formatValue(field: ResourceTypeFieldInfo, value: unknown): string {
-  if (value === undefined || value === null || value === '') return '—';
-  if (field.dataType === 'boolean') return value === true ? 'Yes' : 'No';
-  return toInputValue(value) || '—';
-}
 
 interface ResourceListProps {
   resourceType: ResourceTypeInfo;
@@ -42,7 +31,6 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<ResourceInfo | null>(null);
 
-  const { data: fields = [] } = useResourceTypeFields(resourceType.id);
 
   const {
     data: resources,
@@ -87,8 +75,6 @@ export function ResourceList({ resourceType }: ResourceListProps) {
       </div>
     ) : null;
 
-  // Keep the table readable on narrow screens: the rest of the fields live in the dialog.
-  const columnFields = fields.slice(0, 3);
 
   const columns: ColumnDef<ResourceInfo>[] = [
     {
@@ -101,15 +87,6 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         </div>
       ),
     },
-    ...columnFields.map<ColumnDef<ResourceInfo>>((field) => ({
-      id: field.key,
-      header: field.label,
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {formatValue(field, row.original.metadata?.[field.key])}
-        </span>
-      ),
-    })),
     {
       id: 'actions',
       header: () => <span className="sr-only">Actions</span>,
@@ -125,11 +102,6 @@ export function ResourceList({ resourceType }: ResourceListProps) {
           <span className="truncate font-medium">{r.name}</span>
           {!r.isActive && <StatusBadge status="inactive" label="Inactive" />}
         </div>
-        {columnFields.map((field) => (
-          <p key={field.id} className="text-sm text-muted-foreground">
-            {field.label}: {formatValue(field, r.metadata?.[field.key])}
-          </p>
-        ))}
       </div>
       {renderActions(r)}
     </div>

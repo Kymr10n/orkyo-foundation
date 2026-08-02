@@ -141,12 +141,6 @@ public class FoundationServiceExtensionsTests
         services.Should().Contain(sd => IsScoped<IResourceRepository, ResourceRepository>(sd));
     }
 
-    [Fact]
-    public void AddFoundationServices_RegistersResourceTypeFieldRepository()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IResourceTypeFieldRepository, ResourceTypeFieldRepository>(sd));
-    }
 
     [Fact]
     public void AddFoundationServices_RegistersSiteRepository()
@@ -192,12 +186,6 @@ public class FoundationServiceExtensionsTests
         services.Should().Contain(sd => IsScoped<IResourceTypeService, ResourceTypeService>(sd));
     }
 
-    [Fact]
-    public void AddFoundationServices_RegistersResourceMetadataValidator()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IResourceMetadataValidator, ResourceMetadataValidator>(sd));
-    }
 
     [Fact]
     public void AddFoundationServices_RegistersSiteService()

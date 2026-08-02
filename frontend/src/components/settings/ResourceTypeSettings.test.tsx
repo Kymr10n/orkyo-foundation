@@ -5,13 +5,11 @@ import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ResourceTypeSettings } from './ResourceTypeSettings';
 import type {
-  ResourceTypeFieldInfo,
   ResourceTypeInfo,
 } from '@foundation/src/lib/api/resource-types-api';
 
 vi.mock('@foundation/src/lib/api/resource-types-api', () => ({
   getResourceTypes: vi.fn(),
-  getResourceTypeFields: vi.fn(),
   deleteResourceType: vi.fn(),
   deactivateResourceTypeField: vi.fn(),
 }));
@@ -33,7 +31,6 @@ vi.mock('./ResourceTypeFieldEditDialog', () => ({
 
 import {
   getResourceTypes,
-  getResourceTypeFields,
   deleteResourceType,
 } from '@foundation/src/lib/api/resource-types-api';
 import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
@@ -60,20 +57,6 @@ const types: ResourceTypeInfo[] = [
   },
 ];
 
-const carFields: ResourceTypeFieldInfo[] = [
-  {
-    id: 'field-mileage',
-    resourceTypeId: 'type-car',
-    key: 'mileage',
-    label: 'Mileage',
-    dataType: 'number',
-    isRequired: true,
-    sortOrder: 1,
-    isActive: true,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-  },
-];
 
 function renderSettings() {
   const { queryClient } = createFeedbackTestQueryClientWithSpy();
@@ -89,7 +72,6 @@ describe('ResourceTypeSettings', () => {
     vi.clearAllMocks();
     canEdit.value = true;
     vi.mocked(getResourceTypes).mockResolvedValue(types);
-    vi.mocked(getResourceTypeFields).mockResolvedValue(carFields);
     vi.mocked(deleteResourceType).mockResolvedValue(undefined);
   });
 
@@ -109,24 +91,6 @@ describe('ResourceTypeSettings', () => {
     // The built-in Space type is not editable or removable.
     expect(screen.queryByLabelText('Edit Space')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Remove Space')).not.toBeInTheDocument();
-  });
-
-  it('loads the field definitions when a type is expanded', async () => {
-    renderSettings();
-
-    await userEvent.click(await screen.findByText('Car'));
-
-    expect(await screen.findByText('Mileage')).toBeInTheDocument();
-    expect(screen.getByText('Required')).toBeInTheDocument();
-    expect(getResourceTypeFields).toHaveBeenCalledWith('type-car', false);
-  });
-
-  it('lets built-in types gain custom fields', async () => {
-    renderSettings();
-
-    await userEvent.click(await screen.findByText('Space'));
-
-    expect(await screen.findByRole('button', { name: /Add Field/ })).toBeInTheDocument();
   });
 
   it('removes a type after confirmation', async () => {

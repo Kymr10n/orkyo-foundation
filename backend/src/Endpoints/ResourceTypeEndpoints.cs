@@ -66,51 +66,5 @@ public static class ResourceTypeEndpoints
         })
             .WithName("DeleteResourceType")
             .WithSummary("Delete a resource type, or deactivate it when resources still reference it");
-
-        // ── custom field definitions ──────────────────────────────────────────
-
-        group.MapGet("/{id:guid}/fields", async (
-            Guid id, bool? includeInactive, IResourceTypeService service, CancellationToken ct) =>
-            Results.Ok(await service.GetFieldsAsync(id, includeInactive ?? false, ct)))
-            .WithName("GetResourceTypeFields")
-            .WithSummary("Get the custom field definitions of a resource type");
-
-        group.MapPost("/{id:guid}/fields", async (
-            Guid id,
-            [FromBody] CreateResourceTypeFieldRequest request,
-            IResourceTypeService service,
-            IValidator<CreateResourceTypeFieldRequest> validator,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
-            {
-                var created = await service.AddFieldAsync(id, request, ct);
-                return Results.Created($"/api/resource-types/{id}/fields/{created.Id}", created);
-            }, logger, "create resource type field", new { id, request.Key }))
-            .WithName("CreateResourceTypeField")
-            .WithSummary("Add a custom field definition to a resource type");
-
-        group.MapPut("/{id:guid}/fields/{fieldId:guid}", async (
-            Guid id,
-            Guid fieldId,
-            [FromBody] UpdateResourceTypeFieldRequest request,
-            IResourceTypeService service,
-            IValidator<UpdateResourceTypeFieldRequest> validator,
-            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
-            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
-            {
-                var updated = await service.UpdateFieldAsync(id, fieldId, request, ct);
-                return EndpointHelpers.OkOrNotFound(updated, "ResourceTypeField", fieldId);
-            }, logger, "update resource type field", new { id, fieldId }))
-            .WithName("UpdateResourceTypeField")
-            .WithSummary("Update a custom field definition");
-
-        group.MapDelete("/{id:guid}/fields/{fieldId:guid}", async (
-            Guid id, Guid fieldId, IResourceTypeService service, CancellationToken ct) =>
-        {
-            var deactivated = await service.DeactivateFieldAsync(id, fieldId, ct);
-            return deactivated ? Results.NoContent() : ErrorResponses.NotFound("ResourceTypeField", fieldId);
-        })
-            .WithName("DeactivateResourceTypeField")
-            .WithSummary("Deactivate a custom field definition (values are retained)");
     }
 }
