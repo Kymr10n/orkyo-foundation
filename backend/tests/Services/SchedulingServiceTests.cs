@@ -54,7 +54,7 @@ public class SchedulingServiceTests
         // Window = 8h, minimal duration = 9h, scheduling settings on, a resource assigned.
         var request = new UpdateRequestRequest
         {
-            ResourceId = Guid.NewGuid(),
+            ResourceIds = [Guid.NewGuid()],
             StartTs = Start,
             EndTs = Start.AddHours(8),
             MinimalDurationValue = 9,
@@ -90,7 +90,7 @@ public class SchedulingServiceTests
         // No end provided → the service computes it from start + minimal duration (2h here).
         var request = new UpdateRequestRequest
         {
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = Start,
             EndTs = null,
             MinimalDurationValue = 2,

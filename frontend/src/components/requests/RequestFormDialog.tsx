@@ -11,8 +11,7 @@ import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
-import { createRequest, getRequestChildren, moveRequest, updateRequest } from "@foundation/src/lib/api/request-api";
-import { getAssignmentOfType } from "@foundation/src/domain/scheduling/request-assignments";
+import { createRequest, getRequestChildren, moveRequest } from "@foundation/src/lib/api/request-api";
 import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
@@ -291,34 +290,12 @@ export function RequestFormDialog({
   const hasEditableSchedule = isLeaf;
   const hasEditableConstraints = isLeaf || isContainer;
 
-  // The save payload can carry one resource, so the first targeted type rides along with it
-  // and the rest follow as their own writes.
-  const primaryTargetTypeKey: string | undefined = state.targetResourceTypeKeys[0];
+  // One id per targeted type that actually has a pick. Ordered by the target list so the
+  // payload is stable across saves; the backend routes each id by its own resource's type.
+  const pickedResourceIds = state.targetResourceTypeKeys
+    .map((key) => state.selectedResourceIds[key])
+    .filter((id): id is string => Boolean(id));
 
-  /**
-   * Persists the picks for every targeted type after the first. Each is its own update
-   * because the backend routes a single resourceId to that resource's own type; a pick that
-   * already matches the stored assignment is skipped so unrelated edits don't re-assert it.
-   * Failures are surfaced per type — the saved request and whatever landed are kept.
-   */
-  const applyRemainingResourcePicks = async (saved: Request | null) => {
-    if (!saved) return;
-    let touched = false;
-    for (const key of state.targetResourceTypeKeys.slice(1)) {
-      const resourceId = state.selectedResourceIds[key];
-      if (!resourceId || resourceId === getAssignmentOfType(saved, key)?.resourceId) continue;
-      try {
-        await updateRequest(saved.id, { resourceId });
-        touched = true;
-      } catch (error) {
-        logger.error("Failed to assign resource:", error);
-        toast.error(`Failed to assign the ${key} for this request`, {
-          description: error instanceof Error ? error.message : undefined,
-        });
-      }
-    }
-    if (touched) invalidateRequestData(queryClient);
-  };
 
   // Tree-derived surfaces — only available when the caller passes the full tree.
   // Breadcrumb (ancestors), direct children (Children tab), and the group
@@ -640,10 +617,9 @@ export function RequestFormDialog({
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
       siteId: state.siteId || null,
-      // The payload carries a single resourceId, which the backend routes to that resource's
-      // own type. The first targeted type travels with the save; the rest are applied right
-      // after it (applyRemainingResourcePicks).
-      resourceId: isLeaf ? (state.selectedResourceIds[primaryTargetTypeKey ?? ''] || undefined) : undefined,
+      // Every pick travels with the save, so a request needing a room and a van is never
+      // left half-assigned by a second call failing.
+      resourceIds: isLeaf ? pickedResourceIds : undefined,
       targetResourceTypeKeys: state.targetResourceTypeKeys,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
@@ -666,8 +642,6 @@ export function RequestFormDialog({
     setIsSaving(true);
     try {
       const saved = await onSave(formData);
-      const savedRequest = saved && typeof saved === 'object' ? saved : null;
-      if (isLeaf) await applyRemainingResourcePicks(savedRequest ?? request ?? null);
       // Create mode, group: create the queued new children and reparent the
       // queued existing requests under the new group. Failures are surfaced per
       // item via toast — the group and whatever succeeded so far are kept; the

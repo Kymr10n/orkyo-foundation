@@ -30,7 +30,9 @@ const apiMocks = vi.hoisted(() => ({
       { key: "space", displayName: "Space", icon: "Building2", isActive: true },
     ] as unknown[]),
   ),
-  getResources: vi.fn(() => Promise.resolve({ data: [] as unknown[] })),
+  getResources: vi.fn((_filter?: { resourceTypeKey?: string }) =>
+    Promise.resolve({ data: [] as unknown[] }),
+  ),
   createRequest: vi.fn(() => Promise.resolve({} as unknown)),
   moveRequest: vi.fn(() => Promise.resolve({} as unknown)),
   updateRequest: vi.fn(() => Promise.resolve({} as unknown)),
@@ -577,6 +579,44 @@ describe("RequestFormDialog", () => {
     expect(screen.getByRole("combobox", { name: "Tool" })).toBeInTheDocument();
   });
 
+  it("saves every targeted type's pick in one call", async () => {
+    // The property this contract exists for: picks for several types go out together, so a
+    // failure cannot leave the request holding a room but not the van it also needs.
+    apiMocks.getResourceTypes.mockResolvedValue([
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+      { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
+    ]);
+    // Each picker queries its own type, so the mock answers per resourceTypeKey.
+    apiMocks.getResources.mockImplementation((filter) =>
+      Promise.resolve({
+        data:
+          filter?.resourceTypeKey === "tool"
+            ? [{ id: "tool-1", name: "Drill" }]
+            : [{ id: "space-1", name: "Main Hall" }],
+      }),
+    );
+    const { onSave } = renderDialog({
+      request: {
+        ...EXISTING,
+        assignments: [],
+        targetResourceTypeKeys: ["space", "tool"],
+      } as Request,
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
+    await userEvent.click(await screen.findByRole("combobox", { name: "Space" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Main Hall" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Tool" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Drill" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceIds: ["space-1", "tool-1"] }),
+    );
+  });
+
   it("toggles scheduling settings and changes the duration unit", async () => {
     renderDialog();
     await userEvent.click(screen.getByRole("tab", { name: "Timing" }));
@@ -669,7 +709,8 @@ describe("RequestFormDialog", () => {
         planningMode: "summary",
         startTs: undefined,
         endTs: undefined,
-        resourceId: undefined,
+        // A group holds no resources of its own; the picks belong to its leaves.
+        resourceIds: undefined,
       }),
     );
   });

@@ -338,7 +338,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
     | "planningMode"
     | "sortOrder"
     | "siteId"
-    | "resourceId"
+    | "resourceIds"
     | "requestItemId"
     | "targetResourceTypeKeys"
     | "icon"
@@ -364,7 +364,7 @@ describe("Contract - CreateRequestRequest DTO", () => {
       "planningMode",
       "sortOrder",
       "siteId",
-      "resourceId",
+      "resourceIds",
       "requestItemId",
       "targetResourceTypeKeys",
       "icon",
@@ -413,7 +413,7 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "sortOrder"
     | "siteId"
     | "changeSiteId"
-    | "resourceId"
+    | "resourceIds"
     | "requestItemId"
     | "targetResourceTypeKeys"
     | "icon"

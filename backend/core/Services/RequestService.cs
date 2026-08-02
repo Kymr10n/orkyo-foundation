@@ -112,8 +112,9 @@ public class RequestService : IRequestService
 
         var existingMode = await _repository.GetPlanningModeAsync(id, ct);
         var effectiveMode = request.PlanningMode ?? existingMode;
-        if (effectiveMode != PlanningMode.Leaf && (request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue))
-            throw new ArgumentException("Only leaf requests can be directly scheduled to a space");
+        if (effectiveMode != PlanningMode.Leaf
+            && (request.ResourceIds is { Count: > 0 } || request.StartTs.HasValue || request.EndTs.HasValue))
+            throw new ArgumentException("Only leaf requests can be directly scheduled to a resource");
 
         return await _repository.UpdateAsync(id, request, ct);
     }

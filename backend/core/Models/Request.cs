@@ -195,7 +195,12 @@ public record CreateRequestRequest
     /// <summary>Site scope. NULL = site-neutral (schedulable at any site).</summary>
     public Guid? SiteId { get; init; }
 
-    public Guid? ResourceId { get; init; }
+    /// <summary>
+    /// The resources to assign, at most one per targeted type. A list rather than a single
+    /// id because a request can need a room and a van at once, and saving those as separate
+    /// calls would leave the request half-assigned whenever the second one failed.
+    /// </summary>
+    public IReadOnlyList<Guid>? ResourceIds { get; init; }
     public string? RequestItemId { get; init; }
 
     /// <summary>
@@ -250,7 +255,12 @@ public record UpdateRequestRequest
     /// </summary>
     public bool ChangeSiteId { get; init; }
 
-    public Guid? ResourceId { get; init; }
+    /// <summary>
+    /// The resources to assign, at most one per targeted type. A list rather than a single
+    /// id because a request can need a room and a van at once, and saving those as separate
+    /// calls would leave the request half-assigned whenever the second one failed.
+    /// </summary>
+    public IReadOnlyList<Guid>? ResourceIds { get; init; }
 
     /// <summary>
     /// Replaces the request's target resource types. NULL leaves them untouched; an empty

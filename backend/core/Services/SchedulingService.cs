@@ -101,11 +101,14 @@ public class SchedulingService : ISchedulingService
 
     public async Task<CreateRequestRequest> ApplySchedulingToCreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {
-        if (!request.SchedulingSettingsApply || request.ResourceId == null || request.StartTs == null)
+        // Working-hours adjustment resolves settings from the resource's site. Every resource on
+        // one request sits at the same site, so the first answers for all of them.
+        var siteBearer = request.ResourceIds?.FirstOrDefault();
+        if (!request.SchedulingSettingsApply || siteBearer is null || request.StartTs == null)
             return request;
 
         var result = await ComputeScheduledTimesAsync(
-            request.ResourceId.Value, request.StartTs.Value,
+            siteBearer.Value, request.StartTs.Value,
             request.MinimalDurationValue, request.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
@@ -132,7 +135,8 @@ public class SchedulingService : ISchedulingService
         // The auto-compute below only applies when the caller gives a start but no end.
         if (request.EndTs != null) return request;
 
-        var resourceId = request.ResourceId ?? existing.GetResourceIdForType(ResourceTypeKeys.Space);
+        var resourceId = request.ResourceIds?.FirstOrDefault()
+            ?? existing.Assignments.FirstOrDefault()?.ResourceId;
         var startTs = request.StartTs ?? existing.StartTs;
         if (resourceId == null || startTs == null) return request;
 

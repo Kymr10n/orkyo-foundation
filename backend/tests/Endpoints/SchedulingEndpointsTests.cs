@@ -376,7 +376,7 @@ public class SchedulingEndpointsTests
         var requestPayload = new CreateRequestRequest
         {
             Name = $"Sched Integration {Guid.NewGuid():N}"[..30],
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = new DateTime(2027, 1, 5, 9, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2027, 1, 5, 13, 0, 0, DateTimeKind.Utc), // naive: 4h from 09:00
             MinimalDurationValue = 4,
@@ -404,7 +404,7 @@ public class SchedulingEndpointsTests
         var requestPayload = new CreateRequestRequest
         {
             Name = $"NoSched {Guid.NewGuid():N}"[..30],
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = new DateTime(2027, 2, 1, 9, 0, 0, DateTimeKind.Utc),
             EndTs = new DateTime(2027, 2, 1, 13, 0, 0, DateTimeKind.Utc),
             MinimalDurationValue = 4,

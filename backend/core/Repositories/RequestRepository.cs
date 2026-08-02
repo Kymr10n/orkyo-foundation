@@ -348,11 +348,11 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
-        // Validate resource_id if provided (resource must exist)
-        if (request.ResourceId.HasValue
-            && !await db.ExistsAsync("resources", request.ResourceId.Value, ct))
+        // Validate resource ids if provided (every resource must exist)
+        foreach (var resourceId in request.ResourceIds ?? [])
         {
-            throw new ArgumentException("Invalid resource_id: resource does not exist");
+            if (!await db.ExistsAsync("resources", resourceId, ct))
+                throw new ArgumentException($"Invalid resource id: {resourceId} does not exist");
         }
 
         // Validate site_id if provided (site must exist)
@@ -365,16 +365,18 @@ public class RequestRepository : IRequestRepository
         // Implicit site-on-schedule: a request created directly into a resource (no explicit site)
         // adopts that resource's home site. Mirrors UpdateScheduleAsync so every creation route agrees.
         var effectiveSiteId = request.SiteId;
-        if (effectiveSiteId is null && request.ResourceId.HasValue)
+        if (effectiveSiteId is null && request.ResourceIds is { Count: > 0 } siteBearers)
         {
             effectiveSiteId = await db.QuerySingleOrDefaultAsync<Guid?>(
                 // Only an immovable resource dictates the request's site. Reading home_site_id
                 // for any resource would make scheduling onto a person drag the request to that
                 // person's home office — the spaces table used to prevent that by simply having
-                // no row for people.
-                "SELECT home_site_id FROM resources WHERE id = @id AND NOT cross_site_allowed",
-                p => p.AddWithValue("id", request.ResourceId.Value),
-                // home_site_id is nullable (an unsited resource), so the row can carry NULL.
+                // no row for people. With several resources the immovable ones all sit at the
+                // same site by construction, so any one of them answers.
+                @"SELECT home_site_id FROM resources
+                   WHERE id = ANY(@ids) AND NOT cross_site_allowed AND home_site_id IS NOT NULL
+                   LIMIT 1",
+                p => p.AddWithValue("ids", siteBearers.ToArray()),
                 r => r.IsDBNull(0) ? null : r.GetGuid(0), ct);
         }
 
@@ -425,9 +427,12 @@ public class RequestRepository : IRequestRepository
             reader.Close();
 
             // Create resource assignment if a resource + time window was provided.
-            if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
+            if (request.ResourceIds is { Count: > 0 } newResources
+                && request.StartTs.HasValue && request.EndTs.HasValue)
             {
-                await WriteResourceAssignmentAsync(db, transaction, requestId, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value, ct);
+                await WriteRequestResourcesAsync(
+                    db, transaction, requestId, newResources,
+                    request.StartTs.Value, request.EndTs.Value, ct);
             }
 
             if (request.Requirements is { Count: > 0 })
@@ -516,7 +521,9 @@ public class RequestRepository : IRequestRepository
         if (request.Status.HasValue) update.Set("status", EnumMapper.ToDbValue(request.Status.Value));
         if (request.SchedulingSettingsApply.HasValue) update.Set("scheduling_settings_apply", request.SchedulingSettingsApply.Value);
 
-        if (update.IsEmpty && request.Requirements == null && !request.ResourceId.HasValue)
+        if (update.IsEmpty && request.Requirements == null
+            && request.TargetResourceTypeKeys == null
+            && request.ResourceIds is not { Count: > 0 })
             throw new ArgumentException("No fields to update");
 
         await using var transaction = await db.BeginTransactionAsync(ct);
@@ -535,10 +542,11 @@ public class RequestRepository : IRequestRepository
         }
 
         // Update resource assignment if caller is changing the resource.
-        if (request.ResourceId.HasValue && finalStartTs.HasValue && finalEndTs.HasValue)
+        if (request.ResourceIds is { Count: > 0 } updatedResources
+            && finalStartTs.HasValue && finalEndTs.HasValue)
         {
-            await CancelSameTypeAssignmentAsync(db, transaction, id, request.ResourceId.Value, ct);
-            await WriteResourceAssignmentAsync(db, transaction, id, request.ResourceId.Value, finalStartTs.Value, finalEndTs.Value, ct);
+            await WriteRequestResourcesAsync(
+                db, transaction, id, updatedResources, finalStartTs.Value, finalEndTs.Value, ct);
         }
 
         // Replace requirements wholesale if the caller supplied a (possibly empty) list.
@@ -818,6 +826,35 @@ public class RequestRepository : IRequestRepository
               AND t.request_id = @requestId
               AND ra.request_id = @requestId
               AND ra.assignment_status != @cancelled";
+
+    /// <summary>
+    /// Assigns each resource to the request, replacing whatever held its type's slot. Rejects a
+    /// payload naming two resources of the same type — writing both would silently cancel the
+    /// first, so the caller would get one assignment back having asked for two.
+    /// </summary>
+    private static async Task WriteRequestResourcesAsync(
+        NpgsqlConnection db, NpgsqlTransaction tx, Guid requestId,
+        IReadOnlyList<Guid> resourceIds, DateTime startTs, DateTime endTs, CancellationToken ct)
+    {
+        await using (var check = new NpgsqlCommand(
+            @"SELECT count(*) FROM (
+                  SELECT 1 FROM resources WHERE id = ANY(@ids)
+                   GROUP BY resource_type_id HAVING count(*) > 1
+              ) dup",
+            db, tx))
+        {
+            check.Parameters.AddWithValue("ids", resourceIds.Distinct().ToArray());
+            if ((long)(await check.ExecuteScalarAsync(ct) ?? 0L) > 0)
+                throw new ArgumentException(
+                    "A request holds at most one resource per type; the payload names several of the same type.");
+        }
+
+        foreach (var resourceId in resourceIds.Distinct())
+        {
+            await CancelSameTypeAssignmentAsync(db, tx, requestId, resourceId, ct);
+            await WriteResourceAssignmentAsync(db, tx, requestId, resourceId, startTs, endTs, ct);
+        }
+    }
 
     private static async Task WriteResourceAssignmentAsync(
         NpgsqlConnection conn, NpgsqlTransaction? tx,
