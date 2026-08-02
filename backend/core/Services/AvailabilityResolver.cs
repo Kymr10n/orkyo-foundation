@@ -9,7 +9,7 @@ namespace Api.Services;
 /// resource > resource_group > resource_type > event.default_effect).
 ///
 /// Availability events only affect site-bound resources (spaces, site-bound equipment).
-/// People resources (no site FK in person_profiles) are governed exclusively by their
+/// People resources (no site of their own) are governed exclusively by their
 /// resource absences.
 /// </summary>
 public interface IAvailabilityResolver

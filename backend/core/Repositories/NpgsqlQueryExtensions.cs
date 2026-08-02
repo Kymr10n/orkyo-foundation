@@ -26,7 +26,7 @@ public static class NpgsqlQueryExtensions
     /// </summary>
     private static readonly HashSet<string> AllowedExistsTables = new(StringComparer.Ordinal)
     {
-        "sites", "spaces", "resource_groups", "resources", "criteria", "requests",
+        "sites", "resource_groups", "resources", "criteria", "requests",
         "users", "tenants", "announcements", "presets", "templates"
     };
 

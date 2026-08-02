@@ -61,13 +61,13 @@ public class SpaceService : ISpaceService
         var currentCount = await _repository.GetEstimatedCountAsync(ct);
         await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.Spaces, currentCount, 1, ct);
 
-        // Create the resources row first (spaces.id FK → resources.id).
+        // Create the resources row first; the repository then fills in its placement columns.
         var spaceType = await _resourceTypeRepository.GetByKeyAsync(ResourceTypeKeys.Space, ct)
             ?? throw new InvalidOperationException("Space resource type not found");
 
         var resourceId = Guid.NewGuid();
-        // Spaces are immovable: their site lives in spaces.site_id, so the generic
-        // location columns stay null and cross-site is always false.
+        // Spaces are immovable, so cross-site is always false. The home site is set by the
+        // repository call below, which is what makes the resource a placed space.
         await _resourceRepository.CreateAsync(spaceType.Id, spaceType.Key, name, description, externalReference: null, AllocationModes.Exclusive, 100, crossSiteAllowed: false, id: resourceId, ct: ct);
 
         var space = await _repository.CreateAsync(resourceId, siteId, code, isPhysical, geometry, properties, capacity, ct);
@@ -94,10 +94,11 @@ public class SpaceService : ISpaceService
 
     public async Task<bool> DeleteAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
     {
+        // The repository deactivates the resource, which is now the whole of the delete —
+        // there is no side table left to remove a row from.
         var deleted = await _repository.DeleteAsync(siteId, resourceId, ct);
         if (deleted)
         {
-            await _resourceRepository.DeactivateAsync(resourceId, ct);
             await _rollup.RecordDeltaAsync(QuotaResourceTypes.Spaces, -1, ct);
         }
         return deleted;

@@ -55,16 +55,14 @@ public enum ValidationReasonCode
     InvalidAllocationPercent,
 
     // Site/location mismatches (Home-Site / Current-Site model). When no execution site can be
-    // resolved (site-neutral request, no space yet) there is simply no constraint, so no code.
-    /// <summary>A space's site differs from the request's site scope (hard blocker).</summary>
-    [JsonStringEnumMemberName("site.mismatch-space")]
-    SiteMismatchSpace,
-
-    /// <summary>A person/tool's current site differs from the execution site but cross-site is allowed (warning).</summary>
+    // resolved (site-neutral request, no resource yet) there is simply no constraint, so no code.
+    // There is no space-specific code: a space is a resource that may not travel, so a mis-sited
+    // space reports site.cross-not-allowed, which names the actual reason.
+    /// <summary>A resource's current site differs from the execution site but cross-site is allowed (warning).</summary>
     [JsonStringEnumMemberName("site.mismatch-person")]
     SiteMismatchPerson,
 
-    /// <summary>A person/tool is assigned outside its current site and cross-site is not allowed (hard blocker).</summary>
+    /// <summary>A resource is assigned outside its current site and cross-site is not allowed (hard blocker).</summary>
     [JsonStringEnumMemberName("site.cross-not-allowed")]
     SiteCrossNotAllowed
 }

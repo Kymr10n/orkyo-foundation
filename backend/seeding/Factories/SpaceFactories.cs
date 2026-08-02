@@ -9,7 +9,7 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// <summary>
 /// Seeds sites and spaces.
 /// MVP scope: produces non-physical spaces (no floorplan geometry) — keeps the
-/// schema CHECK constraint <c>check_physical_has_geometry</c> happy without
+/// schema CHECK constraint <c>resources_physical_has_geometry_check</c> happy without
 /// needing to synthesise polygon coordinates.
 /// </summary>
 public static class SpaceFactories
@@ -78,9 +78,11 @@ public static class SpaceFactories
         var seeded = new List<SeededSpace>(sites.Count * scale.SpacesPerSite);
         var now = DateTime.UtcNow;
 
-        // Spaces share their UUID with resources — insert resources first.
+        // Spaces are plain resources — site, code, capacity and the rest are columns (migration 1700).
+        _ = tx;
         using (var resourceWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) " +
+            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, " +
+            "home_site_id, code, is_physical, properties, capacity, created_at, updated_at) " +
             "FROM STDIN (FORMAT BINARY)"))
         {
             foreach (var site in sites)
@@ -89,6 +91,9 @@ public static class SpaceFactories
                 {
                     var id = Guid.NewGuid();
                     var name = string.Format(profile.SpaceNameTemplate, i);
+                    var code = $"{site.Code}-{i:D3}";
+                    var capacity = faker.PickRandom(new[] { 1, 1, 1, 2, 4, 6, 8, 12, 20 });
+
                     await resourceWriter.StartRowAsync();
                     await resourceWriter.WriteAsync(id, NpgsqlDbType.Uuid);
                     await resourceWriter.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
@@ -96,41 +101,17 @@ public static class SpaceFactories
                     await resourceWriter.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
                     await resourceWriter.WriteAsync(100, NpgsqlDbType.Integer);
                     await resourceWriter.WriteAsync(true, NpgsqlDbType.Boolean);
+                    await resourceWriter.WriteAsync(site.Id, NpgsqlDbType.Uuid);     // home_site_id
+                    await resourceWriter.WriteAsync(code, NpgsqlDbType.Varchar);
+                    await resourceWriter.WriteAsync(false, NpgsqlDbType.Boolean);    // is_physical
+                    await resourceWriter.WriteAsync("{}", NpgsqlDbType.Jsonb);       // properties
+                    await resourceWriter.WriteAsync(capacity, NpgsqlDbType.Integer);
                     await resourceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
                     await resourceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
                     seeded.Add(new SeededSpace(id, site.Id, name));
                 }
             }
             await resourceWriter.CompleteAsync();
-        }
-
-        // Now insert the spaces subtype rows (no name — that's on resources).
-        using (var spaceWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.spaces (id, site_id, code, is_physical, properties, capacity, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            _ = tx;
-            var idx = 0;
-            foreach (var site in sites)
-            {
-                for (var i = 1; i <= scale.SpacesPerSite; i++)
-                {
-                    var space = seeded[idx++];
-                    var code = $"{site.Code}-{i:D3}";
-                    var capacity = faker.PickRandom(new[] { 1, 1, 1, 2, 4, 6, 8, 12, 20 });
-
-                    await spaceWriter.StartRowAsync();
-                    await spaceWriter.WriteAsync(space.Id, NpgsqlDbType.Uuid);
-                    await spaceWriter.WriteAsync(site.Id, NpgsqlDbType.Uuid);
-                    await spaceWriter.WriteAsync(code, NpgsqlDbType.Varchar);
-                    await spaceWriter.WriteAsync(false, NpgsqlDbType.Boolean);      // is_physical
-                    await spaceWriter.WriteAsync("{}", NpgsqlDbType.Jsonb);          // properties
-                    await spaceWriter.WriteAsync(capacity, NpgsqlDbType.Integer);
-                    await spaceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                    await spaceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                }
-            }
-            await spaceWriter.CompleteAsync();
         }
 
         return seeded;

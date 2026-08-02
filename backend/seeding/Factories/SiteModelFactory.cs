@@ -56,10 +56,10 @@ public static class SiteModelFactory
         // spaceless / unscheduled requests stay site-neutral.
         await ExecAsync(conn, tx, """
             UPDATE requests req
-            SET site_id = s.site_id
+            SET site_id = res.home_site_id
             FROM resource_assignments ra
             JOIN resources res ON res.id = ra.resource_id
-            JOIN spaces s ON s.id = res.id
+            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.has_geometry
             WHERE ra.request_id = req.id
               AND ra.assignment_status <> 'Cancelled'
               AND req.site_id IS NULL

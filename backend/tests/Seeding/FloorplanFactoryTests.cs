@@ -10,7 +10,7 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// <summary>
 /// Integration test for the floorplan seeder against a real tenant DB: three sites, three plaintext
 /// floorplan assets (1536×1024, valid checksum, NULL encryption metadata → AssetRepository read-path
-/// passthrough), and 43 physical spaces that satisfy the <c>check_physical_has_geometry</c> CHECK
+/// passthrough), and 43 physical spaces that satisfy the <c>resources_physical_has_geometry_check</c> CHECK
 /// with rectangle geometry. Everything runs inside a rolled-back transaction so the shared DB stays
 /// clean.
 /// </summary>
@@ -74,11 +74,13 @@ public class FloorplanFactoryTests
 
         // ── Spaces: 43 physical, all with geometry (CHECK satisfied) ──
         await using (var cmd = new NpgsqlCommand(
-            @"SELECT count(*) FILTER (WHERE is_physical),
-                     count(*) FILTER (WHERE is_physical AND geometry IS NOT NULL),
-                     count(*) FILTER (WHERE geometry->>'Type' = 'rectangle'
-                                        AND jsonb_array_length(geometry->'Coordinates') = 2)
-              FROM spaces WHERE site_id = ANY(@ids)", conn, tx))
+            @"SELECT count(*) FILTER (WHERE r.is_physical),
+                     count(*) FILTER (WHERE r.is_physical AND r.geometry IS NOT NULL),
+                     count(*) FILTER (WHERE r.geometry->>'Type' = 'rectangle'
+                                        AND jsonb_array_length(r.geometry->'Coordinates') = 2)
+              FROM resources r
+              JOIN resource_types rt ON rt.id = r.resource_type_id AND rt.has_geometry
+              WHERE r.home_site_id = ANY(@ids)", conn, tx))
         {
             cmd.Parameters.AddWithValue("ids", siteIds);
             await using var r = await cmd.ExecuteReaderAsync();

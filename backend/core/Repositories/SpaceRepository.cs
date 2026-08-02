@@ -8,15 +8,26 @@ namespace Api.Repositories;
 
 public class SpaceRepository : ISpaceRepository
 {
-    // Reads name and description from resources (Phase 2: spaces.name/description moved to resources).
+    // Every column lives on resources now; the spaces side table is gone. home_site_id is
+    // aliased to site_id so SpaceInfo and its mapper are unchanged — a space is simply a
+    // resource whose home site is set and which may not travel.
     // group_id comes from resource_group_members (single source of truth for membership);
-    // the 1:1 space-group guard ensures the LEFT JOIN yields at most one row per space.
+    // the single-group guard ensures the LEFT JOIN yields at most one row per space.
     private const string SelectColumns =
-        "s.id, s.site_id, r.name, s.code, r.description, s.is_physical, s.geometry, s.properties, s.capacity, rgm.resource_group_id AS group_id, s.created_at, s.updated_at";
+        "r.id, r.home_site_id AS site_id, r.name, r.code, r.description, r.is_physical, " +
+        "r.geometry, r.properties, r.capacity, rgm.resource_group_id AS group_id, " +
+        "r.created_at, r.updated_at";
 
+    // Scoping that the spaces table used to provide for free. has_geometry rather than
+    // key = 'space' so a tenant type declaring itself placeable is a first-class citizen here.
+    // is_active replaces the presence of the spaces row: deleting a space used to remove that
+    // row and deactivate the resource, so an inactive resource was already invisible.
     private const string FromJoin =
-        "FROM spaces s JOIN resources r ON r.id = s.id " +
-        "LEFT JOIN resource_group_members rgm ON rgm.resource_id = s.id";
+        "FROM resources r " +
+        "JOIN resource_types rt ON rt.id = r.resource_type_id " +
+        "LEFT JOIN resource_group_members rgm ON rgm.resource_id = r.id";
+
+    private const string TypeScope = "rt.has_geometry AND r.is_active";
 
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
@@ -33,7 +44,7 @@ public class SpaceRepository : ISpaceRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return await conn.QueryListAsync(
-            $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId ORDER BY s.code, r.name LIMIT 1000",
+            $"SELECT {SelectColumns} {FromJoin} WHERE {TypeScope} AND r.home_site_id = @siteId ORDER BY r.code, r.name LIMIT 1000",
             p => p.AddWithValue("siteId", siteId), SpaceMapper.MapFromReader, ct);
     }
 
@@ -43,7 +54,7 @@ public class SpaceRepository : ISpaceRepository
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         var spaces = await conn.QueryListAsync(
-            $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = ANY(@siteIds) ORDER BY s.site_id, s.code, r.name",
+            $"SELECT {SelectColumns} {FromJoin} WHERE {TypeScope} AND r.home_site_id = ANY(@siteIds) ORDER BY r.home_site_id, r.code, r.name",
             p => p.AddWithValue("siteIds", siteIds.ToArray()), SpaceMapper.MapFromReader, ct);
 
         var map = new Dictionary<Guid, List<SpaceInfo>>();
@@ -64,8 +75,8 @@ public class SpaceRepository : ISpaceRepository
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return await conn.QueryPagedAsync(
             page,
-            countSql: "SELECT COUNT(*) FROM spaces WHERE site_id = @siteId",
-            querySql: $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId ORDER BY s.code, r.name LIMIT @limit OFFSET @offset",
+            countSql: $"SELECT COUNT(*) {FromJoin} WHERE {TypeScope} AND r.home_site_id = @siteId",
+            querySql: $"SELECT {SelectColumns} {FromJoin} WHERE {TypeScope} AND r.home_site_id = @siteId ORDER BY r.code, r.name LIMIT @limit OFFSET @offset",
             bind: p => p.AddWithValue("siteId", siteId),
             map: SpaceMapper.MapFromReader,
             ct: ct);
@@ -75,7 +86,7 @@ public class SpaceRepository : ISpaceRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return await conn.QuerySingleOrDefaultAsync(
-            $"SELECT {SelectColumns} {FromJoin} WHERE s.site_id = @siteId AND s.id = @resourceId",
+            $"SELECT {SelectColumns} {FromJoin} WHERE {TypeScope} AND r.home_site_id = @siteId AND r.id = @resourceId",
             p => { p.AddWithValue("siteId", siteId); p.AddWithValue("resourceId", resourceId); },
             SpaceMapper.MapFromReader, ct);
     }
@@ -84,7 +95,7 @@ public class SpaceRepository : ISpaceRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return (int)await conn.ExecuteScalarAsync<long>(
-            "SELECT COUNT(*) FROM spaces", null, ct);
+            $"SELECT COUNT(*) {FromJoin} WHERE {TypeScope}", null, ct);
     }
 
     public async Task<SpaceInfo> CreateAsync(Guid resourceId, Guid siteId, string? code, bool isPhysical, SpaceGeometry? geometry, Dictionary<string, object>? properties, int capacity = 1, CancellationToken ct = default)
@@ -96,7 +107,7 @@ public class SpaceRepository : ISpaceRepository
         if (!string.IsNullOrWhiteSpace(code))
         {
             await using var checkCmd = new NpgsqlCommand(
-                "SELECT COUNT(*) FROM spaces WHERE site_id = @siteId AND code = @code",
+                $"SELECT COUNT(*) {FromJoin} WHERE {TypeScope} AND r.home_site_id = @siteId AND r.code = @code",
                 conn);
             checkCmd.Parameters.AddWithValue("siteId", siteId);
             checkCmd.Parameters.AddWithValue("code", code);
@@ -116,9 +127,13 @@ public class SpaceRepository : ISpaceRepository
             ? JsonSerializer.Serialize(properties)
             : "{}";
 
-        // Insert space
+        // SpaceService has already created the resources row; with the side table gone,
+        // "creating a space" is filling in that row's placement columns, including the home
+        // site it deliberately left null.
         await using var cmd = new NpgsqlCommand(
-            $"INSERT INTO spaces (id, site_id, code, is_physical, geometry, properties, capacity) VALUES (@resourceId, @siteId, @code, @isPhysical, @geometry::jsonb, @properties::jsonb, @capacity)",
+            "UPDATE resources SET home_site_id = @siteId, code = @code, is_physical = @isPhysical, " +
+            "geometry = @geometry::jsonb, properties = @properties::jsonb, capacity = @capacity " +
+            "WHERE id = @resourceId",
             conn);
 
         cmd.Parameters.AddWithValue("resourceId", resourceId);
@@ -131,9 +146,8 @@ public class SpaceRepository : ISpaceRepository
 
         await cmd.ExecuteNonQueryAsync(ct);
 
-        // Fetch the created space via JOIN to get name/description from resources.
         await using var sel = new NpgsqlCommand(
-            $"SELECT {SelectColumns} {FromJoin} WHERE s.id = @resourceId AND s.site_id = @siteId",
+            $"SELECT {SelectColumns} {FromJoin} WHERE {TypeScope} AND r.id = @resourceId AND r.home_site_id = @siteId",
             conn);
         sel.Parameters.AddWithValue("resourceId", resourceId);
         sel.Parameters.AddWithValue("siteId", siteId);
@@ -150,7 +164,7 @@ public class SpaceRepository : ISpaceRepository
 
         // Check if space exists
         await using var checkCmd = new NpgsqlCommand(
-            "SELECT COUNT(*) FROM spaces WHERE site_id = @siteId AND id = @resourceId",
+            $"SELECT COUNT(*) {FromJoin} WHERE {TypeScope} AND r.home_site_id = @siteId AND r.id = @resourceId",
             conn);
         checkCmd.Parameters.AddWithValue("siteId", siteId);
         checkCmd.Parameters.AddWithValue("resourceId", resourceId);
@@ -198,7 +212,9 @@ public class SpaceRepository : ISpaceRepository
         }
 
         // Execute update
-        var sql = $"UPDATE spaces SET {string.Join(", ", updates)}, updated_at = NOW() WHERE site_id = @siteId AND id = @resourceId";
+        // No explicit updated_at: the resources_updated_at BEFORE UPDATE trigger maintains it,
+        // where the spaces table needed its own.
+        var sql = $"UPDATE resources SET {string.Join(", ", updates)} WHERE home_site_id = @siteId AND id = @resourceId";
 
         await using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("siteId", siteId);
@@ -218,8 +234,13 @@ public class SpaceRepository : ISpaceRepository
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
 
+        // Deleting a space was always a deactivation dressed up as a delete: it dropped the
+        // spaces row and deactivated the resource, keeping the resource for its assignment
+        // history. With one table left, the deactivation is the whole operation.
         await using var cmd = new NpgsqlCommand(
-            "DELETE FROM spaces WHERE site_id = @siteId AND id = @resourceId",
+            "UPDATE resources r SET is_active = false " +
+            "FROM resource_types rt WHERE rt.id = r.resource_type_id " +
+            $"AND {TypeScope} AND r.home_site_id = @siteId AND r.id = @resourceId",
             conn);
         cmd.Parameters.AddWithValue("siteId", siteId);
         cmd.Parameters.AddWithValue("resourceId", resourceId);

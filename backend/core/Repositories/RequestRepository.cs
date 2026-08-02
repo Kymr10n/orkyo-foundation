@@ -80,11 +80,10 @@ public class RequestRepository : IRequestRepository
                 SELECT 1 FROM resource_assignments ra
                 JOIN resources res ON res.id = ra.resource_id
                 JOIN resource_types rt ON rt.id = res.resource_type_id
-                JOIN spaces s ON s.id = res.id
                 WHERE ra.request_id = v_requests_with_assignments.id
                   AND rt.key = @spaceKey
                   AND ra.assignment_status != @cancelled
-                  AND s.site_id = @siteId
+                  AND res.home_site_id = @siteId
               )",
             p =>
             {
@@ -195,11 +194,10 @@ public class RequestRepository : IRequestRepository
                   SELECT 1 FROM resource_assignments ra
                   JOIN resources res ON res.id = ra.resource_id
                   JOIN resource_types rt ON rt.id = res.resource_type_id
-                  JOIN spaces s ON s.id = res.id
                   WHERE ra.request_id = v_requests_with_assignments.id
                     AND rt.key = @spaceKey
                     AND ra.assignment_status != @cancelled
-                    AND s.site_id = @siteId
+                    AND res.home_site_id = @siteId
                 )
               )",
             p =>
@@ -365,15 +363,20 @@ public class RequestRepository : IRequestRepository
             throw new ArgumentException("Invalid site_id: site does not exist");
         }
 
-        // Implicit site-on-schedule: a request created directly into a space (no explicit site)
-        // adopts that space's site. Mirrors UpdateScheduleAsync so every creation route agrees.
+        // Implicit site-on-schedule: a request created directly into a resource (no explicit site)
+        // adopts that resource's home site. Mirrors UpdateScheduleAsync so every creation route agrees.
         var effectiveSiteId = request.SiteId;
         if (effectiveSiteId is null && request.ResourceId.HasValue)
         {
             effectiveSiteId = await db.QuerySingleOrDefaultAsync<Guid?>(
-                "SELECT site_id FROM spaces WHERE id = @id",
+                // Only an immovable resource dictates the request's site. Reading home_site_id
+                // for any resource would make scheduling onto a person drag the request to that
+                // person's home office — the spaces table used to prevent that by simply having
+                // no row for people.
+                "SELECT home_site_id FROM resources WHERE id = @id AND NOT cross_site_allowed",
                 p => p.AddWithValue("id", request.ResourceId.Value),
-                r => r.GetGuid(0), ct);
+                // home_site_id is nullable (an unsited resource), so the row can carry NULL.
+                r => r.IsDBNull(0) ? null : r.GetGuid(0), ct);
         }
 
         await using var transaction = await db.BeginTransactionAsync(ct);
@@ -592,15 +595,16 @@ public class RequestRepository : IRequestRepository
 
         await using var tx = await db.BeginTransactionAsync(ct);
 
-        // Implicit site-on-schedule: a site-neutral request adopts the site of the space it is
-        // scheduled into. COALESCE keeps an existing scope and is a no-op when no space is given
-        // (the subquery yields NULL for a null/ non-space resource id).
+        // Implicit site-on-schedule: a site-neutral request adopts the home site of the resource it
+        // is scheduled into. COALESCE keeps an existing scope and is a no-op when no resource is
+        // given (the subquery yields NULL for a null/unknown resource id).
         var cmd = new NpgsqlCommand(
             $@"UPDATE requests
                SET start_ts = @start_ts, end_ts = @end_ts,
                    actual_duration_value = @actual_duration_value,
                    actual_duration_unit  = @actual_duration_unit,
-                   site_id = COALESCE(site_id, (SELECT site_id FROM spaces WHERE id = @resource_id))
+                   site_id = COALESCE(site_id, (SELECT home_site_id FROM resources
+                                                 WHERE id = @resource_id AND NOT cross_site_allowed))
                WHERE id = @id
                RETURNING id",
             db, tx);

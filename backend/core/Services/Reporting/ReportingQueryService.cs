@@ -46,16 +46,18 @@ public sealed class ReportingQueryService : IReportingQueryService
                 ), 0)                                         AS allocated_hours,
                 COUNT(DISTINCT ra.request_id)                 AS request_count,
                 COUNT(*) OVER ()                              AS total_count
-            FROM spaces s
-            JOIN resources r ON r.id = s.id
-            JOIN sites si ON si.id = s.site_id
-            LEFT JOIN resource_group_members rgm ON rgm.resource_id = s.id
+            FROM resources r
+            JOIN resource_types rt ON rt.id = r.resource_type_id
+            JOIN sites si ON si.id = r.home_site_id
+            LEFT JOIN resource_group_members rgm ON rgm.resource_id = r.id
             LEFT JOIN resource_groups rg ON rg.id = rgm.resource_group_id
             LEFT JOIN resource_assignments ra
-                   ON ra.resource_id = s.id
+                   ON ra.resource_id = r.id
                   AND ra.start_utc < @to AND ra.end_utc > @from
                   AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
-            GROUP BY si.name, s.id, r.name, rg.name
+            -- Space utilization only: the spaces table used to supply this scoping implicitly.
+            WHERE rt.has_geometry
+            GROUP BY si.name, r.id, r.name, rg.name
             ORDER BY si.name, r.name
             LIMIT @limit OFFSET @offset",
             p =>
@@ -200,8 +202,7 @@ public sealed class ReportingQueryService : IReportingQueryService
             JOIN requests req ON req.id = ra.request_id
             JOIN resources r ON r.id = ra.resource_id
             JOIN resource_types rt ON rt.id = r.resource_type_id
-            LEFT JOIN spaces sp ON sp.id = r.id
-            LEFT JOIN sites si ON si.id = sp.site_id
+            LEFT JOIN sites si ON si.id = r.home_site_id
             WHERE ra.start_utc < @to AND ra.end_utc > @from
               AND ra.assignment_status != '{AssignmentStatuses.Cancelled}'
               {updatedSinceFilter}

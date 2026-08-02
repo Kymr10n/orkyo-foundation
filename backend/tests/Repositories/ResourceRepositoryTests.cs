@@ -134,8 +134,9 @@ public class ResourceRepositoryTests
 
         var resource = await _resources.GetByIdAsync(space.Id);
 
-        // Spaces are immovable: home stays null, current resolves to spaces.site_id.
-        Assert.Null(resource!.HomeSiteId);
+        // Spaces are immovable, and their site is now simply their home site — the whole point
+        // of the fold. Current still resolves to it, so the reported location is unchanged.
+        Assert.Equal(siteA, resource!.HomeSiteId);
         Assert.Equal(siteA, resource.CurrentSiteId);
     }
 

@@ -366,20 +366,13 @@ public class ResourceAssignmentValidator(
         if (requestSiteId is not { } scope || resourceSite is not { } site || site == scope)
             return;
 
-        if (resource.ResourceTypeKey == ResourceTypeKeys.Space)
-            blockers.Add(SiteMismatchSpace(resource.Id));
-        else if (resource.CrossSiteAllowed)
+        // A space is exactly a resource that may not travel, so it needs no branch of its
+        // own: the cross-site blocker below states the same fact and states the reason.
+        if (resource.CrossSiteAllowed)
             warnings.Add(SiteMismatchPerson(resource.Id));
         else
             blockers.Add(SiteCrossNotAllowed(resource.Id));
     }
-
-    private static ValidationIssue SiteMismatchSpace(Guid resourceId) => new()
-    {
-        Code = ValidationReasonCode.SiteMismatchSpace,
-        Message = "Space belongs to a different site than the request",
-        ResourceId = resourceId,
-    };
 
     private static ValidationIssue SiteMismatchPerson(Guid resourceId) => new()
     {

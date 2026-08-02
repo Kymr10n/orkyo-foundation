@@ -164,16 +164,22 @@ public static class PeopleFactories
         var now = DateTime.UtcNow;
         var people = new List<SeededPerson>(scale.People);
 
-        // Insert resources (the bulk of the work).
+        // Insert resources — the directory details (email, job title, department) are columns on
+        // resources since migration 1700.
         _ = tx;
         using (var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) " +
+            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, " +
+            "email, job_title_id, department_id, created_at, updated_at) " +
             "FROM STDIN (FORMAT BINARY)"))
         {
             for (var i = 0; i < scale.People; i++)
             {
                 var id = Guid.NewGuid();
                 var fullName = faker.Name.FullName();
+                var email = $"{Slugify(fullName)}@orkyo.example";
+                var jobTitleId = jobTitles.Count == 0 ? (Guid?)null : jobTitles[faker.Random.Int(0, jobTitles.Count - 1)].Id;
+                var deptId = departments.Count == 0 ? (Guid?)null : departments[faker.Random.Int(0, departments.Count - 1)].Id;
+
                 await writer.StartRowAsync();
                 await writer.WriteAsync(id, NpgsqlDbType.Uuid);
                 await writer.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
@@ -181,34 +187,12 @@ public static class PeopleFactories
                 await writer.WriteAsync("Fractional", NpgsqlDbType.Varchar);
                 await writer.WriteAsync(100, NpgsqlDbType.Integer);
                 await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                people.Add(new SeededPerson(id, fullName));
-            }
-            await writer.CompleteAsync();
-        }
-
-        // Insert person_profiles linking job_title + department.
-        // Skipped if there are no job titles or departments (won't crash; profile rows are optional).
-        if (jobTitles.Count > 0 || departments.Count > 0)
-        {
-            using var writer = await conn.BeginBinaryImportAsync(
-                "COPY public.person_profiles (resource_id, email, job_title_id, department_id, created_at, updated_at) " +
-                "FROM STDIN (FORMAT BINARY)");
-
-            foreach (var person in people)
-            {
-                var email = $"{Slugify(person.Name)}@orkyo.example";
-                var jobTitleId = jobTitles.Count == 0 ? (Guid?)null : jobTitles[faker.Random.Int(0, jobTitles.Count - 1)].Id;
-                var deptId = departments.Count == 0 ? (Guid?)null : departments[faker.Random.Int(0, departments.Count - 1)].Id;
-
-                await writer.StartRowAsync();
-                await writer.WriteAsync(person.ResourceId, NpgsqlDbType.Uuid);
                 await writer.WriteAsync(email, NpgsqlDbType.Citext);
                 if (jobTitleId is null) await writer.WriteNullAsync(); else await writer.WriteAsync(jobTitleId.Value, NpgsqlDbType.Uuid);
                 if (deptId is null) await writer.WriteNullAsync(); else await writer.WriteAsync(deptId.Value, NpgsqlDbType.Uuid);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                people.Add(new SeededPerson(id, fullName));
             }
             await writer.CompleteAsync();
         }

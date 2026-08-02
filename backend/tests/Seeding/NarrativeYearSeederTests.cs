@@ -149,7 +149,10 @@ public class NarrativeYearSeederTests
         var (toolTotal, toolCoherent) = await TwoLongs(conn, tx, @"
             WITH spacesite AS (
                 SELECT ra.request_id, si.code site_code
-                FROM resource_assignments ra JOIN spaces s ON s.id=ra.resource_id JOIN sites si ON si.id=s.site_id
+                FROM resource_assignments ra
+                JOIN resources s ON s.id=ra.resource_id
+                JOIN resource_types srt ON srt.id=s.resource_type_id AND srt.has_geometry
+                JOIN sites si ON si.id=s.home_site_id
                 WHERE ra.request_id = ANY(@ids))
             SELECT count(*), count(*) FILTER (WHERE r.name LIKE ss.site_code||' %')
             FROM resource_assignments ra

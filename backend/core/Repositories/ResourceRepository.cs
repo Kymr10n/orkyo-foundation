@@ -20,13 +20,19 @@ public interface IResourceRepository
 public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : IResourceRepository
 {
-    // Derived "current site": where the resource is right now. A space is immovable
-    // (spaces.site_id); a person/tool is wherever a non-cancelled assignment overlapping now()
-    // places them, else their home site. Read-only — never stored. On concurrent (fractional)
-    // assignments the most recently started one wins, so the value is deterministic.
+    // Derived "current site": where the resource is right now — wherever a non-cancelled
+    // assignment overlapping now() places it, else its home site. Read-only — never stored. On
+    // concurrent (fractional) assignments the most recently started one wins, so the value is
+    // deterministic.
+    //
+    // The assignment arm applies only to resources allowed to travel. An immovable resource
+    // always reports its home site: it cannot be somewhere else, so an assignment to a request
+    // filed against another site says something about the request, not about the resource.
+    // This is what the spaces table used to express by keeping a space's site in its own
+    // column where no assignment could override it.
     private const string CurrentSiteExpr =
         $@"COALESCE(
-            (SELECT sp.site_id FROM spaces sp WHERE sp.id = r.id),
+            CASE WHEN r.cross_site_allowed THEN
             (SELECT req.site_id
                FROM resource_assignments ra
                JOIN requests req ON req.id = ra.request_id
@@ -35,7 +41,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 AND ra.start_utc <= now() AND ra.end_utc > now()
                 AND req.site_id IS NOT NULL
               ORDER BY ra.start_utc DESC
-              LIMIT 1),
+              LIMIT 1) END,
             r.home_site_id)";
 
     // Site membership over a window: home site matches, or a non-cancelled assignment to a request

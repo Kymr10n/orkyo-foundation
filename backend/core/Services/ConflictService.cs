@@ -183,14 +183,14 @@ public class ConflictService(
                     ResourceId = issue.ResourceId,
                 };
 
-            case ValidationReasonCode.SiteMismatchSpace:
             case ValidationReasonCode.SiteCrossNotAllowed:
             case ValidationReasonCode.SiteMismatchPerson:
                 return new ConflictInfo
                 {
                     Id = $"{requestId}-{issue.ResourceId}-site",
                     Kind = ConflictKinds.SiteMismatch,
-                    // Cross-site-allowed person mismatch is advisory; space/not-allowed are errors.
+                    // A mismatch on a resource allowed to travel is advisory; on one that is
+                    // not allowed to travel it is an error.
                     Severity = issue.Code == ValidationReasonCode.SiteMismatchPerson ? "warning" : "error",
                     Message = issue.Message,
                     ResourceId = issue.ResourceId,
