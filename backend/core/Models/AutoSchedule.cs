@@ -32,7 +32,7 @@ public enum SolverStatus
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SchedulingReasonCode
 {
-    NoCompatibleSpace = 1,
+    NoCompatibleResource = 1,
     InsufficientCapacity = 3,
     BlockedByFixedAssignments = 4,
     InvalidDuration = 5,
@@ -98,7 +98,7 @@ public sealed record SchedulingProblem(
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
     IReadOnlyList<RequestNode> Requests,
-    IReadOnlyList<SpaceNode> Spaces,
+    IReadOnlyList<ResourceNode> Resources,
     IReadOnlyList<FixedOccupancy> FixedAssignments,
     SchedulingSettingsInfo? Settings,
     Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource);
@@ -113,7 +113,7 @@ public sealed record RequestNode(
     bool RespectSchedulingSettings,
     IReadOnlySet<Guid> RequiredCriterionIds);
 
-public sealed record SpaceNode(
+public sealed record ResourceNode(
     Guid ResourceId,
     string DisplayName,
     IReadOnlySet<Guid> CriterionIds);
@@ -125,7 +125,7 @@ public sealed record FixedOccupancy(
     DateOnly End);
 
 /// <summary>
-/// A feasible request→space candidate with enumerated start days.
+/// A feasible request→resource candidate with enumerated start days.
 /// </summary>
 public sealed record SchedulingCandidate(
     Guid RequestId,

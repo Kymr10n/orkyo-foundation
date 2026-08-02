@@ -9,7 +9,7 @@ internal static class AutoScheduleTestHelpers
 
     internal static SchedulingProblem MakeProblem(
         IReadOnlyList<RequestNode> requests,
-        IReadOnlyList<SpaceNode> spaces,
+        IReadOnlyList<ResourceNode> spaces,
         IReadOnlyList<FixedOccupancy>? fixedAssignments = null,
         DateOnly? horizonStart = null,
         DateOnly? horizonEnd = null,
@@ -20,7 +20,7 @@ internal static class AutoScheduleTestHelpers
             HorizonStart: horizonStart ?? DefaultHorizonStart,
             HorizonEnd: horizonEnd ?? DefaultHorizonEnd,
             Requests: requests,
-            Spaces: spaces,
+            Resources: spaces,
             FixedAssignments: fixedAssignments ?? [],
             Settings: settings,
             BlockedPeriodsByResource: blockedPeriodsByResource);
@@ -37,7 +37,7 @@ internal static class AutoScheduleTestHelpers
                 HorizonStart: horizonStart ?? DefaultHorizonStart,
                 HorizonEnd: horizonEnd ?? DefaultHorizonEnd,
                 Requests: [],
-                Spaces: [],
+                Resources: [],
                 FixedAssignments: fixedAssignments ?? [],
                 Settings: null,
                 BlockedPeriodsByResource: null),
@@ -84,7 +84,7 @@ internal static class AutoScheduleTestHelpers
             RespectSchedulingSettings: respectSettings,
             RequiredCriterionIds: criteria ?? new HashSet<Guid>());
 
-    internal static SpaceNode MakeSpace(
+    internal static ResourceNode MakeSpace(
         Guid? id = null,
         string name = "Test Space",
         IReadOnlySet<Guid>? criteria = null)

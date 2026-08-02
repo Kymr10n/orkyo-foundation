@@ -3,7 +3,7 @@ using Api.Models;
 namespace Api.Services.AutoSchedule;
 
 /// <summary>
-/// Expands request→space candidates, rejects impossible ones, and
+/// Expands request→resource candidates, rejects impossible ones, and
 /// enumerates feasible start days. Output feeds directly into the solver.
 /// </summary>
 public sealed class SchedulingFeasibilityAnalyzer
@@ -25,36 +25,36 @@ public sealed class SchedulingFeasibilityAnalyzer
                 continue;
             }
 
-            // Find spaces whose criterion set is a superset of the request's requirements
-            var compatibleSpaces = problem.Spaces
-                .Where(space => request.RequiredCriterionIds.All(space.CriterionIds.Contains))
+            // Find resources whose criterion set is a superset of the request's requirements
+            var compatibleResources = problem.Resources
+                .Where(resource => request.RequiredCriterionIds.All(resource.CriterionIds.Contains))
                 .ToList();
 
-            if (compatibleSpaces.Count == 0)
+            if (compatibleResources.Count == 0)
             {
                 rejections.Add(new CandidateRejection(
                     request.RequestId, null,
-                    SchedulingReasonCode.NoCompatibleSpace,
-                    "No space satisfies all required criteria."));
+                    SchedulingReasonCode.NoCompatibleResource,
+                    "No resource satisfies all required criteria."));
                 continue;
             }
 
-            foreach (var space in compatibleSpaces)
+            foreach (var resource in compatibleResources)
             {
-                var feasibleStartDays = EnumerateFeasibleStarts(problem, request, space).ToList();
+                var feasibleStartDays = EnumerateFeasibleStarts(problem, request, resource).ToList();
 
                 if (feasibleStartDays.Count == 0)
                 {
                     rejections.Add(new CandidateRejection(
-                        request.RequestId, space.ResourceId,
+                        request.RequestId, resource.ResourceId,
                         SchedulingReasonCode.InsufficientCapacity,
-                        "No feasible start day within the horizon for this space."));
+                        "No feasible start day within the horizon for this resource."));
                     continue;
                 }
 
                 candidates.Add(new SchedulingCandidate(
                     request.RequestId,
-                    space.ResourceId,
+                    resource.ResourceId,
                     request.EarliestStart ?? problem.HorizonStart,
                     request.LatestEnd ?? problem.HorizonEnd,
                     request.DurationDays,
@@ -64,13 +64,13 @@ public sealed class SchedulingFeasibilityAnalyzer
         }
 
         // Add diagnostics summary
-        var noCompatibleCount = rejections.Count(r => r.ReasonCode == SchedulingReasonCode.NoCompatibleSpace);
+        var noCompatibleCount = rejections.Count(r => r.ReasonCode == SchedulingReasonCode.NoCompatibleResource);
         if (noCompatibleCount > 0)
-            diagnostics.Add($"{noCompatibleCount} request(s) removed: no compatible space exists.");
+            diagnostics.Add($"{noCompatibleCount} request(s) removed: no compatible resource exists.");
 
         var tightWindowCount = rejections.Count(r => r.ReasonCode == SchedulingReasonCode.InsufficientCapacity);
         if (tightWindowCount > 0)
-            diagnostics.Add($"{tightWindowCount} request-space pair(s) removed: no feasible start day.");
+            diagnostics.Add($"{tightWindowCount} request-resource pair(s) removed: no feasible start day.");
 
         return new AnalyzedSchedulingProblem(problem, candidates, rejections, diagnostics);
     }
@@ -78,7 +78,7 @@ public sealed class SchedulingFeasibilityAnalyzer
     private static IEnumerable<DateOnly> EnumerateFeasibleStarts(
         SchedulingProblem problem,
         RequestNode request,
-        SpaceNode space)
+        ResourceNode resource)
     {
         var earliest = request.EarliestStart ?? problem.HorizonStart;
         var latestFinish = request.LatestEnd ?? problem.HorizonEnd;
@@ -86,9 +86,9 @@ public sealed class SchedulingFeasibilityAnalyzer
 
         if (latestStart < earliest) yield break;
 
-        // Pre-compute fixed occupancy intervals for this space
-        var spaceOccupancy = problem.FixedAssignments
-            .Where(a => a.ResourceId == space.ResourceId)
+        // Pre-compute fixed occupancy intervals for this resource
+        var resourceOccupancy = problem.FixedAssignments
+            .Where(a => a.ResourceId == resource.ResourceId)
             .Select(a => (a.Start, a.End))
             .ToList();
 
@@ -96,7 +96,7 @@ public sealed class SchedulingFeasibilityAnalyzer
         var offDates = new HashSet<DateOnly>();
         if (request.RespectSchedulingSettings && problem.BlockedPeriodsByResource != null)
         {
-            var periods = problem.BlockedPeriodsByResource.GetValueOrDefault(space.ResourceId, []);
+            var periods = problem.BlockedPeriodsByResource.GetValueOrDefault(resource.ResourceId, []);
             foreach (var p in periods)
             {
                 var pStart = DateOnly.FromDateTime(p.StartTs);
@@ -122,7 +122,7 @@ public sealed class SchedulingFeasibilityAnalyzer
 
             // Check that the entire placement interval doesn't conflict with fixed occupancy
             var end = day.AddDays(request.DurationDays - 1);
-            var conflicts = spaceOccupancy.Any(occ => !(end < occ.Start || day > occ.End));
+            var conflicts = resourceOccupancy.Any(occ => !(end < occ.Start || day > occ.End));
             if (conflicts)
                 continue;
 

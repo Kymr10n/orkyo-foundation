@@ -56,15 +56,15 @@ public class SchedulingProblemBuilder
         }
 
         var spaces = await _spaceRepository.GetAllAsync(request.SiteId, cancellationToken);
-        var capabilitiesBySpace = (await _capabilityRepository.GetByResourcesAsync(
+        var capabilitiesByResource = (await _capabilityRepository.GetByResourcesAsync(
                 spaces.Select(s => s.Id).ToList(), cancellationToken))
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => g.Select(c => c.CriterionId).ToHashSet());
-        var spaceNodes = spaces
-            .Select(s => new SpaceNode(s.Id, s.Name, capabilitiesBySpace.GetValueOrDefault(s.Id) ?? []))
+        var resourceNodes = spaces
+            .Select(s => new ResourceNode(s.Id, s.Name, capabilitiesByResource.GetValueOrDefault(s.Id) ?? []))
             .ToList();
 
-        var spaceResourceIds = spaceNodes.Select(s => s.ResourceId).ToList();
+        var spaceResourceIds = resourceNodes.Select(s => s.ResourceId).ToList();
         var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(
             request.SiteId, spaceResourceIds, cancellationToken);
 
@@ -106,7 +106,7 @@ public class SchedulingProblemBuilder
 
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd,
-            requestNodes, spaceNodes, fixedAssignments,
+            requestNodes, resourceNodes, fixedAssignments,
             settings, blockedPeriodsByResource);
     }
 

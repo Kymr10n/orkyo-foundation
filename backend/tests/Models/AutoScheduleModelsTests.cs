@@ -30,7 +30,7 @@ public class AutoScheduleModelsTests
     }
 
     [Theory]
-    [InlineData(SchedulingReasonCode.NoCompatibleSpace)]
+    [InlineData(SchedulingReasonCode.NoCompatibleResource)]
     [InlineData(SchedulingReasonCode.InsufficientCapacity)]
     [InlineData(SchedulingReasonCode.BlockedByFixedAssignments)]
     [InlineData(SchedulingReasonCode.InvalidDuration)]
@@ -60,7 +60,7 @@ public class AutoScheduleModelsTests
             },
             Unscheduled: new List<UnscheduledPlacement>
             {
-                new(RequestId: req2, ReasonCodes: new List<SchedulingReasonCode> { SchedulingReasonCode.NoCompatibleSpace })
+                new(RequestId: req2, ReasonCodes: new List<SchedulingReasonCode> { SchedulingReasonCode.NoCompatibleResource })
             },
             Diagnostics: new List<string>()
         );
@@ -184,7 +184,7 @@ public class AutoScheduleModelsTests
         node.RequiredCriterionIds.Should().Contain(criterionId);
     }
 
-    // ── SpaceNode ──────────────────────────────────────────────────────────
+    // ── ResourceNode ──────────────────────────────────────────────────────────
 
     [Fact]
     public void SpaceNode_StoresAllFields()
@@ -192,7 +192,7 @@ public class AutoScheduleModelsTests
         var resourceId = Guid.NewGuid();
         var criterionId = Guid.NewGuid();
 
-        var node = new SpaceNode(
+        var node = new ResourceNode(
             ResourceId: resourceId,
             DisplayName: "Hall A",
             CriterionIds: new HashSet<Guid> { criterionId });
@@ -234,7 +234,7 @@ public class AutoScheduleModelsTests
             HorizonStart: start,
             HorizonEnd: end,
             Requests: new List<RequestNode>(),
-            Spaces: new List<SpaceNode>(),
+            Resources: new List<ResourceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
             BlockedPeriodsByResource: null);
@@ -275,11 +275,11 @@ public class AutoScheduleModelsTests
         var rejection = new CandidateRejection(
             RequestId: reqId,
             ResourceId: resourceId,
-            ReasonCode: SchedulingReasonCode.NoCompatibleSpace,
+            ReasonCode: SchedulingReasonCode.NoCompatibleResource,
             Message: "No space matches criteria");
 
         rejection.RequestId.Should().Be(reqId);
-        rejection.ReasonCode.Should().Be(SchedulingReasonCode.NoCompatibleSpace);
+        rejection.ReasonCode.Should().Be(SchedulingReasonCode.NoCompatibleResource);
         rejection.Message.Should().Be("No space matches criteria");
     }
 
@@ -311,7 +311,7 @@ public class AutoScheduleModelsTests
             HorizonStart: start,
             HorizonEnd: end,
             Requests: new List<RequestNode>(),
-            Spaces: new List<SpaceNode>(),
+            Resources: new List<ResourceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
             BlockedPeriodsByResource: null);
@@ -357,7 +357,7 @@ public class AutoScheduleModelsTests
             ReasonCodes: new List<SchedulingReasonCode>
             {
                 SchedulingReasonCode.InsufficientCapacity,
-                SchedulingReasonCode.NoCompatibleSpace
+                SchedulingReasonCode.NoCompatibleResource
             });
 
         placement.RequestId.Should().Be(reqId);

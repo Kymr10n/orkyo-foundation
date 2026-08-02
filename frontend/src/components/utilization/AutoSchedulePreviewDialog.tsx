@@ -12,7 +12,7 @@ interface Props {
 }
 
 const REASON_LABELS: Record<string, string> = {
-  NoCompatibleSpace: "No compatible space",
+  NoCompatibleResource: "No compatible resource",
   InsufficientCapacity: "Insufficient capacity",
   BlockedByFixedAssignments: "Blocked by existing assignments",
   InvalidDuration: "Invalid duration",

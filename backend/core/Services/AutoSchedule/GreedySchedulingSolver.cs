@@ -4,7 +4,7 @@ namespace Api.Services.AutoSchedule;
 
 /// <summary>
 /// Greedy earliest-fit solver. Assigns requests one at a time in priority order,
-/// picking the first feasible start day on the first compatible space.
+/// picking the first feasible start day on the first compatible resource.
 /// Acts as fallback when OR-Tools is unavailable or times out.
 /// </summary>
 public sealed class GreedySchedulingSolver : ISchedulingSolver

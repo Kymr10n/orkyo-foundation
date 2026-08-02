@@ -7,7 +7,7 @@ export type SolverKind = "Greedy" | "OrToolsCpSat";
 export type SolverStatus = "Optimal" | "Feasible" | "Infeasible" | "Unknown";
 
 export type SchedulingReasonCode =
-  | "NoCompatibleSpace"
+  | "NoCompatibleResource"
   | "InsufficientCapacity"
   | "BlockedByFixedAssignments"
   | "InvalidDuration"

@@ -19,7 +19,7 @@ public class SchedulingScenarioTests
         => MakeRequest(name: name, durationDays: days, priority: priority, earliest: earliest, latest: latest,
             criteria: criteria.Length > 0 ? criteria.ToHashSet() : null);
 
-    private static SpaceNode Space(string name, params Guid[] criteria)
+    private static ResourceNode Space(string name, params Guid[] criteria)
         => MakeSpace(name: name,
             criteria: criteria.Length > 0 ? criteria.ToHashSet() : null);
 
@@ -157,7 +157,7 @@ public class SchedulingScenarioTests
         var solver = solverName == "Greedy" ? (ISchedulingSolver)_greedy : _orTools;
 
         var resourceId = Guid.NewGuid();
-        var space = new SpaceNode(resourceId, "Room", new HashSet<Guid>());
+        var space = new ResourceNode(resourceId, "Room", new HashSet<Guid>());
 
         var fixedReqId = Guid.NewGuid();
         var fixedOcc = new FixedOccupancy(fixedReqId, resourceId,
