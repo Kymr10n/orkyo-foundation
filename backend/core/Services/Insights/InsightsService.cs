@@ -33,6 +33,7 @@ public class InsightsService(
     IConflictService conflictService,
     IRequestRepository requestRepository,
     IResourceRepository resourceRepository,
+    IResourceTypeService resourceTypeService,
     IResourceAssignmentRepository assignmentRepository,
     IAvailabilityResolver availabilityResolver) : IInsightsService
 {
@@ -56,17 +57,45 @@ public class InsightsService(
             SiteId = filter.SiteId,
             Requests = CountRequests(inWindow, backlog, DateTime.UtcNow),
             Conflicts = CountConflicts(conflicts.Select(c => c.Kind)),
-            Utilization = new UtilizationSummary
-            {
-                SpacesPercent = AggregatePercent(await ComputeUtilizationSeriesAsync(
-                    ResourceTypeKeys.Space, filter.From, filter.To, "month", filter.SiteId, ct)),
-                PeoplePercent = AggregatePercent(await ComputeUtilizationSeriesAsync(
-                    ResourceTypeKeys.Person, filter.From, filter.To, "month", filter.SiteId, ct)),
-                ToolsPercent = AggregatePercent(await ComputeUtilizationSeriesAsync(
-                    ResourceTypeKeys.Tool, filter.From, filter.To, "month", filter.SiteId, ct)),
-            },
+            Utilization = await SummarizeUtilizationAsync(filter, ct),
             Metadata = Metadata(),
         };
+    }
+
+    /// <summary>
+    /// One utilization figure per ACTIVE resource type, ordered as the type listing returns them.
+    ///
+    /// Driven by the resource_types table rather than a fixed space/person/tool triple: types are
+    /// tenant data, so a workspace that defines "Vehicle" gets a figure for it with no code change.
+    /// Inactive types are excluded — they no longer take part in planning, so a permanent "—" for
+    /// them would be noise.
+    ///
+    /// The bucket is fixed at "month" because AggregatePercent sums capacity minutes before
+    /// dividing, which is granularity-invariant; the choice only affects how the range is chunked.
+    ///
+    /// Sequential by necessity, not oversight: these share one scoped org connection, so a
+    /// Task.WhenAll fan-out would use it concurrently. Cost grows with the number of types a tenant
+    /// defines, which is why the caching decorator sits in front of this call.
+    /// </summary>
+    private async Task<UtilizationSummary> SummarizeUtilizationAsync(
+        InsightsFilter filter, CancellationToken ct)
+    {
+        var types = await resourceTypeService.GetAllAsync(isActive: true, ct: ct);
+        var byType = new List<ResourceTypeUtilization>(types.Count);
+
+        foreach (var type in types)
+        {
+            var series = await ComputeUtilizationSeriesAsync(
+                type.Key, filter.From, filter.To, "month", filter.SiteId, ct);
+            byType.Add(new ResourceTypeUtilization
+            {
+                ResourceTypeKey = type.Key,
+                DisplayName = type.DisplayName,
+                Percent = AggregatePercent(series),
+            });
+        }
+
+        return new UtilizationSummary { ByResourceType = byType };
     }
 
     public async Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default)

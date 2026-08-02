@@ -98,15 +98,17 @@ These are not defects — they are deliberate designs that predate user-defined 
 listed because each silently excludes any type beyond the built-in three, and **two of them
 already exclude `tool`**, which has been a seeded system type since migration 1300.
 
-### 2.1 Insights cannot represent a fourth resource type
+### 2.1 Insights cannot represent a fourth resource type — RESOLVED
 
-`backend/core/Services/Insights/InsightsService.cs:60–66` populates a `UtilizationSummary` whose
-DTO has three fixed properties — `SpacesPercent`, `PeoplePercent`, `ToolsPercent`. A fourth type
-has nowhere to go. This is a DTO-shape constraint, not a filter that can be relaxed.
+`backend/core/Services/Insights/InsightsService.cs:60–66` populated a `UtilizationSummary` whose
+DTO had three fixed properties — `SpacesPercent`, `PeoplePercent`, `ToolsPercent`. A fourth type
+had nowhere to go. This was a DTO-shape constraint, not a filter that could be relaxed.
 
-**Fix direction:** replace the three properties with a keyed collection
-(`Dictionary<string, decimal>`, or a `{ typeKey, displayName, percent }[]`) driven by the
-`resource_types` rows. Breaking response-shape change, so it wants its own PR.
+**Fixed** on `claude/generic-resource-types-r9m82d`: `UtilizationSummary.ByResourceType` is now a
+`{ resourceTypeKey, displayName, percent }[]` built by fanning out over the tenant's active
+`resource_types`. `InsightsBuckets.ValidResourceTypes` is gone — the utilization endpoint
+validates against the same table. The Overview KPI cards and the utilization trend charts are
+both generated from that list, so a tenant-defined type appears with no code change.
 
 ### 2.2 Search indexes a fixed entity list — `tool` is already missing
 

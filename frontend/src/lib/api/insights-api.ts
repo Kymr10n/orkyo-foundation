@@ -8,7 +8,18 @@ import { apiGet } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
 export type InsightsBucket = 'week' | 'month' | 'quarter' | 'year';
-export type InsightsResourceType = 'space' | 'person' | 'tool';
+/**
+ * A resource-type key. Deliberately a plain string, not a union: resource types are tenant data,
+ * so the set is only knowable at runtime — see useResourceTypes.
+ */
+export type InsightsResourceType = string;
+
+export interface ResourceTypeUtilization {
+  resourceTypeKey: string;
+  displayName: string;
+  /** null = no capacity configured for this type in the period (not 0%). */
+  percent: number | null;
+}
 
 export interface InsightsMetadata {
   calculatedAt: string;
@@ -34,9 +45,8 @@ export interface InsightsOverview {
     missingResource: number;
   };
   utilization: {
-    spacesPercent: number | null;
-    peoplePercent: number | null;
-    toolsPercent: number | null;
+    /** One entry per active resource type, ordered as the API returns them. */
+    byResourceType: ResourceTypeUtilization[];
   };
   metadata: InsightsMetadata;
 }

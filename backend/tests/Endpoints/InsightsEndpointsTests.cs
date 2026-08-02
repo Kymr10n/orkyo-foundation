@@ -68,10 +68,24 @@ public class InsightsEndpointsTests
     }
 
     [Fact]
-    public async Task Utilization_InvalidResourceType_Returns400()
+    public async Task Utilization_UnknownResourceType_Returns400()
     {
+        // 'widget' is not a type this tenant defines — validation is now a lookup against
+        // resource_types rather than a hard-coded space|person|tool list.
         var response = await _client.GetAsync($"/api/insights/utilization?from={From}&to={To}&bucket=month&resourceType=widget");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Overview_ReportsUtilization_ForEverySeededResourceType()
+    {
+        var ov = await GetAsync<InsightsOverview>($"/api/insights/overview?from={From}&to={To}");
+
+        // The seeded system types must each get an entry — the point of the keyed list is that a
+        // type can never be silently absent from the dashboard.
+        ov.Utilization.ByResourceType.Select(u => u.ResourceTypeKey)
+            .Should().Contain([ResourceTypeKeys.Space, ResourceTypeKeys.Person, ResourceTypeKeys.Tool]);
+        ov.Utilization.ByResourceType.Should().OnlyContain(u => !string.IsNullOrWhiteSpace(u.DisplayName));
     }
 
     [Fact]
@@ -241,9 +255,11 @@ public class InsightsEndpointsTests
         var peak = ut.Series.Where(p => p.UtilizationPercent.HasValue)
             .Select(p => p.UtilizationPercent!.Value).DefaultIfEmpty(0m).Max();
 
-        ov.Utilization.SpacesPercent.Should().NotBeNull();
+        var spaces = ov.Utilization.ByResourceType
+            .Single(u => u.ResourceTypeKey == ResourceTypeKeys.Space);
+        spaces.Percent.Should().NotBeNull();
         // The headline aggregate must lie within the chart it sits above — the exact bug we're guarding.
-        ov.Utilization.SpacesPercent!.Value.Should().BeLessThanOrEqualTo(peak + 0.01m);
+        spaces.Percent!.Value.Should().BeLessThanOrEqualTo(peak + 0.01m);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

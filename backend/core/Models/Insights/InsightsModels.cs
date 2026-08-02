@@ -57,12 +57,27 @@ public record ConflictCounts
     public required int MissingResource { get; init; }
 }
 
-/// <summary>Aggregate utilization over the period, per resource type. Null = no capacity configured (not 0%).</summary>
+/// <summary>
+/// Aggregate utilization for one resource type over the period.
+/// <see cref="Percent"/> null = no capacity configured (not 0%).
+/// </summary>
+public record ResourceTypeUtilization
+{
+    public required string ResourceTypeKey { get; init; }
+    public required string DisplayName { get; init; }
+    public required decimal? Percent { get; init; }
+}
+
+/// <summary>
+/// Aggregate utilization over the period, one entry per active resource type.
+///
+/// A keyed list rather than fixed Spaces/People/Tools properties: resource types are tenant data,
+/// so a workspace that defines "Vehicle" must see it here without a schema change. Ordering follows
+/// the resource_types listing, so the UI can render entries as-is.
+/// </summary>
 public record UtilizationSummary
 {
-    public required decimal? SpacesPercent { get; init; }
-    public required decimal? PeoplePercent { get; init; }
-    public required decimal? ToolsPercent { get; init; }
+    public required IReadOnlyList<ResourceTypeUtilization> ByResourceType { get; init; }
 }
 
 public record InsightsOverview

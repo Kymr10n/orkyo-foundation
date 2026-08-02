@@ -32,7 +32,14 @@ function overviewData(overrides?: Partial<InsightsOverview>): InsightsOverview {
     siteId: null,
     requests: { total: 120, scheduled: 80, unscheduled: 30, completed: 50, cancelled: 10 },
     conflicts: { total: 7, overbooking: 3, criteriaMismatch: 2, resourceUnavailable: 2, scheduleOutsideAvailability: 0, missingResource: 0 },
-    utilization: { spacesPercent: 74.2, peoplePercent: null, toolsPercent: null },
+    utilization: {
+      byResourceType: [
+        { resourceTypeKey: "space", displayName: "Space", percent: 74.2 },
+        { resourceTypeKey: "person", displayName: "Person", percent: null },
+        // A tenant-defined type must render like any built-in one.
+        { resourceTypeKey: "vehicle", displayName: "Vehicle", percent: 12.5 },
+      ],
+    },
     metadata: { calculatedAt: "2026-06-22T10:00:00Z", sourceMode: "live" },
     ...overrides,
   };
@@ -52,9 +59,13 @@ describe("OverviewTab", () => {
 
     expect(screen.getByText("Total requests")).toBeInTheDocument();
     expect(screen.getByText("120")).toBeInTheDocument();   // total
-    expect(screen.getByText("74.2%")).toBeInTheDocument(); // space utilization
-    // People utilization is null → honest em dash, not 0%.
+    expect(screen.getByText("Space utilization")).toBeInTheDocument();
+    expect(screen.getByText("74.2%")).toBeInTheDocument();
+    // Person utilization is null → honest em dash, not 0%.
     expect(screen.getByText("—")).toBeInTheDocument();
+    // The keyed list means a tenant-defined type appears without any code change.
+    expect(screen.getByText("Vehicle utilization")).toBeInTheDocument();
+    expect(screen.getByText("12.5%")).toBeInTheDocument();
     // Admin transparency footer.
     expect(screen.getByText(/Source: live/)).toBeInTheDocument();
   });

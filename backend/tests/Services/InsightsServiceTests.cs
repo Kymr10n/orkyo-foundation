@@ -24,6 +24,7 @@ public class InsightsServiceTests
     private readonly Mock<IResourceRepository> _resources = new();
     private readonly Mock<IResourceAssignmentRepository> _assignments = new();
     private readonly Mock<IAvailabilityResolver> _availability = new();
+    private readonly Mock<IResourceTypeService> _resourceTypes = new();
     private readonly InsightsService _service;
 
     public InsightsServiceTests()
@@ -31,7 +32,15 @@ public class InsightsServiceTests
         var org = new OrgContext { OrgId = Guid.NewGuid(), OrgSlug = "test", DbConnectionString = "unused" };
         _service = new InsightsService(
             org, _db.Object, _conflicts.Object, _requests.Object,
-            _resources.Object, _assignments.Object, _availability.Object);
+            _resources.Object, _resourceTypes.Object, _assignments.Object, _availability.Object);
+
+        // The overview now fans out over the tenant's active types instead of a fixed triple.
+        _resourceTypes.Setup(t => t.GetAllAsync(true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                TypeInfo(ResourceTypeKeys.Space, "Space"),
+                TypeInfo(ResourceTypeKeys.Person, "Person"),
+                TypeInfo(ResourceTypeKeys.Tool, "Tool"),
+            ]);
 
         // Sensible empties — individual tests override.
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
@@ -53,6 +62,17 @@ public class InsightsServiceTests
             .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
                 ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
     }
+
+    private static ResourceTypeInfo TypeInfo(string key, string displayName) => new()
+    {
+        Id = Guid.NewGuid(),
+        Key = key,
+        DisplayName = displayName,
+        IsSystem = true,
+        IsActive = true,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+    };
 
     private static readonly DateTime Jan = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime Feb = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);

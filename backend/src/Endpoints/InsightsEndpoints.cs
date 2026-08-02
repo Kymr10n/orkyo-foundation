@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models.Insights;
 using Api.Repositories;
+using Api.Services;
 using Api.Services.Insights;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -60,12 +61,12 @@ public static class InsightsEndpoints
 
     private static async Task<IResult> GetUtilization(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket, string? resourceType,
-        IInsightsService svc, ISiteRepository sites,
+        IInsightsService svc, ISiteRepository sites, IResourceTypeService resourceTypes,
         CancellationToken ct)
     {
         if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
         if (ValidateBucket(bucket) is { } bErr) return bErr;
-        if (ValidateResourceType(resourceType) is { } rErr) return rErr;
+        if (await ValidateResourceTypeAsync(resourceType, resourceTypes, ct) is { } rErr) return rErr;
         if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
         if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
 
@@ -130,12 +131,22 @@ public static class InsightsEndpoints
         return null;
     }
 
-    private static IResult? ValidateResourceType(string? resourceType)
+    /// <summary>
+    /// Validates against the resource types this tenant actually has, not a fixed space|person|tool
+    /// list — a workspace that defines "Vehicle" must be able to chart it. Inactive types are
+    /// rejected: they are out of planning, so their series would be a flat line with no meaning.
+    /// The valid keys are echoed back because they differ per tenant and are not guessable.
+    /// </summary>
+    private static async Task<IResult?> ValidateResourceTypeAsync(
+        string? resourceType, IResourceTypeService resourceTypes, CancellationToken ct)
     {
+        var active = await resourceTypes.GetAllAsync(isActive: true, ct: ct);
+        var keys = string.Join('|', active.Select(t => t.Key));
+
         if (string.IsNullOrWhiteSpace(resourceType))
-            return ErrorResponses.BadRequest("'resourceType' is required (space|person|tool).");
-        if (!InsightsBuckets.ValidResourceTypes.Contains(resourceType))
-            return ErrorResponses.BadRequest($"Invalid resourceType '{resourceType}'. Expected space|person|tool.");
+            return ErrorResponses.BadRequest($"'resourceType' is required ({keys}).");
+        if (!active.Any(t => string.Equals(t.Key, resourceType, StringComparison.Ordinal)))
+            return ErrorResponses.BadRequest($"Invalid resourceType '{resourceType}'. Expected {keys}.");
         return null;
     }
 
