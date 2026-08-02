@@ -103,3 +103,23 @@ This runs the Foundation, Community, and SaaS test suites in sequence. Foundatio
 - Don't break backward compatibility silently. Bump major + open downstream PRs.
 - Don't modify `.githooks/pre-push` ad-hoc; the broader plan replaces it with `pre-commit`.
 - Don't modify existing migration SQL files after they are merged — see Migration rules above.
+
+## Documentation impact (enforced)
+
+Every commit touching a user-visible surface must record its documentation impact as a
+commit trailer — the Definition of Done from orkyo-documentation `SPECIFICATION.md` §12:
+
+```
+Docs-impact: none
+Docs-impact: docs/user-guide/insights.md
+Docs-impact: orkyo-documentation#12
+```
+
+`none` is a legitimate answer; the point is a recorded decision, not a mandatory edit.
+A `commit-msg` hook (`scripts/check-docs-impact.sh`) blocks commits that touch endpoints,
+domain models, components or pages without one. `test:`/`ci:`/`build:`/`docs:` commits and
+merges are exempt.
+
+This exists because the published documentation quotes UI strings verbatim, so a behaviour
+change falsifies pages silently. The rule was already written down and unenforced, and one
+afternoon of work left four pages describing things the product no longer does.
