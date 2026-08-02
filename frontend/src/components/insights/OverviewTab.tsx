@@ -35,7 +35,7 @@ export function OverviewTab() {
           {o.utilization.byResourceType.map((u) => (
             <KpiCard
               key={u.resourceTypeKey}
-              label={`${u.displayName} utilization`}
+              label={`${u.displayNamePlural} utilization`}
               value={pct(u.percent)}
             />
           ))}

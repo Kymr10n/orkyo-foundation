@@ -179,9 +179,12 @@ public sealed record SchedulingSolution(
     /// solutions produce the same fingerprint regardless of solver non-determinism in ordering.
     /// Used for stale-preview detection on apply.
     /// </summary>
-    public string ComputeFingerprint()
+    public string ComputeFingerprint(string resourceTypeKey)
     {
-        var sb = new StringBuilder();
+        // The type is part of the identity, not just the assignments: an empty solution hashes
+        // the same for every type, so without it a preview that proposed nothing would match
+        // an apply for any type.
+        var sb = new StringBuilder(resourceTypeKey).Append('#');
         foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))
         {
             sb.Append(a.RequestId).Append('|')

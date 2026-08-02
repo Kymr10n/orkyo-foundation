@@ -117,12 +117,25 @@ internal sealed class MigrationHistory
     /// declared the old hash as superseded. Leaves applied_at and applied_by_version alone: the
     /// migration really did run then, and only its recorded text has changed.
     /// </summary>
-    public async Task RefreshChecksumAsync(MigrationScript script, CancellationToken ct = default)
+    /// <remarks>
+    /// Records what it replaced. The mechanism's justification is that it is explicit and
+    /// reviewable, and a row whose checksum was rewritten in place is indistinguishable from
+    /// one that was never touched — the log line that announced it is gone by the time anyone
+    /// asks. These two columns are that record.
+    /// </remarks>
+    public async Task RefreshChecksumAsync(
+        MigrationScript script, string supersededChecksum, CancellationToken ct = default)
     {
-        const string sql = $"UPDATE {TableName} SET checksum = @checksum WHERE id = @id";
+        const string sql = $@"
+            UPDATE {TableName}
+               SET checksum = @checksum,
+                   superseded_checksum = @superseded,
+                   superseded_at = now()
+             WHERE id = @id";
         await using var cmd = new NpgsqlCommand(sql, _connection);
         cmd.Parameters.AddWithValue("id", script.Id);
         cmd.Parameters.AddWithValue("checksum", script.Checksum);
+        cmd.Parameters.AddWithValue("superseded", supersededChecksum);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

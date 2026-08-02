@@ -65,11 +65,17 @@ public class SchedulingProblemBuilder
             eligibleRequests = eligibleRequests.Where(r => requestIdSet.Contains(r.Id));
         }
 
+        // Window the site filter to the horizon. Without it the filter resolves a travelling
+        // resource's location as of now(), so solving three months out included or excluded
+        // people and tools by where they happen to be today — and the same run tomorrow
+        // produced a different pool, and a different fingerprint.
         var candidates = await _resourceRepository.GetAllAsync(
             new ResourceListFilter
             {
                 ResourceTypeKey = targetTypeKey,
                 SiteId = request.SiteId,
+                SiteWindowFrom = request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                SiteWindowTo = request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 IsActive = true,
             },
             cancellationToken);

@@ -503,4 +503,45 @@ public class RequestRepositoryTests
         Assert.Empty(created!.TargetResourceTypeKeys);
         Assert.False(created.IsScheduled);
     }
+
+    [Fact]
+    public async Task AssigningAnUntargetedType_IsRejected()
+    {
+        // A resource of a type the request never asked for is invisible to the scheduled
+        // predicate (which iterates the targets) while still occupying that resource. Silently
+        // accepting it is the one outcome with no defensible reading.
+        var requestId = await CreateUnscheduledRequestAsync();  // targets: space
+        var personId = await CreatePersonResourceAsync();
+
+        var resp = await _client.PutAsJsonAsync($"/api/requests/{requestId}", new UpdateRequestRequest
+        {
+            ResourceIds = [personId],
+            StartTs = DateTime.UtcNow.AddDays(1),
+            EndTs = DateTime.UtcNow.AddDays(2),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddingATypeAndItsResourceInOneCall_Succeeds()
+    {
+        // The guard above must not break the natural payload: "this request now needs a tool,
+        // and here is the tool". Targets are written before assignments for exactly this.
+        var requestId = await CreateUnscheduledRequestAsync();
+        var toolId = await CreateToolResourceAsync();
+
+        var resp = await _client.PutAsJsonAsync($"/api/requests/{requestId}", new UpdateRequestRequest
+        {
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space, "tool"],
+            ResourceIds = [toolId],
+            StartTs = DateTime.UtcNow.AddDays(1),
+            EndTs = DateTime.UtcNow.AddDays(2),
+        });
+        resp.EnsureSuccessStatusCode();
+
+        var updated = await GetRequestAsync(requestId);
+        Assert.Contains(updated.Assignments, a => a.ResourceId == toolId);
+    }
+
 }

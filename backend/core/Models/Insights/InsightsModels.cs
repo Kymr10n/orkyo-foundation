@@ -65,6 +65,9 @@ public record ResourceTypeUtilization
 {
     public required string ResourceTypeKey { get; init; }
     public required string DisplayName { get; init; }
+    /// <summary>Plural. These labels name a whole type's utilization — "People utilization",
+    /// not "Person utilization".</summary>
+    public required string DisplayNamePlural { get; init; }
     public required decimal? Percent { get; init; }
 }
 

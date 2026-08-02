@@ -76,12 +76,15 @@ public static partial class EmbeddedSqlLoader
         {
             var match = SupersedesDirective().Match(line);
             if (!match.Success) continue;
-            (found ??= []).Add(match.Groups[1].Value);
+            // Stored hashes are lowercase hex (ChecksumPolicy.Compute); the comparison is
+            // ordinal, so an uppercase declaration would parse and then never match — the
+            // author would see a drift error naming the very hash their file declares.
+            (found ??= []).Add(match.Groups[1].Value.ToLowerInvariant());
         }
         return found ?? (IReadOnlyCollection<string>)Array.Empty<string>();
     }
 
-    [GeneratedRegex(@"^\s*--\s*@supersedes-checksum:\s*([0-9a-fA-F]+)\s*$")]
+    [GeneratedRegex(@"^\s*--\s*@supersedes-checksum:\s*([0-9a-fA-F]{64})\s*$")]
     private static partial Regex SupersedesDirective();
 
     private static MigrationTargetDatabase ParseTarget(string relative, string resourceName)

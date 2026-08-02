@@ -89,10 +89,13 @@ public sealed class MigrationAbstractionsContractTests
         script.SupersededChecksums.Should().BeEmpty();
     }
 
+    // Declared hashes are normalized to lowercase: stored checksums are lowercase hex and the
+    // comparison is ordinal, so an uppercase declaration would parse and then never match —
+    // the author would meet a drift error naming the very hash their file declares.
     [Theory]
-    [InlineData("-- @supersedes-checksum: a1b2c3", "a1b2c3")]
-    [InlineData("--@supersedes-checksum:A1B2C3", "A1B2C3")]
-    [InlineData("   -- @supersedes-checksum:   deadbeef   ", "deadbeef")]
+    [InlineData("-- @supersedes-checksum: a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]
+    [InlineData("--@supersedes-checksum:A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]
+    [InlineData("   -- @supersedes-checksum:   a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90   ", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]
     public void SupersedesDirective_IsParsedFromTheFile(string line, string expected)
     {
         var found = EmbeddedSqlLoader.ParseSupersededChecksums($"{line}\nSELECT 1;");
@@ -101,9 +104,10 @@ public sealed class MigrationAbstractionsContractTests
     }
 
     [Theory]
-    [InlineData("SELECT 1; -- @supersedes-checksum: abc")]   // not a whole-line comment
-    [InlineData("-- supersedes-checksum: abc")]              // missing the @
+    [InlineData("SELECT 1; -- @supersedes-checksum: a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]  // not a whole-line comment
+    [InlineData("-- supersedes-checksum: a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]             // missing the @
     [InlineData("-- @supersedes-checksum: not-hex-zz")]
+    [InlineData("-- @supersedes-checksum: a1b2c3")]         // too short to be a real digest
     public void NonDirectiveLines_AreIgnored(string line)
     {
         var found = EmbeddedSqlLoader.ParseSupersededChecksums($"{line}\nSELECT 1;");

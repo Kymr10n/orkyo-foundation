@@ -13,14 +13,14 @@ import type { InsightsBucket } from '@foundation/src/lib/api/insights-api';
  */
 function ResourceTypeTrend({
   resourceTypeKey,
-  displayName,
+  displayNamePlural,
   siteId,
   from,
   to,
   bucket,
 }: {
   resourceTypeKey: string;
-  displayName: string;
+  displayNamePlural: string;
   siteId: string | null;
   from: Date;
   to: Date;
@@ -29,7 +29,7 @@ function ResourceTypeTrend({
   const util = useInsightsUtilization(resourceTypeKey, siteId, from, to, bucket);
   return (
     <UtilizationTrendChart
-      title={`${displayName} utilization trend`}
+      title={`${displayNamePlural} utilization trend`}
       data={util.data}
       bucket={bucket}
       isLoading={util.isLoading}
@@ -50,7 +50,7 @@ export function UtilizationTab() {
           <ResourceTypeTrend
             key={type.key}
             resourceTypeKey={type.key}
-            displayName={type.displayName}
+            displayNamePlural={type.displayNamePlural}
             siteId={siteId}
             from={from}
             to={to}

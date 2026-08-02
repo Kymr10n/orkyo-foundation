@@ -113,7 +113,7 @@ public class RequestRepository : IRequestRepository
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE scheduling_settings_apply = true
-              AND start_ts IS NOT NULL
+              AND start_ts IS NOT NULL AND end_ts IS NOT NULL
               AND {FullyAssignedSql("v_requests_with_assignments.id")}
               AND {AssignedAtSiteSql("v_requests_with_assignments.id")}",
             p =>
@@ -144,7 +144,7 @@ public class RequestRepository : IRequestRepository
         var requests = await db.QueryListAsync($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
-            WHERE start_ts IS NOT NULL{windowClause}
+            WHERE start_ts IS NOT NULL AND end_ts IS NOT NULL{windowClause}
               AND {FullyAssignedSql("v_requests_with_assignments.id")}",
             p =>
             {
@@ -426,6 +426,16 @@ public class RequestRepository : IRequestRepository
             var requestId = reader.GetGuid(0);
             reader.Close();
 
+            // Targets first: they are what the assignment write validates against.
+            //
+            // A caller that says nothing means a space, which is what every request meant
+            // before types could be named. Stated explicitly rather than left empty: an empty
+            // target list is a real state (a request needing no resource) and must not be
+            // reachable by omission.
+            await WriteTargetResourceTypesAsync(
+                db, transaction, requestId,
+                request.TargetResourceTypeKeys ?? [ResourceTypeKeys.Space], ct);
+
             // Create resource assignment if a resource + time window was provided.
             if (request.ResourceIds is { Count: > 0 } newResources
                 && request.StartTs.HasValue && request.EndTs.HasValue)
@@ -439,14 +449,6 @@ public class RequestRepository : IRequestRepository
             {
                 await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
             }
-
-            // A caller that says nothing means a space, which is what every request meant
-            // before types could be named. Stated explicitly rather than left empty: an empty
-            // target list is a real state (a request needing no resource) and must not be
-            // reachable by omission.
-            await WriteTargetResourceTypesAsync(
-                db, transaction, requestId,
-                request.TargetResourceTypeKeys ?? [ResourceTypeKeys.Space], ct);
 
             await transaction.CommitAsync(ct);
 
@@ -541,6 +543,16 @@ public class RequestRepository : IRequestRepository
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
+        // Targets before assignments: a payload that adds a type and a resource of it in one
+        // call must see the new target when the assignment is validated.
+        //
+        // Same rule as requirements: NULL leaves the targets alone, a supplied list replaces
+        // them wholesale. An empty list is meaningful — a request that needs no resource.
+        if (request.TargetResourceTypeKeys is { } targetKeys)
+        {
+            await WriteTargetResourceTypesAsync(db, transaction, id, targetKeys, ct);
+        }
+
         // Update resource assignment if caller is changing the resource.
         if (request.ResourceIds is { Count: > 0 } updatedResources
             && finalStartTs.HasValue && finalEndTs.HasValue)
@@ -558,13 +570,6 @@ public class RequestRepository : IRequestRepository
             await deleteCmd.ExecuteNonQueryAsync(ct);
             if (request.Requirements.Count > 0)
                 await CreateRequirements(id, request.Requirements, db, transaction, ct);
-        }
-
-        // Same rule as requirements: NULL leaves the targets alone, a supplied list replaces
-        // them wholesale. An empty list is meaningful — a request that needs no resource.
-        if (request.TargetResourceTypeKeys is { } targetKeys)
-        {
-            await WriteTargetResourceTypesAsync(db, transaction, id, targetKeys, ct);
         }
 
         await transaction.CommitAsync(ct);
@@ -847,6 +852,28 @@ public class RequestRepository : IRequestRepository
             if ((long)(await check.ExecuteScalarAsync(ct) ?? 0L) > 0)
                 throw new ArgumentException(
                     "A request holds at most one resource per type; the payload names several of the same type.");
+        }
+
+        // A resource whose type the request never asked for would be invisible to the
+        // scheduled predicate — which iterates the targets — while still occupying the
+        // resource and counting toward its site. Neither assigned nor rejected is the one
+        // outcome with no defensible reading, so reject it.
+        await using (var untargeted = new NpgsqlCommand(
+            @"SELECT r.name FROM resources r
+               WHERE r.id = ANY(@ids)
+                 AND NOT EXISTS (
+                     SELECT 1 FROM request_target_resource_types t
+                      WHERE t.request_id = @requestId
+                        AND t.resource_type_id = r.resource_type_id)
+               LIMIT 1",
+            db, tx))
+        {
+            untargeted.Parameters.AddWithValue("ids", resourceIds.Distinct().ToArray());
+            untargeted.Parameters.AddWithValue("requestId", requestId);
+            if (await untargeted.ExecuteScalarAsync(ct) is string offender)
+                throw new ArgumentException(
+                    $"'{offender}' is a resource of a type this request does not ask for. "
+                    + "Add the type to the request's needs first.");
         }
 
         foreach (var resourceId in resourceIds.Distinct())

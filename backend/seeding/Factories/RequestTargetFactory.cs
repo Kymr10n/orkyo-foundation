@@ -35,6 +35,6 @@ public static class RequestTargetFactory
         if (written != targets.Count)
             throw new InvalidOperationException(
                 $"Expected {targets.Count} request target rows, wrote {written}. " +
-                "Unknown resource type key, or duplicate (request, type) pairs.");
+                "One or more target resource type keys do not exist.");
     }
 }

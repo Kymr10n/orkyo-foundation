@@ -135,11 +135,13 @@ export function RequestResourcesSection({
 
       <Separator />
 
-      {/* One picker per targeted type. A type the tenant has since deactivated has no
-          entry here, so it renders nothing rather than an unlabelled picker. */}
+      {/* One picker per targeted type. A type the tenant has since deactivated has no entry
+          here, so it renders nothing rather than an unlabelled picker. Directory types are
+          skipped for the same reason they cannot be targeted: a single-slot picker would
+          cancel the rest of the crew the People section below manages. */}
       {state.targetResourceTypeKeys.map((key) => {
         const type = typesByKey.get(key);
-        if (!type) return null;
+        if (!type || type.hasDirectoryProfile) return null;
         const selectedResourceId = state.selectedResourceIds[key] ?? '';
         return (
           <ResourceTypePicker

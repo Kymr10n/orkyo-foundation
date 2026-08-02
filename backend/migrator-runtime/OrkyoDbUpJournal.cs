@@ -65,6 +65,11 @@ internal sealed class OrkyoDbUpJournal : IJournal
                 success            boolean     NOT NULL DEFAULT true,
                 error_message      text        NULL
             );
+            -- Provenance for a migration whose text was deliberately replaced after it ran
+            -- (see the @supersedes-checksum directive). Added after the table shipped, so the
+            -- ALTERs carry their own guards rather than living in the CREATE above.
+            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_checksum text NULL;
+            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_at timestamptz NULL;
             CREATE INDEX IF NOT EXISTS idx_{TableName}_target_database
                 ON {TableName} (target_database);
         ";

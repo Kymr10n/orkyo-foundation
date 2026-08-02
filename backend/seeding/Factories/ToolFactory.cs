@@ -40,6 +40,17 @@ public static class ToolFactory
         // in the visible window.
         var siteIdByCode = sites.ToDictionary(s => s.Code, s => s.Id);
 
+        // The facility catalogue and the site list are built by different paths, so a code that
+        // does not line up is a seed-data bug. A bare indexer would report it as
+        // KeyNotFoundException naming nothing.
+        var unknown = facilities.Select(f => f.SiteCode).Where(c => !siteIdByCode.ContainsKey(c)).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Facilities reference site codes with no seeded site: {string.Join(", ", unknown)}. "
+                + $"Known codes: {string.Join(", ", siteIdByCode.Keys)}.");
+        }
+
         foreach (var f in facilities)
             foreach (var spec in f.Tools)
                 for (var n = 1; n <= spec.Count; n++)

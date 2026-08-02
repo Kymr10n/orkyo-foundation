@@ -17,6 +17,7 @@ public class SchedulingServiceTests
 {
     private readonly Mock<ISchedulingRepository> _schedulingRepo = new();
     private readonly Mock<IRequestRepository> _requestRepo = new();
+    private readonly Mock<IResourceRepository> _resourceRepo = new();
     private readonly Mock<IAvailabilityResolver> _resolver = new();
     private readonly SchedulingService _service;
 
@@ -24,8 +25,27 @@ public class SchedulingServiceTests
 
     public SchedulingServiceTests()
     {
+        // Working-hours resolution follows the first resource that cannot travel, so the
+        // default fixture is an immovable one (a space).
+        _resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
+                ids.Select(id => new ResourceInfo
+                {
+                    Id = id,
+                    ResourceTypeId = Guid.NewGuid(),
+                    ResourceTypeKey = ResourceTypeKeys.Space,
+                    Name = "Fixture",
+                    AllocationMode = AllocationModes.Exclusive,
+                    BaseAvailabilityPercent = 100,
+                    IsActive = true,
+                    CrossSiteAllowed = false,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                }).ToList());
+
         _service = new SchedulingService(
-            _schedulingRepo.Object, _requestRepo.Object, _resolver.Object, NullLogger<SchedulingService>.Instance);
+            _schedulingRepo.Object, _requestRepo.Object, _resourceRepo.Object, _resolver.Object,
+            NullLogger<SchedulingService>.Instance);
     }
 
     private static RequestInfo ExistingRequest(bool applyScheduling = true) => new()

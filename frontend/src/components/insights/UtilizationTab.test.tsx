@@ -26,9 +26,9 @@ vi.mock("@foundation/src/hooks/useInsights", () => ({
 vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
   useResourceTypes: () => ({
     data: [
-      { id: "rt-space", key: "space", displayName: "Space", isSystem: true, isActive: true },
-      { id: "rt-person", key: "person", displayName: "Person", isSystem: true, isActive: true },
-      { id: "rt-vehicle", key: "vehicle", displayName: "Vehicle", isSystem: false, isActive: true },
+      { id: "rt-space", key: "space", displayName: "Space", displayNamePlural: "Spaces", isSystem: true, isActive: true },
+      { id: "rt-person", key: "person", displayName: "Person", displayNamePlural: "People", isSystem: true, isActive: true },
+      { id: "rt-vehicle", key: "vehicle", displayName: "Vehicle", displayNamePlural: "Vehicles", isSystem: false, isActive: true },
     ],
   }),
 }));
@@ -46,10 +46,10 @@ describe("UtilizationTab", () => {
 
     render(<UtilizationTab />);
 
-    expect(screen.getByText("Space utilization trend")).toBeInTheDocument();
-    expect(screen.getByText("Person utilization trend")).toBeInTheDocument();
+    expect(screen.getByText("Spaces utilization trend")).toBeInTheDocument();
+    expect(screen.getByText("People utilization trend")).toBeInTheDocument();
     // Previously impossible: the chart list was two hard-coded hook calls.
-    expect(screen.getByText("Vehicle utilization trend")).toBeInTheDocument();
+    expect(screen.getByText("Vehicles utilization trend")).toBeInTheDocument();
     expect(screen.getAllByText("No capacity configured for this period.")).toHaveLength(3);
   });
 });

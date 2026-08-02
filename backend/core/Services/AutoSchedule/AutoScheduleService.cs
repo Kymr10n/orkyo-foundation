@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
@@ -65,7 +66,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                     x.ReasonCodes))
                 .ToList(),
             solution.Diagnostics,
-            solution.ComputeFingerprint());
+            solution.ComputeFingerprint(request.ResourceTypeKey ?? ResourceTypeKeys.Space));
     }
 
     public async Task<AutoScheduleApplyResponse> ApplyAsync(

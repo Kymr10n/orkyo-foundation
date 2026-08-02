@@ -91,6 +91,7 @@ public class InsightsService(
             {
                 ResourceTypeKey = type.Key,
                 DisplayName = type.DisplayName,
+                DisplayNamePlural = type.DisplayNamePlural,
                 Percent = AggregatePercent(series),
             });
         }

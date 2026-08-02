@@ -17,6 +17,8 @@ export type InsightsResourceType = string;
 export interface ResourceTypeUtilization {
   resourceTypeKey: string;
   displayName: string;
+  /** Plural — these labels name a whole type's utilization ("People utilization"). */
+  displayNamePlural: string;
   /** null = no capacity configured for this type in the period (not 0%). */
   percent: number | null;
 }

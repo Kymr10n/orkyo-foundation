@@ -89,18 +89,22 @@ public sealed class MigrationRunner
         var applied = await history.LoadAppliedAsync(ct);
 
         var superseded = ValidateAppliedChecksums(ordered, applied);
+
+        // Validation answers "would this deploy succeed?" and must not change the answer by
+        // asking. Refreshing here would consume the one-shot supersede, so a --validate-only
+        // preflight against production would leave nothing for the real run to record.
+        if (options.Mode == MigrationExecutionMode.ValidateOnly)
+        {
+            return BuildValidateOnlyResults(ordered, applied);
+        }
+
         foreach (var script in superseded)
         {
             _logger.LogWarning(
                 "Migration '{Id}' (module '{Module}') declares the applied checksum as superseded; " +
                 "refreshing history to the current text. The SQL is not re-run.",
                 script.Id, script.Module);
-            await history.RefreshChecksumAsync(script, ct);
-        }
-
-        if (options.Mode == MigrationExecutionMode.ValidateOnly)
-        {
-            return BuildValidateOnlyResults(ordered, applied);
+            await history.RefreshChecksumAsync(script, applied[script.Id].Checksum, ct);
         }
 
         if (options.Mode == MigrationExecutionMode.DryRun)

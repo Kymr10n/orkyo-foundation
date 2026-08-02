@@ -1,10 +1,11 @@
+using Api.Constants;
 using Api.Models;
 
 namespace Orkyo.Foundation.Tests.Models;
 
 /// <summary>
 /// Covers the uncovered domain types in <c>Models/AutoSchedule.cs</c>:
-/// enums, SchedulingSolution.ComputeFingerprint(), SchedulingSolution.ToScore(),
+/// enums, SchedulingSolution.ComputeFingerprint(ResourceTypeKeys.Space), SchedulingSolution.ToScore(),
 /// and all internal record types.
 /// </summary>
 public class AutoScheduleModelsTests
@@ -90,7 +91,7 @@ public class AutoScheduleModelsTests
         score.PriorityScore.Should().Be(0);
     }
 
-    // ── SchedulingSolution.ComputeFingerprint() ────────────────────────────
+    // ── SchedulingSolution.ComputeFingerprint(ResourceTypeKeys.Space) ────────────────────────────
 
     [Fact]
     public void ComputeFingerprint_EmptySolution_ProducesConsistentHash()
@@ -103,8 +104,8 @@ public class AutoScheduleModelsTests
             Diagnostics: new List<string>()
         );
 
-        var fp1 = solution.ComputeFingerprint();
-        var fp2 = solution.ComputeFingerprint();
+        var fp1 = solution.ComputeFingerprint(ResourceTypeKeys.Space);
+        var fp2 = solution.ComputeFingerprint(ResourceTypeKeys.Space);
 
         fp1.Should().Be(fp2);
         fp1.Should().HaveLength(64); // SHA-256 hex
@@ -121,7 +122,7 @@ public class AutoScheduleModelsTests
         var a = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
         var b = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
 
-        a.ComputeFingerprint().Should().Be(b.ComputeFingerprint());
+        a.ComputeFingerprint(ResourceTypeKeys.Space).Should().Be(b.ComputeFingerprint(ResourceTypeKeys.Space));
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public class AutoScheduleModelsTests
         var a = MakeSolution(new ScheduledPlacement(req1, resourceId, start, end, 4, 5));
         var b = MakeSolution(new ScheduledPlacement(req2, resourceId, start, end, 4, 5));
 
-        a.ComputeFingerprint().Should().NotBe(b.ComputeFingerprint());
+        a.ComputeFingerprint(ResourceTypeKeys.Space).Should().NotBe(b.ComputeFingerprint(ResourceTypeKeys.Space));
     }
 
     [Fact]
@@ -157,7 +158,7 @@ public class AutoScheduleModelsTests
         var reversed = new SchedulingSolution(SolverKind.Greedy, SolverStatus.Optimal,
             new List<ScheduledPlacement> { p2, p1 }, new List<UnscheduledPlacement>(), new List<string>());
 
-        ordered.ComputeFingerprint().Should().Be(reversed.ComputeFingerprint());
+        ordered.ComputeFingerprint(ResourceTypeKeys.Space).Should().Be(reversed.ComputeFingerprint(ResourceTypeKeys.Space));
     }
 
     // ── RequestNode ────────────────────────────────────────────────────────
