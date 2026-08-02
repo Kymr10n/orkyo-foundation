@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Models;
 using Api.Repositories;
 using Api.Services;
 using Npgsql;
@@ -88,8 +89,12 @@ public sealed class ResourceGroupMemberRepositoryIntegrationTests
     private async Task<Guid> CreateSpaceAsync(ResourceRepository resources)
     {
         var spaceTypeId = await SpaceTypeIdAsync();
-        var resource = await resources.CreateAsync(
-            spaceTypeId, "space", $"S-{Guid.NewGuid():N}", null, null, AllocationModes.Exclusive, 100);
+        var resource = await resources.CreateAsync(spaceTypeId, new CreateResourceRequest
+        {
+            ResourceTypeKey = "space",
+            Name = $"S-{Guid.NewGuid():N}",
+            AllocationMode = AllocationModes.Exclusive,
+        });
         return resource.Id;
     }
 

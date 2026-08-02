@@ -57,6 +57,19 @@ public record ResourceInfo
     /// <summary>Whether the resource may be assigned to requests at another site.</summary>
     public bool CrossSiteAllowed { get; init; } = true;
 
+    // Placement. Only types declaring HasGeometry can carry these; for every other type they
+    // hold the column defaults, because a resource that cannot be put on a floorplan has no
+    // code, no shape and no seats.
+    /// <summary>Short identifier, unique within the resource's home site.</summary>
+    public string? Code { get; init; }
+    /// <summary>Occupies real floor area, so it must carry geometry (the DB CHECK enforces the pair).</summary>
+    public bool IsPhysical { get; init; }
+    public SpaceGeometry? Geometry { get; init; }
+    public Dictionary<string, object>? Properties { get; init; }
+    public int Capacity { get; init; } = 1;
+    /// <summary>The group this resource belongs to. Single-valued because placeable types declare
+    /// SingleGroupMembership; for a type that does not, the read reports one arbitrary membership.</summary>
+    public Guid? GroupId { get; init; }
 
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -100,7 +113,13 @@ public record CreateResourceRequest
     public Guid? HomeSiteId { get; init; }
     public bool CrossSiteAllowed { get; init; } = true;
 
-    /// <summary>Custom field values keyed by field definition key. Validated against the
+    // Placement — rejected unless the named type declares HasGeometry.
+    public string? Code { get; init; }
+    public bool IsPhysical { get; init; }
+    public SpaceGeometry? Geometry { get; init; }
+    public Dictionary<string, object>? Properties { get; init; }
+    public int Capacity { get; init; } = 1;
+
 }
 
 public record UpdateResourceRequest
@@ -115,7 +134,14 @@ public record UpdateResourceRequest
     public Guid? HomeSiteId { get; init; }
     public bool? CrossSiteAllowed { get; init; }
 
-    /// <summary>Custom field values keyed by field definition key. Null leaves the stored
+    // Placement — rejected unless the resource's type declares HasGeometry. IsPhysical is absent
+    // deliberately: flipping it would have to add or remove geometry in the same statement to
+    // satisfy resources_physical_has_geometry_check, so it is a create-time decision.
+    public string? Code { get; init; }
+    public SpaceGeometry? Geometry { get; init; }
+    public Dictionary<string, object>? Properties { get; init; }
+    public int? Capacity { get; init; }
+
 }
 
 public record ResourceListFilter

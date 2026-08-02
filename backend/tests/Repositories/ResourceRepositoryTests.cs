@@ -23,7 +23,6 @@ public class ResourceRepositoryTests
     private readonly IResourceRepository _repo;
     private readonly IRequestRepository _requests;
     private readonly IResourceAssignmentRepository _assignments;
-    private readonly ISpaceService _spaces;
     private readonly IOrgDbConnectionFactory _connFactory;
     private readonly OrgContext _orgContext;
 
@@ -34,7 +33,6 @@ public class ResourceRepositoryTests
         _repo = scope.ServiceProvider.GetRequiredService<IResourceRepository>();
         _requests = scope.ServiceProvider.GetRequiredService<IRequestRepository>();
         _assignments = scope.ServiceProvider.GetRequiredService<IResourceAssignmentRepository>();
-        _spaces = scope.ServiceProvider.GetRequiredService<ISpaceService>();
         _connFactory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
         _orgContext = scope.ServiceProvider.GetRequiredService<OrgContext>();
     }
@@ -128,9 +126,15 @@ public class ResourceRepositoryTests
     public async Task GetById_Space_CurrentSiteIsSpaceSite()
     {
         var siteA = await CreateSiteAsync("A");
-        var space = await _spaces.CreateAsync(
-            siteA, name: $"Space-{Guid.NewGuid():N}"[..20], code: $"SP-{Guid.NewGuid():N}"[..12],
-            description: null, isPhysical: false, geometry: null, properties: null);
+        var space = await _resources.CreateAsync(new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            Name = $"Space-{Guid.NewGuid():N}"[..20],
+            Code = $"SP-{Guid.NewGuid():N}"[..12],
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteA,
+            CrossSiteAllowed = false,
+        });
 
         var resource = await _resources.GetByIdAsync(space.Id);
 

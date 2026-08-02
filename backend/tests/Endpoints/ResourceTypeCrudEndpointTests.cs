@@ -327,4 +327,33 @@ public class ResourceTypeCrudEndpointTests
         after!.Single(t => t.Id == type.Id).IsActive.Should().BeFalse();
     }
 
+
+    [Fact]
+    public async Task PlaceableResource_CannotBeCreatedAsTravelling()
+    {
+        // A drawn shape belongs to one floorplan. Site resolution and the working-hours
+        // adjustment both look for the first resource that cannot travel to decide where the
+        // work happens, and would skip a placeable one that claimed it could.
+        var type = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("bay"),
+            DisplayName = "Bay",
+            DisplayNamePlural = "Bays",
+            HasGeometry = true,
+        });
+        type.EnsureSuccessStatusCode();
+        var placeable = (await type.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
+
+        var resp = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = placeable.Key,
+            Name = $"Bay-{Guid.NewGuid():N}"[..20],
+            AllocationMode = AllocationModes.Exclusive,
+            BaseAvailabilityPercent = 100,
+            CrossSiteAllowed = true,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
 }
