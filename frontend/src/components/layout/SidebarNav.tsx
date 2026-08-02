@@ -6,6 +6,7 @@ import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/au
 import { cn } from "@foundation/src/lib/utils";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
+import { TYPES_WITH_DEDICATED_PAGES } from "@foundation/src/constants/resource-type-key";
 import {
   Box,
   ChevronLeft,
@@ -31,10 +32,6 @@ const workNavItems = [
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/insights", label: "Insights", icon: LineChart },
 ];
-
-// Types with a purpose-built page of their own. Everything else — the built-in `tool` and
-// every type a tenant defines — is reached through the generic /resources/:typeKey page.
-const TYPES_WITH_DEDICATED_PAGES = new Set(["space", "person"]);
 
 // Settings visible to editors and admins; Administration to tenant admins only.
 const settingsNavItem = { to: ROUTE_SETTINGS, label: "Settings", icon: Settings };

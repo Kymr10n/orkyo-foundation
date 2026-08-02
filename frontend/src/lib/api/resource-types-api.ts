@@ -18,7 +18,13 @@ export interface ResourceTypeInfo {
   description?: string;
   /** lucide-react icon name; unknown or absent names fall back to a default. */
   icon?: string | null;
-  /** Seeded types (space, person, tool) — identity and lifecycle are read-only. */
+  /** Placeable on a floorplan: carries a code, geometry, a capacity and an owning site. */
+  hasGeometry: boolean;
+  /** Carries directory details — email, job title, department, a linked user account. */
+  hasDirectoryProfile: boolean;
+  /** Belongs to at most one group; enforced in the database. */
+  singleGroupMembership: boolean;
+  /** Seeded types (space, person, tool) — identity, lifecycle and behaviour are read-only. */
   isSystem: boolean;
   isActive: boolean;
   createdAt: string;
@@ -32,6 +38,9 @@ export interface CreateResourceTypeRequest {
   displayNamePlural: string;
   description?: string;
   icon?: string;
+  hasGeometry?: boolean;
+  hasDirectoryProfile?: boolean;
+  singleGroupMembership?: boolean;
 }
 
 export interface UpdateResourceTypeRequest {
@@ -39,6 +48,10 @@ export interface UpdateResourceTypeRequest {
   displayNamePlural?: string;
   description?: string;
   icon?: string;
+  /** Omit to leave as-is. Rejected for system types, whose behaviour the built-in pages need. */
+  hasGeometry?: boolean;
+  hasDirectoryProfile?: boolean;
+  singleGroupMembership?: boolean;
   isActive?: boolean;
 }
 

@@ -2,7 +2,6 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
-import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import {
   getUtilizationByResource,
@@ -200,10 +199,10 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   // 5. Job-title labels in one request — replaces the old one-query-per-resource fan-out (which also
   //    swallowed every failure with `.catch(() => null)`). Fetches only the label the grid renders,
   //    not the full profile; failures surface via `jobTitlesError` instead of disappearing silently.
-  //    A job title is a directory-profile concept, so only resources have one; every other type
-  //    falls back to its description below and never issues this request.
+  //    A job title is a directory-profile concept, so only types declaring one have it; every
+  //    other type falls back to its description below and never issues this request.
   const resourceIds = useMemo(() => resources.map((r) => r.id), [resources]);
-  const showsJobTitles = typeKey === RESOURCE_TYPE_KEY.PERSON;
+  const showsJobTitles = resourceType.hasDirectoryProfile;
   const { data: jobTitles = [], isError: jobTitlesError } = useQuery({
     queryKey: qk.personJobTitles.byIds(resourceIds),
     queryFn: () => getPersonJobTitles(resourceIds),

@@ -240,6 +240,8 @@ describe('CommandPalette', () => {
     }[] = [
       { type: 'resource', title: 'A Space', path: '/spaces/floorplan?edit=x-1', extra: { resourceTypeKey: 'space' } },
       { type: 'resource', title: 'A Person', path: '/people/list?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      { type: 'group', title: 'A Tool Group', path: '/resources/tool/groups?edit=x-1', extra: { resourceTypeKey: 'tool' } },
+      { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
       // Previously unreachable: tools and tenant-defined types were never indexed at all.
       { type: 'resource', title: 'A Tool', path: '/resources/tool/list?edit=x-1', extra: { resourceTypeKey: 'tool' } },
       { type: 'resource', title: 'A Van', path: '/resources/delivery_van/list?edit=x-1', extra: { resourceTypeKey: 'delivery_van' } },

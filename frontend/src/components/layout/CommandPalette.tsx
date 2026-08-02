@@ -26,6 +26,7 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
+import { DEDICATED_TYPE_ROUTES } from "@foundation/src/constants/resource-type-key";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -60,10 +61,7 @@ const typeBadgeVariants: Record<
 };
 
 /** Built-in types keep their dedicated pages; everything else uses the generic one. */
-const RESOURCE_TYPE_ROUTES: Record<string, string> = {
-  space: "/spaces/floorplan",
-  person: "/people/list",
-};
+
 
 export function iconForResult(result: SearchResult): React.ReactNode {
   if (result.type === "resource") {
@@ -94,14 +92,18 @@ export function editPathForResult(result: SearchResult): string {
       // Space and person keep their purpose-built pages; every other type — tool included,
       // and anything a tenant defines — lands on its generic page.
       const key = result.resourceTypeKey ?? "";
-      const base = RESOURCE_TYPE_ROUTES[key] ?? `/resources/${key}/list`;
+      const base = DEDICATED_TYPE_ROUTES[key]?.list ?? `/resources/${key}/list`;
       return `${base}?${edit}`;
     }
     case "request":
       return `/requests?${edit}`;
-    case "group":
-      // Person groups and space groups live on different pages.
-      return `${result.resourceTypeKey === "space" ? "/spaces/groups" : "/people/teams"}?${edit}`;
+    case "group": {
+      // Same rule as resources: the two dedicated pages, then the type's generic Groups tab.
+      // Falling back to /people/teams sent a tool group to a page that does not contain it.
+      const key = result.resourceTypeKey ?? "";
+      const base = DEDICATED_TYPE_ROUTES[key]?.groups ?? `/resources/${key}/groups`;
+      return `${base}?${edit}`;
+    }
     case "site":
       return `${ROUTE_TENANT_ADMIN}/sites?${edit}`;
     case "template":

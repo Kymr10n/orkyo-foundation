@@ -4,6 +4,10 @@ import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
+import {
+  DEDICATED_TYPE_ROUTES,
+  TYPES_WITH_DEDICATED_PAGES,
+} from '@foundation/src/constants/resource-type-key';
 
 const TABS: PageTab[] = [
   { value: 'list', label: 'List' },
@@ -27,6 +31,11 @@ export function ResourcesPage() {
   usePageTitle(resourceType?.displayNamePlural ?? 'Resources');
 
   if (isLoading) return <LoadingSpinner message="Loading…" />;
+  // Space and person have purpose-built pages; rendering them here too would show the same
+  // rows under a second URL with fewer features. The page said so, nothing enforced it.
+  if (typeKey && TYPES_WITH_DEDICATED_PAGES.has(typeKey)) {
+    return <Navigate to={DEDICATED_TYPE_ROUTES[typeKey].list} replace />;
+  }
   // An unknown or removed type key is a dead link — send the user somewhere real.
   if (!resourceType) return <Navigate to="/" replace />;
 

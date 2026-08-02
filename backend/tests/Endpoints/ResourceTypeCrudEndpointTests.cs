@@ -199,14 +199,16 @@ public class ResourceTypeCrudEndpointTests
     }
 
     [Fact]
-    public async Task SystemTypes_CannotBeUpdatedOrDeleted()
+    public async Task SystemTypes_CannotBeDeactivatedOrDeleted()
     {
+        // Naming is the tenant's (covered by UpdateType_SystemType_RejectsBehaviourChange_…);
+        // existence is not — every built-in page is written against these types.
         var all = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
         var space = all!.First(t => t.Key == "space");
 
-        var update = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { DisplayName = "Renamed" });
-        Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);
+        var deactivate = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
+            new UpdateResourceTypeRequest { IsActive = false });
+        Assert.Equal(HttpStatusCode.BadRequest, deactivate.StatusCode);
 
         var delete = await _client.DeleteAsync($"/api/resource-types/{space.Id}");
         Assert.Equal(HttpStatusCode.BadRequest, delete.StatusCode);
@@ -242,4 +244,87 @@ public class ResourceTypeCrudEndpointTests
     }
 
     // ── field definitions ─────────────────────────────────────────────────────
+
+    // ── Behaviour flags ───────────────────────────────────────────────────────
+    // Migration 1700 moved three behaviours out of key comparisons and onto the type. These
+    // cover the part that makes that worth doing: a tenant type can declare them.
+
+    [Fact]
+    public async Task CreateType_DeclaringBehaviour_RoundTripsTheFlags()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("bay"),
+            DisplayName = "Bay",
+            DisplayNamePlural = "Bays",
+            HasGeometry = true,
+            SingleGroupMembership = true,
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var created = await response.Content.ReadFromJsonAsync<ResourceTypeInfo>();
+        created!.HasGeometry.Should().BeTrue();
+        created.SingleGroupMembership.Should().BeTrue();
+        created.HasDirectoryProfile.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UpdateType_CanChangeBehaviour_OnATenantType()
+    {
+        var type = await CreateTypeAsync();
+
+        var response = await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}",
+            new UpdateResourceTypeRequest { HasDirectoryProfile = true });
+        response.EnsureSuccessStatusCode();
+
+        (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!
+            .HasDirectoryProfile.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateType_SystemType_RejectsBehaviourChange_ButAllowsRenaming()
+    {
+        var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
+        var space = types!.Single(t => t.Key == ResourceTypeKeys.Space);
+
+        // Behaviour is locked: the product's own Spaces page is built on has_geometry, so a
+        // tenant could break a page they have no way to repair.
+        var behaviour = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
+            new UpdateResourceTypeRequest { HasGeometry = false });
+        behaviour.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Naming is theirs — "Space" may be "Room" in their vocabulary.
+        var rename = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
+            new UpdateResourceTypeRequest { DisplayName = "Room", DisplayNamePlural = "Rooms" });
+        rename.EnsureSuccessStatusCode();
+        (await rename.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.DisplayNamePlural
+            .Should().Be("Rooms");
+
+        // Restore, so the rest of the suite sees the seeded vocabulary.
+        await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
+            new UpdateResourceTypeRequest { DisplayName = "Space", DisplayNamePlural = "Spaces" });
+    }
+
+    [Fact]
+    public async Task DeleteType_NamedByARequestTarget_DeactivatesInsteadOfFailing()
+    {
+        // request_target_resource_types holds the type via ON DELETE RESTRICT. Without the
+        // service-side check the user meets a raw 23503 instead of the retire-instead path.
+        var type = await CreateTypeAsync();
+        var request = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"NeedsType-{Guid.NewGuid():N}"[..25],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            TargetResourceTypeKeys = [type.Key],
+        });
+        request.EnsureSuccessStatusCode();
+
+        var deleted = await _client.DeleteAsync($"/api/resource-types/{type.Id}");
+        deleted.IsSuccessStatusCode.Should().BeTrue();
+
+        var after = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
+        after!.Single(t => t.Id == type.Id).IsActive.Should().BeFalse();
+    }
+
 }

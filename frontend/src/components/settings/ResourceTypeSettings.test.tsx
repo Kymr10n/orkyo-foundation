@@ -11,7 +11,6 @@ import type {
 vi.mock('@foundation/src/lib/api/resource-types-api', () => ({
   getResourceTypes: vi.fn(),
   deleteResourceType: vi.fn(),
-  deactivateResourceTypeField: vi.fn(),
 }));
 
 const canEdit = { value: true };
@@ -22,11 +21,6 @@ vi.mock('@foundation/src/hooks/usePermissions', () => ({
 vi.mock('./ResourceTypeEditDialog', () => ({
   ResourceTypeEditDialog: ({ open, resourceType }: any) =>
     open ? <div data-testid="type-dialog">{resourceType ? 'edit' : 'create'}</div> : null,
-}));
-
-vi.mock('./ResourceTypeFieldEditDialog', () => ({
-  ResourceTypeFieldEditDialog: ({ open, field }: any) =>
-    open ? <div data-testid="field-dialog">{field ? 'edit' : 'create'}</div> : null,
 }));
 
 import {
@@ -41,6 +35,9 @@ const types: ResourceTypeInfo[] = [
     key: 'space',
     displayName: 'Space',
     displayNamePlural: 'Spaces',
+    hasGeometry: false,
+    hasDirectoryProfile: false,
+    singleGroupMembership: false,
     isSystem: true,
     isActive: true,
     createdAt: '2026-01-01T00:00:00Z',
@@ -51,6 +48,9 @@ const types: ResourceTypeInfo[] = [
     key: 'car',
     displayName: 'Car',
     displayNamePlural: 'Cars',
+    hasGeometry: false,
+    hasDirectoryProfile: false,
+    singleGroupMembership: false,
     description: 'Fleet vehicle',
     isSystem: false,
     isActive: true,

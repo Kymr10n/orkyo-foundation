@@ -67,6 +67,9 @@ public class InsightsServiceTests
     {
         Id = Guid.NewGuid(),
         Key = key,
+        HasGeometry = key == ResourceTypeKeys.Space,
+        HasDirectoryProfile = key == ResourceTypeKeys.Person,
+        SingleGroupMembership = key == ResourceTypeKeys.Space,
         DisplayName = displayName,
         DisplayNamePlural = displayName + "s",
         IsSystem = true,

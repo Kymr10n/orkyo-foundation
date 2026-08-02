@@ -49,8 +49,25 @@ public class ResourceTypeService(IResourceTypeRepository typeRepository) : IReso
         var existing = await typeRepository.GetByIdAsync(id, ct);
         if (existing is null) return null;
 
+        // A system type's naming is the tenant's to change — "Space" may be "Room" or "Salle"
+        // in their vocabulary, and 1750 added the plural precisely so those labels are theirs.
+        // Its behaviour is not: the product's own Spaces and People pages are built on
+        // has_geometry and has_directory_profile, so flipping those would break pages the
+        // tenant cannot repair. Same for the key (URLs, stored data) and is_active.
         if (existing.IsSystem)
-            throw new ArgumentException($"System resource type '{existing.Key}' cannot be modified");
+        {
+            if (request.IsActive.HasValue)
+                throw new ArgumentException(
+                    $"System resource type '{existing.Key}' cannot be deactivated — the product's own pages depend on it");
+
+            if (request.HasGeometry.HasValue || request.HasDirectoryProfile.HasValue
+                || request.SingleGroupMembership.HasValue)
+            {
+                throw new ArgumentException(
+                    $"System resource type '{existing.Key}' has fixed behaviour; only its name, "
+                    + "description and icon can be changed");
+            }
+        }
 
         return await typeRepository.UpdateAsync(id, request, ct);
     }
@@ -63,8 +80,11 @@ public class ResourceTypeService(IResourceTypeRepository typeRepository) : IReso
         if (existing.IsSystem)
             throw new ArgumentException($"System resource type '{existing.Key}' cannot be deleted");
 
-        // Deleting a populated type would orphan its resources, so retire it instead.
-        if (await typeRepository.CountResourcesAsync(id, ct) > 0)
+        // Deleting a type still in use would orphan its resources, or trip the ON DELETE
+        // RESTRICT from request_target_resource_types and surface a raw 23503. Retire it
+        // instead — a request that still asks for this type keeps a meaningful target.
+        if (await typeRepository.CountResourcesAsync(id, ct) > 0
+            || await typeRepository.CountRequestTargetsAsync(id, ct) > 0)
         {
             await typeRepository.UpdateAsync(id, new UpdateResourceTypeRequest { IsActive = false }, ct);
             return true;

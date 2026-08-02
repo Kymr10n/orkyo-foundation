@@ -1,4 +1,5 @@
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
+import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -28,7 +29,34 @@ interface FormState {
   displayNamePlural: string;
   description: string;
   icon: string;
+  hasGeometry: boolean;
+  hasDirectoryProfile: boolean;
+  singleGroupMembership: boolean;
 }
+
+/**
+ * What a type's resources can do. Stored on the type rather than inferred from its key, which
+ * is what lets a tenant-defined type behave like a built-in one. Locked for system types: the
+ * product's own Spaces and People pages are built on these, so a tenant could break a page
+ * they cannot repair.
+ */
+const BEHAVIOUR_FLAGS = [
+  {
+    field: 'hasGeometry',
+    label: 'Can be placed on a floorplan',
+    hint: 'Adds a code, a capacity and a drawable shape. Its site owns it and it cannot travel.',
+  },
+  {
+    field: 'hasDirectoryProfile',
+    label: 'Has directory details',
+    hint: 'Adds an email, job title and department, and can be linked to a user account.',
+  },
+  {
+    field: 'singleGroupMembership',
+    label: 'Belongs to one group at a time',
+    hint: 'Adding it to a second group moves it, rather than listing it in both.',
+  },
+] as const satisfies readonly { field: keyof FormState; label: string; hint: string }[];
 
 /** Rendered inline in the icon hint so "the default" is shown rather than named. */
 function DefaultIconPreview() {
@@ -68,13 +96,19 @@ export function ResourceTypeEditDialog({
     open,
     onOpenChange,
     entity: resourceType,
-    emptyForm: () => ({ key: '', displayName: '', displayNamePlural: '', description: '', icon: '' }),
+    emptyForm: () => ({
+      key: '', displayName: '', displayNamePlural: '', description: '', icon: '',
+      hasGeometry: false, hasDirectoryProfile: false, singleGroupMembership: false,
+    }),
     toForm: (rt) => ({
       key: rt.key,
       displayName: rt.displayName,
       displayNamePlural: rt.displayNamePlural,
       description: rt.description ?? '',
       icon: rt.icon ?? '',
+      hasGeometry: rt.hasGeometry,
+      hasDirectoryProfile: rt.hasDirectoryProfile,
+      singleGroupMembership: rt.singleGroupMembership,
     }),
     save: (form, rt) =>
       rt
@@ -83,6 +117,14 @@ export function ResourceTypeEditDialog({
             displayNamePlural: form.displayNamePlural,
             description: form.description || undefined,
             icon: form.icon || undefined,
+            // System types reject these outright, so do not send them at all.
+            ...(rt.isSystem
+              ? {}
+              : {
+                  hasGeometry: form.hasGeometry,
+                  hasDirectoryProfile: form.hasDirectoryProfile,
+                  singleGroupMembership: form.singleGroupMembership,
+                }),
           })
         : createResourceType({
             key: form.key,
@@ -90,6 +132,9 @@ export function ResourceTypeEditDialog({
             displayNamePlural: form.displayNamePlural,
             description: form.description || undefined,
             icon: form.icon || undefined,
+            hasGeometry: form.hasGeometry,
+            hasDirectoryProfile: form.hasDirectoryProfile,
+            singleGroupMembership: form.singleGroupMembership,
           }),
     entityLabel: 'Resource type',
     invalidates: RESOURCE_TYPE_INVALIDATES,
@@ -97,6 +142,7 @@ export function ResourceTypeEditDialog({
   });
 
   const isEdit = resourceType !== null;
+  const isSystemType = resourceType?.isSystem === true;
   const keyValid = isEdit || KEY_PATTERN.test(form.key);
   const canSubmit =
     form.displayName.trim().length > 0 && form.displayNamePlural.trim().length > 0 && keyValid;
@@ -222,6 +268,30 @@ export function ResourceTypeEditDialog({
           rows={3}
         />
       </div>
+
+      <fieldset className="space-y-3" disabled={isSystemType}>
+        <legend className="text-sm font-medium">What these can do</legend>
+        {isSystemType && (
+          <p className="text-sm text-muted-foreground">
+            Built-in types have fixed behaviour — the Spaces and People pages are built on it.
+            You can still rename them and change their icon.
+          </p>
+        )}
+        {BEHAVIOUR_FLAGS.map(({ field, label, hint }) => (
+          <div key={field} className="flex items-start gap-2">
+            <Checkbox
+              id={`rt-${field}`}
+              checked={form[field]}
+              onCheckedChange={(checked) => set({ [field]: checked === true })}
+              disabled={isSystemType}
+            />
+            <div className="grid gap-1 leading-none">
+              <Label htmlFor={`rt-${field}`} className="font-normal">{label}</Label>
+              <p className="text-sm text-muted-foreground">{hint}</p>
+            </div>
+          </div>
+        ))}
+      </fieldset>
     </FormDialog>
   );
 }

@@ -13,6 +13,21 @@ public record ResourceTypeInfo
     public string? Description { get; init; }
     /// <summary>lucide-react icon name; the frontend falls back to a default when null or unrecognised.</summary>
     public string? Icon { get; init; }
+    /// <summary>
+    /// Resources of this type can be placed on a floorplan: they carry a code, geometry and a
+    /// capacity, and a site owns them. Replaces the hard-coded key = 'space' test.
+    /// </summary>
+    public required bool HasGeometry { get; init; }
+    /// <summary>
+    /// Resources of this type carry directory details — email, job title, department, a linked
+    /// user account. Replaces the hard-coded key = 'person' test.
+    /// </summary>
+    public required bool HasDirectoryProfile { get; init; }
+    /// <summary>
+    /// A resource of this type belongs to at most one group. Enforced in the database by
+    /// enforce_single_group_membership().
+    /// </summary>
+    public required bool SingleGroupMembership { get; init; }
     public required bool IsSystem { get; init; }
     public required bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -54,12 +69,20 @@ public record CreateResourceTypeRequest
     public required string DisplayNamePlural { get; init; }
     public string? Description { get; init; }
     public string? Icon { get; init; }
+    public bool HasGeometry { get; init; }
+    public bool HasDirectoryProfile { get; init; }
+    public bool SingleGroupMembership { get; init; }
 }
 
 public record UpdateResourceTypeRequest
 {
     public string? DisplayName { get; init; }
     public string? DisplayNamePlural { get; init; }
+    /// <summary>NULL leaves the flag as it is. Rejected for system types, whose behaviour the
+    /// product's own pages depend on.</summary>
+    public bool? HasGeometry { get; init; }
+    public bool? HasDirectoryProfile { get; init; }
+    public bool? SingleGroupMembership { get; init; }
     public string? Description { get; init; }
     public string? Icon { get; init; }
     public bool? IsActive { get; init; }
