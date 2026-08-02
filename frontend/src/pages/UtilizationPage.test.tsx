@@ -230,9 +230,9 @@ vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
   ),
 }));
 
-vi.mock("@foundation/src/components/utilization/PeopleUtilizationGrid", () => ({
-  PeopleUtilizationGrid: ({ siteId }: any) => (
-    <div data-testid="people-utilization-grid" data-site-id={siteId ?? ""} />
+vi.mock("@foundation/src/components/utilization/ResourceUtilizationGrid", () => ({
+  ResourceUtilizationGrid: ({ resourceType, siteId }: any) => (
+    <div data-testid={`${resourceType.key}-utilization-grid`} data-site-id={siteId ?? ""} />
   ),
 }));
 
@@ -254,6 +254,25 @@ vi.mock("@foundation/src/components/utilization/AutoScheduleButton", () => ({
   AutoScheduleButton: ({ onClick, disabled }: any) => (
     <button data-testid="auto-schedule-btn" onClick={onClick} disabled={disabled}>Auto-Schedule</button>
   ),
+}));
+
+const mockResourceType = (key: string, displayName: string, isSystem = true) => ({
+  id: `type-${key}`, key, displayName, isSystem, isActive: true,
+  createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
+});
+// Tabs are derived from the active types: Spaces keeps its own scheduler tab, every other type
+// gets a grid tab. `forklift` stands in for a tenant-defined type.
+const mockResourceTypes = vi.fn(() => ({
+  data: [
+    mockResourceType("space", "Space"),
+    mockResourceType("person", "Person"),
+    mockResourceType("tool", "Tool"),
+    mockResourceType("forklift", "Forklift", false),
+  ],
+  isSuccess: true,
+}));
+vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
+  useResourceTypes: (...args: unknown[]) => mockResourceTypes(...(args as [])),
 }));
 
 vi.mock("@foundation/src/components/utilization/AutoScheduleTypeSelect", () => ({
@@ -1194,9 +1213,9 @@ describe("UtilizationPage", () => {
   });
 
   it("passes the selected site to the People utilization grid", () => {
-    const Wrapper = createWrapper("people");
+    const Wrapper = createWrapper("person");
     render(<Wrapper><UtilizationPage /></Wrapper>);
-    expect(screen.getByTestId('people-utilization-grid')).toHaveAttribute('data-site-id', 'site-1');
+    expect(screen.getByTestId('person-utilization-grid')).toHaveAttribute('data-site-id', 'site-1');
   });
 
   it("does not unschedule a request that is not scheduled", async () => {
@@ -1279,4 +1298,48 @@ describe("navigateTime", () => {
     const result = navigateTime(anchor, scale, direction);
     expect(result.toISOString()).toContain(expected);
   });
+
+  // ── Per-type tabs ─────────────────────────────────────────────────────────
+  // Tabs are derived from the active resource types, so a built-in `tool` and a tenant-defined
+  // type are first-class without the page naming either of them.
+
+  it("renders a tab and a grid for every type without a purpose-built page", () => {
+    const Wrapper = createWrapper("tool");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.getByRole("tab", { name: "Tool" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Forklift" })).toBeInTheDocument();
+    // Spaces keeps its own scheduler tab rather than a derived grid.
+    expect(screen.queryByTestId("space-utilization-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tool-utilization-grid")).toBeInTheDocument();
+  });
+
+  it("falls back to Calendar when the URL names a type that is not active", () => {
+    const Wrapper = createWrapper("vanished-type");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.getByRole("tab", { name: "Calendar" })).toHaveAttribute("data-state", "active");
+  });
+
+  it("seeds the auto-schedule type from the active tab", async () => {
+    const Wrapper = createWrapper("tool");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    // Proposing spaces while looking at Tools would be a silent mismatch.
+    await waitFor(() =>
+      expect(screen.getByTestId("auto-schedule-type")).toHaveAttribute("data-value", "tool"),
+    );
+  });
+
+  it("offers auto-schedule on type tabs but not on Calendar", async () => {
+    const Wrapper = createWrapper("calendar");
+    const { unmount } = render(<Wrapper><UtilizationPage /></Wrapper>);
+    expect(screen.queryByTestId("auto-schedule-btn")).not.toBeInTheDocument();
+    unmount();
+
+    const ToolWrapper = createWrapper("tool");
+    render(<ToolWrapper><UtilizationPage /></ToolWrapper>);
+    expect(await screen.findByTestId("auto-schedule-btn")).toBeInTheDocument();
+  });
+
 });

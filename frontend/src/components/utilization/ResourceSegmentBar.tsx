@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { AlertTriangle, Briefcase } from "lucide-react";
-import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
+import type { ResourceUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
 import { segmentDisplayData } from "@foundation/src/domain/scheduling/utilization-segments";
 import type { BucketStatus } from "./schedule-colors";
 import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS, STATUS_PATTERN_CLASS } from "./schedule-colors";
@@ -28,7 +28,7 @@ const STATUS_TEXT: Record<BucketStatus, string> = {
 const STATUS_SHOWS_PERCENT: ReadonlySet<BucketStatus> = new Set(["partial", "overbooked"]);
 
 /** Human label shown inside the bar, e.g. "Booked 65%" / "Off". */
-function segmentLabel(segment: PersonUtilizationSegment): string {
+function segmentLabel(segment: ResourceUtilizationSegment): string {
   const base = STATUS_TEXT[segment.status];
   return STATUS_SHOWS_PERCENT.has(segment.status)
     ? `${base} ${segment.utilizationPercent}%`
@@ -41,7 +41,7 @@ function segmentLabel(segment: PersonUtilizationSegment): string {
  * fully taken (overbooked is capped at 100 and coloured red); available and
  * non-working show no fill — their track tint alone carries the meaning.
  */
-function fillPercent(segment: PersonUtilizationSegment): number {
+function fillPercent(segment: ResourceUtilizationSegment): number {
   switch (segment.status) {
     case "partial":
       return Math.min(100, Math.max(0, segment.utilizationPercent));
@@ -54,29 +54,29 @@ function fillPercent(segment: PersonUtilizationSegment): number {
 }
 
 /**
- * A single read-only utilization segment in a person's timeline row.
+ * A single read-only utilization segment in a resource's timeline row.
  *
  * Unlike the Spaces request bars, segments are NOT draggable or resizable —
- * they aggregate booking status. Clicking (or Enter/Space) opens the person
+ * they aggregate booking status. Clicking (or Enter/Space) opens the resource
  * assignment dialog for the segment's period.
  */
-export const PersonSegmentBar = React.memo(function PersonSegmentBar({
+export const ResourceSegmentBar = React.memo(function ResourceSegmentBar({
   segment,
-  personName,
+  resourceName,
   viewStartMs,
   viewEndMs,
   assignmentCount = 0,
   hasConflict = false,
   onClick,
 }: {
-  segment: PersonUtilizationSegment;
-  personName: string;
+  segment: ResourceUtilizationSegment;
+  resourceName: string;
   viewStartMs: number;
   viewEndMs: number;
   assignmentCount?: number;
   /** True when one or more assignments in this segment have a capability mismatch. */
   hasConflict?: boolean;
-  onClick: (segment: PersonUtilizationSegment) => void;
+  onClick: (segment: ResourceUtilizationSegment) => void;
 }) {
   const { leftPercent, widthPercent } = segmentDisplayData(segment, viewStartMs, viewEndMs);
 
@@ -89,10 +89,10 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
   const { tooltip, ariaLabel } = useMemo(() => {
     const period = `${formatLocalized(new Date(segment.start), SEGMENT_DATETIME_OPTS)} – ${formatLocalized(new Date(segment.end), SEGMENT_DATETIME_OPTS)}`;
     return {
-      tooltip: `${personName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""}${hasConflict ? " · ⚠ capability conflict" : ""} · ${period}`,
-      ariaLabel: `${personName}, ${label}, ${period}. Open assignment dialog.`,
+      tooltip: `${resourceName} · ${label}${showCount ? ` · ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"}` : ""}${hasConflict ? " · ⚠ capability conflict" : ""} · ${period}`,
+      ariaLabel: `${resourceName}, ${label}, ${period}. Open assignment dialog.`,
     };
-  }, [segment, personName, label, showCount, assignmentCount, hasConflict]);
+  }, [segment, resourceName, label, showCount, assignmentCount, hasConflict]);
 
   // Fully outside the visible window — nothing to paint.
   if (widthPercent <= 0) return null;
@@ -111,7 +111,7 @@ export const PersonSegmentBar = React.memo(function PersonSegmentBar({
       aria-label={ariaLabel}
       title={tooltip}
       data-status={segment.status}
-      data-testid="person-segment-bar"
+      data-testid="resource-segment-bar"
       onClick={activate}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

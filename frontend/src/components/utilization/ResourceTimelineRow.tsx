@@ -1,10 +1,10 @@
 import React, { useMemo } from "react";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { ResourceAssignmentInfo } from "@foundation/src/lib/api/resource-assignments-api";
-import type { PersonUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
+import type { ResourceUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
 import type { TimeColumn } from "./scheduler-types";
 import { TimelineRow } from "./TimelineRow";
-import { PersonSegmentBar } from "./PersonSegmentBar";
+import { ResourceSegmentBar } from "./ResourceSegmentBar";
 
 /** Per-segment overlap count + conflict flag, indexed parallel to `segments`. */
 interface SegmentStat {
@@ -15,15 +15,15 @@ interface SegmentStat {
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
 /**
- * One person's row in the People utilization timeline.
+ * One resource's row in a resource-type utilization timeline.
  *
  * Built on the shared `TimelineRow` (label cell + column gridlines/tints), with
- * read-only status segments (`PersonSegmentBar`) absolutely positioned against
+ * read-only status segments (`ResourceSegmentBar`) absolutely positioned against
  * the visible window. Segments aggregate booking status and are not editable.
  */
-export const PersonTimelineRow = React.memo(function PersonTimelineRow({
-  person,
-  jobTitle,
+export const ResourceTimelineRow = React.memo(function ResourceTimelineRow({
+  resource,
+  secondaryLabel,
   segments,
   isLoadingRow,
   overallPct,
@@ -34,19 +34,20 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   conflictedAssignmentIds = EMPTY_SET,
   onSegmentClick,
 }: {
-  person: ResourceInfo;
-  jobTitle?: string | null;
-  segments: PersonUtilizationSegment[];
+  resource: ResourceInfo;
+  /** Line under the name: a job title for people, the description for other types. */
+  secondaryLabel?: string | null;
+  segments: ResourceUtilizationSegment[];
   isLoadingRow: boolean;
   overallPct: number;
   viewStartMs: number;
   viewEndMs: number;
   columns: readonly TimeColumn[];
-  /** Non-cancelled assignments for this person in the view period, used for per-segment count badges. */
+  /** Non-cancelled assignments for this resource in the view period, used for per-segment count badges. */
   assignments?: ResourceAssignmentInfo[];
   /** Assignment IDs that have a capability mismatch — drives the warning badge. */
   conflictedAssignmentIds?: ReadonlySet<string>;
-  onSegmentClick: (person: ResourceInfo, segment: PersonUtilizationSegment) => void;
+  onSegmentClick: (resource: ResourceInfo, segment: ResourceUtilizationSegment) => void;
 }) {
   // Parse assignment bounds once per assignment-set change, then compute each
   // segment's overlap count + conflict flag in a single pass. Previously both
@@ -90,11 +91,11 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
   const label = (
     <>
       <div className="min-w-0 flex-1">
-        <div className="font-medium text-sm truncate" title={person.name}>
-          {person.name}
+        <div className="font-medium text-sm truncate" title={resource.name}>
+          {resource.name}
         </div>
-        <div className="text-xs text-muted-foreground truncate" title={jobTitle ?? ""}>
-          {jobTitle ?? " "}
+        <div className="text-xs text-muted-foreground truncate" title={secondaryLabel ?? ""}>
+          {secondaryLabel ?? " "}
         </div>
       </div>
       <span
@@ -108,10 +109,10 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
 
   return (
     <TimelineRow
-      rowId={person.id}
+      rowId={resource.id}
       columns={columns}
       label={label}
-      testId={`person-row-${person.id}`}
+      testId={`resource-row-${resource.id}`}
     >
       {isLoadingRow ? (
         <div className="absolute inset-0 flex items-center px-3 text-xs text-muted-foreground italic">
@@ -123,15 +124,15 @@ export const PersonTimelineRow = React.memo(function PersonTimelineRow({
         </div>
       ) : (
         segments.map((segment, i) => (
-          <PersonSegmentBar
+          <ResourceSegmentBar
             key={`${segment.start}-${segment.status}`}
             segment={segment}
-            personName={person.name}
+            resourceName={resource.name}
             viewStartMs={viewStartMs}
             viewEndMs={viewEndMs}
             assignmentCount={segmentStats[i].count}
             hasConflict={segmentStats[i].hasConflict}
-            onClick={(s) => onSegmentClick(person, s)}
+            onClick={(s) => onSegmentClick(resource, s)}
           />
         ))
       )}

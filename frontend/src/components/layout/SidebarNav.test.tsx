@@ -72,18 +72,36 @@ describe('SidebarNav', () => {
     expect(hrefs).toContain('/settings');
   });
 
-  it('lists user-defined resource types and skips built-in ones', () => {
+  it('lists every type without a purpose-built page, built-in or not', () => {
+    // The test used to be `!isSystem`, which withheld an entry from `tool` — a built-in type
+    // that has never had a page of its own, leaving it reachable only by typing the URL.
     resourceTypesState.data = [
       { key: 'space', displayName: 'Space', isSystem: true },
+      { key: 'person', displayName: 'Person', isSystem: true },
+      { key: 'tool', displayName: 'Tool', isSystem: true },
       { key: 'car', displayName: 'Car', isSystem: false },
     ];
     renderSidebar();
 
-    expect(screen.getByText('Car')).toBeInTheDocument();
     const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+    expect(hrefs).toContain('/resources/tool');
     expect(hrefs).toContain('/resources/car');
-    // The built-in type keeps its purpose-built page rather than gaining a second entry.
+    // Space and person keep their purpose-built pages rather than gaining a second entry.
     expect(hrefs).not.toContain('/resources/space');
+    expect(hrefs).not.toContain('/resources/person');
+  });
+
+  it('places the derived type entries with the other resources, beneath People', () => {
+    resourceTypesState.data = [
+      { key: 'space', displayName: 'Space', isSystem: true },
+      { key: 'tool', displayName: 'Tool', isSystem: true },
+    ];
+    renderSidebar();
+
+    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+    // Resources group together; Requests and Insights stay after them.
+    expect(hrefs.indexOf('/resources/tool')).toBeGreaterThan(hrefs.indexOf('/people'));
+    expect(hrefs.indexOf('/resources/tool')).toBeLessThan(hrefs.indexOf('/requests'));
   });
 
   it('hides the Administration item for non-admins', () => {

@@ -9,7 +9,7 @@ import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
  *
  * Owns the `w-52` label cell, the `flex-1 flex relative` time track, and the
  * per-column gridline + off-day tint cells. The actual allocation bars
- * (`ScheduledRequestOverlay` for Spaces, `PersonSegmentBar` for People) are
+ * (`ScheduledRequestOverlay` for Spaces, `ResourceSegmentBar` for People) are
  * passed as `children` and rendered absolutely on top of the column cells.
  *
  * This centralises the gridline/tint layer for both grids and guarantees the

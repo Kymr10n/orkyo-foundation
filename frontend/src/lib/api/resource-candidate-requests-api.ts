@@ -18,7 +18,7 @@ export interface CandidateRequirement {
   satisfied: boolean;
 }
 
-export interface PersonAssignmentOption {
+export interface ResourceAssignmentOption {
   requestId: string;
   name: string;
   startTs: string | null;
@@ -29,22 +29,22 @@ export interface PersonAssignmentOption {
 }
 
 /** Count of unsatisfied requirements for an option. */
-export function mismatchCount(option: PersonAssignmentOption): number {
+export function mismatchCount(option: ResourceAssignmentOption): number {
   return option.requirements.filter((r) => !r.satisfied).length;
 }
 
 /** Whether the person satisfies every requirement of the request. */
-export function matchesAllRequirements(option: PersonAssignmentOption): boolean {
+export function matchesAllRequirements(option: ResourceAssignmentOption): boolean {
   return mismatchCount(option) === 0;
 }
 
-export async function getPersonAssignmentOptions(
+export async function getResourceAssignmentOptions(
   personId: string,
   start: string,
   end: string,
-): Promise<PersonAssignmentOption[]> {
+): Promise<ResourceAssignmentOption[]> {
   const params = new URLSearchParams({ start, end });
-  return apiGet<PersonAssignmentOption[]>(
+  return apiGet<ResourceAssignmentOption[]>(
     `${API_PATHS.resourceCandidateRequests(personId)}?${params}`,
   );
 }

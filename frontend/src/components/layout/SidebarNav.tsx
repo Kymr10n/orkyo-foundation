@@ -19,13 +19,22 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 
-const coreNavItems = [
+// Split so the per-type entries derived below can sit with the other resource entries,
+// beneath People, rather than trailing the whole core list.
+const resourceNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
   { to: "/spaces", label: "Spaces", icon: Box },
   { to: "/people", label: "People", icon: Users },
+];
+
+const workNavItems = [
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/insights", label: "Insights", icon: LineChart },
 ];
+
+// Types with a purpose-built page of their own. Everything else — the built-in `tool` and
+// every type a tenant defines — is reached through the generic /resources/:typeKey page.
+const TYPES_WITH_DEDICATED_PAGES = new Set(["space", "person"]);
 
 // Settings visible to editors and admins; Administration to tenant admins only.
 const settingsNavItem = { to: ROUTE_SETTINGS, label: "Settings", icon: Settings };
@@ -47,19 +56,21 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
   const { membership } = useAuth();
   const canEdit = useCanEdit();
   const isTenantAdmin = membership?.isTenantAdmin === true;
-  // Built-in types have purpose-built pages above; user-defined ones get a generic
-  // page each, listed after the core items in the order the API returns them.
+  // One entry per active type that has no page of its own, in the order the API returns them.
+  // The test used to be `!isSystem`, which withheld a nav entry from `tool` — a built-in type
+  // that has never had a dedicated page, so it was reachable only by typing the URL.
   const { data: resourceTypes = [] } = useResourceTypes(true);
-  const customNavItems = resourceTypes
-    .filter((type) => !type.isSystem)
+  const typeNavItems = resourceTypes
+    .filter((type) => !TYPES_WITH_DEDICATED_PAGES.has(type.key))
     .map((type) => ({
       to: `/resources/${type.key}`,
       label: type.displayName,
       icon: resourceTypeIcon(type.icon),
     }));
   const navItems = [
-    ...coreNavItems,
-    ...customNavItems,
+    ...resourceNavItems,
+    ...typeNavItems,
+    ...workNavItems,
     ...(canEdit ? [settingsNavItem] : []),
     ...(isTenantAdmin ? [adminNavItem] : []),
   ];

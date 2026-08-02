@@ -1,18 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { PersonTimelineRow } from './PersonTimelineRow';
+import { ResourceTimelineRow } from './ResourceTimelineRow';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
-import type { PersonUtilizationSegment } from '@foundation/src/domain/scheduling/utilization-segments';
+import type { ResourceUtilizationSegment } from '@foundation/src/domain/scheduling/utilization-segments';
 
 const VIEW_START = new Date('2026-01-06T08:00:00Z').getTime();
 const VIEW_END = new Date('2026-01-06T11:00:00Z').getTime();
 
-const person: ResourceInfo = {
+const resource: ResourceInfo = {
   id: 'p-1',
   name: 'Alice Smith',
-  resourceTypeId: 'rt-person',
-  resourceTypeKey: 'person',
+  resourceTypeId: 'rt-resource',
+  resourceTypeKey: 'resource',
   allocationMode: 'Exclusive',
   baseAvailabilityPercent: 100,
   isActive: true,
@@ -20,17 +20,17 @@ const person: ResourceInfo = {
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
-const segments: PersonUtilizationSegment[] = [
+const segments: ResourceUtilizationSegment[] = [
   { start: '2026-01-06T08:00:00Z', end: '2026-01-06T09:00:00Z', status: 'available', utilizationPercent: 0, sourceUnitCount: 1 },
   { start: '2026-01-06T09:00:00Z', end: '2026-01-06T10:00:00Z', status: 'overbooked', utilizationPercent: 120, sourceUnitCount: 1 },
 ];
 
-function renderRow(props: Partial<React.ComponentProps<typeof PersonTimelineRow>> = {}) {
+function renderRow(props: Partial<React.ComponentProps<typeof ResourceTimelineRow>> = {}) {
   const onSegmentClick = vi.fn();
   render(
-    <PersonTimelineRow
-      person={person}
-      jobTitle="Engineer"
+    <ResourceTimelineRow
+      resource={resource}
+      secondaryLabel="Engineer"
       segments={segments}
       isLoadingRow={false}
       overallPct={60}
@@ -44,7 +44,7 @@ function renderRow(props: Partial<React.ComponentProps<typeof PersonTimelineRow>
   return onSegmentClick;
 }
 
-describe('PersonTimelineRow', () => {
+describe('ResourceTimelineRow', () => {
   it('renders the label cell with name, job title and overall %', () => {
     renderRow();
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
@@ -54,20 +54,20 @@ describe('PersonTimelineRow', () => {
 
   it('renders one bar per visible segment', () => {
     renderRow();
-    expect(screen.getAllByTestId('person-segment-bar')).toHaveLength(2);
+    expect(screen.getAllByTestId('resource-segment-bar')).toHaveLength(2);
   });
 
-  it('forwards segment clicks with the person and the clicked segment', () => {
+  it('forwards segment clicks with the resource and the clicked segment', () => {
     const onSegmentClick = renderRow();
-    const bars = screen.getAllByTestId('person-segment-bar');
+    const bars = screen.getAllByTestId('resource-segment-bar');
     fireEvent.click(bars[1]);
-    expect(onSegmentClick).toHaveBeenCalledWith(person, segments[1]);
+    expect(onSegmentClick).toHaveBeenCalledWith(resource, segments[1]);
   });
 
   it('shows the loading state', () => {
     renderRow({ isLoadingRow: true });
     expect(screen.getByText('Loading…')).toBeInTheDocument();
-    expect(screen.queryByTestId('person-segment-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('resource-segment-bar')).not.toBeInTheDocument();
   });
 
   it('shows the empty state when there are no segments', () => {
@@ -80,8 +80,8 @@ describe('PersonTimelineRow', () => {
       return {
         id,
         requestId: `req-${id}`,
-        resourceId: person.id,
-        resourceTypeKey: 'person',
+        resourceId: resource.id,
+        resourceTypeKey: 'resource',
         startUtc: start,
         endUtc: end,
         assignmentStatus: 'active',
@@ -97,7 +97,7 @@ describe('PersonTimelineRow', () => {
     ];
     renderRow({ assignments });
 
-    const bars = screen.getAllByTestId('person-segment-bar');
+    const bars = screen.getAllByTestId('resource-segment-bar');
     expect(within(bars[0]).getByTestId('assignment-count-badge')).toHaveTextContent('2');
     expect(within(bars[1]).getByTestId('assignment-count-badge')).toHaveTextContent('1');
   });
@@ -108,8 +108,8 @@ describe('PersonTimelineRow', () => {
         {
           id: 'a1',
           requestId: 'req-1',
-          resourceId: person.id,
-          resourceTypeKey: 'person',
+          resourceId: resource.id,
+          resourceTypeKey: 'resource',
           startUtc: '2026-01-06T20:00:00Z',
           endUtc: '2026-01-06T21:00:00Z',
           assignmentStatus: 'active',
@@ -127,8 +127,8 @@ describe('PersonTimelineRow', () => {
     const conflictedAssignment: ResourceAssignmentInfo = {
       id: 'conflict-a1',
       requestId: 'req-conflict',
-      resourceId: person.id,
-      resourceTypeKey: 'person',
+      resourceId: resource.id,
+      resourceTypeKey: 'resource',
       startUtc: '2026-01-06T08:30:00Z',
       endUtc: '2026-01-06T09:30:00Z', // overlaps both segments
       assignmentStatus: 'active',
@@ -139,7 +139,7 @@ describe('PersonTimelineRow', () => {
       assignments: [conflictedAssignment],
       conflictedAssignmentIds: new Set(['conflict-a1']),
     });
-    const bars = screen.getAllByTestId('person-segment-bar');
+    const bars = screen.getAllByTestId('resource-segment-bar');
     expect(within(bars[0]).getByTestId('capability-conflict-badge')).toBeInTheDocument();
   });
 
@@ -147,8 +147,8 @@ describe('PersonTimelineRow', () => {
     const assignment: ResourceAssignmentInfo = {
       id: 'a-no-conflict',
       requestId: 'req-1',
-      resourceId: person.id,
-      resourceTypeKey: 'person',
+      resourceId: resource.id,
+      resourceTypeKey: 'resource',
       startUtc: '2026-01-06T08:00:00Z',
       endUtc: '2026-01-06T09:00:00Z',
       assignmentStatus: 'active',
@@ -166,8 +166,8 @@ describe('PersonTimelineRow', () => {
     const farAssignment: ResourceAssignmentInfo = {
       id: 'far-a1',
       requestId: 'req-far',
-      resourceId: person.id,
-      resourceTypeKey: 'person',
+      resourceId: resource.id,
+      resourceTypeKey: 'resource',
       startUtc: '2026-01-06T20:00:00Z', // well outside the view window
       endUtc: '2026-01-06T21:00:00Z',
       assignmentStatus: 'active',

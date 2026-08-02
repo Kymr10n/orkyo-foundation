@@ -1,6 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import {
   getUtilizationByResource,
@@ -21,13 +23,13 @@ import {
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import {
   mergeBucketsToSegments,
-  type PersonUtilizationSegment,
+  type ResourceUtilizationSegment,
 } from '@foundation/src/domain/scheduling/utilization-segments';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { Input } from '@foundation/src/components/ui/input';
-import { PersonTimelineRow } from './PersonTimelineRow';
-import { PersonAssignmentDialog } from './PersonAssignmentDialog';
+import { ResourceTimelineRow } from './ResourceTimelineRow';
+import { ResourceAssignmentDialog } from './ResourceAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
 import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
 import { groupRowsByResourceGroup } from './scheduler-types';
@@ -42,7 +44,9 @@ import { enrichColumnsWithOffTime } from './time-grid-offtime';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface PeopleUtilizationGridProps {
+export interface ResourceUtilizationGridProps {
+  /** The resource type whose rows this grid shows. Every query is scoped to its key. */
+  resourceType: ResourceTypeInfo;
   anchorTs: Date;
   scale: TimeScale;
   /**
@@ -50,14 +54,14 @@ export interface PeopleUtilizationGridProps {
    * bucket overlapping one of these is rendered as “Off”, mirroring the
    * Spaces grid's off-time cell-tint behaviour. `resourceIds === null` means
    * the range applies to every resource (site-wide). When non-null, only
-   * those person resources are affected.
+   * those resources are affected.
    */
   offTimeRanges?: readonly OffTimeRange[];
   /** When true, weekend columns are highlighted to match the Spaces grid. */
   weekendsEnabled?: boolean;
   /**
-   * Selected site. When set, rows are limited to people homed at the site or assigned there during
-   * the visible window (server-filtered via the utilization query). Null = all people (no filter).
+   * Selected site. When set, rows are limited to resources homed at the site or assigned there
+   * during the visible window (server-filtered via the utilization query). Null = no filter.
    */
   siteId?: string | null;
 }
@@ -66,7 +70,7 @@ export interface PeopleUtilizationGridProps {
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
-const EMPTY_UTILIZATION: { segments: PersonUtilizationSegment[]; overallPct: number } = {
+const EMPTY_UTILIZATION: { segments: ResourceUtilizationSegment[]; overallPct: number } = {
   segments: [],
   overallPct: 0,
 };
@@ -115,14 +119,19 @@ function LegendDot({ status, label, title }: { status: BucketStatus; label: stri
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface DialogState {
-  personId: string;
-  personName: string;
+  resourceId: string;
+  resourceName: string;
   allocationMode: string;
   start: string;
   end: string;
 }
 
-export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId }: PeopleUtilizationGridProps) {
+export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId }: ResourceUtilizationGridProps) {
+  const typeKey = resourceType.key;
+  // Tenant-defined names are arbitrary ("Forklift"), so strings read as "<Name> resources"
+  // rather than treating the display name as a collective noun.
+  const typeLabel = resourceType.displayName;
+  const typeNoun = `${typeLabel.toLowerCase()} resources`;
   const [search, setSearch] = useState('');
   // Defer the filter so typing stays responsive — the input echoes `search`
   // immediately while the (heavier) row regrouping trails by a render.
@@ -141,24 +150,24 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
 
   const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
-  // 1. People resources — name/metadata lookup (tenant-wide). The visible row set is derived below
+  // 1. Resources of this type — name/metadata lookup (tenant-wide). The visible row set is derived below
   //    from the utilization query, which is the site-filtered authority for "who's relevant".
-  const { data: peopleResponse, isLoading: peopleLoading, isFetching: peopleFetching, isError: peopleError } = useQuery({
-    queryKey: qk.resources.personUtilizationGrid(),
-    queryFn: () => getResources({ resourceTypeKey: 'person', isActive: true }),
+  const { data: resourcesResponse, isLoading: resourcesLoading, isFetching: resourcesFetching, isError: resourcesError } = useQuery({
+    queryKey: qk.resources.utilizationGrid(typeKey),
+    queryFn: () => getResources({ resourceTypeKey: typeKey, isActive: true }),
     staleTime: 60_000,
   });
-  const allPeople: ResourceInfo[] = useMemo(() => peopleResponse?.data ?? [], [peopleResponse]);
+  const allResources: ResourceInfo[] = useMemo(() => resourcesResponse?.data ?? [], [resourcesResponse]);
 
-  // 2. Person groups
+  // 2. Groups of this type
   const { data: groupsData } = useQuery({
-    queryKey: qk.resourceGroups.byType('person'),
-    queryFn: () => getResourceGroups('person'),
+    queryKey: qk.resourceGroups.byType(typeKey),
+    queryFn: () => getResourceGroups(typeKey),
   });
   const groups: ResourceGroupInfo[] = useMemo(() => groupsData ?? [], [groupsData]);
 
   // 3. Members per group — one query per group. Same pattern PersonList uses
-  //    for per-person profile fetching. Acceptable at expected scale (tens).
+  //    for per-resource profile fetching. Acceptable at expected scale (tens).
   const memberQueries = useQueries({
     queries: groups.map((g) => ({
       queryKey: qk.resourceGroups.members(g.id),
@@ -167,11 +176,11 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     })),
   });
 
-  // 4. Utilization for every person in a single request (replaces the old
-  //    one-query-per-person fan-out). Grouped into a resourceId→buckets map.
+  // 4. Utilization for every resource in a single request (replaces the old
+  //    one-query-per-resource fan-out). Grouped into a resourceId→buckets map.
   const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError, isPlaceholderData: utilizationIsPlaceholder } = useQuery({
-    queryKey: qk.utilization.byResource('person', siteId ?? null, from, to, granularity),
-    queryFn: () => getUtilizationByResource(from, to, granularity, 'person', siteId ?? undefined),
+    queryKey: qk.utilization.byResource(typeKey, siteId ?? null, from, to, granularity),
+    queryFn: () => getUtilizationByResource(from, to, granularity, typeKey, siteId ?? undefined),
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
@@ -182,20 +191,23 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   }, [utilizationByResource]);
 
   // Visible rows: when a site is selected, the utilization query is site+window filtered server-side,
-  // so its resource set is the authoritative row list (allPeople only supplies names/metadata).
-  const people: ResourceInfo[] = useMemo(
-    () => (siteId ? allPeople.filter((p) => bucketsByResource.has(p.id)) : allPeople),
-    [siteId, allPeople, bucketsByResource],
+  // so its resource set is the authoritative row list (allResources only supplies names/metadata).
+  const resources: ResourceInfo[] = useMemo(
+    () => (siteId ? allResources.filter((p) => bucketsByResource.has(p.id)) : allResources),
+    [siteId, allResources, bucketsByResource],
   );
 
-  // 5. Job-title labels in one request — replaces the old one-query-per-person fan-out (which also
+  // 5. Job-title labels in one request — replaces the old one-query-per-resource fan-out (which also
   //    swallowed every failure with `.catch(() => null)`). Fetches only the label the grid renders,
   //    not the full profile; failures surface via `jobTitlesError` instead of disappearing silently.
-  const peopleIds = useMemo(() => people.map((p) => p.id), [people]);
+  //    A job title is a directory-profile concept, so only resources have one; every other type
+  //    falls back to its description below and never issues this request.
+  const resourceIds = useMemo(() => resources.map((r) => r.id), [resources]);
+  const showsJobTitles = typeKey === RESOURCE_TYPE_KEY.PERSON;
   const { data: jobTitles = [], isError: jobTitlesError } = useQuery({
-    queryKey: qk.personJobTitles.byIds(peopleIds),
-    queryFn: () => getPersonJobTitles(peopleIds),
-    enabled: peopleIds.length > 0,
+    queryKey: qk.personJobTitles.byIds(resourceIds),
+    queryFn: () => getPersonJobTitles(resourceIds),
+    enabled: showsJobTitles && resourceIds.length > 0,
     staleTime: 5 * 60_000,
   });
   const jobTitleByResource = useMemo(() => {
@@ -204,11 +216,11 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     return map;
   }, [jobTitles]);
 
-  // 6. Assignments for every person in the window, in one request — drives the
+  // 6. Assignments for every resource in the window, in one request — drives the
   //    per-segment count badge. Grouped into a resourceId→assignments map.
   const { data: allAssignmentsFlat = [], isError: assignmentsError } = useQuery({
-    queryKey: qk.utilization.assignmentsByType('person', from, to),
-    queryFn: () => getAssignmentsByResourceType('person', from, to),
+    queryKey: qk.utilization.assignmentsByType(typeKey, from, to),
+    queryFn: () => getAssignmentsByResourceType(typeKey, from, to),
     staleTime: 60_000,
   });
   const assignmentsByResource = useMemo(() => {
@@ -261,10 +273,10 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   });
 
   // Membership is many-to-many (resolved via per-group member queries), so map
-  // each person → the group ids they belong to. The grouping helper places a
-  // person in the first matching group by displayOrder, preserving the original
+  // each resource → the group ids they belong to. The grouping helper places a
+  // resource in the first matching group by displayOrder, preserving the original
   // first-wins dedup.
-  const groupIdsByPerson = useMemo(() => {
+  const groupIdsByResource = useMemo(() => {
     const map = new Map<string, string[]>();
     groups.forEach((g, idx) => {
       const members = memberQueries[idx]?.data?.members ?? [];
@@ -277,25 +289,25 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     return map;
   }, [groups, memberQueries]);
 
-  // Build groups → people mapping. Groups sorted by displayOrder, empty groups
+  // Build groups → resources mapping. Groups sorted by displayOrder, empty groups
   // kept (includeEmpty: true) so users see their structure, ungrouped last.
   const shellGroups: ShellGroup<ResourceInfo>[] = useMemo(() => {
-    const filtered = people.filter((p) =>
+    const filtered = resources.filter((p) =>
       p.name.toLowerCase().includes(deferredSearch.toLowerCase()),
     );
     return groupRowsByResourceGroup(
       filtered,
       groups,
-      (p) => groupIdsByPerson.get(p.id) ?? [],
+      (p) => groupIdsByResource.get(p.id) ?? [],
       { includeEmpty: true },
     );
-  }, [people, groups, groupIdsByPerson, deferredSearch]);
+  }, [resources, groups, groupIdsByResource, deferredSearch]);
 
-  // Precompute each person's merged segments + overall percentage once per
+  // Precompute each resource's merged segments + overall percentage once per
   // bucket/off-time change, instead of re-deriving both inside every row's
   // render pass (renderRow runs for every visible row on any grid re-render).
-  const utilizationByPerson = useMemo(() => {
-    const map = new Map<string, { segments: PersonUtilizationSegment[]; overallPct: number }>();
+  const utilizationByResourceId = useMemo(() => {
+    const map = new Map<string, { segments: ResourceUtilizationSegment[]; overallPct: number }>();
     for (const [resourceId, buckets] of bucketsByResource) {
       map.set(resourceId, {
         segments: mergeBucketsToSegments(buckets, resourceId, offTimes),
@@ -306,10 +318,10 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   }, [bucketsByResource, offTimes]);
 
   const handleSegmentClick = useCallback(
-    (p: ResourceInfo, seg: PersonUtilizationSegment) =>
+    (p: ResourceInfo, seg: ResourceUtilizationSegment) =>
       setDialogState({
-        personId: p.id,
-        personName: p.name,
+        resourceId: p.id,
+        resourceName: p.name,
         allocationMode: p.allocationMode,
         start: seg.start,
         end: seg.end,
@@ -318,36 +330,42 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   );
 
   // When a site is selected the visible row set is derived from the utilization buckets
-  // (see `people` below), so rendering before they arrive shows a misleading "No people"
+  // (see `resources` below), so rendering before they arrive shows a misleading "No resources"
   // empty state. Gate the spinner on utilization in that case only — without a site the rows
-  // come straight from `allPeople` and render progressively (per-row "Loading…"). `placeholderData:
+  // come straight from `allResources` and render progressively (per-row "Loading…"). `placeholderData:
   // prev` keeps utilizationLoading true only on first load, so window changes still update silently.
   if (
-    peopleLoading ||
-    (peopleFetching && allPeople.length === 0) ||
+    resourcesLoading ||
+    (resourcesFetching && allResources.length === 0) ||
     (siteId && utilizationLoading) ||
-    (siteId && utilizationIsPlaceholder && people.length === 0)
+    (siteId && utilizationIsPlaceholder && resources.length === 0)
   ) {
-    return <LoadingSpinner fullScreen={false} message="Loading people…" />;
+    return <LoadingSpinner fullScreen={false} message={`Loading ${typeNoun}…`} />;
   }
 
   // Surface load failures explicitly instead of swallowing them (a silent empty/stuck grid was
-  // the confusing part). Covers the grid's data: people, utilization, assignments and profiles.
-  if (peopleError || utilizationError || assignmentsError || jobTitlesError) {
+  // the confusing part). Covers the grid's data: resources, utilization, assignments and profiles.
+  if (resourcesError || utilizationError || assignmentsError || jobTitlesError) {
     return (
       <div
         role="alert"
         className="h-full flex items-center justify-center text-sm text-destructive"
       >
-        Couldn’t load people utilization. Please refresh to try again.
+        {`Couldn’t load ${typeNoun} utilization. Please refresh to try again.`}
       </div>
     );
   }
 
-  if (people.length === 0) {
+  // An empty grid has two causes with different fixes, and a bare "none" hides which. A
+  // freshly defined type always starts here, so this is its author's first impression.
+  if (resources.length === 0) {
     return (
       <EmptyState
-        message="No people defined yet."
+        message={
+          allResources.length === 0
+            ? `No active ${typeNoun} yet. Add one to plan its utilization.`
+            : `No ${typeNoun} at this site in this window. Clear the site filter, or give one a home site here.`
+        }
         className="h-full flex flex-col items-center justify-center text-sm"
       />
     );
@@ -357,15 +375,15 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
     <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <LegendDot status="available"    label="Available" />
-        <LegendDot status="partial"      label="Booked" title="Booked % = share of this period the person is allocated (time-weighted)." />
+        <LegendDot status="partial"      label="Booked" title="Booked % = share of this period the resource is allocated (time-weighted)." />
         <LegendDot status="assigned"     label="Assigned" />
         <LegendDot status="overbooked"   label="Overbooked" title="Allocated beyond capacity (>100%) in this period." />
         <LegendDot status="non-working"  label="Off" />
       </div>
       <Input
         type="search"
-        placeholder="Search people…"
-        aria-label="Search people"
+        placeholder={`Search ${typeNoun}…`}
+        aria-label={`Search ${typeNoun}`}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="h-8 w-48"
@@ -376,25 +394,27 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
   return (
     <>
       <TimelineGridShell<ResourceInfo>
-        labelHeader="Person"
+        labelHeader={typeLabel}
         columns={columns}
         scale={scale}
         groups={shellGroups}
-        collapseIdPrefix="people"
+        collapseIdPrefix={typeKey}
         getRowId={(p) => p.id}
-        emptyMessage="No people match your search."
+        emptyMessage={`No ${typeNoun} match your search.`}
         toolbar={toolbar}
         className="h-full flex flex-col overflow-hidden rounded-xl border bg-background"
-        testId="people-utilization-grid"
-        renderRow={(person) => {
+        testId={`${typeKey}-utilization-grid`}
+        renderRow={(resource) => {
           const { segments, overallPct } =
-            utilizationByPerson.get(person.id) ?? EMPTY_UTILIZATION;
-          const jobTitle = jobTitleByResource.get(person.id);
-          const assignments = assignmentsByResource.get(person.id) ?? [];
+            utilizationByResourceId.get(resource.id) ?? EMPTY_UTILIZATION;
+          const secondaryLabel = showsJobTitles
+            ? jobTitleByResource.get(resource.id)
+            : resource.description;
+          const assignments = assignmentsByResource.get(resource.id) ?? [];
           return (
-            <PersonTimelineRow
-              person={person}
-              jobTitle={jobTitle}
+            <ResourceTimelineRow
+              resource={resource}
+              secondaryLabel={secondaryLabel}
               segments={segments}
               isLoadingRow={utilizationLoading}
               overallPct={overallPct}
@@ -410,11 +430,11 @@ export function PeopleUtilizationGrid({ anchorTs, scale, offTimeRanges = [], wee
       />
 
       {dialogState && (
-        <PersonAssignmentDialog
+        <ResourceAssignmentDialog
           open
           onOpenChange={(open) => { if (!open) setDialogState(null); }}
-          personId={dialogState.personId}
-          personName={dialogState.personName}
+          resourceId={dialogState.resourceId}
+          resourceName={dialogState.resourceName}
           allocationMode={dialogState.allocationMode}
           start={dialogState.start}
           end={dialogState.end}

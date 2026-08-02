@@ -188,6 +188,21 @@ public static class NarrativeYearSeeder
             .Concat(jobs.Select(j => j.Id))
             .Concat(backlogIds)
             .ToList();
+
+        // What each request needs, or nothing is ever "scheduled" (migrations 1720/1730). Every
+        // request targets a space — that is what the seeder books and what 1720 backfilled for all
+        // pre-existing requests. A job additionally targets a tool only when one was actually
+        // assigned: the archetype's ToolRole is a wish (PickTool may find nothing, and the
+        // capability-conflict injection above strips tool assignees again), and targeting a type
+        // the request never received would leave it permanently unscheduled. Read from the final
+        // Assignees, which is exactly what WriteAssignmentsAsync wrote.
+        var allToolIds = cohorts.SelectMany(c => c.Tools).Select(t => t.Id).ToHashSet();
+        var targets = allIds.Select(id => (id, "space"))
+            .Concat(jobs.Where(j => j.Assignees.Any(a => allToolIds.Contains(a.ResId)))
+                        .Select(j => (j.Id, "tool")))
+            .ToList();
+        await RequestTargetFactory.WriteAsync(conn, targets);
+
         return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds);
     }
 

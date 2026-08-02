@@ -4,27 +4,27 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import {
-  PersonAssignmentDialog,
+  ResourceAssignmentDialog,
   assignmentWindow,
   formatPeriod,
   formatSpan,
   timelineExtent,
-} from "./PersonAssignmentDialog";
+} from "./ResourceAssignmentDialog";
 import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import type * as ResourceAssignmentsApi from "@foundation/src/lib/api/resource-assignments-api";
-import type { PersonAssignmentOption } from "@foundation/src/lib/api/person-candidate-requests-api";
+import type { ResourceAssignmentOption } from "@foundation/src/lib/api/resource-candidate-requests-api";
 import type { ResourceAssignmentInfo, ValidationResult } from "@foundation/src/lib/api/resource-assignments-api";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-vi.mock("@foundation/src/lib/api/person-candidate-requests-api", () => ({
-  getPersonAssignmentOptions: vi.fn(),
-  mismatchCount: vi.fn((o: PersonAssignmentOption) =>
+vi.mock("@foundation/src/lib/api/resource-candidate-requests-api", () => ({
+  getResourceAssignmentOptions: vi.fn(),
+  mismatchCount: vi.fn((o: ResourceAssignmentOption) =>
     o.requirements.filter((r) => !r.satisfied).length,
   ),
-  matchesAllRequirements: vi.fn((o: PersonAssignmentOption) =>
+  matchesAllRequirements: vi.fn((o: ResourceAssignmentOption) =>
     o.requirements.every((r) => r.satisfied),
   ),
 }));
@@ -39,7 +39,7 @@ vi.mock("@foundation/src/lib/api/resource-assignments-api", async (importActual)
 }));
 
 import { toast } from "sonner";
-import { getPersonAssignmentOptions } from "@foundation/src/lib/api/person-candidate-requests-api";
+import { getResourceAssignmentOptions } from "@foundation/src/lib/api/resource-candidate-requests-api";
 import {
   createAssignment,
   cancelAssignment,
@@ -50,7 +50,7 @@ import {
 const START = "2026-01-06T08:00:00Z";
 const END = "2026-01-06T10:00:00Z";
 
-const ASSIGNED_OPTION: PersonAssignmentOption = {
+const ASSIGNED_OPTION: ResourceAssignmentOption = {
   requestId: "req-1",
   name: "Request Alpha",
   startTs: "2026-01-06T08:00:00Z",
@@ -59,7 +59,7 @@ const ASSIGNED_OPTION: PersonAssignmentOption = {
   assignmentId: "asgn-1",
 };
 
-const CANDIDATE_OPTION: PersonAssignmentOption = {
+const CANDIDATE_OPTION: ResourceAssignmentOption = {
   requestId: "req-2",
   name: "Request Beta",
   startTs: "2026-01-06T09:00:00Z",
@@ -68,7 +68,7 @@ const CANDIDATE_OPTION: PersonAssignmentOption = {
   assignmentId: null,
 };
 
-const CLEAN_CANDIDATE: PersonAssignmentOption = {
+const CLEAN_CANDIDATE: ResourceAssignmentOption = {
   requestId: "req-3",
   name: "Request Gamma",
   startTs: null,
@@ -116,7 +116,7 @@ const CREATED_ASSIGNMENT: ResourceAssignmentInfo = {
   id: "asgn-new",
   requestId: "req-3",
   resourceId: "person-1",
-  resourceTypeKey: "person",
+  resourceTypeKey: "resource",
   startUtc: START,
   endUtc: END,
   allocationPercent: 100,
@@ -131,14 +131,14 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function renderDialog(
-  overrides: Partial<React.ComponentProps<typeof PersonAssignmentDialog>> = {},
+  overrides: Partial<React.ComponentProps<typeof ResourceAssignmentDialog>> = {},
 ) {
   return render(
-    <PersonAssignmentDialog
+    <ResourceAssignmentDialog
       open
       onOpenChange={vi.fn()}
-      personId="person-1"
-      personName="Alice Smith"
+      resourceId="person-1"
+      resourceName="Alice Smith"
       allocationMode="Exclusive"
       start={START}
       end={END}
@@ -148,7 +148,7 @@ function renderDialog(
   );
 }
 
-describe("PersonAssignmentDialog", () => {
+describe("ResourceAssignmentDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: assigned rows have no conflicts on load. Tests that assert the conflict
@@ -157,7 +157,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows loading then renders assigned and candidate rows", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([
       ASSIGNED_OPTION,
       CANDIDATE_OPTION,
     ]);
@@ -170,7 +170,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows assigned count badge", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([
       ASSIGNED_OPTION,
       CANDIDATE_OPTION,
     ]);
@@ -179,20 +179,20 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows mismatch badge for candidate with unsatisfied requirements", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
     renderDialog();
     await waitFor(() => expect(screen.getByTestId("mismatch-badge")).toBeInTheDocument());
   });
 
   it("does not show mismatch badge for fully satisfied candidate", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     expect(screen.queryByTestId("mismatch-badge")).not.toBeInTheDocument();
   });
 
   it("'Eligible only' hides hard-blocked candidates but keeps assignable (incl. soft-blocker) ones", async () => {
-    const ELIGIBLE_CANDIDATE: PersonAssignmentOption = {
+    const ELIGIBLE_CANDIDATE: ResourceAssignmentOption = {
       requestId: "req-4",
       name: "Request Delta",
       startTs: "2026-01-06T09:00:00Z",
@@ -200,7 +200,7 @@ describe("PersonAssignmentDialog", () => {
       requirements: [],
       assignmentId: null,
     };
-    const SOFT_ONLY_CANDIDATE: PersonAssignmentOption = {
+    const SOFT_ONLY_CANDIDATE: ResourceAssignmentOption = {
       requestId: "req-5",
       name: "Request Epsilon",
       startTs: "2026-01-06T09:00:00Z",
@@ -208,7 +208,7 @@ describe("PersonAssignmentDialog", () => {
       requirements: [{ label: "CPR", satisfied: false }],
       assignmentId: null,
     };
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([
       CANDIDATE_OPTION, // req-2 — hard blocker → filtered out
       ELIGIBLE_CANDIDATE, // req-4 — clean → kept
       SOFT_ONLY_CANDIDATE, // req-5 — capability missing (soft) → kept
@@ -238,7 +238,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("'Eligible only' shows an error note (does not silently fail open) when the check fails", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
     vi.mocked(validateAssignmentsBatch).mockRejectedValue(new Error("network"));
     renderDialog();
     await screen.findByText("Request Beta");
@@ -251,7 +251,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("surfaces a toast when assigning fails instead of silently reverting", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockRejectedValue(new Error("boom"));
     renderDialog();
@@ -262,7 +262,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("explains an empty past period instead of the terse 'no requests' message", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([]);
     // end is in the past relative to now → the dialog should say the period has passed.
     renderDialog({ start: "2000-01-01T08:00:00Z", end: "2000-01-01T10:00:00Z" });
 
@@ -271,17 +271,17 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("remove: unchecking an assigned row calls cancelAssignment and invalidates cache", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(cancelAssignment).mockResolvedValue(undefined);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
     render(
       <QueryClientProvider client={qc}>
-        <PersonAssignmentDialog
+        <ResourceAssignmentDialog
           open
           onOpenChange={vi.fn()}
-          personId="person-1"
-          personName="Alice"
+          resourceId="person-1"
+          resourceName="Alice"
           allocationMode="Exclusive"
           start={START}
           end={END}
@@ -305,7 +305,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: blocker validation prevents assignment and shows inline issues", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(BLOCKER_RESULT);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
@@ -319,7 +319,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: warning validation still creates the assignment and shows warning", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(WARNING_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog();
@@ -334,7 +334,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: ok validation creates assignment with no feedback shown", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog();
@@ -345,7 +345,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: sends no allocation percent for an Exclusive resource", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog({ allocationMode: "Exclusive" });
@@ -361,7 +361,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: sends a full allocation percent for a Fractional resource", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog({ allocationMode: "Fractional" });
@@ -377,7 +377,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows empty state when no options are returned", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([]);
     // Future period → the general "no open requests" empty state (the past-period copy is tested below).
     renderDialog({ start: "2999-01-01T08:00:00Z", end: "2999-01-01T10:00:00Z" });
     await waitFor(() =>
@@ -388,13 +388,13 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows load error when the API call fails", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockRejectedValue(new Error("Network error"));
+    vi.mocked(getResourceAssignmentOptions).mockRejectedValue(new Error("Network error"));
     renderDialog();
     await waitFor(() => expect(screen.getByText("Network error")).toBeInTheDocument());
   });
 
   it("add: capability.missing blocker creates the assignment (soft override)", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(CAPABILITY_MISSING_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog();
@@ -404,7 +404,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: capability.missing blocker shows warning feedback after creation", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(CAPABILITY_MISSING_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog();
@@ -417,7 +417,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: assignment.overbooked blocker creates the assignment and warns (soft override)", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OVERBOOKED_BLOCKER_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog();
@@ -431,7 +431,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: hard blocker (non-capability) still blocks the assignment", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(BLOCKER_RESULT);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
@@ -444,7 +444,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: capability.missing mixed with hard blocker still blocks", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(MIXED_BLOCKER_RESULT);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
@@ -456,18 +456,18 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("add: successful create invalidates all request-derived queries", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
     render(
       <QueryClientProvider client={qc}>
-        <PersonAssignmentDialog
+        <ResourceAssignmentDialog
           open
           onOpenChange={vi.fn()}
-          personId="person-1"
-          personName="Alice"
+          resourceId="person-1"
+          resourceName="Alice"
           allocationMode="Exclusive"
           start={START}
           end={END}
@@ -485,7 +485,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("filters the list by search input", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([
       ASSIGNED_OPTION,
       CANDIDATE_OPTION,
     ]);
@@ -498,7 +498,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows the request duration when the option has a window, and omits it otherwise", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([
       ASSIGNED_OPTION, // 08:00–10:00 → 2h
       CLEAN_CANDIDATE, // null window → no duration
     ]);
@@ -513,7 +513,7 @@ describe("PersonAssignmentDialog", () => {
   it("renders a timeline bar positioned within the dialog window", async () => {
     // Window 08:00–10:00 (2h); request 09:00–11:00 → starts at 50%, extends past the end
     // so the fill is clamped to a 50% width.
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Beta")).toBeInTheDocument());
     const fill = screen.getByTestId("request-timeline-fill");
@@ -521,7 +521,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("clamps a request that starts before the window to the left edge", async () => {
-    const early: PersonAssignmentOption = {
+    const early: ResourceAssignmentOption = {
       requestId: "req-early",
       name: "Starts Before Window",
       startTs: "2026-01-06T07:00:00Z", // before window start (08:00)
@@ -529,14 +529,14 @@ describe("PersonAssignmentDialog", () => {
       requirements: [],
       assignmentId: null,
     };
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([early]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([early]);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Starts Before Window")).toBeInTheDocument());
     expect(screen.getByTestId("request-timeline-fill")).toHaveStyle({ marginLeft: "0%" });
   });
 
   it("renders no timeline bar for an option without a window", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     expect(screen.queryByTestId("request-timeline")).not.toBeInTheDocument();
@@ -545,7 +545,7 @@ describe("PersonAssignmentDialog", () => {
   it("add: assigns over the request's own window, not the clicked segment", async () => {
     // CANDIDATE_OPTION is scheduled 09:00–11:00; the dialog segment is 08:00–10:00.
     // The assignment must use the request window so it doesn't over-allocate the slice.
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CANDIDATE_OPTION]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
     renderDialog();
@@ -567,7 +567,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows a conflict indicator on an assigned row that validates as overbooked", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([
       {
         requestId: "req-1",
@@ -594,7 +594,7 @@ describe("PersonAssignmentDialog", () => {
   });
 
   it("shows no conflict indicator when the assigned row validates clean", async () => {
-    vi.mocked(getPersonAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);
     renderDialog();
     await waitFor(() => expect(screen.getByText("Request Alpha")).toBeInTheDocument());
@@ -605,7 +605,7 @@ describe("PersonAssignmentDialog", () => {
   });
 });
 
-describe("PersonAssignmentDialog window/format helpers", () => {
+describe("ResourceAssignmentDialog window/format helpers", () => {
   it("assignmentWindow: uses the request's own window when scheduled", () => {
     expect(assignmentWindow(ASSIGNED_OPTION, START, END)).toEqual({
       startUtc: ASSIGNED_OPTION.startTs,

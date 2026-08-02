@@ -26,21 +26,21 @@ import {
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import {
-  getPersonAssignmentOptions,
+  getResourceAssignmentOptions,
   mismatchCount,
-  type PersonAssignmentOption,
-} from "@foundation/src/lib/api/person-candidate-requests-api";
+  type ResourceAssignmentOption,
+} from "@foundation/src/lib/api/resource-candidate-requests-api";
 import { ValidationIssueList } from "../requests/ValidationIssueList";
 import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
 import { formatMinutesHuman } from "@foundation/src/lib/utils";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
-export interface PersonAssignmentDialogProps {
+export interface ResourceAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  personId: string;
-  personName: string;
+  resourceId: string;
+  resourceName: string;
   /** Resource allocation mode — drives whether an allocation percent is sent. */
   allocationMode: string;
   /** ISO datetime for the clicked segment's start. */
@@ -57,7 +57,7 @@ export interface PersonAssignmentDialogProps {
  */
 // Exported for unit testing — pure window/format helpers with edge-case guards.
 export function assignmentWindow(
-  option: PersonAssignmentOption,
+  option: ResourceAssignmentOption,
   segmentStart: string,
   segmentEnd: string,
 ): { startUtc: string; endUtc: string } {
@@ -132,21 +132,21 @@ export function timelineExtent(
   return { leftPct: round(left), widthPct: round(Math.max(right - left, 2)) };
 }
 
-export function PersonAssignmentDialog({
+export function ResourceAssignmentDialog({
   open,
   onOpenChange,
-  personId,
-  personName,
+  resourceId,
+  resourceName,
   allocationMode,
   start,
   end,
-}: PersonAssignmentDialogProps) {
+}: ResourceAssignmentDialogProps) {
   // Exclusive resources take the whole slot (no percent); fractional/capacity
   // resources require an allocation percent — default to a full booking here,
   // mirroring RequestPeopleSection. The quick-add dialog has no percent input.
   const allocationPercent =
     allocationMode === ALLOCATION_MODE.EXCLUSIVE ? undefined : 100;
-  const [options, setOptions] = useState<PersonAssignmentOption[]>([]);
+  const [options, setOptions] = useState<ResourceAssignmentOption[]>([]);
   const [itemStatus, setItemStatus] = useState<Map<string, ItemStatus>>(new Map());
   // requestId → conflict issues for an already-assigned row (capability / overbook),
   // computed on load so conflicts persist across reopens, not just after toggling.
@@ -154,7 +154,7 @@ export function PersonAssignmentDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  // "Eligible only": hide unassigned candidates the person can't actually take (hard blockers).
+  // "Eligible only": hide unassigned candidates the resource can't actually take (hard blockers).
   // Eligibility is validated lazily on first enable and cached (`ineligible` = requestIds with a hard
   // blocker); fail-open — an errored/absent check hides nothing.
   const [eligibleOnly, setEligibleOnly] = useState(false);
@@ -177,7 +177,7 @@ export function PersonAssignmentDialog({
     setEligibilityError(false);
     setLoadError(null);
     setIsLoading(true);
-    getPersonAssignmentOptions(personId, start, end)
+    getResourceAssignmentOptions(resourceId, start, end)
       .then((opts) => {
         if (cancelled) return;
         setOptions(
@@ -202,9 +202,9 @@ export function PersonAssignmentDialog({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, personId, start, end]);
+  }, [open, resourceId, start, end]);
 
-  const loadConflicts = async (opts: PersonAssignmentOption[], cancelled: boolean) => {
+  const loadConflicts = async (opts: ResourceAssignmentOption[], cancelled: boolean) => {
     const assigned = opts.filter(
       (o) => o.assignmentId !== null && o.startTs && o.endTs,
     );
@@ -215,7 +215,7 @@ export function PersonAssignmentDialog({
           const win = assignmentWindow(o, start, end);
           return {
             requestId: o.requestId,
-            resourceId: personId,
+            resourceId: resourceId,
             startUtc: win.startUtc,
             endUtc: win.endUtc,
             allocationPercent,
@@ -252,7 +252,7 @@ export function PersonAssignmentDialog({
           const win = assignmentWindow(o, start, end);
           return {
             requestId: o.requestId,
-            resourceId: personId,
+            resourceId: resourceId,
             startUtc: win.startUtc,
             endUtc: win.endUtc,
             allocationPercent,
@@ -315,7 +315,7 @@ export function PersonAssignmentDialog({
   const patchStatus = (requestId: string, status: ItemStatus) =>
     setItemStatus((prev) => new Map(prev).set(requestId, status));
 
-  const handleToggle = async (option: PersonAssignmentOption) => {
+  const handleToggle = async (option: ResourceAssignmentOption) => {
     const status = itemStatus.get(option.requestId) ?? { kind: "idle" as const };
     if (status.kind !== "idle" && status.kind !== "feedback") return;
 
@@ -332,7 +332,7 @@ export function PersonAssignmentDialog({
         invalidateRequestData(queryClient);
       } catch {
         // The remove did not land — tell the planner so they don't assume it's gone.
-        toast.error(`Couldn't remove ${personName} from “${option.name}”. Please try again.`);
+        toast.error(`Couldn't remove ${resourceName} from “${option.name}”. Please try again.`);
       }
       patchStatus(option.requestId, { kind: "idle" });
     } else {
@@ -343,7 +343,7 @@ export function PersonAssignmentDialog({
       try {
         result = await validateAssignment({
           requestId: option.requestId,
-          resourceId: personId,
+          resourceId: resourceId,
           startUtc: win.startUtc,
           endUtc: win.endUtc,
           allocationPercent,
@@ -376,7 +376,7 @@ export function PersonAssignmentDialog({
       try {
         const created = await createAssignment({
           requestId: option.requestId,
-          resourceId: personId,
+          resourceId: resourceId,
           startUtc: win.startUtc,
           endUtc: win.endUtc,
           allocationPercent,
@@ -393,7 +393,7 @@ export function PersonAssignmentDialog({
         patchStatus(option.requestId, { kind: "idle" });
       } catch {
         // The assignment did not save — the row reverts to unchecked; surface why.
-        toast.error(`Couldn't assign ${personName} to “${option.name}”. Please try again.`);
+        toast.error(`Couldn't assign ${resourceName} to “${option.name}”. Please try again.`);
         patchStatus(option.requestId, { kind: "idle" });
       }
     }
@@ -403,7 +403,7 @@ export function PersonAssignmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg" data-testid="person-assignment-dialog">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Assignments — {personName}</DialogTitle>
+          <DialogTitle>Assignments — {resourceName}</DialogTitle>
           <DialogDescription>{formatPeriod(start, end)}</DialogDescription>
         </DialogHeader>
 

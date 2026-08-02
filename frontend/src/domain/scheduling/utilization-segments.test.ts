@@ -3,7 +3,7 @@ import {
   deriveBucketStatus,
   mergeBucketsToSegments,
   segmentDisplayData,
-  type PersonUtilizationSegment,
+  type ResourceUtilizationSegment,
 } from './utilization-segments';
 import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
@@ -189,7 +189,7 @@ describe('segmentDisplayData', () => {
   const viewStart = new Date(T.h8).getTime();
   const viewEnd = new Date(T.h11).getTime(); // 3-hour window
 
-  function seg(start: string, end: string): PersonUtilizationSegment {
+  function seg(start: string, end: string): ResourceUtilizationSegment {
     return { start, end, status: 'available', utilizationPercent: 0, sourceUnitCount: 1 };
   }
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { PeopleUtilizationGrid } from './PeopleUtilizationGrid';
+import { ResourceUtilizationGrid } from './ResourceUtilizationGrid';
 import { useAppStore } from '@foundation/src/store/app-store';
 import type { ResourcesResponse } from '@foundation/src/lib/api/resources-api';
 import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
@@ -20,8 +20,8 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn().mockResolvedValue([]),
   getResourceGroupMembers: vi.fn().mockResolvedValue({ groupId: '', members: [] }),
 }));
-vi.mock('@foundation/src/lib/api/person-candidate-requests-api', () => ({
-  getPersonAssignmentOptions: vi.fn().mockResolvedValue([]),
+vi.mock('@foundation/src/lib/api/resource-candidate-requests-api', () => ({
+  getResourceAssignmentOptions: vi.fn().mockResolvedValue([]),
   mismatchCount: vi.fn().mockReturnValue(0),
   matchesAllRequirements: vi.fn().mockReturnValue(true),
 }));
@@ -45,7 +45,7 @@ const twoPeople: ResourcesResponse = {
   data: [
     {
       id: 'p-alice',
-      resourceTypeId: 'rt-person',
+      resourceTypeId: 'rt-resource',
       resourceTypeKey: 'person',
       name: 'Alice Smith',
       allocationMode: 'Exclusive',
@@ -56,7 +56,7 @@ const twoPeople: ResourcesResponse = {
     },
     {
       id: 'p-bob',
-      resourceTypeId: 'rt-person',
+      resourceTypeId: 'rt-resource',
       resourceTypeKey: 'person',
       name: 'Bob Jones',
       allocationMode: 'Fractional',
@@ -91,24 +91,34 @@ function makeBuckets(
 
 const availableBuckets: ResourceUtilizationBucket[] = makeBuckets(31);
 
-// The bulk endpoint returns one entry per person; mirror the same buckets for
-// every person in the fixture set.
+// The bulk endpoint returns one entry per resource; mirror the same buckets for
+// every resource in the fixture set.
 function bulkUtil(buckets: ResourceUtilizationBucket[]) {
   return twoPeople.data.map((p) => ({ resourceId: p.id, buckets }));
 }
 
-function renderGrid(props?: Partial<React.ComponentProps<typeof PeopleUtilizationGrid>>) {
+const PERSON_TYPE = {
+  id: 'type-person',
+  key: 'person',
+  displayName: 'Person',
+  isSystem: true,
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
+function renderGrid(props?: Partial<React.ComponentProps<typeof ResourceUtilizationGrid>>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <PeopleUtilizationGrid anchorTs={ANCHOR} scale="month" {...props} />
+      <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={ANCHOR} scale="month" {...props} />
     </QueryClientProvider>,
   );
 }
 
-describe('PeopleUtilizationGrid', () => {
+describe('ResourceUtilizationGrid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAppStore.setState({ collapsedGroupIds: [] });
@@ -122,21 +132,21 @@ describe('PeopleUtilizationGrid', () => {
   it('shows loading state while people are loading', () => {
     vi.mocked(getResources).mockReturnValue(new Promise(() => {}));
     renderGrid();
-    expect(screen.getByText(/loading people/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading person resources/i)).toBeInTheDocument();
   });
 
   it('shows empty state when no people exist', async () => {
     vi.mocked(getResources).mockResolvedValue(emptyPeople);
     renderGrid();
-    await waitFor(() => expect(screen.getByText(/no people defined/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/no active person resources/i)).toBeInTheDocument());
   });
 
   it('renders the grid container', async () => {
     renderGrid();
-    await waitFor(() => expect(screen.getByTestId('people-utilization-grid')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('person-utilization-grid')).toBeInTheDocument());
   });
 
-  it('renders a row for each person', async () => {
+  it('renders a row for each resource', async () => {
     renderGrid();
     await waitFor(() => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
@@ -144,7 +154,7 @@ describe('PeopleUtilizationGrid', () => {
     });
   });
 
-  it('uses a people-scoped collapse id so space groups do not collapse people', async () => {
+  it('uses a type-scoped collapse id so space groups do not collapse people', async () => {
     useAppStore.setState({ collapsedGroupIds: ['spaces:ungrouped'] });
     renderGrid();
 
@@ -153,7 +163,7 @@ describe('PeopleUtilizationGrid', () => {
     fireEvent.click(screen.getByText('Ungrouped'));
 
     expect(useAppStore.getState().collapsedGroupIds).toContain('spaces:ungrouped');
-    expect(useAppStore.getState().collapsedGroupIds).toContain('people:ungrouped');
+    expect(useAppStore.getState().collapsedGroupIds).toContain('person:ungrouped');
     expect(useAppStore.getState().collapsedGroupIds).not.toContain('ungrouped');
   });
 
@@ -166,7 +176,7 @@ describe('PeopleUtilizationGrid', () => {
     await waitFor(() => expect(screen.getAllByText('Senior Engineer').length).toBeGreaterThan(0));
   });
 
-  it('fetches job-title labels in a single bulk request (no per-person fan-out)', async () => {
+  it('fetches job-title labels in a single bulk request (no per-resource fan-out)', async () => {
     renderGrid();
     await waitFor(() => expect(getPersonJobTitles).toHaveBeenCalledTimes(1));
     expect(getPersonJobTitles).toHaveBeenCalledWith(['p-alice', 'p-bob']);
@@ -176,11 +186,11 @@ describe('PeopleUtilizationGrid', () => {
     vi.mocked(getUtilizationByResource).mockRejectedValue(new Error('boom'));
     renderGrid();
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t load people utilization/i),
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t load person resources utilization/i),
     );
   });
 
-  it('calls getResources with person resourceTypeKey and isActive=true', async () => {
+  it('calls getResources with the person resourceTypeKey and isActive=true', async () => {
     renderGrid();
     await waitFor(() => expect(getResources).toHaveBeenCalled());
     expect(getResources).toHaveBeenCalledWith({ resourceTypeKey: 'person', isActive: true });
@@ -222,7 +232,7 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     await waitFor(() =>
-      expect(screen.getAllByTestId('person-segment-bar').length).toBeGreaterThan(0),
+      expect(screen.getAllByTestId('resource-segment-bar').length).toBeGreaterThan(0),
     );
   });
 
@@ -235,17 +245,17 @@ describe('PeopleUtilizationGrid', () => {
     await waitFor(() => expect(screen.getAllByText('60%').length).toBeGreaterThan(0));
   });
 
-  it('clicking a segment opens the person assignment dialog', async () => {
+  it('clicking a segment opens the resource assignment dialog', async () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
     // Wait for at least one segment bar to appear
-    await waitFor(() => expect(screen.getAllByTestId('person-segment-bar').length).toBeGreaterThan(0));
-    const bar = screen.getAllByTestId('person-segment-bar')[0];
+    await waitFor(() => expect(screen.getAllByTestId('resource-segment-bar').length).toBeGreaterThan(0));
+    const bar = screen.getAllByTestId('resource-segment-bar')[0];
     await userEvent.click(bar);
     await waitFor(() =>
       expect(screen.getByTestId('person-assignment-dialog')).toBeInTheDocument(),
     );
-    // Dialog title names the person
+    // Dialog title names the resource
     expect(screen.getByText(/Assignments — Alice Smith/)).toBeInTheDocument();
   });
 
@@ -256,7 +266,7 @@ describe('PeopleUtilizationGrid', () => {
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/search people/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search person resources/i), {
       target: { value: 'Alice' },
     });
 
@@ -268,16 +278,16 @@ describe('PeopleUtilizationGrid', () => {
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
 
-    fireEvent.change(screen.getByPlaceholderText(/search people/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search person resources/i), {
       target: { value: 'xyz-no-match' },
     });
 
-    expect(screen.getByText(/no people match/i)).toBeInTheDocument();
+    expect(screen.getByText(/no person resources match/i)).toBeInTheDocument();
   });
 
   it('renders the legend strip', async () => {
     renderGrid();
-    await waitFor(() => screen.getByTestId('people-utilization-grid'));
+    await waitFor(() => screen.getByTestId('person-utilization-grid'));
     // getAllByText because segment bars may also render the same status text
     expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Booked').length).toBeGreaterThan(0);
@@ -369,7 +379,7 @@ describe('PeopleUtilizationGrid', () => {
     });
     rerender(
       <QueryClientProvider client={queryClient}>
-        <PeopleUtilizationGrid anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" />
+        <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" />
       </QueryClientProvider>,
     );
 
@@ -378,7 +388,7 @@ describe('PeopleUtilizationGrid', () => {
   });
 
   // ── Legend color-consistency tests ──────────────────────────────────────────
-  // Segment bar color correctness is covered in PersonSegmentBar.test.tsx.
+  // Segment bar color correctness is covered in ResourceSegmentBar.test.tsx.
   // Here we only verify the legend dots use the expected Tailwind color classes.
 
   // LegendDot renders <span class="flex items-center gap-1"><span class="inline-block ..."/>{label}</span>.
@@ -482,7 +492,7 @@ describe('PeopleUtilizationGrid', () => {
 
   // ── Utilization edge cases ───────────────────────────────────────────────────
 
-  it('shows 0% when a person has no working (available) buckets', async () => {
+  it('shows 0% when a resource has no working (available) buckets', async () => {
     const offBuckets = makeBuckets(31, { effectiveAvailabilityPercent: 0 });
     vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(offBuckets));
     renderGrid();
@@ -492,11 +502,11 @@ describe('PeopleUtilizationGrid', () => {
 
   // ── Dialog lifecycle ─────────────────────────────────────────────────────────
 
-  it('closes the person assignment dialog on dismiss', async () => {
+  it('closes the resource assignment dialog on dismiss', async () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('Alice Smith'));
-    await waitFor(() => expect(screen.getAllByTestId('person-segment-bar').length).toBeGreaterThan(0));
-    await userEvent.click(screen.getAllByTestId('person-segment-bar')[0]);
+    await waitFor(() => expect(screen.getAllByTestId('resource-segment-bar').length).toBeGreaterThan(0));
+    await userEvent.click(screen.getAllByTestId('resource-segment-bar')[0]);
     await waitFor(() => expect(screen.getByTestId('person-assignment-dialog')).toBeInTheDocument());
 
     await userEvent.keyboard('{Escape}');

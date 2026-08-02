@@ -18,7 +18,7 @@ import type { BucketStatus } from "@foundation/src/components/utilization/schedu
 import { overlapsOffTimeRange } from "@foundation/src/components/utilization/time-grid-utils";
 import { clampToViewPercent } from "@foundation/src/domain/scheduling/schedule-selectors";
 
-export interface PersonUtilizationSegment {
+export interface ResourceUtilizationSegment {
   /** ISO start of the first merged bucket (inclusive). */
   start: string;
   /** ISO end of the last merged bucket (exclusive). */
@@ -72,8 +72,8 @@ export function mergeBucketsToSegments(
   buckets: readonly ResourceUtilizationBucket[],
   resourceId: string,
   offTimeRanges: readonly OffTimeRange[],
-): PersonUtilizationSegment[] {
-  const segments: PersonUtilizationSegment[] = [];
+): ResourceUtilizationSegment[] {
+  const segments: ResourceUtilizationSegment[] = [];
 
   let runStart: string | null = null;
   let runEnd = "";
@@ -121,7 +121,7 @@ export function mergeBucketsToSegments(
  * so there is no top/z handling here.
  */
 export function segmentDisplayData(
-  segment: PersonUtilizationSegment,
+  segment: ResourceUtilizationSegment,
   viewStartMs: number,
   viewEndMs: number,
 ): { leftPercent: number; widthPercent: number } {

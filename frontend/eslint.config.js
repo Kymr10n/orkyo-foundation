@@ -271,7 +271,7 @@ export default defineConfig(
       'src/components/resource-groups/ResourceGroupMembersEditor.tsx',
       'src/components/resources/ResourceAbsenceList.tsx',
       // Read-only / per-item-state-machine views.
-      'src/components/utilization/PersonAssignmentDialog.tsx',
+      'src/components/utilization/ResourceAssignmentDialog.tsx',
       'src/components/utilization/ScheduleSlotDialog.tsx',
       'src/components/settings/ReportingApiSettings.tsx', // RawTokenDialog: show-once token view
       'src/components/admin/FeedbackTab.tsx',
