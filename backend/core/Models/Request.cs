@@ -92,6 +92,13 @@ public record RequestInfo
     /// </summary>
     public required IReadOnlyList<ResourceAssignmentInfo> Assignments { get; init; }
 
+    /// <summary>
+    /// The resource types this request needs — a room, a van and a technician are three
+    /// entries, each satisfied by its own assignment. Empty means the request needs no
+    /// resource, and so can never be scheduled.
+    /// </summary>
+    public required IReadOnlyList<string> TargetResourceTypeKeys { get; init; }
+
     // Display icon (short string ID resolved to a lucide-react icon on the frontend).
     public string? Icon { get; init; }
 
@@ -186,6 +193,12 @@ public record CreateRequestRequest
     public Guid? ResourceId { get; init; }
     public string? RequestItemId { get; init; }
 
+    /// <summary>
+    /// The resource types this request needs. Omit to target spaces, which is what every
+    /// request meant before types were expressible and what migration 1720 backfilled.
+    /// </summary>
+    public IReadOnlyList<string>? TargetResourceTypeKeys { get; init; }
+
     public string? Icon { get; init; }
 
     public DateTime? StartTs { get; init; }
@@ -233,6 +246,12 @@ public record UpdateRequestRequest
     public bool ChangeSiteId { get; init; }
 
     public Guid? ResourceId { get; init; }
+
+    /// <summary>
+    /// Replaces the request's target resource types. NULL leaves them untouched; an empty
+    /// list clears them, which makes the request unschedulable by design.
+    /// </summary>
+    public IReadOnlyList<string>? TargetResourceTypeKeys { get; init; }
     public string? RequestItemId { get; init; }
 
     public string? Icon { get; init; }

@@ -14,6 +14,7 @@ public class RequestRepository : IRequestRepository
     private const string SelectFromView =
         @"id, name, description, parent_request_id, planning_mode, sort_order,
           site_id,
+          target_resource_type_keys,
           request_item_id, icon,
           start_ts, end_ts, earliest_start_ts, latest_end_ts,
           minimal_duration_value, minimal_duration_unit,
@@ -436,6 +437,14 @@ public class RequestRepository : IRequestRepository
                 await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
             }
 
+            // A caller that says nothing means a space, which is what every request meant
+            // before types could be named. Stated explicitly rather than left empty: an empty
+            // target list is a real state (a request needing no resource) and must not be
+            // reachable by omission.
+            await WriteTargetResourceTypesAsync(
+                db, transaction, requestId,
+                request.TargetResourceTypeKeys ?? [ResourceTypeKeys.Space], ct);
+
             await transaction.CommitAsync(ct);
 
             // Re-read from view to get full object with assignments
@@ -543,6 +552,13 @@ public class RequestRepository : IRequestRepository
             await deleteCmd.ExecuteNonQueryAsync(ct);
             if (request.Requirements.Count > 0)
                 await CreateRequirements(id, request.Requirements, db, transaction, ct);
+        }
+
+        // Same rule as requirements: NULL leaves the targets alone, a supplied list replaces
+        // them wholesale. An empty list is meaningful — a request that needs no resource.
+        if (request.TargetResourceTypeKeys is { } targetKeys)
+        {
+            await WriteTargetResourceTypesAsync(db, transaction, id, targetKeys, ct);
         }
 
         await transaction.CommitAsync(ct);
@@ -899,6 +915,40 @@ public class RequestRepository : IRequestRepository
                     ? reqs
                     : [],
             };
+        }
+    }
+
+    /// <summary>
+    /// Replaces a request's target resource types wholesale. Unknown keys are rejected rather
+    /// than skipped: silently dropping one would leave a request needing less than the caller
+    /// asked for, and a request that needs less is a request that reports itself scheduled.
+    /// </summary>
+    private static async Task WriteTargetResourceTypesAsync(
+        NpgsqlConnection db, NpgsqlTransaction tx, Guid requestId,
+        IReadOnlyList<string> typeKeys, CancellationToken ct)
+    {
+        await using (var del = new NpgsqlCommand(
+            "DELETE FROM request_target_resource_types WHERE request_id = @request_id", db, tx))
+        {
+            del.Parameters.AddWithValue("request_id", requestId);
+            await del.ExecuteNonQueryAsync(ct);
+        }
+
+        if (typeKeys.Count == 0) return;
+
+        await using var ins = new NpgsqlCommand(
+            @"INSERT INTO request_target_resource_types (request_id, resource_type_id)
+              SELECT @request_id, rt.id FROM resource_types rt WHERE rt.key = ANY(@keys)",
+            db, tx);
+        ins.Parameters.AddWithValue("request_id", requestId);
+        ins.Parameters.AddWithValue("keys", typeKeys.Distinct().ToArray());
+        var written = await ins.ExecuteNonQueryAsync(ct);
+
+        if (written != typeKeys.Distinct().Count())
+        {
+            throw new ArgumentException(
+                "One or more target resource type keys do not exist: "
+                + string.Join(", ", typeKeys));
         }
     }
 

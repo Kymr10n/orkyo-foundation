@@ -37,6 +37,7 @@ public class SchedulingServiceTests
         SchedulingSettingsApply = applyScheduling,
         Requirements = new List<RequestRequirementInfo>(),
         Assignments = new List<ResourceAssignmentInfo>(),
+        TargetResourceTypeKeys = [ResourceTypeKeys.Space],
         MinimalDurationValue = 9,
         MinimalDurationUnit = DurationUnit.Hours,
         CreatedAt = DateTime.UtcNow,

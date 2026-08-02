@@ -78,6 +78,7 @@ public class ConflictServiceTests
             Status = RequestStatus.New,
             SchedulingSettingsApply = false,
             Assignments = [.. assignments],
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
             StartTs = start,
             EndTs = end,
             MinimalDurationValue = minMinutes,

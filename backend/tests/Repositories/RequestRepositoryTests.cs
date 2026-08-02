@@ -355,4 +355,57 @@ public class RequestRepositoryTests
         Assert.Contains(backlog, r => r.Id == leafId);
         Assert.DoesNotContain(backlog, r => r.Id == groupId);
     }
+
+    [Fact]
+    public async Task Create_WithoutTargetTypes_TargetsSpaces()
+    {
+        // Every request meant "a space" before types could be named, and migration 1720
+        // backfilled exactly that; a caller who says nothing must land in the same place.
+        var resp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"NoTarget-{Guid.NewGuid():N}"[..25],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+        });
+        resp.EnsureSuccessStatusCode();
+
+        var created = await resp.Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.Equal([ResourceTypeKeys.Space], created!.TargetResourceTypeKeys);
+    }
+
+    [Fact]
+    public async Task Create_WithSeveralTargetTypes_RoundTripsAllOfThem()
+    {
+        // The point of the join table: a job can need a room and a person at once.
+        var resp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"MultiTarget-{Guid.NewGuid():N}"[..25],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space, ResourceTypeKeys.Person],
+        });
+        resp.EnsureSuccessStatusCode();
+
+        var created = await resp.Content.ReadFromJsonAsync<RequestInfo>();
+        // The view sorts by key for snapshot stability.
+        Assert.Equal(
+            new[] { ResourceTypeKeys.Person, ResourceTypeKeys.Space }.OrderBy(k => k),
+            created!.TargetResourceTypeKeys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public async Task Create_WithUnknownTargetType_IsRejected()
+    {
+        // Skipping the unknown key would leave the request needing less than asked — and a
+        // request needing less is one that reports itself scheduled too early.
+        var resp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"BadTarget-{Guid.NewGuid():N}"[..25],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space, "no_such_type"],
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
 }

@@ -62,6 +62,11 @@ public static class ReaderExtensions
     //
     // These live here so mappers cannot drift back to the hand-rolled form.
 
+    /// <summary>Reads a Postgres text[] column. The view aggregates with COALESCE to an empty
+    /// array, so this never sees NULL.</summary>
+    public static IReadOnlyList<string> GetStringArray(this NpgsqlDataReader reader, string columnName)
+        => reader.GetFieldValue<string[]>(reader.GetOrdinal(columnName));
+
     public static JsonElement GetJsonElement(this NpgsqlDataReader reader, string columnName)
         => reader.GetJsonElement(reader.GetOrdinal(columnName));
 

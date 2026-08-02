@@ -102,6 +102,7 @@ public class EnumSerializationTests
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Days,
             Assignments = [],
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
             Requirements = [],
             SchedulingSettingsApply = true,
         };

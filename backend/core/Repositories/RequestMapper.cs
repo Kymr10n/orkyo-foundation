@@ -26,6 +26,7 @@ public static class RequestMapper
             SiteId = reader.GetNullableGuid("site_id"),
             RequestItemId = reader.GetNullableString("request_item_id"),
             Assignments = ParseAssignments(reader.GetString("assignments")),
+            TargetResourceTypeKeys = reader.GetStringArray("target_resource_type_keys"),
             Icon = reader.GetNullableString("icon"),
             StartTs = startTs,
             EndTs = endTs,
