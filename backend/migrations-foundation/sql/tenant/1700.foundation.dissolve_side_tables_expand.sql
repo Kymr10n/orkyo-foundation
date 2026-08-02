@@ -68,6 +68,15 @@ COMMENT ON COLUMN public.resources.notes IS
 
 -- ── Backfill ──────────────────────────────────────────────────────────────────
 -- The side tables are keyed by the resource id, so both are single-pass joins.
+--
+-- The search trigger is suppressed for the duration. 1690 put an AFTER UPDATE trigger on
+-- resources, so each of the three passes below would otherwise recompute a search document
+-- for every row it touches — three full reindexes of the table, inside this transaction,
+-- producing dead tuples in search_documents that nothing reads. 1710 reindexes everything
+-- once as its final statement, which is the only pass that matters: it is the version that
+-- reads the folded columns these updates are writing.
+ALTER TABLE public.resources DISABLE TRIGGER trg_search_resources;
+
 UPDATE public.resources r
    SET code        = s.code,
        is_physical = s.is_physical,
@@ -95,6 +104,8 @@ UPDATE public.resources r
   FROM public.spaces s
  WHERE s.id = r.id AND r.home_site_id IS DISTINCT FROM s.site_id;
 
+ALTER TABLE public.resources ENABLE TRIGGER trg_search_resources;
+
 -- ── Site deletion ─────────────────────────────────────────────────────────────
 -- spaces.site_id was ON DELETE CASCADE and resources.home_site_id had no action at all, so
 -- deleting a site deleted the spaces row and stranded the resources row behind it — an
@@ -113,15 +124,32 @@ ALTER TABLE public.resources
 -- Carried over from spaces.check_physical_has_geometry. NOT VALID so the ALTER takes no full
 -- table scan under lock; validated separately below, which takes only a SHARE UPDATE
 -- EXCLUSIVE lock and does not block writes.
-ALTER TABLE public.resources
-    ADD CONSTRAINT resources_physical_has_geometry_check
-    CHECK (NOT is_physical OR geometry IS NOT NULL) NOT VALID;
+--
+-- Guarded because ADD CONSTRAINT has no IF NOT EXISTS and the statements after COMMIT can
+-- fail (lock timeout, cancelled deploy). The runner journals a migration only once the whole
+-- file succeeds, so a failure there leaves this transaction committed and the file pending —
+-- and a bare ADD CONSTRAINT would then die on 42710 forever.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'resources_physical_has_geometry_check'
+    ) THEN
+        ALTER TABLE public.resources
+            ADD CONSTRAINT resources_physical_has_geometry_check
+            CHECK (NOT is_physical OR geometry IS NOT NULL) NOT VALID;
+    END IF;
+END $$;
 
 COMMIT;
 
+-- Idempotent: validating an already-valid constraint is a no-op.
 ALTER TABLE public.resources VALIDATE CONSTRAINT resources_physical_has_geometry_check;
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
+-- An interrupted CONCURRENTLY build leaves an INVALID index that IF NOT EXISTS then skips
+-- forever. Check with `SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid;` and
+-- DROP INDEX CONCURRENTLY it before re-running.
+--
 -- Outside the transaction so these can be CONCURRENTLY: the backfill above does not need
 -- them, only the read paths that move onto these columns do. The runner does not wrap
 -- scripts in a transaction, so statements after COMMIT run in autocommit.
@@ -129,17 +157,13 @@ ALTER TABLE public.resources VALIDATE CONSTRAINT resources_physical_has_geometry
 -- These mirror the side tables' indexes, minus the ones the fold makes redundant:
 -- idx_spaces_site_id is already covered by resources' site index, and person_profiles' PK
 -- is now just the resources PK.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_resources_code
-    ON public.resources (code) WHERE code IS NOT NULL;
-
+-- No index on (code) alone: every code lookup filters the site first, so the composite below
+-- serves them as a left-prefix match.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_resources_site_code
     ON public.resources (home_site_id, code) WHERE code IS NOT NULL;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_resources_home_site
     ON public.resources (home_site_id) WHERE home_site_id IS NOT NULL;
-
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_resources_linked_user
-    ON public.resources (linked_user_id) WHERE linked_user_id IS NOT NULL;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_resources_job_title
     ON public.resources (job_title_id) WHERE job_title_id IS NOT NULL;
@@ -149,6 +173,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_resources_department
 
 -- person_profiles.linked_user_id was UNIQUE: one person row per user account. Preserved as a
 -- partial unique index rather than a constraint, so the NULLs (resources with no linked
--- account, i.e. almost all of them) stay out of the index entirely.
+-- account, i.e. almost all of them) stay out of the index entirely. It is also the lookup
+-- index — a second non-unique index on the same column and predicate would only cost writes.
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_resources_linked_user
     ON public.resources (linked_user_id) WHERE linked_user_id IS NOT NULL;

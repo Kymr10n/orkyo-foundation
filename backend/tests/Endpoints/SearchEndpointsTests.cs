@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using Api.Models;
+using Api.Repositories;
+using Api.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -302,6 +306,61 @@ public class SearchEndpointsTests
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
 
         result!.Results.Should().Contain(r => r.Title == renamed);
+    }
+
+    [Fact]
+    public async Task ReindexesOnIndexedColumnsOnly()
+    {
+        // The resources UPDATE trigger carries a WHEN guard listing exactly the columns
+        // refresh_search_resource() reads. Without it every write reindexed — including the
+        // unconditional updated_at every repository sets, and the seeder's bulk site pass.
+        // The risk the guard introduces is the opposite one: add a column to the document and
+        // forget the guard, and the document silently goes stale. This pins both directions.
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = "tool",
+            name = $"TriggerProbe-{Guid.NewGuid():N}"[..24],
+            allocationMode = "Exclusive",
+        });
+        created.EnsureSuccessStatusCode();
+        var resourceId = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!.Id;
+
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var connFactory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
+        var orgContext = scope.ServiceProvider.GetRequiredService<OrgContext>();
+
+        async Task<DateTime> IndexedAtAsync()
+        {
+            await using var conn = connFactory.CreateOrgConnection(orgContext);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT updated_at FROM search_documents WHERE entity_type='resource' AND entity_id=@id",
+                conn);
+            cmd.Parameters.AddWithValue("id", resourceId);
+            return (DateTime)(await cmd.ExecuteScalarAsync())!;
+        }
+
+        async Task TouchAsync(string setClause, object? value = null)
+        {
+            await using var conn = connFactory.CreateOrgConnection(orgContext);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                $"UPDATE resources SET {setClause}, updated_at = now() WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("id", resourceId);
+            if (value is not null) cmd.Parameters.AddWithValue("value", value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var before = await IndexedAtAsync();
+
+        // Not part of the document: no reindex, however much the row changes.
+        await TouchAsync("cross_site_allowed = NOT cross_site_allowed");
+        (await IndexedAtAsync()).Should()
+            .Be(before, "cross_site_allowed is not part of the search document");
+
+        // Part of the document: reindexed.
+        await TouchAsync("name = @value", $"Renamed-{Guid.NewGuid():N}"[..20]);
+        (await IndexedAtAsync()).Should().BeAfter(before, "the name is the document's title");
     }
 
     [Fact]

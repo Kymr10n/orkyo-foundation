@@ -150,6 +150,34 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- ── Only reindex on writes that can change the document ───────────────────────
+-- 1690 fired this on every UPDATE of resources. Most updates cannot change a search
+-- document: cross_site_allowed and is_active during seeding, linked_user_id on account
+-- linking, and the unconditional updated_at = NOW() that every repository write carries.
+-- Each of those recomputed a tsvector and rewrote a row for nothing — and the seeder's
+-- bulk site assignment does it for the whole table.
+--
+-- The WHEN list is exactly the columns refresh_search_resource() reads. Add a column to the
+-- document and it must be added here, or the document goes stale — the cost of the guard.
+-- INSERT and DELETE stay unconditional: those always create or remove a document.
+DROP TRIGGER IF EXISTS trg_search_resources ON public.resources;
+
+CREATE TRIGGER trg_search_resources_write
+    AFTER INSERT OR DELETE ON public.resources
+    FOR EACH ROW EXECUTE FUNCTION trg_refresh_search_resource();
+
+CREATE TRIGGER trg_search_resources_update
+    AFTER UPDATE ON public.resources
+    FOR EACH ROW
+    WHEN (OLD.name             IS DISTINCT FROM NEW.name
+       OR OLD.description      IS DISTINCT FROM NEW.description
+       OR OLD.code             IS DISTINCT FROM NEW.code
+       OR OLD.email            IS DISTINCT FROM NEW.email
+       OR OLD.home_site_id     IS DISTINCT FROM NEW.home_site_id
+       OR OLD.job_title_id     IS DISTINCT FROM NEW.job_title_id
+       OR OLD.resource_type_id IS DISTINCT FROM NEW.resource_type_id)
+    EXECUTE FUNCTION trg_refresh_search_resource();
+
 -- ── Drop the side tables ──────────────────────────────────────────────────────
 -- Their triggers go with them; naming them first keeps the intent explicit rather than
 -- relying on the DROP TABLE to sweep them up.
@@ -159,8 +187,14 @@ DROP TRIGGER IF EXISTS trg_search_resource_person_profiles ON public.person_prof
 DROP TABLE IF EXISTS public.spaces;
 DROP TABLE IF EXISTS public.person_profiles;
 
--- Reindex: the search documents written before this point took their site from
--- spaces.site_id and their email from person_profiles, both now read off resources.
+-- Reindex: 1690 deleted the superseded space/person documents and deliberately did not
+-- rebuild, because the function it had could only read the side tables this file just
+-- dropped. This is the one pass that builds every document from the folded columns.
 SELECT refresh_search_resource(r.id) FROM resources r;
 
 COMMIT;
+
+-- The reindex above rewrote every row in search_documents, leaving one dead tuple each.
+-- Outside the transaction so the space is reclaimed and the planner gets fresh statistics
+-- before the first search runs.
+VACUUM (ANALYZE) public.search_documents;

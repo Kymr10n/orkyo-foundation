@@ -17,20 +17,13 @@
 -- them would list every space and person twice in the command palette — once stale, forever,
 -- since nothing writes those entity_types again.
 --
+-- The facet column itself is added by 1685 (expand), because the new code reads it before
+-- this file runs.
+--
 -- Rollback: recreate sync_search_spaces/sync_search_people and their triggers from 1530/1510,
--- drop the resource trigger set and the facet column, then re-run those files' backfills.
+-- drop the resource trigger set, then re-run those files' backfills.
 
 BEGIN;
-
--- ── Facet column ──────────────────────────────────────────────────────────────
--- The type is a property of the row, not of the vocabulary. Nullable because only
--- resource documents have one; requests, sites, templates and criteria do not.
-ALTER TABLE public.search_documents
-    ADD COLUMN IF NOT EXISTS resource_type_key TEXT;
-
-COMMENT ON COLUMN public.search_documents.resource_type_key IS
-    'For entity_type=''resource'': the resource type key, so the client can route and label '
-    'without a second query. NULL for every other entity type.';
 
 -- ── One indexer for every resource ────────────────────────────────────────────
 -- Takes a resource id rather than a trigger row, so each of the four triggers below can
@@ -164,19 +157,10 @@ CREATE TRIGGER trg_search_resource_capabilities
     FOR EACH ROW EXECUTE FUNCTION trg_refresh_search_resource();
 
 -- ── Replace the superseded documents ──────────────────────────────────────────
--- Order matters: clear the old vocabulary first, then index every resource — including the
--- tools and tenant-defined types that have never had a row.
+-- The old vocabulary goes; no backfill here. 1710 rewrites this function to read the folded
+-- columns and reindexes every resource as its last statement, so indexing now would be work
+-- thrown away two migrations later — and the intervening 1700 backfill would fire the trigger
+-- for every row on top of it. The gap between the two is a single deploy step.
 DELETE FROM search_documents WHERE entity_type IN ('space', 'person');
 
-SELECT refresh_search_resource(r.id) FROM resources r;
-
 COMMIT;
-
--- ── Facet index ───────────────────────────────────────────────────────────────
--- After COMMIT, deliberately: CONCURRENTLY cannot run inside a transaction, and the
--- migration runner does not wrap scripts (MigrationRunner builds DbUp with no
--- WithTransaction call), so this statement runs in autocommit. The backfill above does not
--- need the index; only the type-filtered queries do.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_search_documents_resource_type
-    ON public.search_documents (resource_type_key)
-    WHERE resource_type_key IS NOT NULL;
