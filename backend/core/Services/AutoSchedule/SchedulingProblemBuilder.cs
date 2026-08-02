@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Repositories;
 
@@ -99,7 +100,7 @@ public class SchedulingProblemBuilder
             .Where(r => r.IsScheduled)
             .Select(r => new FixedOccupancy(
                 r.Id,
-                r.GetSpaceResourceId()!.Value,
+                r.GetResourceIdForType(ResourceTypeKeys.Space)!.Value,
                 DateOnly.FromDateTime(r.StartTs!.Value),
                 DateOnly.FromDateTime(r.EndTs!.Value)))
             .ToList();

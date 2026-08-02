@@ -287,7 +287,7 @@ public class ExportService : IExportService
         var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true);
 
         return allRequests
-            .Select(r => (Request: r, SpaceResourceId: r.GetSpaceResourceId()))
+            .Select(r => (Request: r, SpaceResourceId: r.GetResourceIdForType(ResourceTypeKeys.Space)))
             .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>

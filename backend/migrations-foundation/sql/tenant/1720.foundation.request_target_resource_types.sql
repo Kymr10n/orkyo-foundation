@@ -40,12 +40,6 @@ COMMENT ON TABLE public.request_target_resource_types IS
 -- it, which would silently turn "needs a van" into "needs nothing" and mark the request
 -- scheduled. Deleting the request itself takes its targets with it.
 
--- The predicate joins from request to targets on every scheduled-request read, so the PK's
--- leading column already serves it. The reverse direction — "which requests want this type" —
--- is what the type-deletion check needs.
-CREATE INDEX IF NOT EXISTS idx_request_target_types_type
-    ON public.request_target_resource_types (resource_type_id);
-
 -- ── Backfill ──────────────────────────────────────────────────────────────────
 -- Every existing request targeted a space, because nothing else was possible: migration 1310
 -- backfilled requests.space_id into resource_assignments, and the scheduled predicate has
@@ -112,3 +106,13 @@ SELECT
 FROM requests r;
 
 COMMIT;
+
+-- The predicate joins from request to targets on every scheduled-request read, so the PK's
+-- leading column already serves it. The reverse direction — "which requests want this type" —
+-- is what the type-deletion check needs.
+--
+-- After COMMIT so it can be CONCURRENTLY: the backfill above does not need the index, and
+-- CONCURRENTLY cannot run inside a transaction. The runner does not wrap scripts, so
+-- statements after COMMIT run in autocommit.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_request_target_types_type
+    ON public.request_target_resource_types (resource_type_id);

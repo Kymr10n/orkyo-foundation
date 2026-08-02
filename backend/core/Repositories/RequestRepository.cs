@@ -10,6 +10,43 @@ namespace Api.Repositories;
 
 public class RequestRepository : IRequestRepository
 {
+    // ── The scheduled predicate ───────────────────────────────────────────────────
+    // "Scheduled" is a domain rule, not a query detail: a request is scheduled when every
+    // resource type it targets has a non-cancelled assignment. It was previously written out
+    // in full at each read site and once more inside analytics_request_summary_v, every copy
+    // hard-coding rt.key = 'space'. One copy drifting from the others is a silently wrong
+    // answer in the conflicts registry or the utilization grid, so it lives here once.
+    //
+    // The EXISTS guard is load-bearing. Without it a request targeting nothing satisfies the
+    // NOT EXISTS vacuously and reports itself scheduled while holding no resource at all.
+    private static string FullyAssignedSql(string requestIdExpr) => $@"
+        EXISTS (SELECT 1 FROM request_target_resource_types t
+                 WHERE t.request_id = {requestIdExpr})
+        AND NOT EXISTS (
+            SELECT 1 FROM request_target_resource_types t
+             WHERE t.request_id = {requestIdExpr}
+               AND NOT EXISTS (
+                   SELECT 1 FROM resource_assignments ra
+                   JOIN resources res ON res.id = ra.resource_id
+                   WHERE ra.request_id = {requestIdExpr}
+                     AND res.resource_type_id = t.resource_type_id
+                     AND ra.assignment_status != @cancelled
+               )
+        )";
+
+    // "Touches this site", answered by any one assigned resource being there. With a single
+    // space per request this is exactly the old rt.key='space' AND res.home_site_id=@siteId
+    // test; with several types it keeps a request visible at every site it actually occupies
+    // rather than hiding it from all of them the moment one resource travels.
+    private static string AssignedAtSiteSql(string requestIdExpr) => $@"
+        EXISTS (
+            SELECT 1 FROM resource_assignments ra
+            JOIN resources res ON res.id = ra.resource_id
+            WHERE ra.request_id = {requestIdExpr}
+              AND ra.assignment_status != @cancelled
+              AND res.home_site_id = @siteId
+        )";
+
     // Columns selected from the view.
     private const string SelectFromView =
         @"id, name, description, parent_request_id, planning_mode, sort_order,
@@ -77,19 +114,11 @@ public class RequestRepository : IRequestRepository
             FROM v_requests_with_assignments
             WHERE scheduling_settings_apply = true
               AND start_ts IS NOT NULL
-              AND EXISTS (
-                SELECT 1 FROM resource_assignments ra
-                JOIN resources res ON res.id = ra.resource_id
-                JOIN resource_types rt ON rt.id = res.resource_type_id
-                WHERE ra.request_id = v_requests_with_assignments.id
-                  AND rt.key = @spaceKey
-                  AND ra.assignment_status != @cancelled
-                  AND res.home_site_id = @siteId
-              )",
+              AND {FullyAssignedSql("v_requests_with_assignments.id")}
+              AND {AssignedAtSiteSql("v_requests_with_assignments.id")}",
             p =>
             {
                 p.AddWithValue("siteId", siteId);
-                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
             },
             RequestMapper.MapFromReader,
@@ -116,17 +145,9 @@ public class RequestRepository : IRequestRepository
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE start_ts IS NOT NULL{windowClause}
-              AND EXISTS (
-                SELECT 1 FROM resource_assignments ra
-                JOIN resources res ON res.id = ra.resource_id
-                JOIN resource_types rt ON rt.id = res.resource_type_id
-                WHERE ra.request_id = v_requests_with_assignments.id
-                  AND rt.key = @spaceKey
-                  AND ra.assignment_status != @cancelled
-              )",
+              AND {FullyAssignedSql("v_requests_with_assignments.id")}",
             p =>
             {
-                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
                 if (windowed)
                 {
@@ -150,21 +171,13 @@ public class RequestRepository : IRequestRepository
         // Lightweight projection of the windowed GetScheduledAsync row set: identical WHERE clause
         // (the view adds no row filter over requests), but a plain SELECT — no assignments
         // aggregation, no requirements hydration.
-        return await db.QueryListAsync(@"
+        return await db.QueryListAsync($@"
             SELECT id, start_ts, site_id
             FROM requests r
             WHERE start_ts IS NOT NULL AND start_ts <= @to AND end_ts >= @from
-              AND EXISTS (
-                SELECT 1 FROM resource_assignments ra
-                JOIN resources res ON res.id = ra.resource_id
-                JOIN resource_types rt ON rt.id = res.resource_type_id
-                WHERE ra.request_id = r.id
-                  AND rt.key = @spaceKey
-                  AND ra.assignment_status != @cancelled
-              )",
+              AND {FullyAssignedSql("r.id")}",
             p =>
             {
-                p.AddWithValue("spaceKey", ResourceTypeKeys.Space);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
                 p.AddWithValue("from", from);
                 p.AddWithValue("to", to);
@@ -191,15 +204,7 @@ public class RequestRepository : IRequestRepository
               AND start_ts <= @to AND end_ts >= @from
               AND (
                 site_id = @siteId
-                OR EXISTS (
-                  SELECT 1 FROM resource_assignments ra
-                  JOIN resources res ON res.id = ra.resource_id
-                  JOIN resource_types rt ON rt.id = res.resource_type_id
-                  WHERE ra.request_id = v_requests_with_assignments.id
-                    AND rt.key = @spaceKey
-                    AND ra.assignment_status != @cancelled
-                    AND res.home_site_id = @siteId
-                )
+                OR {AssignedAtSiteSql("v_requests_with_assignments.id")}
               )",
             p =>
             {
@@ -271,14 +276,7 @@ public class RequestRepository : IRequestRepository
                WHERE start_ts IS NOT NULL AND planning_mode = '{PlanningModes.Leaf}'
                  AND (
                    end_ts IS NULL
-                   OR NOT EXISTS (
-                     SELECT 1 FROM resource_assignments ra
-                     JOIN resources res ON res.id = ra.resource_id
-                     JOIN resource_types rt ON rt.id = res.resource_type_id
-                     WHERE ra.request_id = v_requests_with_assignments.id
-                       AND rt.key = @spaceKey
-                       AND ra.assignment_status != @cancelled
-                   )
+                   OR NOT ({FullyAssignedSql("v_requests_with_assignments.id")})
                  )
                ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC",
             p =>
@@ -539,7 +537,7 @@ public class RequestRepository : IRequestRepository
         // Update resource assignment if caller is changing the resource.
         if (request.ResourceId.HasValue && finalStartTs.HasValue && finalEndTs.HasValue)
         {
-            await CancelSpaceAssignmentAsync(db, transaction, id, ct);
+            await CancelSameTypeAssignmentAsync(db, transaction, id, request.ResourceId.Value, ct);
             await WriteResourceAssignmentAsync(db, transaction, id, request.ResourceId.Value, finalStartTs.Value, finalEndTs.Value, ct);
         }
 
@@ -639,11 +637,16 @@ public class RequestRepository : IRequestRepository
             return null;
         }
 
-        // Cancel existing space assignment and write the new one.
-        await CancelSpaceAssignmentAsync(db, tx, updatedId.Value, ct);
+        // With a resource: replace the one occupying that type's slot. Without: this call is
+        // an unschedule, so every targeted slot is cleared.
         if (request.ResourceId.HasValue && request.StartTs.HasValue && request.EndTs.HasValue)
         {
+            await CancelSameTypeAssignmentAsync(db, tx, updatedId.Value, request.ResourceId.Value, ct);
             await WriteResourceAssignmentAsync(db, tx, updatedId.Value, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value, ct);
+        }
+        else
+        {
+            await CancelTargetedAssignmentsAsync(db, tx, updatedId.Value, ct);
         }
 
         await tx.CommitAsync(ct);
@@ -690,13 +693,13 @@ public class RequestRepository : IRequestRepository
             requestUpdateCommands.Add(cmd);
 
             // Update resource assignments for each scheduled item, in the same batch:
-            // cancel the existing space assignment, then write the new one.
+            // cancel whatever held this resource's type slot, then write the new one.
             if (!request.ResourceId.HasValue || !request.StartTs.HasValue || !request.EndTs.HasValue)
                 continue;
 
-            var cancel = new NpgsqlBatchCommand(CancelSpaceAssignmentSql);
+            var cancel = new NpgsqlBatchCommand(CancelSameTypeAssignmentSql);
             cancel.Parameters.AddWithValue("requestId", id);
-            cancel.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
+            cancel.Parameters.AddWithValue("resourceId", request.ResourceId.Value);
             cancel.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
             batch.BatchCommands.Add(cancel);
 
@@ -783,13 +786,37 @@ public class RequestRepository : IRequestRepository
                           end_utc   = EXCLUDED.end_utc,
                           updated_at = NOW()";
 
-    private const string CancelSpaceAssignmentSql = @"
+    // Cancel-then-write is what keeps one resource per targeted type. Keyed on the type of the
+    // resource being written, not on 'space': assigning a van must replace the previous van and
+    // leave the room and the technician alone. If this predicate and the request's targets ever
+    // disagree, the result is a silently orphaned or doubled assignment.
+    //
+    // The incoming resource is excluded so re-assigning the same resource updates its existing
+    // row (WriteResourceAssignmentSql upserts on request_id+resource_id where not cancelled)
+    // rather than cancelling it and inserting a duplicate.
+    private const string CancelSameTypeAssignmentSql = @"
+            UPDATE resource_assignments ra
+            SET assignment_status = @cancelled, updated_at = NOW()
+            FROM resources res, resources incoming
+            WHERE ra.resource_id = res.id
+              AND incoming.id = @resourceId
+              AND res.resource_type_id = incoming.resource_type_id
+              AND ra.request_id = @requestId
+              AND ra.resource_id <> @resourceId
+              AND ra.assignment_status != @cancelled";
+
+    // Unscheduling clears the targeted slots and only those. Scoping to the request's target
+    // types is what today's rt.key='space' test meant when 'space' was the only target a
+    // request could have; it leaves ad-hoc attachments (people added on the request's own tab,
+    // which are not a target type) untouched, exactly as cancelling spaces used to.
+    private const string CancelTargetedAssignmentsSql = @"
             UPDATE resource_assignments ra
             SET assignment_status = @cancelled, updated_at = NOW()
             FROM resources res
-            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = @spaceKey
-            WHERE ra.request_id = @requestId
-              AND ra.resource_id = res.id
+            JOIN request_target_resource_types t ON t.resource_type_id = res.resource_type_id
+            WHERE ra.resource_id = res.id
+              AND t.request_id = @requestId
+              AND ra.request_id = @requestId
               AND ra.assignment_status != @cancelled";
 
     private static async Task WriteResourceAssignmentAsync(
@@ -804,12 +831,21 @@ public class RequestRepository : IRequestRepository
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task CancelSpaceAssignmentAsync(
+    private static async Task CancelSameTypeAssignmentAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId, Guid resourceId, CancellationToken ct = default)
+    {
+        await using var cmd = new NpgsqlCommand(CancelSameTypeAssignmentSql, conn, tx);
+        cmd.Parameters.AddWithValue("requestId", requestId);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task CancelTargetedAssignmentsAsync(
         NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId, CancellationToken ct = default)
     {
-        await using var cmd = new NpgsqlCommand(CancelSpaceAssignmentSql, conn, tx);
+        await using var cmd = new NpgsqlCommand(CancelTargetedAssignmentsSql, conn, tx);
         cmd.Parameters.AddWithValue("requestId", requestId);
-        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
         cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
         await cmd.ExecuteNonQueryAsync(ct);
     }

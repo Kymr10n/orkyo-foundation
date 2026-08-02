@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Constants;
 using Api.Models;
 using Xunit;
 
@@ -1116,7 +1117,7 @@ public class RequestEndpointsTests
         Assert.NotNull(created);
         Assert.Null(created.StartTs);
         Assert.Null(created.EndTs);
-        Assert.Null(created.GetSpaceResourceId());
+        Assert.Null(created.GetResourceIdForType(ResourceTypeKeys.Space));
 
         // Act - Schedule the request
         var scheduleData = new ScheduleRequestRequest
@@ -1131,7 +1132,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var scheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(scheduled);
-        Assert.Equal(resourceId, scheduled.GetSpaceResourceId());
+        Assert.Equal(resourceId, scheduled.GetResourceIdForType(ResourceTypeKeys.Space));
         Assert.NotNull(scheduled.StartTs);
         Assert.NotNull(scheduled.EndTs);
         Assert.True(scheduled.EndTs > scheduled.StartTs);
@@ -1157,7 +1158,7 @@ public class RequestEndpointsTests
         Assert.NotNull(created);
         Assert.NotNull(created.StartTs);
         Assert.NotNull(created.EndTs);
-        Assert.Equal(resourceId, created.GetSpaceResourceId());
+        Assert.Equal(resourceId, created.GetResourceIdForType(ResourceTypeKeys.Space));
 
         // Act - Unschedule the request
         var unscheduleData = new ScheduleRequestRequest
@@ -1172,7 +1173,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var unscheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(unscheduled);
-        Assert.Null(unscheduled.GetSpaceResourceId());
+        Assert.Null(unscheduled.GetResourceIdForType(ResourceTypeKeys.Space));
         Assert.Null(unscheduled.StartTs);
         Assert.Null(unscheduled.EndTs);
     }
@@ -1350,7 +1351,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var rescheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(rescheduled);
-        Assert.Equal(resourceId2, rescheduled.GetSpaceResourceId());
+        Assert.Equal(resourceId2, rescheduled.GetResourceIdForType(ResourceTypeKeys.Space));
         Assert.NotEqual(created.StartTs, rescheduled.StartTs);
     }
 
@@ -1390,7 +1391,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var resized = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(resized);
-        Assert.Equal(resourceId, resized.GetSpaceResourceId());
+        Assert.Equal(resourceId, resized.GetResourceIdForType(ResourceTypeKeys.Space));
 
         // Allow 1-second tolerance for DB round-trip precision
         var endTsDiff = Math.Abs((resized.EndTs!.Value - resizedEnd).TotalSeconds);

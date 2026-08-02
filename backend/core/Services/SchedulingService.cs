@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Repositories;
 
@@ -54,7 +55,7 @@ public class SchedulingService : ISchedulingService
             toRecalculate.Count, siteId);
 
         var spaceResourceIds = toRecalculate
-            .Select(r => r.GetSpaceResourceId())
+            .Select(r => r.GetResourceIdForType(ResourceTypeKeys.Space))
             .Where(id => id.HasValue)
             .Select(id => id!.Value)
             .Distinct()
@@ -66,7 +67,7 @@ public class SchedulingService : ISchedulingService
         {
             try
             {
-                var resourceId = request.GetSpaceResourceId();
+                var resourceId = request.GetResourceIdForType(ResourceTypeKeys.Space);
                 var blockedPeriods = resourceId.HasValue
                     ? blockedByResource[resourceId.Value]
                     : [];
@@ -131,7 +132,7 @@ public class SchedulingService : ISchedulingService
         // The auto-compute below only applies when the caller gives a start but no end.
         if (request.EndTs != null) return request;
 
-        var resourceId = request.ResourceId ?? existing.GetSpaceResourceId();
+        var resourceId = request.ResourceId ?? existing.GetResourceIdForType(ResourceTypeKeys.Space);
         var startTs = request.StartTs ?? existing.StartTs;
         if (resourceId == null || startTs == null) return request;
 

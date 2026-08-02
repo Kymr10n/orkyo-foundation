@@ -408,4 +408,99 @@ public class RequestRepositoryTests
 
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
+
+    private async Task<Guid> CreateToolResourceAsync()
+    {
+        var resp = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "tool",
+            Name = $"Tool-{Guid.NewGuid():N}"[..20],
+            AllocationMode = AllocationModes.Exclusive,
+            BaseAvailabilityPercent = 100,
+        });
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ResourceInfo>())!.Id;
+    }
+
+    private async Task<Guid> CreateMultiTypeRequestAsync()
+    {
+        var resp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"MultiReq-{Guid.NewGuid():N}"[..25],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            TargetResourceTypeKeys = [ResourceTypeKeys.Person, "tool"],
+        });
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<RequestInfo>())!.Id;
+    }
+
+    // allocationPercent is required for Fractional resources (people) and must be null for
+    // Exclusive ones (tools, spaces) — the validator blocks either mistake.
+    private Task<HttpResponseMessage> AssignAsync(Guid resourceId, Guid requestId, int? allocationPercent)
+        => _client.PostAsJsonAsync("/api/resource-assignments", new CreateResourceAssignmentRequest
+        {
+            ResourceId = resourceId,
+            RequestId = requestId,
+            StartUtc = DateTime.UtcNow.AddDays(1),
+            EndUtc = DateTime.UtcNow.AddDays(2),
+            AllocationPercent = allocationPercent,
+        });
+
+    [Fact]
+    public async Task MultiTypeRequest_IsNotScheduled_UntilEveryTargetIsAssigned()
+    {
+        // The whole point of the predicate: partial assignment is not scheduled. Under the old
+        // rule any single space assignment was enough, so a job still missing its technician
+        // reported itself done.
+        var requestId = await CreateMultiTypeRequestAsync();
+        var personId = await CreatePersonResourceAsync();
+        var toolId = await CreateToolResourceAsync();
+
+        (await AssignAsync(personId, requestId, 100)).EnsureSuccessStatusCode();
+        var half = await GetRequestAsync(requestId);
+        Assert.False(half.IsScheduled);
+
+        (await AssignAsync(toolId, requestId, null)).EnsureSuccessStatusCode();
+        var full = await GetRequestAsync(requestId);
+        Assert.Equal(2, full.Assignments.Count);
+    }
+
+    [Fact]
+    public async Task AssigningOneType_DoesNotCancelAnother()
+    {
+        // Cancel-then-write is keyed on the incoming resource's type. If it were not, assigning
+        // the tool would silently cancel the person and leave the request quietly under-resourced.
+        var requestId = await CreateMultiTypeRequestAsync();
+        var personId = await CreatePersonResourceAsync();
+        var toolId = await CreateToolResourceAsync();
+
+        (await AssignAsync(personId, requestId, 100)).EnsureSuccessStatusCode();
+        (await AssignAsync(toolId, requestId, null)).EnsureSuccessStatusCode();
+
+        var request = await GetRequestAsync(requestId);
+        Assert.Contains(request.Assignments, a => a.ResourceId == personId);
+        Assert.Contains(request.Assignments, a => a.ResourceId == toolId);
+    }
+
+    [Fact]
+    public async Task RequestTargetingNothing_IsNeverScheduled()
+    {
+        // An empty target list satisfies "every target is assigned" vacuously. Without the
+        // explicit guard, a request holding no resource at all would report itself scheduled.
+        var resp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"NoNeed-{Guid.NewGuid():N}"[..25],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            TargetResourceTypeKeys = [],
+            StartTs = DateTime.UtcNow.AddDays(1),
+            EndTs = DateTime.UtcNow.AddDays(2),
+        });
+        resp.EnsureSuccessStatusCode();
+
+        var created = await resp.Content.ReadFromJsonAsync<RequestInfo>();
+        Assert.Empty(created!.TargetResourceTypeKeys);
+        Assert.False(created.IsScheduled);
+    }
 }
