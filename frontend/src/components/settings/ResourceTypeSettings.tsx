@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
@@ -23,18 +23,10 @@ export function ResourceTypeSettings() {
   const { data: types = [], isLoading, error } = useResourceTypes();
   const deleteType = useDeleteResourceType();
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<ResourceTypeInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<ResourceTypeInfo | null>(null);
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
 
   const errorMsg =
     error instanceof Error ? error.message : error ? 'Failed to load resource types' : null;
@@ -60,21 +52,13 @@ export function ResourceTypeSettings() {
       ) : (
         <ul className="space-y-3">
           {types.map((type) => {
-            const isExpanded = expanded.has(type.id);
             return (
               <li key={type.id} className="rounded-lg border">
                 <div className="flex items-center justify-between gap-2 p-4">
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    onClick={() => toggle(type.id)}
-                    aria-expanded={isExpanded}
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0" />
-                    )}
+                  {/* Not expandable: the row used to open a list of the type's custom fields,
+                      and criteria replaced that system. A chevron that reveals nothing reads
+                      as a broken control, so the row is plain until it has something to show. */}
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
                         {(() => {
@@ -89,7 +73,7 @@ export function ResourceTypeSettings() {
                         {type.description || type.key}
                       </span>
                     </span>
-                  </button>
+                  </div>
 
                   {canEdit && !type.isSystem && (
                     <div className="flex gap-1">

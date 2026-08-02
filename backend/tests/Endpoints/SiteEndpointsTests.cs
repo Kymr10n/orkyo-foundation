@@ -193,4 +193,34 @@ public class SiteEndpointsTests
         var response = await _client.DeleteAsync($"/api/sites/{Guid.NewGuid()}");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task DeleteSite_WithScopedRequestsAndResources_SucceedsAndClearsTheirSite()
+    {
+        // Deleting a site used to fail outright on a raw foreign-key violation if any request
+        // was scoped to it, and to strand resources behind. Both now survive, site-neutral.
+        var siteResp = await _client.PostAsJsonAsync("/api/sites", new CreateSiteRequest(
+            Code: $"DS{Guid.NewGuid():N}"[..8],
+            Name: $"DoomedSite-{Guid.NewGuid():N}"[..20],
+            Description: null,
+            Address: null));
+        siteResp.EnsureSuccessStatusCode();
+        var site = await siteResp.Content.ReadFromJsonAsync<SiteInfo>();
+
+        var reqResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"AtSite-{Guid.NewGuid():N}"[..20],
+            SiteId = site!.Id,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+        });
+        reqResp.EnsureSuccessStatusCode();
+        var request = await reqResp.Content.ReadFromJsonAsync<RequestInfo>();
+
+        var deleteResp = await _client.DeleteAsync($"/api/sites/{site.Id}");
+        deleteResp.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var after = await _client.GetFromJsonAsync<RequestInfo>($"/api/requests/{request!.Id}");
+        after!.SiteId.Should().BeNull("the request survives the site, scoped to no site");
+    }
 }
