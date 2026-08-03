@@ -7,6 +7,12 @@ namespace Orkyo.Foundation.Seed.Narrative;
 /// to satisfy <c>CapabilityMatcher</c>: Boolean caps + reqs are both JSON <c>true</c>; Enum requirement
 /// allowed_values is the full set so any holder matches; Number specs use a "&gt;=" requirement.
 /// </summary>
+/// <summary>
+/// What a skill describes. Read by the scaffold test that asserts every archetype names a real
+/// person skill — not by the seeder, which maps a skill to resource types through
+/// CapabilityFactory.TypesFor. Two views of one fact; if they ever disagree, TypesFor is the
+/// one the database sees.
+/// </summary>
 public enum SkillKind { Person, SpaceSpec, ToolSpec }
 
 public sealed record Skill(
