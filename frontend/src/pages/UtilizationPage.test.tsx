@@ -14,6 +14,7 @@ import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend
 // --- Extractable mock fns for per-test control ---
 const mockUseRequests = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 const mockUseSpaces = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
+const mockUseBacklog = vi.fn((): any => ({ data: [], isLoading: false }));
 const mockUseAutoScheduleAvailable = vi.fn((_?: any): any => false);
 let capturedExportHandler: ((format: string) => Promise<void>) | null = null;
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: null }));
@@ -134,7 +135,7 @@ vi.mock("@foundation/src/hooks/useAutoSchedule", () => ({
 vi.mock("@foundation/src/hooks/useUtilization", () => ({
   // The grid's bar feed; reuse the existing mock driver so test cases that set request data work.
   useScheduledRequests: (..._args: any[]) => mockUseRequests(),
-  useBacklogRequests: () => ({ data: [], isLoading: false }),
+  useBacklogRequests: () => mockUseBacklog(),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
   useSpaces: (arg?: any) => mockUseSpaces(arg),
@@ -225,11 +226,24 @@ vi.mock("@foundation/src/components/utilization/RequestsPanel", () => ({
 }));
 
 vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
-  SchedulerGrid: ({ onRequestDoubleClick, onRequestResize, onTimeCursorClick }: any) => (
+  SchedulerGrid: ({ onRequestDoubleClick, onRequestResize, onTimeCursorClick, onEmptyCellClick }: any) => (
     <div data-testid="scheduler-grid">
       {onRequestDoubleClick && <button data-testid="dblclick-request" onClick={() => onRequestDoubleClick("r1")}>DblClick</button>}
       {onRequestResize && <button data-testid="resize-request" onClick={() => onRequestResize("r1", "2024-01-15T10:00:00Z", "2024-01-15T12:00:00Z")}>Resize</button>}
       {onTimeCursorClick && <button data-testid="cursor-click" onClick={() => onTimeCursorClick(new Date("2024-06-01"))}>Cursor</button>}
+      {onEmptyCellClick && (
+        <button
+          data-testid="empty-cell-click"
+          onClick={() =>
+            onEmptyCellClick(
+              { id: "space-1", code: "CRA", name: "Conference Room A" },
+              { start: new Date("2026-06-22T00:00:00Z"), end: new Date("2026-06-23T00:00:00Z"), label: "22 Mon" },
+            )
+          }
+        >
+          EmptyCell
+        </button>
+      )}
     </div>
   ),
 }));
@@ -291,8 +305,8 @@ vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () =
 }));
 
 vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId, canEdit }: any) => open ? (
-    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""} data-can-edit={String(canEdit)}>
+  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId, canEdit, defaultResource }: any) => open ? (
+    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""} data-can-edit={String(canEdit)} data-default-resource={defaultResource ? `${defaultResource.typeKey}:${defaultResource.resourceId}` : ""}>
       <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
       <button data-testid="close-form" onClick={() => onOpenChange(false)}>Close</button>
     </div>
@@ -315,11 +329,13 @@ vi.mock("@foundation/src/components/utilization/RequestCalendar", () => ({
 
 let capturedOnScheduleExisting: ((req: any) => void) | null = null;
 let capturedOnCreateNew: (() => void) | null = null;
+let capturedChooserBacklog: any[] | null = null;
 vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
-  ScheduleSlotDialog: ({ open, onScheduleExisting, onCreateNew }: any) => {
+  ScheduleSlotDialog: ({ open, onScheduleExisting, onCreateNew, resourceName, backlog }: any) => {
     capturedOnScheduleExisting = onScheduleExisting;
     capturedOnCreateNew = onCreateNew;
-    return open ? <div data-testid="slot-chooser" /> : null;
+    capturedChooserBacklog = backlog;
+    return open ? <div data-testid="slot-chooser" data-resource-name={resourceName ?? ""} /> : null;
   },
 }));
 
@@ -362,6 +378,8 @@ describe("UtilizationPage", () => {
     capturedOnDatesSet = null;
     capturedOnScheduleExisting = null;
     capturedOnCreateNew = null;
+    capturedChooserBacklog = null;
+    mockUseBacklog.mockReturnValue({ data: [], isLoading: false });
     mockStoreOverrides = {};
   });
 
@@ -776,6 +794,57 @@ describe("UtilizationPage", () => {
     fireEvent.click(screen.getByTestId("save-request"));
     await waitFor(() => expect(updateRequest).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+  });
+
+  // --- Spaces-grid empty-cell scheduling ---
+
+  it("opens the chooser with the space's name and a type-filtered backlog on a grid cell click", async () => {
+    mockUseBacklog.mockReturnValue({
+      data: [
+        { id: "u-1", name: "Space job", targetResourceTypeKeys: ["space"] },
+        { id: "u-2", name: "Person-only job", targetResourceTypeKeys: ["person"] },
+      ],
+      isLoading: false,
+    });
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    fireEvent.click(screen.getByTestId("empty-cell-click"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    expect(screen.getByTestId("slot-chooser")).toHaveAttribute("data-resource-name", "CRA");
+    expect(capturedChooserBacklog?.map((r) => r.id)).toEqual(["u-1"]);
+  });
+
+  it("schedules an existing request straight onto the clicked space and cell start", async () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    fireEvent.click(screen.getByTestId("empty-cell-click"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    capturedOnScheduleExisting!({ id: "u-1", name: "Space job", durationMin: 120 });
+
+    await waitFor(() => expect(mockScheduleMutateAsync).toHaveBeenCalledWith({
+      requestId: "u-1",
+      data: {
+        resourceId: "space-1",
+        startTs: "2026-06-22T00:00:00.000Z",
+        endTs: "2026-06-22T02:00:00.000Z",
+      },
+    }));
+    // Straight scheduling — no edit form detour.
+    expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
+  });
+
+  it("create-new from a grid cell pre-selects the clicked space in the form", async () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    fireEvent.click(screen.getByTestId("empty-cell-click"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    capturedOnCreateNew!();
+
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+    expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-default-resource", "space:space-1");
   });
 
   it("create-new from a slot then save creates a request", async () => {

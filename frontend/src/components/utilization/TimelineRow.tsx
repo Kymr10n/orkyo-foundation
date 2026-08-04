@@ -14,8 +14,9 @@ import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
  *
  * This centralises the gridline/tint layer for both grids and guarantees the
  * body columns line up with the shared header. Cells are plain presentational
- * divs — the drop target is a single row-level droppable (Spaces attaches it
- * via `trackRef`), not one droppable per cell.
+ * divs unless `onCellClick` is set (Spaces uses it for click-to-schedule) —
+ * the drop target is a single row-level droppable (Spaces attaches it via
+ * `trackRef`), not one droppable per cell.
  */
 
 /** Tailwind tint for a column cell — single source for both grids. */
@@ -45,15 +46,27 @@ interface TimelineRowProps {
   sortable?: boolean;
   /** dnd-kit `data` payload for the sortable (consumed by the page's onDragEnd). */
   sortableData?: Record<string, unknown>;
+  /**
+   * When set, empty cells become click/keyboard targets (schedule-to-slot).
+   * Occupied areas are covered by the absolutely-positioned bars layer, so
+   * only genuinely empty cell surface reaches these handlers.
+   */
+  onCellClick?: (col: TimeColumn) => void;
+  /** Accessible name per cell; the row owner supplies the resource context. */
+  cellAriaLabel?: (col: TimeColumn) => string;
   testId?: string;
 }
 
 function DefaultColumnCells({
   columns,
   isOffTime,
+  onCellClick,
+  cellAriaLabel,
 }: {
   columns: readonly TimeColumn[];
   isOffTime?: (col: TimeColumn) => boolean;
+  onCellClick?: (col: TimeColumn) => void;
+  cellAriaLabel?: (col: TimeColumn) => string;
 }) {
   return (
     <>
@@ -65,10 +78,24 @@ function DefaultColumnCells({
         // segment bars stay hatch-free so the two don't double up). Outside
         // working hours (muted) is not a problem state, so it stays hatch-free.
         const hatch = tint === OFFTIME_TINT_CLASS ? PROBLEM_HATCH_CLASS : "";
+        const className = `flex-1 min-w-[60px] border-r ${tint} ${hatch}`;
+        if (!onCellClick) {
+          return <div key={col.start.getTime()} className={className} />;
+        }
         return (
           <div
             key={col.start.getTime()}
-            className={`flex-1 min-w-[60px] border-r ${tint} ${hatch}`}
+            role="button"
+            tabIndex={0}
+            aria-label={cellAriaLabel?.(col)}
+            className={`${className} cursor-pointer hover:bg-accent/40`}
+            onClick={() => onCellClick(col)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onCellClick(col);
+              }
+            }}
           />
         );
       })}
@@ -84,6 +111,8 @@ function RowInner({
   isOffTime,
   trackRef,
   trackClassName,
+  onCellClick,
+  cellAriaLabel,
   testId,
   dragRef,
   dragStyle,
@@ -106,7 +135,12 @@ function RowInner({
         className={`flex-1 flex relative ${trackClassName ?? ""}`}
         style={{ minHeight: `${minHeight}px` }}
       >
-        <DefaultColumnCells columns={columns} isOffTime={isOffTime} />
+        <DefaultColumnCells
+          columns={columns}
+          isOffTime={isOffTime}
+          onCellClick={onCellClick}
+          cellAriaLabel={cellAriaLabel}
+        />
         {children}
       </div>
     </div>

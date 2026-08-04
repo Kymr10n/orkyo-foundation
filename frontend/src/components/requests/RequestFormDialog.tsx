@@ -51,7 +51,7 @@ type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources' | 'chi
 
 /** Sentinel for the "Any site" (site-neutral) option — Radix Select disallows empty values. */
 const ANY_SITE = '__any_site__';
-import { useRequestForm, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
+import { useRequestForm, type DefaultResource, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { RequestScheduleSection } from "./RequestScheduleSection";
@@ -70,6 +70,8 @@ interface RequestFormDialogProps {
   defaultPlanningMode?: PlanningMode;
   /** Seed start/end (e.g. a calendar slot selection). Overrides any schedule on `request`. */
   defaultSchedule?: DefaultSchedule;
+  /** Seed a targeted+selected resource in create mode (e.g. a grid cell click). */
+  defaultResource?: DefaultResource;
   /**
    * Site whose calendar/schedule this request is being placed on. Pre-selects a
    * site-neutral request to it and warns when the chosen site won't surface here.
@@ -128,6 +130,7 @@ export function RequestFormDialog({
   parentRequest,
   defaultPlanningMode,
   defaultSchedule,
+  defaultResource,
   scheduleSiteId,
   conflicts = [],
   canEdit = true,
@@ -150,7 +153,7 @@ export function RequestFormDialog({
     removeRequirement: removeRequirementRaw,
     updateRequirement: updateRequirementRaw,
     applyTemplate: applyTemplateRaw,
-  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId, scheduleSiteId);
+  } = useRequestForm(request, parentRequest?.id, defaultPlanningMode, defaultSchedule, selectedSiteId, scheduleSiteId, defaultResource);
 
   // Map saved conflicts onto the form: by assigned resource (people + space) and by requirement
   // criterion, so each row can flag itself. The banner above the tabs shows the full list.

@@ -20,7 +20,7 @@ const EMPTY_ENTRIES: readonly PreviewEntry[] = [];
 const EMPTY_VALIDATION: ValidationResult = new Map();
 import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import type { TimeScale } from "./ScaleSelect";
-import { groupRowsByResourceGroup } from "./scheduler-types";
+import { groupRowsByResourceGroup, type TimeColumn } from "./scheduler-types";
 import { SpaceRow } from "./SpaceRow";
 import { NowLine } from "./NowLine";
 import { TimelineGridShell, type ShellGroup } from "./TimelineGridShell";
@@ -43,6 +43,8 @@ interface SchedulerGridProps {
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
+  /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
+  onEmptyCellClick?: (space: Space, col: TimeColumn) => void;
   onTimeCursorClick: (ts: Date) => void;
   onAnchorChange?: (ts: Date) => void;
   offTimeRanges?: readonly OffTimeRange[];
@@ -64,6 +66,7 @@ export function SchedulerGrid({
   onRequestClick,
   onRequestDoubleClick,
   onRequestResize,
+  onEmptyCellClick,
   onTimeCursorClick,
   onAnchorChange,
   offTimeRanges = [],
@@ -429,11 +432,12 @@ export function SchedulerGrid({
         onRequestClick={onRequestClick}
         onRequestDoubleClick={onRequestDoubleClick}
         onRequestResize={onRequestResize}
+        onEmptyCellClick={onEmptyCellClick}
         offTimeRanges={offTimeRanges}
         editable={editable}
       />
     ),
-    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestResize, offTimeRanges, editable],
+    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestResize, onEmptyCellClick, offTimeRanges, editable],
   );
 
   return (

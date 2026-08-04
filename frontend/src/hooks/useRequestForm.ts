@@ -154,8 +154,26 @@ function applyDefaultSchedule(state: RequestFormState, schedule?: DefaultSchedul
   };
 }
 
+/** Optional resource to pre-select (e.g. a grid cell click on that resource's row). */
+export interface DefaultResource {
+  typeKey: string;
+  resourceId: string;
+}
+
+/** Overlay a default resource onto a built state: target its type and select it. */
+function applyDefaultResource(state: RequestFormState, resource?: DefaultResource): RequestFormState {
+  if (!resource) return state;
+  return {
+    ...state,
+    targetResourceTypeKeys: state.targetResourceTypeKeys.includes(resource.typeKey)
+      ? state.targetResourceTypeKeys
+      : [...state.targetResourceTypeKeys, resource.typeKey],
+    selectedResourceIds: { ...state.selectedResourceIds, [resource.typeKey]: resource.resourceId },
+  };
+}
+
 /** @internal Exported for unit testing */
-export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null): RequestFormState {
+export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource): RequestFormState {
   if (request) {
     const reqMap = new Map<string, RequirementEntry>();
     request.requirements?.forEach((r) => {
@@ -198,14 +216,14 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
   // scoped to where the user is working; fall back to the schedule slot's site, else '' = site-neutral.
   const createSiteId = (defaultSiteId ?? '') || (scheduleSiteId ?? '');
   if (parentRequestId) {
-    return applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule);
+    return applyDefaultResource(applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
   }
 
-  return applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule);
+  return applyDefaultResource(applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
 }
 
-export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null) {
-  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId));
+export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource) {
+  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource));
 
   return {
     state,

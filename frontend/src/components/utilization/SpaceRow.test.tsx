@@ -119,6 +119,8 @@ function renderRow({
   offTimeRanges = [],
   columns,
   onRequestClick = vi.fn(),
+  onEmptyCellClick,
+  editable,
 }: {
   spaceRequests?: Request[];
   previewEntries?: PreviewEntry[];
@@ -127,6 +129,8 @@ function renderRow({
   offTimeRanges?: OffTimeRangeFixture[];
   columns?: TimeColumn[];
   onRequestClick?: (id: string) => void;
+  onEmptyCellClick?: (space: Space, col: TimeColumn) => void;
+  editable?: boolean;
 } = {}) {
   mockUseSortable.mockReturnValue({
     attributes: { 'aria-roledescription': 'sortable' },
@@ -146,7 +150,9 @@ function renderRow({
       spaceEntries={previewEntries}
       validation={emptyValidation}
       onRequestClick={onRequestClick}
+      onEmptyCellClick={onEmptyCellClick}
       offTimeRanges={offTimeRanges as never}
+      {...(editable !== undefined ? { editable } : {})}
     />,
   );
   return { ...result, onRequestClick };
@@ -306,5 +312,27 @@ describe('SpaceRow', () => {
       ],
     });
     expect(getCells(container)[0].className).not.toMatch(/bg-\[color-mix/);
+  });
+
+  it('reports empty-cell clicks with the space and the clicked column', () => {
+    const onEmptyCellClick = vi.fn();
+    const cols = [makeColumn('08'), makeColumn('09')];
+    const { container } = renderRow({ columns: cols, onEmptyCellClick });
+
+    const cells = getCells(container);
+    expect(cells[1]).toHaveAttribute('role', 'button');
+    expect(cells[1]).toHaveAttribute('aria-label', 'Schedule on CRA, 09');
+    fireEvent.click(cells[1]);
+    expect(onEmptyCellClick).toHaveBeenCalledWith(baseSpace, cols[1]);
+  });
+
+  it('keeps cells inert when not editable', () => {
+    const onEmptyCellClick = vi.fn();
+    const { container } = renderRow({ onEmptyCellClick, editable: false });
+
+    const cells = getCells(container);
+    expect(cells[0]).not.toHaveAttribute('role');
+    fireEvent.click(cells[0]);
+    expect(onEmptyCellClick).not.toHaveBeenCalled();
   });
 });

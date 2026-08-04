@@ -238,6 +238,30 @@ describe('buildInitialState', () => {
     expect(state.planningMode).toBe('container');
   });
 
+  it('seeds a default resource in create mode: type targeted, resource selected', () => {
+    const state = buildInitialState(null, undefined, undefined, undefined, undefined, undefined, {
+      typeKey: 'space',
+      resourceId: 'space-9',
+    });
+    // 'space' is already the default target type — no duplicate entry.
+    expect(state.targetResourceTypeKeys).toEqual(['space']);
+    expect(state.selectedResourceIds).toEqual({ space: 'space-9' });
+  });
+
+  it('adds the default resource type to the targets when not already present', () => {
+    const state = buildInitialState(null, undefined, undefined, undefined, undefined, undefined, {
+      typeKey: 'tool',
+      resourceId: 'tool-3',
+    });
+    expect(state.targetResourceTypeKeys).toEqual(['space', 'tool']);
+    expect(state.selectedResourceIds.tool).toBe('tool-3');
+  });
+
+  it('leaves resource selection untouched without a default resource', () => {
+    const state = buildInitialState();
+    expect(state.selectedResourceIds).toEqual({});
+  });
+
   it('builds state from an existing Request', () => {
     const request: Request = {
       id: 'r1',

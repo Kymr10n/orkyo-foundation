@@ -26,6 +26,8 @@ interface ScheduleSlotDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The slot the user selected on the calendar. */
   selection: { start: Date; end: Date } | null;
+  /** Shown before the range when the slot was picked on a resource row (grid click). */
+  resourceName?: string;
   /** Unscheduled backlog (drag-to-schedule source). */
   backlog: Request[];
   /** Open the create-new-request flow, prefilled with the selected slot. */
@@ -44,6 +46,7 @@ export function ScheduleSlotDialog({
   open,
   onOpenChange,
   selection,
+  resourceName,
   backlog,
   onCreateNew,
   onScheduleExisting,
@@ -56,7 +59,7 @@ export function ScheduleSlotDialog({
   }, [open]);
 
   const rangeLabel = selection
-    ? `${formatLocalized(selection.start, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })} – ${formatLocalized(selection.end, { hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })}`
+    ? `${resourceName ? `${resourceName} — ` : ""}${formatLocalized(selection.start, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })} – ${formatLocalized(selection.end, { hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })}`
     : "";
 
   const handleScheduleExisting = () => {

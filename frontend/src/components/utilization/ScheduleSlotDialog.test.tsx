@@ -34,6 +34,16 @@ describe("ScheduleSlotDialog", () => {
     expect(screen.getByText(/–/)).toBeInTheDocument();
   });
 
+  it("prefixes the range with the resource name for grid-cell slots", () => {
+    renderDialog({ resourceName: "FWF-FAB" });
+    expect(screen.getByText(/^FWF-FAB — /)).toBeInTheDocument();
+  });
+
+  it("leaves the range label bare without a resource name", () => {
+    renderDialog();
+    expect(screen.queryByText(/—/)).not.toBeInTheDocument();
+  });
+
   it("invokes onCreateNew when 'Create new request' is clicked", async () => {
     const { onCreateNew } = renderDialog();
     await userEvent.click(screen.getByRole("button", { name: /create new request/i }));

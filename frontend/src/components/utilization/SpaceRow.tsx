@@ -26,6 +26,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestClick,
   onRequestDoubleClick,
   onRequestResize,
+  onEmptyCellClick,
   offTimeRanges = [],
   editable = true,
 }: {
@@ -39,6 +40,8 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
+  /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
+  onEmptyCellClick?: (space: Space, col: TimeColumn) => void;
   offTimeRanges?: readonly OffTimeRange[];
   /** Drag/resize bars (desktop/tablet). Phone is tap-to-open only. */
   editable?: boolean;
@@ -118,6 +121,10 @@ export const SpaceRow = React.memo(function SpaceRow({
       isOffTime={isCellOffTime}
       trackRef={setTrackRef}
       trackClassName={isOver ? "bg-blue-100 dark:bg-blue-900/20" : ""}
+      onCellClick={
+        editable && onEmptyCellClick ? (col) => onEmptyCellClick(space, col) : undefined
+      }
+      cellAriaLabel={(col) => `Schedule on ${space.code || space.name}, ${col.label}`}
     >
       {/* Scheduled requests from preview (reflects draft bounds) */}
       {visibleEntries.map((entry) => {

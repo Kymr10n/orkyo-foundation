@@ -6,8 +6,9 @@ import { TimeNavigator } from "@foundation/src/components/utilization/TimeNaviga
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/components/layout";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
+import type { DefaultResource } from "@foundation/src/hooks/useRequestForm";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
-import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { getSpaceResourceId, getTargetResourceTypeKeys } from "@foundation/src/domain/scheduling/request-assignments";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import { useNow } from "@foundation/src/hooks/useNow";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
@@ -43,6 +44,8 @@ import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
+import type { Space } from "@foundation/src/types/space";
+import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
 import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
@@ -306,11 +309,15 @@ export function UtilizationPage() {
     [scheduled, conflicts, canEdit],
   );
 
-  // Calendar empty-slot scheduling flow.
-  const [slotSelection, setSlotSelection] = useState<{ start: Date; end: Date } | null>(null);
+  // Empty-slot scheduling flow (calendar slot select + Spaces-grid cell click).
+  // `resource` is set only for grid clicks: it labels the chooser, filters the
+  // backlog, and routes "Schedule existing" through the grid schedule mutation.
+  const [slotSelection, setSlotSelection] = useState<
+    { start: Date; end: Date; resource?: { id: string; name: string; typeKey: string } } | null
+  >(null);
   const [isSlotChooserOpen, setIsSlotChooserOpen] = useState(false);
   const [calendarForm, setCalendarForm] = useState<
-    { mode: "create" | "edit"; request: Request | null; startTs: string; endTs: string } | null
+    { mode: "create" | "edit"; request: Request | null; startTs: string; endTs: string; resource?: DefaultResource } | null
   >(null);
 
   // Handle export from TopBar
@@ -597,6 +604,25 @@ export function UtilizationPage() {
     setIsSlotChooserOpen(true);
   }, []);
 
+  // Spaces-grid empty-cell click: same chooser as the calendar, with the
+  // clicked space carried along so it can be pre-filled.
+  const handleGridCellClick = useCallback((space: Space, col: TimeColumn) => {
+    setSlotSelection({
+      start: col.start,
+      end: col.end,
+      resource: { id: space.id, name: space.code || space.name, typeKey: RESOURCE_TYPE_KEY.SPACE },
+    });
+    setIsSlotChooserOpen(true);
+  }, []);
+
+  // Grid clicks only offer requests that actually target the clicked resource's
+  // type; the calendar (no resource) keeps the full backlog.
+  const chooserBacklog = useMemo(() => {
+    const typeKey = slotSelection?.resource?.typeKey;
+    if (!typeKey) return backlog;
+    return backlog.filter((r) => getTargetResourceTypeKeys(r).includes(typeKey));
+  }, [backlog, slotSelection]);
+
   const handleChooserCreateNew = useCallback(() => {
     if (!slotSelection) return;
     setIsSlotChooserOpen(false);
@@ -605,19 +631,28 @@ export function UtilizationPage() {
       request: null,
       startTs: slotSelection.start.toISOString(),
       endTs: slotSelection.end.toISOString(),
+      resource: slotSelection.resource
+        ? { typeKey: slotSelection.resource.typeKey, resourceId: slotSelection.resource.id }
+        : undefined,
     });
   }, [slotSelection]);
 
   const handleChooserScheduleExisting = useCallback((request: Request) => {
     if (!slotSelection) return;
     setIsSlotChooserOpen(false);
+    if (slotSelection.resource) {
+      // Grid click: schedule straight onto the clicked space at the cell's
+      // start — the exact path drag-drop and ScheduleToDialog use.
+      void handleScheduleToGrid(request, slotSelection.resource.id, slotSelection.start);
+      return;
+    }
     setCalendarForm({
       mode: "edit",
       request,
       startTs: slotSelection.start.toISOString(),
       endTs: slotSelection.end.toISOString(),
     });
-  }, [slotSelection]);
+  }, [slotSelection, handleScheduleToGrid]);
 
   // Both chooser paths reuse RequestFormDialog (space picker + validation) and
   // persist via the existing create/update request APIs. The form pre-selects
@@ -781,6 +816,7 @@ export function UtilizationPage() {
                     onRequestClick={isPhone ? handleRequestDoubleClick : setSelectedRequestId}
                     onRequestDoubleClick={handleRequestDoubleClick}
                     onRequestResize={handleResizeRequest}
+                    onEmptyCellClick={canEdit ? handleGridCellClick : undefined}
                     editable={canEdit}
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
@@ -843,23 +879,25 @@ export function UtilizationPage() {
         onSave={handleSaveChildRequest}
       />
 
-      {/* Calendar: empty-slot scheduling chooser */}
+      {/* Empty-slot scheduling chooser (calendar slot select + Spaces-grid cell click) */}
       <ScheduleSlotDialog
         open={isSlotChooserOpen}
         onOpenChange={setIsSlotChooserOpen}
         selection={slotSelection}
-        backlog={backlog}
+        resourceName={slotSelection?.resource?.name}
+        backlog={chooserBacklog}
         onCreateNew={handleChooserCreateNew}
         onScheduleExisting={handleChooserScheduleExisting}
       />
 
-      {/* Calendar: create-new / schedule-existing form, prefilled with the slot */}
+      {/* Chooser follow-up: create-new / schedule-existing form, prefilled with the slot */}
       <RequestFormDialog
-        key={`calendar-${calendarForm?.request?.id ?? 'new'}-${calendarForm?.startTs ?? ''}`}
+        key={`calendar-${calendarForm?.request?.id ?? 'new'}-${calendarForm?.startTs ?? ''}-${calendarForm?.resource?.resourceId ?? ''}`}
         open={!!calendarForm}
         onOpenChange={(open) => { if (!open) setCalendarForm(null); }}
         request={calendarForm?.request ?? undefined}
         defaultSchedule={calendarForm ? { startTs: calendarForm.startTs, endTs: calendarForm.endTs } : undefined}
+        defaultResource={calendarForm?.resource}
         scheduleSiteId={selectedSiteId ?? undefined}
         onSave={handleCalendarFormSave}
       />
