@@ -68,7 +68,11 @@ test("FormDialog: submit footer stays within the viewport and Enter submits", as
 test("Wizard tab strip scrolls horizontally to reach the last tab", async ({ page }) => {
   await page.goto("/");
 
-  const strip = page.getByTestId("wizard-tabs-strip");
+  // The scroll owner is TabsList's internal wrapper, not the tablist element itself
+  // (which is `w-max`, i.e. exactly as wide as its tabs and therefore never scrollable).
+  const strip = page
+    .getByTestId("wizard-tabs-section")
+    .locator('[data-slot="tabs-list-scroller"]');
   // The strip overflows its container (horizontal scroll available).
   const overflows = await strip.evaluate((el) => el.scrollWidth > el.clientWidth);
   expect(overflows).toBe(true);

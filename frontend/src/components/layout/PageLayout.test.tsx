@@ -122,4 +122,30 @@ describe("PageTabs", () => {
     expect(root.className).toContain("overflow-hidden");
     expect(root.className).toContain("flex-1");
   });
+
+  it("lets a wide strip scroll itself instead of the page", () => {
+    // Regression: with 5+ tabs on a phone the strip used to overflow <main>, dragging the
+    // whole page sideways and clipping the active tab off the left. TabsList owns the
+    // scroll container now (see components/ui/tabs.test.tsx), so PageTabs must not
+    // hand-wrap it — it only contributes spacing.
+    const tabs = [
+      { value: "criteria", label: "Criteria" },
+      { value: "resource-types", label: "Resource Types" },
+      { value: "templates", label: "Templates" },
+      { value: "presets", label: "Presets" },
+      { value: "scheduling", label: "Scheduling" },
+    ];
+    render(
+      <MemoryRouter>
+        <PageTabs tabs={tabs} value="criteria" onChange={() => {}}>
+          <div />
+        </PageTabs>
+      </MemoryRouter>,
+    );
+
+    const scroller = screen.getByRole("tablist").parentElement as HTMLElement;
+    expect(scroller.dataset.slot).toBe("tabs-list-scroller");
+    expect(scroller.className).toContain("overflow-x-auto");
+    expect(scroller.className).toContain("mb-4");
+  });
 });

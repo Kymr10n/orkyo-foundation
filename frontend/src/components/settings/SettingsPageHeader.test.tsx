@@ -18,6 +18,22 @@ describe('SettingsPageHeader', () => {
     expect(screen.getByText('Action')).toBeInTheDocument();
   });
 
+  it('lets the text column shrink while the action area holds its width', () => {
+    // Regression: on a phone a long description ran underneath the action button, which
+    // is whitespace-nowrap and so refuses to shrink.
+    const { container } = render(
+      <SettingsPageHeader title="Criteria Definitions" description="Define reusable criteria.">
+        <button>Add Criterion</button>
+      </SettingsPageHeader>,
+    );
+    const row = container.firstChild as HTMLElement;
+    const [text, actions] = Array.from(row.children) as HTMLElement[];
+
+    expect(row.className).toContain('gap-4');
+    expect(text.className).toContain('min-w-0');
+    expect(actions.className).toContain('shrink-0');
+  });
+
   it('does not render action area without children', () => {
     const { container } = render(
       <SettingsPageHeader title="Title" description="Desc" />,

@@ -45,6 +45,12 @@ Wrap the wide element in its own `overflow-x-auto` container so only that region
 sideways; the rest of the page stays put. `OrkyoDataTable` does this for its desktop table-mode
 rendering — reach for it, or mirror the pattern, before hand-rolling a table.
 
+**Tab strips already do this — do not hand-wrap them.** `TabsList` (`components/ui/tabs.tsx`)
+owns its own `overflow-x-auto` container internally, and `TabsTrigger` is `shrink-0`. Just render
+`<TabsList>` and pass spacing via `className` (it lands on the wrapper). Note the list itself is
+`w-max min-w-full`, not `w-full`: `w-max` is what stops a centred strip from splitting its overflow
+across *both* edges and clipping the first tab somewhere it can never be scrolled back into view.
+
 ```tsx
 // ✅ The table scrolls horizontally in place; the page doesn't.
 <div className="overflow-x-auto">
