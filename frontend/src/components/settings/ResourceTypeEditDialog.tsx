@@ -32,6 +32,7 @@ interface FormState {
   hasGeometry: boolean;
   hasDirectoryProfile: boolean;
   singleGroupMembership: boolean;
+  isActive: boolean;
 }
 
 /**
@@ -99,6 +100,7 @@ export function ResourceTypeEditDialog({
     emptyForm: () => ({
       key: '', displayName: '', displayNamePlural: '', description: '', icon: '',
       hasGeometry: false, hasDirectoryProfile: false, singleGroupMembership: false,
+      isActive: true,
     }),
     toForm: (rt) => ({
       key: rt.key,
@@ -109,6 +111,7 @@ export function ResourceTypeEditDialog({
       hasGeometry: rt.hasGeometry,
       hasDirectoryProfile: rt.hasDirectoryProfile,
       singleGroupMembership: rt.singleGroupMembership,
+      isActive: rt.isActive,
     }),
     save: (form, rt) =>
       rt
@@ -124,6 +127,7 @@ export function ResourceTypeEditDialog({
                   hasGeometry: form.hasGeometry,
                   hasDirectoryProfile: form.hasDirectoryProfile,
                   singleGroupMembership: form.singleGroupMembership,
+                  isActive: form.isActive,
                 }),
           })
         : createResourceType({
@@ -292,6 +296,26 @@ export function ResourceTypeEditDialog({
           </div>
         ))}
       </fieldset>
+
+      {/* Edit-only, custom-types-only: system types cannot be deactivated (the
+          server rejects it), and this is the only way to reactivate a type the
+          server auto-deactivated when it was deleted while still in use. */}
+      {isEdit && !isSystemType && (
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="rt-is-active"
+            checked={form.isActive}
+            onCheckedChange={(checked) => set({ isActive: checked === true })}
+          />
+          <div className="grid gap-1 leading-none">
+            <Label htmlFor="rt-is-active" className="font-normal">Active</Label>
+            <p className="text-sm text-muted-foreground">
+              Inactive types stay in the catalogue so existing resources keep working,
+              but they are hidden from pickers and cannot receive new resources.
+            </p>
+          </div>
+        </div>
+      )}
     </FormDialog>
   );
 }
