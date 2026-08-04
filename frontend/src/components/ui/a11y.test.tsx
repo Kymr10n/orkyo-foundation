@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { CircleOff, Plus } from 'lucide-react';
@@ -91,8 +93,28 @@ describe('a11y smoke', () => {
     ];
 
     it('with data has no detectable a11y violations', async () => {
-      const { container } = render(<OrkyoDataTable columns={columns} data={data} />);
+      const { container } = render(
+        <MemoryRouter><OrkyoDataTable columns={columns} data={data} /></MemoryRouter>,
+      );
       expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it('with a filterable sorted header and its menu open has no violations', async () => {
+      const filterable: ColumnDef<Row>[] = [
+        { accessorKey: 'name', header: 'Name', meta: { filter: { type: 'text' } } },
+      ];
+      const { container } = render(<MemoryRouter><OrkyoDataTable columns={filterable} data={data} /></MemoryRouter>);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Name — sort and filter' }));
+      await user.click(screen.getByRole('button', { name: 'Sort A → Z' }));
+      // aria-sort on the th plus the reopened popover both under axe. The popover portals to
+      // document.body, so it is axed separately — running axe on body itself trips the
+      // page-level landmark rule, which is about pages, not components.
+      await user.click(screen.getByRole('button', { name: 'Name — sort and filter' }));
+
+      expect(await axe(container)).toHaveNoViolations();
+      expect(await axe(screen.getByRole('dialog'))).toHaveNoViolations();
     });
 
     it('empty (EmptyState) has no detectable a11y violations', async () => {
@@ -158,9 +180,11 @@ describe('a11y smoke', () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     const { container, getByText } = render(
-      <QueryClientProvider client={queryClient}>
-        <JobTitleSettings />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <JobTitleSettings />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
     await waitFor(() => expect(getByText('Senior Engineer')).toBeInTheDocument());
     expect(await axe(container)).toHaveNoViolations();

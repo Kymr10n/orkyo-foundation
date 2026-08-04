@@ -243,7 +243,7 @@ describe('OrkyoDataTable', () => {
   it('navigates to next page and shows correct rows', async () => {
     const user = userEvent.setup();
     render(<OrkyoDataTable columns={columns} data={makeRows(30)} pageSize={10} />);
-    const [, next] = screen.getAllByRole('button');
+    const next = screen.getByRole('button', { name: 'Next page' });
     await user.click(next);
     expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
     expect(screen.getByText('Item 11')).toBeInTheDocument();
@@ -253,7 +253,7 @@ describe('OrkyoDataTable', () => {
   it('next button is disabled on last page', async () => {
     const user = userEvent.setup();
     render(<OrkyoDataTable columns={columns} data={makeRows(20)} pageSize={10} />);
-    const [, next] = screen.getAllByRole('button');
+    const next = screen.getByRole('button', { name: 'Next page' });
     await user.click(next); // go to page 2 (last)
     expect(next).toBeDisabled();
   });
@@ -261,7 +261,8 @@ describe('OrkyoDataTable', () => {
   it('navigates back to previous page', async () => {
     const user = userEvent.setup();
     render(<OrkyoDataTable columns={columns} data={makeRows(30)} pageSize={10} />);
-    const [prev, next] = screen.getAllByRole('button');
+    const prev = screen.getByRole('button', { name: 'Previous page' });
+    const next = screen.getByRole('button', { name: 'Next page' });
     await user.click(next);
     await user.click(prev);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
@@ -282,7 +283,7 @@ describe('OrkyoDataTable', () => {
         onPageChange={onPageChange}
       />,
     );
-    const [, next] = screen.getAllByRole('button');
+    const next = screen.getByRole('button', { name: 'Next page' });
     await user.click(next);
     expect(onPageChange).toHaveBeenCalledWith(1);
   });
@@ -300,7 +301,7 @@ describe('OrkyoDataTable', () => {
         onPageChange={onPageChange}
       />,
     );
-    const [prev] = screen.getAllByRole('button');
+    const prev = screen.getByRole('button', { name: 'Previous page' });
     await user.click(prev);
     expect(onPageChange).toHaveBeenCalledWith(0);
   });
@@ -330,7 +331,7 @@ describe('OrkyoDataTable', () => {
         onPageChange={vi.fn()}
       />,
     );
-    const [prev] = screen.getAllByRole('button');
+    const prev = screen.getByRole('button', { name: 'Previous page' });
     expect(prev).toBeDisabled();
   });
 
