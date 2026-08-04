@@ -14,6 +14,7 @@ import {
   type JobTitleInfo,
 } from '@foundation/src/lib/api/job-titles-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 export function JobTitleSettings() {
   const [editing, setEditing] = useState<JobTitleInfo | null>(null);
@@ -41,8 +42,10 @@ export function JobTitleSettings() {
     if (deletingJobTitle) deleteMutation.mutate(deletingJobTitle.id);
   };
 
+  // stopPropagation: the row itself opens the edit dialog, so a click on Delete must not
+  // also open it behind the confirm.
   const renderActions = (jt: JobTitleInfo) => (
-    <div className="flex justify-end gap-1">
+    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
       <Button variant="ghost" size="icon" onClick={() => setEditing(jt)} aria-label={`Edit ${jt.name}`}>
         <Pencil className="h-4 w-4" />
       </Button>
@@ -62,6 +65,7 @@ export function JobTitleSettings() {
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{row.original.name}</span>
@@ -72,6 +76,7 @@ export function JobTitleSettings() {
     {
       accessorKey: 'description',
       header: 'Description',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
           {row.original.description || '—'}
@@ -102,6 +107,9 @@ export function JobTitleSettings() {
 
   const errorMsg = error instanceof Error ? error.message : error ? 'Failed to load job titles' : null;
 
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('jobtitles', columns);
+
   return (
     <div className="space-y-6">
       <SettingsPageHeader
@@ -121,14 +129,14 @@ export function JobTitleSettings() {
       />
 
       <OrkyoDataTable
+        {...tableUrlState}
+        onRowClick={(jt) => setEditing(jt)}
         columns={columns}
         data={jobTitles}
         isLoading={isLoading}
         error={errorMsg}
         onRetry={() => refetch()}
         emptyMessage="No job titles defined yet."
-        filterColumn="name"
-        filterPlaceholder="Search job titles..."
         renderCard={renderCard}
       />
 

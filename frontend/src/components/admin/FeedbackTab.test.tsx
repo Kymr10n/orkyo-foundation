@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { FeedbackTab } from './FeedbackTab';
 import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
@@ -49,14 +50,14 @@ describe('FeedbackTab', () => {
   });
 
   it('shows loading then the empty message', async () => {
-    render(<FeedbackTab />);
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
     expect(screen.getByText(/Loading feedback/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/No feedback yet/i)).toBeInTheDocument());
   });
 
   it('renders feedback rows', async () => {
     mockGet.mockResolvedValue({ items: [summary], total: 1 });
-    render(<FeedbackTab />);
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Grid does not load')).toBeInTheDocument());
     expect(screen.getByText(/user@acme.com/)).toBeInTheDocument();
   });
@@ -65,7 +66,7 @@ describe('FeedbackTab', () => {
     mockGet.mockResolvedValue({ items: [summary], total: 1 });
     mockGetOne.mockResolvedValue(detail);
     const user = userEvent.setup();
-    render(<FeedbackTab />);
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
 
     await waitFor(() => screen.getByText('Grid does not load'));
     await user.click(screen.getByRole('button', { name: /Review Grid does not load/i }));
@@ -79,7 +80,7 @@ describe('FeedbackTab', () => {
     mockGetOne.mockResolvedValue(detail);
     mockUpdate.mockResolvedValue({ ...detail, adminNotes: 'On it.' });
     const user = userEvent.setup();
-    render(<FeedbackTab />);
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
 
     await waitFor(() => screen.getByText('Grid does not load'));
     await user.click(screen.getByRole('button', { name: /Review Grid does not load/i }));

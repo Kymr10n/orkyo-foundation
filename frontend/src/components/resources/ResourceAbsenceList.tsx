@@ -92,16 +92,19 @@ export function ResourceAbsenceList({ open, onOpenChange, resourceId, resourceNa
               {
                 accessorKey: 'absenceType',
                 header: 'Type',
+                meta: { filter: { type: 'enum', getLabel: (v) => ABSENCE_TYPE_LABELS[v] ?? v } },
                 cell: ({ getValue }) => ABSENCE_TYPE_LABELS[getValue<string>()] ?? getValue<string>(),
               },
               {
                 accessorKey: 'startTs',
                 header: 'Start',
+                meta: { filter: { type: 'date' } },
                 cell: ({ getValue }) => format(new Date(getValue<string>()), DATE_FORMATS.DATE_LOCALE_SHORT),
               },
               {
                 accessorKey: 'endTs',
                 header: 'End',
+                meta: { filter: { type: 'date' } },
                 cell: ({ getValue }) => format(new Date(getValue<string>()), DATE_FORMATS.DATE_LOCALE_SHORT),
               },
               {

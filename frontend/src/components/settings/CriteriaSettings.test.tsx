@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { CriteriaSettings } from './CriteriaSettings';
@@ -237,64 +237,48 @@ describe('CriteriaSettings', () => {
     expect(mockRefetch).toHaveBeenCalled();
   });
 
-  describe('filter tabs', () => {
-    it('renders one filter tab per active resource type, plus All', () => {
+  describe('appliesTo header facet', () => {
+    const openAppliesToMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'Applies To — sort and filter' }));
+      return screen.getByRole('group', { name: 'Filter Applies To' });
+    };
+
+    it('lists one facet option per applicable resource type, labeled by display name', async () => {
+      const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Space' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Person' })).toBeInTheDocument();
-      // Tools had no tab at all before the list became data-driven.
-      expect(screen.getByRole('tab', { name: 'Tool' })).toBeInTheDocument();
+      const facets = await openAppliesToMenu(user);
+      expect(within(facets).getByText('Space')).toBeInTheDocument();
+      expect(within(facets).getByText('Person')).toBeInTheDocument();
+      // Tool appears via c2's ['space','tool'] array — facets flatten per element.
+      expect(within(facets).getByText('Tool')).toBeInTheDocument();
     });
 
-    it('All tab shows all criteria by default', () => {
+    it('shows all criteria before any facet is ticked', () => {
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
       expect(screen.getByText('Capacity')).toBeInTheDocument();
       expect(screen.getByText('HasProjector')).toBeInTheDocument();
       expect(screen.getByText('PersonSkill')).toBeInTheDocument();
     });
 
-    it('Space tab filters to space criteria only', async () => {
+    it('ticking the Space facet narrows to space criteria only', async () => {
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.click(screen.getByRole('tab', { name: 'Space' }));
+      const facets = await openAppliesToMenu(user);
+      await user.click(within(facets).getByText('Space'));
       expect(screen.getByText('Capacity')).toBeInTheDocument();
       expect(screen.getByText('HasProjector')).toBeInTheDocument();
       expect(screen.queryByText('PersonSkill')).not.toBeInTheDocument();
     });
 
-    it('Person tab filters to person criteria only', async () => {
+    it('ticking the Person facet narrows to person criteria only', async () => {
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.click(screen.getByRole('tab', { name: 'Person' }));
-      expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
-      expect(screen.getByText('PersonSkill')).toBeInTheDocument();
-    });
-
-
-    it('shows resource-specific empty state when no criteria match the active filter', async () => {
-      mockCriteriaData = {
-        data: [
-          { id: 'c1', name: 'Capacity', dataType: 'Number', description: '', unit: 'seats', enumValues: [], resourceTypeKeys: ['space'], createdAt: '2024-01-15T00:00:00Z' },
-        ],
-        isLoading: false,
-        error: null,
-        refetch: mockRefetch,
-      };
-      const user = userEvent.setup();
-      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.click(screen.getByRole('tab', { name: 'Person' }));
+      const facets = await openAppliesToMenu(user);
+      await user.click(within(facets).getByText('Person'));
       await waitFor(() => {
         expect(screen.queryByText('Capacity')).not.toBeInTheDocument();
       });
-      // Empty state is rendered in a leaf div (no child elements) by OrkyoDataTable
-      expect(
-        screen.getByText((_content, element) =>
-          element?.tagName === 'DIV' &&
-          element.children.length === 0 &&
-          (element?.textContent ?? '').includes('No criteria defined for'),
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText('PersonSkill')).toBeInTheDocument();
     });
   });
 
@@ -388,10 +372,11 @@ describe('CriteriaSettings', () => {
   describe('applicability badges', () => {
     it('renders resourceTypeKey badges on each criterion card', () => {
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      // Every label now appears at least twice — as a filter tab and as a badge.
-      expect(screen.getAllByText('Space').length).toBeGreaterThanOrEqual(2);
-      expect(screen.getAllByText('Person').length).toBeGreaterThanOrEqual(2);
-      expect(screen.getAllByText('Tool').length).toBeGreaterThanOrEqual(2); // c2 has ['space','tool']
+      // The filter tabs are gone (replaced by the header facet), so each label
+      // appears as an applies-to badge on the matching rows.
+      expect(screen.getAllByText('Space').length).toBeGreaterThanOrEqual(2); // c1 + c2
+      expect(screen.getAllByText('Person').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Tool').length).toBeGreaterThanOrEqual(1); // c2 has ['space','tool']
     });
   });
 });

@@ -9,6 +9,7 @@ import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { ResourceGroupEditDialog } from './ResourceGroupEditDialog';
 import { ResourceGroupMembersEditor } from './ResourceGroupMembersEditor';
 import { GroupCapabilitiesEditor } from '../settings/GroupCapabilitiesEditor';
@@ -87,20 +88,24 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ getValue }) => <span className="font-medium">{getValue<string>()}</span>,
     },
     {
       accessorKey: 'description',
       header: 'Description',
+      meta: { filter: { type: 'text' } },
       cell: ({ getValue }) => <span className="text-muted-foreground">{getValue<string | null>() ?? '—'}</span>,
     },
     {
       accessorKey: 'memberCount',
       header: 'Members',
+      meta: { filter: { type: 'number' } },
     },
     {
       accessorKey: 'defaultAvailabilityPercent',
       header: 'Default Availability',
+      meta: { filter: { type: 'number' } },
       cell: ({ getValue }) => `${getValue<number>()}%`,
     },
     {
@@ -125,6 +130,9 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
     </div>
   );
 
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('groups', columns);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -135,6 +143,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
       </div>
 
       <OrkyoDataTable
+        {...tableUrlState}
         columns={columns}
         data={groups}
         isLoading={isLoading}
@@ -145,7 +154,6 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
             Add {entityLabel}
           </Button>
         }
-        filterColumn="name"
         filterPlaceholder={`Search ${entityLabel.toLowerCase()}s...`}
         pageSize={25}
         onRowClick={canEdit ? handleEdit : undefined}

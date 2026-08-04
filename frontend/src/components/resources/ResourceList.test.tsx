@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceList } from './ResourceList';
@@ -67,9 +68,11 @@ const cars = [
 function renderList() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <ResourceList resourceType={carType} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <ResourceList resourceType={carType} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -150,4 +153,25 @@ describe('ResourceList', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Deactivate' }));
     await waitFor(() => expect(deleteResource).toHaveBeenCalledWith('car-1'));
   });
+
+  it('opens the edit dialog when the row itself is clicked', async () => {
+    renderList();
+    await userEvent.click(await screen.findByText('Van 1'));
+
+    expect(await screen.findByTestId('resource-edit-dialog')).toHaveAttribute(
+      'data-resource-id',
+      'car-1',
+    );
+  });
+
+  it('does not open the edit dialog when the row action menu is used', async () => {
+    // The row opens the editor, so the actions cell must stop propagation — otherwise
+    // choosing Deactivate would leave the edit dialog open behind the confirm.
+    renderList();
+    await chooseAction('Van 1', /Manage Absences/);
+
+    expect(await screen.findByTestId('absence-list')).toBeInTheDocument();
+    expect(screen.queryByTestId('resource-edit-dialog')).not.toBeInTheDocument();
+  });
+
 });

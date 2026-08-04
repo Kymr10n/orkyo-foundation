@@ -17,6 +17,7 @@ import {
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 
 interface ResourceListProps {
@@ -93,6 +94,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{row.original.name}</span>
@@ -127,15 +129,14 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         ? `Failed to load ${resourceType.displayName.toLowerCase()}`
         : null;
 
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('resources', columns);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{resourceType.displayName}</h2>
-          {resourceType.description && (
-            <p className="mt-1 text-sm text-muted-foreground">{resourceType.description}</p>
-          )}
-        </div>
+    <div className="space-y-4">
+      {/* No heading: ResourcesPage already titles the page with this type's plural name and
+          its description. Matches the Groups tab, which is just its Add button. */}
+      <div className="flex justify-end">
         {canEdit && (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -145,14 +146,16 @@ export function ResourceList({ resourceType }: ResourceListProps) {
       </div>
 
       <OrkyoDataTable
+        {...tableUrlState}
+        // Opening the editor is what a row is for; the action menu stops propagation so its
+        // own items still win. Viewers get no row click — the dialog would be read-only.
+        onRowClick={canEdit ? (r) => setEditing(r) : undefined}
         columns={columns}
         data={resources?.data ?? []}
         isLoading={isLoading}
         error={errorMsg}
         onRetry={() => refetch()}
         emptyMessage={`No ${resourceType.displayName.toLowerCase()} recorded yet.`}
-        filterColumn="name"
-        filterPlaceholder="Search..."
         renderCard={renderCard}
       />
 

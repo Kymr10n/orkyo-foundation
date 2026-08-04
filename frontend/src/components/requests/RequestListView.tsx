@@ -14,7 +14,10 @@ import {
   resolveDuration,
   resolveSchedule,
 } from "@foundation/src/domain/request-tree";
-import type { Request } from "@foundation/src/types/requests";
+import { DURATION_TO_MINUTES } from "@foundation/src/domain/constants";
+import { formatStatusLabel } from "@foundation/src/lib/utils/utils";
+import type { PlanningMode, Request } from "@foundation/src/types/requests";
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import React, { useCallback, useMemo } from "react";
 
 interface RequestListViewProps {
@@ -58,6 +61,16 @@ export const RequestListView = React.memo(function RequestListView({
     {
       accessorKey: "name",
       header: "Name",
+      meta: { filter: { type: "text" } },
+      // Matches the description too, which the page's search box did and no column shows.
+      // An explicit filterFn wins over the one meta.filter would otherwise attach.
+      filterFn: (row, _columnId, query: string) => {
+        const q = query.toLowerCase();
+        const r = row.original;
+        return (
+          r.name.toLowerCase().includes(q) || (r.description?.toLowerCase().includes(q) ?? false)
+        );
+      },
       cell: ({ row }) => {
         const request = row.original;
         const Icon = getRequestIcon(request.icon) ?? getPlanningModeIcon(request.planningMode);
@@ -73,8 +86,10 @@ export const RequestListView = React.memo(function RequestListView({
     },
     {
       id: "kind",
+      accessorFn: (r) => r.planningMode,
       header: "Kind",
       size: 100,
+      meta: { filter: { type: "enum", getLabel: (v) => getPlanningModeLabel(v as PlanningMode) } },
       cell: ({ row }) => (
         <Badge variant="outline" className="text-xs font-normal">
           {getPlanningModeLabel(row.original.planningMode)}
@@ -85,6 +100,7 @@ export const RequestListView = React.memo(function RequestListView({
       id: "parent",
       header: "Parent",
       size: 180,
+      enableSorting: false,
       cell: ({ row }) => {
         const { parentRequestId } = row.original;
         const parentName = parentNameMap.get(row.original.id);
@@ -105,8 +121,16 @@ export const RequestListView = React.memo(function RequestListView({
     },
     {
       id: "schedule",
+      // Sort/filter on the resolved start timestamp (not the display string, which
+      // would order alphabetically) — same derived-first fallback the cell renders.
+      accessorFn: (r) => {
+        const derived = derivedMap.get(r.id) ?? null;
+        if (derived?.startTs && derived?.endTs) return derived.startTs;
+        return r.startTs && r.endTs ? r.startTs : "";
+      },
       header: "Schedule",
       size: 200,
+      meta: { filter: { type: "date" } },
       cell: ({ row }) => {
         const request = row.original;
         const { text, isDerived } = resolveSchedule(request, derivedMap.get(request.id) ?? null);
@@ -128,8 +152,17 @@ export const RequestListView = React.memo(function RequestListView({
     },
     {
       id: "duration",
+      // Sort/filter on the resolved duration in minutes (not the "2 hours" display
+      // string) — derived sum for parents, own minimal duration otherwise.
+      accessorFn: (r) => {
+        const derived = derivedMap.get(r.id) ?? null;
+        return derived
+          ? derived.totalDurationValue * DURATION_TO_MINUTES[derived.totalDurationUnit]
+          : r.minimalDurationValue * DURATION_TO_MINUTES[r.minimalDurationUnit];
+      },
       header: "Duration",
       size: 110,
+      meta: { filter: { type: "number" } },
       cell: ({ row }) => {
         const request = row.original;
         const { text, isDerived } = resolveDuration(request, derivedMap.get(request.id) ?? null);
@@ -148,8 +181,10 @@ export const RequestListView = React.memo(function RequestListView({
     },
     {
       id: "status",
+      accessorFn: (r) => r.status,
       header: "Status",
       size: 100,
+      meta: { filter: { type: "enum", getLabel: formatStatusLabel } },
       cell: ({ row }) => <RequestStatusBadge status={row.original.status} />,
     },
     {
@@ -211,8 +246,12 @@ export const RequestListView = React.memo(function RequestListView({
     );
   }, [selectedId, derivedMap, onSelect, onEdit, canEdit, onDelete]);
 
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('requests', columns);
+
   return (
     <OrkyoDataTable
+        {...tableUrlState}
       columns={columns}
       data={requests}
       emptyMessage="No requests found."

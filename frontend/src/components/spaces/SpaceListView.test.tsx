@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { SpaceListView } from './SpaceListView';
 
@@ -26,8 +27,16 @@ import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
 function createWrapper() {
-  // Production-identical feedback MutationCache (dialog-feedback.md).
-  return createFeedbackTestQueryWrapper();
+  // Production-identical feedback MutationCache (dialog-feedback.md), plus a router for the
+  // header filters' URL state.
+  const QueryWrapper = createFeedbackTestQueryWrapper();
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <MemoryRouter>
+        <QueryWrapper>{children}</QueryWrapper>
+      </MemoryRouter>
+    );
+  };
 }
 
 function setSite(siteId: string | null) {

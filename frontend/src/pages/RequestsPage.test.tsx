@@ -685,8 +685,9 @@ describe('RequestsPage', () => {
 
   // ── List-view search by description ─────────────────────────────────────────
 
-  it('filters list view by a description match', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+  it('hands list view every request — its column headers do the filtering', async () => {
+    // The page's search box is tree-only now. Filtering here as well would pre-filter the
+    // list with a box the user cannot see after switching views.
     mockViewMode = 'list';
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Alpha', description: 'red apple', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
@@ -695,11 +696,10 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('list-view')).toBeInTheDocument());
-    fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'apple' } });
-    await act(async () => { vi.advanceTimersByTime(300); });
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.queryByText('Beta')).not.toBeInTheDocument();
-    vi.useRealTimers();
+
+    expect(screen.getByTestId('list-item-r1')).toBeInTheDocument();
+    expect(screen.getByTestId('list-item-r2')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search requests...')).not.toBeInTheDocument();
   });
 
   // ── loadRequests non-Error fallback ─────────────────────────────────────────

@@ -226,16 +226,13 @@ export function RequestsPage() {
     return flattenVisibleTree(tree, expandedIds);
   }, [requests, searchMatches, expandedIds, viewMode]);
 
-  // Filtered requests for list mode
-  const filteredRequests = useMemo(() => {
-    if (viewMode !== "list") return [];
-    if (!debouncedSearch) return requests;
-    const query = debouncedSearch.toLowerCase();
-    return requests.filter(r =>
-      r.name.toLowerCase().includes(query) ||
-      r.description?.toLowerCase().includes(query)
-    );
-  }, [requests, debouncedSearch, viewMode]);
+  // List mode passes every request through: its own column headers do the filtering. The
+  // page's search box belongs to the tree, and applying its query here would silently
+  // pre-filter the list with a box the user cannot see after switching views.
+  const filteredRequests = useMemo(
+    () => (viewMode === "list" ? requests : []),
+    [requests, viewMode],
+  );
 
   // Auto-expand ancestors when search matches (tree mode) — reuse the
   // matches/ancestors already computed by `searchMatches`.
@@ -431,18 +428,23 @@ export function RequestsPage() {
         description="Organize tasks and groups and track their schedules."
       />
 
-      {/* Toolbar: search (left) · expand/collapse-all + view toggle + primary (right) */}
+      {/* Toolbar: search (tree only) · expand/collapse-all + view toggle + primary (right) */}
       <div className="flex items-center gap-3 mb-4 shrink-0">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search requests..."
-            aria-label="Search requests"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        {/* The tree has no column headers, so it keeps a search box. The list filters from
+            its Name header like every other list — two search affordances on one view is one
+            too many. */}
+        {viewMode === "tree" && (
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search requests..."
+              aria-label="Search requests"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {viewMode === "tree" && (
