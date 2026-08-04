@@ -20,6 +20,13 @@ public static class ConfigKeys
     public const string ConnectionStringControlPlanePath = "ConnectionStrings:ControlPlane";
     public const string ConnectionStringPostgresEnvVar = "ConnectionStrings__Postgres";
     public const string ConnectionStringControlPlaneEnvVar = "ConnectionStrings__ControlPlane";
+    /// <summary>
+    /// Privileged maintenance connection (the DDL-owner role): tenant
+    /// provisioning and lifecycle purge only — never request-path SQL.
+    /// </summary>
+    public const string ConnectionStringMaintenance = "Maintenance";
+    public const string ConnectionStringMaintenancePath = "ConnectionStrings:Maintenance";
+    public const string ConnectionStringMaintenanceEnvVar = "ConnectionStrings__Maintenance";
     /// <summary>Legacy alias for <see cref="ConnectionStringControlPlaneEnvVar"/> still honored by the migrator.</summary>
     public const string ControlPlaneConnectionLegacyEnvVar = "CONTROL_PLANE_CONNECTION_STRING";
     public const string ValkeyConnection = "VALKEY_CONNECTION";

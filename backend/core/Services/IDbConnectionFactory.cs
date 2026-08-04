@@ -24,4 +24,16 @@ public interface IDbConnectionFactory : IOrgDbConnectionFactory
     /// <see cref="TenantContext"/> is available yet.
     /// </summary>
     NpgsqlConnection CreateConnectionForDatabase(string dbIdentifier);
+
+    /// <summary>
+    /// Creates a privileged maintenance connection (the DDL-owner role) to the
+    /// given database — for tenant provisioning and lifecycle purge only, never
+    /// request-path SQL. The default maps to
+    /// <see cref="CreateConnectionForDatabase"/>: in single-role deployments
+    /// (Community, local dev) the app/maintenance split collapses by design,
+    /// mirroring how the control-plane/tenant split collapses there. Multi-role
+    /// deployments override this with the maintenance credential.
+    /// </summary>
+    NpgsqlConnection CreateMaintenanceConnectionForDatabase(string dbIdentifier) =>
+        CreateConnectionForDatabase(dbIdentifier);
 }
