@@ -12,17 +12,18 @@ public record SearchResult
     public Guid? SiteId { get; init; }
     public double Score { get; init; }
     public DateTime UpdatedAt { get; init; }
-    public required SearchResultOpen Open { get; init; }
+    /// <summary>Vestigial: always CanRead=true / CanEdit=false and unread by any client.
+    /// Kept because it is part of the released response contract.</summary>
     public required SearchResultPermissions Permissions { get; init; }
-    /// <summary>Resource-type key ("person"/"space") for group results; null for other types. Lets the client route a group to its owning page.</summary>
+    /// <summary>
+    /// The resource type key for resource results ("space", "person", "tool", or a
+    /// tenant-defined one), and for group results the type the group holds. Null otherwise.
+    /// The client routes and labels from this — the backend no longer computes a route,
+    /// because it does not own the frontend's URL structure and its guesses had drifted.
+    /// </summary>
     public string? ResourceTypeKey { get; init; }
 }
 
-public record SearchResultOpen
-{
-    public required string Route { get; init; }
-    public Dictionary<string, string> Params { get; init; } = new();
-}
 
 public record SearchResultPermissions
 {

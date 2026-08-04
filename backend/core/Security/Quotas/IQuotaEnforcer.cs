@@ -30,6 +30,8 @@ public static class QuotaResourceTypes
 {
     public const string ActiveSeats = "active_seats";
     public const string ProductionSites = "production_sites";
+    /// <summary>Counts every resource whose type declares geometry, not only the built-in space
+    /// type. The key keeps its name because it is stored — tiers and rollups are keyed by it.</summary>
     public const string Spaces = "spaces";
     public const string StorageBytes = "storage_bytes";
 }

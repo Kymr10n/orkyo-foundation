@@ -25,9 +25,17 @@ const apiMocks = vi.hoisted(() => ({
   getCriteria: vi.fn(() => Promise.resolve([] as unknown[])),
   getRequestChildren: vi.fn(() => Promise.resolve([] as unknown[])),
   getTemplates: vi.fn(() => Promise.resolve([] as unknown[])),
-  getSpaces: vi.fn(() => Promise.resolve([] as unknown[])),
+  getResourceTypes: vi.fn(() =>
+    Promise.resolve([
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+    ] as unknown[]),
+  ),
+  getResources: vi.fn((_filter?: { resourceTypeKey?: string }) =>
+    Promise.resolve({ data: [] as unknown[] }),
+  ),
   createRequest: vi.fn(() => Promise.resolve({} as unknown)),
   moveRequest: vi.fn(() => Promise.resolve({} as unknown)),
+  updateRequest: vi.fn(() => Promise.resolve({} as unknown)),
 }));
 vi.mock("@foundation/src/lib/api/criteria-api", () => ({
   getCriteria: apiMocks.getCriteria,
@@ -36,12 +44,17 @@ vi.mock("@foundation/src/lib/api/request-api", () => ({
   getRequestChildren: apiMocks.getRequestChildren,
   createRequest: apiMocks.createRequest,
   moveRequest: apiMocks.moveRequest,
+  updateRequest: apiMocks.updateRequest,
 }));
 vi.mock("@foundation/src/lib/api/template-api", () => ({
   getTemplates: apiMocks.getTemplates,
 }));
-vi.mock("@foundation/src/lib/api/space-api", () => ({
-  getSpaces: apiMocks.getSpaces,
+vi.mock("@foundation/src/lib/api/resource-types-api", () => ({
+  getResourceTypes: apiMocks.getResourceTypes,
+  deleteResourceType: vi.fn(),
+}));
+vi.mock("@foundation/src/lib/api/resources-api", () => ({
+  getResources: apiMocks.getResources,
 }));
 
 // --- Stub the heavy section children so the test targets the orchestrator ------
@@ -275,9 +288,13 @@ beforeEach(() => {
   apiMocks.getCriteria.mockResolvedValue([]);
   apiMocks.getRequestChildren.mockResolvedValue([]);
   apiMocks.getTemplates.mockResolvedValue([]);
-  apiMocks.getSpaces.mockResolvedValue([]);
+  apiMocks.getResourceTypes.mockResolvedValue([
+    { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+  ]);
+  apiMocks.getResources.mockResolvedValue({ data: [] });
   apiMocks.createRequest.mockResolvedValue({});
   apiMocks.moveRequest.mockResolvedValue({});
+  apiMocks.updateRequest.mockResolvedValue({});
 });
 
 describe("RequestFormDialog", () => {
@@ -536,14 +553,90 @@ describe("RequestFormDialog", () => {
   });
 
   it("lets a leaf request pick a space on the Resources tab", async () => {
-    apiMocks.getSpaces.mockResolvedValue([
-      { id: "space-1", name: "Main Hall" },
-    ]);
+    apiMocks.getResources.mockResolvedValue({
+      data: [{ id: "space-1", name: "Main Hall" }],
+    });
     renderDialog();
-    // Wait for the spaces to load before opening the Resources tab.
-    await waitFor(() => expect(apiMocks.getSpaces).toHaveBeenCalled());
     await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
-    expect(screen.getByText("Space")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("combobox", { name: "Space" }));
+    expect(await screen.findByRole("option", { name: "Main Hall" })).toBeInTheDocument();
+  });
+
+  it("renders one picker per targeted resource type", async () => {
+    apiMocks.getResourceTypes.mockResolvedValue([
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+      { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
+    ]);
+    renderDialog({
+      request: {
+        ...EXISTING,
+        assignments: [],
+        targetResourceTypeKeys: ["space", "tool"],
+      } as Request,
+    });
+    await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
+    expect(await screen.findByRole("combobox", { name: "Space" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Tool" })).toBeInTheDocument();
+  });
+
+  it("saves every targeted type's pick in one call", async () => {
+    // The property this contract exists for: picks for several types go out together, so a
+    // failure cannot leave the request holding a room but not the van it also needs.
+    apiMocks.getResourceTypes.mockResolvedValue([
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+      { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
+    ]);
+    // Each picker queries its own type, so the mock answers per resourceTypeKey.
+    apiMocks.getResources.mockImplementation((filter) =>
+      Promise.resolve({
+        data:
+          filter?.resourceTypeKey === "tool"
+            ? [{ id: "tool-1", name: "Drill" }]
+            : [{ id: "space-1", name: "Main Hall" }],
+      }),
+    );
+    const { onSave } = renderDialog({
+      request: {
+        ...EXISTING,
+        assignments: [],
+        targetResourceTypeKeys: ["space", "tool"],
+      } as Request,
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
+    await userEvent.click(await screen.findByRole("combobox", { name: "Space" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Main Hall" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Tool" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Drill" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceIds: ["space-1", "tool-1"] }),
+    );
+  });
+
+  it("says why a picker is empty instead of offering an empty list", async () => {
+    // A dropdown holding only "none" reads as "I chose none", not "there are none". A
+    // tenant-defined type starts with zero resources, so this is the common first experience.
+    apiMocks.getResourceTypes.mockResolvedValue([
+      { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
+    ]);
+    apiMocks.getResources.mockResolvedValue({ data: [] });
+    renderDialog({
+      request: {
+        ...EXISTING,
+        assignments: [],
+        siteId: undefined,
+        targetResourceTypeKeys: ["tool"],
+      } as Request,
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
+
+    expect(await screen.findByText(/No active tool yet/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Tool" })).toBeDisabled();
   });
 
   it("toggles scheduling settings and changes the duration unit", async () => {
@@ -638,7 +731,8 @@ describe("RequestFormDialog", () => {
         planningMode: "summary",
         startTs: undefined,
         endTs: undefined,
-        resourceId: undefined,
+        // A group holds no resources of its own; the picks belong to its leaves.
+        resourceIds: undefined,
       }),
     );
   });

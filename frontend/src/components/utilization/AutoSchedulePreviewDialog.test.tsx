@@ -35,7 +35,7 @@ const mockPreview: AutoSchedulePreviewResponse = {
     {
       requestId: 'r-3',
       requestName: 'Task Gamma',
-      reasonCodes: ['NoCompatibleSpace'],
+      reasonCodes: ['NoCompatibleResource'],
     },
   ],
   diagnostics: ['Solver completed in 1.2s'],
@@ -114,7 +114,7 @@ describe('AutoSchedulePreviewDialog', () => {
     renderDialog();
     expect(screen.getByText('Unscheduled (1)')).toBeInTheDocument();
     expect(screen.getByText(/Task Gamma/)).toBeInTheDocument();
-    expect(screen.getByText(/No compatible space/)).toBeInTheDocument();
+    expect(screen.getByText(/No compatible resource/)).toBeInTheDocument();
   });
 
   it('renders diagnostics when present', () => {

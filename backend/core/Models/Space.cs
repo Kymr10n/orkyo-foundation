@@ -79,6 +79,27 @@ public record SpaceInfo
     public int Capacity { get; init; } = 1;
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+
+    /// <summary>
+    /// Projects a placeable resource onto the published space shape. A space is a resource whose
+    /// type declares geometry, so this is a rename of fields rather than a lookup: SiteId is the
+    /// home site, and the caller has already scoped its read to resources that have one.
+    /// </summary>
+    public static SpaceInfo FromResource(ResourceInfo resource) => new()
+    {
+        Id = resource.Id,
+        SiteId = resource.HomeSiteId!.Value,
+        Name = resource.Name,
+        Code = resource.Code,
+        Description = resource.Description,
+        IsPhysical = resource.IsPhysical,
+        Geometry = resource.Geometry,
+        Properties = resource.Properties,
+        GroupId = resource.GroupId,
+        Capacity = resource.Capacity,
+        CreatedAt = resource.CreatedAt,
+        UpdatedAt = resource.UpdatedAt,
+    };
 }
 
 /// <summary>

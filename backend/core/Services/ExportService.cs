@@ -12,7 +12,7 @@ namespace Api.Services;
 public class ExportService : IExportService
 {
     private readonly ISiteRepository _siteRepo;
-    private readonly ISpaceRepository _spaceRepo;
+    private readonly IResourceRepository _resourceRepo;
     private readonly ICriteriaRepository _criteriaRepo;
     private readonly IResourceGroupRepository _resourceGroupRepo;
     private readonly ITemplateRepository _templateRepo;
@@ -25,7 +25,7 @@ public class ExportService : IExportService
 
     public ExportService(
         ISiteRepository siteRepo,
-        ISpaceRepository spaceRepo,
+        IResourceRepository resourceRepo,
         ICriteriaRepository criteriaRepo,
         IResourceGroupRepository resourceGroupRepo,
         ITemplateRepository templateRepo,
@@ -37,7 +37,7 @@ public class ExportService : IExportService
         ICurrentTenant currentTenant)
     {
         _siteRepo = siteRepo;
-        _spaceRepo = spaceRepo;
+        _resourceRepo = resourceRepo;
         _criteriaRepo = criteriaRepo;
         _resourceGroupRepo = resourceGroupRepo;
         _templateRepo = templateRepo;
@@ -142,7 +142,7 @@ public class ExportService : IExportService
     {
         // Bulk-fetch all per-site data up front (was N+1: three queries per site plus one per space).
         var siteIds = sites.Select(s => s.Id).ToList();
-        var spacesBySite = await _spaceRepo.GetBySitesAsync(siteIds);
+        var spacesBySite = await _resourceRepo.GetPlaceableBySitesAsync(siteIds);
         var settingsBySite = await _schedulingRepo.GetSettingsBySitesAsync(siteIds);
         var eventsBySite = await _availabilityEventRepo.GetBySitesAsync(siteIds);
         var capsByResource = (await _capabilityRepo.GetByResourcesAsync(
@@ -271,7 +271,7 @@ public class ExportService : IExportService
         var allowedResourceIds = new HashSet<Guid>();
 
         // Bulk-fetch spaces for all sites in one query (was one query per site).
-        var spacesBySite = await _spaceRepo.GetBySitesAsync(sites.Select(s => s.Id).ToList());
+        var spacesBySite = await _resourceRepo.GetPlaceableBySitesAsync(sites.Select(s => s.Id).ToList());
 
         foreach (var site in sites)
         {
@@ -287,7 +287,7 @@ public class ExportService : IExportService
         var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true);
 
         return allRequests
-            .Select(r => (Request: r, SpaceResourceId: r.GetSpaceResourceId()))
+            .Select(r => (Request: r, SpaceResourceId: r.GetResourceIdForType(ResourceTypeKeys.Space)))
             .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>

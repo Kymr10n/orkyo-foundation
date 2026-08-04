@@ -39,12 +39,18 @@ import {
   deleteAnnouncement,
 } from '@foundation/src/lib/api/announcement-api';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 /** Selectable delivery channels for new announcements (label + hint). */
 const CHANNEL_OPTIONS: { value: AnnouncementChannel; label: string; hint: string }[] = [
   { value: 'site', label: 'In-app', hint: 'Shows in the notification center.' },
   { value: 'email', label: 'Email', hint: 'Sends to all registered users.' },
 ];
+
+/** Derived status shown in the Status column — shared by the badge cell and its facet. */
+function announcementStatus(a: Announcement): 'Expired' | 'Important' | 'Active' {
+  return a.isExpired ? 'Expired' : a.isImportant ? 'Important' : 'Active';
+}
 
 // ============================================================================
 // Main Tab
@@ -96,6 +102,7 @@ export function AnnouncementsTab() {
     {
       accessorKey: 'title',
       header: 'Title',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => {
         const a = row.original;
         return (
@@ -110,12 +117,14 @@ export function AnnouncementsTab() {
     },
     {
       id: 'status',
+      accessorFn: (a) => announcementStatus(a),
       header: 'Status',
+      meta: { filter: { type: 'enum' } },
       cell: ({ row }) => {
-        const a = row.original;
-        return a.isExpired ? (
+        const status = announcementStatus(row.original);
+        return status === 'Expired' ? (
           <Badge variant="secondary">Expired</Badge>
-        ) : a.isImportant ? (
+        ) : status === 'Important' ? (
           <Badge variant="destructive">Important</Badge>
         ) : (
           <Badge>Active</Badge>
@@ -124,7 +133,9 @@ export function AnnouncementsTab() {
     },
     {
       id: 'created',
+      accessorFn: (a) => a.createdAt,
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => {
         const a = row.original;
         return (
@@ -137,7 +148,9 @@ export function AnnouncementsTab() {
     },
     {
       id: 'expires',
+      accessorFn: (a) => a.expiresAt,
       header: 'Expires',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className={`text-sm text-muted-foreground whitespace-nowrap ${row.original.isExpired ? 'opacity-50' : ''}`}>
           {formatDateDisplay(row.original.expiresAt)}
@@ -184,6 +197,9 @@ export function AnnouncementsTab() {
       },
     },
   ];
+
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('ann', columns);
 
   // Phone presentation: title + status/dates stacked, edit/delete trailing.
   const renderCard = (a: Announcement) => (
@@ -263,10 +279,10 @@ export function AnnouncementsTab() {
           </div>
 
           <OrkyoDataTable
+            {...tableUrlState}
+            onRowClick={(a) => setEditingAnnouncement(a)}
             columns={columns}
             data={announcements}
-            filterColumn="title"
-            filterPlaceholder="Search announcements…"
             emptyMessage="No announcements yet. Create one to get started."
             renderCard={renderCard}
           />

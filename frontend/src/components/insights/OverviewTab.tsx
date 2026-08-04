@@ -30,8 +30,15 @@ export function OverviewTab() {
           <KpiCard label="Scheduled" value={String(o.requests.scheduled)} />
           <KpiCard label="Unscheduled" value={String(o.requests.unscheduled)} />
           <KpiCard label="Conflicts" value={String(o.conflicts.total)} hint={`${o.conflicts.overbooking} overbooking`} />
-          <KpiCard label="Space utilization" value={pct(o.utilization.spacesPercent)} />
-          <KpiCard label="People utilization" value={pct(o.utilization.peoplePercent)} />
+          {/* One card per resource type the tenant has, so a type can never be silently
+              missing from the dashboard. */}
+          {o.utilization.byResourceType.map((u) => (
+            <KpiCard
+              key={u.resourceTypeKey}
+              label={`${u.displayNamePlural} utilization`}
+              value={pct(u.percent)}
+            />
+          ))}
         </div>
       ) : null}
 

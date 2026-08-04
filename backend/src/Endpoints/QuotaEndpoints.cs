@@ -29,7 +29,7 @@ public static class QuotaEndpoints
         ICurrentTenant currentTenant,
         IDbConnectionFactory db,
         ISiteRepository siteRepository,
-        ISpaceRepository spaceRepository,
+        IResourceRepository resourceRepository,
         IAssetRepository assetRepository,
         IQuotaEnforcer quotaEnforcer,
         IFeatureGate featureGate,
@@ -50,7 +50,7 @@ public static class QuotaEndpoints
         }
 
         var sitesUsed = (long)await siteRepository.GetEstimatedCountAsync(ct);
-        var spacesUsed = (long)await spaceRepository.GetEstimatedCountAsync(ct);
+        var spacesUsed = (long)await resourceRepository.GetPlaceableCountAsync(ct);
         var storageUsed = await assetRepository.GetTotalSizeBytesAsync(tenantId, ct);
 
         // ── Limits (edition-specific via IQuotaEnforcer / IFeatureGate) ───────

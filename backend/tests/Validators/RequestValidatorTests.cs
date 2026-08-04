@@ -269,13 +269,13 @@ public class RequestValidatorTests
     }
 
     [Fact]
-    public void Create_SummaryWithSpace_Fails()
+    public void Create_SummaryWithResources_Fails()
     {
         var request = new CreateRequestRequest
         {
             Name = "Summary Node",
             PlanningMode = PlanningMode.Summary,
-            ResourceId = Guid.NewGuid(),
+            ResourceIds = [Guid.NewGuid()],
             MinimalDurationValue = 60,
             MinimalDurationUnit = DurationUnit.Minutes
         };
@@ -283,7 +283,7 @@ public class RequestValidatorTests
         var result = _createValidator.Validate(request);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("Summary requests cannot have a resourceId"));
+        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("Summary requests cannot have resources"));
     }
 
     [Fact]

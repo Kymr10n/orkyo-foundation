@@ -1,11 +1,33 @@
+using System.Text.Json;
+
 namespace Api.Models;
 
 public record ResourceTypeInfo
 {
     public required Guid Id { get; init; }
     public required string Key { get; init; }
+    /// <summary>Singular — labels one resource ("Edit Car", a request's Tool slot).</summary>
     public required string DisplayName { get; init; }
+    /// <summary>Plural — labels a collection (sidebar entry, utilization tab, page title).</summary>
+    public required string DisplayNamePlural { get; init; }
     public string? Description { get; init; }
+    /// <summary>lucide-react icon name; the frontend falls back to a default when null or unrecognised.</summary>
+    public string? Icon { get; init; }
+    /// <summary>
+    /// Resources of this type can be placed on a floorplan: they carry a code, geometry and a
+    /// capacity, and a site owns them. Replaces the hard-coded key = 'space' test.
+    /// </summary>
+    public required bool HasGeometry { get; init; }
+    /// <summary>
+    /// Resources of this type carry directory details — email, job title, department, a linked
+    /// user account. Replaces the hard-coded key = 'person' test.
+    /// </summary>
+    public required bool HasDirectoryProfile { get; init; }
+    /// <summary>
+    /// A resource of this type belongs to at most one group. Enforced in the database by
+    /// enforce_single_group_membership().
+    /// </summary>
+    public required bool SingleGroupMembership { get; init; }
     public required bool IsSystem { get; init; }
     public required bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -35,8 +57,48 @@ public record ResourceInfo
     /// <summary>Whether the resource may be assigned to requests at another site.</summary>
     public bool CrossSiteAllowed { get; init; } = true;
 
+    // Placement. Only types declaring HasGeometry can carry these; for every other type they
+    // hold the column defaults, because a resource that cannot be put on a floorplan has no
+    // code, no shape and no seats.
+    /// <summary>Short identifier, unique within the resource's home site.</summary>
+    public string? Code { get; init; }
+    /// <summary>Occupies real floor area, so it must carry geometry (the DB CHECK enforces the pair).</summary>
+    public bool IsPhysical { get; init; }
+    public SpaceGeometry? Geometry { get; init; }
+    public Dictionary<string, object>? Properties { get; init; }
+    public int Capacity { get; init; } = 1;
+    /// <summary>The group this resource belongs to. Single-valued because placeable types declare
+    /// SingleGroupMembership; for a type that does not, the read reports one arbitrary membership.</summary>
+    public Guid? GroupId { get; init; }
+
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+}
+
+public record CreateResourceTypeRequest
+{
+    public required string Key { get; init; }
+    public required string DisplayName { get; init; }
+    public required string DisplayNamePlural { get; init; }
+    public string? Description { get; init; }
+    public string? Icon { get; init; }
+    public bool HasGeometry { get; init; }
+    public bool HasDirectoryProfile { get; init; }
+    public bool SingleGroupMembership { get; init; }
+}
+
+public record UpdateResourceTypeRequest
+{
+    public string? DisplayName { get; init; }
+    public string? DisplayNamePlural { get; init; }
+    /// <summary>NULL leaves the flag as it is. Rejected for system types, whose behaviour the
+    /// product's own pages depend on.</summary>
+    public bool? HasGeometry { get; init; }
+    public bool? HasDirectoryProfile { get; init; }
+    public bool? SingleGroupMembership { get; init; }
+    public string? Description { get; init; }
+    public string? Icon { get; init; }
+    public bool? IsActive { get; init; }
 }
 
 public record CreateResourceRequest
@@ -50,6 +112,14 @@ public record CreateResourceRequest
 
     public Guid? HomeSiteId { get; init; }
     public bool CrossSiteAllowed { get; init; } = true;
+
+    // Placement — rejected unless the named type declares HasGeometry.
+    public string? Code { get; init; }
+    public bool IsPhysical { get; init; }
+    public SpaceGeometry? Geometry { get; init; }
+    public Dictionary<string, object>? Properties { get; init; }
+    public int Capacity { get; init; } = 1;
+
 }
 
 public record UpdateResourceRequest
@@ -63,6 +133,15 @@ public record UpdateResourceRequest
 
     public Guid? HomeSiteId { get; init; }
     public bool? CrossSiteAllowed { get; init; }
+
+    // Placement — rejected unless the resource's type declares HasGeometry. IsPhysical is absent
+    // deliberately: flipping it would have to add or remove geometry in the same statement to
+    // satisfy resources_physical_has_geometry_check, so it is a create-time decision.
+    public string? Code { get; init; }
+    public SpaceGeometry? Geometry { get; init; }
+    public Dictionary<string, object>? Properties { get; init; }
+    public int? Capacity { get; init; }
+
 }
 
 public record ResourceListFilter

@@ -23,4 +23,5 @@ export { getTenantMemberships, canCreateTenant, createTenant, getStarterTemplate
 export * from "./user-api";
 export * from "./utilization-api";
 export * from "./resources-api";
+export * from "./resource-types-api";
 export * from "./person-profiles-api";

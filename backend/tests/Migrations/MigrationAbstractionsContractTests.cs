@@ -1,4 +1,5 @@
 using Orkyo.Migrations.Abstractions;
+using Orkyo.Migrator;
 
 namespace Orkyo.Foundation.Tests.Migrations;
 
@@ -47,8 +48,8 @@ public sealed class MigrationAbstractionsContractTests
     public void MigrationScript_RecordEquality_ConsidersAllFields()
     {
         var deps = new[] { "V001__init" };
-        var a = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", deps);
-        var b = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", deps);
+        var a = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", deps, []);
+        var b = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", deps, []);
 
         a.Should().Be(b, "records must compare by value for the dedup logic in the runner");
     }
@@ -57,7 +58,7 @@ public sealed class MigrationAbstractionsContractTests
     public void MigrationScript_DiffersWhenChecksumDiffers()
     {
         var deps = Array.Empty<string>();
-        var a = new MigrationScript("V002__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc", deps);
+        var a = new MigrationScript("V002__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc", deps, []);
         var b = a with { Checksum = "abd" };
 
         a.Should().NotBe(b);
@@ -66,11 +67,51 @@ public sealed class MigrationAbstractionsContractTests
     [Fact]
     public void MigrationResult_FailedRecordCarriesErrorMessage()
     {
-        var script = new MigrationScript("V001__x", "m", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "x", Array.Empty<string>());
+        var script = new MigrationScript("V001__x", "m", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "x", Array.Empty<string>(), Array.Empty<string>());
         var result = new MigrationResult(script, MigrationOutcome.Failed, ExecutionMs: 12, ErrorMessage: "boom");
 
         result.Outcome.Should().Be(MigrationOutcome.Failed);
         result.ErrorMessage.Should().Be("boom");
         result.ExecutionMs.Should().Be(12);
+    }
+
+    // ── superseded checksums ──────────────────────────────────────────────────
+    // Applied migrations are immutable, and an unannounced edit must still fail. The one
+    // sanctioned exception is a file that names the exact hash it replaces.
+
+    [Fact]
+    public void SupersededChecksums_DefaultToEmpty_SoOrdinaryScriptsStayImmutable()
+    {
+        var script = new MigrationScript(
+            "V001__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc",
+            Array.Empty<string>(), Array.Empty<string>());
+
+        script.SupersededChecksums.Should().BeEmpty();
+    }
+
+    // Declared hashes are normalized to lowercase: stored checksums are lowercase hex and the
+    // comparison is ordinal, so an uppercase declaration would parse and then never match —
+    // the author would meet a drift error naming the very hash their file declares.
+    [Theory]
+    [InlineData("-- @supersedes-checksum: a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]
+    [InlineData("--@supersedes-checksum:A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]
+    [InlineData("   -- @supersedes-checksum:   a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90   ", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]
+    public void SupersedesDirective_IsParsedFromTheFile(string line, string expected)
+    {
+        var found = EmbeddedSqlLoader.ParseSupersededChecksums($"{line}\nSELECT 1;");
+
+        found.Should().ContainSingle().Which.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("SELECT 1; -- @supersedes-checksum: a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]  // not a whole-line comment
+    [InlineData("-- supersedes-checksum: a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")]             // missing the @
+    [InlineData("-- @supersedes-checksum: not-hex-zz")]
+    [InlineData("-- @supersedes-checksum: a1b2c3")]         // too short to be a real digest
+    public void NonDirectiveLines_AreIgnored(string line)
+    {
+        var found = EmbeddedSqlLoader.ParseSupersededChecksums($"{line}\nSELECT 1;");
+
+        found.Should().BeEmpty();
     }
 }

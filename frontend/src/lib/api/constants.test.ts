@@ -4,7 +4,7 @@ import {
   DEFAULT_END_TIME,
   DEFAULT_DURATION_VALUE,
   DEFAULT_DURATION_UNIT,
-  SPACE_NONE_PLACEHOLDER,
+  RESOURCE_NONE_PLACEHOLDER,
   VALIDATION_MESSAGES,
 } from '@foundation/src/constants';
 
@@ -39,14 +39,14 @@ describe('Constants', () => {
   });
 
   describe('Form placeholders', () => {
-    it('should have space none placeholder', () => {
-      expect(SPACE_NONE_PLACEHOLDER).toBe('__none__');
-      expect(SPACE_NONE_PLACEHOLDER).not.toBe('');
+    it('should have a resource none placeholder', () => {
+      expect(RESOURCE_NONE_PLACEHOLDER).toBe('__none__');
+      expect(RESOURCE_NONE_PLACEHOLDER).not.toBe('');
     });
 
     it('should be a string that cannot be a valid UUID', () => {
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      expect(SPACE_NONE_PLACEHOLDER).not.toMatch(uuidPattern);
+      expect(RESOURCE_NONE_PLACEHOLDER).not.toMatch(uuidPattern);
     });
   });
 

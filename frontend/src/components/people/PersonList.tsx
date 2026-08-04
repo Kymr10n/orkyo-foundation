@@ -7,13 +7,25 @@ import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Plus, Pencil, Trash2, Sliders, CalendarOff } from 'lucide-react';
 import { PersonEditDialog } from './PersonEditDialog';
 import { PersonSkillsEditor } from './PersonSkillsEditor';
-import { PersonAbsenceList } from './PersonAbsenceList';
+import { ResourceAbsenceList } from '../resources/ResourceAbsenceList';
 import { getResources, deleteResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfiles, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+
+/**
+ * A person resource enriched with its profile fields, so table columns can read
+ * them via accessors (which is what makes them sortable/filterable) instead of
+ * closing over the profile map.
+ */
+type PersonRow = ResourceInfo & {
+  email: string;
+  jobTitle: string;
+  department: string;
+};
 
 export function PersonList() {
   const canEdit = useCanEdit();
@@ -50,6 +62,21 @@ export function PersonList() {
     for (const p of profiles) map[p.resourceId] = p;
     return map;
   }, [profiles]);
+
+  // Merge profile fields onto the rows so columns read them via accessors.
+  const rows = useMemo<PersonRow[]>(
+    () =>
+      personRows.map((p) => {
+        const profile = profileByPersonId[p.id];
+        return {
+          ...p,
+          email: profile?.email ?? '',
+          jobTitle: profile?.jobTitleName ?? '',
+          department: profile?.departmentPath ?? '',
+        };
+      }),
+    [personRows, profileByPersonId],
+  );
 
   const queryClient = useQueryClient();
 
@@ -96,31 +123,33 @@ export function PersonList() {
     />
   );
 
-  // profileByPersonId is rebuilt when the batched profiles query resolves, so
-  // columns must also rebuild each render to close over the latest snapshot.
-  const columns: ColumnDef<ResourceInfo>[] = [
+  const columns: ColumnDef<PersonRow>[] = [
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
     },
     {
-      id: 'email',
+      accessorKey: 'email',
       header: 'Email',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-muted-foreground">
-          {profileByPersonId[row.original.id]?.email ?? '-'}
+          {row.original.email || '-'}
         </span>
       ),
     },
     {
-      id: 'jobTitle',
+      accessorKey: 'jobTitle',
       header: 'Job Title',
-      cell: ({ row }) => profileByPersonId[row.original.id]?.jobTitleName ?? '-',
+      meta: { filter: { type: 'enum' } },
+      cell: ({ row }) => row.original.jobTitle || '-',
     },
     {
-      id: 'department',
+      accessorKey: 'department',
       header: 'Department',
-      cell: ({ row }) => profileByPersonId[row.original.id]?.departmentPath ?? '-',
+      meta: { filter: { type: 'enum' } },
+      cell: ({ row }) => row.original.department || '-',
     },
     {
       id: 'actions',
@@ -131,14 +160,13 @@ export function PersonList() {
   ];
 
   // Phone presentation: name + contact stacked, actions trailing.
-  const renderCard = (person: ResourceInfo) => {
-    const profile = profileByPersonId[person.id];
-    const subtitle = [profile?.jobTitleName, profile?.departmentPath].filter(Boolean).join(' · ');
+  const renderCard = (person: PersonRow) => {
+    const subtitle = [person.jobTitle, person.department].filter(Boolean).join(' · ');
     return (
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-0.5">
           <p className="font-medium truncate">{person.name}</p>
-          <p className="text-sm text-muted-foreground truncate">{profile?.email ?? '-'}</p>
+          <p className="text-sm text-muted-foreground truncate">{person.email || '-'}</p>
           <p className="text-xs text-muted-foreground truncate">{subtitle || '-'}</p>
         </div>
         {renderActions(person)}
@@ -147,6 +175,9 @@ export function PersonList() {
   };
 
   const queryErrorMsg = error instanceof Error ? error.message : error ? String(error) : null;
+
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('people', columns);
 
   return (
     <div className="space-y-4">
@@ -158,8 +189,9 @@ export function PersonList() {
       </div>
 
       <OrkyoDataTable
+        {...tableUrlState}
         columns={columns}
-        data={personRows}
+        data={rows}
         isLoading={isLoading}
         error={queryErrorMsg}
         onRetry={() => refetch()}
@@ -170,8 +202,6 @@ export function PersonList() {
             Add Person
           </Button>
         }
-        filterColumn="name"
-        filterPlaceholder="Search people..."
         pageSize={25}
         onRowClick={handleEdit}
         renderCard={renderCard}
@@ -189,16 +219,16 @@ export function PersonList() {
           open={!!skillsPerson}
           onOpenChange={(open) => !open && setSkillsPerson(null)}
           resourceId={skillsPerson.id}
-          personName={skillsPerson.name}
+          resourceName={skillsPerson.name}
         />
       )}
 
       {absencePerson && (
-        <PersonAbsenceList
+        <ResourceAbsenceList
           open={!!absencePerson}
           onOpenChange={(open) => !open && setAbsencePerson(null)}
-          personId={absencePerson.id}
-          personName={absencePerson.name}
+          resourceId={absencePerson.id}
+          resourceName={absencePerson.name}
         />
       )}
 

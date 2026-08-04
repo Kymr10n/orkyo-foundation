@@ -13,8 +13,8 @@ public static class InsightsBuckets
     public static readonly IReadOnlySet<string> ValidBuckets =
         new HashSet<string>(StringComparer.Ordinal) { "week", "month", "quarter", "year" };
 
-    public static readonly IReadOnlySet<string> ValidResourceTypes =
-        new HashSet<string>(StringComparer.Ordinal) { "space", "person", "tool" };
+    // Resource types are deliberately NOT listed here. They are tenant data (the resource_types
+    // table), so the only correct validation is a lookup — see InsightsEndpoints.ValidateResourceTypeAsync.
 
     /// <summary>
     /// Maximum span per bucket (doc 03) — prevents unbounded analytics scans. Expressed in days,

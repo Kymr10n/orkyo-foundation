@@ -18,6 +18,11 @@ public static class CriteriaMapper
             enumValues = JsonSerializer.Deserialize<List<string>>(enumValuesJson);
         }
 
+        var validationJson = reader.GetNullableString("validation_json");
+        JsonElement? validation = validationJson is null
+            ? null
+            : JsonDocument.Parse(validationJson).RootElement.Clone();
+
         // resource_type_keys is a text[] aggregate (see CriteriaRepository.SelectColumns).
         var keysOrdinal = reader.GetOrdinal("resource_type_keys");
         var resourceTypeKeys = reader.IsDBNull(keysOrdinal)
@@ -32,6 +37,7 @@ public static class CriteriaMapper
             DataType = dataType,
             EnumValues = enumValues,
             Unit = reader.GetNullableString("unit"),
+            Validation = validation,
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),
             ApplicableToRequests = reader.GetBoolean("applicable_to_requests"),

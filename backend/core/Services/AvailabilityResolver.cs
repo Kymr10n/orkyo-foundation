@@ -8,9 +8,8 @@ namespace Api.Services;
 /// closing availability events (after applying scope-override precedence:
 /// resource > resource_group > resource_type > event.default_effect).
 ///
-/// Availability events only affect site-bound resources (spaces, site-bound equipment).
-/// People resources (no site FK in person_profiles) are governed exclusively by their
-/// resource absences.
+/// Availability events only affect resources anchored to a site. Resources without a home
+/// site are governed exclusively by their resource absences.
 /// </summary>
 public interface IAvailabilityResolver
 {

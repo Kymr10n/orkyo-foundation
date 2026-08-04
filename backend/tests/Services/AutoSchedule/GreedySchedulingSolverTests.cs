@@ -118,7 +118,7 @@ public class GreedySchedulingSolverTests
     {
         var rejectedId = Guid.NewGuid();
         var rejection = new CandidateRejection(
-            rejectedId, null, SchedulingReasonCode.NoCompatibleSpace);
+            rejectedId, null, SchedulingReasonCode.NoCompatibleResource);
 
         var result = await _solver.SolveAsync(
             MakeAnalyzed([], rejections: [rejection]),
@@ -127,7 +127,7 @@ public class GreedySchedulingSolverTests
         result.Unscheduled.Should().ContainSingle(u =>
             u.RequestId == rejectedId);
         result.Unscheduled[0].ReasonCodes.Should()
-            .Contain(SchedulingReasonCode.NoCompatibleSpace);
+            .Contain(SchedulingReasonCode.NoCompatibleResource);
     }
 
     [Fact]

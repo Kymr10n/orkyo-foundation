@@ -18,12 +18,10 @@ public static class TenantReset
     private static readonly string[] TablesToTruncate =
     [
         "sites",
-        "spaces",
         "space_groups",          // alias of resource_groups in older schemas
         "resource_groups",
         "resource_group_members",
-        "resources",
-        "person_profiles",
+        "resources",             // also carries the folded spaces / person_profiles columns (1700)
         "departments",
         "job_titles",
         "criteria",

@@ -82,15 +82,17 @@ public static class FloorplanFactory
             await assetWriter.CompleteAsync();
         }
 
-        // ── Spaces: resources first (shared UUID), then the spaces subtype rows ─────
+        // ── Spaces: plain resources — site, code, geometry and the rest are columns (migration 1700) ─
         var spaces = new List<SpaceFactories.SeededSpace>(fixtures.Sum(f => f.Rooms.Count));
 
         using (var resourceWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) " +
+            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, " +
+            "home_site_id, code, is_physical, geometry, properties, capacity, created_at, updated_at) " +
             "FROM STDIN (FORMAT BINARY)"))
         {
             for (var s = 0; s < fixtures.Count; s++)
             {
+                var site = sites[s];
                 foreach (var room in fixtures[s].Rooms)
                 {
                     var id = Guid.NewGuid();
@@ -101,38 +103,18 @@ public static class FloorplanFactory
                     await resourceWriter.WriteAsync(room.AllocationMode, NpgsqlDbType.Varchar);
                     await resourceWriter.WriteAsync(100, NpgsqlDbType.Integer);
                     await resourceWriter.WriteAsync(true, NpgsqlDbType.Boolean);
+                    await resourceWriter.WriteAsync(site.Id, NpgsqlDbType.Uuid);        // home_site_id
+                    await resourceWriter.WriteAsync($"{site.Code}-{room.Code}", NpgsqlDbType.Varchar);
+                    await resourceWriter.WriteAsync(true, NpgsqlDbType.Boolean);        // is_physical
+                    await resourceWriter.WriteAsync(RectangleGeometryJson(room), NpgsqlDbType.Jsonb);
+                    await resourceWriter.WriteAsync("{}", NpgsqlDbType.Jsonb);          // properties
+                    await resourceWriter.WriteAsync(room.Capacity, NpgsqlDbType.Integer);
                     await resourceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
                     await resourceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                    spaces.Add(new SpaceFactories.SeededSpace(id, sites[s].Id, room.Name, room.Code));
+                    spaces.Add(new SpaceFactories.SeededSpace(id, site.Id, room.Name, room.Code));
                 }
             }
             await resourceWriter.CompleteAsync();
-        }
-
-        using (var spaceWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.spaces (id, site_id, code, is_physical, geometry, properties, capacity, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            var idx = 0;
-            for (var s = 0; s < fixtures.Count; s++)
-            {
-                var site = sites[s];
-                foreach (var room in fixtures[s].Rooms)
-                {
-                    var space = spaces[idx++];
-                    await spaceWriter.StartRowAsync();
-                    await spaceWriter.WriteAsync(space.Id, NpgsqlDbType.Uuid);
-                    await spaceWriter.WriteAsync(site.Id, NpgsqlDbType.Uuid);
-                    await spaceWriter.WriteAsync($"{site.Code}-{room.Code}", NpgsqlDbType.Varchar);
-                    await spaceWriter.WriteAsync(true, NpgsqlDbType.Boolean);          // is_physical
-                    await spaceWriter.WriteAsync(RectangleGeometryJson(room), NpgsqlDbType.Jsonb);
-                    await spaceWriter.WriteAsync("{}", NpgsqlDbType.Jsonb);             // properties
-                    await spaceWriter.WriteAsync(room.Capacity, NpgsqlDbType.Integer);
-                    await spaceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                    await spaceWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                }
-            }
-            await spaceWriter.CompleteAsync();
         }
 
         return new Result(sites, spaces, assetCount);

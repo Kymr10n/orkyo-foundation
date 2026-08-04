@@ -1,12 +1,11 @@
-import type { CriterionValue, ResourceTypeKey } from './criterion';
+import type { CriterionValue } from './criterion';
 
-export type { ResourceTypeKey };
 export type AssignmentStatus = 'Planned' | 'Confirmed' | 'Tentative' | 'Cancelled';
 
 export interface ResourceAssignment {
   id: string;
   resourceId: string;
-  resourceTypeKey: ResourceTypeKey;
+  resourceTypeKey: string;
   startUtc: string;
   endUtc: string;
   allocationPercent?: number | null;
@@ -82,6 +81,13 @@ export interface Request {
   // All resource assignments for this request
   assignments: ResourceAssignment[];
 
+  /**
+   * The resource types this request needs, one assignment each. Always sent by the backend
+   * (sorted); optional here only because older fixtures predate it — read it through
+   * `targetResourceTypeKeys()` so the space default is applied in one place.
+   */
+  targetResourceTypeKeys?: string[];
+
   // Display icon (string ID from REQUEST_ICONS, resolved on the FE)
   icon?: string | null;
 
@@ -140,8 +146,12 @@ export interface CreateRequestRequest {
   planningMode?: PlanningMode;
   sortOrder?: number;
   siteId?: string | null;
-  resourceId?: string;
+  /** One resource per targeted type. Sent together so a multi-type request cannot be left
+   *  half-assigned by a follow-up call failing. */
+  resourceIds?: string[];
   requestItemId?: string;
+  /** Omit to target spaces. An empty list is a real state: a request needing no resource. */
+  targetResourceTypeKeys?: string[];
   icon?: string | null;
   startTs?: string;
   endTs?: string;
@@ -170,8 +180,11 @@ export interface UpdateRequestRequest {
   siteId?: string | null;
   /** When true, a null siteId is applied (clears to "any site") rather than preserved. */
   changeSiteId?: boolean;
-  resourceId?: string;
+  /** One resource per targeted type, replacing whatever holds each type's slot. */
+  resourceIds?: string[];
   requestItemId?: string;
+  /** Omit to leave the targets untouched; a supplied list replaces them wholesale. */
+  targetResourceTypeKeys?: string[];
   icon?: string | null;
   startTs?: string;
   endTs?: string;
@@ -208,7 +221,8 @@ export interface RequestFormData {
   parentRequestId?: string;
   /** Site scope. null/undefined = site-neutral (Any site). */
   siteId?: string | null;
-  resourceId?: string;
+  resourceIds?: string[];
+  targetResourceTypeKeys: string[];
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;

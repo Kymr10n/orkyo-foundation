@@ -136,6 +136,7 @@ describe('Request payload builders — icon plumbing', () => {
     name: 'test',
     description: 'desc',
     planningMode: 'leaf',
+    targetResourceTypeKeys: ['space'],
     duration: { value: 1, unit: 'hours' },
     schedulingSettingsApply: true,
     requirements: [],

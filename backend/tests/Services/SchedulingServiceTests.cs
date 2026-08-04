@@ -17,6 +17,7 @@ public class SchedulingServiceTests
 {
     private readonly Mock<ISchedulingRepository> _schedulingRepo = new();
     private readonly Mock<IRequestRepository> _requestRepo = new();
+    private readonly Mock<IResourceRepository> _resourceRepo = new();
     private readonly Mock<IAvailabilityResolver> _resolver = new();
     private readonly SchedulingService _service;
 
@@ -24,8 +25,27 @@ public class SchedulingServiceTests
 
     public SchedulingServiceTests()
     {
+        // Working-hours resolution follows the first resource that cannot travel, so the
+        // default fixture is an immovable one (a space).
+        _resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
+                ids.Select(id => new ResourceInfo
+                {
+                    Id = id,
+                    ResourceTypeId = Guid.NewGuid(),
+                    ResourceTypeKey = ResourceTypeKeys.Space,
+                    Name = "Fixture",
+                    AllocationMode = AllocationModes.Exclusive,
+                    BaseAvailabilityPercent = 100,
+                    IsActive = true,
+                    CrossSiteAllowed = false,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                }).ToList());
+
         _service = new SchedulingService(
-            _schedulingRepo.Object, _requestRepo.Object, _resolver.Object, NullLogger<SchedulingService>.Instance);
+            _schedulingRepo.Object, _requestRepo.Object, _resourceRepo.Object, _resolver.Object,
+            NullLogger<SchedulingService>.Instance);
     }
 
     private static RequestInfo ExistingRequest(bool applyScheduling = true) => new()
@@ -37,6 +57,7 @@ public class SchedulingServiceTests
         SchedulingSettingsApply = applyScheduling,
         Requirements = new List<RequestRequirementInfo>(),
         Assignments = new List<ResourceAssignmentInfo>(),
+        TargetResourceTypeKeys = [ResourceTypeKeys.Space],
         MinimalDurationValue = 9,
         MinimalDurationUnit = DurationUnit.Hours,
         CreatedAt = DateTime.UtcNow,
@@ -53,7 +74,7 @@ public class SchedulingServiceTests
         // Window = 8h, minimal duration = 9h, scheduling settings on, a resource assigned.
         var request = new UpdateRequestRequest
         {
-            ResourceId = Guid.NewGuid(),
+            ResourceIds = [Guid.NewGuid()],
             StartTs = Start,
             EndTs = Start.AddHours(8),
             MinimalDurationValue = 9,
@@ -89,7 +110,7 @@ public class SchedulingServiceTests
         // No end provided → the service computes it from start + minimal duration (2h here).
         var request = new UpdateRequestRequest
         {
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = Start,
             EndTs = null,
             MinimalDurationValue = 2,

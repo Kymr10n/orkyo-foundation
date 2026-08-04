@@ -37,18 +37,15 @@ import type { RequirementEntry } from "@foundation/src/hooks/useRequestForm";
 import type { Conflict, DurationUnit, PlanningMode, Request, RequestFormData } from "@foundation/src/types/requests";
 import { ConflictBanner, conflictDotClass } from "./ConflictIndicator";
 import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator";
-import type { Space } from "@foundation/src/types/space";
 import { AlertTriangle, ChevronRight, FileText, Layers } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { useSpaces } from "@foundation/src/hooks/useSpaces";
 
 const EMPTY_CRITERIA: Criterion[] = [];
 const EMPTY_TEMPLATES: Template[] = [];
-const EMPTY_SPACES: Space[] = [];
 
 type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources' | 'children';
 
@@ -177,9 +174,6 @@ export function RequestFormDialog({
     }
     return map;
   }, [conflicts]);
-  const spaceConflicts = state.selectedResourceId
-    ? conflictsByResourceId.get(state.selectedResourceId) ?? []
-    : [];
   // Tab dot colour reflects the worst severity of conflicts owned by that tab
   // (error → red, warning-only → amber), matching the per-row indicators.
   const resourceConflictDot = conflictDotClass(conflicts.filter((c) => c.resourceId));
@@ -197,9 +191,7 @@ export function RequestFormDialog({
     queryFn: () => getTemplates('request'),
     enabled: open,
   });
-  const { data: availableSpaces = EMPTY_SPACES, isLoading: spacesLoading } =
-    useSpaces(open ? selectedSiteId : null);
-  const isLoading = criteriaLoading || templatesLoading || spacesLoading;
+  const isLoading = criteriaLoading || templatesLoading;
 
   // Additional state not managed by the form hook
   const [isSaving, setIsSaving] = useState(false);
@@ -297,6 +289,13 @@ export function RequestFormDialog({
   const isGroup = !isLeaf;
   const hasEditableSchedule = isLeaf;
   const hasEditableConstraints = isLeaf || isContainer;
+
+  // One id per targeted type that actually has a pick. Ordered by the target list so the
+  // payload is stable across saves; the backend routes each id by its own resource's type.
+  const pickedResourceIds = state.targetResourceTypeKeys
+    .map((key) => state.selectedResourceIds[key])
+    .filter((id): id is string => Boolean(id));
+
 
   // Tree-derived surfaces — only available when the caller passes the full tree.
   // Breadcrumb (ancestors), direct children (Children tab), and the group
@@ -618,7 +617,10 @@ export function RequestFormDialog({
       planningMode: state.planningMode,
       parentRequestId: state.parentRequestId || undefined,
       siteId: state.siteId || null,
-      resourceId: isLeaf ? (state.selectedResourceId || undefined) : undefined,
+      // Every pick travels with the save, so a request needing a room and a van is never
+      // left half-assigned by a second call failing.
+      resourceIds: isLeaf ? pickedResourceIds : undefined,
+      targetResourceTypeKeys: state.targetResourceTypeKeys,
       startTs: hasEditableSchedule ? startTs : undefined,
       endTs: hasEditableSchedule ? endTs : undefined,
       earliestStartTs: hasEditableConstraints ? earliestStartTs : undefined,
@@ -1102,10 +1104,9 @@ export function RequestFormDialog({
                   activeTab={activeTab}
                   state={state}
                   setField={setField}
-                  spaceConflicts={spaceConflicts}
-                  availableSpaces={availableSpaces}
                   readOnly={readOnly}
                   requestId={request?.id}
+                  siteId={state.siteId}
                   hasEditableSchedule={hasEditableSchedule}
                   onBlockersChange={setHasPeopleBlockers}
                   conflictsByResourceId={conflictsByResourceId}

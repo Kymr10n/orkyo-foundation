@@ -5,8 +5,8 @@ namespace Api.Services.AutoSchedule;
 
 /// <summary>
 /// CP-SAT constraint programming solver using Google OR-Tools.
-/// Models each request-space candidate as an optional interval variable,
-/// enforces no-overlap per space and at-most-one assignment per request,
+/// Models each request-resource candidate as an optional interval variable,
+/// enforces no-overlap per resource and at-most-one assignment per request,
 /// and maximizes a weighted objective (throughput → priority → early completion).
 /// </summary>
 public sealed class OrToolsSchedulingSolver : ISchedulingSolver
@@ -39,11 +39,11 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
         var horizonStart = problem.Problem.HorizonStart;
         var horizonLength = problem.Problem.HorizonEnd.DayNumber - horizonStart.DayNumber;
 
-        // Group candidates by request and by space
+        // Group candidates by request and by resource
         var candidatesByRequest = problem.Candidates.GroupBy(c => c.RequestId).ToList();
         var candidatesBySpace = problem.Candidates.GroupBy(c => c.ResourceId).ToList();
 
-        // Decision variables: one BoolVar per candidate (request → space assignment)
+        // Decision variables: one BoolVar per candidate (request → resource assignment)
         var candidateVars = new Dictionary<(Guid RequestId, Guid ResourceId), BoolVar>();
         var candidateStarts = new Dictionary<(Guid RequestId, Guid ResourceId), IntVar>();
         var candidateIntervals = new Dictionary<(Guid RequestId, Guid ResourceId), IntervalVar>();

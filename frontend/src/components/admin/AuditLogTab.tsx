@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+
 import { useAuditLogAvailable } from '@foundation/src/hooks/useAuditLogAvailable';
 import { getTenantAuditEvents, type TenantAuditEvent } from '@foundation/src/lib/api/audit-api';
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
@@ -42,36 +44,20 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
   const [events, setEvents] = useState<TenantAuditEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0); // OrkyoDataTable is 0-indexed
-  const [actionFilter, setActionFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getTenantAuditEvents({
-        page: page + 1, // API is 1-based
-        pageSize: PAGE_SIZE,
-        action: actionFilter || undefined,
-      });
-      setEvents(res.events);
-      setTotal(res.totalCount);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load audit log');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, actionFilter]);
-
-  useEffect(() => {
-    if (available) void load();
-  }, [available, load]);
-
+  // Server-mode headers: this table is a window onto thousands of rows, so filtering the
+  // visible page client-side would lie. Header filters only report state; the query below
+  // translates them to API params. Sorting stays off — the server's order is fixed (newest
+  // first) and offering a sort that silently reorders one page would mislead.
   const columns = useMemo<ColumnDef<TenantAuditEvent>[]>(() => [
     {
       accessorKey: 'createdAt',
       header: 'When',
+      enableSorting: false,
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-sm text-muted-foreground">
           {format(new Date(row.original.createdAt), DATE_FORMATS.DATETIME_MEDIUM)}
@@ -101,6 +87,8 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
     {
       accessorKey: 'action',
       header: 'Action',
+      enableSorting: false,
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => <span className="font-medium">{row.original.action}</span>,
     },
     {
@@ -118,6 +106,49 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
       },
     },
   ], []);
+
+  const urlState = useTableUrlState('audit', columns);
+  const { columnFilters } = urlState;
+
+  // Translate the header-filter state into the API's params. Kept as one memo so the load
+  // effect and the page-reset effect key on the same value.
+  const apiFilters = useMemo(() => {
+    const action = columnFilters.find((f) => f.id === 'action')?.value as string | undefined;
+    const range = columnFilters.find((f) => f.id === 'createdAt')?.value as
+      | [string?, string?]
+      | undefined;
+    return { action: action || undefined, from: range?.[0], to: range?.[1] };
+  }, [columnFilters]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getTenantAuditEvents({
+        page: page + 1, // API is 1-based
+        pageSize: PAGE_SIZE,
+        ...apiFilters,
+      });
+      setEvents(res.events);
+      setTotal(res.totalCount);
+      setLoadedOnce(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load audit log');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, apiFilters]);
+
+  useEffect(() => {
+    if (available) void load();
+  }, [available, load]);
+
+  // A page number only means something within one filtered set.
+  const filterSignature = JSON.stringify(apiFilters);
+  useEffect(() => {
+    setPage(0);
+
+  }, [filterSignature]);
 
   // Phone presentation: action + actor/target stacked, timestamp last. Read-only, no actions.
   const renderCard = (e: TenantAuditEvent) => {
@@ -162,13 +193,14 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
         <OrkyoDataTable
           columns={columns}
           data={events}
-          isLoading={loading}
+          // Skeletons only before anything has loaded. A header-filter keystroke refetches,
+          // and swapping the table for skeletons would unmount the open filter popover under
+          // the user's cursor; stale rows for a beat are the lesser evil.
+          isLoading={loading && !loadedOnce}
           error={error}
           onRetry={() => void load()}
           emptyMessage="No audit events yet."
-          filterValue={actionFilter}
-          onFilterChange={(v) => { setPage(0); setActionFilter(v); }}
-          filterPlaceholder="Filter by action…"
+          {...urlState}
           pageSize={PAGE_SIZE}
           totalCount={total}
           page={page}

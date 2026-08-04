@@ -92,6 +92,13 @@ public record RequestInfo
     /// </summary>
     public required IReadOnlyList<ResourceAssignmentInfo> Assignments { get; init; }
 
+    /// <summary>
+    /// The resource types this request needs — a room, a van and a technician are three
+    /// entries, each satisfied by its own assignment. Empty means the request needs no
+    /// resource, and so can never be scheduled.
+    /// </summary>
+    public required IReadOnlyList<string> TargetResourceTypeKeys { get; init; }
+
     // Display icon (short string ID resolved to a lucide-react icon on the frontend).
     public string? Icon { get; init; }
 
@@ -124,9 +131,14 @@ public record RequestInfo
     // Scheduling
     public required bool SchedulingSettingsApply { get; init; }
 
-    // Computed: scheduled when a Space resource is assigned and time window is set.
+    // Computed: scheduled when the time window is set and every targeted resource type has an
+    // assignment. Must stay in step with RequestRepository.FullyAssignedSql and
+    // analytics_request_summary_v — the same rule, evaluated in three places.
+    // The Count check is load-bearing: All() on an empty list is true, so a request targeting
+    // nothing would otherwise report itself scheduled while holding no resource.
     public bool IsScheduled => StartTs.HasValue && EndTs.HasValue
-        && Assignments.Any(a => a.ResourceTypeKey == ResourceTypeKeys.Space);
+        && TargetResourceTypeKeys.Count > 0
+        && TargetResourceTypeKeys.All(k => Assignments.Any(a => a.ResourceTypeKey == k));
 }
 
 /// <summary>
@@ -183,8 +195,19 @@ public record CreateRequestRequest
     /// <summary>Site scope. NULL = site-neutral (schedulable at any site).</summary>
     public Guid? SiteId { get; init; }
 
-    public Guid? ResourceId { get; init; }
+    /// <summary>
+    /// The resources to assign, at most one per targeted type. A list rather than a single
+    /// id because a request can need a room and a van at once, and saving those as separate
+    /// calls would leave the request half-assigned whenever the second one failed.
+    /// </summary>
+    public IReadOnlyList<Guid>? ResourceIds { get; init; }
     public string? RequestItemId { get; init; }
+
+    /// <summary>
+    /// The resource types this request needs. Omit to target spaces, which is what every
+    /// request meant before types were expressible and what migration 1720 backfilled.
+    /// </summary>
+    public IReadOnlyList<string>? TargetResourceTypeKeys { get; init; }
 
     public string? Icon { get; init; }
 
@@ -232,7 +255,18 @@ public record UpdateRequestRequest
     /// </summary>
     public bool ChangeSiteId { get; init; }
 
-    public Guid? ResourceId { get; init; }
+    /// <summary>
+    /// The resources to assign, at most one per targeted type. A list rather than a single
+    /// id because a request can need a room and a van at once, and saving those as separate
+    /// calls would leave the request half-assigned whenever the second one failed.
+    /// </summary>
+    public IReadOnlyList<Guid>? ResourceIds { get; init; }
+
+    /// <summary>
+    /// Replaces the request's target resource types. NULL leaves them untouched; an empty
+    /// list clears them, which makes the request unschedulable by design.
+    /// </summary>
+    public IReadOnlyList<string>? TargetResourceTypeKeys { get; init; }
     public string? RequestItemId { get; init; }
 
     public string? Icon { get; init; }
@@ -344,8 +378,10 @@ public record CandidateRequestInfo(
 public static class RequestInfoExtensions
 {
     /// <summary>
-    /// Gets the space resource ID from request assignments, if any.
+    /// The resource assigned for one of the request's target types, if any. A request holds at
+    /// most one per type — cancel-then-write in RequestRepository is what guarantees it — so
+    /// the caller must say which type it means rather than assuming there is only one.
     /// </summary>
-    public static Guid? GetSpaceResourceId(this RequestInfo r) =>
-        r.Assignments.FirstOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId;
+    public static Guid? GetResourceIdForType(this RequestInfo r, string resourceTypeKey) =>
+        r.Assignments.FirstOrDefault(a => a.ResourceTypeKey == resourceTypeKey)?.ResourceId;
 }

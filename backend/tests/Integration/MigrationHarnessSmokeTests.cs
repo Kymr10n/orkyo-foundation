@@ -48,20 +48,40 @@ public sealed class MigrationHarnessSmokeTests
     }
 
     [Fact]
-    public async Task TestTenant_ShouldContain_SpacesTable()
+    public async Task TestTenant_ShouldNotContain_PerTypeSideTables()
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await TableExistsAsync(conn, "spaces")).Should().BeTrue(
-            "tenant foundation migrations should create the spaces table");
+        (await TableExistsAsync(conn, "spaces")).Should().BeFalse(
+            "migration 1710 folds spaces into resources — a resource type must not need a table");
+        (await TableExistsAsync(conn, "person_profiles")).Should().BeFalse(
+            "migration 1710 folds person_profiles into resources");
     }
 
-    // Phase 1 - People Resources schema validation
     [Fact]
-    public async Task TestTenant_ShouldContain_PersonProfilesTable()
+    public async Task TestTenant_Resources_ShouldCarry_TheFoldedProfileColumns()
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await TableExistsAsync(conn, "person_profiles")).Should().BeTrue(
-            "People Resources migration (1400) should create the person_profiles table");
+        foreach (var column in new[]
+                 { "code", "is_physical", "geometry", "properties", "capacity",
+                   "email", "notes", "linked_user_id", "job_title_id", "department_id" })
+        {
+            (await ColumnExistsAsync(conn, "resources", column)).Should().BeTrue(
+                $"migration 1700 should move {column} onto resources");
+        }
+    }
+
+    [Fact]
+    public async Task TestTenant_ResourceTypes_ShouldCarry_TheBehaviourFlags()
+    {
+        // These replace the hard-coded key = 'space' / 'person' tests in SQL and C#, which is
+        // what lets a tenant-defined type opt into the same behaviour.
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        foreach (var flag in new[]
+                 { "has_geometry", "has_directory_profile", "single_group_membership" })
+        {
+            (await ColumnExistsAsync(conn, "resource_types", flag)).Should().BeTrue(
+                $"migration 1700 should add the {flag} flag");
+        }
     }
 
     [Fact]
@@ -106,23 +126,25 @@ public sealed class MigrationHarnessSmokeTests
     }
 
     [Fact]
-    public async Task TestTenant_PersonProfiles_ShouldHave_JobTitleId_And_DepartmentId()
+    public async Task TestTenant_Resources_ShouldHave_JobTitleId_And_DepartmentId()
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await ColumnExistsAsync(conn, "person_profiles", "job_title_id")).Should().BeTrue(
-            "migration 1420 should add job_title_id FK column to person_profiles");
-        (await ColumnExistsAsync(conn, "person_profiles", "department_id")).Should().BeTrue(
-            "migration 1420 should add department_id FK column to person_profiles");
+        (await ColumnExistsAsync(conn, "resources", "job_title_id")).Should().BeTrue(
+            "job titles are FK-modelled (1420), and the column now lives on resources (1700)");
+        (await ColumnExistsAsync(conn, "resources", "department_id")).Should().BeTrue(
+            "departments are FK-modelled (1420), and the column now lives on resources (1700)");
     }
 
     [Fact]
-    public async Task TestTenant_PersonProfiles_ShouldNotHave_LegacyFreeTextColumns()
+    public async Task TestTenant_Resources_ShouldNotHave_LegacyFreeTextColumns()
     {
+        // The property 1420 established — job title and department are references, not free
+        // text — must survive the fold onto resources, not be quietly reintroduced.
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await ColumnExistsAsync(conn, "person_profiles", "job_title")).Should().BeFalse(
-            "migration 1420 (clean break) should drop the legacy job_title VARCHAR column");
-        (await ColumnExistsAsync(conn, "person_profiles", "department")).Should().BeFalse(
-            "migration 1420 (clean break) should drop the legacy department VARCHAR column");
+        (await ColumnExistsAsync(conn, "resources", "job_title")).Should().BeFalse(
+            "job title is an FK to job_titles, never a free-text VARCHAR");
+        (await ColumnExistsAsync(conn, "resources", "department")).Should().BeFalse(
+            "department is an FK to departments, never a free-text VARCHAR");
     }
 
     private static async Task<bool> TableExistsAsync(NpgsqlConnection conn, string tableName)

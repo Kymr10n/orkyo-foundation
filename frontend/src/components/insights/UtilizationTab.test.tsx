@@ -21,12 +21,24 @@ vi.mock("@foundation/src/hooks/useInsights", () => ({
   useInsightsUtilization: vi.fn(),
 }));
 
+// The chart list is driven by the tenant's resource types, so it needs a QueryClient it never
+// had before; mocked here in the same style as the insights hooks above.
+vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
+  useResourceTypes: () => ({
+    data: [
+      { id: "rt-space", key: "space", displayName: "Space", displayNamePlural: "Spaces", isSystem: true, isActive: true },
+      { id: "rt-person", key: "person", displayName: "Person", displayNamePlural: "People", isSystem: true, isActive: true },
+      { id: "rt-vehicle", key: "vehicle", displayName: "Vehicle", displayNamePlural: "Vehicles", isSystem: false, isActive: true },
+    ],
+  }),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("UtilizationTab", () => {
-  it("renders both space and people utilization charts (empty states when no capacity)", () => {
+  it("renders one chart per active resource type, including tenant-defined ones", () => {
     (useInsightsUtilization as Mock).mockReturnValue({
       data: { resourceType: "space", bucket: "month", series: [], metadata: { calculatedAt: "x", sourceMode: "live" } },
       isLoading: false, error: null,
@@ -34,8 +46,10 @@ describe("UtilizationTab", () => {
 
     render(<UtilizationTab />);
 
-    expect(screen.getByText("Space utilization trend")).toBeInTheDocument();
+    expect(screen.getByText("Spaces utilization trend")).toBeInTheDocument();
     expect(screen.getByText("People utilization trend")).toBeInTheDocument();
-    expect(screen.getAllByText("No capacity configured for this period.")).toHaveLength(2);
+    // Previously impossible: the chart list was two hard-coded hook calls.
+    expect(screen.getByText("Vehicles utilization trend")).toBeInTheDocument();
+    expect(screen.getAllByText("No capacity configured for this period.")).toHaveLength(3);
   });
 });

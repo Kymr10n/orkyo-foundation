@@ -55,6 +55,10 @@ const ResourceGroupList = lazy(() => import('@foundation/src/components/resource
 const JobTitleSettings = lazy(() => import('@foundation/src/components/settings/JobTitleSettings').then(m => ({ default: m.JobTitleSettings })));
 const DepartmentSettings = lazy(() => import('@foundation/src/components/settings/DepartmentSettings').then(m => ({ default: m.DepartmentSettings })));
 const CriteriaSettings = lazy(() => import('@foundation/src/components/settings/CriteriaSettings').then(m => ({ default: m.CriteriaSettings })));
+const ResourceTypeSettings = lazy(() => import('@foundation/src/components/settings/ResourceTypeSettings').then(m => ({ default: m.ResourceTypeSettings })));
+const ResourcesPage = lazy(() => import('@foundation/src/pages/ResourcesPage').then(m => ({ default: m.ResourcesPage })));
+const ResourceListTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceListTab })));
+const ResourceGroupsTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceGroupsTab })));
 const SiteSettings = lazy(() => import('@foundation/src/components/settings/SiteSettings').then(m => ({ default: m.SiteSettings })));
 const TemplateSettings = lazy(() => import('@foundation/src/components/settings/TemplateSettings').then(m => ({ default: m.TemplateSettings })));
 const PresetSettings = lazy(() => import('@foundation/src/components/settings/PresetSettings').then(m => ({ default: m.PresetSettings })));
@@ -69,7 +73,7 @@ const FloorplanView = lazy(() => import('@foundation/src/components/spaces/Floor
 const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/resources", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -174,10 +178,19 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           {/* Back-compat: the old top-level Conflicts page is now the Insights → Conflicts tab. */}
           <Route path="conflicts" element={<Navigate to="/insights/conflicts" replace />} />
 
+          {/* User-defined resource types. Built-in types keep their own pages, but the
+              tabbed shape is the same so a custom type is not visibly a lesser citizen. */}
+          <Route path="resources/:typeKey" element={<ResourcesPage />}>
+            <Route index element={<Navigate to="list" replace />} />
+            <Route path="list" element={<ResourceListTab />} />
+            <Route path="groups" element={<ResourceGroupsTab />} />
+          </Route>
+
           {/* Settings — editor-open content. Viewers are redirected to root. */}
           <Route path="settings" element={<RequireEditor><SettingsPage /></RequireEditor>}>
             <Route index element={<Navigate to="criteria" replace />} />
             <Route path="criteria" element={<CriteriaSettings />} />
+            <Route path="resource-types" element={<ResourceTypeSettings />} />
             <Route path="templates" element={<TemplateSettings entityType="request" />} />
             <Route path="presets" element={<PresetSettings />} />
             <Route path="scheduling" element={<SchedulingSettings />} />

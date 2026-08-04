@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Constants;
 
@@ -12,7 +13,10 @@ public enum CriterionDataType
     Boolean,
     Number,
     String,
-    Enum
+    Enum,
+
+    /// <summary>Calendar date, stored and exchanged as a yyyy-MM-dd string (no time, no zone).</summary>
+    Date
 }
 
 /// <summary>
@@ -36,6 +40,13 @@ public record CriterionInfo
     /// Optional unit for Number type criteria (e.g., "kg", "kW", "m²").
     /// </summary>
     public string? Unit { get; init; }
+
+    /// <summary>
+    /// Optional value constraints — <c>{"min":..,"max":..}</c> for Number,
+    /// <c>{"maxLength":..,"regex":".."}</c> for String. Null means unconstrained.
+    /// Enforced on write by <see cref="Api.Services.ICriterionValueValidator"/>.
+    /// </summary>
+    public JsonElement? Validation { get; init; }
 
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -78,6 +89,10 @@ public record CreateCriterionRequest
     public required CriterionDataType DataType { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
+
+    /// <summary>Optional value constraints — see <see cref="CriterionInfo.Validation"/>.</summary>
+    public JsonElement? Validation { get; init; }
+
     public bool ApplicableToRequests { get; init; } = true;
 
     /// <summary>
@@ -96,5 +111,6 @@ public record UpdateCriterionRequest
     public string? Description { get; init; }
     public List<string>? EnumValues { get; init; }
     public string? Unit { get; init; }
+    public JsonElement? Validation { get; init; }
     public CriterionDataType? DataType { get; init; }
 }

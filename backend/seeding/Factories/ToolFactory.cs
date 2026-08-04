@@ -16,7 +16,8 @@ public static class ToolFactory
     public sealed record SeededTool(Guid Id, string SiteCode, string Role, string Name, string AllocationMode, double? MaxLoadTons);
 
     public static async Task<IReadOnlyList<SeededTool>> SeedAsync(
-        NpgsqlConnection conn, IReadOnlyList<Facility> facilities)
+        NpgsqlConnection conn, IReadOnlyList<Facility> facilities,
+        IReadOnlyList<SpaceFactories.SeededSite> sites)
     {
         Guid toolTypeId;
         await using (var cmd = new NpgsqlCommand(
@@ -30,8 +31,25 @@ public static class ToolFactory
         var tools = new List<SeededTool>();
 
         using var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) " +
+            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, home_site_id, created_at, updated_at) " +
             "FROM STDIN (FORMAT BINARY)");
+
+        // A tool belongs to the facility that owns it. The site used to survive only as a prefix
+        // on the name ("FWF Forklift"), which reads right and filters nothing — so a tool was
+        // absent from its own site's utilization tab unless it happened to hold an assignment
+        // in the visible window.
+        var siteIdByCode = sites.ToDictionary(s => s.Code, s => s.Id);
+
+        // The facility catalogue and the site list are built by different paths, so a code that
+        // does not line up is a seed-data bug. A bare indexer would report it as
+        // KeyNotFoundException naming nothing.
+        var unknown = facilities.Select(f => f.SiteCode).Where(c => !siteIdByCode.ContainsKey(c)).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Facilities reference site codes with no seeded site: {string.Join(", ", unknown)}. "
+                + $"Known codes: {string.Join(", ", siteIdByCode.Keys)}.");
+        }
 
         foreach (var f in facilities)
             foreach (var spec in f.Tools)
@@ -46,6 +64,7 @@ public static class ToolFactory
                     await writer.WriteAsync(spec.AllocationMode, NpgsqlDbType.Varchar);
                     await writer.WriteAsync(100, NpgsqlDbType.Integer);
                     await writer.WriteAsync(true, NpgsqlDbType.Boolean);
+                    await writer.WriteAsync(siteIdByCode[f.SiteCode], NpgsqlDbType.Uuid);
                     await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                     await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                     tools.Add(new SeededTool(id, f.SiteCode, spec.Role, name, spec.AllocationMode, spec.MaxLoadTons));

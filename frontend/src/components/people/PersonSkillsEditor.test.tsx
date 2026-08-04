@@ -85,7 +85,7 @@ const defaultProps = {
   open: true,
   onOpenChange: vi.fn(),
   resourceId: 'p-1',
-  personName: 'Alice',
+  resourceName: 'Alice',
 };
 
 // Save now flows through useMutation; the feedback wrapper's MutationCache mirrors
@@ -237,7 +237,7 @@ describe('PersonSkillsEditor', () => {
     render(<PersonSkillsEditor {...defaultProps} />, { wrapper: makeWrapper() });
     await waitFor(() =>
       expect(
-        screen.getByText(/all person-applicable criteria are already assigned, or none exist yet/i),
+        screen.getByText(/all criteria applicable to this person are already assigned, or none exist yet/i),
       ).toBeInTheDocument(),
     );
   });

@@ -36,11 +36,9 @@ public class TenantResetTruncateListTests
 
     [Theory]
     [InlineData("assets")]          // uploaded floorplan images — demo reset fix
-    [InlineData("spaces")]
-    [InlineData("resources")]
+    [InlineData("resources")]       // spaces + person_profiles folded in here (migration 1700)
     [InlineData("requests")]
     [InlineData("resource_assignments")]
-    [InlineData("person_profiles")]
     [InlineData("departments")]
     [InlineData("criteria")]
     [InlineData("templates")]

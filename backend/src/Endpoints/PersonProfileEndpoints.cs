@@ -51,10 +51,11 @@ public static class PersonProfileEndpoints
         group.MapGet("/{resourceId:guid}", async (
             Guid resourceId,
             IResourceRepository resourceRepository,
+            IResourceTypeRepository resourceTypeRepository,
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
         {
-            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, resourceTypeRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             var profile = await profileRepository.GetByResourceIdAsync(resourceId, ct);
@@ -67,12 +68,13 @@ public static class PersonProfileEndpoints
             Guid resourceId,
             [FromBody] UpsertPersonProfileRequest request,
             IResourceRepository resourceRepository,
+            IResourceTypeRepository resourceTypeRepository,
             IPersonProfileRepository profileRepository,
             IValidator<UpsertPersonProfileRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository);
+                var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, resourceTypeRepository);
                 if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
                 var profile = await profileRepository.UpsertAsync(resourceId, request, ct);
@@ -86,11 +88,12 @@ public static class PersonProfileEndpoints
             [FromBody] LinkUserToPersonProfileRequest request,
             IValidator<LinkUserToPersonProfileRequest> validator,
             IResourceRepository resourceRepository,
+            IResourceTypeRepository resourceTypeRepository,
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
-            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, resourceTypeRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             // Reject if the user is already linked to a different person resource (tenant-wide constraint).
@@ -107,10 +110,11 @@ public static class PersonProfileEndpoints
         group.MapDelete("/{resourceId:guid}/link", async (
             Guid resourceId,
             IResourceRepository resourceRepository,
+            IResourceTypeRepository resourceTypeRepository,
             IPersonProfileRepository profileRepository,
             CancellationToken ct) =>
         {
-            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, ct);
+            var resolution = await ResolvePersonResourceAsync(resourceId, resourceRepository, resourceTypeRepository, ct);
             if (resolution.ErrorResult is not null) return resolution.ErrorResult;
 
             var success = await profileRepository.UnlinkUserAsync(resourceId, ct);
@@ -127,13 +131,17 @@ public static class PersonProfileEndpoints
     private static async Task<(ResourceInfo? Resource, IResult? ErrorResult)> ResolvePersonResourceAsync(
         Guid resourceId,
         IResourceRepository resourceRepository,
+        IResourceTypeRepository resourceTypeRepository,
         CancellationToken ct = default)
     {
         var resource = await resourceRepository.GetByIdAsync(resourceId, ct);
         if (resource is null)
             return (null, ErrorResponses.NotFound("Resource", resourceId));
 
-        if (resource.ResourceTypeKey != ResourceTypeKeys.Person)
+        // The flag, not the key: a tenant type that declares a directory profile carries the
+        // same columns and belongs on this endpoint.
+        var resourceType = await resourceTypeRepository.GetByKeyAsync(resource.ResourceTypeKey, ct);
+        if (resourceType is null || !resourceType.HasDirectoryProfile)
             return (null, ErrorResponses.BadRequest(NotAPersonMessage));
 
         return (resource, null);

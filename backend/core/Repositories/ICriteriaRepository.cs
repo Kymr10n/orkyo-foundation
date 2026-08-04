@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Api.Models;
 
 namespace Api.Repositories;
@@ -27,6 +28,7 @@ public interface ICriteriaRepository
         CriterionDataType dataType,
         List<string>? enumValues,
         string? unit,
+        JsonElement? validation,
         IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default);
 
     /// <summary>
@@ -34,7 +36,7 @@ public interface ICriteriaRepository
     /// Name is freely editable (uniqueness is enforced by the DB). Data type is editable only while the
     /// criterion has no value assignments; once in use, changing it throws.
     /// </summary>
-    Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default);
+    Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, JsonElement? validation, CriterionDataType? dataType, CancellationToken ct = default);
 
     /// <summary>Deletes the criterion. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);

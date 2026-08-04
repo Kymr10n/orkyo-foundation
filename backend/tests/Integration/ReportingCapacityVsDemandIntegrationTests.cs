@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Models;
 using Api.Models.Reporting;
 using Api.Repositories;
 using Api.Services;
@@ -41,8 +42,12 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
         // Tool resource @100% availability, in ONE unique group so the assertion is isolated from
         // any other tenant data (which lands in different (type, group) cells).
         var toolTypeId = await ResourceTypeIdAsync("tool");
-        var resource = await resources.CreateAsync(
-            toolTypeId, "tool", $"Tool-{Guid.NewGuid():N}", null, null, AllocationModes.Fractional, 100);
+        var resource = await resources.CreateAsync(toolTypeId, new CreateResourceRequest
+        {
+            ResourceTypeKey = "tool",
+            Name = $"Tool-{Guid.NewGuid():N}",
+            AllocationMode = AllocationModes.Fractional,
+        });
         var group = await groups.CreateAsync("tool", $"CapGrp-{Guid.NewGuid():N}", null, 100, null, null);
         await members.SetMembersAsync(group.Id, new[] { resource.Id });
 

@@ -21,7 +21,7 @@ import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/ho
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
-import { PeopleUtilizationGrid } from "@foundation/src/components/utilization/PeopleUtilizationGrid";
+import { ResourceUtilizationGrid } from "@foundation/src/components/utilization/ResourceUtilizationGrid";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
@@ -35,6 +35,9 @@ import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-reque
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
+import { DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from "@foundation/src/constants";
+import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
@@ -129,9 +132,47 @@ export function UtilizationPage() {
     setActiveDragLabel(data && data.type !== "space-row" ? data.name ?? null : null);
   }, []);
 
-  // Tab state — persisted in URL so the view is bookmarkable
+  // One grid tab per active resource type that has no purpose-built surface. Spaces keeps its
+  // own scheduler tab (drag-to-schedule, floorplan, backlog); every other type — people, tools,
+  // anything a tenant defines — gets the read-mostly timeline grid.
+  const { data: resourceTypes = [], isSuccess: resourceTypesLoaded } = useResourceTypes(true);
+  const gridTypes = useMemo(() => {
+    const rest = resourceTypes.filter((t) => t.key !== RESOURCE_TYPE_KEY.SPACE);
+    // People first — the established second tab — then whatever order the API returns.
+    return [
+      ...rest.filter((t) => t.key === RESOURCE_TYPE_KEY.PERSON),
+      ...rest.filter((t) => t.key !== RESOURCE_TYPE_KEY.PERSON),
+    ];
+  }, [resourceTypes]);
+
+  // Tab state — persisted in URL so the view is bookmarkable. A grid tab's value is its type
+  // key, so the valid set is only known once the types load; judge the URL after that rather
+  // than falling back early and flashing Calendar over a valid deep link.
   const [rawTab, handleTabChange] = useTabParam('calendar');
-  const activeTab = rawTab as 'space' | 'people' | 'calendar';
+  const isKnownTab =
+    rawTab === 'calendar'
+    || rawTab === RESOURCE_TYPE_KEY.SPACE
+    || gridTypes.some((t) => t.key === rawTab);
+  // Until the types load the valid set is unknown, so an unrecognised value is held rather
+  // than replaced — otherwise a deep link to a real type tab flashes Calendar first.
+  const activeTab = !resourceTypesLoaded || isKnownTab ? rawTab : 'calendar';
+
+  // Correct the URL too. Rendering Calendar while ?tab= still names a type the tenant has
+  // since deactivated leaves reload and the back button disagreeing with the screen.
+  useEffect(() => {
+    if (resourceTypesLoaded && !isKnownTab) handleTabChange('calendar');
+  }, [resourceTypesLoaded, isKnownTab, handleTabChange]);
+
+  const isCalendarTab = activeTab === 'calendar';
+  const isSchedulerTab = activeTab === RESOURCE_TYPE_KEY.SPACE;
+  /** Any derived per-type grid tab (person, tool, tenant-defined). */
+  const isTypeGridTab = !isCalendarTab && !isSchedulerTab;
+
+  // Auto-schedule solves for the type whose tab you are on — the tab already names it, so a
+  // separate selector could only ever disagree with what is on screen, and keeping the two in
+  // step needed an effect and a lock while a preview was open. Calendar has no type of its
+  // own, so the controls do not appear there.
+  const autoScheduleTypeKey = isCalendarTab ? DEFAULT_TARGET_RESOURCE_TYPE_KEYS[0] : activeTab;
 
   // Floorplan height state
   const [floorplanHeight, setFloorplanHeight] = useState(280);
@@ -153,6 +194,7 @@ export function UtilizationPage() {
   const [autoSchedulePreview, setAutoSchedulePreview] = useState<AutoSchedulePreviewResponse | null>(null);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
+
 
   // Fetch data from API — scoped to the selected site + a buffered window for the grid bars, plus
   // the tenant-wide unscheduled backlog (drag source). The panel/lookups use the union; the grid
@@ -248,12 +290,12 @@ export function UtilizationPage() {
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
   // Conflict detection — backend is the single source of truth. Scope the registry to the visible
-  // window (Calendar/Space) so it never evaluates the whole tenant all-time. The People tab computes
-  // its own windowed conflicts, so skip the registry there entirely.
+  // window (Calendar/Space) so it never evaluates the whole tenant all-time. A type grid tab
+  // computes its own windowed conflicts, so skip the registry there entirely.
   const { conflictsByRequest: conflicts } = useConflictRegistry({
     from: fetchWindow.from,
     to: fetchWindow.to,
-    enabled: activeTab !== 'people',
+    enabled: !isTypeGridTab,
   });
   const conflictingRequestIds = useMemo(() => new Set(conflicts.keys()), [conflicts]);
 
@@ -312,13 +354,14 @@ export function UtilizationPage() {
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
+        resourceTypeKey: autoScheduleTypeKey,
       });
       setAutoSchedulePreview(result);
       setIsPreviewDialogOpen(true);
     } catch {
       // Error handled by mutation state
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, previewMutation]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
 
   // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
   // the success toast interpolates the preview's dynamic count, and the catch
@@ -327,10 +370,13 @@ export function UtilizationPage() {
     if (!selectedSiteId) return;
     setAutoScheduleError(null);
     try {
+      // resourceTypeKey must be the one the preview solved for — the fingerprint alone
+      // doesn't pin it, so a changed selector would re-solve for a different type.
       await applyMutation.mutateAsync({
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
+        resourceTypeKey: autoScheduleTypeKey,
         previewFingerprint: autoSchedulePreview?.fingerprint,
       });
       setIsPreviewDialogOpen(false);
@@ -352,12 +398,12 @@ export function UtilizationPage() {
         setAutoScheduleError(message);
       }
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, applyMutation, autoSchedulePreview, queryClient]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, applyMutation, autoSchedulePreview, queryClient]);
 
-  // The Calendar tab pages by whole periods (one click = one week/month); the
-  // Spaces/People timeline grids pan by a sub-period. Same controls, tab-aware step.
+  // The Calendar tab pages by whole periods (one click = one week/month); every timeline grid
+  // pans by a sub-period. Same controls, tab-aware step.
   const stepAnchor = (direction: 1 | -1) =>
-    activeTab === 'calendar'
+    isCalendarTab
       ? navigateCalendarPeriod(anchorTs, scale, direction)
       : navigateTime(anchorTs, scale, direction);
   const handlePrevious = () => setAnchorTs(stepAnchor(-1));
@@ -600,22 +646,24 @@ export function UtilizationPage() {
 
   const tabs: PageTab[] = [
     { value: 'calendar', label: 'Calendar' },
-    { value: 'space', label: 'Spaces' },
-    { value: 'people', label: 'People' },
+    { value: RESOURCE_TYPE_KEY.SPACE, label: 'Spaces' },
+    ...gridTypes.map((t) => ({ value: t.key, label: t.displayNamePlural })),
   ];
 
-  // Scale + time navigation shared across all three tabs (the calendar is
+  // Scale + time navigation shared across every tab (the calendar is
   // page-controlled — its built-in toolbar is disabled). On desktop/tablet these
   // sit in the header's actions slot; on phones they'd overlap the title, so they
   // get their own row under the heading (above the tabs; see the render below).
   const schedulingControls = (
     <>
-      {autoScheduleAvailable && canEdit && activeTab === 'space' && (
-        <AutoScheduleButton
-          onClick={handleAutoScheduleClick}
-          loading={previewMutation.isPending}
-          disabled={!selectedSiteId}
-        />
+      {autoScheduleAvailable && canEdit && !isCalendarTab && (
+        <>
+          <AutoScheduleButton
+            onClick={handleAutoScheduleClick}
+            loading={previewMutation.isPending}
+            disabled={!selectedSiteId}
+          />
+        </>
       )}
       <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
       <TimeNavigator
@@ -634,7 +682,7 @@ export function UtilizationPage() {
     <PageLayout>
       <PageHeader
         title="Utilization"
-        description="Schedule space allocations and review people utilization"
+        description="Schedule allocations and review utilization across your resources"
         actions={isPhone ? undefined : schedulingControls}
       />
       {/* Phone: controls can't fit beside the title, so they get their own row
@@ -760,16 +808,24 @@ export function UtilizationPage() {
           </DndContext>
         </TabsContent>
 
-        {/* People tab */}
-        <TabsContent value="people" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <PeopleUtilizationGrid
-            anchorTs={anchorTs}
-            scale={scale}
-            offTimeRanges={offTimeRanges}
-            weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
-            siteId={selectedSiteId}
-          />
-        </TabsContent>
+        {/* One grid per type without a purpose-built surface. Radix unmounts inactive
+            panels, so only the visible tab's grid fetches. */}
+        {gridTypes.map((type) => (
+          <TabsContent
+            key={type.key}
+            value={type.key}
+            className="h-full overflow-hidden m-0 data-[state=inactive]:hidden"
+          >
+            <ResourceUtilizationGrid
+              resourceType={type}
+              anchorTs={anchorTs}
+              scale={scale}
+              offTimeRanges={offTimeRanges}
+              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+              siteId={selectedSiteId}
+            />
+          </TabsContent>
+        ))}
 
       </PageTabs>
 

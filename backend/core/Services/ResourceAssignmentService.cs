@@ -47,7 +47,6 @@ public class ResourceAssignmentService(
         [ValidationReasonCode.AssignmentOverbooked] = ResourceConflictType.ExclusiveOverlap, // refined below
         [ValidationReasonCode.InvalidAllocationMode] = ResourceConflictType.InvalidAllocationMode,
         [ValidationReasonCode.InvalidAllocationPercent] = ResourceConflictType.InvalidAllocationPercent,
-        [ValidationReasonCode.SiteMismatchSpace] = ResourceConflictType.SiteMismatch,
         [ValidationReasonCode.SiteCrossNotAllowed] = ResourceConflictType.CrossSiteNotAllowed,
         // SiteMismatchPerson is emitted as a warning, never a hard blocker → not mapped here.
     };

@@ -5,9 +5,9 @@
  */
 
 import { useReducer } from 'react';
-import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@foundation/src/constants';
+import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT, DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from '@foundation/src/constants';
 import { formatDateForInput, formatTimeForInput } from '@foundation/src/lib/utils';
-import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
+import { getAssignmentOfType, getTargetResourceTypeKeys } from '@foundation/src/domain/scheduling/request-assignments';
 import type { Request, DurationUnit, PlanningMode } from '@foundation/src/types/requests';
 import type { CriterionValue } from '@foundation/src/types/criterion';
 import type { Template } from '@foundation/src/types/templates';
@@ -26,7 +26,10 @@ export interface RequestFormState {
   parentRequestId: string;
   /** Site scope. '' = site-neutral (Any site). */
   siteId: string;
-  selectedResourceId: string;
+  /** The resource types this request needs — one picker, and one assignment, each. */
+  targetResourceTypeKeys: string[];
+  /** Picked resource per targeted type key. A missing/empty entry means "none yet". */
+  selectedResourceIds: Record<string, string>;
 
   // Schedule
   startDate: string;
@@ -66,7 +69,8 @@ const initialState: RequestFormState = {
   planningMode: 'leaf',
   parentRequestId: '',
   siteId: '',
-  selectedResourceId: '',
+  targetResourceTypeKeys: [...DEFAULT_TARGET_RESOURCE_TYPE_KEYS],
+  selectedResourceIds: {},
   startDate: '',
   startTime: DEFAULT_START_TIME,
   endDate: '',
@@ -158,6 +162,11 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       reqMap.set(r.criterionId, { value: r.value, operator: r.operator });
     });
 
+    const targetResourceTypeKeys = getTargetResourceTypeKeys(request);
+    const selectedResourceIds = Object.fromEntries(
+      targetResourceTypeKeys.map((key) => [key, getAssignmentOfType(request, key)?.resourceId ?? '']),
+    );
+
     return applyDefaultSchedule({
       name: request.name,
       description: request.description || '',
@@ -167,7 +176,8 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       // A site-neutral request scheduled onto a site's calendar pre-selects that
       // site (scheduleSiteId); an existing concrete site is kept untouched.
       siteId: (request.siteId ?? '') || (scheduleSiteId ?? ''),
-      selectedResourceId: getSpaceResourceId(request) || '',
+      targetResourceTypeKeys,
+      selectedResourceIds,
       startDate: request.startTs ? formatDateForInput(new Date(request.startTs)) : '',
       startTime: request.startTs ? formatTimeForInput(new Date(request.startTs)) : DEFAULT_START_TIME,
       endDate: request.endTs ? formatDateForInput(new Date(request.endTs)) : '',

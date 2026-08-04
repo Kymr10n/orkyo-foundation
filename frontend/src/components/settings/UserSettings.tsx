@@ -35,6 +35,7 @@ import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handl
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 export function UserSettings() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -219,6 +220,7 @@ export function UserSettings() {
     {
       accessorKey: 'email',
       header: 'Email',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -228,7 +230,10 @@ export function UserSettings() {
     },
     {
       id: 'role',
+      accessorFn: (r) => r.role,
       header: 'Role',
+      // The role badge renders the raw role value, so the facet list matches it as-is.
+      meta: { filter: { type: 'enum' } },
       cell: ({ row }) => (
         <Badge variant="outline" className={getRoleBadgeColor(row.original.role)}>
           {row.original.role}
@@ -237,7 +242,9 @@ export function UserSettings() {
     },
     {
       id: 'sent',
+      accessorFn: (r) => r.createdAt,
       header: 'Sent',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateDisplay(row.original.createdAt)}
@@ -246,7 +253,9 @@ export function UserSettings() {
     },
     {
       id: 'expires',
+      accessorFn: (r) => r.expiresAt,
       header: 'Expires',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateDisplay(row.original.expiresAt)}
@@ -260,6 +269,8 @@ export function UserSettings() {
       cell: ({ row }) => renderInvitationActions(row.original),
     },
   ];
+
+  const invitesUrlState = useTableUrlState('invites', invitationColumns);
 
   const renderUserActions = (user: UserWithRole) => (
     <div className="flex justify-end gap-1">
@@ -307,6 +318,7 @@ export function UserSettings() {
     {
       accessorKey: 'email',
       header: 'User',
+      meta: { filter: { type: 'text' }, label: 'User' },
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -319,7 +331,10 @@ export function UserSettings() {
     },
     {
       id: 'role',
+      accessorFn: (r) => r.role,
       header: 'Role',
+      // The role badge renders the raw role value, so the facet list matches it as-is.
+      meta: { filter: { type: 'enum' } },
       cell: ({ row }) => (
         <Badge variant="outline" className={getRoleBadgeColor(row.original.role)}>
           {row.original.role}
@@ -328,7 +343,10 @@ export function UserSettings() {
     },
     {
       id: 'status',
+      accessorFn: (r) => r.status,
       header: 'Status',
+      // The status badge renders the raw status value, so the facet list matches it as-is.
+      meta: { filter: { type: 'enum' } },
       cell: ({ row }) => (
         <Badge className={getStatusBadgeColor(row.original.status)}>
           {row.original.status}
@@ -337,7 +355,9 @@ export function UserSettings() {
     },
     {
       id: 'created',
+      accessorFn: (r) => r.createdAt,
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateDisplay(row.original.createdAt)}
@@ -346,7 +366,10 @@ export function UserSettings() {
     },
     {
       id: 'lastLogin',
+      // '' never parses to a date, so dateBetween's NaN guard drops never-logged-in users from range results.
+      accessorFn: (r) => r.lastLoginAt ?? '',
       header: 'Last Login',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {row.original.lastLoginAt ? formatDateDisplay(row.original.lastLoginAt) : '—'}
@@ -361,6 +384,8 @@ export function UserSettings() {
     },
   ];
 
+  const usersUrlState = useTableUrlState('users', userColumns);
+
   const isLoading = usersLoading || invitationsLoading;
   const error = usersError || invitationsError;
 
@@ -371,6 +396,7 @@ export function UserSettings() {
       </div>
     );
   }
+
 
   return (
     <div className="space-y-6">
@@ -413,6 +439,7 @@ export function UserSettings() {
             Pending Invitations ({invitations.length})
           </h3>
           <OrkyoDataTable
+            {...invitesUrlState}
             columns={invitationColumns}
             data={invitations}
             emptyMessage="No pending invitations."
@@ -435,10 +462,9 @@ export function UserSettings() {
           />
         ) : (
           <OrkyoDataTable
+            {...usersUrlState}
             columns={userColumns}
             data={users}
-            filterColumn="email"
-            filterPlaceholder="Search users..."
             onRowClick={(user) => setEditingUser(user)}
             renderCard={renderUserCard}
           />

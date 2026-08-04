@@ -18,6 +18,17 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({ membership: authState.membership }),
 }));
 
+// User-defined resource types become nav entries; mocked so the nav stays renderable
+// without a QueryClient, matching how the store and auth context are handled above.
+const resourceTypesState: {
+  data: { key: string; displayName: string; displayNamePlural: string; isSystem: boolean }[];
+} = {
+  data: [],
+};
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({ data: resourceTypesState.data }),
+}));
+
 function renderSidebar(
   initialPath = '/',
   props: { forceCollapsed?: boolean; onNavigate?: () => void } = {},
@@ -35,6 +46,7 @@ describe('SidebarNav', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.membership = null;
+    resourceTypesState.data = [];
   });
 
   it('renders all navigation links', () => {
@@ -60,6 +72,43 @@ describe('SidebarNav', () => {
     expect(hrefs).toContain('/requests');
     expect(hrefs).toContain('/insights');
     expect(hrefs).toContain('/settings');
+  });
+
+  it('lists every type without a purpose-built page, built-in or not', () => {
+    // The test used to be `!isSystem`, which withheld an entry from `tool` — a built-in type
+    // that has never had a page of its own, leaving it reachable only by typing the URL.
+    resourceTypesState.data = [
+      { key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', isSystem: true },
+      { key: 'person', displayName: 'Person', displayNamePlural: 'People', isSystem: true },
+      { key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', isSystem: true },
+      { key: 'car', displayName: 'Car', displayNamePlural: 'Cars', isSystem: false },
+    ];
+    renderSidebar();
+
+    // A nav entry names a collection, so it uses the plural the type carries — deriving it
+    // would read "Persons", and tenants do not all name things in English.
+    expect(screen.getByText('Tools')).toBeInTheDocument();
+    expect(screen.getByText('Cars')).toBeInTheDocument();
+
+    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+    expect(hrefs).toContain('/resources/tool');
+    expect(hrefs).toContain('/resources/car');
+    // Space and person keep their purpose-built pages rather than gaining a second entry.
+    expect(hrefs).not.toContain('/resources/space');
+    expect(hrefs).not.toContain('/resources/person');
+  });
+
+  it('places the derived type entries with the other resources, beneath People', () => {
+    resourceTypesState.data = [
+      { key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', isSystem: true },
+      { key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', isSystem: true },
+    ];
+    renderSidebar();
+
+    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+    // Resources group together; Requests and Insights stay after them.
+    expect(hrefs.indexOf('/resources/tool')).toBeGreaterThan(hrefs.indexOf('/people'));
+    expect(hrefs.indexOf('/resources/tool')).toBeLessThan(hrefs.indexOf('/requests'));
   });
 
   it('hides the Administration item for non-admins', () => {

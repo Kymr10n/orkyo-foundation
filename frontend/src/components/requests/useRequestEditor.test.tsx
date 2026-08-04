@@ -48,6 +48,7 @@ const mockRequest = {
 const mockFormData: RequestFormData = {
   name: 'Updated Name',
   planningMode: 'leaf',
+  targetResourceTypeKeys: ['space'],
   duration: { value: 60, unit: 'minutes' },
   schedulingSettingsApply: false,
   requirements: [],

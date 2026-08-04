@@ -76,10 +76,11 @@ public class InsightsBucketsTests
         Assert.True(InsightsBuckets.MaxRangeDays("quarter") < InsightsBuckets.MaxRangeDays("year"));
     }
 
+    // Resource types are deliberately absent: they are tenant data, so there is no fixed set to
+    // pin here. InsightsEndpointsTests covers validation against the tenant's actual types.
     [Fact]
-    public void ValidSets_MatchTheContract()
+    public void ValidBuckets_MatchTheContract()
     {
         Assert.Equal(new[] { "month", "quarter", "week", "year" }, InsightsBuckets.ValidBuckets.OrderBy(x => x).ToArray());
-        Assert.Equal(new[] { "person", "space", "tool" }, InsightsBuckets.ValidResourceTypes.OrderBy(x => x).ToArray());
     }
 }

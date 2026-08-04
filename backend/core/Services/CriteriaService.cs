@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Api.Models;
 using Api.Repositories;
 
@@ -24,9 +25,10 @@ public interface ICriteriaService
         CriterionDataType dataType,
         List<string>? enumValues,
         string? unit,
+        JsonElement? validation,
         IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default);
     /// <summary>Updates a criterion's mutable fields. Returns <c>null</c> if not found.</summary>
-    Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default);
+    Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, JsonElement? validation, CriterionDataType? dataType, CancellationToken ct = default);
     /// <summary>Deletes a criterion. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
@@ -43,9 +45,10 @@ public class CriteriaService(ICriteriaRepository repository) : ICriteriaService
         CriterionDataType dataType,
         List<string>? enumValues,
         string? unit,
+        JsonElement? validation,
         IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default)
-        => repository.CreateAsync(name, description, dataType, enumValues, unit, resourceTypeKeys, ct);
-    public Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, CriterionDataType? dataType, CancellationToken ct = default)
-        => repository.UpdateAsync(id, name, description, enumValues, unit, dataType, ct);
+        => repository.CreateAsync(name, description, dataType, enumValues, unit, validation, resourceTypeKeys, ct);
+    public Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, JsonElement? validation, CriterionDataType? dataType, CancellationToken ct = default)
+        => repository.UpdateAsync(id, name, description, enumValues, unit, validation, dataType, ct);
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => repository.DeleteAsync(id, ct);
 }

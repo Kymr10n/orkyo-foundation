@@ -198,7 +198,7 @@ export function RequestPeopleSection({
       setAssignments((prev) => [...prev, created]);
       // An assignment changes occupancy + conflicts — refresh the request-derived views (grids,
       // conflict badges, insights). The host form is reducer-driven and doesn't read these keys, so
-      // this can't clobber the open dialog. Mirrors PersonAssignmentDialog.
+      // this can't clobber the open dialog. Mirrors ResourceAssignmentDialog.
       invalidateRequestData(queryClient);
       removePendingRow(key);
     } catch (err) {

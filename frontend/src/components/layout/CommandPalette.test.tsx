@@ -33,17 +33,14 @@ vi.mock('react-router', async () => {
 });
 
 const mockSearchResult: SearchResult = {
-  type: 'space',
+  type: 'resource',
+  resourceTypeKey: 'space',
   id: 'space-123',
   title: 'Conference Room A',
   subtitle: 'Main Building',
   siteId: 'site-1',
   score: 0.95,
   updatedAt: '2024-01-15T10:30:00Z',
-  open: {
-    route: '/spaces/:id',
-    params: { id: 'space-123' },
-  },
   permissions: {
     canRead: true,
     canEdit: true,
@@ -75,13 +72,23 @@ describe('CommandPalette', () => {
   it('filters out settings/admin-only result types for a viewer', async () => {
     vi.mocked(useCanEdit).mockReturnValue(false);
     vi.mocked(useIsTenantAdmin).mockReturnValue(false);
-    const mk = (type: SearchResult['type'], title: string): SearchResult => ({
-      type, id: `${type}-1`, title, score: 1, updatedAt: '2024-01-01T00:00:00Z',
-      open: { route: '/', params: {} }, permissions: { canRead: true, canEdit: false },
+    const mk = (
+      type: SearchResult['type'],
+      title: string,
+      resourceTypeKey?: string,
+    ): SearchResult => ({
+      type, id: `${type}-1`, title, resourceTypeKey, score: 1,
+      updatedAt: '2024-01-01T00:00:00Z', permissions: { canRead: true, canEdit: false },
     });
     vi.mocked(searchApi.globalSearch).mockResolvedValue({
       query: 'x',
-      results: [mk('space', 'My Space'), mk('criterion', 'My Criterion'), mk('template', 'My Template'), mk('site', 'My Site'), mk('person', 'My Person')],
+      results: [
+        mk('resource', 'My Space', 'space'),
+        mk('criterion', 'My Criterion'),
+        mk('template', 'My Template'),
+        mk('site', 'My Site'),
+        { ...mk('resource', 'My Person', 'person'), id: 'person-1' },
+      ],
     });
     renderCommandPalette({ open: true });
     await userEvent.type(screen.getByPlaceholderText(/search/i), 'x');
@@ -231,9 +238,14 @@ describe('CommandPalette', () => {
       path: string;
       extra?: Partial<SearchResult>;
     }[] = [
-      { type: 'space', title: 'A Space', path: '/spaces/floorplan?edit=x-1' },
+      { type: 'resource', title: 'A Space', path: '/spaces/floorplan?edit=x-1', extra: { resourceTypeKey: 'space' } },
+      { type: 'resource', title: 'A Person', path: '/people/list?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      { type: 'group', title: 'A Tool Group', path: '/resources/tool/groups?edit=x-1', extra: { resourceTypeKey: 'tool' } },
+      { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      // Previously unreachable: tools and tenant-defined types were never indexed at all.
+      { type: 'resource', title: 'A Tool', path: '/resources/tool/list?edit=x-1', extra: { resourceTypeKey: 'tool' } },
+      { type: 'resource', title: 'A Van', path: '/resources/delivery_van/list?edit=x-1', extra: { resourceTypeKey: 'delivery_van' } },
       { type: 'request', title: 'A Request', path: '/requests?edit=x-1' },
-      { type: 'person', title: 'A Person', path: '/people/list?edit=x-1' },
       { type: 'site', title: 'A Site', path: '/tenant-admin/sites?edit=x-1' },
       { type: 'template', title: 'A Template', path: '/settings/templates?edit=x-1' },
       { type: 'criterion', title: 'A Criterion', path: '/settings/criteria?edit=x-1' },
@@ -263,9 +275,9 @@ describe('CommandPalette', () => {
       const multipleResults: SearchResponse = {
         query: 'test',
         results: [
-          { ...mockSearchResult, type: 'space', title: 'Space Result' },
-          { ...mockSearchResult, type: 'request', id: 'req-1', title: 'Request Result' },
-          { ...mockSearchResult, type: 'site', id: 'site-2', title: 'Site Result' },
+          { ...mockSearchResult, type: 'resource', resourceTypeKey: 'space', title: 'Space Result' },
+          { ...mockSearchResult, type: 'request', resourceTypeKey: undefined, id: 'req-1', title: 'Request Result' },
+          { ...mockSearchResult, type: 'site', resourceTypeKey: undefined, id: 'site-2', title: 'Site Result' },
         ],
       };
       vi.mocked(searchApi.globalSearch).mockResolvedValue(multipleResults);

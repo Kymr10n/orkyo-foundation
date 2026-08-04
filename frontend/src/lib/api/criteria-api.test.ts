@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ResourceTypeKey } from '@foundation/src/types/criterion';
 import { getCriteria, createCriterion, updateCriterion, deleteCriterion, updateCriterionApplicability } from './criteria-api';
 import type { UpdateCriterionApplicabilityRequest } from '@foundation/src/types/criterion';
 import * as apiClient from '../core/api-client';
@@ -50,7 +49,7 @@ describe('criteria-api', () => {
 
   describe('createCriterion', () => {
     it('calls apiPost with correct endpoint and data', async () => {
-      const createRequest = { name: 'Capacity', dataType: 'Number' as const, unit: 'people', resourceTypeKeys: ['space'] as ResourceTypeKey[] };
+      const createRequest = { name: 'Capacity', dataType: 'Number' as const, unit: 'people', resourceTypeKeys: ['space'] };
       vi.mocked(apiClient.apiPost).mockResolvedValue(mockCriterion);
 
       const result = await createCriterion(createRequest);
@@ -85,7 +84,7 @@ describe('criteria-api', () => {
 
   describe('updateCriterionApplicability', () => {
     it('calls apiPut with correct endpoint and applicability data', async () => {
-      const request: UpdateCriterionApplicabilityRequest = { resourceTypeKeys: ['person', 'space'] as ResourceTypeKey[] };
+      const request: UpdateCriterionApplicabilityRequest = { resourceTypeKeys: ['person', 'space'] };
       const mockResult = { criterionId: 'crit-123', resourceTypeKeys: ['person', 'space'] };
       vi.mocked(apiClient.apiPut).mockResolvedValue(mockResult);
 

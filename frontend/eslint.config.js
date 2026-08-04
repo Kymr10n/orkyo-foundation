@@ -269,9 +269,9 @@ export default defineConfig(
       'src/components/capabilities/CriterionAssignmentEditor.tsx',
       // List / multi-select pickers and list-management views.
       'src/components/resource-groups/ResourceGroupMembersEditor.tsx',
-      'src/components/people/PersonAbsenceList.tsx',
+      'src/components/resources/ResourceAbsenceList.tsx',
       // Read-only / per-item-state-machine views.
-      'src/components/utilization/PersonAssignmentDialog.tsx',
+      'src/components/utilization/ResourceAssignmentDialog.tsx',
       'src/components/utilization/ScheduleSlotDialog.tsx',
       'src/components/settings/ReportingApiSettings.tsx', // RawTokenDialog: show-once token view
       'src/components/admin/FeedbackTab.tsx',

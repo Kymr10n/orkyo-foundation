@@ -1,11 +1,18 @@
-export type CriterionDataType = 'Boolean' | 'Number' | 'String' | 'Enum';
+export type CriterionDataType = 'Boolean' | 'Number' | 'String' | 'Enum' | 'Date';
+
+/**
+ * Optional value constraints. min/max apply to Number, maxLength/regex to String.
+ * Absent means unconstrained, which is every criterion created before they existed.
+ */
+export interface CriterionValidation {
+  min?: number;
+  max?: number;
+  maxLength?: number;
+  regex?: string;
+}
 
 /** Runtime value for a criterion — depends on the criterion's dataType. */
 export type CriterionValue = boolean | number | string;
-
-/** Resource-type keys this criterion applies to. 'tool' exists in the DB schema but tools
- *  management is not yet built — keep the key so stored data round-trips correctly. */
-export type ResourceTypeKey = 'space' | 'person' | 'tool';
 
 export interface Criterion {
   id: string;
@@ -14,8 +21,9 @@ export interface Criterion {
   dataType: CriterionDataType;
   enumValues?: string[];
   unit?: string;
+  validation?: CriterionValidation;
   applicableToRequests?: boolean; // Phase 3: defaults to true
-  resourceTypeKeys: ResourceTypeKey[];
+  resourceTypeKeys: string[];
   /** True when the criterion has value assignments; data type is locked while in use. */
   inUse?: boolean;
   createdAt: string;
@@ -28,8 +36,9 @@ export interface CreateCriterionRequest {
   dataType: CriterionDataType;
   enumValues?: string[];
   unit?: string;
+  validation?: CriterionValidation;
   applicableToRequests?: boolean;
-  resourceTypeKeys: ResourceTypeKey[];
+  resourceTypeKeys: string[];
 }
 
 export interface UpdateCriterionRequest {
@@ -37,16 +46,17 @@ export interface UpdateCriterionRequest {
   description?: string;
   enumValues?: string[];
   unit?: string;
+  validation?: CriterionValidation;
   dataType?: CriterionDataType;
 }
 
 export interface CriterionApplicabilityInfo {
   criterionId: string;
   applicableToRequests: boolean;
-  resourceTypeKeys: ResourceTypeKey[];
+  resourceTypeKeys: string[];
 }
 
 export interface UpdateCriterionApplicabilityRequest {
-  resourceTypeKeys?: ResourceTypeKey[];
+  resourceTypeKeys?: string[];
   applicableToRequests?: boolean;
 }

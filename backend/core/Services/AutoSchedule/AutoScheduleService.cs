@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
@@ -47,7 +48,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         var solution = await SolveWithFallbackAsync(analyzed, cancellationToken);
 
         var requestNames = problem.Requests.ToDictionary(r => r.RequestId, r => r.DisplayName);
-        var spaceNames = problem.Spaces.ToDictionary(s => s.ResourceId, s => s.DisplayName);
+        var resourceNames = problem.Resources.ToDictionary(s => s.ResourceId, s => s.DisplayName);
 
         return new AutoSchedulePreviewResponse(
             solution.SolverUsed,
@@ -56,7 +57,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
             solution.Assignments
                 .Select(x => new ProposedAssignmentDto(
                     x.RequestId, requestNames.GetValueOrDefault(x.RequestId, "Unknown"),
-                    x.ResourceId, spaceNames.GetValueOrDefault(x.ResourceId, "Unknown"),
+                    x.ResourceId, resourceNames.GetValueOrDefault(x.ResourceId, "Unknown"),
                     x.Start, x.End, x.DurationDays))
                 .ToList(),
             solution.Unscheduled
@@ -65,7 +66,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                     x.ReasonCodes))
                 .ToList(),
             solution.Diagnostics,
-            solution.ComputeFingerprint());
+            solution.ComputeFingerprint(request.ResourceTypeKey ?? ResourceTypeKeys.Space));
     }
 
     public async Task<AutoScheduleApplyResponse> ApplyAsync(
@@ -75,10 +76,13 @@ public sealed class AutoScheduleService : IAutoScheduleService
         await EnsureAutoScheduleAvailableAsync();
         Validate(request.HorizonStart, request.HorizonEnd);
 
+        // ResourceTypeKey must cross into the rebuilt preview. Drop it and apply would silently
+        // re-solve for spaces, so a preview of van assignments would be applied as room ones —
+        // and the fingerprint would not catch it, being computed from whatever this call solved.
         var preview = await PreviewAsync(
             new AutoSchedulePreviewRequest(
                 request.SiteId, request.HorizonStart, request.HorizonEnd,
-                request.RequestIds, request.RespectSchedulingSettings),
+                request.RequestIds, request.RespectSchedulingSettings, request.ResourceTypeKey),
             cancellationToken);
 
         if (!string.IsNullOrEmpty(request.PreviewFingerprint) &&

@@ -9,6 +9,8 @@ import {
     createTemplate,
 } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
+import type { DurationUnit } from "@foundation/src/types/requests";
+import { DURATION_TO_MINUTES } from "@foundation/src/domain/constants";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
@@ -24,6 +26,7 @@ import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/expo
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 interface TemplateSettingsProps {
   entityType?: 'request' | 'space' | 'group';
@@ -137,13 +140,19 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="font-semibold">{row.original.name}</span>
       ),
     },
     {
       id: 'duration',
+      // Sort/filter on raw minutes, not the "2 hours" display string. Templates
+      // without a duration count as 0 so they sort together at one end.
+      accessorFn: (r) =>
+        r.durationUnit ? (r.durationValue ?? 0) * (DURATION_TO_MINUTES[r.durationUnit as DurationUnit] ?? 1) : 0,
       header: 'Duration',
+      meta: { filter: { type: 'number' } },
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -153,7 +162,9 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     },
     {
       id: 'description',
+      accessorFn: (r) => r.description ?? '',
       header: 'Description',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground truncate max-w-md">
           {row.original.description ?? '—'}
@@ -162,7 +173,9 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     },
     {
       id: 'created',
+      accessorFn: (r) => r.createdAt ?? '',
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {row.original.createdAt ? formatDateDisplay(row.original.createdAt) : 'N/A'}
@@ -176,6 +189,8 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  const tableUrlState = useTableUrlState('templates', columns);
 
   // Phone presentation: name, duration badge + description, actions trailing.
   const renderCard = (template: Template) => (
@@ -201,6 +216,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       </div>
     );
   }
+
 
   return (
     <div className="space-y-6">
@@ -241,11 +257,10 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         </Card>
       ) : (
         <OrkyoDataTable
+        {...tableUrlState}
           columns={columns}
           data={templates}
           renderCard={renderCard}
-          filterColumn="name"
-          filterPlaceholder="Search templates..."
           onRowClick={(template) => setEditingTemplate(template)}
         />
       )}

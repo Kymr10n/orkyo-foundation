@@ -61,6 +61,7 @@ export const API_PATHS = {
 
   // Resource Types
   RESOURCE_TYPES: '/api/resource-types',
+  resourceType: (resourceTypeId: string) => `/api/resource-types/${resourceTypeId}`,
 
   // Resources
   RESOURCES: '/api/resources',

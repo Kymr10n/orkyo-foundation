@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using Api.Models;
+using Api.Repositories;
+using Api.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -83,7 +87,7 @@ public class SearchEndpointsTests
     [Fact]
     public async Task Search_WithTypeFilter_ReturnsOnlyFilteredTypes()
     {
-        var response = await _client.GetAsync("/api/search?q=test&types=space,request");
+        var response = await _client.GetAsync("/api/search?q=test&types=resource,request");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
@@ -92,7 +96,7 @@ public class SearchEndpointsTests
         // All results should be either space or request type
         foreach (var item in result!.Results)
         {
-            item.Type.Should().BeOneOf("space", "request");
+            item.Type.Should().BeOneOf("resource", "request");
         }
     }
 
@@ -138,9 +142,6 @@ public class SearchEndpointsTests
             firstResult.Id.Should().NotBe(Guid.Empty);
             firstResult.Type.Should().NotBeNullOrEmpty();
             firstResult.Title.Should().NotBeNullOrEmpty();
-            firstResult.Open.Should().NotBeNull();
-            firstResult.Open.Route.Should().NotBeNullOrEmpty();
-            firstResult.Open.Params.Should().NotBeNull();
             firstResult.Permissions.Should().NotBeNull();
         }
     }
@@ -224,6 +225,143 @@ public class SearchEndpointsTests
     #endregion
 
     #region Fuzzy Search Tests
+
+    [Fact]
+    public async Task Search_FindsToolResources()
+    {
+        // `tool` has been a seeded system type since migration 1300 but was never indexed:
+        // the only trigger on `resources` early-returned for anything that was not a person.
+        var uniqueName = $"UniqueSearchTool_{Guid.NewGuid():N}";
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = "tool",
+            name = uniqueName,
+            allocationMode = "Exclusive",
+        });
+        created.EnsureSuccessStatusCode();
+
+        await Task.Delay(100); // trigger sync
+
+        var response = await _client.GetAsync($"/api/search?q={uniqueName[..20]}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        result!.Results.Should().Contain(r =>
+            r.Type == "resource" && r.Title == uniqueName && r.ResourceTypeKey == "tool");
+    }
+
+    [Fact]
+    public async Task Search_FindsTenantDefinedResourceTypes()
+    {
+        // The point of the generic indexer: a type invented at runtime is searchable with no
+        // new trigger, no new entity_type, and no code change.
+        var typeKey = $"vehicle_{Guid.NewGuid():N}"[..24];
+        var typeResponse = await _client.PostAsJsonAsync("/api/resource-types", new
+        {
+            key = typeKey,
+            displayName = "Vehicle",
+            displayNamePlural = "Vehicles",
+        });
+        typeResponse.EnsureSuccessStatusCode();
+
+        var uniqueName = $"UniqueSearchVan_{Guid.NewGuid():N}";
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = typeKey,
+            name = uniqueName,
+            allocationMode = "Exclusive",
+        });
+        created.EnsureSuccessStatusCode();
+
+        await Task.Delay(100);
+
+        var response = await _client.GetAsync($"/api/search?q={uniqueName[..19]}");
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+
+        result!.Results.Should().Contain(r =>
+            r.Type == "resource" && r.Title == uniqueName && r.ResourceTypeKey == typeKey);
+    }
+
+    [Fact]
+    public async Task Search_ReindexesAResourceRenamedThroughItsOwnRow()
+    {
+        // The old space trigger fired on the spaces profile table only, so a rename — which
+        // writes resources.name — left a stale title in the index indefinitely.
+        var original = $"UniqueSearchRename_{Guid.NewGuid():N}";
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = "tool",
+            name = original,
+            allocationMode = "Exclusive",
+        });
+        var resource = await created.Content.ReadFromJsonAsync<ResourceInfo>();
+
+        var renamed = $"UniqueSearchRenamed_{Guid.NewGuid():N}";
+        var update = await _client.PutAsJsonAsync($"/api/resources/{resource!.Id}", new { name = renamed });
+        update.EnsureSuccessStatusCode();
+
+        await Task.Delay(100);
+
+        var response = await _client.GetAsync($"/api/search?q={renamed[..22]}");
+        var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
+
+        result!.Results.Should().Contain(r => r.Title == renamed);
+    }
+
+    [Fact]
+    public async Task ReindexesOnIndexedColumnsOnly()
+    {
+        // The resources UPDATE trigger carries a WHEN guard listing exactly the columns
+        // refresh_search_resource() reads. Without it every write reindexed — including the
+        // unconditional updated_at every repository sets, and the seeder's bulk site pass.
+        // The risk the guard introduces is the opposite one: add a column to the document and
+        // forget the guard, and the document silently goes stale. This pins both directions.
+        var created = await _client.PostAsJsonAsync("/api/resources", new
+        {
+            resourceTypeKey = "tool",
+            name = $"TriggerProbe-{Guid.NewGuid():N}"[..24],
+            allocationMode = "Exclusive",
+        });
+        created.EnsureSuccessStatusCode();
+        var resourceId = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!.Id;
+
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var connFactory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
+        var orgContext = scope.ServiceProvider.GetRequiredService<OrgContext>();
+
+        async Task<DateTime> IndexedAtAsync()
+        {
+            await using var conn = connFactory.CreateOrgConnection(orgContext);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT updated_at FROM search_documents WHERE entity_type='resource' AND entity_id=@id",
+                conn);
+            cmd.Parameters.AddWithValue("id", resourceId);
+            return (DateTime)(await cmd.ExecuteScalarAsync())!;
+        }
+
+        async Task TouchAsync(string setClause, object? value = null)
+        {
+            await using var conn = connFactory.CreateOrgConnection(orgContext);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                $"UPDATE resources SET {setClause}, updated_at = now() WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("id", resourceId);
+            if (value is not null) cmd.Parameters.AddWithValue("value", value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var before = await IndexedAtAsync();
+
+        // Not part of the document: no reindex, however much the row changes.
+        await TouchAsync("cross_site_allowed = NOT cross_site_allowed");
+        (await IndexedAtAsync()).Should()
+            .Be(before, "cross_site_allowed is not part of the search document");
+
+        // Part of the document: reindexed.
+        await TouchAsync("name = @value", $"Renamed-{Guid.NewGuid():N}"[..20]);
+        (await IndexedAtAsync()).Should().BeAfter(before, "the name is the document's title");
+    }
 
     [Fact]
     public async Task Search_HandlesFuzzyMatching()

@@ -10,7 +10,7 @@ public class NpgsqlQueryExtensionsAllowlistTests
 {
     [Theory]
     [InlineData("sites")]
-    [InlineData("spaces")]
+    [InlineData("resources")]
     [InlineData("resource_groups")]
     [InlineData("criteria")]
     [InlineData("requests")]

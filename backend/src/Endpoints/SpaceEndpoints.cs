@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -11,6 +12,11 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Api.Endpoints;
 
+/// <summary>
+/// The published space API. A space is a resource whose type declares geometry, so these routes
+/// are a site-scoped projection of the generic resource stack — they own the DTO shape and
+/// nothing else.
+/// </summary>
 public static class SpaceEndpoints
 {
     public static void MapSpaceEndpoints(this WebApplication app)
@@ -20,56 +26,93 @@ public static class SpaceEndpoints
             .RequireAuthorization()
             .RequireMemberReadEditorWrite();
 
-        spaces.MapGet("/", async (Guid siteId, ISpaceService spaceService, CancellationToken ct, int? page, int? pageSize) =>
+        spaces.MapGet("/", async (Guid siteId, IResourceRepository resources, CancellationToken ct, int? page, int? pageSize) =>
         {
             if (page.HasValue || pageSize.HasValue)
             {
-                var paged = await spaceService.GetAllAsync(siteId, new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
-                return Results.Ok(paged);
+                var paged = await resources.GetPlaceableBySiteAsync(siteId, new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
+                return Results.Ok(new PagedResult<SpaceInfo>
+                {
+                    Items = [.. paged.Items.Select(SpaceInfo.FromResource)],
+                    Page = paged.Page,
+                    PageSize = paged.PageSize,
+                    TotalItems = paged.TotalItems,
+                });
             }
-            var spacesList = await spaceService.GetAllAsync(siteId, ct);
-            return Results.Ok(spacesList);
+            var spacesList = await resources.GetPlaceableBySiteAsync(siteId, ct);
+            return Results.Ok(spacesList.Select(SpaceInfo.FromResource).ToList());
         })
         .WithName("GetSpaces")
         .WithSummary("Get all spaces for a site");
 
-        spaces.MapGet("/{resourceId:guid}", async (Guid siteId, Guid resourceId, ISpaceService spaceService, CancellationToken ct) =>
+        spaces.MapGet("/{resourceId:guid}", async (Guid siteId, Guid resourceId, IResourceRepository resources, CancellationToken ct) =>
         {
-            var space = await spaceService.GetByIdAsync(siteId, resourceId, ct);
-            return EndpointHelpers.OkOrNotFound(space, "Space", resourceId);
+            var space = await resources.GetPlaceableAsync(siteId, resourceId, ct);
+            return EndpointHelpers.OkOrNotFound(space is null ? null : SpaceInfo.FromResource(space), "Space", resourceId);
         })
         .WithName("GetSpaceById")
         .WithSummary("Get a specific space by ID");
 
-        spaces.MapPost("/", async (Guid siteId, [FromBody] CreateSpaceRequest request, ISpaceService spaceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<CreateSpaceRequest> validator) =>
+        spaces.MapPost("/", async (Guid siteId, [FromBody] CreateSpaceRequest request, IResourceService resourceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<CreateSpaceRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var space = await spaceService.CreateAsync(siteId, request.Name, request.Code, request.Description, request.IsPhysical, request.Geometry, request.Properties, request.Capacity, ct);
+                var space = await resourceService.CreateAsync(new CreateResourceRequest
+                {
+                    ResourceTypeKey = ResourceTypeKeys.Space,
+                    Name = request.Name,
+                    Description = request.Description,
+                    AllocationMode = AllocationModes.Exclusive,
+                    // A space is immovable: it is at its site and cannot be assigned elsewhere.
+                    HomeSiteId = siteId,
+                    CrossSiteAllowed = false,
+                    Code = request.Code,
+                    IsPhysical = request.IsPhysical,
+                    Geometry = request.Geometry,
+                    Properties = request.Properties,
+                    Capacity = request.Capacity,
+                }, ct);
                 logger.LogInformation("Created space {ResourceId} for site {SiteId}", space.Id, siteId);
-                return Results.Created($"/sites/{siteId}/spaces/{space.Id}", space);
+                return Results.Created($"/sites/{siteId}/spaces/{space.Id}", SpaceInfo.FromResource(space));
             }, logger, "create space", new { siteId });
         })
         .WithName("CreateSpace")
         .WithSummary("Create a new space");
 
-        spaces.MapPut("/{resourceId:guid}", async (Guid siteId, Guid resourceId, [FromBody] UpdateSpaceRequest request, ISpaceService spaceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSpaceRequest> validator) =>
+        spaces.MapPut("/{resourceId:guid}", async (Guid siteId, Guid resourceId, [FromBody] UpdateSpaceRequest request, IResourceRepository resources, IResourceService resourceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateSpaceRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var space = await spaceService.UpdateAsync(siteId, resourceId, request.Name, request.Code, request.Description, request.Geometry, request.Properties, request.Capacity, ct);
+                // Scoped read first: the generic update knows nothing about the site in the route,
+                // and a space belonging to another site must read as absent from this one.
+                if (await resources.GetPlaceableAsync(siteId, resourceId, ct) is null)
+                    return ErrorResponses.NotFound("Space", resourceId);
+
+                var space = await resourceService.UpdateAsync(resourceId, new UpdateResourceRequest
+                {
+                    Name = request.Name,
+                    Description = request.Description,
+                    Code = request.Code,
+                    Geometry = request.Geometry,
+                    Properties = request.Properties,
+                    Capacity = request.Capacity,
+                }, ct);
                 if (space == null) return ErrorResponses.NotFound("Space", resourceId);
                 logger.LogInformation("Updated space {ResourceId} for site {SiteId}", resourceId, siteId);
-                return Results.Ok(space);
+                return Results.Ok(SpaceInfo.FromResource(space));
             }, logger, "update space", new { siteId, resourceId });
         })
         .WithName("UpdateSpace")
         .WithSummary("Update an existing space");
 
-        spaces.MapDelete("/{resourceId:guid}", async (Guid siteId, Guid resourceId, ISpaceService spaceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        spaces.MapDelete("/{resourceId:guid}", async (Guid siteId, Guid resourceId, IResourceRepository resources, IResourceService resourceService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
-            var deleted = await spaceService.DeleteAsync(siteId, resourceId, ct);
-            if (!deleted) return ErrorResponses.NotFound("Space", resourceId);
+            if (await resources.GetPlaceableAsync(siteId, resourceId, ct) is null)
+                return ErrorResponses.NotFound("Space", resourceId);
+
+            // Deactivation, not deletion — the resource stays for its assignment history.
+            if (!await resourceService.DeactivateAsync(resourceId, ct))
+                return ErrorResponses.NotFound("Space", resourceId);
             logger.LogInformation("Deleted space {ResourceId} from site {SiteId}", resourceId, siteId);
             return Results.NoContent();
         })
@@ -78,11 +121,11 @@ public static class SpaceEndpoints
 
         spaces.MapGet("/{resourceId:guid}/capabilities", async (
             Guid siteId, Guid resourceId,
-            ISpaceService spaceService,
+            IResourceRepository resources,
             IResourceCapabilityRepository capabilityRepository,
             CancellationToken ct) =>
         {
-            if (await spaceService.GetByIdAsync(siteId, resourceId, ct) is null)
+            if (await resources.GetPlaceableAsync(siteId, resourceId, ct) is null)
                 return ErrorResponses.NotFound("Space", resourceId);
             return Results.Ok(await capabilityRepository.GetByResourceAsync(resourceId, ct));
         })
@@ -93,12 +136,12 @@ public static class SpaceEndpoints
             Guid siteId, Guid resourceId,
             [FromBody] AddResourceCapabilityRequest request,
             IValidator<AddResourceCapabilityRequest> validator,
-            ISpaceService spaceService,
+            IResourceRepository resources,
             IResourceCapabilityRepository capabilityRepository,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                if (await spaceService.GetByIdAsync(siteId, resourceId, ct) is null)
+                if (await resources.GetPlaceableAsync(siteId, resourceId, ct) is null)
                     return ErrorResponses.NotFound("Space", resourceId);
                 var capability = await capabilityRepository.UpsertAsync(resourceId, request.CriterionId, request.Value, ct);
                 return Results.Created($"/api/sites/{siteId}/spaces/{resourceId}/capabilities/{capability.Id}", capability);

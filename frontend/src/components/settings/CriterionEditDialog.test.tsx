@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import type { ResourceTypeKey } from '@foundation/src/types/criterion';
 import { CriterionEditDialog } from './CriterionEditDialog';
 
 vi.mock('@foundation/src/components/ui/dialog', () => ({
@@ -14,6 +13,18 @@ vi.mock('@foundation/src/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+// Applicability targets come from the API now, so the dialog needs a QueryClient it
+// never had before; mocked here in the same style as the criteria mutations below.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({
+    data: [
+      { id: 'rt-space', key: 'space', displayName: 'Space', isSystem: true, isActive: true },
+      { id: 'rt-person', key: 'person', displayName: 'Person', isSystem: true, isActive: true },
+      { id: 'rt-tool', key: 'tool', displayName: 'Tool', isSystem: true, isActive: true },
+    ],
+  }),
 }));
 
 vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
@@ -142,30 +153,32 @@ describe('CriterionEditDialog', () => {
       expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
     });
 
-    it('renders Applies to checkboxes for Spaces and People', () => {
+    it('renders an Applies to checkbox per active resource type', () => {
       render(<CriterionEditDialog {...defaultProps} />);
-      expect(screen.getByLabelText('Spaces')).toBeInTheDocument();
-      expect(screen.getByLabelText('People')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Tools')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Space')).toBeInTheDocument();
+      expect(screen.getByLabelText('Person')).toBeInTheDocument();
+      // Previously a hard-coded two-entry list, which silently made it impossible to tag a
+      // criterion for tools — or for any type a tenant defines.
+      expect(screen.getByLabelText('Tool')).toBeInTheDocument();
     });
 
-    it('defaults Spaces checkbox to checked', () => {
+    it('defaults the Space checkbox to checked', () => {
       render(<CriterionEditDialog {...defaultProps} />);
-      const spacesCheckbox = screen.getByLabelText('Spaces');
+      const spacesCheckbox = screen.getByLabelText('Space');
       expect(spacesCheckbox).toHaveAttribute('aria-checked', 'true');
     });
 
     it('defaults to defaultResourceType when provided', () => {
       render(<CriterionEditDialog {...defaultProps} defaultResourceType="person" />);
-      expect(screen.getByLabelText('People')).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByLabelText('Spaces')).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'false');
     });
 
     it('shows validation error when no applicability is selected', async () => {
       const user = userEvent.setup();
       render(<CriterionEditDialog {...defaultProps} />);
-      // Uncheck Spaces (the default)
-      await user.click(screen.getByLabelText('Spaces'));
+      // Uncheck Space (the default)
+      await user.click(screen.getByLabelText('Space'));
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'valid-criterion' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
@@ -198,7 +211,7 @@ describe('CriterionEditDialog', () => {
       description: 'Room capacity',
       unit: 'seats',
       enumValues: [],
-      resourceTypeKeys: ['space'] as ResourceTypeKey[],
+      resourceTypeKeys: ['space'],
       inUse: false,
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
@@ -292,17 +305,17 @@ describe('CriterionEditDialog', () => {
       expect(screen.getByLabelText(/unit/i)).toHaveValue('seats');
     });
 
-    it('renders Applies to checkboxes for Spaces and People', () => {
+    it('renders an Applies to checkbox per active resource type', () => {
       render(<CriterionEditDialog {...defaultProps} />);
-      expect(screen.getByLabelText('Spaces')).toBeInTheDocument();
-      expect(screen.getByLabelText('People')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Tools')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Space')).toBeInTheDocument();
+      expect(screen.getByLabelText('Person')).toBeInTheDocument();
+      expect(screen.getByLabelText('Tool')).toBeInTheDocument();
     });
 
     it('pre-checks the checkboxes matching criterion resourceTypeKeys', () => {
       render(<CriterionEditDialog {...defaultProps} />);
-      expect(screen.getByLabelText('Spaces')).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByLabelText('People')).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'false');
     });
 
     it('skips the criterion-detail update when only applicability changed', async () => {
@@ -318,7 +331,7 @@ describe('CriterionEditDialog', () => {
       };
       render(<CriterionEditDialog {...defaultProps} criterion={booleanCriterion} />);
 
-      fireEvent.click(screen.getByLabelText('People')); // toggle applicability
+      fireEvent.click(screen.getByLabelText('Person')); // toggle applicability
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {

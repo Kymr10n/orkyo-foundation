@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Repositories;
 
@@ -18,19 +19,38 @@ public class SchedulingService : ISchedulingService
 {
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IRequestRepository _requestRepository;
+    private readonly IResourceRepository _resourceRepository;
     private readonly IAvailabilityResolver _resolver;
     private readonly ILogger<SchedulingService> _logger;
 
     public SchedulingService(
         ISchedulingRepository schedulingRepository,
         IRequestRepository requestRepository,
+        IResourceRepository resourceRepository,
         IAvailabilityResolver resolver,
         ILogger<SchedulingService> logger)
     {
         _schedulingRepository = schedulingRepository;
         _requestRepository = requestRepository;
+        _resourceRepository = resourceRepository;
         _resolver = resolver;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// The resource whose site the working-hours adjustment should follow: the first that
+    /// cannot travel. An immovable resource fixes where the work happens; a person or a van
+    /// carries a home site that says nothing about where this request runs, so picking one of
+    /// those would resolve settings from an unrelated site. Falls back to null when nothing on
+    /// the request is anchored, in which case no adjustment is made.
+    /// </summary>
+    private async Task<Guid?> ResolveSiteBearingResourceAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct)
+    {
+        if (resourceIds.Count == 0) return null;
+
+        var resources = await _resourceRepository.GetByIdsAsync(resourceIds, ct);
+        return resources.FirstOrDefault(r => !r.CrossSiteAllowed)?.Id;
     }
 
     public Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default)
@@ -54,7 +74,7 @@ public class SchedulingService : ISchedulingService
             toRecalculate.Count, siteId);
 
         var spaceResourceIds = toRecalculate
-            .Select(r => r.GetSpaceResourceId())
+            .Select(r => r.GetResourceIdForType(ResourceTypeKeys.Space))
             .Where(id => id.HasValue)
             .Select(id => id!.Value)
             .Distinct()
@@ -66,7 +86,7 @@ public class SchedulingService : ISchedulingService
         {
             try
             {
-                var resourceId = request.GetSpaceResourceId();
+                var resourceId = request.GetResourceIdForType(ResourceTypeKeys.Space);
                 var blockedPeriods = resourceId.HasValue
                     ? blockedByResource[resourceId.Value]
                     : [];
@@ -100,11 +120,14 @@ public class SchedulingService : ISchedulingService
 
     public async Task<CreateRequestRequest> ApplySchedulingToCreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {
-        if (!request.SchedulingSettingsApply || request.ResourceId == null || request.StartTs == null)
+        if (!request.SchedulingSettingsApply || request.StartTs == null)
             return request;
 
+        var siteBearer = await ResolveSiteBearingResourceAsync(request.ResourceIds ?? [], ct);
+        if (siteBearer is null) return request;
+
         var result = await ComputeScheduledTimesAsync(
-            request.ResourceId.Value, request.StartTs.Value,
+            siteBearer.Value, request.StartTs.Value,
             request.MinimalDurationValue, request.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
@@ -131,7 +154,11 @@ public class SchedulingService : ISchedulingService
         // The auto-compute below only applies when the caller gives a start but no end.
         if (request.EndTs != null) return request;
 
-        var resourceId = request.ResourceId ?? existing.GetSpaceResourceId();
+        // Not FirstOrDefault over the assignments: the view orders them by type key, so a
+        // request holding a person and a room resolved its working hours from the person's home
+        // office, alphabetically. Only an immovable resource says where the work happens.
+        var resourceId = await ResolveSiteBearingResourceAsync(
+            request.ResourceIds ?? [.. existing.Assignments.Select(a => a.ResourceId)], ct);
         var startTs = request.StartTs ?? existing.StartTs;
         if (resourceId == null || startTs == null) return request;
 

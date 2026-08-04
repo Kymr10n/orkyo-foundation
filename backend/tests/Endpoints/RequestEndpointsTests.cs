@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Constants;
 using Api.Models;
 using Xunit;
 
@@ -31,7 +32,7 @@ public class RequestEndpointsTests
         {
             Name = $"Test Request {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test request for validation",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(5),
             MinimalDurationValue = 4,
@@ -48,7 +49,9 @@ public class RequestEndpointsTests
         Assert.NotEqual(Guid.Empty, created.Id);
         Assert.Equal(request.Name, created.Name);
         Assert.Equal(request.Description, created.Description);
-        Assert.Equal(request.ResourceId, created.Assignments.SingleOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId);
+        Assert.Equal(
+            request.ResourceIds!.Single(),
+            created.Assignments.SingleOrDefault(a => a.ResourceTypeKey == ResourceTypeKeys.Space)?.ResourceId);
         Assert.Equal(4, created.MinimalDurationValue);
         Assert.Equal(DurationUnit.Days, created.MinimalDurationUnit);
         Assert.Equal(RequestStatus.New, created.Status);
@@ -62,7 +65,7 @@ public class RequestEndpointsTests
         var request = new CreateRequestRequest
         {
             Name = $"Icon Request {Guid.NewGuid():N}".Substring(0, 30),
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             Icon = "calendar",
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
@@ -109,7 +112,7 @@ public class RequestEndpointsTests
         var request = new CreateRequestRequest
         {
             Name = $"NoIcon {Guid.NewGuid():N}".Substring(0, 30),
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -154,7 +157,7 @@ public class RequestEndpointsTests
         {
             Name = $"Request with Reqs {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Request with criterion requirements",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -190,7 +193,7 @@ public class RequestEndpointsTests
         {
             Name = "Invalid Request",
             Description = "Space does not exist",
-            ResourceId = Guid.NewGuid(), // Non-existent space
+            ResourceIds = [Guid.NewGuid()], // Non-existent space
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -213,7 +216,7 @@ public class RequestEndpointsTests
         {
             Name = "Invalid Time Range",
             Description = "End before start",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(5),
             EndTs = DateTime.UtcNow.AddDays(1), // Before start
             MinimalDurationValue = 1,
@@ -236,7 +239,7 @@ public class RequestEndpointsTests
         {
             Name = "Invalid Duration",
             Description = "Negative duration",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = -5, // Negative
@@ -263,7 +266,7 @@ public class RequestEndpointsTests
         {
             Name = $"List Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "For listing test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -299,7 +302,7 @@ public class RequestEndpointsTests
         {
             Name = $"Include Req Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "For include requirements test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -339,7 +342,7 @@ public class RequestEndpointsTests
         {
             Name = $"Get Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "For get single test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -384,7 +387,7 @@ public class RequestEndpointsTests
         {
             Name = $"Update Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original description",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -428,7 +431,7 @@ public class RequestEndpointsTests
         {
             Name = $"Partial Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -482,7 +485,7 @@ public class RequestEndpointsTests
         {
             Name = $"Invalid Update {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(5),
             MinimalDurationValue = 1,
@@ -515,7 +518,7 @@ public class RequestEndpointsTests
         {
             Name = $"Add Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test adding requirements",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -573,7 +576,7 @@ public class RequestEndpointsTests
         {
             Name = $"Modify Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test modifying requirements",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -630,7 +633,7 @@ public class RequestEndpointsTests
         {
             Name = $"Remove Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test removing requirements",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -678,7 +681,7 @@ public class RequestEndpointsTests
         {
             Name = $"Combined Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original description",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -738,7 +741,7 @@ public class RequestEndpointsTests
         {
             Name = $"Preserve Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Original",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -790,7 +793,7 @@ public class RequestEndpointsTests
         {
             Name = $"Delete Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Will be deleted",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -834,7 +837,7 @@ public class RequestEndpointsTests
         {
             Name = $"Delete Cascade {Guid.NewGuid():N}".Substring(0, 30),
             Description = "With requirements to cascade",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -876,7 +879,7 @@ public class RequestEndpointsTests
         {
             Name = $"Add Req Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -934,7 +937,7 @@ public class RequestEndpointsTests
         {
             Name = $"Invalid Criterion {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -970,7 +973,7 @@ public class RequestEndpointsTests
         {
             Name = $"Duplicate Req {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1025,7 +1028,7 @@ public class RequestEndpointsTests
         {
             Name = $"Del Req Test {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1076,7 +1079,7 @@ public class RequestEndpointsTests
         {
             Name = $"Invalid Req Del {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1116,7 +1119,7 @@ public class RequestEndpointsTests
         Assert.NotNull(created);
         Assert.Null(created.StartTs);
         Assert.Null(created.EndTs);
-        Assert.Null(created.GetSpaceResourceId());
+        Assert.Null(created.GetResourceIdForType(ResourceTypeKeys.Space));
 
         // Act - Schedule the request
         var scheduleData = new ScheduleRequestRequest
@@ -1131,7 +1134,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var scheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(scheduled);
-        Assert.Equal(resourceId, scheduled.GetSpaceResourceId());
+        Assert.Equal(resourceId, scheduled.GetResourceIdForType(ResourceTypeKeys.Space));
         Assert.NotNull(scheduled.StartTs);
         Assert.NotNull(scheduled.EndTs);
         Assert.True(scheduled.EndTs > scheduled.StartTs);
@@ -1146,7 +1149,7 @@ public class RequestEndpointsTests
         {
             Name = $"Scheduled {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Initially scheduled",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4),
             MinimalDurationValue = 4,
@@ -1157,7 +1160,7 @@ public class RequestEndpointsTests
         Assert.NotNull(created);
         Assert.NotNull(created.StartTs);
         Assert.NotNull(created.EndTs);
-        Assert.Equal(resourceId, created.GetSpaceResourceId());
+        Assert.Equal(resourceId, created.GetResourceIdForType(ResourceTypeKeys.Space));
 
         // Act - Unschedule the request
         var unscheduleData = new ScheduleRequestRequest
@@ -1172,7 +1175,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var unscheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(unscheduled);
-        Assert.Null(unscheduled.GetSpaceResourceId());
+        Assert.Null(unscheduled.GetResourceIdForType(ResourceTypeKeys.Space));
         Assert.Null(unscheduled.StartTs);
         Assert.Null(unscheduled.EndTs);
     }
@@ -1327,7 +1330,7 @@ public class RequestEndpointsTests
         var createRequest = new CreateRequestRequest
         {
             Name = $"Reschedulable {Guid.NewGuid():N}".Substring(0, 30),
-            ResourceId = resourceId1,
+            ResourceIds = [resourceId1],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(1).AddHours(4),
             MinimalDurationValue = 4,
@@ -1350,7 +1353,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var rescheduled = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(rescheduled);
-        Assert.Equal(resourceId2, rescheduled.GetSpaceResourceId());
+        Assert.Equal(resourceId2, rescheduled.GetResourceIdForType(ResourceTypeKeys.Space));
         Assert.NotEqual(created.StartTs, rescheduled.StartTs);
     }
 
@@ -1365,7 +1368,7 @@ public class RequestEndpointsTests
         var createRequest = new CreateRequestRequest
         {
             Name = $"Resize {Guid.NewGuid():N}"[..30],
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = start,
             EndTs = originalEnd,
             MinimalDurationValue = 4,
@@ -1390,7 +1393,7 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var resized = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(resized);
-        Assert.Equal(resourceId, resized.GetSpaceResourceId());
+        Assert.Equal(resourceId, resized.GetResourceIdForType(ResourceTypeKeys.Space));
 
         // Allow 1-second tolerance for DB round-trip precision
         var endTsDiff = Math.Abs((resized.EndTs!.Value - resizedEnd).TotalSeconds);
@@ -1417,7 +1420,7 @@ public class RequestEndpointsTests
             {
                 Name = $"Duration {unit} {Guid.NewGuid():N}".Substring(0, 30),
                 Description = $"Test {unit}",
-                ResourceId = resourceId,
+                ResourceIds = [resourceId],
                 StartTs = start,
                 EndTs = start.AddDays(10),
                 MinimalDurationValue = 5,
@@ -1449,7 +1452,7 @@ public class RequestEndpointsTests
         {
             Name = $"Bool Req {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,
@@ -1483,7 +1486,7 @@ public class RequestEndpointsTests
         {
             Name = $"Enum Req {Guid.NewGuid():N}".Substring(0, 30),
             Description = "Test",
-            ResourceId = resourceId,
+            ResourceIds = [resourceId],
             StartTs = DateTime.UtcNow.AddDays(1),
             EndTs = DateTime.UtcNow.AddDays(2),
             MinimalDurationValue = 1,

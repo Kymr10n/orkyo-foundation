@@ -1,10 +1,11 @@
+using Api.Constants;
 using Api.Models;
 
 namespace Orkyo.Foundation.Tests.Models;
 
 /// <summary>
 /// Covers the uncovered domain types in <c>Models/AutoSchedule.cs</c>:
-/// enums, SchedulingSolution.ComputeFingerprint(), SchedulingSolution.ToScore(),
+/// enums, SchedulingSolution.ComputeFingerprint(ResourceTypeKeys.Space), SchedulingSolution.ToScore(),
 /// and all internal record types.
 /// </summary>
 public class AutoScheduleModelsTests
@@ -30,7 +31,7 @@ public class AutoScheduleModelsTests
     }
 
     [Theory]
-    [InlineData(SchedulingReasonCode.NoCompatibleSpace)]
+    [InlineData(SchedulingReasonCode.NoCompatibleResource)]
     [InlineData(SchedulingReasonCode.InsufficientCapacity)]
     [InlineData(SchedulingReasonCode.BlockedByFixedAssignments)]
     [InlineData(SchedulingReasonCode.InvalidDuration)]
@@ -60,7 +61,7 @@ public class AutoScheduleModelsTests
             },
             Unscheduled: new List<UnscheduledPlacement>
             {
-                new(RequestId: req2, ReasonCodes: new List<SchedulingReasonCode> { SchedulingReasonCode.NoCompatibleSpace })
+                new(RequestId: req2, ReasonCodes: new List<SchedulingReasonCode> { SchedulingReasonCode.NoCompatibleResource })
             },
             Diagnostics: new List<string>()
         );
@@ -90,7 +91,7 @@ public class AutoScheduleModelsTests
         score.PriorityScore.Should().Be(0);
     }
 
-    // ── SchedulingSolution.ComputeFingerprint() ────────────────────────────
+    // ── SchedulingSolution.ComputeFingerprint(ResourceTypeKeys.Space) ────────────────────────────
 
     [Fact]
     public void ComputeFingerprint_EmptySolution_ProducesConsistentHash()
@@ -103,8 +104,8 @@ public class AutoScheduleModelsTests
             Diagnostics: new List<string>()
         );
 
-        var fp1 = solution.ComputeFingerprint();
-        var fp2 = solution.ComputeFingerprint();
+        var fp1 = solution.ComputeFingerprint(ResourceTypeKeys.Space);
+        var fp2 = solution.ComputeFingerprint(ResourceTypeKeys.Space);
 
         fp1.Should().Be(fp2);
         fp1.Should().HaveLength(64); // SHA-256 hex
@@ -121,7 +122,7 @@ public class AutoScheduleModelsTests
         var a = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
         var b = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
 
-        a.ComputeFingerprint().Should().Be(b.ComputeFingerprint());
+        a.ComputeFingerprint(ResourceTypeKeys.Space).Should().Be(b.ComputeFingerprint(ResourceTypeKeys.Space));
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public class AutoScheduleModelsTests
         var a = MakeSolution(new ScheduledPlacement(req1, resourceId, start, end, 4, 5));
         var b = MakeSolution(new ScheduledPlacement(req2, resourceId, start, end, 4, 5));
 
-        a.ComputeFingerprint().Should().NotBe(b.ComputeFingerprint());
+        a.ComputeFingerprint(ResourceTypeKeys.Space).Should().NotBe(b.ComputeFingerprint(ResourceTypeKeys.Space));
     }
 
     [Fact]
@@ -157,7 +158,7 @@ public class AutoScheduleModelsTests
         var reversed = new SchedulingSolution(SolverKind.Greedy, SolverStatus.Optimal,
             new List<ScheduledPlacement> { p2, p1 }, new List<UnscheduledPlacement>(), new List<string>());
 
-        ordered.ComputeFingerprint().Should().Be(reversed.ComputeFingerprint());
+        ordered.ComputeFingerprint(ResourceTypeKeys.Space).Should().Be(reversed.ComputeFingerprint(ResourceTypeKeys.Space));
     }
 
     // ── RequestNode ────────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ public class AutoScheduleModelsTests
         node.RequiredCriterionIds.Should().Contain(criterionId);
     }
 
-    // ── SpaceNode ──────────────────────────────────────────────────────────
+    // ── ResourceNode ──────────────────────────────────────────────────────────
 
     [Fact]
     public void SpaceNode_StoresAllFields()
@@ -192,7 +193,7 @@ public class AutoScheduleModelsTests
         var resourceId = Guid.NewGuid();
         var criterionId = Guid.NewGuid();
 
-        var node = new SpaceNode(
+        var node = new ResourceNode(
             ResourceId: resourceId,
             DisplayName: "Hall A",
             CriterionIds: new HashSet<Guid> { criterionId });
@@ -234,7 +235,7 @@ public class AutoScheduleModelsTests
             HorizonStart: start,
             HorizonEnd: end,
             Requests: new List<RequestNode>(),
-            Spaces: new List<SpaceNode>(),
+            Resources: new List<ResourceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
             BlockedPeriodsByResource: null);
@@ -275,11 +276,11 @@ public class AutoScheduleModelsTests
         var rejection = new CandidateRejection(
             RequestId: reqId,
             ResourceId: resourceId,
-            ReasonCode: SchedulingReasonCode.NoCompatibleSpace,
+            ReasonCode: SchedulingReasonCode.NoCompatibleResource,
             Message: "No space matches criteria");
 
         rejection.RequestId.Should().Be(reqId);
-        rejection.ReasonCode.Should().Be(SchedulingReasonCode.NoCompatibleSpace);
+        rejection.ReasonCode.Should().Be(SchedulingReasonCode.NoCompatibleResource);
         rejection.Message.Should().Be("No space matches criteria");
     }
 
@@ -311,7 +312,7 @@ public class AutoScheduleModelsTests
             HorizonStart: start,
             HorizonEnd: end,
             Requests: new List<RequestNode>(),
-            Spaces: new List<SpaceNode>(),
+            Resources: new List<ResourceNode>(),
             FixedAssignments: new List<FixedOccupancy>(),
             Settings: null,
             BlockedPeriodsByResource: null);
@@ -357,7 +358,7 @@ public class AutoScheduleModelsTests
             ReasonCodes: new List<SchedulingReasonCode>
             {
                 SchedulingReasonCode.InsufficientCapacity,
-                SchedulingReasonCode.NoCompatibleSpace
+                SchedulingReasonCode.NoCompatibleResource
             });
 
         placement.RequestId.Should().Be(reqId);

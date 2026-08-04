@@ -15,7 +15,6 @@ import {
 import type {
   Criterion,
   CriterionDataType,
-  ResourceTypeKey,
   UpdateCriterionRequest,
 } from '@foundation/src/types/criterion';
 import {
@@ -24,10 +23,9 @@ import {
   useUpdateCriterionApplicability,
 } from '@foundation/src/hooks/useCriteria';
 import { EnumValueEditor } from './EnumValueEditor';
-import {
-  CRITERION_RESOURCE_TYPE_OPTIONS as RESOURCE_TYPE_OPTIONS,
-  useCriterionForm,
-} from './useCriterionForm';
+import { useCriterionForm } from './useCriterionForm';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
+import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface CriterionEditDialogProps {
@@ -37,7 +35,7 @@ interface CriterionEditDialogProps {
   /** Optional: invoked with the saved entity on successful create or update. Used by inline-create flows. */
   onSaved?: (criterion: Criterion) => void;
   /** Pre-select a resource type when creating from a resource-domain page. Ignored when editing. */
-  defaultResourceType?: ResourceTypeKey;
+  defaultResourceType?: string;
 }
 
 export function CriterionEditDialog({
@@ -50,6 +48,8 @@ export function CriterionEditDialog({
   const createMutation = useCreateCriterion();
   const updateMutation = useUpdateCriterion();
   const applicabilityMutation = useUpdateCriterionApplicability();
+  // Applicability targets are whatever types the tenant has defined, not a fixed list.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
   const form = useCriterionForm();
   // Name and DataType are mutable (DataType only while not in use), so they live in
   // local state here rather than in the shared form hook.
@@ -71,7 +71,7 @@ export function CriterionEditDialog({
       enumValues: criterion?.enumValues ?? [],
       resourceTypeKeys: criterion
         ? [...(criterion.resourceTypeKeys ?? [])]
-        : [defaultResourceType ?? 'space'],
+        : [defaultResourceType ?? RESOURCE_TYPE_KEY.SPACE],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [criterion, open, defaultResourceType]);
@@ -199,6 +199,7 @@ export function CriterionEditDialog({
               <SelectItem value="Number">Number (numeric value)</SelectItem>
               <SelectItem value="String">String (text)</SelectItem>
               <SelectItem value="Enum">Enum (predefined options)</SelectItem>
+              <SelectItem value="Date">Date (calendar date)</SelectItem>
             </SelectContent>
           </Select>
         )}
@@ -251,8 +252,8 @@ export function CriterionEditDialog({
       {/* Applies To */}
       <div className="space-y-2">
         <Label>Applies to *</Label>
-        <div className="flex gap-4">
-          {RESOURCE_TYPE_OPTIONS.map(({ key, label }) => (
+        <div className="flex flex-wrap gap-4">
+          {resourceTypes.map(({ key, displayName }) => (
             <div key={key} className="flex items-center gap-2">
               <Checkbox
                 id={`applies-to-${key}`}
@@ -261,7 +262,7 @@ export function CriterionEditDialog({
                 disabled={isSubmitting}
               />
               <Label htmlFor={`applies-to-${key}`} className="font-normal cursor-pointer">
-                {label}
+                {displayName}
               </Label>
             </div>
           ))}

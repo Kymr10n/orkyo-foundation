@@ -241,7 +241,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         // ── Repositories ──────────────────────────────────────────────────────
         builder.Services.AddScoped<ISiteRepository, SiteRepository>();
-        builder.Services.AddScoped<ISpaceRepository, SpaceRepository>();
         // ISpaceCapabilityRepository is served by IResourceCapabilityRepository (Phase 2)
         builder.Services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         builder.Services.AddScoped<ICriteriaRepository, CriteriaRepository>();
@@ -322,9 +321,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Services.AutoSchedule.ISchedulingSolver, Api.Services.AutoSchedule.GreedySchedulingSolver>();
         builder.Services.AddScoped<IAssetRepository, AssetRepository>();
         builder.Services.AddScoped<ISiteService, SiteService>();
-        builder.Services.AddScoped<ISpaceService, SpaceService>();
-        // SpaceService now needs resource repos for Phase 2 coordination (already registered above)
         builder.Services.AddScoped<ICriteriaService, CriteriaService>();
+        builder.Services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();
         builder.Services.AddScoped<IAutoScheduleService, AutoScheduleService>();
@@ -333,6 +331,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
+        builder.Services.AddScoped<IResourceTypeService, ResourceTypeService>();
         builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         builder.Services.AddScoped<IConflictService, ConflictService>();
         builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();

@@ -4,6 +4,9 @@ import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
+import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
+import { TYPES_WITH_DEDICATED_PAGES } from "@foundation/src/constants/resource-type-key";
 import {
   Box,
   ChevronLeft,
@@ -17,10 +20,15 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 
-const coreNavItems = [
+// Split so the per-type entries derived below can sit with the other resource entries,
+// beneath People, rather than trailing the whole core list.
+const resourceNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
   { to: "/spaces", label: "Spaces", icon: Box },
   { to: "/people", label: "People", icon: Users },
+];
+
+const workNavItems = [
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/insights", label: "Insights", icon: LineChart },
 ];
@@ -45,8 +53,21 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
   const { membership } = useAuth();
   const canEdit = useCanEdit();
   const isTenantAdmin = membership?.isTenantAdmin === true;
+  // One entry per active type that has no page of its own, in the order the API returns them.
+  // The test used to be `!isSystem`, which withheld a nav entry from `tool` — a built-in type
+  // that has never had a dedicated page, so it was reachable only by typing the URL.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const typeNavItems = resourceTypes
+    .filter((type) => !TYPES_WITH_DEDICATED_PAGES.has(type.key))
+    .map((type) => ({
+      to: `/resources/${type.key}`,
+      label: type.displayNamePlural,
+      icon: resourceTypeIcon(type.icon),
+    }));
   const navItems = [
-    ...coreNavItems,
+    ...resourceNavItems,
+    ...typeNavItems,
+    ...workNavItems,
     ...(canEdit ? [settingsNavItem] : []),
     ...(isTenantAdmin ? [adminNavItem] : []),
   ];

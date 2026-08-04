@@ -1,14 +1,21 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
   flexRender,
+  type Column,
   type ColumnDef,
   type ColumnFiltersState,
+  type FilterFn,
+  type OnChangeFn,
   type PaginationState,
   type RowData,
+  type SortingState,
 } from '@tanstack/react-table';
 import { AlertCircle, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
@@ -24,11 +31,25 @@ import {
   TableHeader,
   TableRow,
 } from '@foundation/src/components/ui/table';
+import { DataTableColumnHeader } from '@foundation/src/components/ui/DataTableColumnHeader';
+import { filterFnFor } from '@foundation/src/lib/table/column-meta';
+import { arrayOverlaps, dateBetween, oneOf } from '@foundation/src/lib/table/filter-fns';
 import { useBreakpoint } from '@foundation/src/hooks/useBreakpoint';
 import { cn } from '@foundation/src/lib/utils';
 
 // Re-export so callers don't need a separate @tanstack/react-table import for ColumnDef
 export type { ColumnDef, RowData };
+
+function ariaSort<TData>(column: Column<TData, unknown>): 'ascending' | 'descending' | undefined {
+  const sorted = column.getIsSorted();
+  return sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined;
+}
+
+/** Plain-text column name for aria labels: meta.label, else the header string, else the id. */
+function columnLabel<TData>(column: Column<TData, unknown>): string {
+  const def = column.columnDef;
+  return def.meta?.label ?? (typeof def.header === 'string' ? def.header : column.id);
+}
 
 export interface OrkyoDataTableProps<TData> {
   columns: ColumnDef<TData>[];
@@ -45,6 +66,8 @@ export interface OrkyoDataTableProps<TData> {
 
   // Filtering — choose one mode:
   // Client-side: provide filterColumn (accessor key). Filter fires on keystroke.
+  // Foundation's own lists no longer use this — their text filters live in the column
+  // headers (meta.filter) — but server-searched tables (SaaS admin) still render this box.
   filterColumn?: string;
   filterPlaceholder?: string;
   // Server-side: provide filterValue + onFilterChange. When filterOnSubmit is
@@ -60,6 +83,15 @@ export interface OrkyoDataTableProps<TData> {
   totalCount?: number;
   page?: number;
   onPageChange?: (page: number) => void;
+
+  // Column sorting / header filters — columns opt in via meta.filter (and sort by having an
+  // accessor). Uncontrolled by default; pass these to own the state (useTableUrlState does,
+  // to persist it in the URL). When the table is server-paged, providing them also switches
+  // to manual mode: header menus only report state, and the call site queries the server.
+  sorting?: SortingState;
+  onSortingChange?: OnChangeFn<SortingState>;
+  columnFilters?: ColumnFiltersState;
+  onColumnFiltersChange?: OnChangeFn<ColumnFiltersState>;
 
   // Row interaction — when provided, rows become clickable (cursor + onClick).
   // Action-button cells must call e.stopPropagation() to avoid triggering this.
@@ -86,6 +118,10 @@ export function OrkyoDataTable<TData>({
   filterValue: controlledFilterValue,
   onFilterChange,
   filterOnSubmit,
+  sorting: controlledSorting,
+  onSortingChange,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange,
   pageSize,
   totalCount,
   page: controlledPage,
@@ -98,8 +134,16 @@ export function OrkyoDataTable<TData>({
   const { isPhone } = useBreakpoint();
   const showCards = isPhone && renderCard !== undefined;
 
-  // Local state for client-side filtering
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  // Local state for client-side filtering/sorting; controlled props take precedence.
+  const [internalColumnFilters, setInternalColumnFilters] = useState<ColumnFiltersState>([]);
+  const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+  const columnFilters = controlledColumnFilters ?? internalColumnFilters;
+  const sorting = controlledSorting ?? internalSorting;
+  const handleColumnFiltersChange = onColumnFiltersChange ?? setInternalColumnFilters;
+  const handleSortingChange = onSortingChange ?? setInternalSorting;
+  // Server-paged data is a window onto the real set, so sorting/filtering the visible rows
+  // client-side would lie; with controlled state the call site translates to server params.
+  const isManualTable = isServerPagination && onColumnFiltersChange !== undefined;
   // Pending value for button-press filter pattern
   const [pendingFilter, setPendingFilter] = useState(controlledFilterValue ?? '');
 
@@ -114,13 +158,45 @@ export function OrkyoDataTable<TData>({
       ? Math.ceil(totalCount / pageSize)
       : undefined;
 
+  // Attach the filterFn each column's meta declares, so call sites never name one. The type
+  // in the meta is the single source: it also drives which UI the header menu renders and how
+  // the URL hook encodes the value.
+  const resolvedColumns = useMemo(
+    () =>
+      columns.map((col) =>
+        // The spread widens TanStack's discriminated ColumnDef union, so assert it back.
+        col.meta?.filter && !col.filterFn
+          ? ({ ...col, filterFn: filterFnFor(col.meta.filter) } as ColumnDef<TData>)
+          : col,
+      ),
+    [columns],
+  );
+
   const table = useReactTable({
     data,
-    columns,
+    columns: resolvedColumns,
+    // The fns are row-type-agnostic (they only read one cell), but registering them as
+    // FilterFn<unknown> would pin the whole table's generic to unknown.
+    filterFns: {
+      oneOf: oneOf as FilterFn<TData>,
+      arrayOverlaps: arrayOverlaps as FilterFn<TData>,
+      dateBetween: dateBetween as FilterFn<TData>,
+    },
     getCoreRowModel: getCoreRowModel(),
-    ...(filterColumn && !isServerFilter
-      ? { getFilteredRowModel: getFilteredRowModel(), onColumnFiltersChange: setColumnFilters }
-      : {}),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    // Facet counts read the full client row set; a server-paged window would produce
+    // counts for the visible page only, which reads as data loss — skip them there.
+    ...(isManualTable
+      ? {}
+      : {
+          // Explicit generics: inside a conditional spread the factories lose contextual
+          // typing and would anchor the whole table's row type to unknown.
+          getFacetedRowModel: getFacetedRowModel<TData>(),
+          getFacetedUniqueValues: getFacetedUniqueValues<TData>(),
+        }),
+    onColumnFiltersChange: handleColumnFiltersChange,
+    onSortingChange: handleSortingChange,
     ...(pageSize
       ? {
           getPaginationRowModel: getPaginationRowModel(),
@@ -130,7 +206,8 @@ export function OrkyoDataTable<TData>({
         }
       : {}),
     state: {
-      ...(filterColumn && !isServerFilter ? { columnFilters } : {}),
+      columnFilters,
+      sorting,
       ...(pageSize
         ? {
             pagination: isServerPagination
@@ -139,7 +216,8 @@ export function OrkyoDataTable<TData>({
           }
         : {}),
     },
-    manualFiltering: isServerFilter,
+    manualFiltering: isServerFilter || isManualTable,
+    manualSorting: isManualTable,
   });
 
   const handleClientFilterChange = useCallback(
@@ -267,13 +345,28 @@ export function OrkyoDataTable<TData>({
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
-                  {hg.headers.map((header) => (
-                    <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
+                  {hg.headers.map((header) => {
+                    const column = header.column;
+                    const interactive = !header.isPlaceholder
+                      && (column.getCanSort() || column.columnDef.meta?.filter !== undefined);
+                    return (
+                      <TableHead
+                        key={header.id}
+                        aria-sort={ariaSort(column)}
+                        style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                      >
+                        {header.isPlaceholder ? null : interactive ? (
+                          <DataTableColumnHeader
+                            column={column}
+                            title={flexRender(column.columnDef.header, header.getContext())}
+                            label={columnLabel(column)}
+                          />
+                        ) : (
+                          flexRender(column.columnDef.header, header.getContext())
+                        )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               ))}
             </TableHeader>

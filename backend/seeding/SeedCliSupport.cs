@@ -38,10 +38,6 @@ public class SeedCliOptions
     [Option("floorplans", Default = true,
         HelpText = "Seed the curated floorplan-backed sites (with image assets + geometry-bearing spaces) instead of scale-driven sites/spaces. Requires a profile with a floorplan set (manufacturing). Pass --floorplans false to disable.")]
     public bool Floorplans { get; init; }
-
-    [Option("tools", Default = false,
-        HelpText = "Also seed tool/equipment resources and their criteria. Off by default — the demo seeds people and spaces only.")]
-    public bool Tools { get; init; }
 }
 
 /// <summary>
@@ -74,7 +70,6 @@ public static class SeedCliSupport
         ForceNonLocal = opts.ForceNonLocal,
         UseFloorplans = opts.Floorplans,
         TenantId = tenantId,
-        ResourceTypes = opts.Tools ? SeedResourceTypes.All : SeedResourceTypes.Default,
     };
 
     /// <summary>Print the full seed report (every counter) — the single source so no edition silently omits rows.</summary>

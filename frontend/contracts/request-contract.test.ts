@@ -138,6 +138,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "sortOrder"
     | "siteId"
     | "assignments"
+    | "targetResourceTypeKeys"
     | "requestItemId"
     | "icon"
     | "startTs"
@@ -168,6 +169,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "sortOrder",
     "siteId",
     "assignments",
+    "targetResourceTypeKeys",
     "requestItemId",
     "icon",
     "startTs",
@@ -200,6 +202,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       sortOrder: 0,
       siteId: null,
       assignments: [],
+      targetResourceTypeKeys: ["space"],
       requestItemId: null,
       icon: null,
       startTs: null,
@@ -335,8 +338,9 @@ describe("Contract - CreateRequestRequest DTO", () => {
     | "planningMode"
     | "sortOrder"
     | "siteId"
-    | "resourceId"
+    | "resourceIds"
     | "requestItemId"
+    | "targetResourceTypeKeys"
     | "icon"
     | "startTs"
     | "endTs"
@@ -360,8 +364,9 @@ describe("Contract - CreateRequestRequest DTO", () => {
       "planningMode",
       "sortOrder",
       "siteId",
-      "resourceId",
+      "resourceIds",
       "requestItemId",
+      "targetResourceTypeKeys",
       "icon",
       "startTs",
       "endTs",
@@ -408,8 +413,9 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "sortOrder"
     | "siteId"
     | "changeSiteId"
-    | "resourceId"
+    | "resourceIds"
     | "requestItemId"
+    | "targetResourceTypeKeys"
     | "icon"
     | "startTs"
     | "endTs"

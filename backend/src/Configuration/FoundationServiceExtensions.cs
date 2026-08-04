@@ -111,7 +111,6 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISearchRepository, SearchRepository>();
         services.AddScoped<ISiteRepository, SiteRepository>();
         services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
-        services.AddScoped<ISpaceRepository, SpaceRepository>();
         services.AddScoped<ITemplateRepository, TemplateRepository>();
         services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
@@ -122,6 +121,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
         services.AddScoped<ICriteriaService, CriteriaService>();
+        services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IExportService, ExportService>();
         services.AddScoped<IAssetStorageService, AssetStorageService>();
@@ -136,12 +136,12 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         services.AddScoped<IConflictService, ConflictService>();
         services.AddScoped<IResourceService, ResourceService>();
+        services.AddScoped<IResourceTypeService, ResourceTypeService>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserSessionService, UserSessionService>();
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<ISiteSettingsService, SiteSettingsService>();
-        services.AddScoped<ISpaceService, SpaceService>();
         services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         services.AddScoped<ITenantUserService, TenantUserService>();

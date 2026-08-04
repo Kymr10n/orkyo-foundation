@@ -65,7 +65,7 @@ public class CachingInsightsServiceTests
             ScheduleOutsideAvailability = 0,
             MissingResource = 0,
         },
-        Utilization = new UtilizationSummary { SpacesPercent = null, PeoplePercent = null, ToolsPercent = null },
+        Utilization = new UtilizationSummary { ByResourceType = [] },
         Metadata = new InsightsMetadata { CalculatedAt = DateTime.UtcNow, SourceMode = "live" },
     };
 

@@ -20,7 +20,7 @@ public class AutoScheduleServiceTests
     {
         var mockProblemBuilder = new Mock<SchedulingProblemBuilder>(
             Mock.Of<IRequestRepository>(),
-            Mock.Of<ISpaceRepository>(),
+            Mock.Of<IResourceRepository>(),
             Mock.Of<IResourceCapabilityRepository>(),
             Mock.Of<ISchedulingRepository>(),
             Mock.Of<IAvailabilityResolver>());

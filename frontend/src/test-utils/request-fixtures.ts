@@ -1,4 +1,4 @@
-import type { Request, ResourceAssignment, ResourceTypeKey } from '@foundation/src/types/requests';
+import type { Request, ResourceAssignment } from '@foundation/src/types/requests';
 
 /**
  * Factory function to create Request test fixtures.
@@ -64,7 +64,7 @@ export function makeScheduledRequest(
  * Create a request with multiple assignments (space + person + tool).
  */
 export function makeMultiResourceRequest(
-  assignments: { resourceId: string; resourceTypeKey: ResourceTypeKey }[],
+  assignments: { resourceId: string; resourceTypeKey: string }[],
   overrides: Partial<Request> = {}
 ): Request {
   return makeRequest({
@@ -81,7 +81,7 @@ export function makeMultiResourceRequest(
  */
 export function makeAssignment(
   resourceId: string,
-  resourceTypeKey: ResourceTypeKey,
+  resourceTypeKey: string,
   overrides: Partial<ResourceAssignment> = {}
 ): ResourceAssignment {
   return {

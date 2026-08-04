@@ -32,6 +32,7 @@ import {
 } from '@foundation/src/components/ui/dialog';
 import { MessageSquare, Eye } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -95,16 +96,21 @@ export function FeedbackTab() {
     {
       accessorKey: 'title',
       header: 'Title',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => <span className="font-medium truncate max-w-[280px] block">{row.original.title}</span>,
     },
     {
       id: 'type',
+      accessorFn: (r) => r.feedbackType,
       header: 'Type',
+      meta: { filter: { type: 'enum' } },
       cell: ({ row }) => <Badge variant="outline" className="capitalize">{row.original.feedbackType}</Badge>,
     },
     {
       id: 'submitter',
+      accessorFn: (r) => r.submitterEmail ?? '',
       header: 'From',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground whitespace-nowrap">
           {row.original.submitterEmail ?? '—'}
@@ -114,12 +120,16 @@ export function FeedbackTab() {
     },
     {
       id: 'status',
+      // No meta: status is already a server-side filter (the Select above), so a client
+      // facet would only ever see the one value the current load contains.
       header: 'Status',
       cell: ({ row }) => <Badge variant={STATUS_VARIANT[row.original.status]}>{STATUS_LABEL[row.original.status]}</Badge>,
     },
     {
       id: 'created',
+      accessorFn: (r) => r.createdAt,
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground whitespace-nowrap">
           {formatDateDisplay(row.original.createdAt)}
@@ -145,6 +155,9 @@ export function FeedbackTab() {
       ),
     },
   ];
+
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('fb', columns);
 
   // Phone presentation: title + type/status/submitter stacked, review trailing.
   const renderCard = (item: FeedbackSummary) => (
@@ -210,10 +223,9 @@ export function FeedbackTab() {
             <ErrorAlert message={error ?? null} />
           </div>
           <OrkyoDataTable
+        {...tableUrlState}
             columns={columns}
             data={items}
-            filterColumn="title"
-            filterPlaceholder="Search feedback…"
             emptyMessage="No feedback yet."
             renderCard={renderCard}
           />

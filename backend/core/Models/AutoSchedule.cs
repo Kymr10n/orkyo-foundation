@@ -32,7 +32,7 @@ public enum SolverStatus
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum SchedulingReasonCode
 {
-    NoCompatibleSpace = 1,
+    NoCompatibleResource = 1,
     InsufficientCapacity = 3,
     BlockedByFixedAssignments = 4,
     InvalidDuration = 5,
@@ -41,12 +41,18 @@ public enum SchedulingReasonCode
 
 // ── Request / Response DTOs ────────────────────────────────────────
 
+/// <param name="ResourceTypeKey">
+/// Which resource type to schedule. One run fills one type's slot, because the solver's model —
+/// no overlap per node, at most one node per request — has nothing to say about matching a room
+/// to a van. NULL means spaces, which is what every run meant before types were selectable.
+/// </param>
 public sealed record AutoSchedulePreviewRequest(
     Guid SiteId,
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds = null,
-    bool RespectSchedulingSettings = true);
+    bool RespectSchedulingSettings = true,
+    string? ResourceTypeKey = null);
 
 public sealed record AutoScheduleApplyRequest(
     Guid SiteId,
@@ -54,7 +60,8 @@ public sealed record AutoScheduleApplyRequest(
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
-    string? PreviewFingerprint = null);
+    string? PreviewFingerprint = null,
+    string? ResourceTypeKey = null);
 
 public sealed record AutoSchedulePreviewResponse(
     SolverKind SolverUsed,
@@ -98,7 +105,7 @@ public sealed record SchedulingProblem(
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
     IReadOnlyList<RequestNode> Requests,
-    IReadOnlyList<SpaceNode> Spaces,
+    IReadOnlyList<ResourceNode> Resources,
     IReadOnlyList<FixedOccupancy> FixedAssignments,
     SchedulingSettingsInfo? Settings,
     Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource);
@@ -113,7 +120,7 @@ public sealed record RequestNode(
     bool RespectSchedulingSettings,
     IReadOnlySet<Guid> RequiredCriterionIds);
 
-public sealed record SpaceNode(
+public sealed record ResourceNode(
     Guid ResourceId,
     string DisplayName,
     IReadOnlySet<Guid> CriterionIds);
@@ -125,7 +132,7 @@ public sealed record FixedOccupancy(
     DateOnly End);
 
 /// <summary>
-/// A feasible request→space candidate with enumerated start days.
+/// A feasible request→resource candidate with enumerated start days.
 /// </summary>
 public sealed record SchedulingCandidate(
     Guid RequestId,
@@ -172,9 +179,12 @@ public sealed record SchedulingSolution(
     /// solutions produce the same fingerprint regardless of solver non-determinism in ordering.
     /// Used for stale-preview detection on apply.
     /// </summary>
-    public string ComputeFingerprint()
+    public string ComputeFingerprint(string resourceTypeKey)
     {
-        var sb = new StringBuilder();
+        // The type is part of the identity, not just the assignments: an empty solution hashes
+        // the same for every type, so without it a preview that proposed nothing would match
+        // an apply for any type.
+        var sb = new StringBuilder(resourceTypeKey).Append('#');
         foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))
         {
             sb.Append(a.RequestId).Append('|')

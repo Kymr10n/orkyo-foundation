@@ -8,7 +8,7 @@ using Xunit;
 namespace Orkyo.Foundation.Tests.Repositories;
 
 /// <summary>
-/// Verifies person_profiles.notes is encrypted at rest yet returned as plaintext
+/// Verifies resources.notes is encrypted at rest yet returned as plaintext
 /// through the repository. email is intentionally left plaintext (lookup field).
 /// </summary>
 [Collection("Database collection")]
@@ -43,7 +43,7 @@ public class PersonProfileEncryptionTests
         await using var conn = _connFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
-            "SELECT notes, email::text FROM person_profiles WHERE resource_id = @id", conn);
+            "SELECT notes, email::text FROM resources WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", resourceId);
         await using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();

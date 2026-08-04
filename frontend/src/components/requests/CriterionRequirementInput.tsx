@@ -75,6 +75,7 @@ export function CriterionRequirementInput({
               }}
               placeholder={`Enter ${criterion.name.toLowerCase()}`}
               className="flex-1"
+              aria-describedby={criterion.unit ? `criterion-${criterion.id}-unit` : undefined}
             />
             {criterion.unit && (
               <span className="text-sm text-muted-foreground">{criterion.unit}</span>
@@ -89,6 +90,18 @@ export function CriterionRequirementInput({
             value={(value as string) ?? ""}
             onChange={(e) => onChange(e.target.value || null)}
             placeholder={`Enter ${criterion.name.toLowerCase()}`}
+            maxLength={criterion.validation?.maxLength}
+          />
+        );
+
+      // yyyy-MM-dd on the wire, which is exactly what <input type="date"> emits — so the
+      // value needs no conversion in either direction.
+      case "Date":
+        return (
+          <Input
+            type="date"
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(e.target.value || null)}
           />
         );
 

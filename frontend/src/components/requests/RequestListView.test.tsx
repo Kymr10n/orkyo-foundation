@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestListView } from './RequestListView';
@@ -84,6 +85,7 @@ function renderListView(
   props: Partial<React.ComponentProps<typeof RequestListView>> = {},
 ) {
   return render(
+    <MemoryRouter>
     <TooltipProvider>
       <RequestListView
         requests={allRequests}
@@ -91,7 +93,8 @@ function renderListView(
         {...defaultHandlers}
         {...props}
       />
-    </TooltipProvider>,
+    </TooltipProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -220,6 +223,31 @@ describe('RequestListView', () => {
     expect(container.querySelectorAll('.italic').length).toBeGreaterThan(0);
   });
 
+  it('status header facet lists the badge labels, not raw wire values', async () => {
+    const user = userEvent.setup();
+    const inProgress = makeRequest({ id: 'ip-1', name: 'Rolling Task', status: 'in_progress' });
+    renderListView({ requests: [standaloneReq, inProgress] });
+    await user.click(screen.getByRole('button', { name: 'Status — sort and filter' }));
+    const facets = screen.getByRole('group', { name: 'Filter Status' });
+    expect(within(facets).getByText('New')).toBeInTheDocument();
+    expect(within(facets).getByText('In Progress')).toBeInTheDocument();
+    expect(within(facets).queryByText('in_progress')).not.toBeInTheDocument();
+  });
+
+  it('sorting Duration orders by derived minutes, not the display string', async () => {
+    const user = userEvent.setup();
+    // Alphabetically "2 hours" < "30 minutes", numerically 120 > 30 — the two
+    // orders disagree, so this catches a string-based sort.
+    const short = makeRequest({ id: 'short', name: 'Short Task', minimalDurationValue: 30, minimalDurationUnit: 'minutes' });
+    const long = makeRequest({ id: 'long', name: 'Long Task', minimalDurationValue: 2, minimalDurationUnit: 'hours' });
+    renderListView({ requests: [long, short] });
+    await user.click(screen.getByRole('button', { name: 'Duration — sort and filter' }));
+    await user.click(screen.getByRole('button', { name: 'Low → High' }));
+    const bodyRows = screen.getAllByRole('row').slice(1); // drop the header row
+    expect(bodyRows[0]).toHaveTextContent('Short Task');
+    expect(bodyRows[1]).toHaveTextContent('Long Task');
+  });
+
   // Icon plumbing
   it('renders the curated icon when request.icon is set', () => {
     const withIcon = makeRequest({ id: 'with-icon', name: 'With Icon', icon: 'calendar' });
@@ -234,4 +262,22 @@ describe('RequestListView', () => {
     expect(container.querySelectorAll('svg').length).toBeGreaterThan(0);
     expect(container.querySelector('.lucide-calendar')).toBeNull();
   });
+
+  it('filters from the Name header, matching the description too', async () => {
+    // The page's search box is tree-only, so this header inherits its reach: it matches the
+    // description, which no column displays.
+    renderListView({
+      requests: [
+        makeRequest({ id: 'r1', name: 'Alpha', description: 'red apple', planningMode: 'leaf' }),
+        makeRequest({ id: 'r2', name: 'Beta', description: 'blue sky', planningMode: 'leaf' }),
+      ],
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Name — sort and filter' }));
+    await userEvent.type(screen.getByLabelText('Filter Name'), 'apple');
+
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+  });
+
 });

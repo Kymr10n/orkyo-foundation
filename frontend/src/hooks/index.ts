@@ -21,6 +21,11 @@ export {
   type UserPreferences,
 } from "./usePreferences";
 export {
+  useResourceTypes,
+  useDeleteResourceType,
+  RESOURCE_TYPE_INVALIDATES,
+} from "./useResourceTypes";
+export {
   useRequestForm,
   formReducer,
   buildInitialState,

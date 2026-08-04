@@ -2,7 +2,7 @@
  * API client for Person Profile operations
  */
 
-import { apiGet, apiPut, apiPost, apiDelete } from '../core/api-client';
+import { apiGet, apiPut, apiPost } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
 // Re-export PersonProfileInfo from the models. Reference data (job title,
@@ -27,10 +27,6 @@ export interface UpsertPersonProfileRequest {
   jobTitleId?: string | null;
   departmentId?: string | null;
   notes?: string;
-}
-
-export interface LinkUserToPersonProfileRequest {
-  userId: string;
 }
 
 /**
@@ -76,21 +72,4 @@ export async function upsertPersonProfile(
   request: UpsertPersonProfileRequest
 ): Promise<PersonProfileInfo> {
   return apiPut<PersonProfileInfo>(API_PATHS.personProfile(resourceId), request);
-}
-
-/**
- * Link a user to a person profile
- */
-export async function linkUserToPersonProfile(
-  resourceId: string,
-  request: LinkUserToPersonProfileRequest
-): Promise<void> {
-  return apiPost<void>(API_PATHS.personProfileLink(resourceId), request);
-}
-
-/**
- * Unlink a user from a person profile
- */
-export async function unlinkUserFromPersonProfile(resourceId: string): Promise<void> {
-  return apiDelete(API_PATHS.personProfileLink(resourceId));
 }

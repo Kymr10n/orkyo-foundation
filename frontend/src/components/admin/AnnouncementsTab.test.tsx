@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { AnnouncementsTab } from './AnnouncementsTab';
 
@@ -72,26 +73,26 @@ describe('AnnouncementsTab', () => {
   it('should show loading state initially', () => {
     // Never resolve the promise to keep loading
     mockGetAnnouncements.mockReturnValue(new Promise(() => {}));
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     expect(screen.getByText('Loading announcements…')).toBeInTheDocument();
   });
 
   it('should show empty state when no announcements', async () => {
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText(/no announcements yet/i)).toBeInTheDocument();
     });
   });
 
   it('should show the "New Announcement" button', async () => {
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('New Announcement')).toBeInTheDocument();
     });
   });
 
   it('should show card header with title and description', async () => {
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('Platform Announcements')).toBeInTheDocument();
       expect(screen.getByText(/announcements visible to all users/i)).toBeInTheDocument();
@@ -107,7 +108,7 @@ describe('AnnouncementsTab', () => {
       announcements: [sampleAnnouncement, importantAnnouncement],
     });
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Scheduled Maintenance')).toBeInTheDocument();
@@ -120,7 +121,7 @@ describe('AnnouncementsTab', () => {
       announcements: [sampleAnnouncement],
     });
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Active')).toBeInTheDocument();
@@ -132,7 +133,7 @@ describe('AnnouncementsTab', () => {
       announcements: [importantAnnouncement],
     });
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Important')).toBeInTheDocument();
@@ -144,7 +145,7 @@ describe('AnnouncementsTab', () => {
       announcements: [expiredAnnouncement],
     });
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Expired')).toBeInTheDocument();
@@ -156,7 +157,7 @@ describe('AnnouncementsTab', () => {
       announcements: [sampleAnnouncement],
     });
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('admin@orkyo.io')).toBeInTheDocument();
@@ -168,7 +169,7 @@ describe('AnnouncementsTab', () => {
       announcements: [importantAnnouncement],
     });
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('2')).toBeInTheDocument();
@@ -182,7 +183,7 @@ describe('AnnouncementsTab', () => {
   it('should display error when load fails', async () => {
     mockGetAnnouncements.mockRejectedValue(new Error('Network error'));
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeInTheDocument();
@@ -195,7 +196,7 @@ describe('AnnouncementsTab', () => {
 
   it('should open create dialog when "New Announcement" clicked', async () => {
     const user = userEvent.setup();
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
@@ -207,7 +208,7 @@ describe('AnnouncementsTab', () => {
 
   it('explains that important announcements email opted-out users', async () => {
     const user = userEvent.setup();
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
@@ -219,7 +220,7 @@ describe('AnnouncementsTab', () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('New Announcement'));
 
     // Open dialog
@@ -250,7 +251,7 @@ describe('AnnouncementsTab', () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
 
@@ -272,7 +273,7 @@ describe('AnnouncementsTab', () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
 
@@ -291,7 +292,7 @@ describe('AnnouncementsTab', () => {
   it('disables Create when no channel is selected', async () => {
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
 
@@ -313,7 +314,7 @@ describe('AnnouncementsTab', () => {
     });
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
     // Click edit button (pencil icon)
@@ -325,7 +326,8 @@ describe('AnnouncementsTab', () => {
 
     // Check dialog opened with pre-filled values
     expect(screen.getByText('Edit Announcement')).toBeInTheDocument();
-    expect(screen.getByLabelText(/title/i)).toHaveValue('Scheduled Maintenance');
+    // Exact match: the Title column header now carries a 'Title — sort and filter' label too.
+    expect(screen.getByLabelText('Title')).toHaveValue('Scheduled Maintenance');
   });
 
   // ========================================================================
@@ -338,7 +340,7 @@ describe('AnnouncementsTab', () => {
     });
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
     // Each row has 2 action buttons: edit (pencil) and delete (trash).
@@ -361,7 +363,7 @@ describe('AnnouncementsTab', () => {
     mockDeleteAnnouncement.mockResolvedValue(undefined);
     const user = userEvent.setup();
 
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
     // Click delete
@@ -387,7 +389,7 @@ describe('AnnouncementsTab', () => {
   // ========================================================================
 
   it('should call getAnnouncements with includeExpired=true', async () => {
-    render(<AnnouncementsTab />);
+    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
 
     await waitFor(() => {
       expect(mockGetAnnouncements).toHaveBeenCalledWith(true);

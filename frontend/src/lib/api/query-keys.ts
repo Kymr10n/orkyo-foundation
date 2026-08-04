@@ -51,11 +51,12 @@ export const qk = {
     /** Resources of one type (e.g. the People list; also its own invalidation prefix). */
     byType: (resourceTypeKey: string) => ["resources", resourceTypeKey] as const,
     /**
-     * People list backing the utilization grid — name/metadata lookup. Deliberately
-     * a distinct key from `byType('person')` (different fetch scope/staleness); do not
-     * fold into it (that would change invalidation semantics).
+     * Resources of one type backing that type's utilization grid — name/metadata lookup.
+     * Deliberately a distinct key from `byType(typeKey)` (different fetch scope/staleness); do
+     * not fold into it (that would change invalidation semantics). Keeps the
+     * `["resources", typeKey]` prefix so per-type invalidations still reach it.
      */
-    personUtilizationGrid: () => ["resources", "person", "utilization-grid"] as const,
+    utilizationGrid: (typeKey: string) => ["resources", typeKey, "utilization-grid"] as const,
     /** Absences recorded for one resource. */
     absences: (resourceId: string) => ["resource-absences", resourceId] as const,
     /** Capability/skill assignments for one resource. */
@@ -86,6 +87,7 @@ export const qk = {
   resourceTypes: {
     /** The tenant's resource types (also its own invalidation prefix). */
     all: () => ["resource-types"] as const,
+    /** Custom field definitions of one resource type. */
   },
 
   criteria: {

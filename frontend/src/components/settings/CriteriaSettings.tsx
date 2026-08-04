@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { Button } from '@foundation/src/components/ui/button';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
-import { Tabs, TabsList, TabsTrigger } from '@foundation/src/components/ui/tabs';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import {
   Tooltip,
@@ -16,7 +15,7 @@ import {
 import { CriterionEditDialog } from './CriterionEditDialog';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
-import type { CreateCriterionRequest, ResourceTypeKey } from '@foundation/src/types/criterion';
+import type { CreateCriterionRequest } from '@foundation/src/types/criterion';
 import type { Criterion } from '@foundation/src/types/criterion';
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { exportCriteria, importCriteria } from '@foundation/src/lib/utils/export-handlers';
@@ -27,37 +26,30 @@ import {
 } from '@foundation/src/hooks/useCriteria';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
-
-type FilterTab = 'all' | ResourceTypeKey;
-
-const FILTER_TABS: { value: FilterTab; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'space', label: 'Spaces' },
-  { value: 'person', label: 'People' },
-];
-
-// 'tool' is intentionally kept so existing tool criteria render a correct badge.
-// Remove once the tools feature is built and the filter tab is re-added.
-const RESOURCE_TYPE_LABELS: Record<ResourceTypeKey, string> = {
-  space: 'Spaces',
-  person: 'People',
-  tool: 'Tools',
-};
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 export function CriteriaSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [deletingCriterion, setDeletingCriterion] = useState<Criterion | null>(null);
 
   // Use React Query for criteria data
   const { data: criteria = [], isLoading, error, refetch } = useCriteria();
+  const { data: resourceTypes = [] } = useResourceTypes(true);
   const createMutation = useCreateCriterion();
   const deleteMutation = useDeleteCriterion();
   const canEdit = useCanEdit();
+
+  // A criterion can reference a type that was since deactivated or removed; fall back to
+  // the raw key so the badge still says something truthful rather than "undefined".
+  const labelForType = useCallback(
+    (key: string) => resourceTypes.find((t) => t.key === key)?.displayName ?? key,
+    [resourceTypes],
+  );
 
   // Open the edit dialog when arriving with ?edit=<id> from global search.
   useEditQueryParam(criteria, setEditingCriterion, { ready: !isLoading });
@@ -98,10 +90,6 @@ export function CriteriaSettings() {
       // toast already fired centrally via useDeleteCriterion's mutation meta
     }
   };
-
-  const filteredCriteria = activeFilter === 'all'
-    ? criteria
-    : criteria.filter((c) => c.resourceTypeKeys?.includes(activeFilter));
 
   // Shared row actions — desktop table cell and phone card. The delete is
   // disabled (with an explaining tooltip) while the criterion is in use.
@@ -165,7 +153,7 @@ export function CriteriaSettings() {
           <div className="flex flex-wrap gap-1">
             {criterion.resourceTypeKeys.map((key) => (
               <Badge key={key} variant="outline" className="text-xs">
-                {RESOURCE_TYPE_LABELS[key]}
+                {labelForType(key)}
               </Badge>
             ))}
           </div>
@@ -182,13 +170,16 @@ export function CriteriaSettings() {
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="font-mono text-sm font-semibold">{row.original.name}</span>
       ),
     },
     {
       id: 'type',
+      accessorFn: (r) => r.dataType,
       header: 'Type',
+      meta: { filter: { type: 'enum' } },
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Badge className={getDataTypeColor(row.original.dataType)}>
@@ -202,12 +193,14 @@ export function CriteriaSettings() {
     },
     {
       id: 'appliesTo',
+      accessorFn: (r) => r.resourceTypeKeys ?? [],
       header: 'Applies To',
+      meta: { filter: { type: 'enum', isArray: true, getLabel: labelForType } },
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.resourceTypeKeys?.map((key) => (
             <Badge key={key} variant="outline" className="text-xs">
-              {RESOURCE_TYPE_LABELS[key]}
+              {labelForType(key)}
             </Badge>
           ))}
         </div>
@@ -241,7 +234,9 @@ export function CriteriaSettings() {
     },
     {
       id: 'created',
+      accessorFn: (r) => r.createdAt,
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateDisplay(row.original.createdAt)}
@@ -256,12 +251,8 @@ export function CriteriaSettings() {
     },
   ];
 
-  // Context-aware empty message for tabs that filter to zero rows. The truly-empty
-  // case (no criteria at all) is handled by the CTA card below, not the table.
-  const emptyMessage =
-    activeFilter === 'all'
-      ? 'No criteria match your search.'
-      : `No criteria defined for ${RESOURCE_TYPE_LABELS[activeFilter]} yet. Create a criterion and mark it as applicable to ${RESOURCE_TYPE_LABELS[activeFilter]}.`;
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('criteria', columns);
 
   if (isLoading) {
     return (
@@ -297,17 +288,6 @@ export function CriteriaSettings() {
         </Alert>
       )}
 
-      {/* Filter Tabs */}
-      <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterTab)}>
-        <TabsList>
-          {FILTER_TABS.map(({ value, label }) => (
-            <TabsTrigger key={value} value={value}>
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-
       {/* Criteria List */}
       {criteria.length === 0 ? (
         <EmptyState
@@ -321,11 +301,10 @@ export function CriteriaSettings() {
         />
       ) : (
         <OrkyoDataTable
+        {...tableUrlState}
           columns={columns}
-          data={filteredCriteria}
-          emptyMessage={emptyMessage}
-          filterColumn="name"
-          filterPlaceholder="Search criteria..."
+          data={criteria}
+          emptyMessage="No criteria match your search."
           onRowClick={(criterion) => setEditingCriterion(criterion)}
           renderCard={renderCard}
         />

@@ -127,6 +127,7 @@ public class ResourceAssignmentValidatorTests
         Name = "Req",
         PlanningMode = PlanningMode.Leaf,
         Assignments = new List<ResourceAssignmentInfo>(),
+        TargetResourceTypeKeys = [ResourceTypeKeys.Space],
         MinimalDurationValue = 1,
         MinimalDurationUnit = DurationUnit.Hours,
         Status = RequestStatus.New,
@@ -152,13 +153,20 @@ public class ResourceAssignmentValidatorTests
     {
         var siteA = Guid.NewGuid();
         var siteB = Guid.NewGuid();
-        var space = CreateResource() with { ResourceTypeKey = ResourceTypeKeys.Space };
+        // CrossSiteAllowed = false is what makes it a space now; the type key alone no longer
+        // implies immovability, and a real space has always carried this flag (migration 1550).
+        var space = CreateResource() with
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            CrossSiteAllowed = false,
+        };
         var request = CreateValidationRequest(resourceId: space.Id);
         SetupSiteScenario(space, requestSite: siteA, resourceSite: siteB);
 
         var result = await _validator.ValidateAsync(request);
 
-        Assert.Contains(result.Blockers, b => b.Code == ValidationReasonCode.SiteMismatchSpace);
+        // A space cannot travel, so the blocker names that reason rather than a space-specific one.
+        Assert.Contains(result.Blockers, b => b.Code == ValidationReasonCode.SiteCrossNotAllowed);
     }
 
     [Fact]
@@ -256,6 +264,7 @@ public class ResourceAssignmentValidatorTests
             SchedulingSettingsApply = false,
             Requirements = new List<RequestRequirementInfo> { CreateRequirement() },
             Assignments = new List<ResourceAssignmentInfo>(),
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Hours,
             CreatedAt = DateTime.UtcNow,
@@ -661,6 +670,7 @@ public class ResourceAssignmentValidatorTests
             SchedulingSettingsApply = false,
             Requirements = new List<RequestRequirementInfo> { requirement },
             Assignments = new List<ResourceAssignmentInfo>(),
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Hours,
             CreatedAt = DateTime.UtcNow,

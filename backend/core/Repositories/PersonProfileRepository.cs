@@ -27,15 +27,19 @@ public class PersonProfileRepository(
     IEncryptionService encryption)
     : IPersonProfileRepository
 {
-    // person_profiles.notes is confidential free-text → encrypted at rest. email
+    // notes is confidential free-text → encrypted at rest. email
     // stays plaintext (lookup/display field; encrypting needs a blind index — deferred).
     private PersonProfileInfo Dec(PersonProfileInfo p) => p with
     {
         Notes = encryption.UnprotectString(p.Notes, orgContext.OrgId),
     };
 
-    // SELECT for both single-row and linked-user lookups. Builds two derived
-    // display-only fields:
+    // SELECT for both single-row and linked-user lookups. The profile columns live on
+    // resources now; has_directory_profile is what makes a resource a person, replacing the
+    // presence of a person_profiles row. A person who has filled nothing in therefore reads
+    // back as an empty profile rather than a 404 — the side table could distinguish "no row"
+    // from "row of nulls", and one table cannot. An unknown resource still yields no row.
+    // Builds two derived display-only fields:
     //   - job_title_name: simple LEFT JOIN to job_titles
     //   - department_path: recursive CTE walking from the person's department up
     //     to the root, joined back as a "/"-separated string (e.g. "Operations / Maintenance / Electrical").
@@ -60,12 +64,13 @@ public class PersonProfileRepository(
               FROM dept_chain
               WHERE parent_department_id IS NULL
           )
-          SELECT p.resource_id, p.email::text AS email,
+          SELECT p.id AS resource_id, p.email::text AS email,
                  p.job_title_id, p.department_id,
                  p.linked_user_id, p.notes, p.created_at, p.updated_at,
                  jt.name AS job_title_name,
                  dp.path AS department_path
-          FROM person_profiles p
+          FROM resources p
+          JOIN resource_types rt ON rt.id = p.resource_type_id AND rt.has_directory_profile
           LEFT JOIN job_titles jt ON jt.id = p.job_title_id
           LEFT JOIN dept_path dp  ON dp.id = p.department_id";
 
@@ -73,7 +78,7 @@ public class PersonProfileRepository(
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         var profile = await db.QuerySingleOrDefaultAsync(
-            $"{SelectSqlBody} WHERE p.resource_id = @resourceId",
+            $"{SelectSqlBody} WHERE p.id = @resourceId",
             p => p.AddWithValue("resourceId", resourceId), Map, ct);
         return profile is null ? null : Dec(profile);
     }
@@ -83,7 +88,7 @@ public class PersonProfileRepository(
         if (resourceIds.Count == 0) return [];
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         var profiles = await db.QueryListAsync(
-            $"{SelectSqlBody} WHERE p.resource_id = ANY(@resourceIds)",
+            $"{SelectSqlBody} WHERE p.id = ANY(@resourceIds)",
             p => p.AddWithValue("resourceIds", resourceIds.ToArray()), Map, ct);
         return profiles.Select(Dec).ToList();
     }
@@ -93,10 +98,11 @@ public class PersonProfileRepository(
         if (resourceIds.Count == 0) return [];
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         return await db.QueryListAsync(
-            @"SELECT p.resource_id, jt.name AS job_title_name
-              FROM person_profiles p
+            @"SELECT p.id AS resource_id, jt.name AS job_title_name
+              FROM resources p
+              JOIN resource_types rt ON rt.id = p.resource_type_id AND rt.has_directory_profile
               LEFT JOIN job_titles jt ON jt.id = p.job_title_id
-              WHERE p.resource_id = ANY(@resourceIds)",
+              WHERE p.id = ANY(@resourceIds)",
             p => p.AddWithValue("resourceIds", resourceIds.ToArray()),
             r => new PersonJobTitleInfo
             {
@@ -119,23 +125,22 @@ public class PersonProfileRepository(
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
 
-        // Single round-trip: INSERT, or UPDATE on conflict. Preserves linked_user_id
-        // on update (link/unlink are managed through their own endpoints). FK
-        // violations on job_title_id / department_id surface as PostgresException
-        // 23503 → mapped to BadRequest by EndpointHelpers via ArgumentException.
+        // A plain UPDATE now: the row is the resource, which already exists, so there is no
+        // insert-or-conflict case left. linked_user_id is untouched (link/unlink have their
+        // own endpoints). FK violations on job_title_id / department_id surface as
+        // PostgresException 23503 → mapped to BadRequest by EndpointHelpers via
+        // ArgumentException.
         try
         {
             await db.ExecuteAsync(@"
-                INSERT INTO person_profiles
-                    (resource_id, email, job_title_id, department_id, notes, created_at, updated_at)
-                VALUES
-                    (@resourceId, @email, @jobTitleId, @departmentId, @notes, NOW(), NOW())
-                ON CONFLICT (resource_id) DO UPDATE SET
-                    email         = EXCLUDED.email,
-                    job_title_id  = EXCLUDED.job_title_id,
-                    department_id = EXCLUDED.department_id,
-                    notes         = EXCLUDED.notes,
-                    updated_at    = NOW()",
+                UPDATE resources p SET
+                    email         = @email,
+                    job_title_id  = @jobTitleId,
+                    department_id = @departmentId,
+                    notes         = @notes
+                FROM resource_types rt
+                WHERE rt.id = p.resource_type_id AND rt.has_directory_profile
+                  AND p.id = @resourceId",
                 p =>
                 {
                     p.AddWithValue("resourceId", resourceId);
@@ -165,14 +170,14 @@ public class PersonProfileRepository(
         if (existingLink is not null)
             return false;
 
-        // Upsert: if no profile row exists yet for this resource, create one with just the link.
+        // The guard that was an ON CONFLICT ... WHERE is now a plain predicate: claim the
+        // link only if it is unclaimed, or already claimed by this same user (idempotent).
         return await db.ExecuteAsync(@"
-            INSERT INTO person_profiles (resource_id, linked_user_id, created_at, updated_at)
-            VALUES (@resourceId, @userId, NOW(), NOW())
-            ON CONFLICT (resource_id) DO UPDATE
-                SET linked_user_id = @userId, updated_at = NOW()
-                WHERE person_profiles.linked_user_id IS NULL
-                   OR person_profiles.linked_user_id = @userId",
+            UPDATE resources p SET linked_user_id = @userId
+            FROM resource_types rt
+            WHERE rt.id = p.resource_type_id AND rt.has_directory_profile
+              AND p.id = @resourceId
+              AND (p.linked_user_id IS NULL OR p.linked_user_id = @userId)",
             p =>
             {
                 p.AddWithValue("resourceId", resourceId);
@@ -184,8 +189,8 @@ public class PersonProfileRepository(
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         return await db.ExecuteAsync(@"
-            UPDATE person_profiles SET linked_user_id = NULL, updated_at = NOW()
-            WHERE resource_id = @resourceId AND linked_user_id IS NOT NULL",
+            UPDATE resources SET linked_user_id = NULL
+            WHERE id = @resourceId AND linked_user_id IS NOT NULL",
             p => p.AddWithValue("resourceId", resourceId), ct) > 0;
     }
 

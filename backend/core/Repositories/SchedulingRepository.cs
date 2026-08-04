@@ -27,15 +27,14 @@ public class SchedulingRepository : ISchedulingRepository
 
     public async Task<Guid?> GetSiteIdForResourceAsync(Guid resourceId, CancellationToken ct = default)
     {
-        // A resource's anchoring site: spaces use spaces.site_id (immovable); people/tools use
-        // resources.home_site_id (administrative anchor / idle-time location). Where a person
+        // A resource's anchoring site: resources.home_site_id — immovable for a space, the
+        // administrative anchor / idle-time location for a person or tool. Where a person
         // actually is during an assignment is derived elsewhere from the assignment itself.
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         var result = await conn.ExecuteScalarAsync<object>(
-            @"SELECT COALESCE(s.site_id, r.home_site_id)
-              FROM resources r
-              LEFT JOIN spaces s ON s.id = r.id
-              WHERE r.id = @resourceId",
+            @"SELECT home_site_id
+              FROM resources
+              WHERE id = @resourceId",
             p => p.AddWithValue("resourceId", resourceId), ct);
         return result is Guid siteId ? siteId : null;
     }
@@ -45,16 +44,15 @@ public class SchedulingRepository : ISchedulingRepository
     {
         if (resourceIds.Count == 0) return [];
 
-        // A resource's anchoring site: spaces use spaces.site_id (immovable); people/tools use
-        // resources.home_site_id (administrative anchor). Single resolver so site logic isn't
-        // scattered. Unsited resources (null on both) are simply omitted.
+        // A resource's anchoring site: resources.home_site_id — immovable for a space, the
+        // administrative anchor for a person or tool. Single resolver so site logic isn't
+        // scattered. Unsited resources are simply omitted.
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         var rows = await conn.QueryListAsync(
-            @"SELECT r.id, COALESCE(s.site_id, r.home_site_id) AS site_id
-              FROM resources r
-              LEFT JOIN spaces s ON s.id = r.id
-              WHERE r.id = ANY(@ids)
-                AND COALESCE(s.site_id, r.home_site_id) IS NOT NULL",
+            @"SELECT id, home_site_id
+              FROM resources
+              WHERE id = ANY(@ids)
+                AND home_site_id IS NOT NULL",
             p => p.AddWithValue("ids", resourceIds.ToArray()),
             r => (r.GetGuid(0), r.GetGuid(1)), ct);
 

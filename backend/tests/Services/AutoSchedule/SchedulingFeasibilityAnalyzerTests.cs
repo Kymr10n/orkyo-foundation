@@ -34,7 +34,7 @@ public class SchedulingFeasibilityAnalyzerTests
         result.Candidates.Should().BeEmpty();
         result.Rejections.Should().ContainSingle(r =>
             r.RequestId == request.RequestId &&
-            r.ReasonCode == SchedulingReasonCode.NoCompatibleSpace);
+            r.ReasonCode == SchedulingReasonCode.NoCompatibleResource);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class SchedulingFeasibilityAnalyzerTests
 
         result.Candidates.Should().BeEmpty();
         result.Rejections.Should().Contain(r =>
-            r.ReasonCode == SchedulingReasonCode.NoCompatibleSpace);
+            r.ReasonCode == SchedulingReasonCode.NoCompatibleResource);
     }
 
     [Fact]

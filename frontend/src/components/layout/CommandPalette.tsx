@@ -8,12 +8,10 @@ import { useNavigate } from "react-router";
 import {
   Building2,
   FileText,
-  Grid3X3,
   Layers,
   ListChecks,
   MapPin,
   Search,
-  User,
   X,
 } from "lucide-react";
 import { Badge } from "@foundation/src/components/ui/badge";
@@ -28,55 +26,84 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
+import { DEDICATED_TYPE_ROUTES } from "@foundation/src/constants/resource-type-key";
+import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
 import { logger } from "@foundation/src/lib/core/logger";
 
-// Icon mapping for entity types
-const typeIcons: Record<SearchResult["type"], React.ReactNode> = {
-  space: <Grid3X3 className="h-4 w-4" />,
+// Non-resource entity types. Resources are handled separately: their icon comes from the
+// type's own registry and their label from the type key, so a tenant-defined type shows up
+// correctly without anything being added here.
+const typeIcons: Record<Exclude<SearchResult["type"], "resource">, React.ReactNode> = {
   request: <FileText className="h-4 w-4" />,
   group: <Layers className="h-4 w-4" />,
   site: <Building2 className="h-4 w-4" />,
   template: <ListChecks className="h-4 w-4" />,
   criterion: <MapPin className="h-4 w-4" />,
-  person: <User className="h-4 w-4" />,
 };
 
-// Display labels for entity types
-const typeLabels: Record<SearchResult["type"], string> = {
-  space: "Space",
+const typeLabels: Record<Exclude<SearchResult["type"], "resource">, string> = {
   request: "Request",
   group: "Group",
   site: "Site",
   template: "Template",
   criterion: "Criterion",
-  person: "Person",
 };
 
-// Badge colors for entity types
-const typeBadgeVariants: Record<SearchResult["type"], "default" | "secondary" | "outline"> = {
-  space: "default",
+const typeBadgeVariants: Record<
+  Exclude<SearchResult["type"], "resource">,
+  "default" | "secondary" | "outline"
+> = {
   request: "secondary",
   group: "secondary",
   site: "outline",
   template: "outline",
   criterion: "outline",
-  person: "secondary",
 };
 
-// Maps a search result to the URL that opens its detail dialog. Each destination
-// page reads `?edit=<id>` and opens that item (view or edit mode by permission).
+/** Built-in types keep their dedicated pages; everything else uses the generic one. */
+
+
+export function iconForResult(result: SearchResult): React.ReactNode {
+  if (result.type === "resource") {
+    const Icon = resourceTypeIcon(result.resourceTypeKey);
+    return <Icon className="h-4 w-4" />;
+  }
+  return typeIcons[result.type];
+}
+
+/** Title-cases the type key so "delivery_van" reads as "Delivery van". */
+export function labelForResult(result: SearchResult): string {
+  if (result.type !== "resource") return typeLabels[result.type];
+  const key = result.resourceTypeKey ?? "Resource";
+  const words = key.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+export function badgeVariantForResult(
+  result: SearchResult,
+): "default" | "secondary" | "outline" {
+  return result.type === "resource" ? "default" : typeBadgeVariants[result.type];
+}
+
 export function editPathForResult(result: SearchResult): string {
   const edit = `edit=${result.id}`;
   switch (result.type) {
-    case "space":
-      return `/spaces/floorplan?${edit}`;
+    case "resource": {
+      // Space and person keep their purpose-built pages; every other type — tool included,
+      // and anything a tenant defines — lands on its generic page.
+      const key = result.resourceTypeKey ?? "";
+      const base = DEDICATED_TYPE_ROUTES[key]?.list ?? `/resources/${key}/list`;
+      return `${base}?${edit}`;
+    }
     case "request":
       return `/requests?${edit}`;
-    case "person":
-      return `/people/list?${edit}`;
-    case "group":
-      // Person groups and space groups live on different pages.
-      return `${result.resourceTypeKey === "space" ? "/spaces/groups" : "/people/teams"}?${edit}`;
+    case "group": {
+      // Same rule as resources: the two dedicated pages, then the type's generic Groups tab.
+      // Falling back to /people/teams sent a tool group to a page that does not contain it.
+      const key = result.resourceTypeKey ?? "";
+      const base = DEDICATED_TYPE_ROUTES[key]?.groups ?? `/resources/${key}/groups`;
+      return `${base}?${edit}`;
+    }
     case "site":
       return `${ROUTE_TENANT_ADMIN}/sites?${edit}`;
     case "template":
@@ -269,7 +296,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 >
                   {/* Type Icon */}
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-background">
-                    {typeIcons[result.type]}
+                    {iconForResult(result)}
                   </div>
 
                   {/* Content */}
@@ -283,8 +310,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   </div>
 
                   {/* Type Badge */}
-                  <Badge variant={typeBadgeVariants[result.type]} className="shrink-0">
-                    {typeLabels[result.type]}
+                  <Badge variant={badgeVariantForResult(result)} className="shrink-0">
+                    {labelForResult(result)}
                   </Badge>
                 </div>
               ))}

@@ -25,7 +25,7 @@ public class PersonProfileRepositoryTests
     }
 
     /// <summary>
-    /// person_profiles.resource_id is a FK to resources(id) — every Upsert/Link
+    /// A profile is a resources row — every Upsert/Link
     /// test needs a real resource row first. Returns the inserted id so the test
     /// can use it as the profile key.
     /// </summary>
@@ -42,7 +42,7 @@ public class PersonProfileRepositoryTests
     }
 
     /// <summary>
-    /// person_profiles.linked_user_id is a FK to users(id) — link tests need a
+    /// resources.linked_user_id is a FK to users(id) — link tests need a
     /// real user row first.
     /// </summary>
     private async Task<Guid> SeedUserAsync()
@@ -154,25 +154,30 @@ public class PersonProfileRepositoryTests
     }
 
     [Fact]
-    public async Task GetByResourceIds_ReturnsFullProfiles_OnlyForResourcesWithRows()
+    public async Task GetByResourceIds_ReturnsFullProfiles_ForEveryPersonResource()
     {
         var r1 = await SeedPersonResourceAsync();
         var r2 = await SeedPersonResourceAsync();
         await _repo.UpsertAsync(r1, new UpsertPersonProfileRequest { Email = "batch-a@example.com", Notes = "secret a" });
         await _repo.UpsertAsync(r2, new UpsertPersonProfileRequest { Email = "batch-b@example.com" });
 
-        // r3 is a person resource with NO profile row; the random id matches nothing at all.
+        // r3 is a person who has filled nothing in. With the profile folded onto resources
+        // there is no row to be missing, so it comes back as an empty profile rather than
+        // being absent — the storage could distinguish "no row" from "row of nulls" and a
+        // single table cannot. An id that is no resource at all still matches nothing.
         var r3 = await SeedPersonResourceAsync();
 
         var result = await _repo.GetByResourceIdsAsync([r1, r2, r3, Guid.NewGuid()]);
 
-        Assert.Equal(2, result.Count);
+        Assert.Equal(3, result.Count);
         var a = Assert.Single(result, p => p.ResourceId == r1);
         Assert.Equal("batch-a@example.com", a.Email);
         // Notes are encrypted at rest; the bulk path must decrypt like the single lookup.
         Assert.Equal("secret a", a.Notes);
         Assert.Contains(result, p => p.ResourceId == r2);
-        Assert.DoesNotContain(result, p => p.ResourceId == r3);
+        var empty = Assert.Single(result, p => p.ResourceId == r3);
+        Assert.Null(empty.Email);
+        Assert.Null(empty.Notes);
     }
 
     [Fact]
@@ -183,22 +188,23 @@ public class PersonProfileRepositoryTests
     }
 
     [Fact]
-    public async Task GetJobTitles_ReturnsRowsForResourcesWithProfiles()
+    public async Task GetJobTitles_ReturnsRowsForEveryPersonResource()
     {
         var r1 = await SeedPersonResourceAsync();
         var r2 = await SeedPersonResourceAsync();
         await _repo.UpsertAsync(r1, new UpsertPersonProfileRequest { Email = "bulk-a@example.com" });
         await _repo.UpsertAsync(r2, new UpsertPersonProfileRequest { Email = "bulk-b@example.com" });
 
-        // r3 is a person resource with NO profile row; the random id matches nothing at all.
+        // Every person resource yields a label row now (see the batch-profile test above);
+        // the random id is no resource at all and still matches nothing.
         var r3 = await SeedPersonResourceAsync();
 
         var result = await _repo.GetJobTitlesByResourceIdsAsync([r1, r2, r3, Guid.NewGuid()]);
 
-        Assert.Equal(2, result.Count);
+        Assert.Equal(3, result.Count);
         Assert.Contains(result, j => j.ResourceId == r1);
         Assert.Contains(result, j => j.ResourceId == r2);
-        Assert.DoesNotContain(result, j => j.ResourceId == r3);
+        Assert.Contains(result, j => j.ResourceId == r3);
         // No job title assigned → null label; real title resolution is covered in the endpoint test.
         Assert.All(result, j => Assert.Null(j.JobTitleName));
     }

@@ -40,6 +40,7 @@ import {
   type ReportingTokenSummary,
 } from "@foundation/src/lib/api/reporting-tokens-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 type ExpiryMode = "7" | "30" | "60" | "90" | "custom" | "none";
 
@@ -90,11 +91,31 @@ function formatDate(iso: string | null): string {
   });
 }
 
+/** Derived lifecycle state — shared by the badge and the status column's facet. */
+type TokenStatus = "revoked" | "expired" | "active";
+
+function tokenStatus(token: ReportingTokenSummary): TokenStatus {
+  if (token.revokedAtUtc) return "revoked";
+  if (token.expiresAtUtc && new Date(token.expiresAtUtc) < new Date()) return "expired";
+  return "active";
+}
+
+const TOKEN_STATUS_LABEL: Record<TokenStatus, string> = {
+  revoked: "Revoked",
+  expired: "Expired",
+  active: "Active",
+};
+
+/** StatusBadge tint per derived state. */
+const TOKEN_STATUS_TINT: Record<TokenStatus, string> = {
+  revoked: "disabled",
+  expired: "inactive",
+  active: "active",
+};
+
 function TokenStatusBadge({ token }: { token: ReportingTokenSummary }) {
-  if (token.revokedAtUtc) return <StatusBadge status="disabled" label="Revoked" />;
-  if (token.expiresAtUtc && new Date(token.expiresAtUtc) < new Date())
-    return <StatusBadge status="inactive" label="Expired" />;
-  return <StatusBadge status="active" label="Active" />;
+  const status = tokenStatus(token);
+  return <StatusBadge status={TOKEN_STATUS_TINT[status]} label={TOKEN_STATUS_LABEL[status]} />;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -356,6 +377,7 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     },
     {
@@ -367,26 +389,34 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
     },
     {
       id: 'status',
+      accessorFn: (r) => tokenStatus(r),
       header: 'Status',
+      meta: { filter: { type: 'enum', getLabel: (v) => TOKEN_STATUS_LABEL[v as TokenStatus] ?? v } },
       cell: ({ row }) => <TokenStatusBadge token={row.original} />,
     },
     {
       id: 'created',
+      accessorFn: (r) => r.createdAtUtc ?? '',
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAtUtc)}</span>
       ),
     },
     {
       id: 'lastUsed',
+      accessorFn: (r) => r.lastUsedAtUtc ?? '',
       header: 'Last used',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{formatDate(row.original.lastUsedAtUtc)}</span>
       ),
     },
     {
       id: 'expires',
+      accessorFn: (r) => r.expiresAtUtc ?? '',
       header: 'Expires',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{formatDate(row.original.expiresAtUtc)}</span>
       ),
@@ -413,6 +443,9 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
       },
     },
   ];
+
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('tokens', columns);
 
   // Phone presentation: name + status/prefix stacked, revoke trailing.
   const renderCard = (token: ReportingTokenSummary) => (
@@ -512,10 +545,9 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
         </div>
       ) : (
         <OrkyoDataTable
+        {...tableUrlState}
           columns={columns}
           data={tokens}
-          filterColumn="name"
-          filterPlaceholder="Search tokens..."
           renderCard={renderCard}
         />
       )}

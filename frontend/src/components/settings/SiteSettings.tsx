@@ -16,6 +16,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
 export function SiteSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -103,6 +104,7 @@ export function SiteSettings() {
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -113,14 +115,18 @@ export function SiteSettings() {
     },
     {
       id: 'address',
+      accessorFn: (r) => r.address ?? '',
       header: 'Address',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{row.original.address ?? '—'}</span>
       ),
     },
     {
       id: 'description',
+      accessorFn: (r) => r.description ?? '',
       header: 'Description',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground truncate max-w-sm">
           {row.original.description ?? '—'}
@@ -129,7 +135,9 @@ export function SiteSettings() {
     },
     {
       id: 'created',
+      accessorFn: (r) => r.createdAt,
       header: 'Created',
+      meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateDisplay(row.original.createdAt)}
@@ -143,6 +151,9 @@ export function SiteSettings() {
       cell: ({ row }) => renderActions(row.original),
     },
   ];
+
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState('sites', columns);
 
   // Phone presentation: name/code, address + description, actions trailing.
   const renderCard = (site: Site) => (
@@ -207,10 +218,9 @@ export function SiteSettings() {
         </Card>
       ) : (
         <OrkyoDataTable
+        {...tableUrlState}
           columns={columns}
           data={sites}
-          filterColumn="name"
-          filterPlaceholder="Search sites..."
           onRowClick={(site) => setEditingSite(site)}
           renderCard={renderCard}
         />

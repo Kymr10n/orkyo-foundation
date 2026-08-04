@@ -1,5 +1,9 @@
 # Data Model & Schema Review — June 2026
 
+> **Superseded — historical record.** The `spaces` and `person_profiles` side tables described
+> below were dissolved into `resources` by migrations `1700` (expand) and `1710` (contract).
+> Kept as-is for the reasoning it captures; do not read it as the current schema.
+
 A review of the orkyo-foundation data model and schema, weighing **performance**,
 **integrity**, and adherence to **best practices, DRY, and KISS**.
 

@@ -266,8 +266,11 @@ public static class PresetApplier
     {
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO resource_groups (name, description, color, display_order, resource_type_id)
-            SELECT @name, @description, @color, @displayOrder, id FROM resource_types WHERE key = 'space'
+            SELECT @name, @description, @color, @displayOrder, id FROM resource_types WHERE key = @spaceKey
             RETURNING id", conn, tx);
+        // Identity, not behaviour: a preset is a curated floorplan of spaces. has_geometry would
+        // ask "any placeable type", which for a tenant with two of them has no single answer.
+        cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
         cmd.Parameters.AddWithValue("name", group.Name);
         cmd.Parameters.AddNullable("description", group.Description);
         cmd.Parameters.AddNullable("color", group.Color);

@@ -124,6 +124,13 @@ public static class WorkItemFactories
         var all = new List<SeededRequest>(scale.Requests);
         all.AddRange(parentRows.Select(p => p.Req));
         all.AddRange(leafRows.Select(l => l.Req));
+
+        // Declare what each request needs, or the scheduled predicate (migrations 1720/1730) reports
+        // every one of them unscheduled forever. This path only ever books spaces (see
+        // SeedAssignmentsAsync), so 'space' is the whole target set — the same row 1720 backfilled
+        // for every pre-existing request, summaries included.
+        await RequestTargetFactory.WriteAsync(conn, all.Select(r => (r.Id, "space")).ToList());
+
         return all;
     }
 

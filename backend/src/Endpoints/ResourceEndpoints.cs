@@ -25,13 +25,15 @@ public static class ResourceEndpoints
             IResourceService service,
             string? resourceTypeKey,
             bool? isActive,
-            string? search) =>
+            string? search,
+            Guid? siteId) =>
         {
             var items = await service.GetAllAsync(new ResourceListFilter
             {
                 ResourceTypeKey = resourceTypeKey,
                 IsActive = isActive,
                 Search = search,
+                SiteId = siteId,
             });
             return Results.Ok(new { data = items, total = items.Count, page = 1, pageSize = items.Count });
         })
@@ -152,6 +154,7 @@ public static class ResourceEndpoints
             IResourceService service,
             IResourceCapabilityRepository repository,
             ICriteriaService criteriaService,
+            ICriterionValueValidator valueValidator,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
@@ -166,6 +169,11 @@ public static class ResourceEndpoints
             if (!criterion.ResourceTypeKeys.Contains(resource.ResourceTypeKey, StringComparer.Ordinal))
                 return ErrorResponses.BadRequest(
                     $"Criterion '{criterion.Name}' is not applicable to resource type '{resource.ResourceTypeKey}'.");
+
+            // Values used to be stored as raw JSONB with no type check: a Number criterion would
+            // accept "banana" and only misbehave later, as a silent non-match in the solver.
+            if (valueValidator.Validate(criterion, request.Value) is { } invalid)
+                return ErrorResponses.BadRequest(invalid);
 
             var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value, ct);
             return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);

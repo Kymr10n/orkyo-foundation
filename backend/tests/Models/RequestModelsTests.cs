@@ -272,6 +272,7 @@ public class RequestModelsTests
         Status = RequestStatus.New,
         SchedulingSettingsApply = true,
         Assignments = assignments ?? Array.Empty<ResourceAssignmentInfo>(),
+        TargetResourceTypeKeys = [ResourceTypeKeys.Space],
         StartTs = start,
         EndTs = end
     };

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -52,19 +52,19 @@ vi.mock('./PersonSkillsEditor', () => ({
   PersonSkillsEditor: ({
     open,
     resourceId,
-    personName,
+    resourceName,
     onOpenChange,
   }: {
     open: boolean;
     resourceId: string;
-    personName: string;
+    resourceName: string;
     onOpenChange: (open: boolean) => void;
   }) =>
     open ? (
       <div
         data-testid="person-skills-editor"
         data-resource-id={resourceId}
-        data-person-name={personName}
+        data-person-name={resourceName}
       >
         <button data-testid="skills-close" onClick={() => onOpenChange(false)}>
           Close
@@ -73,23 +73,23 @@ vi.mock('./PersonSkillsEditor', () => ({
     ) : null,
 }));
 
-vi.mock('./PersonAbsenceList', () => ({
-  PersonAbsenceList: ({
+vi.mock('../resources/ResourceAbsenceList', () => ({
+  ResourceAbsenceList: ({
     open,
-    personId,
-    personName,
+    resourceId,
+    resourceName,
     onOpenChange,
   }: {
     open: boolean;
-    personId: string;
-    personName: string;
+    resourceId: string;
+    resourceName: string;
     onOpenChange: (open: boolean) => void;
   }) =>
     open ? (
       <div
         data-testid="person-absence-list"
-        data-person-id={personId}
-        data-person-name={personName}
+        data-person-id={resourceId}
+        data-person-name={resourceName}
       >
         <button data-testid="absence-close" onClick={() => onOpenChange(false)}>
           Close
@@ -99,6 +99,7 @@ vi.mock('./PersonAbsenceList', () => ({
 }));
 
 import { getResources, deleteResource } from '@foundation/src/lib/api/resources-api';
+import { getPersonProfiles, type PersonProfileInfo } from '@foundation/src/lib/api/person-profiles-api';
 import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { toast } from 'sonner';
 
@@ -386,6 +387,31 @@ describe('PersonList', () => {
     expect(screen.getByTestId('person-absence-list')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('absence-close'));
     expect(screen.queryByTestId('person-absence-list')).not.toBeInTheDocument();
+  });
+
+  it('narrows the rows when a Job Title header facet is ticked', async () => {
+    const profile = (resourceId: string, jobTitleName: string): PersonProfileInfo => ({
+      resourceId,
+      jobTitleName,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+    vi.mocked(getPersonProfiles).mockResolvedValue([
+      profile('person-1', 'Engineer'),
+      profile('person-2', 'Designer'),
+    ]);
+    renderList();
+    // Wait for the profile merge to land in the rows before opening the menu.
+    await screen.findByText('Engineer');
+
+    await user.click(screen.getByRole('button', { name: 'Job Title — sort and filter' }));
+    const facets = screen.getByRole('group', { name: 'Filter Job Title' });
+    expect(within(facets).getByText('Engineer')).toBeInTheDocument();
+    expect(within(facets).getByText('Designer')).toBeInTheDocument();
+
+    await user.click(within(facets).getByText('Engineer'));
+    await waitFor(() => expect(screen.queryByText('Bob')).not.toBeInTheDocument());
+    expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 
   it('disables write affordances for a viewer who cannot edit', async () => {

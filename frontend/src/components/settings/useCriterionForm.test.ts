@@ -1,7 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { useCriterionForm, useSeedCriterionForm } from './useCriterionForm';
-import type { ResourceTypeKey } from '@foundation/src/types/criterion';
 
 describe('useCriterionForm', () => {
   describe('initial state', () => {
@@ -110,7 +109,7 @@ describe('useCriterionForm', () => {
 
 describe('useSeedCriterionForm', () => {
   it('seeds form when source is provided', () => {
-    const source = { description: 'Load', unit: 'kg', enumValues: [], resourceTypeKeys: ['space'] as ResourceTypeKey[] };
+    const source = { description: 'Load', unit: 'kg', enumValues: [], resourceTypeKeys: ['space'] };
     const { result } = renderHook(() => {
       const form = useCriterionForm();
       useSeedCriterionForm(form, source);
@@ -132,7 +131,7 @@ describe('useSeedCriterionForm', () => {
   });
 
   it('re-seeds when source identity changes', () => {
-    let source = { description: 'First', unit: '', enumValues: [], resourceTypeKeys: [] as ResourceTypeKey[] };
+    let source = { description: 'First', unit: '', enumValues: [], resourceTypeKeys: [] };
     const { result, rerender } = renderHook(() => {
       const form = useCriterionForm();
       useSeedCriterionForm(form, source);
@@ -140,7 +139,7 @@ describe('useSeedCriterionForm', () => {
     });
     expect(result.current.description).toBe('First');
 
-    source = { description: 'Second', unit: '', enumValues: [], resourceTypeKeys: [] as ResourceTypeKey[] };
+    source = { description: 'Second', unit: '', enumValues: [], resourceTypeKeys: [] };
     rerender();
     expect(result.current.description).toBe('Second');
   });

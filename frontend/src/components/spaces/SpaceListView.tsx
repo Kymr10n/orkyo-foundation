@@ -9,6 +9,7 @@ import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/Or
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { Edit, Trash2, Settings } from 'lucide-react';
 
 /**
@@ -24,14 +25,6 @@ export function SpaceListView() {
   const [capabilitiesSpace, setCapabilitiesSpace] = useState<Space | null>(null);
   const [deletingSpace, setDeletingSpace] = useState<Space | null>(null);
   const canEdit = useCanEdit();
-
-  if (!selectedSiteId) {
-    return (
-      <div className="rounded-2xl border bg-card p-6">
-        <p className="text-muted-foreground">Please select a site to manage spaces.</p>
-      </div>
-    );
-  }
 
   const handleConfirmDelete = async () => {
     if (!deletingSpace) return;
@@ -87,11 +80,13 @@ export function SpaceListView() {
     {
       accessorKey: 'name',
       header: 'Name',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => renderName(row.original),
     },
     {
-      id: 'description',
+      accessorKey: 'description',
       header: 'Description',
+      meta: { filter: { type: 'text' } },
       cell: ({ row }) => (
         <span className="text-muted-foreground">
           {row.original.description ?? '—'}
@@ -106,6 +101,17 @@ export function SpaceListView() {
     },
   ];
 
+  const tableUrlState = useTableUrlState('spaces', columns);
+
+  // After every hook, so the hook order never depends on the site selection.
+  if (!selectedSiteId) {
+    return (
+      <div className="rounded-2xl border bg-card p-6">
+        <p className="text-muted-foreground">Please select a site to manage spaces.</p>
+      </div>
+    );
+  }
+
   // Phone presentation: name + code on top, description below, actions trailing.
   const renderCard = (space: Space) => (
     <div className="flex items-start justify-between gap-2">
@@ -119,14 +125,14 @@ export function SpaceListView() {
     </div>
   );
 
+
   return (
     <div className="space-y-4">
       <OrkyoDataTable
+        {...tableUrlState}
         columns={columns}
         data={spaces}
         isLoading={isLoading}
-        filterColumn="name"
-        filterPlaceholder="Search spaces..."
         emptyMessage="No spaces created yet. Draw a rectangle or polygon on the floorplan."
         renderCard={renderCard}
         onRowClick={canEdit ? (space) => setEditingSpace(space) : undefined}
