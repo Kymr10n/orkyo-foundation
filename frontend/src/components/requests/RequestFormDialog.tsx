@@ -758,28 +758,26 @@ export function RequestFormDialog({
             onValueChange={(v) => setActiveTab(v as RequestFormTab)}
             className="flex flex-col flex-1 min-h-0"
           >
-            <div className="mx-6 shrink-0 overflow-x-auto">
-              <TabsList className="w-max min-w-full">
-                <TabsTrigger value="details" className="shrink-0">Details</TabsTrigger>
-                <TabsTrigger value="timing" className="relative shrink-0">
-                  Timing
-                  <TabIndicatorDot dotClass={hasDurationWarning ? "bg-amber-500" : null} label="timing warning" />
+            <TabsList className="mx-6 shrink-0">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="timing" className="relative">
+                Timing
+                <TabIndicatorDot dotClass={hasDurationWarning ? "bg-amber-500" : null} label="timing warning" />
+              </TabsTrigger>
+              <TabsTrigger value="requirements" className="relative">
+                Requirements
+                <TabIndicatorDot dotClass={requirementConflictDot} label="requirement conflict" />
+              </TabsTrigger>
+              {isLeaf && (
+                <TabsTrigger value="resources" className="relative">
+                  Resources
+                  <TabIndicatorDot dotClass={resourceConflictDot} label="resource conflict" />
                 </TabsTrigger>
-                <TabsTrigger value="requirements" className="relative shrink-0">
-                  Requirements
-                  <TabIndicatorDot dotClass={requirementConflictDot} label="requirement conflict" />
-                </TabsTrigger>
-                {isLeaf && (
-                  <TabsTrigger value="resources" className="relative shrink-0">
-                    Resources
-                    <TabIndicatorDot dotClass={resourceConflictDot} label="resource conflict" />
-                  </TabsTrigger>
-                )}
-                {showChildrenTab && (
-                  <TabsTrigger value="children" className="shrink-0">Children</TabsTrigger>
-                )}
-              </TabsList>
-            </div>
+              )}
+              {showChildrenTab && (
+                <TabsTrigger value="children">Children</TabsTrigger>
+              )}
+            </TabsList>
 
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
               <TabsContent value="details" className="mt-0 space-y-4">

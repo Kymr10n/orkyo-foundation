@@ -211,25 +211,24 @@ function Harness() {
       <section className="space-y-2" data-testid="wizard-tabs-section">
         <h2 className="font-medium">Wizard tabs</h2>
         {/* Fixed narrow width so the 6-tab strip always overflows its container,
-            exercising the WP3 overflow-x-auto + w-max scroll recipe deterministically
-            regardless of the emulated device width. */}
+            exercising TabsList's built-in overflow-x-auto + w-max scroll recipe
+            deterministically regardless of the emulated device width. The strip is NOT
+            hand-wrapped here on purpose — the fixture must render exactly what product
+            code renders, so the scroll owner under test is the real one. */}
         <Tabs defaultValue="t1" className="w-[300px] border rounded-lg p-2">
-          <div className="overflow-x-auto" data-testid="wizard-tabs-strip">
-            <TabsList className="w-max min-w-full">
-              {["Details", "Timing", "Requirements", "Resources", "Children", "Extras"].map(
-                (label, i) => (
-                  <TabsTrigger
-                    key={label}
-                    value={`t${i + 1}`}
-                    className="shrink-0"
-                    data-testid={i === 5 ? "wizard-tab-last" : undefined}
-                  >
-                    {label}
-                  </TabsTrigger>
-                ),
-              )}
-            </TabsList>
-          </div>
+          <TabsList>
+            {["Details", "Timing", "Requirements", "Resources", "Children", "Extras"].map(
+              (label, i) => (
+                <TabsTrigger
+                  key={label}
+                  value={`t${i + 1}`}
+                  data-testid={i === 5 ? "wizard-tab-last" : undefined}
+                >
+                  {label}
+                </TabsTrigger>
+              ),
+            )}
+          </TabsList>
           <TabsContent value="t6" data-testid="wizard-content-last">
             Last tab content
           </TabsContent>

@@ -9,14 +9,18 @@ const TabsList = React.forwardRef<
   React.ComponentRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
-      className
-    )}
-    {...props}
-  />
+  // UI-GUIDELINES §1 — a wide strip scrolls in its own container, never the page.
+  // `w-max` lets the list size to its content once the tabs overflow, so `justify-center`
+  // has no free space left to distribute and cannot push the first tab off the left edge
+  // (where it would be unreachable); `min-w-full` restores the full-width centred bar
+  // whenever the tabs do fit. Callers style this wrapper — the pill classes stay internal.
+  <div data-slot="tabs-list-scroller" className={cn("overflow-x-auto", className)}>
+    <TabsPrimitive.List
+      ref={ref}
+      className="inline-flex h-9 w-max min-w-full items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground"
+      {...props}
+    />
+  </div>
 ))
 TabsList.displayName = TabsPrimitive.List.displayName
 
@@ -27,7 +31,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow",
+      "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow",
       className
     )}
     {...props}
