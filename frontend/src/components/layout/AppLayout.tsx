@@ -22,11 +22,11 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
 interface AppLayoutProps {
-  /** Edition-supplied plans-page href for the calendar-subscription upsell. */
-  calendarFeedUpgradeHref?: string;
+  /** Edition-supplied plans-page href for the tier-gated upsells (calendar subscription, data export / import). */
+  upgradeHref?: string;
 }
 
-export function AppLayout({ calendarFeedUpgradeHref }: AppLayoutProps = {}) {
+export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
   const [isSiteValidated, setIsSiteValidated] = useState(false);
@@ -112,7 +112,7 @@ export function AppLayout({ calendarFeedUpgradeHref }: AppLayoutProps = {}) {
     <div className="h-screen flex flex-col">
       <TopBar
         onOpenMobileNav={isPhone ? () => setIsMobileNavOpen(true) : undefined}
-        calendarFeedUpgradeHref={calendarFeedUpgradeHref}
+        upgradeHref={upgradeHref}
       />
       <div className="flex-1 flex overflow-hidden">
         {isPhone ? (

@@ -61,8 +61,8 @@ public static class QuotaEndpoints
 
         var apiAccessEnabled = await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct);
         var auditLogEnabled = await featureGate.IsEnabledAsync(FeatureKeys.AuditLog, ct);
-        var automatedBackupsEnabled = await featureGate.IsEnabledAsync(FeatureKeys.AutomatedBackups, ct);
         var dataExportEnabled = await featureGate.IsEnabledAsync(FeatureKeys.DataExport, ct);
+        var calendarFeedEnabled = await featureGate.IsEnabledAsync(FeatureKeys.CalendarFeed, ct);
 
         return Results.Ok(new
         {
@@ -77,8 +77,8 @@ public static class QuotaEndpoints
             {
                 BooleanQuota(FeatureKeys.ApiAccess, apiAccessEnabled),
                 BooleanQuota(FeatureKeys.AuditLog, auditLogEnabled),
-                BooleanQuota(FeatureKeys.AutomatedBackups, automatedBackupsEnabled),
                 BooleanQuota(FeatureKeys.DataExport, dataExportEnabled),
+                BooleanQuota(FeatureKeys.CalendarFeed, calendarFeedEnabled),
             }
         });
     }

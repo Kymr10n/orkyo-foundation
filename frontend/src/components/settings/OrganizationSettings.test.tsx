@@ -29,6 +29,11 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => mockAuth,
 }));
 
+let mockDataExportAvailable = true;
+vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
+  useDataExportAvailable: () => mockDataExportAvailable,
+}));
+
 let mockAuth = {
   membership: {
     tenantId: 'tenant-123',
@@ -59,10 +64,10 @@ const mockAdmins: userApi.UserWithRole[] = [
   },
 ];
 
-const renderOrganizationSettings = () => {
+const renderOrganizationSettings = (upgradeHref?: string) => {
   return render(
       <BrowserRouter>
-      <OrganizationSettings />
+      <OrganizationSettings upgradeHref={upgradeHref} />
     </BrowserRouter>
   );
 };
@@ -70,6 +75,7 @@ const renderOrganizationSettings = () => {
 describe('OrganizationSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDataExportAvailable = true;
     vi.mocked(userApi.getUsers).mockResolvedValue(mockAdmins);
     vi.mocked(tenantApi.updateTenant).mockResolvedValue({
       id: 'tenant-123',
@@ -188,6 +194,28 @@ describe('OrganizationSettings', () => {
       await waitFor(() => {
         expect(screen.getByText(/Network error/)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Export card tier gating', () => {
+    it('shows the export controls when the plan includes the feature', async () => {
+      renderOrganizationSettings();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
+      });
+    });
+
+    it('shows the upsell instead of the export button when it does not', async () => {
+      mockDataExportAvailable = false;
+      renderOrganizationSettings('/account?tab=plans');
+
+      await waitFor(() => {
+        expect(screen.getByText('Data export / import')).toBeInTheDocument();
+      });
+      expect(screen.getByRole('link', { name: /view plans/i }))
+        .toHaveAttribute('href', '/account?tab=plans');
+      expect(screen.queryByRole('button', { name: /export json/i })).not.toBeInTheDocument();
     });
   });
 

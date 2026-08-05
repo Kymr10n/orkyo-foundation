@@ -16,8 +16,8 @@ export const QUOTA_LABELS: Record<string, string> = {
 export const ENTITLEMENT_LABELS: Record<string, string> = {
   api_access_enabled: "API Access",
   audit_log_enabled: "Audit Log",
-  automated_backups_enabled: "Automated Backups",
-  data_export_enabled: "Data Export",
+  data_export_enabled: "Data Export / Import",
+  calendar_feed_enabled: "Calendar Subscriptions",
 };
 
 /** Human-readable byte size (B/KB/MB/GB/TB), one decimal above bytes. */

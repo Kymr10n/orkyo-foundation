@@ -24,8 +24,6 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import {
   Select,
   SelectContent,
@@ -37,7 +35,6 @@ import {
     ArrowLeftRight,
     Building,
     Building2,
-    Calendar,
     CalendarPlus,
     Compass,
     Download,
@@ -79,16 +76,15 @@ interface TopBarProps {
    * navigation drawer. Omitted on tablet/desktop, where the sidebar is inline.
    */
   onOpenMobileNav?: () => void;
-  /** Edition-supplied plans-page href for the calendar-subscription upsell. */
-  calendarFeedUpgradeHref?: string;
+  /** Edition-supplied plans-page href for the tier-gated upsells (calendar subscription, data export / import). */
+  upgradeHref?: string;
 }
 
-export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps = {}) {
+export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
   const navigate = useNavigate();
   const { logout, membership, switchTenant, appUser, sessionData, canAccessAdminPage } = useAuth();
 
   const _scale = useAppStore((state) => state.scale);
-  const anchorTs = useAppStore((state) => state.anchorTs);
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
   const resolvedTheme = useAppStore((state) => state.resolvedTheme);
@@ -201,14 +197,6 @@ export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps
           <span className="text-sm font-medium truncate">{membership.displayName}</span>
         </div>
       )}
-
-      {/* Scale & Anchor Date — desktop+ only */}
-      <div className="hidden lg:flex items-center gap-2">
-        <Calendar className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground whitespace-nowrap">
-          {format(anchorTs, DATE_FORMATS.DATE_MEDIUM)}
-        </span>
-      </div>
 
       {/* Site Selector — tablet+ inline when tenant has multiple sites (phone uses overflow menu) */}
       {sites.length > 1 && (
@@ -326,16 +314,11 @@ export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col gap-0.5">
-                {membership && (
-                  <span className="text-sm font-medium truncate">
-                    {membership.displayName}
-                  </span>
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {format(anchorTs, DATE_FORMATS.DATE_MEDIUM)}
+              {membership && (
+                <span className="text-sm font-medium truncate">
+                  {membership.displayName}
                 </span>
-              </div>
+              )}
             </DropdownMenuLabel>
 
             {sites.length > 1 && (
@@ -491,6 +474,7 @@ export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps
             context={currentContext}
             onImport={handleImport}
             siteId={selectedSiteId || undefined}
+            upgradeHref={upgradeHref}
           />
           <ImportExportDialog
             open={exportDialogOpen}
@@ -499,6 +483,7 @@ export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps
             context={currentContext}
             onExport={handleExport}
             siteId={selectedSiteId || undefined}
+            upgradeHref={upgradeHref}
           />
         </Suspense>
       )}
@@ -510,7 +495,7 @@ export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps
             onOpenChange={setCalendarFeedDialogOpen}
             label={activeCalendarFeed.capability.label}
             description={activeCalendarFeed.capability.description}
-            upgradeHref={calendarFeedUpgradeHref}
+            upgradeHref={upgradeHref}
           />
         </Suspense>
       )}

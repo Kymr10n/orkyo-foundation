@@ -168,7 +168,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
         <Route path="/about" element={<RequireAuth><RouteErrorBoundary label="page"><AboutPage /></RouteErrorBoundary></RequireAuth>} />
         <Route path={ROUTE_ACCOUNT} element={<RequireAuth requireMembership={false}><RouteErrorBoundary label="page"><AccountPage accountTabs={accountTabs} /></RouteErrorBoundary></RequireAuth>} />
         <Route path="/messages" element={<RequireAuth><RouteErrorBoundary label="page"><MessagesPage /></RouteErrorBoundary></RequireAuth>} />
-        <Route path="/" element={<RequireAuth><AppLayout calendarFeedUpgradeHref={reportingApiUnavailableRedirectTo} /></RequireAuth>}>
+        <Route path="/" element={<RequireAuth><AppLayout upgradeHref={reportingApiUnavailableRedirectTo} /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="insights" element={<InsightsPage />}>
@@ -206,7 +206,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route index element={<Navigate to="sites" replace />} />
             <Route path="sites" element={<SiteSettings />} />
             <Route path="users" element={<UserSettings />} />
-            <Route path="organization" element={<OrganizationSettings />} />
+            <Route path="organization" element={<OrganizationSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
             <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
