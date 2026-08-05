@@ -38,6 +38,7 @@ import {
     Building,
     Building2,
     Calendar,
+    CalendarPlus,
     Compass,
     Download,
     EllipsisVertical,
@@ -57,12 +58,18 @@ import { useNavigate } from "react-router";
 import { lazy, Suspense, useMemo, useState } from "react";
 import type { ExportFormat, ImportFormat } from "@foundation/src/lib/utils/import-export";
 import { logger } from "@foundation/src/lib/core/logger";
-import { selectActiveExport, useUiActionsStore } from "@foundation/src/store/ui-actions-store";
+import { selectActiveCalendarFeed, selectActiveExport, useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
 // Lazy load the import/export dialog to reduce initial bundle size
 const ImportExportDialog = lazy(() =>
   import("@foundation/src/components/system/ImportExportDialog").then((m) => ({
     default: m.ImportExportDialog,
+  }))
+);
+
+const CalendarFeedDialog = lazy(() =>
+  import("@foundation/src/components/utilization/CalendarFeedDialog").then((m) => ({
+    default: m.CalendarFeedDialog,
   }))
 );
 
@@ -88,6 +95,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   // Dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [calendarFeedDialogOpen, setCalendarFeedDialogOpen] = useState(false);
 
   // UI action triggers — replace prior window.dispatchEvent pattern.
   const uiTriggerExport = useUiActionsStore((s) => s.triggerExport);
@@ -124,6 +132,14 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   const canExport = active !== null;
   const canImport = (active?.importFormats.length ?? 0) > 0;
   const actionLabel = active?.capability.label ?? '';
+
+  const calendarFeedRegistry = useUiActionsStore((s) => s.calendarFeedRegistry);
+  const activeCalendarFeed = useMemo(
+    () => selectActiveCalendarFeed({ calendarFeedRegistry }),
+    [calendarFeedRegistry],
+  );
+  const canSubscribeToCalendar = activeCalendarFeed !== null;
+  const calendarFeedLabel = activeCalendarFeed?.capability.label ?? '';
 
   const handleExport = (format: ExportFormat) => {
     if (!currentContext) return;
@@ -257,6 +273,21 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
           <Download className="h-4 w-4" />
         </Button>
 
+        {/* Contextual calendar subscription — tablet+ (phone uses overflow menu).
+            Sits beside Export because it answers the same question ("get this
+            schedule out of Orkyo"), but stays live instead of handing over a file. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden md:inline-flex"
+          onClick={() => setCalendarFeedDialogOpen(true)}
+          disabled={!canSubscribeToCalendar}
+          title={canSubscribeToCalendar ? `Subscribe to ${calendarFeedLabel}` : 'Calendar subscription not available'}
+          aria-label={canSubscribeToCalendar ? `Subscribe to ${calendarFeedLabel}` : 'Calendar subscription not available'}
+        >
+          <CalendarPlus className="h-4 w-4" />
+        </Button>
+
         {/* Theme toggle — tablet+ (phone uses overflow menu) */}
         <span className="hidden md:inline-flex">
           <ThemeToggle />
@@ -335,6 +366,13 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
             >
               <Download className="mr-2 h-4 w-4" />
               Export
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!canSubscribeToCalendar}
+              onSelect={() => setCalendarFeedDialogOpen(true)}
+            >
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Subscribe in calendar
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={toggleTheme}>
               {resolvedTheme === "dark" ? (
@@ -459,6 +497,17 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
             context={currentContext}
             onExport={handleExport}
             siteId={selectedSiteId || undefined}
+          />
+        </Suspense>
+      )}
+
+      {activeCalendarFeed && (
+        <Suspense fallback={<span role="status" className="sr-only">Loading…</span>}>
+          <CalendarFeedDialog
+            open={calendarFeedDialogOpen}
+            onOpenChange={setCalendarFeedDialogOpen}
+            label={activeCalendarFeed.capability.label}
+            description={activeCalendarFeed.capability.description}
           />
         </Suspense>
       )}

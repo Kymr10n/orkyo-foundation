@@ -52,6 +52,34 @@ export function useExportHandler(
 }
 
 /**
+ * Offers a live calendar subscription for as long as the page is mounted.
+ *
+ * No handler, unlike {@link useExportHandler}: the TopBar's dialog owns the
+ * whole create/reveal/revoke flow, so registering is the entire contract.
+ */
+export function useCalendarFeedHandler(
+  context: ExportContext,
+  offer: CalendarFeedOffer,
+) {
+  const registerCalendarFeed = useUiActionsStore((s) => s.registerCalendarFeed);
+  const unregisterCalendarFeed = useUiActionsStore((s) => s.unregisterCalendarFeed);
+  const { label, description } = offer;
+
+  useEffect(() => {
+    registerCalendarFeed(context, { label, description });
+    return () => unregisterCalendarFeed(context);
+  }, [context, label, description, registerCalendarFeed, unregisterCalendarFeed]);
+}
+
+/** What the page tells the TopBar about the schedule it can serve as a feed. */
+export interface CalendarFeedOffer {
+  /** Human name shown in the button tooltip and dialog title, e.g. "Utilization schedule". */
+  label: string;
+  /** One line describing what the feed contains, shown in the dialog. */
+  description: string;
+}
+
+/**
  * Centralized import feedback, mirroring the mutation `meta` convention
  * (docs/dialog-feedback.md): the handler does the work and throws on failure;
  * the hook fires the toast + query invalidation once, in one place.

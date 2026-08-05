@@ -21,4 +21,22 @@ public static class TenantHostnamePolicy
         var prefix = subdomainPrefix ?? "";
         return $"{prefix}{slug}.{baseDomain}";
     }
+
+    /// <summary>
+    /// The origin (<c>scheme://host</c>) a tenant is reachable at: its own subdomain when
+    /// host-based resolution is configured, otherwise <paramref name="appBaseUrl"/> unchanged
+    /// (single-tenant community, local dev). The scheme is taken from <paramref name="appBaseUrl"/>.
+    /// <para>
+    /// Anything handing a tenant an absolute URL to itself must go through here: the apex
+    /// carries no slug, so <c>SubdomainResolutionStrategy</c> cannot resolve a tenant from it.
+    /// </para>
+    /// </summary>
+    public static string BuildOrigin(string appBaseUrl, string? baseDomain, string? subdomainPrefix, string slug)
+    {
+        var hostname = BuildHostname(baseDomain, subdomainPrefix, slug);
+        if (hostname is null) return appBaseUrl;
+
+        var scheme = new Uri(appBaseUrl, UriKind.Absolute).Scheme;
+        return $"{scheme}://{hostname}";
+    }
 }

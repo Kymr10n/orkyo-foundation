@@ -20,6 +20,18 @@ namespace Api.Endpoints;
 /// </summary>
 public static class CalendarFeedEndpoints
 {
+    /// <summary>
+    /// The tenant's own origin, not the configured app base URL. The latter is the apex in
+    /// SaaS, which carries no slug for <c>SubdomainResolutionStrategy</c> to resolve — a feed
+    /// addressed there is unreachable. Community leaves BaseDomain unset and falls back to it.
+    /// </summary>
+    private static string TenantOrigin(IConfiguration configuration, ICurrentTenant currentTenant) =>
+        TenantHostnamePolicy.BuildOrigin(
+            configuration.GetRequired(ConfigKeys.AppBaseUrl),
+            configuration[ConfigKeys.TenantResolutionBaseDomain],
+            configuration[ConfigKeys.TenantResolutionSubdomainPrefix],
+            currentTenant.TenantSlug);
+
     public static void MapCalendarFeedEndpoints(this WebApplication app)
     {
         // ── The feed itself ──────────────────────────────────────────────────
@@ -32,6 +44,7 @@ public static class CalendarFeedEndpoints
             ICalendarFeedTokenRepository tokenRepo,
             ICalendarFeedService feedService,
             IConfiguration configuration,
+            ICurrentTenant currentTenant,
             CancellationToken ct) =>
         {
             var stored = await tokenRepo.FindActiveByHashAsync(feedService.HashToken(token), ct);
@@ -42,7 +55,7 @@ public static class CalendarFeedEndpoints
             var events = await feedService.GetEventsAsync(stored.SiteId, DateTime.UtcNow, ct);
             await tokenRepo.TouchAsync(stored.Id, ct);
 
-            var domain = new Uri(configuration.GetRequired(ConfigKeys.AppBaseUrl)).Host;
+            var domain = new Uri(TenantOrigin(configuration, currentTenant)).Host;
             var ics = ICalendarWriter.Write(events, stored.Label ?? "Orkyo schedule", domain);
 
             // A calendar client refetches the whole document; caching it would
@@ -72,6 +85,7 @@ public static class CalendarFeedEndpoints
             ICalendarFeedService feedService,
             ICurrentPrincipal principal,
             IConfiguration configuration,
+            ICurrentTenant currentTenant,
             IValidator<CreateCalendarFeedRequest> validator,
             CancellationToken ct) =>
         {
@@ -81,7 +95,7 @@ public static class CalendarFeedEndpoints
                 var created = await tokenRepo.CreateAsync(
                     principal.RequireUserId(), feedService.HashToken(token), request.Label, request.SiteId, ct);
 
-                var baseUrl = configuration.GetRequired(ConfigKeys.AppBaseUrl).TrimEnd('/');
+                var baseUrl = TenantOrigin(configuration, currentTenant).TrimEnd('/');
                 return Results.Ok(new CalendarFeedCreatedResponse
                 {
                     Id = created.Id,

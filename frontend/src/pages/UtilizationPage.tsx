@@ -14,7 +14,7 @@ import { useNow } from "@foundation/src/hooks/useNow";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
 import { getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
-import { useExportHandler } from "@foundation/src/hooks/useImportExport";
+import { useCalendarFeedHandler, useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
@@ -348,6 +348,13 @@ export function UtilizationPage() {
       await exportUtilization(requests, startDate, endDate);
     }
   }, { label: 'Utilization (Gantt chart)', description: 'Export a PDF of the schedule for the visible period.', formats: ['pdf'] });
+
+  // Registered for the page, not the Calendar tab: the feed serves the site's
+  // whole schedule regardless of which visualization is on screen.
+  useCalendarFeedHandler('utilization', {
+    label: 'Utilization schedule',
+    description: 'Add this schedule to Outlook, Google Calendar or Apple Calendar. The calendar updates itself — you subscribe once and it stays current.',
+  });
 
   // Auto-schedule handlers
   const AUTO_SCHEDULE_HORIZON_MONTHS = 3;
