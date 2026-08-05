@@ -21,7 +21,12 @@ import { TourDialog } from "@foundation/src/components/tour/TourDialog";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
-export function AppLayout() {
+interface AppLayoutProps {
+  /** Edition-supplied plans-page href for the calendar-subscription upsell. */
+  calendarFeedUpgradeHref?: string;
+}
+
+export function AppLayout({ calendarFeedUpgradeHref }: AppLayoutProps = {}) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
   const [isSiteValidated, setIsSiteValidated] = useState(false);
@@ -105,7 +110,10 @@ export function AppLayout() {
 
   return (
     <div className="h-screen flex flex-col">
-      <TopBar onOpenMobileNav={isPhone ? () => setIsMobileNavOpen(true) : undefined} />
+      <TopBar
+        onOpenMobileNav={isPhone ? () => setIsMobileNavOpen(true) : undefined}
+        calendarFeedUpgradeHref={calendarFeedUpgradeHref}
+      />
       <div className="flex-1 flex overflow-hidden">
         {isPhone ? (
           <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>

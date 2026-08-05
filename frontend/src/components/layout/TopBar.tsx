@@ -68,7 +68,7 @@ const ImportExportDialog = lazy(() =>
 );
 
 const CalendarFeedDialog = lazy(() =>
-  import("@foundation/src/components/utilization/CalendarFeedDialog").then((m) => ({
+  import("@foundation/src/components/system/CalendarFeedDialog").then((m) => ({
     default: m.CalendarFeedDialog,
   }))
 );
@@ -79,9 +79,11 @@ interface TopBarProps {
    * navigation drawer. Omitted on tablet/desktop, where the sidebar is inline.
    */
   onOpenMobileNav?: () => void;
+  /** Edition-supplied plans-page href for the calendar-subscription upsell. */
+  calendarFeedUpgradeHref?: string;
 }
 
-export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
+export function TopBar({ onOpenMobileNav, calendarFeedUpgradeHref }: TopBarProps = {}) {
   const navigate = useNavigate();
   const { logout, membership, switchTenant, appUser, sessionData, canAccessAdminPage } = useAuth();
 
@@ -508,6 +510,7 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
             onOpenChange={setCalendarFeedDialogOpen}
             label={activeCalendarFeed.capability.label}
             description={activeCalendarFeed.capability.description}
+            upgradeHref={calendarFeedUpgradeHref}
           />
         </Suspense>
       )}

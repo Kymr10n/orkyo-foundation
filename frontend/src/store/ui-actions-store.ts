@@ -137,6 +137,13 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
     set((s) => ({ calendarFeedRegistry: withoutKey(s.calendarFeedRegistry, context) })),
 }));
 
+/** The last-inserted entry, i.e. the most recently registered — see the registry docs above. */
+function lastEntry<V>(map: Map<ExportContext, V>): [ExportContext, V] | null {
+  let last: [ExportContext, V] | null = null;
+  for (const entry of map) last = entry;
+  return last;
+}
+
 /**
  * The capability the TopBar acts on: the most recently registered one.
  * Returns null when nothing on screen can export.
@@ -144,8 +151,7 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
 export function selectActiveExport(
   state: Pick<UiActionsState, 'exportRegistry' | 'importRegistry'>,
 ): { context: ExportContext; capability: ExportCapability; importFormats: ImportFormat[] } | null {
-  let last: [ExportContext, ExportCapability] | null = null;
-  for (const entry of state.exportRegistry) last = entry;
+  const last = lastEntry(state.exportRegistry);
   if (!last) return null;
   const [context, capability] = last;
   return { context, capability, importFormats: state.importRegistry.get(context)?.formats ?? [] };
@@ -158,8 +164,7 @@ export function selectActiveExport(
 export function selectActiveCalendarFeed(
   state: Pick<UiActionsState, 'calendarFeedRegistry'>,
 ): { context: ExportContext; capability: CalendarFeedCapability } | null {
-  let last: [ExportContext, CalendarFeedCapability] | null = null;
-  for (const entry of state.calendarFeedRegistry) last = entry;
+  const last = lastEntry(state.calendarFeedRegistry);
   if (!last) return null;
   const [context, capability] = last;
   return { context, capability };

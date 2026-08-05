@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { CalendarFeedDialog } from './CalendarFeedDialog';
 import {
   createCalendarSubscription,
@@ -17,25 +18,34 @@ vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+let mockAvailable = true;
+vi.mock('@foundation/src/hooks/useCalendarFeedAvailable', () => ({
+  useCalendarFeedAvailable: () => mockAvailable,
+}));
+
 let mockSelectedSiteId: string | null = 'site-1';
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
     selector({ selectedSiteId: mockSelectedSiteId }),
 }));
 
-function renderDialog() {
+function renderDialog(upgradeHref?: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <CalendarFeedDialog
-        open
-        onOpenChange={vi.fn()}
-        label="Utilization schedule"
-        description="Add this schedule to Outlook, Google Calendar or Apple Calendar."
-      />
-    </QueryClientProvider>,
+    // MemoryRouter: the upsell's CTA is a react-router <Link>.
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <CalendarFeedDialog
+          open
+          onOpenChange={vi.fn()}
+          label="Utilization schedule"
+          description="Add this schedule to Outlook, Google Calendar or Apple Calendar."
+          upgradeHref={upgradeHref}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -52,6 +62,7 @@ const subscription = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockAvailable = true;
   mockSelectedSiteId = 'site-1';
   vi.mocked(getCalendarSubscriptions).mockResolvedValue([]);
   // jsdom exposes navigator.clipboard as getter-only.
@@ -83,6 +94,27 @@ describe('CalendarFeedDialog', () => {
     // The endpoint returns every site's subscriptions; this dialog speaks for one.
     expect(await screen.findByText(/no calendar subscriptions yet/i)).toBeInTheDocument();
     expect(screen.queryByText('Outlook, laptop')).not.toBeInTheDocument();
+  });
+
+  it('keeps site-less subscriptions visible so they can still be revoked', async () => {
+    // Created before the feed was site-scoped: they serve every site, and this
+    // dialog is the only place left to get rid of them.
+    vi.mocked(getCalendarSubscriptions).mockResolvedValue([
+      { ...subscription, siteId: null },
+    ]);
+    renderDialog();
+
+    expect(await screen.findByText('Outlook, laptop')).toBeInTheDocument();
+    expect(screen.getByText(/all sites/i)).toBeInTheDocument();
+  });
+
+  it('will not create a site-less feed when no site is selected', async () => {
+    mockSelectedSiteId = null;
+    renderDialog();
+
+    expect(await screen.findByRole('button', { name: /create feed/i })).toBeDisabled();
+    expect(screen.getByText(/select a site/i)).toBeInTheDocument();
+    expect(createCalendarSubscription).not.toHaveBeenCalled();
   });
 
   it('scopes a new subscription to the selected site', async () => {
@@ -133,6 +165,41 @@ describe('CalendarFeedDialog', () => {
     await userEvent.click(await screen.findByRole('button', { name: /copy/i }));
 
     expect(writeText).toHaveBeenCalledWith('https://acme.orkyo.com/api/calendar/feed/tok.ics');
+  });
+
+  describe('when the tenant plan does not include the feature', () => {
+    beforeEach(() => {
+      mockAvailable = false;
+    });
+
+    it('offers an upgrade instead of the create form', async () => {
+      renderDialog('/account?tab=plans');
+
+      expect(await screen.findByText(/calendar subscriptions/i)).toBeInTheDocument();
+      expect(await screen.findByRole('link', { name: /view plans/i }))
+        .toHaveAttribute('href', '/account?tab=plans');
+      expect(screen.queryByRole('button', { name: /create feed/i })).not.toBeInTheDocument();
+    });
+
+    it('omits the CTA when no plans page is configured (Community)', async () => {
+      renderDialog();
+
+      expect(await screen.findByText(/professional and enterprise/i)).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /view plans/i })).not.toBeInTheDocument();
+    });
+
+    it('still lists existing subscriptions so they can be revoked', async () => {
+      // The server leaves list/revoke ungated for exactly this reason: a tenant
+      // that drops off a paid plan must still be able to clean up its tokens.
+      vi.mocked(getCalendarSubscriptions).mockResolvedValue([subscription]);
+      vi.mocked(revokeCalendarSubscription).mockResolvedValue(undefined);
+      renderDialog('/account?tab=plans');
+
+      await userEvent.click(await screen.findByRole('button', { name: /revoke outlook, laptop/i }));
+      await userEvent.click(await screen.findByRole('button', { name: /^revoke$/i }));
+
+      await waitFor(() => expect(revokeCalendarSubscription).toHaveBeenCalledWith('sub-1'));
+    });
   });
 
   it('revokes only after the user confirms', async () => {

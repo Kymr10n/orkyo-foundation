@@ -24,6 +24,7 @@ public static class FeatureKeys
     public const string AuditLog = "audit_log_enabled";
     public const string AutomatedBackups = "automated_backups_enabled";
     public const string DataExport = "data_export_enabled";
+    public const string CalendarFeed = "calendar_feed_enabled";
 }
 
 /// <summary>

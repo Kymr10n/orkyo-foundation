@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
-import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
+import { useUiActionsStore, type CalendarFeedCapability } from '@foundation/src/store/ui-actions-store';
 
 /** What the page tells the TopBar about itself when it registers. */
 export interface ExportOffer {
@@ -55,11 +55,13 @@ export function useExportHandler(
  * Offers a live calendar subscription for as long as the page is mounted.
  *
  * No handler, unlike {@link useExportHandler}: the TopBar's dialog owns the
- * whole create/reveal/revoke flow, so registering is the entire contract.
+ * whole create/reveal/revoke flow, so registering is the entire contract. The
+ * offer and the registered capability are the same shape, so it takes the
+ * store's type rather than declaring a twin.
  */
 export function useCalendarFeedHandler(
   context: ExportContext,
-  offer: CalendarFeedOffer,
+  offer: CalendarFeedCapability,
 ) {
   const registerCalendarFeed = useUiActionsStore((s) => s.registerCalendarFeed);
   const unregisterCalendarFeed = useUiActionsStore((s) => s.unregisterCalendarFeed);
@@ -69,14 +71,6 @@ export function useCalendarFeedHandler(
     registerCalendarFeed(context, { label, description });
     return () => unregisterCalendarFeed(context);
   }, [context, label, description, registerCalendarFeed, unregisterCalendarFeed]);
-}
-
-/** What the page tells the TopBar about the schedule it can serve as a feed. */
-export interface CalendarFeedOffer {
-  /** Human name shown in the button tooltip and dialog title, e.g. "Utilization schedule". */
-  label: string;
-  /** One line describing what the feed contains, shown in the dialog. */
-  description: string;
 }
 
 /**

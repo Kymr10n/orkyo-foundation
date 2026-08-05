@@ -26,6 +26,28 @@ public class TenantHostnamePolicyTests
     }
 
     [Fact]
+    public void BuildHostname_Throws_WhenSlugIsEmpty()
+    {
+        // ICurrentTenant.TenantSlug is "" when no tenant resolved; ".orkyo.com" must never ship.
+        var build = () => TenantHostnamePolicy.BuildHostname("orkyo.com", null, "");
+        build.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void BuildHost_UsesTenantSubdomain_NotTheApex()
+    {
+        TenantHostnamePolicy.BuildHost("https://orkyo.com", "orkyo.com", "staging-", "acme")
+            .Should().Be("staging-acme.orkyo.com");
+    }
+
+    [Fact]
+    public void BuildHost_FallsBackToTheAppBaseUrlHost_WhenBaseDomainUnset()
+    {
+        TenantHostnamePolicy.BuildHost("http://localhost:5173", null, null, "acme")
+            .Should().Be("localhost");
+    }
+
+    [Fact]
     public void BuildOrigin_UsesTenantSubdomain_NotTheApex()
     {
         TenantHostnamePolicy.BuildOrigin("https://orkyo.com", "orkyo.com", null, "acme")

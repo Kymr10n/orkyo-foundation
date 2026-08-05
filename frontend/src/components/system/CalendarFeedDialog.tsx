@@ -1,21 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Calendar, Check, Copy, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  ScrollableDialogBody,
-} from '@foundation/src/components/ui/dialog';
+import { ScrollableDialogBody } from '@foundation/src/components/ui/dialog';
+import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
+import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { useCalendarFeedAvailable } from '@foundation/src/hooks/useCalendarFeedAvailable';
 import {
   createCalendarSubscription,
   getCalendarSubscriptions,
@@ -32,6 +28,8 @@ interface CalendarFeedDialogProps {
   /** The registering page's name for what the feed contains, e.g. "Utilization schedule". */
   label: string;
   description: string;
+  /** Where the upsell's CTA points when the tenant's plan lacks the feature. Omit to hide the CTA. */
+  upgradeHref?: string;
 }
 
 /**
@@ -42,7 +40,8 @@ interface CalendarFeedDialogProps {
  * Scoped to the selected site, because that is what the feed actually serves:
  * the site's scheduled requests, not the subscriber's personal appointments.
  */
-export function CalendarFeedDialog({ open, onOpenChange, label, description }: CalendarFeedDialogProps) {
+export function CalendarFeedDialog({ open, onOpenChange, label, description, upgradeHref }: CalendarFeedDialogProps) {
+  const available = useCalendarFeedAvailable();
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
   const [subscriptionLabel, setSubscriptionLabel] = useState('');
   const [newUrl, setNewUrl] = useState<string | null>(null);
@@ -55,9 +54,13 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description }: C
     enabled: open,
   });
 
-  // The endpoint returns every subscription the user owns, across sites; this
-  // dialog only speaks for the site on screen.
-  const subscriptions = allSubscriptions.filter((s) => s.siteId === selectedSiteId);
+  // The endpoint returns every subscription the user owns, across sites. Show the
+  // ones for the site on screen, plus any site-less ones: those cover every site
+  // (so they are relevant here too) and this dialog is the only place to revoke
+  // them — the pre-site-scoping Account panel created them without a site.
+  const subscriptions = allSubscriptions.filter(
+    (s) => s.siteId === selectedSiteId || s.siteId == null,
+  );
 
   const createMutation = useMutation({
     mutationFn: () => createCalendarSubscription({
@@ -86,12 +89,18 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description }: C
     },
   });
 
+  // Cleared on unmount so closing the dialog inside the window can't set state on
+  // a gone component.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
+
   const copyUrl = async () => {
     if (!newUrl) return;
     await navigator.clipboard.writeText(newUrl);
     setCopied(true);
     toast.success('Feed URL copied');
-    setTimeout(() => setCopied(false), 2000);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2000);
   };
 
   // The revealed address belongs to the session that created it, not to the
@@ -106,17 +115,22 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description }: C
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[560px] max-h-[85dvh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Subscribe to {label.toLowerCase()}
-          </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-
-        <ScrollableDialogBody className="space-y-6 px-1">
+    <ScaffoldDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      size="md"
+      // Short, content-sized dialog: opt out of the shell's fixed 85dvh height
+      // so it doesn't stand tall and mostly empty with one subscription listed.
+      contentClassName="h-auto max-h-[85dvh]"
+      title={
+        <span className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Subscribe to {label.toLowerCase()}
+        </span>
+      }
+      description={description}
+    >
+      <ScrollableDialogBody className="space-y-6 px-6 pb-6">
           {newUrl && (
             <Alert>
               <Calendar className="h-4 w-4" />
@@ -140,22 +154,47 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description }: C
             </Alert>
           )}
 
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="subscription-label">Name this subscription</Label>
-              <Input
-                id="subscription-label"
-                value={subscriptionLabel}
-                onChange={(e) => setSubscriptionLabel(e.target.value)}
-                placeholder="Outlook, work laptop"
-                maxLength={100}
-              />
-            </div>
-            <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create feed
-            </Button>
-          </div>
+          {/* Only creating needs the plan. The list below stays either way, so a
+              tenant that drops off a paid plan can still revoke what it handed out
+              — which is exactly what the server allows. */}
+          {available ? (
+            <>
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="subscription-label">Name this subscription</Label>
+                  <Input
+                    id="subscription-label"
+                    value={subscriptionLabel}
+                    onChange={(e) => setSubscriptionLabel(e.target.value)}
+                    placeholder="Outlook, work laptop"
+                    maxLength={100}
+                  />
+                </div>
+                <Button
+                  onClick={() => createMutation.mutate()}
+                  disabled={createMutation.isPending || !selectedSiteId}
+                  title={selectedSiteId ? undefined : 'Select a site first'}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create feed
+                </Button>
+              </div>
+
+              {/* A site-less feed serves every site's schedule, which is not what this
+                  dialog offers — so require a site rather than silently widening it. */}
+              {!selectedSiteId && (
+                <p className="text-sm text-muted-foreground">
+                  Select a site to create a calendar subscription for its schedule.
+                </p>
+              )}
+            </>
+          ) : (
+            <FeatureUpsell
+              title="Calendar subscriptions"
+              description="Keep your schedule live in Outlook, Google Calendar or Apple Calendar. Available on the Professional and Enterprise plans."
+              upgradeHref={upgradeHref}
+            />
+          )}
 
           {isLoading ? (
             <LoadingSpinner message="Loading subscriptions…" fullScreen={false} />
@@ -168,6 +207,7 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description }: C
                   <div className="min-w-0">
                     <p className="truncate font-medium">{subscription.label || 'Calendar subscription'}</p>
                     <p className="text-xs text-muted-foreground">
+                      {subscription.siteId == null && <>All sites{' · '}</>}
                       Created {formatLocalized(new Date(subscription.createdAt), { dateStyle: 'medium' })}
                       {' · '}
                       {subscription.lastUsedAt
@@ -198,7 +238,6 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description }: C
           destructive
           onConfirm={() => { if (revoking) revokeMutation.mutate(revoking.id); }}
         />
-      </DialogContent>
-    </Dialog>
+    </ScaffoldDialog>
   );
 }
