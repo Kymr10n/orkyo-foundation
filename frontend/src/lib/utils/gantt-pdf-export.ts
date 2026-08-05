@@ -5,10 +5,8 @@
 
 import jsPDF from 'jspdf';
 import type { Request, RequestStatus } from '@foundation/src/types/requests';
-import type { Space } from '@foundation/src/types/space';
 import { format } from 'date-fns';
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
-import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import { REQUEST_STATUS_ORDER } from '@foundation/src/constants/request-status';
 import { formatStatusLabel } from '@foundation/src/lib/utils/utils';
 
@@ -23,16 +21,22 @@ const STATUS_RGB: Record<RequestStatus, [number, number, number]> = {
   cancelled: [156, 163, 175],   // gray
 };
 
+/** Non-cancelled assignments — the ones that actually occupy a resource. */
+function liveAssignments(request: Request) {
+  return (request.assignments ?? []).filter((a) => a.assignmentStatus !== 'Cancelled');
+}
+
 interface GanttExportOptions {
   requests: Request[];
-  spaces: Space[];
+  /** resourceId → display name, for every resource type (not just spaces). */
+  resourceNames: Map<string, string>;
   startDate: Date;
   endDate: Date;
   filename?: string;
 }
 
 export function exportGanttChartToPDF(options: GanttExportOptions) {
-  const { requests, spaces, startDate, endDate, filename } = options;
+  const { requests, resourceNames, startDate, endDate, filename } = options;
 
   // Create PDF in landscape mode
   const doc = new jsPDF({
@@ -50,7 +54,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
   // Header
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text('Space Utilization Gantt Chart', margin, margin + 10);
+  doc.text('Utilization Gantt Chart', margin, margin + 10);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -65,8 +69,12 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
     margin + 22
   );
 
-  // Filter to only scheduled requests
-  const scheduledRequests = requests.filter(r => r.startTs && r.endTs && getSpaceResourceId(r));
+  // Scheduled = has a time window and at least one live assignment. This used
+  // to require a SPACE assignment, so a request booked onto a person or a tool
+  // vanished from the chart — an empty PDF on any tenant scheduling both.
+  const scheduledRequests = requests.filter(
+    (r) => r.startTs && r.endTs && liveAssignments(r).length > 0,
+  );
 
   // Calculate time range
   const timeRange = endDate.getTime() - startDate.getTime();
@@ -94,32 +102,32 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
     doc.text(format(date, DATE_FORMATS.DATE_HEADER), x, chartY - 3, { align: 'center' });
   }
 
-  // Group requests by space
-  const spaceGroups = new Map<string, Request[]>();
-  scheduledRequests.forEach(request => {
-    const resourceId = getSpaceResourceId(request)!;
-    if (!spaceGroups.has(resourceId)) {
-      spaceGroups.set(resourceId, []);
+  // One row per resource. A request that occupies a space AND a person appears
+  // on both rows — that is what it does to those resources.
+  const resourceGroups = new Map<string, Request[]>();
+  scheduledRequests.forEach((request) => {
+    for (const assignment of liveAssignments(request)) {
+      const group = resourceGroups.get(assignment.resourceId);
+      if (group) group.push(request);
+      else resourceGroups.set(assignment.resourceId, [request]);
     }
-    spaceGroups.get(resourceId)!.push(request);
   });
 
-  // Draw bars for each space
-  const resourceIds = Array.from(spaceGroups.keys());
+  const resourceIds = Array.from(resourceGroups.keys());
   const rowHeight = Math.min(12, chartHeight / Math.max(resourceIds.length, 1));
   const barHeight = rowHeight * 0.7;
 
   doc.setFontSize(8);
 
   resourceIds.forEach((resourceId, index) => {
-    const space = spaces.find(s => s.id === resourceId);
-    const spaceRequests = spaceGroups.get(resourceId)!;
+    const resourceName = resourceNames.get(resourceId);
+    const spaceRequests = resourceGroups.get(resourceId)!;
     const y = chartY + index * rowHeight;
 
     // Draw space label
     doc.setTextColor(0, 0, 0);
     doc.text(
-      space?.name || 'Unknown Space',
+      resourceName || 'Unknown resource',
       margin,
       y + barHeight / 2 + 2,
       { align: 'right', maxWidth: chartX - margin - 5 }
@@ -187,7 +195,7 @@ export function exportGanttChartToPDF(options: GanttExportOptions) {
 
   doc.setFont('helvetica', 'normal');
   doc.text(`Total Requests: ${scheduledRequests.length}`, legendX, statsY + 7);
-  doc.text(`Spaces Used: ${resourceIds.length}`, legendX, statsY + 14);
+  doc.text(`Resources Used: ${resourceIds.length}`, legendX, statsY + 14);
   doc.text(`Period: ${days} days`, legendX, statsY + 21);
 
   // Footer

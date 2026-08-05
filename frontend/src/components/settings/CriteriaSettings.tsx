@@ -58,7 +58,7 @@ export function CriteriaSettings() {
   useExportHandler('criteria', async (format) => {
     await exportCriteria(criteria, format);
     logger.info(`Exported ${criteria.length} criteria as ${format.toUpperCase()}`);
-  });
+  }, { label: 'Criteria', description: 'Export or import criteria definitions and their data types.', formats: ['csv', 'json'] });
 
   useImportHandler(
     'criteria',
@@ -76,6 +76,7 @@ export function CriteriaSettings() {
     {
       successMessage: (count) => `Imported ${count} criterion${count === 1 ? '' : 'ia'}`,
       errorMessage: 'Failed to import criteria',
+      formats: ['csv', 'json'],
       invalidates: [qk.criteria.all()],
     },
   );

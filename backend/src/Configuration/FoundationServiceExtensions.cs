@@ -107,6 +107,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
         services.AddScoped<IResourceRepository, ResourceRepository>();
         services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
+        services.AddScoped<ICalendarFeedTokenRepository, CalendarFeedTokenRepository>();
         services.AddScoped<ISchedulingRepository, SchedulingRepository>();
         services.AddScoped<ISearchRepository, SearchRepository>();
         services.AddScoped<ISiteRepository, SiteRepository>();
@@ -124,6 +125,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IExportService, ExportService>();
+        services.AddScoped<ICalendarFeedService, CalendarFeedService>();
         services.AddScoped<IAssetStorageService, AssetStorageService>();
         services.AddScoped<IIdentityLinkService, KeycloakIdentityLinkService>();
         services.AddScoped<IInvitationService, InvitationService>();

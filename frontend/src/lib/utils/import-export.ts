@@ -8,15 +8,19 @@ import { formatDateForInput } from './utils';
 export type ExportFormat = 'csv' | 'json' | 'pdf';
 export type ImportFormat = 'csv' | 'json';
 
-export type ExportContext =
-  | 'utilization'      // PDF only - Gantt chart
-  | 'spaces'           // CSV - List of spaces
-  | 'requests'         // CSV - List of requests
-  | 'conflicts'        // CSV - List of conflicts
-  | 'criteria'         // CSV/JSON - Criteria definitions
-  | 'sites'            // CSV/JSON - Sites
-  | 'templates'        // CSV/JSON - Request templates
-  | 'users';           // CSV/JSON - User management
+/**
+ * Identifies what a page can import/export. Open by design: tenant-defined
+ * resource types produce their own contexts (`resources:tool`,
+ * `resources:forklift`, …), which a closed union could never express. The
+ * authoritative list of live contexts is the registry in the ui-actions store —
+ * whatever is mounted right now, nothing more.
+ */
+export type ExportContext = string;
+
+/** The context a resource type's page registers under, e.g. `resources:tool`. */
+export function resourceContext(typeKey: string): ExportContext {
+  return `resources:${typeKey}`;
+}
 
 export interface ExportMetadata {
   exportTimestamp: string;
@@ -149,37 +153,7 @@ export function downloadFile(content: string | Blob, filename: string, mimeType:
 export function getExportFilename(context: ExportContext, format: ExportFormat, siteId?: string): string {
   const timestamp = formatDateForInput(new Date());
   const sitePrefix = siteId ? `${siteId}-` : '';
-  return `${sitePrefix}${context}-${timestamp}.${format}`;
-}
-
-/**
- * Get supported formats for a context
- */
-export function getSupportedFormats(context: ExportContext): {
-  export: ExportFormat[];
-  import: ImportFormat[];
-} {
-  switch (context) {
-    case 'utilization':
-      return { export: ['pdf'], import: [] };
-    case 'spaces':
-    case 'requests':
-    case 'conflicts':
-      return { export: ['csv'], import: ['csv'] };
-    case 'criteria':
-    case 'sites':
-    case 'templates':
-    case 'users':
-      return { export: ['csv', 'json'], import: ['csv', 'json'] };
-    default:
-      return { export: [], import: [] };
-  }
-}
-
-/**
- * Check if import is supported for a context
- */
-export function isImportSupported(context: ExportContext): boolean {
-  const formats = getSupportedFormats(context);
-  return formats.import.length > 0;
+  // `resources:tool` would make an awkward filename segment.
+  const safeContext = context.replace(/:/g, '-');
+  return `${sitePrefix}${safeContext}-${timestamp}.${format}`;
 }

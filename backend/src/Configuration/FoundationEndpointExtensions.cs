@@ -39,6 +39,7 @@ public static class FoundationEndpointExtensions
         app.MapCriterionApplicabilityEndpoints();
         app.MapDepartmentEndpoints();
         app.MapExportEndpoints();
+        app.MapCalendarFeedEndpoints();
         app.MapFeedbackEndpoints();
         app.MapFloorplanEndpoints();
         app.MapGroupCapabilityEndpoints();

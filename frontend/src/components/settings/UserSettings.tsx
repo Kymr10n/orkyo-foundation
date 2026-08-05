@@ -98,7 +98,7 @@ export function UserSettings() {
   useExportHandler('users', async (format) => {
     await exportUsers(users, format);
     logger.info(`Exported ${users.length} users as ${format.toUpperCase()}`);
-  });
+  }, { label: 'Users', description: 'Export or import user accounts and role assignments.', formats: ['csv', 'json'] });
 
   useImportHandler(
     'users',
@@ -121,6 +121,7 @@ export function UserSettings() {
     {
       successMessage: (n) => `Successfully imported ${n} users`,
       errorMessage: 'Failed to import users',
+      formats: ['csv', 'json'],
       invalidates: [qk.users.all(), qk.invitations.all()],
     },
   );

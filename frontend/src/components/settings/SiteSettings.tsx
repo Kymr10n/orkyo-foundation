@@ -42,7 +42,7 @@ export function SiteSettings() {
   useExportHandler('sites', async (format) => {
     await exportSites(sites, format);
     logger.info(`Exported ${sites.length} sites as ${format.toUpperCase()}`);
-  });
+  }, { label: 'Sites', description: 'Export or import site configurations and properties.', formats: ['csv', 'json'] });
 
   useImportHandler(
     'sites',
@@ -59,6 +59,7 @@ export function SiteSettings() {
     {
       successMessage: (count) => `Successfully imported ${count} sites`,
       errorMessage: 'Failed to import sites',
+      formats: ['csv', 'json'],
       invalidates: [qk.sites.list()],
     },
   );

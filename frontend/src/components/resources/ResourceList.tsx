@@ -18,6 +18,10 @@ import { qk } from '@foundation/src/lib/api/query-keys';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
+
+/** Stable identity so the transfer hook's memo doesn't churn while loading. */
+const EMPTY_RESOURCES: ResourceInfo[] = [];
 
 
 interface ResourceListProps {
@@ -47,6 +51,8 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     queryKey: qk.resources.byType(resourceType.key),
     queryFn: () => getResources({ resourceTypeKey: resourceType.key }),
   });
+
+  useResourceTransfer(resourceType, resources?.data ?? EMPTY_RESOURCES);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteResource(id),

@@ -38,6 +38,10 @@ public class AuthorizationContractTests
         "/api/feedback",
         "/api/announcements",   // user-facing: mark-as-read (note: /api/admin/announcements IS governed)
         "/api/invitations",
+        // Calendar subscriptions are the caller's own feed tokens: every route
+        // resolves the user from the principal and the revoke predicate is
+        // scoped by user_id, so one user can never touch another's.
+        "/api/calendar/subscriptions",
     };
 
     [Fact]

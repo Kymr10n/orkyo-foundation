@@ -159,7 +159,7 @@ export function ConflictsTab() {
   useExportHandler('conflicts', async (format) => {
     await exportConflicts(visibleConflictItems, format);
     logger.info(`Exported ${visibleConflictItems.length} conflicts as ${format.toUpperCase()}`);
-  });
+  }, { label: 'Conflicts', description: 'Export the current list of conflicts (import not available).', formats: ['csv'] });
 
   const getConflictKindLabel = (kind: string) => {
     switch (kind) {

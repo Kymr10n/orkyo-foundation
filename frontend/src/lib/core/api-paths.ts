@@ -78,6 +78,8 @@ export const API_PATHS = {
   PERSON_PROFILE_JOB_TITLES: '/api/person-profiles/job-titles',
   PERSON_PROFILES_BATCH: '/api/person-profiles/batch',
   personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
+  calendarSubscriptions: '/api/calendar/subscriptions',
+  calendarSubscription: (id: string) => `/api/calendar/subscriptions/${id}`,
   personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
 
   // Job Titles

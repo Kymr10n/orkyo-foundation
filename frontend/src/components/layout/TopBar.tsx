@@ -53,12 +53,11 @@ import {
     User,
     UserCog,
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router";
-import { lazy, Suspense, useState } from "react";
-import type { ExportContext, ExportFormat, ImportFormat } from "@foundation/src/lib/utils/import-export";
-import { isImportSupported } from "@foundation/src/lib/utils/import-export";
+import { useNavigate } from "react-router";
+import { lazy, Suspense, useMemo, useState } from "react";
+import type { ExportFormat, ImportFormat } from "@foundation/src/lib/utils/import-export";
 import { logger } from "@foundation/src/lib/core/logger";
-import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
+import { selectActiveExport, useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
 // Lazy load the import/export dialog to reduce initial bundle size
 const ImportExportDialog = lazy(() =>
@@ -77,7 +76,6 @@ interface TopBarProps {
 
 export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { logout, membership, switchTenant, appUser, sessionData, canAccessAdminPage } = useAuth();
 
   const _scale = useAppStore((state) => state.scale);
@@ -113,23 +111,19 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
   });
   const unreadCount = unreadData?.unreadCount ?? 0;
 
-  // Determine current context based on route
-  const getCurrentContext = (): ExportContext | null => {
-    const path = location.pathname;
-    if (path === '/' || path === '/utilization') return 'utilization';
-    if (path === '/spaces') return 'spaces';
-    if (path === '/requests') return 'requests';
-    if (path === '/insights/conflicts') return 'conflicts';
-    if (path.startsWith('/settings')) {
-      // For settings, we'll handle this specially based on active tab
-      return null; // Will be handled by the settings page itself
-    }
-    return null;
-  };
-
-  const currentContext = getCurrentContext();
-  const canImport = currentContext ? isImportSupported(currentContext) : false;
-  const canExport = currentContext !== null;
+  // What can be imported/exported is whatever the mounted page registered —
+  // never inferred from the URL, which is how this silently broke every time a
+  // route moved and why tenant-defined resource types could not be offered.
+  const exportRegistry = useUiActionsStore((s) => s.exportRegistry);
+  const importRegistry = useUiActionsStore((s) => s.importRegistry);
+  const active = useMemo(
+    () => selectActiveExport({ exportRegistry, importRegistry }),
+    [exportRegistry, importRegistry],
+  );
+  const currentContext = active?.context ?? null;
+  const canExport = active !== null;
+  const canImport = (active?.importFormats.length ?? 0) > 0;
+  const actionLabel = active?.capability.label ?? '';
 
   const handleExport = (format: ExportFormat) => {
     if (!currentContext) return;
@@ -244,8 +238,8 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
           className="hidden md:inline-flex"
           onClick={() => setImportDialogOpen(true)}
           disabled={!canImport}
-          title={canImport ? `Import ${currentContext}` : 'Import not available'}
-          aria-label={canImport ? `Import ${currentContext}` : 'Import not available'}
+          title={canImport ? `Import ${actionLabel}` : 'Import not available'}
+          aria-label={canImport ? `Import ${actionLabel}` : 'Import not available'}
         >
           <Upload className="h-4 w-4" />
         </Button>
@@ -257,8 +251,8 @@ export function TopBar({ onOpenMobileNav }: TopBarProps = {}) {
           className="hidden md:inline-flex"
           onClick={() => setExportDialogOpen(true)}
           disabled={!canExport}
-          title={canExport ? `Export ${currentContext}` : 'Export not available'}
-          aria-label={canExport ? `Export ${currentContext}` : 'Export not available'}
+          title={canExport ? `Export ${actionLabel}` : 'Export not available'}
+          aria-label={canExport ? `Export ${actionLabel}` : 'Export not available'}
         >
           <Download className="h-4 w-4" />
         </Button>

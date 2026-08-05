@@ -10,15 +10,37 @@ import { toast } from 'sonner';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
+/** What the page tells the TopBar about itself when it registers. */
+export interface ExportOffer {
+  /** Human name shown in the button tooltip and dialog title, e.g. "People". */
+  label: string;
+  /** One line describing what the file contains, shown in the dialog. */
+  description: string;
+  formats: ExportFormat[];
+}
+
 export function useExportHandler(
   context: ExportContext,
   handler: (format: ExportFormat) => void | Promise<void>,
+  offer: ExportOffer,
 ) {
   const tick = useUiActionsStore((s) => s.exportTick);
   const payload = useUiActionsStore((s) => s.lastExport);
+  const registerExport = useUiActionsStore((s) => s.registerExport);
+  const unregisterExport = useUiActionsStore((s) => s.unregisterExport);
   const lastTickRef = useRef(tick);
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+
+  // Registering IS the offer: the TopBar enables Export for exactly as long as
+  // this component is mounted, so a moved route can never silently orphan it.
+  // Call sites pass array literals, so the formats are keyed by value.
+  const formatsKey = offer.formats.join(',');
+  const { label, description } = offer;
+  useEffect(() => {
+    registerExport(context, { label, description, formats: formatsKey.split(',') as ExportFormat[] });
+    return () => unregisterExport(context);
+  }, [context, label, description, formatsKey, registerExport, unregisterExport]);
 
   useEffect(() => {
     if (tick === lastTickRef.current) return;
@@ -41,6 +63,8 @@ export interface ImportFeedbackOptions<T> {
   errorMessage?: string;
   /** Query keys invalidated after a successful import, prefix-style (exact: false). */
   invalidates?: readonly (readonly unknown[])[];
+  /** File formats this page accepts. Defaults to CSV. */
+  formats?: ImportFormat[];
 }
 
 export function useImportHandler<T = void>(
@@ -51,11 +75,19 @@ export function useImportHandler<T = void>(
   const queryClient = useQueryClient();
   const tick = useUiActionsStore((s) => s.importTick);
   const payload = useUiActionsStore((s) => s.lastImport);
+  const registerImport = useUiActionsStore((s) => s.registerImport);
+  const unregisterImport = useUiActionsStore((s) => s.unregisterImport);
   const lastTickRef = useRef(tick);
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
   const optionsRef = useRef(options);
   optionsRef.current = options;
+
+  const importFormatsKey = (options?.formats ?? ['csv']).join(',');
+  useEffect(() => {
+    registerImport(context, { formats: importFormatsKey.split(',') as ImportFormat[] });
+    return () => unregisterImport(context);
+  }, [context, importFormatsKey, registerImport, unregisterImport]);
 
   useEffect(() => {
     if (tick === lastTickRef.current) return;

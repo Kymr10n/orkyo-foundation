@@ -6,6 +6,8 @@ import type { Conflict } from '@foundation/src/types/requests';
 import type { Template } from '@foundation/src/types/templates';
 import type { User } from '@foundation/src/types/auth';
 import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
+import { getResources, type CreateResourceRequest, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { resourceContext } from './import-export';
 import {
   arrayToCSV,
   csvToArray,
@@ -36,18 +38,135 @@ function buildJsonExport(context: ExportContext, data: unknown): string {
 
 export async function exportUtilization(
   requests: Request[],
-  spaces: Space[],
   startDate: Date,
   endDate: Date
 ) {
+  // Row labels for every resource type, fetched here rather than threaded
+  // through the page: an export is a deliberate user action, and the page holds
+  // only the resources of the tab being looked at.
+  const { data: resources } = await getResources({ isActive: true });
+  const resourceNames = new Map(resources.map((r) => [r.id, r.name]));
+
   // Dynamically import PDF export to reduce initial bundle size
   const { exportGanttChartToPDF } = await import('./gantt-pdf-export');
   exportGanttChartToPDF({
     requests,
-    spaces,
+    resourceNames,
     startDate,
     endDate,
   });
+}
+
+// ============================================================================
+// RESOURCES EXPORT/IMPORT (every resource type — people, tools, tenant-defined)
+// ============================================================================
+
+/**
+ * A resource row as exported: the fields every resource carries, plus whatever
+ * the calling page adds (a person's profile fields, say). One exporter serves
+ * every type — including types that did not exist when this code was written,
+ * which is why the columns are derived from the data rather than listed here.
+ */
+export type ResourceExportRow = ResourceInfo & Record<string, unknown>;
+
+/** Fields that describe the row's identity in THIS system, not its content. */
+const RESOURCE_INTERNAL_FIELDS = new Set([
+  'resourceTypeId', 'currentSiteId', 'createdAt', 'updatedAt', 'metadata',
+]);
+
+/** camelCase → snake_case, matching the column style of the other exporters. */
+function toColumnName(field: string): string {
+  return field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+}
+
+function resourceToRow(resource: ResourceExportRow): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(resource)) {
+    if (RESOURCE_INTERNAL_FIELDS.has(key)) continue;
+    row[toColumnName(key)] = value;
+  }
+  // A type's own fields round-trip under a `meta.` prefix, so a custom field can
+  // never collide with a core column.
+  for (const [key, value] of Object.entries(resource.metadata ?? {})) {
+    row[`meta.${key}`] = value;
+  }
+  return row;
+}
+
+export async function exportResources(
+  resources: ResourceExportRow[],
+  format: ExportFormat,
+  typeKey: string,
+) {
+  const context = resourceContext(typeKey);
+  const filename = getExportFilename(context, format);
+  const rows = resources.map(resourceToRow);
+
+  if (format === 'json') {
+    downloadFile(buildJsonExport(context, rows), filename, 'application/json');
+    return;
+  }
+  // Union of all keys: a row missing a custom field must not truncate the header.
+  const headers = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+  downloadFile(arrayToCSV(rows, headers), filename, 'text/csv');
+}
+
+/** A parsed import row: the create-request plus the raw columns behind it. */
+export interface ResourceImportRow {
+  request: CreateResourceRequest;
+  /** Every column as parsed, so a type's own page can use its extra ones. */
+  source: Record<string, unknown>;
+}
+
+/**
+ * Parses an export back into create-requests. Unknown columns are kept on
+ * `source` (a page may own side tables the core request cannot express), `id`
+ * is dropped (an import creates, it does not overwrite), and `meta.*` columns
+ * are folded back into the metadata document.
+ */
+export async function importResources(
+  file: File,
+  format: ImportFormat,
+  typeKey: string,
+): Promise<ResourceImportRow[]> {
+  const text = await file.text();
+  const rows: Record<string, unknown>[] =
+    format === 'json' ? (JSON.parse(text).data ?? JSON.parse(text)) : csvToArray(text);
+
+  // Cells arrive as scalars from CSV and can be anything from JSON; anything
+  // that is not a scalar is not a field value and is treated as absent.
+  const cell = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '';
+  };
+
+  return rows
+    .filter((row) => cell(row.name).trim().length > 0)
+    .map((row) => {
+      const metadata: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (key.startsWith('meta.') && value !== '' && value !== null) {
+          metadata[key.slice('meta.'.length)] = value;
+        }
+      }
+      const request: CreateResourceRequest = {
+        resourceTypeKey: typeKey,
+        name: cell(row.name).trim(),
+        allocationMode: cell(row.allocation_mode) || 'exclusive',
+      };
+      if (cell(row.description)) request.description = cell(row.description);
+      if (cell(row.external_reference)) request.externalReference = cell(row.external_reference);
+      if (cell(row.base_availability_percent)) {
+        request.baseAvailabilityPercent = Number(cell(row.base_availability_percent));
+      }
+      if (cell(row.home_site_id)) request.homeSiteId = cell(row.home_site_id);
+      if (cell(row.cross_site_allowed)) {
+        request.crossSiteAllowed = cell(row.cross_site_allowed) === 'true';
+      }
+      if (Object.keys(metadata).length > 0) request.metadata = metadata;
+      return { request, source: row };
+    });
 }
 
 // ============================================================================

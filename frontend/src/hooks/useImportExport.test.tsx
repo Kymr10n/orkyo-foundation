@@ -10,6 +10,9 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+/** Every export registration carries one; the content is irrelevant to firing. */
+const OFFER = { label: 'Spaces', description: 'Spaces.', formats: ['csv'] as ExportFormat[] };
+
 function resetStore() {
   useUiActionsStore.setState({
     exportTick: 0,
@@ -18,6 +21,8 @@ function resetStore() {
     tourTick: 0,
     lastExport: null,
     lastImport: null,
+    exportRegistry: new Map(),
+    importRegistry: new Map(),
   });
 }
 
@@ -41,7 +46,7 @@ describe('useExportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
-    renderHook(() => useExportHandler(context, handler), { wrapper });
+    renderHook(() => useExportHandler(context, handler, OFFER), { wrapper });
 
     act(() => {
       useUiActionsStore.getState().triggerExport({ context: 'spaces', format: 'csv' as ExportFormat });
@@ -55,7 +60,7 @@ describe('useExportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
-    renderHook(() => useExportHandler(context, handler), { wrapper });
+    renderHook(() => useExportHandler(context, handler, OFFER), { wrapper });
 
     act(() => {
       useUiActionsStore.getState().triggerExport({ context: 'requests', format: 'csv' as ExportFormat });
@@ -68,7 +73,7 @@ describe('useExportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'requests';
 
-    renderHook(() => useExportHandler(context, handler), { wrapper });
+    renderHook(() => useExportHandler(context, handler, OFFER), { wrapper });
 
     act(() => {
       useUiActionsStore.getState().triggerExport({ context: 'requests', format: 'csv' as ExportFormat });
@@ -86,7 +91,7 @@ describe('useExportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
-    const { unmount } = renderHook(() => useExportHandler(context, handler), { wrapper });
+    const { unmount } = renderHook(() => useExportHandler(context, handler, OFFER), { wrapper });
     unmount();
 
     act(() => {
@@ -223,5 +228,40 @@ describe('useImportHandler', () => {
     await waitFor(() => expect(handler).toHaveBeenCalled());
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe('capability registration', () => {
+  it('registers the offer while mounted and withdraws it on unmount', () => {
+    const { unmount } = renderHook(
+      () => useExportHandler('resources:tool', vi.fn(), {
+        label: 'Tools',
+        description: 'Tools.',
+        formats: ['csv', 'json'],
+      }),
+      { wrapper },
+    );
+
+    const registered = useUiActionsStore.getState().exportRegistry.get('resources:tool');
+    expect(registered).toEqual({ label: 'Tools', description: 'Tools.', formats: ['csv', 'json'] });
+
+    unmount();
+    // The TopBar reads this map: a page that is gone must stop offering export.
+    expect(useUiActionsStore.getState().exportRegistry.has('resources:tool')).toBe(false);
+  });
+
+  it('registers import formats separately, defaulting to CSV', () => {
+    renderHook(() => useImportHandler('spaces', vi.fn()), { wrapper });
+    expect(useUiActionsStore.getState().importRegistry.get('spaces')).toEqual({ formats: ['csv'] });
+  });
+
+  it('records the declared import formats when given', () => {
+    renderHook(
+      () => useImportHandler('criteria', vi.fn(), { formats: ['csv', 'json'] }),
+      { wrapper },
+    );
+    expect(useUiActionsStore.getState().importRegistry.get('criteria')).toEqual({
+      formats: ['csv', 'json'],
+    });
   });
 });

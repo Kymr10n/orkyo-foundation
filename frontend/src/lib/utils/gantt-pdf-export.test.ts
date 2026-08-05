@@ -6,7 +6,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { exportGanttChartToPDF } from './gantt-pdf-export';
 import type { Request } from '@foundation/src/types/requests';
-import type { Space } from '@foundation/src/types/space';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // Create mock PDF instance
@@ -39,28 +38,13 @@ vi.mock('jspdf', () => {
 });
 
 describe('gantt-pdf-export', () => {
-  const mockSpaces: Space[] = [
-    {
-      id: 'space-1',
-      name: 'Conference Room A',
-      code: 'CR-A',
-      siteId: 'site-1',
-      isPhysical: true,
-      capacity: 1,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
-    },
-    {
-      id: 'space-2',
-      name: 'Conference Room B',
-      code: 'CR-B',
-      siteId: 'site-1',
-      isPhysical: true,
-      capacity: 1,
-      createdAt: '2024-01-01',
-      updatedAt: '2024-01-01',
-    },
-  ];
+  // The chart labels rows from a resourceId → name map covering every resource
+  // type, not just spaces.
+  const mockResourceNames = new Map([
+    ['space-1', 'Conference Room A'],
+    ['space-2', 'Conference Room B'],
+    ['person-1', 'Ada Heaney'],
+  ]);
 
   const mockRequests: Request[] = [
     {
@@ -124,7 +108,7 @@ describe('gantt-pdf-export', () => {
     expect(() => {
       exportGanttChartToPDF({
         requests: mockRequests,
-        spaces: mockSpaces,
+        resourceNames: mockResourceNames,
         startDate,
         endDate,
       });
@@ -134,7 +118,7 @@ describe('gantt-pdf-export', () => {
   it('should filter out unscheduled requests', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });
@@ -153,7 +137,7 @@ describe('gantt-pdf-export', () => {
 
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
       filename: customFilename,
@@ -165,7 +149,7 @@ describe('gantt-pdf-export', () => {
   it('should generate default filename when not provided', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });
@@ -179,18 +163,18 @@ describe('gantt-pdf-export', () => {
     expect(() => {
       exportGanttChartToPDF({
         requests: [],
-        spaces: mockSpaces,
+        resourceNames: mockResourceNames,
         startDate,
         endDate,
       });
     }).not.toThrow();
   });
 
-  it('should handle empty spaces list', () => {
+  it('should handle an empty resource-name map', () => {
     expect(() => {
       exportGanttChartToPDF({
         requests: mockRequests,
-        spaces: [],
+        resourceNames: new Map(),
         startDate,
         endDate,
       });
@@ -200,14 +184,14 @@ describe('gantt-pdf-export', () => {
   it('should render header with date range', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });
 
     // Check that header text is rendered
     expect(mockPDFInstance.text).toHaveBeenCalledWith(
-      'Space Utilization Gantt Chart',
+      'Utilization Gantt Chart',
       expect.any(Number),
       expect.any(Number)
     );
@@ -220,7 +204,7 @@ describe('gantt-pdf-export', () => {
   it('should render legend with status colors', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });
@@ -236,7 +220,7 @@ describe('gantt-pdf-export', () => {
   it('should render statistics section', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });
@@ -244,13 +228,13 @@ describe('gantt-pdf-export', () => {
     const textCalls = mockPDFInstance.text.mock.calls.map((call: any) => call[0]);
     expect(textCalls).toContain('Statistics');
     expect(textCalls.some((text: string) => text.includes('Total Requests'))).toBe(true);
-    expect(textCalls.some((text: string) => text.includes('Spaces Used'))).toBe(true);
+    expect(textCalls.some((text: string) => text.includes('Resources Used'))).toBe(true);
   });
 
   it('should apply correct colors for different request statuses', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });
@@ -263,7 +247,7 @@ describe('gantt-pdf-export', () => {
   it('should group requests by space', () => {
     exportGanttChartToPDF({
       requests: mockRequests,
-      spaces: mockSpaces,
+      resourceNames: mockResourceNames,
       startDate,
       endDate,
     });

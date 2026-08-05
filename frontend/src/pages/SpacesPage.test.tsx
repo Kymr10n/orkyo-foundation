@@ -2,14 +2,21 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SpacesPage } from './SpacesPage';
 
 function Stub({ id }: { id: string }) {
   return <div data-testid={id} />;
 }
 
+// The page registers import/export for spaces (useSpaceTransfer), which reads
+// the spaces query — so it needs a client, exactly like it does in the app.
 function renderAt(initialPath: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
+    <QueryClientProvider client={queryClient}>
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route path="/spaces" element={<SpacesPage />}>
@@ -19,7 +26,8 @@ function renderAt(initialPath: string) {
           <Route path="groups" element={<Stub id="groups" />} />
         </Route>
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

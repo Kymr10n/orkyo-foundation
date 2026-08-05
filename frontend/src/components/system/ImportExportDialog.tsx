@@ -21,9 +21,8 @@ import {
   type ExportFormat,
   type ImportFormat,
   getExportFilename,
-  getSupportedFormats,
-  isImportSupported,
 } from "@foundation/src/lib/utils/import-export";
+import { selectActiveExport, useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { AlertCircle, Download, Upload } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@foundation/src/components/ui/alert";
 import { useState, useRef, useEffect } from "react";
@@ -38,28 +37,11 @@ interface ImportExportDialogProps {
   siteId?: string;
 }
 
-const contextLabels: Record<ExportContext, string> = {
-  utilization: 'Utilization (Gantt Chart)',
-  spaces: 'Spaces',
-  requests: 'Requests',
-  conflicts: 'Conflicts',
-  criteria: 'Criteria',
-  sites: 'Sites',
-  templates: 'Request Templates',
-  users: 'Users',
-};
-
-const contextDescriptions: Record<ExportContext, string> = {
-  utilization: 'Export a PDF visualization of the Gantt chart showing all scheduled requests',
-  spaces: 'Export or import the list of spaces with their properties and capabilities',
-  requests: 'Export or import all requests with their requirements and constraints',
-  conflicts: 'Export the current list of conflicts (import not available)',
-  criteria: 'Export or import criteria definitions and their data types',
-  sites: 'Export or import site configurations and properties',
-  templates: 'Export or import request templates for faster request creation',
-  users: 'Export or import user accounts and role assignments',
-};
-
+/**
+ * Labels, descriptions and formats come from the page's own registration — the
+ * static Record<ExportContext, …> tables here could not name a tenant-defined
+ * resource type, and drifted from reality every time a page moved.
+ */
 export function ImportExportDialog({
   open,
   onOpenChange,
@@ -69,7 +51,15 @@ export function ImportExportDialog({
   onImport,
   siteId,
 }: ImportExportDialogProps) {
-  const supportedFormats = getSupportedFormats(context);
+  const exportRegistry = useUiActionsStore((s) => s.exportRegistry);
+  const importRegistry = useUiActionsStore((s) => s.importRegistry);
+  const active = selectActiveExport({ exportRegistry, importRegistry });
+  const contextLabel = active?.capability.label ?? context;
+  const contextDescription = active?.capability.description ?? '';
+  const supportedFormats = {
+    export: active?.capability.formats ?? [],
+    import: active?.importFormats ?? [],
+  };
   const defaultExportFormat = supportedFormats.export[0];
   const defaultImportFormat = supportedFormats.import[0];
 
@@ -81,16 +71,11 @@ export function ImportExportDialog({
   // Reset format when context changes or dialog opens
   useEffect(() => {
     if (open) {
-      const formats = getSupportedFormats(context);
-      if (mode === 'export' && formats.export.length > 0) {
-        setExportFormat(formats.export[0]);
-      }
-      if (mode === 'import' && formats.import.length > 0) {
-        setImportFormat(formats.import[0]);
-      }
+      if (mode === 'export' && defaultExportFormat) setExportFormat(defaultExportFormat);
+      if (mode === 'import' && defaultImportFormat) setImportFormat(defaultImportFormat);
       setSelectedFile(null);
     }
-  }, [open, context, mode]);
+  }, [open, context, mode, defaultExportFormat, defaultImportFormat]);
 
   const handleExport = () => {
     if (onExport && exportFormat) {
@@ -121,7 +106,7 @@ export function ImportExportDialog({
     }
   };
 
-  const canImport = isImportSupported(context);
+  const canImport = supportedFormats.import.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,17 +116,17 @@ export function ImportExportDialog({
             {mode === 'export' ? (
               <>
                 <Download className="h-5 w-5" />
-                Export {contextLabels[context]}
+                Export {contextLabel}
               </>
             ) : (
               <>
                 <Upload className="h-5 w-5" />
-                Import {contextLabels[context]}
+                Import {contextLabel}
               </>
             )}
           </DialogTitle>
           <DialogDescription>
-            {contextDescriptions[context]}
+            {contextDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -193,7 +178,7 @@ export function ImportExportDialog({
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Import not available</AlertTitle>
                 <AlertDescription>
-                  Import is not supported for {contextLabels[context].toLowerCase()}.
+                  Import is not supported for {contextLabel.toLowerCase()}.
                 </AlertDescription>
               </Alert>
             ) : (

@@ -345,9 +345,9 @@ export function UtilizationPage() {
           break;
       }
 
-      await exportUtilization(requests, spaces, startDate, endDate);
+      await exportUtilization(requests, startDate, endDate);
     }
-  });
+  }, { label: 'Utilization (Gantt chart)', description: 'Export a PDF of the schedule for the visible period.', formats: ['pdf'] });
 
   // Auto-schedule handlers
   const AUTO_SCHEDULE_HORIZON_MONTHS = 3;

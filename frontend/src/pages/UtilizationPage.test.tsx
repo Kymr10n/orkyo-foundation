@@ -974,8 +974,9 @@ describe("UtilizationPage", () => {
 
     expect(capturedExportHandler).toBeTruthy();
     await capturedExportHandler!("pdf");
+    // Row labels are resolved inside the export (all resource types), so the
+    // page no longer passes its spaces list.
     expect(vi.mocked(exportUtilization)).toHaveBeenCalledWith(
-      expect.any(Array),
       expect.any(Array),
       expect.any(Date),
       expect.any(Date),

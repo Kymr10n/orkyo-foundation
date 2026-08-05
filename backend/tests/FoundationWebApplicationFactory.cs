@@ -258,6 +258,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         // ── Resource model (Phase 1) ──────────────────────────────────────────
         builder.Services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
+        builder.Services.AddScoped<ICalendarFeedTokenRepository, CalendarFeedTokenRepository>();
         builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
         builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
         builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
@@ -327,6 +328,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();
         builder.Services.AddScoped<IAutoScheduleService, AutoScheduleService>();
         builder.Services.AddScoped<IExportService, ExportService>();
+        builder.Services.AddScoped<ICalendarFeedService, CalendarFeedService>();
         builder.Services.AddScoped<IPresetService, PresetService>();
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();

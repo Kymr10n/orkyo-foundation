@@ -13,6 +13,7 @@ public class ExportService : IExportService
 {
     private readonly ISiteRepository _siteRepo;
     private readonly IResourceRepository _resourceRepo;
+    private readonly IResourceTypeRepository _resourceTypeRepo;
     private readonly ICriteriaRepository _criteriaRepo;
     private readonly IResourceGroupRepository _resourceGroupRepo;
     private readonly ITemplateRepository _templateRepo;
@@ -26,6 +27,7 @@ public class ExportService : IExportService
     public ExportService(
         ISiteRepository siteRepo,
         IResourceRepository resourceRepo,
+        IResourceTypeRepository resourceTypeRepo,
         ICriteriaRepository criteriaRepo,
         IResourceGroupRepository resourceGroupRepo,
         ITemplateRepository templateRepo,
@@ -38,6 +40,7 @@ public class ExportService : IExportService
     {
         _siteRepo = siteRepo;
         _resourceRepo = resourceRepo;
+        _resourceTypeRepo = resourceTypeRepo;
         _criteriaRepo = criteriaRepo;
         _resourceGroupRepo = resourceGroupRepo;
         _templateRepo = templateRepo;
@@ -125,14 +128,68 @@ public class ExportService : IExportService
 
         var exportTemplates = await BuildTemplatesAsync(criterionIdToKey);
         var exportSites = await BuildSitesAsync(sites, groupIdToKey, criterionIdToKey);
+        var exportResources = await BuildResourcesAsync(sites, criterionIdToKey);
 
         return new ExportData
         {
             Sites = exportSites,
             Criteria = exportCriteria,
             SpaceGroups = exportGroups,
-            Templates = exportTemplates
+            Templates = exportTemplates,
+            Resources = exportResources
         };
+    }
+
+    /// <summary>
+    /// Every active resource of a non-placeable type — people, tools and whatever
+    /// a tenant defined for itself. Placeable ones are exported under their site
+    /// (BuildSitesAsync); before this existed the payload simply omitted the rest,
+    /// so an "export my data" of a tools-and-people tenant returned neither.
+    /// </summary>
+    private async Task<List<ExportResource>> BuildResourcesAsync(
+        List<SiteInfo> sites,
+        Dictionary<Guid, string> criterionIdToKey)
+    {
+        var types = await _resourceTypeRepo.GetAllAsync();
+        var nonPlaceableKeys = types
+            .Where(t => !t.HasGeometry)
+            .Select(t => t.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        if (nonPlaceableKeys.Count == 0) return [];
+
+        var resources = (await _resourceRepo.GetAllAsync(new ResourceListFilter { IsActive = true }))
+            .Where(r => nonPlaceableKeys.Contains(r.ResourceTypeKey))
+            .ToList();
+        if (resources.Count == 0) return [];
+
+        // Sites are referenced by code, not id: an id is meaningless in another
+        // deployment, which is where an export tends to be read.
+        var siteCodeById = sites.ToDictionary(s => s.Id, s => s.Code ?? GenerateKey(s.Name));
+        var capsByResource = (await _capabilityRepo.GetByResourcesAsync(resources.Select(r => r.Id).ToList()))
+            .GroupBy(c => c.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        return resources
+            .OrderBy(r => r.ResourceTypeKey, StringComparer.Ordinal)
+            .ThenBy(r => r.Name, StringComparer.Ordinal)
+            .Select(r => new ExportResource
+            {
+                ResourceTypeKey = r.ResourceTypeKey,
+                Name = r.Name,
+                Description = r.Description,
+                ExternalReference = r.ExternalReference,
+                AllocationMode = r.AllocationMode,
+                BaseAvailabilityPercent = r.BaseAvailabilityPercent,
+                CrossSiteAllowed = r.CrossSiteAllowed,
+                HomeSiteCode = r.HomeSiteId.HasValue && siteCodeById.TryGetValue(r.HomeSiteId.Value, out var code)
+                    ? code
+                    : null,
+                Metadata = r.Properties,
+                Capabilities = MapCapabilities(
+                    capsByResource.GetValueOrDefault(r.Id, []).Select(c => (c.CriterionId, (object?)c.Value.GetRawText())),
+                    criterionIdToKey)
+            })
+            .ToList();
     }
 
     private async Task<List<ExportSite>> BuildSitesAsync(

@@ -67,7 +67,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   useExportHandler('templates', async (format) => {
     await exportTemplates(templates, format);
     logger.info(`Exported ${templates.length} templates as ${format.toUpperCase()}`);
-  });
+  }, { label: 'Request templates', description: 'Export or import request templates.', formats: ['csv', 'json'] });
 
   useImportHandler('templates', async (file, format) => {
     const importedTemplates = await importTemplates(file, format);
@@ -82,6 +82,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   }, {
     successMessage: (count) => `Imported ${count} template${count === 1 ? '' : 's'}`,
     errorMessage: 'Import failed',
+    formats: ['csv', 'json'],
     invalidates: [qk.templates(entityType)],
   });
 

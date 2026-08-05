@@ -15,12 +15,23 @@ import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
+import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
+import { upsertPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 
 /**
  * A person resource enriched with its profile fields, so table columns can read
  * them via accessors (which is what makes them sortable/filterable) instead of
  * closing over the profile map.
  */
+/** Used only if the person type is momentarily unloaded; labels the dialog sanely. */
+const PERSON_TYPE_FALLBACK = {
+  key: RESOURCE_TYPE_KEY.PERSON,
+  displayName: 'Person',
+  displayNamePlural: 'People',
+} as ResourceTypeInfo;
+
 type PersonRow = ResourceInfo & {
   email: string;
   jobTitle: string;
@@ -76,6 +87,33 @@ export function PersonList() {
         };
       }),
     [personRows, profileByPersonId],
+  );
+
+  // Import/export for people. The type is looked up rather than hardcoded so a
+  // renamed system type (0.12.0) labels the dialog with the tenant's own word.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const personType = resourceTypes.find((t) => t.key === RESOURCE_TYPE_KEY.PERSON);
+  useResourceTransfer(
+    personType ?? PERSON_TYPE_FALLBACK,
+    personRows,
+    {
+      // Job title and department export as their display names (useful in a
+      // spreadsheet) but are not re-linked on import: they are references, and
+      // guessing an id from a name would silently attach the wrong one. Email
+      // round-trips because it is the person's own value.
+      extraColumns: (person) => {
+        const profile = profileByPersonId[person.id];
+        return {
+          email: profile?.email ?? '',
+          job_title: profile?.jobTitleName ?? '',
+          department: profile?.departmentPath ?? '',
+        };
+      },
+      afterCreate: async (created, source) => {
+        const email = typeof source.email === 'string' ? source.email.trim() : '';
+        if (email) await upsertPersonProfile(created.id, { email });
+      },
+    },
   );
 
   const queryClient = useQueryClient();

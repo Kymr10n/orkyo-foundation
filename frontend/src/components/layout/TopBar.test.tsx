@@ -14,6 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -311,5 +312,58 @@ describe('TopBar — phone overflow menu', () => {
 
     const importItem = screen.getByText('Import').closest('[role="menuitem"]');
     expect(importItem).toHaveAttribute('data-disabled');
+  });
+});
+
+// ── Import/export availability ───────────────────────────────────────────────
+// The buttons follow the registry — what a mounted page offers — never the URL.
+describe('TopBar — import/export availability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUiActionsStore.setState({ exportRegistry: new Map(), importRegistry: new Map() });
+  });
+
+  it('disables both buttons when nothing on screen registered a handler', () => {
+    renderTopBar();
+    expect(screen.getByRole('button', { name: 'Export not available' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Import not available' })).toBeDisabled();
+  });
+
+  it('enables export and names it from the registration', () => {
+    useUiActionsStore.setState({
+      exportRegistry: new Map([
+        ['resources:tool', { label: 'Tools', description: 'Tools.', formats: ['csv', 'json'] }],
+      ]),
+    });
+    renderTopBar();
+
+    expect(screen.getByRole('button', { name: 'Export Tools' })).toBeEnabled();
+    // Export-only page: import stays off.
+    expect(screen.getByRole('button', { name: 'Import not available' })).toBeDisabled();
+  });
+
+  it('enables import only when the page registered an import handler', () => {
+    useUiActionsStore.setState({
+      exportRegistry: new Map([
+        ['people', { label: 'People', description: 'People.', formats: ['csv'] }],
+      ]),
+      importRegistry: new Map([['people', { formats: ['csv'] }]]),
+    });
+    renderTopBar();
+
+    expect(screen.getByRole('button', { name: 'Import People' })).toBeEnabled();
+  });
+
+  it('acts on the most recently registered page when two are mounted', () => {
+    // A tab registering inside a page that also registers: the inner one wins.
+    useUiActionsStore.setState({
+      exportRegistry: new Map([
+        ['spaces', { label: 'Spaces', description: 'Spaces.', formats: ['csv'] }],
+        ['resources:forklift', { label: 'Forklifts', description: 'Forklifts.', formats: ['csv'] }],
+      ]),
+    });
+    renderTopBar();
+
+    expect(screen.getByRole('button', { name: 'Export Forklifts' })).toBeEnabled();
   });
 });

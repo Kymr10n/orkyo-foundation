@@ -22,6 +22,7 @@
 const iso = (d: Date) => d.toISOString();
 
 export const qk = {
+  calendarSubscriptions: () => ["calendar-subscriptions"] as const,
   requests: {
     /** Broad prefix — every request query (use for invalidation). */
     all: () => ["requests"] as const,

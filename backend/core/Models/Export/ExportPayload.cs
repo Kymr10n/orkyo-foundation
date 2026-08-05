@@ -32,6 +32,32 @@ public record ExportData
     public List<ExportSpaceGroup>? SpaceGroups { get; init; }
     public List<ExportTemplate>? Templates { get; init; }
     public List<ExportRequestData>? Requests { get; init; }
+    /// <summary>
+    /// Resources that are not placed on a floorplan — people, tools and every
+    /// tenant-defined type. Placeable ones stay nested under their site (see
+    /// <see cref="ExportSite.Spaces"/>), which is where they are managed.
+    /// </summary>
+    public List<ExportResource>? Resources { get; init; }
+}
+
+/// <summary>
+/// A resource of any non-placeable type. Type-specific fields live in
+/// <see cref="Metadata"/>, so a tenant's own type exports without this record
+/// ever knowing what its fields are.
+/// </summary>
+public record ExportResource
+{
+    public required string ResourceTypeKey { get; init; }
+    public required string Name { get; init; }
+    public string? Description { get; init; }
+    public string? ExternalReference { get; init; }
+    public required string AllocationMode { get; init; }
+    public int BaseAvailabilityPercent { get; init; }
+    public bool CrossSiteAllowed { get; init; }
+    /// <summary>Code of the resource's home site; null when it belongs to no site.</summary>
+    public string? HomeSiteCode { get; init; }
+    public Dictionary<string, object>? Metadata { get; init; }
+    public List<ExportCapability>? Capabilities { get; init; }
 }
 
 public record ExportSite

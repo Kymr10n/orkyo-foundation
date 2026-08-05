@@ -154,7 +154,7 @@ export function RequestsPage() {
   useExportHandler('requests', async (format) => {
     await exportRequests(requests, format);
     logger.info(`Exported ${requests.length} requests as ${format.toUpperCase()}`);
-  });
+  }, { label: 'Requests', description: 'Export or import requests with their requirements and constraints.', formats: ['csv'] });
 
   useImportHandler('requests', async (file, format) => {
     const importedRequests = await importRequests(file, format);

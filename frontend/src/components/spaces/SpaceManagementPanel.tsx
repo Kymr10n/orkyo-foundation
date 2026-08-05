@@ -36,8 +36,6 @@ import { toast } from "sonner";
 import { useSearchParams } from "react-router";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
-import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
-import { exportSpaces, importSpaces } from "@foundation/src/lib/utils/export-handlers";
 import {
   useSpaces,
   useCreateSpace,
@@ -103,27 +101,6 @@ export function SpaceManagementPanel({
     }
   }, [editResourceId, spaces, isLoadingSpaces, setSearchParams]);
 
-  // Handle export/import
-  useExportHandler('spaces', async (format) => {
-    await exportSpaces(spaces, format, siteId);
-    logger.info(`Exported ${spaces.length} spaces as ${format.toUpperCase()}`);
-  });
-
-  useImportHandler('spaces', async (file, format) => {
-    const importedSpaces = await importSpaces(file, format);
-    if (!importedSpaces.length) {
-      throw new Error('No valid spaces found in file');
-    }
-    // Create spaces via API
-    for (const space of importedSpaces) {
-      await createSpaceMutation.mutateAsync(space as CreateSpaceRequest);
-    }
-    return importedSpaces.length;
-  }, {
-    successMessage: (count) => `Imported ${count} spaces`,
-    errorMessage: 'Failed to import spaces',
-    invalidates: [qk.spaces.list(siteId)],
-  });
 
   // Load floorplan metadata on mount
   useEffect(() => {

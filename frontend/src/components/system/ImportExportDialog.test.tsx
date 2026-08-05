@@ -16,9 +16,20 @@ vi.mock('@foundation/src/components/ui/dialog', () => ({
 
 vi.mock('@foundation/src/lib/utils/import-export', () => ({
   getExportFilename: () => 'export-test.csv',
-  getSupportedFormats: () => ({ export: ['csv', 'json'], import: ['csv', 'json'] }),
-  isImportSupported: () => true,
 }));
+
+// Labels, description and formats now come from the page's registration, so the
+// dialog is driven by the store the way it is in the app.
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
+
+function registerSpaces() {
+  useUiActionsStore.setState({
+    exportRegistry: new Map([
+      ['spaces', { label: 'Spaces', description: 'Export or import spaces.', formats: ['csv', 'json'] }],
+    ]),
+    importRegistry: new Map([['spaces', { formats: ['csv', 'json'] }]]),
+  });
+}
 
 describe('ImportExportDialog', () => {
   const defaultProps = {
@@ -32,6 +43,7 @@ describe('ImportExportDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    registerSpaces();
   });
 
   it('renders export dialog title', () => {

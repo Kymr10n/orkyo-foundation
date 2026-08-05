@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import {
+  resourceContext,
   arrayToCSV,
   csvToArray,
   getExportFilename,
-  getSupportedFormats,
-  isImportSupported,
   downloadFile,
 } from './import-export';
 
@@ -122,58 +121,6 @@ describe('Import/Export Utilities', () => {
     });
   });
 
-  describe('getSupportedFormats', () => {
-    it('should return PDF only for utilization', () => {
-      const formats = getSupportedFormats('utilization');
-      expect(formats.export).toEqual(['pdf']);
-      expect(formats.import).toEqual([]);
-    });
-
-    it('should return CSV for spaces with import', () => {
-      const formats = getSupportedFormats('spaces');
-      expect(formats.export).toEqual(['csv']);
-      expect(formats.import).toEqual(['csv']);
-    });
-
-    it('should return CSV only export for conflicts', () => {
-      const formats = getSupportedFormats('conflicts');
-      expect(formats.export).toEqual(['csv']);
-      expect(formats.import).toEqual(['csv']);
-    });
-
-    it('should return CSV and JSON for criteria with both', () => {
-      const formats = getSupportedFormats('criteria');
-      expect(formats.export).toEqual(['csv', 'json']);
-      expect(formats.import).toEqual(['csv', 'json']);
-    });
-  });
-
-  describe('isImportSupported', () => {
-    it('should return false for utilization', () => {
-      expect(isImportSupported('utilization')).toBe(false);
-    });
-
-    it('should return true for spaces', () => {
-      expect(isImportSupported('spaces')).toBe(true);
-    });
-
-    it('should return true for requests', () => {
-      expect(isImportSupported('requests')).toBe(true);
-    });
-
-    it('should return true for conflicts', () => {
-      expect(isImportSupported('conflicts')).toBe(true);
-    });
-
-    it('should return true for criteria', () => {
-      expect(isImportSupported('criteria')).toBe(true);
-    });
-
-    it('should return true for users', () => {
-      expect(isImportSupported('users')).toBe(true);
-    });
-  });
-
   describe('downloadFile', () => {
     it('should create and trigger download for string content', () => {
       // Mock DOM APIs
@@ -268,5 +215,19 @@ describe('Import/Export Utilities', () => {
         { name: 'Room B, Floor 1', capacity: '20', active: 'false' }
       ]);
     });
+  });
+});
+
+describe('resourceContext', () => {
+  it('namespaces a resource type key so contexts cannot collide', () => {
+    expect(resourceContext('tool')).toBe('resources:tool');
+    expect(resourceContext('forklift')).toBe('resources:forklift');
+  });
+});
+
+describe('getExportFilename', () => {
+  it('keeps a namespaced context filename-safe', () => {
+    // `resources:tool` would be an awkward (on Windows, illegal) filename.
+    expect(getExportFilename('resources:tool', 'csv')).toMatch(/^resources-tool-.*\.csv$/);
   });
 });
