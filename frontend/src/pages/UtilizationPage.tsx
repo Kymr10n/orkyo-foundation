@@ -13,8 +13,8 @@ import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective
 import { useNow } from "@foundation/src/hooks/useNow";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { useScheduledRequests, useBacklogRequests, useScheduleRequest, useSpaces } from "@foundation/src/hooks/useUtilization";
-import { getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
-import { useExportHandler } from "@foundation/src/hooks/useImportExport";
+import { generateTimeColumns, getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
+import { useCalendarFeedHandler, useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
@@ -177,6 +177,24 @@ export function UtilizationPage() {
   // own, so the controls do not appear there.
   const autoScheduleTypeKey = isCalendarTab ? DEFAULT_TARGET_RESOURCE_TYPE_KEYS[0] : activeTab;
 
+  // Every type in tab order (Spaces, People, then the rest) — the PDF sections rows by type,
+  // and reusing gridTypes keeps the export's order identical to the tab strip's.
+  const orderedTypes = useMemo(
+    () => [...resourceTypes.filter((t) => t.key === RESOURCE_TYPE_KEY.SPACE), ...gridTypes],
+    [resourceTypes, gridTypes],
+  );
+
+  // The export follows the tab, exactly as auto-schedule does: a type tab exports that type
+  // alone, and Calendar — which has no type of its own — exports every type, one section per
+  // type. Anything else would hand back a PDF that disagrees with what is on screen.
+  const exportTypes = useMemo(
+    () => (isCalendarTab ? orderedTypes : orderedTypes.filter((t) => t.key === activeTab)),
+    [isCalendarTab, orderedTypes, activeTab],
+  );
+  const exportScopeLabel = isCalendarTab
+    ? 'all resources'
+    : (exportTypes[0]?.displayNamePlural ?? 'resources');
+
   // Floorplan height state
   const [floorplanHeight, setFloorplanHeight] = useState(280);
 
@@ -323,31 +341,24 @@ export function UtilizationPage() {
   // Handle export from TopBar
   useExportHandler('utilization', async (exportFormat) => {
     if (exportFormat === 'pdf') {
-      // Calculate visible date range based on current view
-      const startDate = new Date(anchorTs);
-      const endDate = new Date(anchorTs);
-
-      switch (scale) {
-        case "year":
-          endDate.setFullYear(endDate.getFullYear() + 1);
-          break;
-        case "month":
-          endDate.setMonth(endDate.getMonth() + 1);
-          break;
-        case "week":
-          endDate.setDate(endDate.getDate() + 7);
-          break;
-        case "day":
-          endDate.setDate(endDate.getDate() + 1);
-          break;
-        case "hour":
-          endDate.setHours(endDate.getHours() + 1);
-          break;
-      }
-
-      await exportUtilization(requests, startDate, endDate);
+      // The grid's own columns ARE the visible period — snapped to week/month
+      // starts etc., unlike a raw anchor+1-period window. (weekends/working
+      // hours only annotate columns, so defaults give the same edges.)
+      const columns = generateTimeColumns(scale, anchorTs);
+      await exportUtilization(requests, columns[0].start, columns[columns.length - 1].end, exportTypes);
     }
-  }, { label: 'Utilization (Gantt chart)', description: 'Export a PDF of the schedule for the visible period.', formats: ['pdf'] });
+  }, {
+    label: `Utilization (${exportScopeLabel})`,
+    description: `Export a PDF of the ${exportScopeLabel} schedule for the visible period.`,
+    formats: ['pdf'],
+  });
+
+  // Registered for the page, not the Calendar tab: the feed serves the site's
+  // whole schedule regardless of which visualization is on screen.
+  useCalendarFeedHandler('utilization', {
+    label: 'Utilization schedule',
+    description: 'Add this schedule to Outlook, Google Calendar or Apple Calendar. The calendar updates itself — you subscribe once and it stays current.',
+  });
 
   // Auto-schedule handlers
   const AUTO_SCHEDULE_HORIZON_MONTHS = 3;

@@ -64,4 +64,13 @@ public static class ErrorResponses
         => ProblemResults.Problem(
             StatusCodes.Status403Forbidden, ApiErrorCodes.QuotaExceeded, message,
             resourceType: resourceType, limit: limit);
+
+    /// <summary>
+    /// 402 for a feature the tenant's plan does not include. Distinct from
+    /// <see cref="QuotaExceeded"/>: nothing was used up, the plan simply lacks the feature.
+    /// The frontend shows an upgrade prompt rather than a toast.
+    /// </summary>
+    public static IResult UpgradeRequired(string message)
+        => ProblemResults.Problem(
+            StatusCodes.Status402PaymentRequired, ApiErrorCodes.UpgradeRequired, message);
 }

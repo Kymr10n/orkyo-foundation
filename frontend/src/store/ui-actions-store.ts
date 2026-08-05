@@ -46,6 +46,20 @@ export interface ImportCapability {
   formats: ImportFormat[];
 }
 
+/**
+ * What a currently-mounted page can offer as a live calendar subscription.
+ *
+ * Separate from {@link ExportCapability} rather than a format on it: an export
+ * hands back a file and is done, so the TopBar relays a format to the page and
+ * closes. A subscription is a conversation — create, reveal the address once,
+ * copy, revoke — owned entirely by its own dialog. There is nothing to relay
+ * back, so this registry carries no formats and needs no tick.
+ */
+export interface CalendarFeedCapability {
+  label: string;
+  description: string;
+}
+
 interface UiActionsState {
   // Counters bumped on each trigger
   exportTick: number;
@@ -63,6 +77,7 @@ interface UiActionsState {
    */
   exportRegistry: Map<ExportContext, ExportCapability>;
   importRegistry: Map<ExportContext, ImportCapability>;
+  calendarFeedRegistry: Map<ExportContext, CalendarFeedCapability>;
 
   // Triggers
   triggerExport: (payload: ExportPayload) => void;
@@ -75,6 +90,8 @@ interface UiActionsState {
   unregisterExport: (context: ExportContext) => void;
   registerImport: (context: ExportContext, capability: ImportCapability) => void;
   unregisterImport: (context: ExportContext) => void;
+  registerCalendarFeed: (context: ExportContext, capability: CalendarFeedCapability) => void;
+  unregisterCalendarFeed: (context: ExportContext) => void;
 }
 
 /** Removes a key without mutating the stored Map (Zustand needs a new reference). */
@@ -94,6 +111,7 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   lastImport: null,
   exportRegistry: new Map(),
   importRegistry: new Map(),
+  calendarFeedRegistry: new Map(),
 
   triggerExport: (payload) =>
     set((s) => ({ exportTick: s.exportTick + 1, lastExport: payload })),
@@ -113,7 +131,18 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
     set((s) => ({ importRegistry: new Map(withoutKey(s.importRegistry, context)).set(context, capability) })),
   unregisterImport: (context) =>
     set((s) => ({ importRegistry: withoutKey(s.importRegistry, context) })),
+  registerCalendarFeed: (context, capability) =>
+    set((s) => ({ calendarFeedRegistry: new Map(withoutKey(s.calendarFeedRegistry, context)).set(context, capability) })),
+  unregisterCalendarFeed: (context) =>
+    set((s) => ({ calendarFeedRegistry: withoutKey(s.calendarFeedRegistry, context) })),
 }));
+
+/** The last-inserted entry, i.e. the most recently registered — see the registry docs above. */
+function lastEntry<V>(map: Map<ExportContext, V>): [ExportContext, V] | null {
+  let last: [ExportContext, V] | null = null;
+  for (const entry of map) last = entry;
+  return last;
+}
 
 /**
  * The capability the TopBar acts on: the most recently registered one.
@@ -122,9 +151,21 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
 export function selectActiveExport(
   state: Pick<UiActionsState, 'exportRegistry' | 'importRegistry'>,
 ): { context: ExportContext; capability: ExportCapability; importFormats: ImportFormat[] } | null {
-  let last: [ExportContext, ExportCapability] | null = null;
-  for (const entry of state.exportRegistry) last = entry;
+  const last = lastEntry(state.exportRegistry);
   if (!last) return null;
   const [context, capability] = last;
   return { context, capability, importFormats: state.importRegistry.get(context)?.formats ?? [] };
+}
+
+/**
+ * The calendar subscription the TopBar offers: the most recently registered one.
+ * Returns null when nothing on screen has a schedule worth subscribing to.
+ */
+export function selectActiveCalendarFeed(
+  state: Pick<UiActionsState, 'calendarFeedRegistry'>,
+): { context: ExportContext; capability: CalendarFeedCapability } | null {
+  const last = lastEntry(state.calendarFeedRegistry);
+  if (!last) return null;
+  const [context, capability] = last;
+  return { context, capability };
 }

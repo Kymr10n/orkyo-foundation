@@ -89,9 +89,11 @@ export interface TenantAppProps {
   /** Product-specific tabs for the shared account page. */
   accountTabs?: AccountPageExtraTab[];
   /**
-   * Optional plans/upgrade link. When the Reporting API is tier-gated for the tenant, its
-   * page shows an upsell whose CTA links here (instead of silently redirecting). Name kept
-   * stable as it is the public prop consumed by product apps via the published package.
+   * Optional plans/upgrade link. Every tier-gated surface shows an upsell whose CTA links
+   * here (instead of silently redirecting): Reporting API, audit log, and calendar
+   * subscriptions. Omit it (Community) and those upsells render without a CTA. Name kept
+   * stable — despite now covering more than reporting — as it is the public prop consumed
+   * by product apps via the published package.
    */
   reportingApiUnavailableRedirectTo?: string;
 }
@@ -166,7 +168,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
         <Route path="/about" element={<RequireAuth><RouteErrorBoundary label="page"><AboutPage /></RouteErrorBoundary></RequireAuth>} />
         <Route path={ROUTE_ACCOUNT} element={<RequireAuth requireMembership={false}><RouteErrorBoundary label="page"><AccountPage accountTabs={accountTabs} /></RouteErrorBoundary></RequireAuth>} />
         <Route path="/messages" element={<RequireAuth><RouteErrorBoundary label="page"><MessagesPage /></RouteErrorBoundary></RequireAuth>} />
-        <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
+        <Route path="/" element={<RequireAuth><AppLayout upgradeHref={reportingApiUnavailableRedirectTo} /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="insights" element={<InsightsPage />}>
@@ -204,7 +206,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route index element={<Navigate to="sites" replace />} />
             <Route path="sites" element={<SiteSettings />} />
             <Route path="users" element={<UserSettings />} />
-            <Route path="organization" element={<OrganizationSettings />} />
+            <Route path="organization" element={<OrganizationSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
             <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />

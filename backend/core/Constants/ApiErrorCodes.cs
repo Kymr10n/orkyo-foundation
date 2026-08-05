@@ -16,6 +16,7 @@ public static class ApiErrorCodes
     public const string AccountLocked = "account_locked";
     public const string TenantSuspended = "tenant_suspended";
     public const string QuotaExceeded = "quota_exceeded";
+    public const string UpgradeRequired = "upgrade_required";
 
     /// <summary>
     /// Error codes used by the bootstrap/auth flow.

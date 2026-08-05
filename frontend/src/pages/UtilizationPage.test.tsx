@@ -17,6 +17,7 @@ const mockUseSpaces = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 const mockUseBacklog = vi.fn((): any => ({ data: [], isLoading: false }));
 const mockUseAutoScheduleAvailable = vi.fn((_?: any): any => false);
 let capturedExportHandler: ((format: string) => Promise<void>) | null = null;
+let capturedExportOffer: { label: string; description: string } | null = null;
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: null }));
 const mockUseAvailabilityEvents = vi.fn((_?: any): any => ({ data: [] }));
 
@@ -142,7 +143,11 @@ vi.mock("@foundation/src/hooks/useUtilization", () => ({
 }));
 
 vi.mock("@foundation/src/hooks/useImportExport", () => ({
-  useExportHandler: vi.fn((_key: string, handler: any) => { capturedExportHandler = handler; }),
+  useExportHandler: vi.fn((_key: string, handler: any, offer: any) => {
+    capturedExportHandler = handler;
+    capturedExportOffer = offer;
+  }),
+  useCalendarFeedHandler: vi.fn(),
 }));
 
 // Mock API modules called by handlers
@@ -369,6 +374,7 @@ describe("UtilizationPage", () => {
     mockUseSchedulingSettings.mockReturnValue({ data: null });
     mockUseAvailabilityEvents.mockReturnValue({ data: [] });
     capturedExportHandler = null;
+    capturedExportOffer = null;
     capturedOnDragEnd = null;
     capturedOnDragStart = null;
     capturedOnDragCancel = null;
@@ -975,12 +981,45 @@ describe("UtilizationPage", () => {
     expect(capturedExportHandler).toBeTruthy();
     await capturedExportHandler!("pdf");
     // Row labels are resolved inside the export (all resource types), so the
-    // page no longer passes its spaces list.
+    // page no longer passes its spaces list. The 4th argument is the type scope.
     expect(vi.mocked(exportUtilization)).toHaveBeenCalledWith(
       expect.any(Array),
       expect.any(Date),
       expect.any(Date),
+      expect.any(Array),
     );
+  });
+
+  it("exports only the active tab's resource type", async () => {
+    const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+    // The Spaces tab is on screen, so a PDF full of people would disagree with it.
+    const Wrapper = createWrapper("space");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    await capturedExportHandler!("pdf");
+
+    const types = vi.mocked(exportUtilization).mock.calls[0][3];
+    expect(types.map((t) => t.key)).toEqual(["space"]);
+  });
+
+  it("exports every type from the Calendar tab, in tab order", async () => {
+    const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+    // Calendar is request-centric — it has no type of its own, so the export
+    // covers all of them, sectioned.
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    await capturedExportHandler!("pdf");
+
+    const types = vi.mocked(exportUtilization).mock.calls[0][3];
+    expect(types.map((t) => t.key)).toEqual(["space", "person", "tool", "forklift"]);
+  });
+
+  it("names the export after what it will contain", async () => {
+    const Wrapper = createWrapper("person");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(capturedExportOffer?.label).toBe("Utilization (People)");
   });
 
   it("export handler ignores non-pdf formats", async () => {
@@ -1315,15 +1354,26 @@ describe("UtilizationPage", () => {
 
   // --- Export end-date computation per scale ---
 
-  it.each(["year", "week", "day", "hour"] as const)(
+  it.each(["year", "month", "week", "day", "hour"] as const)(
     "export computes the visible window for scale=%s",
     async (scale) => {
       const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+      const { generateTimeColumns } = await import("@foundation/src/components/utilization/time-grid-utils");
       mockStoreOverrides = { scale };
       const Wrapper = createWrapper();
       render(<Wrapper><UtilizationPage /></Wrapper>);
       await capturedExportHandler!("pdf");
-      expect(vi.mocked(exportUtilization)).toHaveBeenCalled();
+
+      // The exported window must be the grid's own columns — snapped to
+      // week/month starts — not a raw anchor+1-period span, or the bars land
+      // outside the chart.
+      const columns = generateTimeColumns(scale, buildMockState().anchorTs);
+      expect(vi.mocked(exportUtilization)).toHaveBeenCalledWith(
+        expect.any(Array),
+        columns[0].start,
+        columns[columns.length - 1].end,
+        expect.any(Array),
+      );
     },
   );
 

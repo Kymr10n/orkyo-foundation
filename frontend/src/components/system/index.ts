@@ -3,3 +3,4 @@
  */
 
 export { ImportExportDialog } from "./ImportExportDialog";
+export { CalendarFeedDialog } from "./CalendarFeedDialog";

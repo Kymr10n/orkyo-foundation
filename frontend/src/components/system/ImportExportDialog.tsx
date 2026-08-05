@@ -25,6 +25,8 @@ import {
 import { selectActiveExport, useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { AlertCircle, Download, Upload } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@foundation/src/components/ui/alert";
+import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
+import { useDataExportAvailable } from "@foundation/src/hooks/useDataExportAvailable";
 import { useState, useRef, useEffect } from "react";
 
 interface ImportExportDialogProps {
@@ -35,6 +37,8 @@ interface ImportExportDialogProps {
   onExport?: (format: ExportFormat) => void;
   onImport?: (file: File, format: ImportFormat) => void;
   siteId?: string;
+  /** Where the upsell's CTA points when the tenant's plan lacks the feature. Omit to hide the CTA. */
+  upgradeHref?: string;
 }
 
 /**
@@ -50,7 +54,13 @@ export function ImportExportDialog({
   onExport,
   onImport,
   siteId,
+  upgradeHref,
 }: ImportExportDialogProps) {
+  // Gating both modes here covers every registered flow at once: the per-page
+  // CSV/JSON exports and imports are built client-side, so this dialog is
+  // their only gate. (The organization JSON export is additionally enforced
+  // server-side via FeatureKeys.DataExport.)
+  const available = useDataExportAvailable();
   const exportRegistry = useUiActionsStore((s) => s.exportRegistry);
   const importRegistry = useUiActionsStore((s) => s.importRegistry);
   const active = selectActiveExport({ exportRegistry, importRegistry });
@@ -107,6 +117,34 @@ export function ImportExportDialog({
   };
 
   const canImport = supportedFormats.import.length > 0;
+
+  // The plan lacks the feature: same dialog shell, but the upsell replaces the
+  // whole form — there is nothing partial to offer.
+  if (!available) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {mode === 'export' ? (
+                <><Download className="h-5 w-5" /> Export</>
+              ) : (
+                <><Upload className="h-5 w-5" /> Import</>
+              )}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Data export / import is not included in the current plan.
+            </DialogDescription>
+          </DialogHeader>
+          <FeatureUpsell
+            title="Data export / import"
+            description="Move data in and out of Orkyo — CSV and JSON per page, and a PDF of the schedule. Available on the Professional and Enterprise plans."
+            upgradeHref={upgradeHref}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

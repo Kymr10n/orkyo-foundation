@@ -7,6 +7,7 @@ import type { Template } from '@foundation/src/types/templates';
 import type { User } from '@foundation/src/types/auth';
 import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import { getResources, type CreateResourceRequest, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { resourceContext } from './import-export';
 import {
   arrayToCSV,
@@ -39,19 +40,33 @@ function buildJsonExport(context: ExportContext, data: unknown): string {
 export async function exportUtilization(
   requests: Request[],
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  /** Types to render, in display order — one section per type. Scoped by the caller's tab. */
+  resourceTypes: ResourceTypeInfo[]
 ) {
   // Row labels for every resource type, fetched here rather than threaded
   // through the page: an export is a deliberate user action, and the page holds
-  // only the resources of the tab being looked at.
-  const { data: resources } = await getResources({ isActive: true });
-  const resourceNames = new Map(resources.map((r) => [r.id, r.name]));
+  // only the resources of the tab being looked at. Paged: the server caps
+  // pageSize at 100, and a single default-page call left every resource beyond
+  // it labelled "Unknown resource".
+  const resources: ResourceInfo[] = [];
+  for (let page = 1; ; page++) {
+    const res = await getResources({ isActive: true, page, pageSize: 100 });
+    resources.push(...res.data);
+    if (resources.length >= res.total || res.data.length === 0) break;
+  }
+  // The type comes along: the chart sections rows by it, so people and spaces
+  // never interleave in one alphabetical list.
+  const resourceMap = new Map(
+    resources.map((r) => [r.id, { name: r.name, typeKey: r.resourceTypeKey }]),
+  );
 
   // Dynamically import PDF export to reduce initial bundle size
   const { exportGanttChartToPDF } = await import('./gantt-pdf-export');
   exportGanttChartToPDF({
     requests,
-    resourceNames,
+    resources: resourceMap,
+    resourceTypes,
     startDate,
     endDate,
   });

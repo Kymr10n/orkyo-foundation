@@ -367,3 +367,50 @@ describe('TopBar — import/export availability', () => {
     expect(screen.getByRole('button', { name: 'Export Forklifts' })).toBeEnabled();
   });
 });
+
+describe('TopBar — calendar subscription availability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUiActionsStore.setState({
+      exportRegistry: new Map(),
+      importRegistry: new Map(),
+      calendarFeedRegistry: new Map(),
+    });
+  });
+
+  it('is disabled when no page offers a schedule to subscribe to', () => {
+    renderTopBar();
+    expect(
+      screen.getByRole('button', { name: 'Calendar subscription not available' }),
+    ).toBeDisabled();
+  });
+
+  it('is enabled and named from the registration', () => {
+    useUiActionsStore.setState({
+      calendarFeedRegistry: new Map([
+        ['utilization', { label: 'Utilization schedule', description: 'Subscribe once.' }],
+      ]),
+    });
+    renderTopBar();
+
+    expect(
+      screen.getByRole('button', { name: 'Subscribe to Utilization schedule' }),
+    ).toBeEnabled();
+  });
+
+  it('is independent of the export registry', () => {
+    // A page can export without offering a feed; the two buttons gate separately.
+    useUiActionsStore.setState({
+      exportRegistry: new Map([
+        ['people', { label: 'People', description: 'People.', formats: ['csv'] }],
+      ]),
+      calendarFeedRegistry: new Map(),
+    });
+    renderTopBar();
+
+    expect(screen.getByRole('button', { name: 'Export People' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Calendar subscription not available' }),
+    ).toBeDisabled();
+  });
+});

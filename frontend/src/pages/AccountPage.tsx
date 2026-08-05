@@ -54,7 +54,6 @@ import { NotificationPreferencesSection } from "@foundation/src/components/setti
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
-import { CalendarSubscriptions } from "@foundation/src/components/account/CalendarSubscriptions";
 import {
   getTenantMemberships,
   leaveTenant,
@@ -398,7 +397,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
           { value: "profile", label: "Profile" },
           { value: "organizations", label: "Organizations" },
           { value: "security", label: "Security" },
-          { value: "calendar", label: "Calendar" },
           ...visibleAccountTabs.map((tab) => ({ value: tab.value, label: tab.label })),
         ]}
         value={activeTab}
@@ -772,9 +770,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             {tab.render(extraTabContext)}
           </TabsContent>
         ))}
-        <TabsContent value="calendar" className="mt-6">
-          <CalendarSubscriptions />
-        </TabsContent>
 
       </PageTabs>
 

@@ -50,9 +50,19 @@ import { downloadFile } from "@foundation/src/lib/utils/import-export";
 import { formatDateForInput } from "@foundation/src/lib/utils";
 import { logger } from "@foundation/src/lib/core/logger";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
+import { useDataExportAvailable } from "@foundation/src/hooks/useDataExportAvailable";
 
-export function OrganizationSettings() {
+interface OrganizationSettingsProps {
+  /** Where the export upsell's CTA points when the plan lacks the feature. Omit to hide the CTA. */
+  upgradeHref?: string;
+}
+
+export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps = {}) {
   const { membership, appUser, clearMembership } = useAuth();
+  // Server-enforced too (FeatureKeys.DataExport → 403); this just keeps the card
+  // from offering a button that can only fail.
+  const dataExportAvailable = useDataExportAvailable();
 
   const [displayName, setDisplayName] = useState("");
   const [originalName, setOriginalName] = useState("");
@@ -301,33 +311,43 @@ export function OrganizationSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="includePlanning"
-              checked={includePlanningData}
-              onCheckedChange={(checked) =>
-                setIncludePlanningData(checked === true)
-              }
+          {!dataExportAvailable ? (
+            <FeatureUpsell
+              title="Data export / import"
+              description="Download your organization as JSON, and move data in and out per page. Available on the Professional and Enterprise plans."
+              upgradeHref={upgradeHref}
             />
-            <Label htmlFor="includePlanning" className="cursor-pointer">
-              Include planning data (requests and schedules)
-            </Label>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="includePlanning"
+                  checked={includePlanningData}
+                  onCheckedChange={(checked) =>
+                    setIncludePlanningData(checked === true)
+                  }
+                />
+                <Label htmlFor="includePlanning" className="cursor-pointer">
+                  Include planning data (requests and schedules)
+                </Label>
+              </div>
 
-          <Button onClick={handleExport} loading={exporting} disabled={exporting}>
-            {!exporting && (exportDone ? (
-              <Check className="h-4 w-4" />
-            ) : (
-              <Download className="h-4 w-4" />
-            ))}
-            <span className="ml-2">
-              {exporting
-                ? "Exporting..."
-                : exportDone
-                  ? "Downloaded"
-                  : "Export JSON"}
-            </span>
-          </Button>
+              <Button onClick={handleExport} loading={exporting} disabled={exporting}>
+                {!exporting && (exportDone ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                ))}
+                <span className="ml-2">
+                  {exporting
+                    ? "Exporting..."
+                    : exportDone
+                      ? "Downloaded"
+                      : "Export JSON"}
+                </span>
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
 

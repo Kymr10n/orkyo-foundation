@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
 import { ImportExportDialog } from './ImportExportDialog';
 
@@ -16,6 +17,11 @@ vi.mock('@foundation/src/components/ui/dialog', () => ({
 
 vi.mock('@foundation/src/lib/utils/import-export', () => ({
   getExportFilename: () => 'export-test.csv',
+}));
+
+let mockAvailable = true;
+vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
+  useDataExportAvailable: () => mockAvailable,
 }));
 
 // Labels, description and formats now come from the page's registration, so the
@@ -43,6 +49,7 @@ describe('ImportExportDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAvailable = true;
     registerSpaces();
   });
 
@@ -122,5 +129,35 @@ describe('ImportExportDialog', () => {
     const clickSpy = vi.spyOn(fileInput, 'click').mockImplementation(() => {});
     await user.click(screen.getByRole('button', { name: /Browse/i }));
     expect(clickSpy).toHaveBeenCalled();
+  });
+
+  describe('when the tenant plan does not include the feature', () => {
+    beforeEach(() => {
+      mockAvailable = false;
+    });
+
+    it.each(['export', 'import'] as const)(
+      'offers an upgrade instead of the %s form',
+      (mode) => {
+        render(
+          <MemoryRouter>
+            <ImportExportDialog {...defaultProps} mode={mode} upgradeHref="/account?tab=plans" />
+          </MemoryRouter>,
+        );
+
+        expect(screen.getByText('Data export / import')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /view plans/i }))
+          .toHaveAttribute('href', '/account?tab=plans');
+        // Neither the format form nor the action button renders.
+        expect(screen.queryByRole('button', { name: /^(export|import)$/i })).not.toBeInTheDocument();
+      },
+    );
+
+    it('omits the CTA when no plans page is configured (Community)', () => {
+      render(<ImportExportDialog {...defaultProps} />);
+
+      expect(screen.getByText(/professional and enterprise/i)).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /view plans/i })).not.toBeInTheDocument();
+    });
   });
 });

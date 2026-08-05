@@ -14,7 +14,10 @@ import {
   importTemplates,
   exportUsers,
   importUsers,
+  exportUtilization,
 } from './export-handlers';
+import { getResources } from '@foundation/src/lib/api/resources-api';
+import { exportGanttChartToPDF } from './gantt-pdf-export';
 import type { Space } from '@foundation/src/types/space';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 import type { Criterion } from '@foundation/src/types/criterion';
@@ -36,6 +39,11 @@ vi.mock('./import-export', async () => {
 // Mock gantt-pdf-export
 vi.mock('./gantt-pdf-export', () => ({
   exportGanttChartToPDF: vi.fn(),
+}));
+
+// Mock the resources API — exportUtilization fetches row labels from it.
+vi.mock('@foundation/src/lib/api/resources-api', () => ({
+  getResources: vi.fn(),
 }));
 
 // Helper to create a mock File with text() method
@@ -512,6 +520,62 @@ describe('Export Handlers', () => {
       // JSON import for spaces just returns empty array (not implemented)
       const result = await importSpaces(file, 'json');
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('exportUtilization', () => {
+    beforeEach(() => {
+      vi.mocked(getResources).mockReset();
+      vi.mocked(exportGanttChartToPDF).mockClear();
+    });
+
+    const page = (ids: number[], total: number) => ({
+      data: ids.map((i) => ({ id: `res-${i}`, name: `Resource ${i}`, resourceTypeKey: 'space' })),
+      total,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const spaceType = { key: 'space', displayNamePlural: 'Spaces' } as any;
+
+    it('pages through every resource so no row label is missing', async () => {
+      // The server caps pageSize at 100; a single default call used to leave
+      // everything past the first page labelled "Unknown resource".
+      vi.mocked(getResources)
+        .mockResolvedValueOnce(page(Array.from({ length: 100 }, (_, i) => i), 150) as any)
+        .mockResolvedValueOnce(page(Array.from({ length: 50 }, (_, i) => i + 100), 150) as any);
+
+      await exportUtilization([], new Date('2024-03-01'), new Date('2024-03-31'), [spaceType]);
+
+      expect(getResources).toHaveBeenCalledTimes(2);
+      expect(getResources).toHaveBeenNthCalledWith(1, { isActive: true, page: 1, pageSize: 100 });
+      expect(getResources).toHaveBeenNthCalledWith(2, { isActive: true, page: 2, pageSize: 100 });
+
+      const { resources } = vi.mocked(exportGanttChartToPDF).mock.calls[0][0];
+      expect(resources.size).toBe(150);
+      expect(resources.get('res-0')).toEqual({ name: 'Resource 0', typeKey: 'space' });
+      expect(resources.get('res-149')).toEqual({ name: 'Resource 149', typeKey: 'space' });
+    });
+
+    it('forwards the requested types so the chart can section by them', async () => {
+      const personType = { key: 'person', displayNamePlural: 'People' } as any;
+      vi.mocked(getResources).mockResolvedValueOnce(page([0], 1) as any);
+
+      await exportUtilization([], new Date('2024-03-01'), new Date('2024-03-31'), [
+        spaceType,
+        personType,
+      ]);
+
+      const { resourceTypes } = vi.mocked(exportGanttChartToPDF).mock.calls[0][0];
+      expect(resourceTypes).toEqual([spaceType, personType]);
+    });
+
+    it('stops after one call when everything fits on a page', async () => {
+      vi.mocked(getResources).mockResolvedValueOnce(page([0, 1], 2) as any);
+
+      await exportUtilization([], new Date('2024-03-01'), new Date('2024-03-31'), [spaceType]);
+
+      expect(getResources).toHaveBeenCalledTimes(1);
     });
   });
 });
