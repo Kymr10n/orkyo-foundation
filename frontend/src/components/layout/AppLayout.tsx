@@ -127,7 +127,9 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
         ) : (
           <SidebarNav forceCollapsed={isTablet ? true : undefined} />
         )}
-        <main className="flex-1 overflow-auto p-4">
+        {/* On phones PageLayout is the single padding owner (UI-GUIDELINES §16);
+            main pads only from md: up so desktop metrics stay unchanged. */}
+        <main className="flex-1 overflow-auto md:p-4">
           <RouteErrorBoundary label="page">
             <Outlet />
           </RouteErrorBoundary>

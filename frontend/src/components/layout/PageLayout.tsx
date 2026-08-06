@@ -8,7 +8,7 @@ interface PageLayoutProps {
 
 export function PageLayout({ children, className }: PageLayoutProps) {
   return (
-    <div className={cn("flex flex-col h-full p-4 md:p-6 lg:p-8", className)}>
+    <div className={cn("flex flex-col h-full p-3 md:p-6 lg:p-8", className)}>
       {children}
     </div>
   );

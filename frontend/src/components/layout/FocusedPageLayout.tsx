@@ -16,7 +16,7 @@ interface FocusedPageLayoutProps {
 export function FocusedPageLayout({ children, className }: FocusedPageLayoutProps) {
   return (
     <div className="min-h-screen">
-      <div className={cn("mx-auto max-w-4xl p-4 md:p-6 lg:p-8 space-y-6", className)}>
+      <div className={cn("mx-auto max-w-4xl p-3 md:p-6 lg:p-8 space-y-4 md:space-y-6", className)}>
         {children}
       </div>
     </div>
