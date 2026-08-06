@@ -7,12 +7,18 @@
 
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { PlanCodes, planIncludesPremiumFeatures, type PlanCode } from '@foundation/contracts/plans';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export type ServiceTier = 'free' | 'professional' | 'enterprise';
+/**
+ * The SaaS tiers a platform admin can assign. Deliberately excludes `community`, which is
+ * not purchasable and must never appear in TierSelect — see TIER_DISPLAY_NAMES below.
+ * For the full wire vocabulary (including Community) use `PlanCode` from contracts/plans.
+ */
+export type ServiceTier = Exclude<PlanCode, 'community'>;
 
 /** Mirrors backend TenantStatusConstants and the DB check constraint. */
 export type TenantStatus = 'active' | 'suspended' | 'deleting';
@@ -24,11 +30,15 @@ export const TENANT_STATUS = {
 } as const satisfies Record<string, TenantStatus>;
 
 export const SERVICE_TIER = {
-  FREE: 'free',
-  PROFESSIONAL: 'professional',
-  ENTERPRISE: 'enterprise',
+  FREE: PlanCodes.Free,
+  PROFESSIONAL: PlanCodes.Professional,
+  ENTERPRISE: PlanCodes.Enterprise,
 } as const satisfies Record<string, ServiceTier>;
 
+/**
+ * Display names for the billable tiers. TierSelect iterates this to build its options, so
+ * every key here becomes a selectable tier — never add `community`.
+ */
 export const TIER_DISPLAY_NAMES: Record<ServiceTier, string> = {
   free: 'Free',
   professional: 'Professional',
@@ -36,13 +46,12 @@ export const TIER_DISPLAY_NAMES: Record<ServiceTier, string> = {
 };
 
 /**
- * Single source of truth for the "Professional tier or above" gate.
- * Consumers (reporting API, auto-schedule, …) must use this so a tier rename
- * is a compile error everywhere rather than a silently-stale string literal.
+ * @deprecated Renamed: Community also passes this gate, so the old name was a lie.
+ * Use `planIncludesPremiumFeatures` from `@foundation/contracts/plans` — and for anything
+ * the server enforces, use `useFeatureEnabled` instead of any plan-derived check.
+ * Removed at the next major.
  */
-export function isProfessionalOrAbove(tier: ServiceTier): boolean {
-  return tier === SERVICE_TIER.PROFESSIONAL || tier === SERVICE_TIER.ENTERPRISE;
-}
+export const isProfessionalOrAbove = planIncludesPremiumFeatures;
 
 export interface AdminTenant {
   id: string;

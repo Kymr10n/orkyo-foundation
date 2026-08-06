@@ -26,12 +26,14 @@ import {
 import type { AuthStage } from '@foundation/src/constants/auth';
 import { logger } from '@foundation/src/lib/core/logger';
 import type { ServiceTier } from '@foundation/src/lib/api/admin-api';
+import type { PlanCode } from '@foundation/contracts/plans';
 
 // ── Re-exported types (consumed by pages, components, api-utils) ──────────────
 
-// Single ServiceTier definition lives in lib/api/admin-api (alongside SERVICE_TIER).
-// Re-exported here for the auth/membership consumers that import it from this module.
-export type { ServiceTier };
+// ServiceTier (billable SaaS tiers) lives in lib/api/admin-api alongside SERVICE_TIER;
+// PlanCode (the full wire vocabulary, Community included) lives in contracts/plans.
+// Both are re-exported for the auth/membership consumers that import from this module.
+export type { ServiceTier, PlanCode };
 
 export interface TenantMembership {
   tenantId: string;
@@ -39,7 +41,17 @@ export interface TenantMembership {
   displayName: string;
   role: string;
   state: string;
-  tier?: ServiceTier;
+  /**
+   * Machine plan code (never the display label). Use it only for the few product decisions
+   * the server computes no entitlement for; for everything it enforces, read `entitlements`
+   * via `useFeatureEnabled`.
+   */
+  tier?: PlanCode;
+  /**
+   * Server-computed feature entitlements for this tenant (backend `FeatureKeys.Enforced`).
+   * Absent from an older backend — treat a missing key as not entitled.
+   */
+  entitlements?: Record<string, boolean>;
   isTenantAdmin?: boolean;
   isBreakGlass?: boolean;
   breakGlassSessionId?: string;

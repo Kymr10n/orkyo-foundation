@@ -17,16 +17,22 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Tier gate: ReportingApiSettings requires API access (Professional+). Mock useAuth so
-// tests control the current tier; default to Professional so the page renders.
-const { authState } = vi.hoisted(() => ({
-  authState: {
-    membership: { tier: 'professional' } as { tier: string } | null,
-    isLoading: false,
-  },
-}));
+// Entitlement gate: ReportingApiSettings requires the server-reported api_access_enabled
+// entitlement. Mock useAuth so tests control it; default to entitled so the page renders.
+const { authState, entitled, notEntitled } = vi.hoisted(() => {
+  const entitled = { entitlements: { api_access_enabled: true } };
+  const notEntitled = { entitlements: { api_access_enabled: false } };
+  return {
+    entitled,
+    notEntitled,
+    authState: {
+      membership: entitled as { entitlements: Record<string, boolean> } | null,
+      isLoading: false,
+    },
+  };
+});
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership, isLoading: authState.isLoading }),
+  useAuth: () => ({ membership: authState.membership, isLoading: authState.isLoading, isSiteAdmin: false }),
 }));
 
 import {
@@ -103,7 +109,7 @@ function expectedPresetLabel(days: number): string {
 describe('ReportingApiSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    authState.membership = { tier: 'professional' };
+    authState.membership = entitled;
     authState.isLoading = false;
     vi.mocked(listReportingTokens).mockResolvedValue([activeToken]);
     vi.mocked(createReportingToken).mockResolvedValue({
@@ -121,7 +127,7 @@ describe('ReportingApiSettings', () => {
   });
 
   it('shows generic unavailable message for tenants without API access', async () => {
-    authState.membership = { tier: 'free' };
+    authState.membership = notEntitled;
     renderPage();
 
     await waitFor(() => {
@@ -133,7 +139,7 @@ describe('ReportingApiSettings', () => {
   });
 
   it('shows an upsell with a plans link (no redirect) when an upgrade href is provided', async () => {
-    authState.membership = { tier: 'free' };
+    authState.membership = notEntitled;
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={['/settings/integrations']}>
@@ -160,19 +166,19 @@ describe('ReportingApiSettings', () => {
     expect(listReportingTokens).not.toHaveBeenCalled();
   });
 
-  it('forwards Free-tier users (token UI never renders)', async () => {
-    authState.membership = { tier: 'free' };
+  it('forwards unentitled tenants (token UI never renders)', async () => {
+    authState.membership = notEntitled;
     renderPage();
     await waitFor(() => {
       expect(screen.queryByText('Reporting API')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /New token/i })).not.toBeInTheDocument();
     });
-    // Free tier never hits the tokens API (query is gated/disabled)
+    // Unentitled tenants never hit the tokens API (query is gated/disabled)
     expect(listReportingTokens).not.toHaveBeenCalled();
   });
 
-  it('renders for Enterprise tier', async () => {
-    authState.membership = { tier: 'enterprise' };
+  it('renders whenever the entitlement is present', async () => {
+    authState.membership = entitled;
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Reporting API')).toBeInTheDocument();
