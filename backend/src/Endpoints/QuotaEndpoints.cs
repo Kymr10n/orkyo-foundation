@@ -59,10 +59,11 @@ public static class QuotaEndpoints
         var spacesLimit = await quotaEnforcer.GetLimitAsync(QuotaResourceTypes.Spaces, ct);
         var storageLimit = await quotaEnforcer.GetLimitAsync(QuotaResourceTypes.StorageBytes, ct);
 
-        var apiAccessEnabled = await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct);
-        var auditLogEnabled = await featureGate.IsEnabledAsync(FeatureKeys.AuditLog, ct);
-        var dataExportEnabled = await featureGate.IsEnabledAsync(FeatureKeys.DataExport, ct);
-        var calendarFeedEnabled = await featureGate.IsEnabledAsync(FeatureKeys.CalendarFeed, ct);
+        // One list of enforced features (FeatureKeys.Enforced) so this endpoint and the session
+        // bootstrap can never disagree about which features exist.
+        var entitlements = new List<object>(FeatureKeys.Enforced.Count);
+        foreach (var key in FeatureKeys.Enforced)
+            entitlements.Add(BooleanQuota(key, await featureGate.IsEnabledAsync(key, ct)));
 
         return Results.Ok(new
         {
@@ -73,13 +74,7 @@ public static class QuotaEndpoints
                 NumericQuota(QuotaResourceTypes.Spaces, "count", spacesLimit, spacesUsed),
                 NumericQuota(QuotaResourceTypes.StorageBytes, "bytes", storageLimit, storageUsed),
             },
-            entitlements = new object[]
-            {
-                BooleanQuota(FeatureKeys.ApiAccess, apiAccessEnabled),
-                BooleanQuota(FeatureKeys.AuditLog, auditLogEnabled),
-                BooleanQuota(FeatureKeys.DataExport, dataExportEnabled),
-                BooleanQuota(FeatureKeys.CalendarFeed, calendarFeedEnabled),
-            }
+            entitlements
         });
     }
 

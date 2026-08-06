@@ -283,7 +283,7 @@ export function PresetSettings() {
               {/* Contents Summary */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card>
-                  <CardContent className="pt-4">
+                  <CardContent className="pt-4 md:pt-4">
                     <div className="text-2xl font-bold">
                       {importedPreset.contents.criteria.length}
                     </div>
@@ -291,7 +291,7 @@ export function PresetSettings() {
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="pt-4">
+                  <CardContent className="pt-4 md:pt-4">
                     <div className="text-2xl font-bold">
                       {importedPreset.contents.spaceGroups.length}
                     </div>
@@ -299,7 +299,7 @@ export function PresetSettings() {
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="pt-4">
+                  <CardContent className="pt-4 md:pt-4">
                     <div className="text-2xl font-bold">
                       {importedPreset.contents.templates.request.length +
                         importedPreset.contents.templates.space.length +

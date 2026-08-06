@@ -248,7 +248,7 @@ export function AnnouncementsTab() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="py-8">
+        <CardContent className="py-8 md:py-8">
           <div className="text-center text-muted-foreground">Loading announcements…</div>
         </CardContent>
       </Card>

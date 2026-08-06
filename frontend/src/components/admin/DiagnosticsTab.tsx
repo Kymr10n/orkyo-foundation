@@ -100,7 +100,7 @@ export function DiagnosticsTab() {
 
       {/* Version & Build */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 md:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Server className="h-4 w-4" />
             Application
@@ -119,7 +119,7 @@ export function DiagnosticsTab() {
 
       {/* Database */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 md:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Database className="h-4 w-4" />
             Database
@@ -137,7 +137,7 @@ export function DiagnosticsTab() {
 
       {/* Auth */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 md:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Shield className="h-4 w-4" />
             Authentication
@@ -155,7 +155,7 @@ export function DiagnosticsTab() {
 
       {/* SMTP */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 md:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Mail className="h-4 w-4" />
             Email (SMTP)
@@ -174,7 +174,7 @@ export function DiagnosticsTab() {
 
       {/* Worker */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 md:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Activity className="h-4 w-4" />
             Background Worker
@@ -197,7 +197,7 @@ export function DiagnosticsTab() {
 
       {/* Modules */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 md:pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Globe className="h-4 w-4" />
             Modules

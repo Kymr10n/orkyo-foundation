@@ -78,3 +78,34 @@ buttons that 403.
     [`SidebarNav`](../frontend/src/components/layout/SidebarNav.tsx).
   - [`RequireTenantAdmin`](../frontend/src/components/auth/RequireTenantAdmin.tsx) — wraps
     `/tenant-admin`; non-admins are redirected. Administration nav link hidden from non-admins.
+
+## Feature entitlements — plan gating is not authorization
+
+Roles decide *what a member may do*; entitlements decide *what the workspace has bought*. They are
+separate mechanisms and must not be conflated.
+
+**The server computes and enforces entitlements.** `IFeatureGate` resolves them from the tenant's
+plan plus any per-tenant overrides, and the gated endpoints enforce them (402/404). SaaS backs this
+with subscription tiers; Community's `AllFeaturesEnabledGate` allows everything.
+
+**The client reads the result — it never re-derives it.** The session payload carries an
+`entitlements` map per membership (`FeatureKeys.Enforced`, produced by `ITenantEntitlementProvider`).
+Gate presentation with `useFeatureEnabled(FeatureKeys.X)`; it fails closed on a missing key, matching
+the server's default-deny.
+
+> **Never gate a server-enforced feature on the plan code.** That duplicates the plan → feature table,
+> ignores per-tenant overrides, and is exactly how a single casing slip — the session shipping the
+> display label `"Enterprise"` where clients compare the code `"enterprise"` — silently locked five
+> features for every paying tenant, and showed self-hosted Community users padlocks advertising plans
+> they cannot buy.
+
+The plan code (`contracts/plans.ts`, `planIncludesPremiumFeatures`) is only for product decisions the
+server computes no entitlement for. Today that is auto-schedule availability and the Sites tab.
+
+**Wire rule:** the plan travels as its machine code (lowercase, `subscription_tiers.code`), never
+`display_name`. `TenantPlanInfo` carries both; only `PlanCode` goes on the wire.
+
+**Known gap:** `FeatureKeys.AutoSchedule` has no entitlement row and no endpoint gate, so the
+"premium plan" rule for auto-schedule lives only in the frontend hook — the endpoint is reachable by
+an unentitled tenant. Fixing it means seeding the quota row and adding `EnsureEnabledAsync` to
+`AutoScheduleEndpoints`, after which it moves onto the entitlement map like the other four.

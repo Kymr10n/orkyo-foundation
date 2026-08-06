@@ -442,9 +442,10 @@ describe("UtilizationPage", () => {
     expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("collapsible-floorplan")).not.toBeInTheDocument();
     expect(screen.queryByTestId("requests-panel")).not.toBeInTheDocument();
-    // Scale/nav controls remain reachable (relocated below the tabs).
-    expect(screen.getByTestId("scale-select")).toBeInTheDocument();
-    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+    // Scale/nav controls live in the header's wrapping actions slot — exactly
+    // once (guards against the old header + bespoke phone row double-render).
+    expect(screen.getAllByTestId("scale-select")).toHaveLength(1);
+    expect(screen.getAllByTestId("time-navigator")).toHaveLength(1);
   });
 
   it("shows Auto-Schedule button when available and user is admin", () => {

@@ -598,7 +598,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
           {/* Sign out button at the bottom of profile tab */}
           <Card className="mt-6">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 md:pt-6">
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign out
@@ -742,7 +742,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
           {/* Sign out button at the bottom of organizations tab */}
           <Card className="mt-6">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 md:pt-6">
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign out
@@ -756,7 +756,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
           {/* Sign out button at the bottom of security tab */}
           <Card className="mt-6">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 md:pt-6">
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign out

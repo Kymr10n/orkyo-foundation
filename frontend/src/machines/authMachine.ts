@@ -54,6 +54,8 @@ import {
   buildBffLoginUrl,
 } from '@foundation/src/lib/utils/tenant-navigation';
 import { rememberSessionEndRedirect, takeSessionEndRedirect } from '@foundation/src/lib/utils/session-end';
+import { logger } from '@foundation/src/lib/core/logger';
+import { PlanCodes, isKnownPlanCode } from '@foundation/contracts/plans';
 import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -151,6 +153,20 @@ async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
     return { kind: 'backend_error', status: res.status };
   }
   const session = data;
+
+  // Contract guard: the session must carry machine plan codes, not display labels. An
+  // unrecognised code silently degrades the plan-derived checks (see contracts/plans.ts),
+  // so make it visible rather than letting the ?? fallback swallow it. Deliberately NOT
+  // normalised with toLowerCase(): that hides the drift and breaks the day a code stops
+  // matching its label.
+  for (const t of session.tenants) {
+    if (t.tier && !isKnownPlanCode(t.tier)) {
+      logger.warn(
+        `Session returned unknown plan code "${t.tier}" for tenant "${t.slug}" — ` +
+        `plan-derived checks fall back to Free. Expected one of: ${Object.values(PlanCodes).join(', ')}.`
+      );
+    }
+  }
 
   // Record (or clear) where this session should end. Ephemeral sessions — the public demo —
   // return the visitor to the marketing site instead of a credentials form.

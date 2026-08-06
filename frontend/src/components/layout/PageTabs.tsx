@@ -18,7 +18,7 @@ interface PageTabsProps {
 export function PageTabs({ tabs, value, onChange, children, className }: PageTabsProps) {
   return (
     <Tabs value={value} onValueChange={onChange} className={cn("flex-1 flex flex-col", className)}>
-      <TabsList className="mb-4">
+      <TabsList className="mb-2 md:mb-4">
         {tabs.map((t) => (
           <TabsTrigger key={t.value} value={t.value}>
             {t.label}

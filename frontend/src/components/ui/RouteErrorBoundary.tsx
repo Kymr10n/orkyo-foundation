@@ -33,7 +33,7 @@ function FallbackCard({
   action: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-center py-16">
+    <div className="flex items-center justify-center px-4 py-16">
       <div className="max-w-md space-y-4 rounded-lg border bg-card p-6 text-center">
         <div className="flex justify-center">{icon}</div>
         <div>

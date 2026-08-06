@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router";
 import "./index.css";
 
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
@@ -15,6 +16,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@foundation/src/components/ui/tabs";
+import { PageLayout } from "@foundation/src/components/layout/PageLayout";
+import { PageHeader } from "@foundation/src/components/layout/PageHeader";
+import { PageTabs } from "@foundation/src/components/layout/PageTabs";
 import { TimelineGridShell } from "@foundation/src/components/utilization/TimelineGridShell";
 import { PROBLEM_HATCH_CLASS } from "@foundation/src/components/utilization/schedule-colors";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
@@ -235,6 +239,35 @@ function Harness() {
         </Tabs>
       </section>
 
+      {/* Page chrome density (UI-GUIDELINES §16) -------------------------------- */}
+      <section className="space-y-2">
+        <h2 className="font-medium">Page chrome density</h2>
+        {/* The real page skeleton (PageLayout → PageHeader with actions → PageTabs),
+            exactly as product pages compose it, so mobile.spec.ts can measure the
+            vertical chrome above the first pixel of tab content. */}
+        <div className="border rounded-lg" data-testid="density-layout">
+          <PageLayout>
+            <PageHeader
+              title="Utilization"
+              description="Only visible from md: up"
+              actions={<Button size="sm">Action</Button>}
+            />
+            <PageTabs
+              tabs={[
+                { value: "one", label: "One" },
+                { value: "two", label: "Two" },
+              ]}
+              value="one"
+              onChange={noop}
+            >
+              <TabsContent value="one" className="m-0">
+                <div data-testid="density-content">Tab content</div>
+              </TabsContent>
+            </PageTabs>
+          </PageLayout>
+        </div>
+      </section>
+
       {/* Utilization grid + off-time hatch ------------------------------------- */}
       <section className="space-y-2">
         <h2 className="font-medium">Utilization grid</h2>
@@ -405,7 +438,11 @@ function Harness() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <QueryClientProvider client={queryClient}>
-    <Harness />
-  </QueryClientProvider>,
+  // MemoryRouter: list/tree fixtures reach useTableUrlState → useSearchParams,
+  // which needs a router context (the harness has no real routing).
+  <MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  </MemoryRouter>,
 );

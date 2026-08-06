@@ -187,7 +187,7 @@ export function FeedbackTab() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center py-12">
+        <CardContent className="flex items-center justify-center py-12 md:py-12">
           <LoadingSpinner size="sm" muted fullScreen={false} className="h-auto w-auto" />
           <span className="ml-2 text-muted-foreground">Loading feedback…</span>
         </CardContent>

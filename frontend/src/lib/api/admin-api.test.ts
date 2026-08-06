@@ -21,7 +21,11 @@ import {
   auditBreakGlassExit,
   renewBreakGlassSession,
   getBreakGlassSessionStatus,
+  SERVICE_TIER,
+  TIER_DISPLAY_NAMES,
+  isProfessionalOrAbove,
 } from "./admin-api";
+import { PlanCodes, planIncludesPremiumFeatures } from "@foundation/contracts/plans";
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
   getAuthTokenSync: () => null,
@@ -1141,5 +1145,32 @@ describe("admin-api — Break Glass", () => {
         expect.anything(),
       );
     });
+  });
+});
+
+describe("tier catalog", () => {
+  it("exposes only the billable tiers", () => {
+    // TierSelect builds its options by iterating TIER_DISPLAY_NAMES, so anything added here
+    // becomes a selectable tier in platform admin. 'community' is not purchasable and must
+    // never appear — it lives in contracts/plans as a PlanCode instead.
+    expect(Object.keys(TIER_DISPLAY_NAMES)).toEqual([
+      SERVICE_TIER.FREE,
+      SERVICE_TIER.PROFESSIONAL,
+      SERVICE_TIER.ENTERPRISE,
+    ]);
+    expect(TIER_DISPLAY_NAMES).not.toHaveProperty(PlanCodes.Community);
+  });
+
+  it("keeps SERVICE_TIER on the machine codes the wire carries", () => {
+    expect(SERVICE_TIER).toEqual({
+      FREE: "free",
+      PROFESSIONAL: "professional",
+      ENTERPRISE: "enterprise",
+    });
+  });
+
+  it("keeps the deprecated isProfessionalOrAbove alias pointing at the renamed gate", () => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- asserting the alias itself
+    expect(isProfessionalOrAbove).toBe(planIncludesPremiumFeatures);
   });
 });

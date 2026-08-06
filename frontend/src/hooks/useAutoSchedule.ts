@@ -8,7 +8,7 @@ import type {
   AutoScheduleApplyRequest,
 } from "@foundation/src/lib/api/auto-schedule-api";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { SERVICE_TIER, isProfessionalOrAbove } from "@foundation/src/lib/api/admin-api";
+import { PlanCodes, planIncludesPremiumFeatures } from "@foundation/contracts/plans";
 import { useTenantSettings } from "@foundation/src/hooks/useTenantSettings";
 
 export function usePreviewAutoSchedule() {
@@ -27,13 +27,17 @@ export function useApplyAutoSchedule() {
 
 /**
  * Returns whether auto-schedule is available for the current tenant.
- * Requires Professional tier or above AND the setting to be enabled by admin.
+ * Requires a premium plan AND the setting to be enabled by admin.
+ *
+ * Plan-derived rather than entitlement-driven, unlike the other gated features: auto-schedule
+ * has no entitlement row and no server-side gate, so there is nothing for the server to
+ * report. See the follow-up noted in docs/authorization.md.
  */
 export function useAutoScheduleAvailable(): boolean {
   const { membership } = useAuth();
   const { data } = useTenantSettings();
 
-  const tier = membership?.tier ?? SERVICE_TIER.FREE;
+  const tier = membership?.tier ?? PlanCodes.Free;
 
   const autoScheduleSetting = data?.settings.find(
     (s) => s.key === "scheduling.auto_schedule_enabled",
@@ -42,5 +46,5 @@ export function useAutoScheduleAvailable(): boolean {
     autoScheduleSetting?.currentValue === "True" ||
     autoScheduleSetting?.currentValue === "true";
 
-  return isProfessionalOrAbove(tier) && isEnabled;
+  return planIncludesPremiumFeatures(tier) && isEnabled;
 }

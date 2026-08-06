@@ -1,0 +1,57 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { useAuditLogAvailable } from '@foundation/src/hooks/useAuditLogAvailable';
+import { FeatureKeys } from '@foundation/contracts/plans';
+
+const { mockUseAuth } = vi.hoisted(() => ({
+  mockUseAuth: vi.fn(),
+}));
+
+vi.mock('@foundation/src/contexts/AuthContext', () => ({ useAuth: mockUseAuth }));
+
+/**
+ * The audit log delegates to useFeatureEnabled — the exhaustive cases (site admin,
+ * break-glass, absent key) live in useFeatureEnabled.test.ts. These pin the wiring:
+ * this hook must read THIS feature key, and must not consult the plan code.
+ */
+function authState(entitlements: Record<string, boolean>, membership?: unknown) {
+  return {
+    isSiteAdmin: false,
+    membership: membership !== undefined ? membership : { entitlements, isBreakGlass: false },
+  };
+}
+
+describe('useAuditLogAvailable', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns true when the server entitles AuditLog', () => {
+    mockUseAuth.mockReturnValue(authState({ [FeatureKeys.AuditLog]: true }));
+    expect(renderHook(() => useAuditLogAvailable()).result.current).toBe(true);
+  });
+
+  it('returns false when the server does not entitle AuditLog', () => {
+    mockUseAuth.mockReturnValue(authState({ [FeatureKeys.AuditLog]: false }));
+    expect(renderHook(() => useAuditLogAvailable()).result.current).toBe(false);
+  });
+
+  it('reads its own feature key, not a neighbouring one', () => {
+    mockUseAuth.mockReturnValue(authState({ [FeatureKeys.DataExport]: true }));
+    expect(renderHook(() => useAuditLogAvailable()).result.current).toBe(false);
+  });
+
+  it('is not influenced by the plan code, in either spelling', () => {
+    // Regression: the session used to carry the display label ("Enterprise"), which failed
+    // a compare against lowercase codes and locked this feature for paying tenants.
+    mockUseAuth.mockReturnValue(
+      authState({}, { tier: 'Enterprise', entitlements: { [FeatureKeys.AuditLog]: true } }),
+    );
+    expect(renderHook(() => useAuditLogAvailable()).result.current).toBe(true);
+
+    mockUseAuth.mockReturnValue(
+      authState({}, { tier: 'enterprise', entitlements: { [FeatureKeys.AuditLog]: false } }),
+    );
+    expect(renderHook(() => useAuditLogAvailable()).result.current).toBe(false);
+  });
+});

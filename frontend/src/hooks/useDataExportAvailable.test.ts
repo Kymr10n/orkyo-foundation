@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useDataExportAvailable } from '@foundation/src/hooks/useDataExportAvailable';
-import { SERVICE_TIER } from '@foundation/src/lib/api/admin-api';
+import { FeatureKeys } from '@foundation/contracts/plans';
 
 const { mockUseAuth } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
@@ -9,17 +9,15 @@ const { mockUseAuth } = vi.hoisted(() => ({
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({ useAuth: mockUseAuth }));
 
-/** Build a useAuth() return value with sensible defaults. */
-function authState(
-  overrides: { tier?: string; isBreakGlass?: boolean; isSiteAdmin?: boolean; membership?: unknown } = {},
-) {
-  const { tier, isBreakGlass, isSiteAdmin = false, membership } = overrides;
+/**
+ * Data export / import delegates to useFeatureEnabled — the exhaustive cases (site admin,
+ * break-glass, absent key) live in useFeatureEnabled.test.ts. These pin the wiring:
+ * this hook must read THIS feature key, and must not consult the plan code.
+ */
+function authState(entitlements: Record<string, boolean>, membership?: unknown) {
   return {
-    isSiteAdmin,
-    membership:
-      membership !== undefined
-        ? membership
-        : { tier: tier ?? SERVICE_TIER.FREE, isBreakGlass: isBreakGlass ?? false },
+    isSiteAdmin: false,
+    membership: membership !== undefined ? membership : { entitlements, isBreakGlass: false },
   };
 }
 
@@ -28,39 +26,32 @@ describe('useDataExportAvailable', () => {
     vi.clearAllMocks();
   });
 
-  it('returns true for site admins regardless of tier', () => {
-    mockUseAuth.mockReturnValue(authState({ isSiteAdmin: true, tier: SERVICE_TIER.FREE }));
-    const { result } = renderHook(() => useDataExportAvailable());
-    expect(result.current).toBe(true);
+  it('returns true when the server entitles DataExport', () => {
+    mockUseAuth.mockReturnValue(authState({ [FeatureKeys.DataExport]: true }));
+    expect(renderHook(() => useDataExportAvailable()).result.current).toBe(true);
   });
 
-  it('returns true for break-glass memberships (no tier field)', () => {
-    mockUseAuth.mockReturnValue(authState({ membership: { isBreakGlass: true } }));
-    const { result } = renderHook(() => useDataExportAvailable());
-    expect(result.current).toBe(true);
+  it('returns false when the server does not entitle DataExport', () => {
+    mockUseAuth.mockReturnValue(authState({ [FeatureKeys.DataExport]: false }));
+    expect(renderHook(() => useDataExportAvailable()).result.current).toBe(false);
   });
 
-  it('returns false for Free tier', () => {
-    mockUseAuth.mockReturnValue(authState({ tier: SERVICE_TIER.FREE }));
-    const { result } = renderHook(() => useDataExportAvailable());
-    expect(result.current).toBe(false);
+  it('reads its own feature key, not a neighbouring one', () => {
+    mockUseAuth.mockReturnValue(authState({ [FeatureKeys.ApiAccess]: true }));
+    expect(renderHook(() => useDataExportAvailable()).result.current).toBe(false);
   });
 
-  it('returns true for Professional tier', () => {
-    mockUseAuth.mockReturnValue(authState({ tier: SERVICE_TIER.PROFESSIONAL }));
-    const { result } = renderHook(() => useDataExportAvailable());
-    expect(result.current).toBe(true);
-  });
+  it('is not influenced by the plan code, in either spelling', () => {
+    // Regression: the session used to carry the display label ("Enterprise"), which failed
+    // a compare against lowercase codes and locked this feature for paying tenants.
+    mockUseAuth.mockReturnValue(
+      authState({}, { tier: 'Enterprise', entitlements: { [FeatureKeys.DataExport]: true } }),
+    );
+    expect(renderHook(() => useDataExportAvailable()).result.current).toBe(true);
 
-  it('returns true for Enterprise tier', () => {
-    mockUseAuth.mockReturnValue(authState({ tier: SERVICE_TIER.ENTERPRISE }));
-    const { result } = renderHook(() => useDataExportAvailable());
-    expect(result.current).toBe(true);
-  });
-
-  it('returns false when membership is null (unauthenticated)', () => {
-    mockUseAuth.mockReturnValue(authState({ membership: null }));
-    const { result } = renderHook(() => useDataExportAvailable());
-    expect(result.current).toBe(false);
+    mockUseAuth.mockReturnValue(
+      authState({}, { tier: 'enterprise', entitlements: { [FeatureKeys.DataExport]: false } }),
+    );
+    expect(renderHook(() => useDataExportAvailable()).result.current).toBe(false);
   });
 });

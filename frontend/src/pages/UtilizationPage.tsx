@@ -697,9 +697,9 @@ export function UtilizationPage() {
   ];
 
   // Scale + time navigation shared across every tab (the calendar is
-  // page-controlled — its built-in toolbar is disabled). On desktop/tablet these
-  // sit in the header's actions slot; on phones they'd overlap the title, so they
-  // get their own row under the heading (above the tabs; see the render below).
+  // page-controlled — its built-in toolbar is disabled). They always live in the
+  // header's actions slot; PageHeader flex-wraps, so on phones the compact
+  // controls wrap onto their own line under the title instead of a bespoke row.
   const schedulingControls = (
     <>
       {autoScheduleAvailable && canEdit && !isCalendarTab && (
@@ -729,14 +729,8 @@ export function UtilizationPage() {
       <PageHeader
         title="Utilization"
         description="Schedule allocations and review utilization across your resources"
-        actions={isPhone ? undefined : schedulingControls}
+        actions={schedulingControls}
       />
-      {/* Phone: controls can't fit beside the title, so they get their own row
-          under the heading (above the tabs) — mirroring desktop's
-          heading→controls→tabs order. */}
-      {isPhone && (
-        <div className="flex flex-wrap items-center gap-2 mb-4">{schedulingControls}</div>
-      )}
       <PageTabs
         tabs={tabs}
         value={activeTab}

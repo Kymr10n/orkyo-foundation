@@ -22,7 +22,10 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    // p-4 on phones for density (UI-GUIDELINES §16); p-6 from md: up. Callers
+    // overriding padding must prefix the md: variant too (e.g. "pb-3 md:pb-3"),
+    // or md:p-6 wins on desktop.
+    className={cn("flex flex-col space-y-1.5 p-4 md:p-6", className)}
     {...props}
   />
 ))
@@ -59,7 +62,7 @@ const CardContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+  <div ref={ref} className={cn("p-4 pt-0 md:p-6 md:pt-0", className)} {...props} />
 ))
 CardContent.displayName = "CardContent"
 
@@ -69,7 +72,7 @@ const CardFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex items-center p-6 pt-0", className)}
+    className={cn("flex items-center p-4 pt-0 md:p-6 md:pt-0", className)}
     {...props}
   />
 ))

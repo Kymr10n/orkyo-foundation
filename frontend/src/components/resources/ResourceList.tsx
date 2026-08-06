@@ -139,7 +139,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   const tableUrlState = useTableUrlState('resources', columns);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 md:space-y-4">
       {/* No heading: ResourcesPage already titles the page with this type's plural name and
           its description. Matches the Groups tab, which is just its Add button. */}
       <div className="flex justify-end">

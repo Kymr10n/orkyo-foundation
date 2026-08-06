@@ -146,7 +146,7 @@ public class SessionEndpointsTests
     }
 
     [Fact]
-    public async Task GetMe_TenantEntry_IncludesTierField()
+    public async Task GetMe_TenantEntry_SendsPlanCodeNotDisplayLabel()
     {
         // Create a user with a membership in the seeded test tenant
         var email = $"tier_test_{Guid.NewGuid()}@example.com";
@@ -176,7 +176,56 @@ public class SessionEndpointsTests
         var tenant = tenants[0];
         tenant.TryGetProperty("tier", out var tier).Should().BeTrue(
             "field 'tier' must be present on tenant entries — check the SQL in GetTenantMembershipsAsync");
-        tier.GetString().Should().NotBeNullOrEmpty("tier label must be a non-empty string");
+
+        // The SPA compares this against literal lowercase plan codes, so sending the display
+        // label silently degrades every feature gate to the free plan. Assert the exact code
+        // AND that it is not the label — otherwise someone "fixes" a future mismatch by
+        // lowercasing the label, which breaks again the day a code stops matching its label.
+        tier.GetString().Should().Be(Api.Security.Features.SinglePlanInfoProvider.PlanCode,
+            "/me must carry the machine plan code");
+        tier.GetString().Should().NotBe(Api.Security.Features.SinglePlanInfoProvider.PlanLabel,
+            "the display label must never go on the wire where a code is expected");
+    }
+
+    [Fact]
+    public async Task GetMe_TenantEntry_IncludesServerComputedEntitlements()
+    {
+        // Clients present features from this map instead of re-deriving them from the plan
+        // code. The test host registers AllFeaturesEntitlementProvider, so every enforced
+        // feature is enabled here — the point is the shape and the key set, not the values.
+        var email = $"entitlements_test_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(
+            email,
+            displayName: "Entitlements Test User",
+            tenantSlug: TestConstants.TenantSlug,
+            active: true);
+
+        var tokenData = new
+        {
+            UserId = userId.ToString(),
+            Email = email,
+            DisplayName = "Entitlements Test User",
+            TenantId = "00000000-0000-0000-0000-000000000001",
+            TenantSlug = TestConstants.TenantSlug,
+            IsTenantAdmin = false,
+            Role = "viewer"
+        };
+        var token = Convert.ToBase64String(
+            System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(tokenData)));
+
+        var me = await GetMeAsync(token);
+        var tenant = me.GetProperty("tenants")[0];
+
+        tenant.TryGetProperty("entitlements", out var entitlements).Should().BeTrue(
+            "field 'entitlements' must be present so clients never re-derive features from the plan");
+
+        foreach (var key in Api.Security.Features.FeatureKeys.Enforced)
+        {
+            entitlements.TryGetProperty(key, out var enabled).Should().BeTrue(
+                $"every enforced feature key must be reported — missing '{key}'");
+            enabled.GetBoolean().Should().BeTrue(
+                "the test host's AllFeaturesEntitlementProvider enables everything");
+        }
     }
 
     // ─── POST /api/session/tour/seen ─────────────────────────────────────────────
