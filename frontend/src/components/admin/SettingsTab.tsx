@@ -117,7 +117,7 @@ export function SettingsTab() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="py-8">
+        <CardContent className="py-8 md:py-8">
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading settings…
@@ -130,7 +130,7 @@ export function SettingsTab() {
   if (!data || !draft) {
     return (
       <Card>
-        <CardContent className="py-8">
+        <CardContent className="py-8 md:py-8">
           <div className="text-center text-destructive">{error || 'Failed to load settings'}</div>
         </CardContent>
       </Card>

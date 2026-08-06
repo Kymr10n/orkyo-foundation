@@ -27,7 +27,7 @@ export function AboutPage() {
         </Button>
 
         <Card>
-          <CardHeader className="text-center pb-2">
+          <CardHeader className="text-center pb-2 md:pb-2">
             <div className="mx-auto mb-4">
               <img
                 src="/orkyo-180.png"

@@ -429,7 +429,7 @@ export function RequestsPage() {
       />
 
       {/* Toolbar: search (tree only) · expand/collapse-all + view toggle + primary (right) */}
-      <div className="flex items-center gap-3 mb-4 shrink-0">
+      <div className="flex items-center gap-3 mb-2 md:mb-4 shrink-0">
         {/* The tree has no column headers, so it keeps a search box. The list filters from
             its Name header like every other list — two search affordances on one view is one
             too many. */}

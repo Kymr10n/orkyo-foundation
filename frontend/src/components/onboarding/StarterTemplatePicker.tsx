@@ -84,7 +84,7 @@ export function StarterTemplatePicker({
                 }
               }}
             >
-              <CardHeader className="pb-2 pt-4 px-4">
+              <CardHeader className="pb-2 pt-4 px-4 md:pb-2 md:pt-4 md:px-4">
                 <div className="flex items-center gap-2">
                   <Icon className="h-5 w-5 text-primary shrink-0" />
                   <CardTitle className="text-sm font-semibold">{t.name}</CardTitle>
@@ -95,7 +95,7 @@ export function StarterTemplatePicker({
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="px-4 pb-4 pt-0">
+              <CardContent className="px-4 pb-4 pt-0 md:px-4 md:pb-4 md:pt-0">
                 <CardDescription className="text-xs leading-relaxed">
                   {t.description}
                 </CardDescription>

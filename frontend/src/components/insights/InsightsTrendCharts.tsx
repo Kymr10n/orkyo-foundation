@@ -87,7 +87,7 @@ interface ChartCardProps {
 function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, children }: ChartCardProps) {
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 md:pb-2">
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
       <CardContent className="h-64">

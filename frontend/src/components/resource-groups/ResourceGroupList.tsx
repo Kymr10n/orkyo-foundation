@@ -134,7 +134,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   const tableUrlState = useTableUrlState('groups', columns);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 md:space-y-4">
       <div className="flex justify-end">
         <Button onClick={handleAdd} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
