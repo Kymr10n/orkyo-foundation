@@ -453,6 +453,26 @@ side panel, peek, or secondary detail surface alongside it.
 **One primary action per surface.** A page header/toolbar carries a single primary button; variants
 (e.g. Task vs Group) are chosen *inside* the create dialog, not as competing header buttons.
 
+## 16. Phone density — the chrome budget
+
+On phones (`< md`) the vertical chrome above page content is a budget, not an accident:
+TopBar `h-14` → PageLayout `p-3` → title row → `mb-2` → tab strip → `mb-2`. The e2e suite
+asserts it (`e2e/mobile.spec.ts`, "phone density budget").
+
+- **One padding owner.** `PageLayout` / `FocusedPageLayout` own page padding; `AppLayout`'s
+  `<main>` pads only from `md:` up. Never add a second padding layer around a page.
+- **Chrome margins are responsive.** Between page-chrome rows (header, toolbars, tab strip) use
+  `mb-2` / `space-y-2` on phones and `mb-4`+ / `space-y-4`+ from `md:` up. Use `md:` — never
+  `sm:` (unused in this codebase) and never a page-local breakpoint number (see `useBreakpoint`).
+- **Page controls live in `PageHeader` `actions`.** The header flex-wraps, so on phones compact
+  controls wrap under the title at the standard gap. Don't add a bespoke controls row above the
+  tabs (see `UtilizationPage`).
+- **Card padding is responsive** (`p-4 md:p-6`). A caller overriding `CardHeader/Content/Footer`
+  padding must duplicate the override with an `md:` prefix (`pb-3 md:pb-3`) or the component's
+  `md:p-6` outranks it on desktop — media-query utilities sort after unprefixed ones.
+- **Density never shrinks touch targets.** TopBar stays `h-14`; interactive controls stay ≥ `h-9`
+  (`size="sm"`), with `icon-sm` reserved for secondary affordances.
+
 ## Public-API note (this is a shared package)
 
 `@kymr10n/foundation` is consumed by `orkyo-saas` and `orkyo-community`. Per the repo `CLAUDE.md`,

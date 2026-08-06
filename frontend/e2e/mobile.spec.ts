@@ -10,6 +10,7 @@ import { test, expect } from "@playwright/test";
  *   1. OrkyoDataTable renders cards (no <table>) on phone, a real <table> on tablet.
  *   2. FormDialog keeps its submit footer inside the viewport (dvh cap) and Enter submits.
  *   3. The wizard tab strip scrolls horizontally so the last tab is reachable + clickable.
+ *   4. The page-chrome skeleton stays within the phone density budget (UI-GUIDELINES §16).
  *
  * The TopBar phone-overflow check (plan WP6 item 4) is intentionally omitted here:
  * the fixture-only harness doesn't mount TopBar, and stubbing its AuthContext /
@@ -63,6 +64,22 @@ test("FormDialog: submit footer stays within the viewport and Enter submits", as
   await input.fill("Buy milk");
   await input.press("Enter");
   await expect(page.getByTestId("form-result")).toHaveText("Submitted: Buy milk");
+});
+
+test("Page chrome stays within the phone density budget", async ({ page }, testInfo) => {
+  // UI-GUIDELINES §16: on phones the chrome above tab content — PageLayout p-3
+  // (12) + title row (h-9 actions → 36) + header mb-2 (8) + tab strip h-9 (36)
+  // + mb-2 (8) = 100px. Budget 104 leaves 4px slack for sub-pixel rounding.
+  // Regression guard for the doubled-padding / mb-4-everywhere layout this
+  // replaced (which measured ~148px for the same skeleton).
+  test.skip(isTablet(testInfo.project.name), "budget is phone-only; md: metrics are unchanged");
+
+  await page.goto("/");
+  const layout = await page.getByTestId("density-layout").boundingBox();
+  const content = await page.getByTestId("density-content").boundingBox();
+  expect(layout).not.toBeNull();
+  expect(content).not.toBeNull();
+  expect(content!.y - layout!.y).toBeLessThanOrEqual(104);
 });
 
 test("Wizard tab strip scrolls horizontally to reach the last tab", async ({ page }) => {
