@@ -24,6 +24,23 @@ public static class FeatureKeys
     public const string AuditLog = "audit_log_enabled";
     public const string DataExport = "data_export_enabled";
     public const string CalendarFeed = "calendar_feed_enabled";
+
+    /// <summary>
+    /// The keys this application actually enforces server-side, and therefore the ones
+    /// reported to clients so they can present the feature or its upsell. Clients must not
+    /// re-derive these from the plan code — that duplicates the entitlement table and drifts.
+    /// <para>
+    /// <see cref="AutoSchedule"/> is deliberately absent: it has no entitlement row and no
+    /// endpoint gate, so reporting it would hand clients a default-denied <c>false</c>.
+    /// </para>
+    /// </summary>
+    public static readonly IReadOnlyList<string> Enforced = new[]
+    {
+        ApiAccess,
+        AuditLog,
+        DataExport,
+        CalendarFeed,
+    };
 }
 
 /// <summary>

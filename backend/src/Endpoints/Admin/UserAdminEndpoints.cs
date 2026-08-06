@@ -97,7 +97,9 @@ public static class UserAdminEndpoints
             }
         }
 
-        // Owned-tenant plan label is a commercial concept resolved by the edition.
+        // Owned-tenant plan is a commercial concept resolved by the edition. Send the machine
+        // CODE, not the display label — the admin UI feeds this straight into a select whose
+        // option values are the lowercase codes.
         var ownedTenantIds = users.Where(u => u.OwnedTenantId.HasValue)
             .Select(u => u.OwnedTenantId!.Value).Distinct().ToList();
         if (ownedTenantIds.Count > 0)
@@ -106,7 +108,7 @@ public static class UserAdminEndpoints
             for (var i = 0; i < users.Count; i++)
             {
                 if (users[i].OwnedTenantId is Guid otid && planInfo.TryGetValue(otid, out var info))
-                    users[i] = users[i] with { OwnedTenantTier = info.PlanLabel };
+                    users[i] = users[i] with { OwnedTenantTier = info.PlanCode };
             }
         }
 
@@ -149,7 +151,7 @@ public static class UserAdminEndpoints
         {
             var planInfo = await planInfoProvider.GetPlanInfoAsync(new[] { ownedTenantId }, ct);
             if (planInfo.TryGetValue(ownedTenantId, out var info))
-                user = user with { OwnedTenantTier = info.PlanLabel };
+                user = user with { OwnedTenantTier = info.PlanCode };
         }
 
         // Check site-admin role via Keycloak (best-effort — failures shouldn't hide the user)

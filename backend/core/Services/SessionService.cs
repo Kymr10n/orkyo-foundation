@@ -11,6 +11,7 @@ public class SessionService : ISessionService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IConfiguration _configuration;
     private readonly ITenantPlanInfoProvider _planInfoProvider;
+    private readonly ITenantEntitlementProvider _entitlementProvider;
     private readonly ITenantMembershipEnricher _membershipEnricher;
     private readonly ITenantSettingsService _tenantSettingsService;
     private readonly ILogger<SessionService> _logger;
@@ -19,6 +20,7 @@ public class SessionService : ISessionService
         IDbConnectionFactory connectionFactory,
         IConfiguration configuration,
         ITenantPlanInfoProvider planInfoProvider,
+        ITenantEntitlementProvider entitlementProvider,
         ITenantMembershipEnricher membershipEnricher,
         ITenantSettingsService tenantSettingsService,
         ILogger<SessionService> logger)
@@ -26,6 +28,7 @@ public class SessionService : ISessionService
         _connectionFactory = connectionFactory;
         _configuration = configuration;
         _planInfoProvider = planInfoProvider;
+        _entitlementProvider = entitlementProvider;
         _membershipEnricher = membershipEnricher;
         _tenantSettingsService = tenantSettingsService;
         _logger = logger;
@@ -349,8 +352,12 @@ public class SessionService : ISessionService
             }
         }
 
-        // Plan label is a commercial concept owned by the edition, not foundation.
-        var planInfo = await _planInfoProvider.GetPlanInfoAsync(rows.Select(r => r.TenantId).ToList(), ct);
+        // The plan and its entitlements are commercial concepts owned by the edition, not
+        // foundation. Entitlements ship with the session so clients present features from the
+        // server's own plan → feature mapping instead of re-deriving it from the plan code.
+        var tenantIds = rows.Select(r => r.TenantId).ToList();
+        var planInfo = await _planInfoProvider.GetPlanInfoAsync(tenantIds, ct);
+        var entitlements = await _entitlementProvider.GetEntitlementsAsync(tenantIds, ct);
 
         var memberships = rows.Select(r => new TenantMembershipInfo
         {
@@ -361,7 +368,10 @@ public class SessionService : ISessionService
             State = r.State,
             IsOwner = r.IsOwner,
             IsTenantAdmin = r.Role == RoleConstants.Admin,
-            Tier = planInfo.TryGetValue(r.TenantId, out var info) ? info.PlanLabel : SinglePlanInfoProvider.PlanLabel,
+            // Machine plan CODE, never the display label — the SPA compares this against literal
+            // lowercase codes, so "Enterprise" would silently degrade every gate to Free.
+            Tier = planInfo.TryGetValue(r.TenantId, out var info) ? info.PlanCode : SinglePlanInfoProvider.PlanCode,
+            Entitlements = entitlements.TryGetValue(r.TenantId, out var ent) ? ent : null,
         }).ToList();
 
         // Suspension metadata is a commercial/edition concept — SaaS fills

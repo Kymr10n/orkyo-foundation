@@ -53,7 +53,21 @@ public record TenantMembershipInfo
     public required string State { get; init; }
     public bool IsOwner { get; init; }
     public bool IsTenantAdmin { get; init; }
+    /// <summary>
+    /// Machine-readable plan code — SaaS: <c>subscription_tiers.code</c>; Community:
+    /// <see cref="Api.Security.Features.SinglePlanInfoProvider.PlanCode"/>. Always lowercase.
+    /// Never the display label (<see cref="Api.Security.Features.TenantPlanInfo.PlanLabel"/>):
+    /// clients compare it against literal codes. Named <c>Tier</c> for wire compatibility.
+    /// </summary>
     public required string Tier { get; init; }
+
+    /// <summary>
+    /// Server-computed feature entitlements for this tenant (<see cref="Api.Security.Features.FeatureKeys.Enforced"/>
+    /// → enabled). Clients present features from this map rather than re-deriving them from
+    /// <see cref="Tier"/>, so per-tenant overrides are honoured and the mapping lives in one place.
+    /// Null when the edition could not resolve the tenant; treat absent as not entitled.
+    /// </summary>
+    public IReadOnlyDictionary<string, bool>? Entitlements { get; init; }
 
     /// <summary>
     /// Whether the caller may self-service restore this blocked (suspended/deleting)

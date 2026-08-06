@@ -60,6 +60,7 @@ public static class FoundationServiceExtensions
         // implementations; Community keeps these allow-all defaults.
         services.AddScoped<IFeatureGate, AllFeaturesEnabledGate>();
         services.AddScoped<ITenantPlanInfoProvider, SinglePlanInfoProvider>();
+        services.AddScoped<ITenantEntitlementProvider, AllFeaturesEntitlementProvider>();
         services.AddScoped<ITenantMembershipEnricher, PassThroughTenantMembershipEnricher>();
         services.AddScoped<IQuotaUsageRollup, NoOpQuotaUsageRollup>();
         // Self-service account mutations are allowed by default; SaaS overrides this to lock
