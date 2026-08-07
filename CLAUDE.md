@@ -89,6 +89,14 @@ This runs the Foundation, Community, and SaaS test suites in sequence. Foundatio
 3. `.github/workflows/release-ci.yml` — release & dispatch model
 4. `orkyo-infra/docs/structural-hardening-2026-05.md` — current cross-repo hardening plan
 
+## Releasing
+
+Releases are cut from **orkyo-infra**, never locally: `release.yml` (tag + staging) →
+verify staging → `release-promote.yml` (production). Both are `workflow_dispatch` and work
+from the GitHub mobile app. Runbook: `orkyo-infra/docs/runbooks/deploy.md`. There is no
+local publish script — tagging by hand bypasses the orchestrator's preflight and races the
+nightly channel.
+
 ## Migration rules
 
 - **Applied migrations are immutable.** Never edit a file under `backend/migrations-foundation/sql/` after it has been merged to `main`. The migrator records a SHA-256 checksum on first apply and rejects any run where the file on disk no longer matches. Editing a migration that has been applied to any database (including Testcontainers) causes every subsequent migrator run to abort with a checksum mismatch.

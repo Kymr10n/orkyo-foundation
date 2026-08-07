@@ -747,17 +747,41 @@ jobs:
     name: Nightly Publish Gate
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    # Runs AFTER the CI jobs on purpose: the stable-tag check below must happen as
+    # close to publish time as possible, and publish-nightly waits for CI anyway,
+    # so this delays nothing. !failure()/!cancelled() because backend/frontend may
+    # be legitimately skipped by detect-changes.
+    needs: [backend-ci, frontend-ci]
     if: >-
+      !failure() && !cancelled() &&
       (github.event_name == 'push' || github.event_name == 'schedule') &&
       github.ref == 'refs/heads/main'
     outputs:
       should_publish: ${{ steps.gate.outputs.should_publish }}
     permissions:
+      contents: read
       packages: read
     steps:
-      - name: Compare HEAD against last published nightly
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Compare HEAD against last published nightly and stable tags
         id: gate
         run: |
+          # A stable release of this exact commit must never also ship a nightly:
+          # the nightly's auto-bump dispatch races the stable one downstream, and
+          # last-writer-wins on the consumers' foundation pin — three releases in a
+          # row were hand-repinned because of it (v0.13.1/2/4). The release
+          # orchestrator tags main only after this run is green, so checking here,
+          # after CI, closes the window completely.
+          git fetch --tags --force --quiet origin
+          STABLE_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]' | head -1 || true)
+          if [ -n "$STABLE_TAG" ]; then
+            echo "HEAD is stable release ${STABLE_TAG}; skipping nightly publish."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           mkdir -p /tmp/npm-gate
           echo "@kymr10n:registry=https://npm.pkg.github.com" > /tmp/npm-gate/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> /tmp/npm-gate/.npmrc
