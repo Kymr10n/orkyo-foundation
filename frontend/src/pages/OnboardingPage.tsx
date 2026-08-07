@@ -21,6 +21,7 @@ import { canCreateTenant, createTenant, getStarterTemplates, getTenantMembership
 import { StarterTemplatePicker, type StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
 import { logger } from "@foundation/src/lib/core/logger";
 import { runtimeConfig } from "@foundation/src/config/runtime";
+import { getTenantHostname } from "@foundation/src/lib/utils/tenant-navigation";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface OnboardingPageProps {
@@ -76,6 +77,9 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
+  // Null in local dev, where no base domain is configured and there is no
+  // subdomain to promise.
+  const workspaceHostname = slug ? getTenantHostname(slug) : null;
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -301,7 +305,6 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
               <div className="space-y-2">
                 <Label htmlFor="slug">URL Identifier</Label>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">orkyo.app/</span>
                   <div className="relative flex-1">
                     <Input
                       id="slug"
@@ -324,6 +327,12 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                 ) : (
                   <p id="slug-hint" className="text-xs text-muted-foreground">
                     {SLUG_MIN}–{SLUG_MAX} characters. Lowercase letters, numbers, and hyphens only.
+                    {/* The real address, from the deployment's own base domain. A hardcoded
+                        prefix here read "orkyo.app/<slug>" — the wrong domain AND the wrong
+                        shape, since workspaces are subdomains, not paths. */}
+                    {workspaceHostname && (
+                      <> Your workspace: <span className="font-medium">{workspaceHostname}</span></>
+                    )}
                   </p>
                 )}
               </div>

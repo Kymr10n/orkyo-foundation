@@ -35,7 +35,7 @@ public class EmailTemplatesTests
         htmlBody.Should().Contain("#111111");
         htmlBody.Should().Contain("#222222");
         textBody.Should().Contain("Thank you for registering with Acme.");
-        textBody.Should().Contain("The Acme Team");
+        textBody.Should().Contain("Best regards,\nAcme");
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class EmailTemplatesTests
         htmlBody.Should().Contain("using Acme");
         htmlBody.Should().Contain("#111111");
         textBody.Should().Contain("using Acme to manage your resources efficiently");
-        textBody.Should().Contain("The Acme Team");
+        textBody.Should().Contain("Best regards,\nAcme");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class EmailTemplatesTests
         htmlBody.Should().Contain("#111111");
         htmlBody.Should().Contain("#222222");
         textBody.Should().Contain("your Acme account");
-        textBody.Should().Contain("The Acme Team");
+        textBody.Should().Contain("Best regards,\nAcme");
     }
 
     // ── Lifecycle / admin / security templates (added 2026-06) ──────────────────
@@ -157,7 +157,7 @@ public class EmailTemplatesTests
     {
         var (s, h, t) = EmailTemplates.GetTenantDeletedEmail("Acme HQ", CustomBranding);
         s.Should().Contain("deleted");
-        h.Should().Contain("contact support");
+        h.Should().Contain("contact us");
         AssertBranded(s, h, t);
     }
 
@@ -234,7 +234,7 @@ public class EmailTemplatesTests
     {
         var (s, h, t) = EmailTemplates.GetPasswordChangedEmail("Dana", CustomBranding);
         s.Should().Contain("password");
-        h.Should().Contain("Dana").And.Contain("contact support");
+        h.Should().Contain("Dana").And.Contain("contact us");
         AssertBranded(s, h, t);
     }
 
@@ -254,7 +254,7 @@ public class EmailTemplatesTests
     {
         var (s1, h1, t1) = EmailTemplates.GetEmailChangeRequestedOldAddressEmail("Dana", "new@x.com", CustomBranding);
         s1.Should().Contain("email change");
-        h1.Should().Contain("new@x.com").And.Contain("contact support");
+        h1.Should().Contain("new@x.com").And.Contain("contact us");
         AssertBranded(s1, h1, t1);
 
         var (s2, h2, t2) = EmailTemplates.GetEmailChangedEmail("Dana", "new@x.com", CustomBranding);

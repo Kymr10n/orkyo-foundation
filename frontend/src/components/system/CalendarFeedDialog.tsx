@@ -191,7 +191,7 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
           ) : (
             <FeatureUpsell
               title="Calendar subscriptions"
-              description="Keep your schedule live in Outlook, Google Calendar or Apple Calendar. Available on the Professional and Enterprise plans."
+              description="Keep your schedule live in Outlook, Google Calendar or Apple Calendar. Available on Professional and Enterprise plans."
               upgradeHref={upgradeHref}
             />
           )}

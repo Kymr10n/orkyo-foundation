@@ -314,7 +314,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
           {!dataExportAvailable ? (
             <FeatureUpsell
               title="Data export / import"
-              description="Download your organization as JSON, and move data in and out per page. Available on the Professional and Enterprise plans."
+              description="Download your organization as JSON, and move data in and out per page. Available on Professional and Enterprise plans."
               upgradeHref={upgradeHref}
             />
           ) : (

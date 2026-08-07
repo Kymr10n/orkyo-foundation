@@ -68,7 +68,7 @@ public static class EmailTemplates
                 $"Hi {E(displayName)},",
                 $"Your email has been verified successfully! You're now ready to start using {b.ProductName} to manage your resources efficiently.",
                 "<strong>Getting Started</strong><br>• Create your first site and spaces<br>• Set up resource utilization schedules<br>• Invite team members to collaborate<br>• Track and optimize your resource utilization",
-                "If you have any questions or need help getting started, feel free to reach out to our support team.",
+                "If you have any questions or need help getting started, feel free to reach out to us.",
             ]);
         return ($"Welcome to {b.ProductName}!", html, text);
     }
@@ -108,9 +108,9 @@ public static class EmailTemplates
             [
                 $"Hi {E(displayName)},",
                 $"We sent you three reminders about your {b.ProductName} account inactivity and received no response, so your account has now been <strong>deactivated</strong>.",
-                $"Your account and data will be <strong>permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days</strong>. If you would like to reactivate your account before then, please contact our support team.",
+                $"Your account and data will be <strong>permanently deleted in {LifecyclePolicyConstants.UserPurgeAfterDormantDays} days</strong>. If you would like to reactivate your account before then, please contact us.",
             ],
-            footerNote: "This action was taken in accordance with our data retention and privacy policy (GDPR Article 5).");
+            footerNote: "This action was taken as part of automated data retention for inactive accounts.");
         return ($"Your {b.ProductName} account has been deactivated", html, text);
     }
 
@@ -209,14 +209,14 @@ public static class EmailTemplates
     </div>
     <div style=""background-color: {BrandTokens.PanelBg}; padding: 30px; border-radius: 0 0 10px 10px;"">
         {paras}{ctaHtml}{footerHtml}
-        <p style=""font-size: 13px; color: {BrandTokens.MutedText}; margin-top: 20px;"">Best regards,<br>The {b.ProductName} Team</p>
+        <p style=""font-size: 13px; color: {BrandTokens.MutedText}; margin-top: 20px;"">Best regards,<br>{b.ProductName}</p>
     </div>
 </body>
 </html>";
 
         var ctaText = cta is { } ct ? $"\n\n{ct.label}: {ct.url}" : "";
         var footerText = footerNote is null ? "" : $"\n\n{footerNote}";
-        var text = $"{heading}\n\n{string.Join("\n\n", paragraphs)}{ctaText}{footerText}\n\nBest regards,\nThe {b.ProductName} Team";
+        var text = $"{heading}\n\n{string.Join("\n\n", paragraphs)}{ctaText}{footerText}\n\nBest regards,\n{b.ProductName}";
 
         return (html, text);
     }
@@ -274,7 +274,7 @@ public static class EmailTemplates
             $"{E(tenantName)} has been deleted",
             [
                 $"Your <strong>{E(tenantName)}</strong> workspace and its data have now been permanently deleted, as scheduled after the suspension grace period.",
-                "If you believe this was a mistake, please contact support as soon as possible.",
+                "If you believe this was a mistake, please contact us as soon as possible.",
             ]);
         return ($"Your {tenantName} workspace has been deleted", html, text);
     }
@@ -349,7 +349,7 @@ public static class EmailTemplates
         var (html, text) = Layout(b,
             $"Ownership of {E(tenantName)} was transferred",
             [$"Ownership of the <strong>{E(tenantName)}</strong> workspace has been transferred to {E(newOwnerEmail)}. You are no longer the owner."],
-            footerNote: "If you did not authorise this, contact support immediately.");
+            footerNote: "If you did not authorise this, contact us immediately.");
         return ($"Ownership of {tenantName} was transferred", html, text);
     }
 
@@ -388,7 +388,7 @@ public static class EmailTemplates
         var (html, text) = Layout(b,
             "Your password was changed",
             [$"Hi {E(displayName)}, the password on your {b.ProductName} account was just changed."],
-            footerNote: "If you didn't make this change, reset your password and contact support immediately.");
+            footerNote: "If you didn't make this change, reset your password and contact us immediately.");
         return ($"Your {b.ProductName} password was changed", html, text);
     }
 
@@ -400,7 +400,7 @@ public static class EmailTemplates
         var (html, text) = Layout(b,
             $"Two-factor authentication {what}",
             [$"Hi {E(displayName)}, two-factor authentication was just {what} on your {b.ProductName} account."],
-            footerNote: "If you didn't make this change, contact support immediately.");
+            footerNote: "If you didn't make this change, contact us immediately.");
         return ($"Two-factor authentication {what} on your {b.ProductName} account", html, text);
     }
 
@@ -414,7 +414,7 @@ public static class EmailTemplates
                 $"Hi {E(displayName)}, a request was made to change the email on your {b.ProductName} account to <strong>{E(newEmail)}</strong>.",
                 "This address stays active until the new one is confirmed.",
             ],
-            footerNote: "If you didn't request this, change your password and contact support immediately.");
+            footerNote: "If you didn't request this, change your password and contact us immediately.");
         return ($"An email change was requested on your {b.ProductName} account", html, text);
     }
 
@@ -425,7 +425,7 @@ public static class EmailTemplates
         var (html, text) = Layout(b,
             "Your email was changed",
             [$"Hi {E(displayName)}, the email address on your {b.ProductName} account is now <strong>{E(newEmail)}</strong>."],
-            footerNote: "If you didn't make this change, contact support immediately.");
+            footerNote: "If you didn't make this change, contact us immediately.");
         return ($"Your {b.ProductName} email address was changed", html, text);
     }
 

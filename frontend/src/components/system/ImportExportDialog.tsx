@@ -138,7 +138,7 @@ export function ImportExportDialog({
           </DialogHeader>
           <FeatureUpsell
             title="Data export / import"
-            description="Move data in and out of Orkyo — CSV and JSON per page, and a PDF of the schedule. Available on the Professional and Enterprise plans."
+            description="Move data in and out of Orkyo — CSV and JSON per page, and a PDF of the schedule. Available on Professional and Enterprise plans."
             upgradeHref={upgradeHref}
           />
         </DialogContent>
