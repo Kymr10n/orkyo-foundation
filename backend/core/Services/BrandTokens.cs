@@ -12,11 +12,11 @@ namespace Api.Services;
 /// </summary>
 public static class BrandTokens
 {
-    /// <summary>Header gradient start — matches the marketing header gradient.</summary>
-    public const string GradientFrom = "#0f172a";
+    /// <summary>Header gradient start — matches the marketing header gradient (elevated dark surface).</summary>
+    public const string GradientFrom = "#14171c";
 
-    /// <summary>Header gradient end — matches the marketing header gradient / body text.</summary>
-    public const string GradientTo = "#020817";
+    /// <summary>Header gradient end — matches the marketing header gradient (app dark background).</summary>
+    public const string GradientTo = "#0c0d0f";
 
     /// <summary>Primary body text color.</summary>
     public const string Text = "#020817";
