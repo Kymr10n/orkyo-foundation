@@ -751,10 +751,17 @@ jobs:
     # close to publish time as possible, and publish-nightly waits for CI anyway,
     # so this delays nothing. !failure()/!cancelled() because backend/frontend may
     # be legitimately skipped by detect-changes.
+    #
+    # SCHEDULE-ONLY since 2026-08-08. Publishing a nightly on every main push made
+    # each merge fan out into a package publish plus full CI on BOTH consumers via
+    # auto-bump — and a release that followed re-ran the same consumer CI again for
+    # the same foundation commit on the stable channel. One merge cost ~6 consumer
+    # CI runs on a release day. The 02:00 cron keeps staging current daily, which
+    # is the nightly channel's actual purpose.
     needs: [backend-ci, frontend-ci]
     if: >-
       !failure() && !cancelled() &&
-      (github.event_name == 'push' || github.event_name == 'schedule') &&
+      github.event_name == 'schedule' &&
       github.ref == 'refs/heads/main'
     outputs:
       should_publish: ${{ steps.gate.outputs.should_publish }}
@@ -806,7 +813,7 @@ jobs:
     needs: [backend-ci, frontend-ci, nightly-publish-gate]
     if: >-
       !failure() && !cancelled() &&
-      (github.event_name == 'push' || github.event_name == 'schedule') &&
+      github.event_name == 'schedule' &&
       github.ref == 'refs/heads/main' &&
       needs.nightly-publish-gate.outputs.should_publish == 'true'
     permissions:
