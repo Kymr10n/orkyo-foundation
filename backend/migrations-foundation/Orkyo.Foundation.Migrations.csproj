@@ -10,7 +10,7 @@
     <PackageId>Orkyo.Foundation.Migrations</PackageId>
     <Version>0.1.0</Version>
     <Authors>Orkyo</Authors>
-    <Description>Foundation IMigrationModule. Starts empty by design — genuinely shared migrations land here once Community materializes; per the migration inventory all current schema is SaaS-shaped.</Description>
+    <Description>Foundation IMigrationModule. Holds the shared control-plane and tenant schema migrations consumed by both the SaaS and Community editions.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 

@@ -46,7 +46,7 @@ You agree to use the Service only for lawful purposes and in accordance with the
 
 3. Data and Privacy
 
-We collect and process your data as described in our Privacy Policy. You retain ownership of all data you upload to the Service. We implement appropriate security measures to protect your data.
+We collect and process your data only as needed to provide the Service. You retain ownership of all data you upload to the Service. We implement appropriate security measures to protect your data.
 
 4. Service Availability
 
