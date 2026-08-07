@@ -187,29 +187,60 @@ public static class EmailTemplates
         (string label, string url)? cta = null, string? footerNote = null)
     {
         var paras = string.Join("\n        ", paragraphs.Select(p =>
-            $@"<p style=""font-size: 16px; margin-bottom: 20px;"">{p}</p>"));
+            $@"<p class=""t"" style=""font-size: 16px; margin-bottom: 20px;"">{p}</p>"));
 
+        // The CTA uses the ACTION accent, never the tenant's header-gradient color: that
+        // color is dark chrome, which rendered a near-black button that vanished when a
+        // client auto-darkened the card.
         var ctaHtml = cta is { } c ? $@"
         <div style=""text-align: center; margin: 30px 0;"">
-            <a href=""{c.url}"" style=""background-color: {b.PrimaryColor}; color: white; padding: 14px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">{c.label}</a>
+            <a href=""{c.url}"" class=""btn"" style=""background-color: {BrandTokens.Accent}; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;"">{c.label}</a>
         </div>
-        <p style=""font-size: 14px; color: {BrandTokens.MutedText};"">If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style=""font-size: 14px; color: {b.PrimaryColor}; word-break: break-all;"">{c.url}</p>" : "";
+        <p class=""muted"" style=""font-size: 14px; color: {BrandTokens.MutedText};"">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p class=""lnk"" style=""font-size: 14px; color: {BrandTokens.Accent}; word-break: break-all;"">{c.url}</p>" : "";
 
         var footerHtml = footerNote is null ? "" : $@"
-        <hr style=""border: none; border-top: 1px solid {BrandTokens.Border}; margin: 30px 0;"">
-        <p style=""font-size: 13px; color: {BrandTokens.MutedText};"">{footerNote}</p>";
+        <hr class=""hairline"" style=""border: none; border-top: 1px solid {BrandTokens.Border}; margin: 30px 0;"">
+        <p class=""muted"" style=""font-size: 13px; color: {BrandTokens.MutedText};"">{footerNote}</p>";
 
+        // Dark mode: declare support so clients that honour it (Apple Mail, Thunderbird,
+        // Outlook macOS) render THIS design instead of auto-inverting the light one, and
+        // ship overrides in a <style> block. The class rules need !important because they
+        // have to beat the inline styles above — inlining is mandatory for the clients
+        // that strip <style> entirely, and those are the same ones that force their own
+        // inversion, which the accent-colored CTA is chosen to survive.
         var html = $@"<!DOCTYPE html>
 <html>
-<head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1.0""><title>{heading}</title></head>
-<body style=""font-family: {BrandTokens.FontStack}; line-height: 1.6; color: {BrandTokens.Text}; max-width: 600px; margin: 0 auto; padding: 20px;"">
-    <div style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
-        <h1 style=""color: white; margin: 0; font-size: 26px;"">{heading}</h1>
+<head>
+<meta charset=""utf-8"">
+<meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+<meta name=""color-scheme"" content=""light dark"">
+<meta name=""supported-color-schemes"" content=""light dark"">
+<title>{heading}</title>
+<style>
+  :root {{ color-scheme: light dark; supported-color-schemes: light dark; }}
+  @media (prefers-color-scheme: dark) {{
+    body {{ background-color: {BrandTokens.DarkBodyBg} !important; color: {BrandTokens.DarkText} !important; }}
+    .card {{ background-color: {BrandTokens.DarkPanelBg} !important; }}
+    .t {{ color: {BrandTokens.DarkText} !important; }}
+    .muted {{ color: {BrandTokens.DarkMutedText} !important; }}
+    .hairline {{ border-top-color: {BrandTokens.DarkBorder} !important; }}
+    .hd h1 {{ color: {BrandTokens.DarkHeading} !important; }}
+    /* On a dark ground the header band and the card are both dark and merge into one
+       slab, losing the card shape that carries the layout in light mode. A hairline
+       around the pair restores it — split across the two divs so they read as one card. */
+    .hd {{ border: 1px solid {BrandTokens.DarkBorder} !important; border-bottom: none !important; }}
+    .card {{ border: 1px solid {BrandTokens.DarkBorder} !important; border-top: none !important; }}
+  }}
+</style>
+</head>
+<body style=""font-family: {BrandTokens.FontStack}; line-height: 1.6; color: {BrandTokens.Text}; background-color: #ffffff; max-width: 600px; margin: 0 auto; padding: 20px;"">
+    <div class=""hd"" style=""background: linear-gradient(135deg, {b.PrimaryColor} 0%, {b.SecondaryColor} 100%); background-color: {b.SecondaryColor}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;"">
+        <h1 style=""color: #ffffff; margin: 0; font-size: 26px;"">{heading}</h1>
     </div>
-    <div style=""background-color: {BrandTokens.PanelBg}; padding: 30px; border-radius: 0 0 10px 10px;"">
+    <div class=""card"" style=""background-color: {BrandTokens.PanelBg}; padding: 30px; border-radius: 0 0 10px 10px;"">
         {paras}{ctaHtml}{footerHtml}
-        <p style=""font-size: 13px; color: {BrandTokens.MutedText}; margin-top: 20px;"">Best regards,<br>{b.ProductName}</p>
+        <p class=""muted"" style=""font-size: 13px; color: {BrandTokens.MutedText}; margin-top: 20px;"">Best regards,<br>{b.ProductName}</p>
     </div>
 </body>
 </html>";

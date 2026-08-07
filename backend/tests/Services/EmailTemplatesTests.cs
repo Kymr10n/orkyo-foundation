@@ -334,6 +334,35 @@ public class EmailTemplatesTests
     }
 
     [Fact]
+    public void Layout_CtaUsesTheActionAccent_NotTheHeaderChrome()
+    {
+        // The CTA must not inherit the tenant's header-gradient color. That color is dark
+        // chrome, and a near-black button vanished entirely once an email client
+        // auto-darkened the light card (reported from Thunderbird in dark mode).
+        var (_, html, _) = EmailTemplates.GetTenantInactivityWarningEmail("Peta", "https://peta.orkyo.com", 7);
+
+        html.Should().Contain($"background-color: {BrandTokens.Accent}");
+        html.Should().NotContain($"background-color: {BrandTokens.GradientFrom};",
+            "the header chrome color must never back an action element");
+    }
+
+    [Fact]
+    public void Layout_DeclaresDarkModeSupportAndOverrides()
+    {
+        var (_, html, _) = EmailTemplates.GetTenantInactivityWarningEmail("Peta", "https://peta.orkyo.com", 7);
+
+        // Clients that honour the switch render the designed dark email instead of
+        // auto-inverting the light one.
+        html.Should().Contain(@"name=""color-scheme"" content=""light dark""")
+            .And.Contain(@"name=""supported-color-schemes"" content=""light dark""")
+            .And.Contain("@media (prefers-color-scheme: dark)");
+
+        // The overrides must beat the inline styles, which is why they carry !important.
+        html.Should().Contain($"background-color: {BrandTokens.DarkPanelBg} !important")
+            .And.Contain($"color: {BrandTokens.DarkText} !important");
+    }
+
+    [Fact]
     public void GetDesignPartnerConfirmationEmail_IsBrandedAndPersonalized()
     {
         var (subject, html, text) = EmailTemplates.GetDesignPartnerConfirmationEmail("Dana");
