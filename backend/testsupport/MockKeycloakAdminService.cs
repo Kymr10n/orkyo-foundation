@@ -97,6 +97,19 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.FromResult(UserExistsResult);
     }
 
+    /// <summary>Records required-actions emails (e.g. password setup for admin-created owners).</summary>
+    public int ExecuteActionsEmailCallCount { get; private set; }
+    public (string Email, IReadOnlyCollection<string> Actions)? LastExecuteActionsEmailCall { get; private set; }
+    public bool ExecuteActionsEmailResult { get; set; } = true;
+
+    public Task<bool> SendExecuteActionsEmailAsync(
+        string email, IReadOnlyCollection<string> actions, CancellationToken ct = default)
+    {
+        ExecuteActionsEmailCallCount++;
+        LastExecuteActionsEmailCall = (email, actions);
+        return Task.FromResult(ExecuteActionsEmailResult);
+    }
+
     // ── Disable user ──────────────────────────────────────────────
     public bool DisableUserSuccess { get; set; } = true;
     public string? DisableUserError { get; set; }

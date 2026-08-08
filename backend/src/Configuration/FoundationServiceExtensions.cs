@@ -128,7 +128,10 @@ public static class FoundationServiceExtensions
         services.AddScoped<IExportService, ExportService>();
         services.AddScoped<ICalendarFeedService, CalendarFeedService>();
         services.AddScoped<IAssetStorageService, AssetStorageService>();
+        // Self-registration stays on unless an edition opts out in its own
+        // composition root (SaaS does, for early access). See IdentityProvisioningOptions.
         services.AddScoped<IIdentityLinkService, KeycloakIdentityLinkService>();
+        services.AddScoped<IUserProvisioningService, UserProvisioningService>();
         services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<IAvailabilityEventRepository, AvailabilityEventRepository>();
         services.AddScoped<IResourceAbsenceRepository, ResourceAbsenceRepository>();

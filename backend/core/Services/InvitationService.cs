@@ -13,7 +13,7 @@ public sealed class InvitationService : IInvitationService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IEmailService _emailService;
     private readonly ITenantUserService _tenantUserService;
-    private readonly IKeycloakAdminService _keycloakAdminService;
+    private readonly IUserProvisioningService _userProvisioning;
     private readonly ITenantSettingsService _settingsService;
     private readonly IQuotaEnforcer _quotaEnforcer;
     private readonly ILogger<InvitationService> _logger;
@@ -22,7 +22,7 @@ public sealed class InvitationService : IInvitationService
         IDbConnectionFactory connectionFactory,
         IEmailService emailService,
         ITenantUserService tenantUserService,
-        IKeycloakAdminService keycloakAdminService,
+        IUserProvisioningService userProvisioning,
         ITenantSettingsService settingsService,
         IQuotaEnforcer quotaEnforcer,
         ILogger<InvitationService> logger)
@@ -30,7 +30,7 @@ public sealed class InvitationService : IInvitationService
         _connectionFactory = connectionFactory;
         _emailService = emailService;
         _tenantUserService = tenantUserService;
-        _keycloakAdminService = keycloakAdminService;
+        _userProvisioning = userProvisioning;
         _settingsService = settingsService;
         _quotaEnforcer = quotaEnforcer;
         _logger = logger;
@@ -181,36 +181,21 @@ public sealed class InvitationService : IInvitationService
         await using var transaction = await conn.BeginTransactionAsync(ct);
         try
         {
-            await using var checkCmd = new NpgsqlCommand("SELECT id FROM users WHERE email = @email", conn, transaction);
-            checkCmd.Parameters.AddWithValue("email", email);
-            var existingUserId = await checkCmd.ExecuteScalarAsync(ct) as Guid?;
-
             Guid userId;
-            if (existingUserId.HasValue)
+            try
             {
-                userId = existingUserId.Value;
+                // The invitee chooses their password here, so it is passed through rather
+                // than generated. Shared with the site-admin onboarding path so the
+                // normalisation and conflict handling stay in one place.
+                var provisioned = await _userProvisioning.ResolveOrCreateAsync(
+                    conn, transaction, email, displayName, password, emailVerified: true, ct: ct);
+                userId = provisioned.UserId;
             }
-            else
+            catch (KeycloakAdminException ex)
             {
-                try
-                {
-                    await _keycloakAdminService.CreateUserAsync(email, password, displayName, null, emailVerified: true, ct: ct);
-                }
-                catch (KeycloakAdminException ex)
-                {
-                    _logger.LogWarning(ex, "Failed to create Keycloak user for {Email}", email);
-                    await transaction.RollbackAsync(ct);
-                    return (null, ex.Message);
-                }
-
-                userId = Guid.NewGuid();
-                await using var insertUserCmd = new NpgsqlCommand(@"
-                    INSERT INTO users (id, email, display_name, status, created_at, updated_at)
-                    VALUES (@id, @email, @displayName, 'active', NOW(), NOW())", conn, transaction);
-                insertUserCmd.Parameters.AddWithValue("id", userId);
-                insertUserCmd.Parameters.AddWithValue("email", email);
-                insertUserCmd.Parameters.AddWithValue("displayName", displayName);
-                await insertUserCmd.ExecuteNonQueryAsync(ct);
+                _logger.LogWarning(ex, "Failed to create Keycloak user for {Email}", email);
+                await transaction.RollbackAsync(ct);
+                return (null, ex.Message);
             }
 
             await using var membershipCmd = new NpgsqlCommand(@"

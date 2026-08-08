@@ -1,6 +1,8 @@
+using Api.Configuration;
 using Api.Constants;
 using Api.Security;
 using Api.Services;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Api.Integrations.Keycloak;
@@ -13,15 +15,18 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 {
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IEmailService _emailService;
+    private readonly IdentityProvisioningOptions _identityProvisioning;
     private readonly ILogger<KeycloakIdentityLinkService> _logger;
 
     public KeycloakIdentityLinkService(
         IDbConnectionFactory connectionFactory,
         IEmailService emailService,
+        IOptions<IdentityProvisioningOptions> identityProvisioning,
         ILogger<KeycloakIdentityLinkService> logger)
     {
         _connectionFactory = connectionFactory;
         _emailService = emailService;
+        _identityProvisioning = identityProvisioning.Value;
         _logger = logger;
     }
 
@@ -124,6 +129,23 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
         // Close reader before starting transaction
         await emailReader.CloseAsync();
+
+        // INTERIM (early access): with self-registration off, an identity nobody
+        // invited gets no account. Everything above still runs — an already-linked
+        // identity and the invitation email-match both resolve normally — so this
+        // only closes the "signed in, therefore exists" door. Restoring self-serve
+        // sign-up is a matter of setting AllowSelfRegistration back to true; the
+        // auto-create path below is untouched and still the permissive behaviour.
+        if (!_identityProvisioning.AllowSelfRegistration)
+        {
+            _logger.LogInformation(
+                "Rejected unknown Keycloak identity {Subject} ({Email}): access is by invitation only",
+                token.Subject, token.Email);
+
+            return IdentityLinkResult.Failed(
+                AccessMessages.InvitationOnly,
+                ApiErrorCodes.Auth.NotInvited);
+        }
 
         // No existing user - auto-create for self-registration
         // User registered via Keycloak and verified email, create internal user

@@ -1,7 +1,9 @@
+using Api.Configuration;
 using Api.Integrations.Keycloak;
 using Api.Security;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Npgsql;
 
@@ -151,6 +153,56 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
     }
 
+    // ── invitation-only mode (AllowSelfRegistration = false) ─────────────────
+    // The interim early-access stance. Only the auto-provision branch may change;
+    // invited users and the shared demo identity must keep signing in.
+
+    [Fact]
+    public async Task LinkIdentity_SelfRegistrationDisabled_RejectsUnknownIdentity_AndCreatesNoUser()
+    {
+        var service = BuildService(allowSelfRegistration: false);
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, email, "Walk-in"));
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be("not_invited");
+        (await UserExistsWithEmailAsync(email)).Should().BeFalse("an uninvited identity must not be provisioned");
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LinkIdentity_SelfRegistrationDisabled_StillLinksInvitedUserByEmail()
+    {
+        var service = BuildService(allowSelfRegistration: false);
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+        var userId = await CreateUserAsync(email, displayName: "Invited", status: "active");
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, email, "Invited"));
+
+        result.Success.Should().BeTrue("invitation and demo sign-in must survive the lockdown");
+        result.UserId.Should().Be(userId);
+        (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task LinkIdentity_SelfRegistrationDisabled_StillHonoursExistingLink()
+    {
+        var service = BuildService(allowSelfRegistration: false);
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+        var userId = await CreateUserAsync(email, displayName: "Returning", status: "active");
+        await CreateIdentityLinkAsync(userId, subject, email);
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, email, "Returning"));
+
+        result.Success.Should().BeTrue();
+        result.IsNewUser.Should().BeFalse();
+        result.UserId.Should().Be(userId);
+    }
+
     [Fact]
     public async Task LinkIdentity_RejectsUnsupportedProvider()
     {
@@ -187,12 +239,14 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
 
     // ── composition ──────────────────────────────────────────────────────────
 
-    private KeycloakIdentityLinkService BuildService(IEmailService? emailService = null)
+    private KeycloakIdentityLinkService BuildService(
+        IEmailService? emailService = null, bool allowSelfRegistration = true)
     {
         var factory = _fixture.CreateConnectionFactory();
         return new KeycloakIdentityLinkService(
             factory,
             emailService ?? Mock.Of<IEmailService>(),
+            Options.Create(new IdentityProvisioningOptions { AllowSelfRegistration = allowSelfRegistration }),
             NullLogger<KeycloakIdentityLinkService>.Instance);
     }
 

@@ -686,6 +686,29 @@ public class KeycloakAdminService : IKeycloakAdminService
         return null;
     }
 
+    public async Task<bool> SendExecuteActionsEmailAsync(
+        string email, IReadOnlyCollection<string> actions, CancellationToken ct = default)
+    {
+        var token = await GetAdminTokenAsync();
+
+        var userId = await GetKeycloakUserIdByEmailAsync(email, token, ct);
+        if (userId is null)
+        {
+            _logger.LogWarning("No Keycloak user for {Email}; cannot send required-actions email", email);
+            return false;
+        }
+
+        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/execute-actions-email";
+        var request = CreateAdminRequest(HttpMethod.Put, url, token, actions);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        await EnsureSuccessAsync(response, "Failed to send required-actions email");
+
+        _logger.LogInformation("Sent required-actions email ({Actions}) to {Email}",
+            string.Join(",", actions), email);
+        return true;
+    }
+
     private async Task<string?> GetKeycloakUserIdByEmailAsync(string email, string token, CancellationToken ct)
     {
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users?email={Uri.EscapeDataString(email)}&exact=true";

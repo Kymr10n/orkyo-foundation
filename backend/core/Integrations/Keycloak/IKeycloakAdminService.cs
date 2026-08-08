@@ -6,6 +6,13 @@ namespace Api.Integrations.Keycloak;
 /// Keycloak Admin API client. All methods throw <see cref="KeycloakAdminException"/>
 /// on failure; the exception carries a caller-safe message and a suggested HTTP status.
 /// </summary>
+/// <summary>Keycloak required-action ids, as the admin API spells them.</summary>
+public static class KeycloakRequiredActions
+{
+    public const string UpdatePassword = "UPDATE_PASSWORD";
+    public const string VerifyEmail = "VERIFY_EMAIL";
+}
+
 public interface IKeycloakAdminService
 {
     /// <summary>
@@ -44,6 +51,15 @@ public interface IKeycloakAdminService
     /// Check if a user with the given email already exists.
     /// </summary>
     Task<bool> UserExistsAsync(string email, CancellationToken ct = default);
+
+    /// <summary>
+    /// Asks Keycloak to email the user a link that walks them through the given required
+    /// actions (e.g. <c>UPDATE_PASSWORD</c>). Used for accounts created on someone's
+    /// behalf, where no password was ever shared with them.
+    /// </summary>
+    /// <returns>False when no account matches the address; true once the mail is queued.</returns>
+    Task<bool> SendExecuteActionsEmailAsync(
+        string email, IReadOnlyCollection<string> actions, CancellationToken ct = default);
 
     /// <summary>
     /// Disable a user account (sets enabled=false). Used when moving to dormant state.

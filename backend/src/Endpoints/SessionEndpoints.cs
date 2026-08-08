@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Api.Configuration;
+using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 
 namespace Api.Endpoints;
 
@@ -204,8 +206,22 @@ public static class SessionEndpoints
             CreateAccountRequest request,
             IValidator<CreateAccountRequest> validator,
             IKeycloakAdminService keycloakAdminService,
+            IOptions<IdentityProvisioningOptions> identityProvisioning,
             CancellationToken ct, ILogger<Log> logger) =>
         {
+            // INTERIM (early access): the endpoint and its page stay in place —
+            // Community still offers them — but the hosted product answers 403
+            // while access is invitation-only. See IdentityProvisioningOptions.
+            if (!identityProvisioning.Value.AllowSelfRegistration)
+            {
+                logger.LogInformation("Rejected create-account for {Email}: access is by invitation only", request.Email);
+                return ProblemDetailsHelper.AuthProblem(
+                    ProblemDetailsHelper.AuthCodes.NotInvited,
+                    "Invitation required",
+                    AccessMessages.InvitationOnly,
+                    StatusCodes.Status403Forbidden);
+            }
+
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 logger.LogInformation("Creating account for {Email}", request.Email);

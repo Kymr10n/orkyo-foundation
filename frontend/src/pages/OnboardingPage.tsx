@@ -74,6 +74,10 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: OnboardingPageProps) {
   usePageTitle("Get started");
   const [canCreate, setCanCreate] = useState<boolean | null>(null);
+  // Why creation is refused, when the backend cares to say. Invitation-only access
+  // needs to point somewhere; the generic "contact an administrator" is the fallback
+  // for a refusal with no stated reason (e.g. already owning a workspace).
+  const [cannotCreateReason, setCannotCreateReason] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -103,6 +107,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
     try {
       const data = await canCreateTenant();
       setCanCreate(data.canCreate);
+      setCannotCreateReason(data.reason ?? null);
     } catch (err) {
       logger.error("Failed to check can create:", err);
       // 401 is handled globally by the API error handler (redirects to apex login)
@@ -407,7 +412,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                 {canCreate
                   ? "Or ask an administrator to invite you to an existing organization."
                   : <>
-                      Please contact an administrator to request access.{runtimeConfig.supportEmail && (
+                      {cannotCreateReason ?? "Please contact an administrator to request access."}{runtimeConfig.supportEmail && (
                         <>
                           {" "}
                           <a href={`mailto:${runtimeConfig.supportEmail}`} className="underline hover:text-foreground transition-colors">

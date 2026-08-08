@@ -1,9 +1,11 @@
+using Api.Configuration;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Security;
 using Api.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Npgsql;
 
@@ -29,8 +31,10 @@ public class KeycloakIdentityLinkServiceTests
             .Returns(Task.CompletedTask);
     }
 
-    private KeycloakIdentityLinkService CreateService() =>
-        new(_dbFactory, _emailService.Object, NullLogger<KeycloakIdentityLinkService>.Instance);
+    private KeycloakIdentityLinkService CreateService(bool allowSelfRegistration = true) =>
+        new(_dbFactory, _emailService.Object,
+            Options.Create(new IdentityProvisioningOptions { AllowSelfRegistration = allowSelfRegistration }),
+            NullLogger<KeycloakIdentityLinkService>.Instance);
 
     // ── FindByExternalIdentityAsync ────────────────────────────────────────
 

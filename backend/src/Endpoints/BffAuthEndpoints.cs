@@ -192,8 +192,16 @@ public static class BffAuthEndpoints
             var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
             if (!linkResult.Success || !linkResult.UserId.HasValue)
             {
-                logger.LogWarning("BFF identity link failed: {Error}", linkResult.Error);
-                return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=identity_link_failed");
+                logger.LogWarning("BFF identity link failed ({Code}): {Error}", linkResult.ErrorCode, linkResult.Error);
+                // Carry the code through: "not invited" and "we could not link your
+                // identity, try again" need different messages. Telling someone the
+                // product will never admit to retry is a loop — the Keycloak SSO
+                // cookie survives this redirect, so the retry re-authenticates
+                // silently and lands right back here.
+                var errorCode = string.IsNullOrEmpty(linkResult.ErrorCode)
+                    ? "identity_link_failed"
+                    : linkResult.ErrorCode;
+                return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error={Uri.EscapeDataString(errorCode)}");
             }
 
             await sessionEstablisher.EstablishAsync(

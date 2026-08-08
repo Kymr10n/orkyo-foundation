@@ -129,6 +129,13 @@ export const AUTH_ERROR_MESSAGES = {
   auth_failed:
     'Sign-in failed. Please try again. If the problem persists, contact support.',
   invalid_state: 'Your sign-in session expired. Please try again.',
+  // Signed in successfully with an identity provider, but nobody has invited this
+  // address. Retrying cannot help — the message must say so and point somewhere
+  // that can, or the visitor loops on the SSO cookie forever.
+  not_invited:
+    'Access to Orkyo is currently by invitation only. If your organisation is taking part in the early-access programme, ask your administrator to invite this address — or apply at orkyo.com/design-partners.',
+  account_inactive:
+    'This account is not active. Please contact your administrator.',
   // Emitted by the SaaS demo-login endpoint when the demo is disabled or Keycloak is
   // unreachable. Without an entry here it fell through to DEFAULT ("Sign-in failed"), which
   // tells a demo visitor — who was never signing in — nothing useful.

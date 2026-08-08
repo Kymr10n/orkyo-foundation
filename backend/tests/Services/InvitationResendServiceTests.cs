@@ -48,7 +48,7 @@ public sealed class InvitationResendServiceTests
             new SingleTenantDbConnectionFactory(_connString),
             email.Object,
             tenantUsers.Object,
-            Mock.Of<IKeycloakAdminService>(),
+            Mock.Of<IUserProvisioningService>(),
             settings.Object,
             Mock.Of<IQuotaEnforcer>(),
             NullLogger<InvitationService>.Instance);
