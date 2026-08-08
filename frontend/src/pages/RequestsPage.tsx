@@ -33,7 +33,6 @@ import { useNow } from "@foundation/src/hooks/useNow";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import type {
-    CreateRequestRequest,
     PlanningMode,
     Request,
 } from "@foundation/src/types/requests";
@@ -48,10 +47,12 @@ import {
     canHaveChildren,
 } from "@foundation/src/domain/request-tree";
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
+import { SpreadsheetImportWizard } from "@foundation/src/components/system/SpreadsheetImportWizard";
 import {
     Calendar,
     ChevronsDown,
     ChevronsUp,
+    FileSpreadsheet,
     List,
     Plus,
     Search,
@@ -112,6 +113,7 @@ export function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [spreadsheetImportOpen, setSpreadsheetImportOpen] = useState(false);
   // Mutation in-flight flag + error; list load state comes from the query above.
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +164,7 @@ export function RequestsPage() {
       throw new Error('No valid requests found in file');
     }
     for (const req of importedRequests) {
-      await createRequest(req as CreateRequestRequest);
+      await createRequest(req);
     }
     return importedRequests.length;
   }, {
@@ -511,12 +513,27 @@ export function RequestsPage() {
             </Tooltip>
           </div>
 
+          {canEdit && (
+            <Button variant="outline" onClick={() => setSpreadsheetImportOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Import from spreadsheet
+            </Button>
+          )}
           <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             New Request
           </Button>
         </div>
       </div>
+
+      {/* Mounted only while open: the wizard loads sites and the tenant's plan
+          entitlement, and neither is worth fetching on every Requests render. */}
+      {spreadsheetImportOpen && (
+        <SpreadsheetImportWizard
+          open
+          onOpenChange={setSpreadsheetImportOpen}
+        />
+      )}
 
       {/* Body: full-width view. Row click opens the RequestFormDialog below —
           view mode for viewers, edit mode for editors. */}

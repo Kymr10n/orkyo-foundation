@@ -198,8 +198,8 @@ describe('Export Handlers', () => {
   });
 
   describe('importRequests', () => {
-    it('should import requests from CSV', async () => {
-      const csvContent = 'id,name,resource_id,start_ts,end_ts,status\n1,Request 1,resource1,2026-01-01,2026-01-31,pending';
+    it('should import requests from CSV as a camelCase create payload', async () => {
+      const csvContent = 'id,name,resource_id,start_ts,end_ts,status\n1,Request 1,resource1,2026-01-01,2026-01-31,in_progress';
       const file = createMockFile(csvContent, 'requests.csv', 'text/csv');
 
       const result = await importRequests(file, 'csv');
@@ -207,8 +207,22 @@ describe('Export Handlers', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         name: 'Request 1',
-        status: 'pending',
+        status: 'in_progress',
+        startTs: '2026-01-01',
+        endTs: '2026-01-31',
+        resourceIds: ['resource1'],
       });
+    });
+
+    it('drops a status that is not a real RequestStatus', async () => {
+      // The importer used to cast whatever the column held straight to
+      // RequestStatus; "pending" is not one, and the backend silently ignored it.
+      const csvContent = 'name,status\nRequest 1,pending';
+      const file = createMockFile(csvContent, 'requests.csv', 'text/csv');
+
+      const result = await importRequests(file, 'csv');
+
+      expect(result[0].status).toBeUndefined();
     });
 
     it('should import requests from JSON', async () => {
