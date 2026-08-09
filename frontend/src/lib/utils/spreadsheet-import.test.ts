@@ -54,6 +54,37 @@ describe('parseTemplateWorkbook', () => {
     expect(parsed.errors[0].message).toContain('WS-99');
   });
 
+  it('reports a job row that is missing its name or its workstation code', () => {
+    const parsed = parseTemplateWorkbook([
+      WORKSTATIONS,
+      jobsSheet([
+        [null, 'no job name', 'WS-01', '2026-08-10', '2026-08-11', 4],
+        ['J-2', 'no workstation', '', '2026-08-10', '2026-08-11', 4],
+      ]),
+    ]);
+
+    expect(parsed.jobs).toHaveLength(0);
+    expect(parsed.errors).toHaveLength(2);
+    expect(parsed.errors[0]).toMatchObject({ sheet: 'Jobs', row: 6, message: 'Job name is required.' });
+    expect(parsed.errors[1].message).toContain('has no workstation code');
+  });
+
+  it('reports a workstation row missing its code or name', () => {
+    const parsed = parseTemplateWorkbook([
+      sheet('Workstations', [
+        ['', 'Nameless code', '', 8, ''],
+        ['WS-09', '', '', 8, ''],
+      ]),
+      jobsSheet([]),
+    ]);
+
+    expect(parsed.workstations).toHaveLength(0);
+    expect(parsed.errors).toHaveLength(2);
+    for (const error of parsed.errors) {
+      expect(error.message).toContain('both required');
+    }
+  });
+
   it('rejects duplicate codes and end-before-start windows', () => {
     const parsed = parseTemplateWorkbook([
       sheet('Workstations', [
