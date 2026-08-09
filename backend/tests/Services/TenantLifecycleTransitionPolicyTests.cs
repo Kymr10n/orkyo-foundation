@@ -34,7 +34,7 @@ public class TenantLifecycleTransitionPolicyTests
     {
         var result = TenantLifecycleTransitionPolicy.ShouldMarkDeleting(
             TenantStatusConstants.Suspended,
-            Now.AddDays(-(LifecyclePolicyConstants.UserPurgeAfterDormantDays + 1)),
+            Now.AddDays(-(LifecyclePolicyConstants.TenantDeleteAfterSuspendedDays + 1)),
             Now);
 
         result.Should().BeTrue();
@@ -45,7 +45,7 @@ public class TenantLifecycleTransitionPolicyTests
     {
         var result = TenantLifecycleTransitionPolicy.ShouldMarkDeleting(
             TenantStatusConstants.Active,
-            Now.AddDays(-(LifecyclePolicyConstants.UserPurgeAfterDormantDays + 10)),
+            Now.AddDays(-(LifecyclePolicyConstants.TenantDeleteAfterSuspendedDays + 10)),
             Now);
 
         result.Should().BeFalse();

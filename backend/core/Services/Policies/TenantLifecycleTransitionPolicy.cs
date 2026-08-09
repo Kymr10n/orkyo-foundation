@@ -34,7 +34,7 @@ public static class TenantLifecycleTransitionPolicy
         if (!suspendedAtUtc.HasValue)
             return false;
 
-        var cutoff = nowUtc.AddDays(-LifecyclePolicyConstants.UserPurgeAfterDormantDays);
+        var cutoff = nowUtc.AddDays(-LifecyclePolicyConstants.TenantDeleteAfterSuspendedDays);
         return suspendedAtUtc.Value < cutoff;
     }
 
