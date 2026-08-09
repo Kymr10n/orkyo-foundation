@@ -1,4 +1,4 @@
-import type { Request, RequestStatus } from '@foundation/src/types/requests';
+import type { CreateRequestRequest, DurationUnit, Request, RequestStatus } from '@foundation/src/types/requests';
 import type { Space, GeometryType } from '@foundation/src/types/space';
 import type { Criterion, CriterionDataType } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
@@ -267,26 +267,42 @@ export async function exportRequests(requests: Request[], format: ExportFormat) 
   }
 }
 
-export async function importRequests(file: File, format: ImportFormat): Promise<Partial<Request>[]> {
+const REQUEST_STATUSES: readonly RequestStatus[] = ['new', 'in_progress', 'done', 'cancelled', 'deferred'];
+const DURATION_UNITS: readonly DurationUnit[] = ['years', 'months', 'weeks', 'days', 'hours', 'minutes'];
+
+export async function importRequests(file: File, format: ImportFormat): Promise<CreateRequestRequest[]> {
   const content = await file.text();
 
   if (format === 'csv') {
     const rows = csvToArray(content);
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      description: row.description || null,
-      status: row.status as RequestStatus,
-      start_ts: row.start_ts || null,
-      end_ts: row.end_ts || null,
-      resource_id: row.resource_id || null,
-      earliest_start_ts: row.earliest_start_ts || null,
-      latest_end_ts: row.latest_end_ts || null,
-      min_duration_value: row.min_duration_value ? parseInt(row.min_duration_value) : null,
-      min_duration_unit: row.min_duration_unit || null,
-      actual_duration_value: row.actual_duration_value ? parseInt(row.actual_duration_value) : null,
-      actual_duration_unit: row.actual_duration_unit || null,
-    }));
+    // Maps the export columns (snake_case, see exportRequests above) onto the camelCase
+    // create payload. `id` is dropped — an import creates, it does not overwrite. The
+    // export carries no tree structure, site, or requirements, so the round-trip is
+    // lossy by design: rows come back as root-level requests.
+    return rows
+      .filter(row => row.name)
+      .map(row => {
+        const durationValue = parseInt(row.min_duration_value);
+        const durationUnit = DURATION_UNITS.find(u => u === row.min_duration_unit);
+        const actualValue = parseInt(row.actual_duration_value);
+        const actualUnit = DURATION_UNITS.find(u => u === row.actual_duration_unit);
+        return {
+          name: row.name,
+          description: row.description || undefined,
+          status: REQUEST_STATUSES.find(s => s === row.status),
+          startTs: row.start_ts || undefined,
+          endTs: row.end_ts || undefined,
+          earliestStartTs: row.earliest_start_ts || undefined,
+          latestEndTs: row.latest_end_ts || undefined,
+          // The create payload requires a minimal duration; fall back to the request
+          // form's own default when the column is missing or unparseable.
+          minimalDurationValue: Number.isFinite(durationValue) && durationValue > 0 ? durationValue : 1,
+          minimalDurationUnit: durationUnit ?? 'hours',
+          actualDurationValue: Number.isFinite(actualValue) && actualValue > 0 && actualUnit ? actualValue : undefined,
+          actualDurationUnit: Number.isFinite(actualValue) && actualValue > 0 && actualUnit ? actualUnit : undefined,
+          resourceIds: row.resource_id ? [row.resource_id] : undefined,
+        };
+      });
   }
 
   return [];
