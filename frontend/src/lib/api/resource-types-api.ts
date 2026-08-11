@@ -1,9 +1,9 @@
 /**
- * API client for resource types and their custom field definitions.
+ * API client for resource types.
  *
  * Resource types are the tenant's catalogue of manageable things. Three are seeded and
- * system-owned (space, person, tool); tenants may define their own (car, camera, …) and
- * give each a set of custom fields whose values live on each resource's `metadata` document.
+ * system-owned (space, person, tool); tenants may define their own (car, camera, …).
+ * The descriptive fields a type puts on its resources live in `resource-custom-fields-api`.
  */
 
 import { API_PATHS } from '../core/api-paths';
@@ -54,10 +54,6 @@ export interface UpdateResourceTypeRequest {
   singleGroupMembership?: boolean;
   isActive?: boolean;
 }
-
-/** Optional per-field constraints. Enforced server-side; the form uses them as input hints. */
-
-/** Key and data type are immutable once values exist — deactivate and re-create instead. */
 
 const resourceTypesApi = createCrudApi<
   ResourceTypeInfo,

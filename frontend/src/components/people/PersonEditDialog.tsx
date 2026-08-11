@@ -6,6 +6,7 @@ import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
 import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
+import { stableStringify } from '@foundation/src/lib/utils/stable-stringify';
 import {
   Tabs,
   TabsContent,
@@ -32,6 +33,10 @@ import { Textarea } from '@foundation/src/components/ui/textarea';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { useSites, useIsMultiSite } from '@foundation/src/hooks/useSites';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
+import { useResourceCustomFieldForm } from '@foundation/src/hooks/useResourceCustomFieldForm';
+import { CustomFieldInput } from '@foundation/src/components/resources/CustomFieldInput';
+import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { Plus } from 'lucide-react';
 import {
@@ -80,6 +85,11 @@ interface FormState {
   jobTitleId: string;      // empty = unassigned
   departmentId: string;    // empty = unassigned
   notes: string;
+  /**
+   * The person's whole custom-field document, not just the fields on screen — values for
+   * retired fields ride along, because a save replaces the document wholesale.
+   */
+  customFields: Record<string, CustomFieldValue>;
 }
 
 const emptyForm: FormState = {
@@ -93,6 +103,7 @@ const emptyForm: FormState = {
   jobTitleId: '',
   departmentId: '',
   notes: '',
+  customFields: {},
 };
 
 const UNASSIGNED = '__unassigned__';
@@ -113,6 +124,8 @@ function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo
     jobTitleId: profile?.jobTitleId ?? '',
     departmentId: profile?.departmentId ?? '',
     notes: profile?.notes ?? '',
+    // The whole stored document, so values for retired fields survive a save that replaces it.
+    customFields: { ...(person.customFields ?? {}) },
   };
 }
 
@@ -151,7 +164,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   // dirty guard compares the live form against this to detect unsaved edits.
   const [baseline, setBaseline] = useState<FormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tab, setTab] = useState<'details' | 'allocation' | 'location'>('details');
+  const [tab, setTab] = useState<'details' | 'allocation' | 'location' | 'custom-fields'>('details');
 
   // Inline-create dialog state for each reference list. `undefined` = closed,
   // string = pre-populated name (from a Create-new sentinel selection).
@@ -188,11 +201,13 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   }, [person, isOpen, profile]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(baseline),
+    // Stable: form.customFields is a user-edited map, where re-adding a key changes
+    // insertion order without changing the data.
+    () => stableStringify(form) !== stableStringify(baseline),
     [form, baseline],
   );
 
-  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+  const { guardedOnOpenChange, confirmOpen, ConfirmDiscardDialog } = useDialogDirtyGuard({
     isDirty,
     onOpenChange: (open) => { if (!open) onClose(); },
   });
@@ -202,16 +217,25 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
   const isEditing = !!person;
 
+  // People are resources, so a tenant can put custom fields on them like any other type. The
+  // dialog needs the type's id, and it only ever knows the key.
+  const { data: resourceTypes = [] } = useResourceTypes();
+  const personTypeId = resourceTypes.find((t) => t.key === RESOURCE_TYPE_KEY.PERSON)?.id;
+  const customFields = useResourceCustomFieldForm(personTypeId, isOpen);
+  const setCustomField = (key: string, value: CustomFieldValue) =>
+    set('customFields', customFields.withValue(form.customFields, key, value));
+
   const saveMutation = useMutation({
     mutationFn: async (): Promise<ResourceInfo> => {
       const resourceFields = {
-        resourceTypeKey: 'person',
+        resourceTypeKey: RESOURCE_TYPE_KEY.PERSON,
         name: form.name,
         description: form.description || undefined,
         allocationMode: form.allocationMode,
         baseAvailabilityPercent: form.baseAvailabilityPercent,
         homeSiteId: form.homeSiteId || null,
         crossSiteAllowed: form.crossSiteAllowed,
+        customFields: customFields.forSave(form.customFields),
       };
 
       const saved = person
@@ -236,11 +260,27 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
     onSuccess: () => onSaved(),
   });
 
+  const missingRequiredCustomFields = customFields.missingRequired(form.customFields);
+
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (form.email && !isValidEmail(form.email)) {
       toast.error(isEditing ? 'Failed to update person' : 'Failed to create person', {
         description: 'Please enter a valid email address',
+      });
+      return;
+    }
+
+    if (!customFields.isSatisfied(form.customFields)) {
+      // Show the offending field rather than just refusing: it lives on a tab that may not be
+      // the one being looked at. While the definitions are still loading there is no tab to
+      // jump to, so say what is happening instead.
+      const missing = missingRequiredCustomFields.length > 0;
+      if (missing) setTab('custom-fields');
+      toast.error(isEditing ? 'Failed to update person' : 'Failed to create person', {
+        description: missing
+          ? 'Fill in the required custom fields'
+          : 'Still loading this tenant’s custom fields — try again in a moment',
       });
       return;
     }
@@ -281,8 +321,9 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   const departmentMissing =
     !deptTreeLoading && !!form.departmentId && !deptOptions.some((o) => o.id === form.departmentId);
 
-  // Validation status surfaced as tab dots + a summary banner. All current items live on
-  // the Details tab; the dot is still computed per-tab so future per-tab warnings are trivial.
+  // Validation status surfaced as tab dots + a summary banner, computed per tab. This is what
+  // keeps a disabled Save explainable: the custom-field panel is hidden while another tab is
+  // active, so without the banner the button would grey out with nothing on screen to fix.
   const detailsItems: StatusItem[] = [
     ...(form.email && !isValidEmail(form.email)
       ? [{ id: 'email', message: 'Email address is not valid.', severity: 'error' as const }]
@@ -294,7 +335,23 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
       ? [{ id: 'department', message: 'Assigned department is no longer active.', severity: 'warning' as const }]
       : []),
   ];
-  const allStatusItems = detailsItems;
+  const customFieldItems: StatusItem[] = [
+    ...(customFields.isError
+      ? [{
+          id: 'custom-fields-load',
+          message:
+            'Custom fields could not be loaded, so saving is blocked until they are. '
+            + 'Close and reopen to try again.',
+          severity: 'error' as const,
+        }]
+      : []),
+    ...missingRequiredCustomFields.map((f) => ({
+      id: `custom-field-${f.key}`,
+      message: `${f.label} is required.`,
+      severity: 'error' as const,
+    })),
+  ];
+  const allStatusItems = [...detailsItems, ...customFieldItems];
 
   const saveError = saveMutation.error
     ? saveMutation.error instanceof Error
@@ -309,6 +366,15 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
         onOpenChange={guardedOnOpenChange}
         contentClassName="sm:max-w-[520px] h-[600px] max-h-[85dvh]"
         title={person ? 'Edit Person' : 'Add Person'}
+        contentProps={{
+          // While there are unsaved changes, an outside interaction must not dismiss the
+          // dialog. Guarding on `isDirty` — stable across the whole interaction — rather
+          // than only `confirmOpen`, which flips to false the instant "Keep editing"
+          // closes the prompt: a trailing pointer or focus-outside event would then
+          // re-open the prompt, leaving discard as the only way out.
+          onInteractOutside: (e) => { if (isDirty || confirmOpen) e.preventDefault(); },
+          onEscapeKeyDown: (e) => { if (confirmOpen) e.preventDefault(); },
+        }}
       >
         <StatusBanner items={allStatusItems} className="mx-6 mb-2 shrink-0" />
         {saveError && (
@@ -334,6 +400,17 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
               {isMultiSite && (
                 <TabsTrigger value="location" className="relative">
                   Location
+                </TabsTrigger>
+              )}
+              {/* Only when the tenant has given people fields to fill. The list can only grow
+                  from empty while the dialog is open, so the active tab never vanishes. */}
+              {customFields.fields.length > 0 && (
+                <TabsTrigger value="custom-fields" className="relative">
+                  Custom Fields
+                  <TabIndicatorDot
+                    dotClass={severityDotClass(customFieldItems)}
+                    label="custom fields warning"
+                  />
                 </TabsTrigger>
               )}
             </TabsList>
@@ -448,6 +525,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                     rows={2}
                   />
                 </div>
+
               </TabsContent>
 
               <TabsContent
@@ -513,6 +591,23 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                   </div>
                 </TabsContent>
               )}
+
+              {customFields.fields.length > 0 && (
+                <TabsContent
+                  value="custom-fields"
+                  forceMount
+                  className={tab === 'custom-fields' ? 'mt-0 space-y-4' : 'mt-0 hidden'}
+                >
+                  {customFields.fields.map((field) => (
+                    <CustomFieldInput
+                      key={field.id}
+                      field={field}
+                      value={customFields.valueOf(field, form.customFields)}
+                      onChange={(value) => setCustomField(field.key, value)}
+                    />
+                  ))}
+                </TabsContent>
+              )}
             </ScrollableDialogBody>
           </Tabs>
 
@@ -522,7 +617,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
             onCancel={() => guardedOnOpenChange(false)}
             isSubmitting={isSubmitting}
             submitLabel="Save"
-            submitDisabled={!form.name.trim()}
+            submitDisabled={!form.name.trim() || !customFields.isSatisfied(form.customFields)}
           />
         </form>
       </ScaffoldDialog>

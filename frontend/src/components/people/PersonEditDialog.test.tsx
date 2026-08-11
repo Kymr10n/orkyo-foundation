@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type * as CustomFieldsApi from '@foundation/src/lib/api/resource-custom-fields-api';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { PersonEditDialog } from './PersonEditDialog';
 import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
@@ -33,12 +35,22 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
+// People are resources, so a tenant can put custom fields on them; the dialog resolves the
+// person type's id to ask for its definitions.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({ data: [{ id: 'rt-person', key: 'person' }] }),
+}));
+vi.mock('@foundation/src/lib/api/resource-custom-fields-api', async (importOriginal) => ({
+  ...(await importOriginal<typeof CustomFieldsApi>()),
+  getResourceCustomFields: vi.fn(),
+}));
 
 import { createResource, updateResource } from '@foundation/src/lib/api/resources-api';
 import { getPersonProfile, upsertPersonProfile } from '@foundation/src/lib/api/person-profiles-api';
 import { getJobTitles } from '@foundation/src/lib/api/job-titles-api';
 import { getDepartmentTree } from '@foundation/src/lib/api/departments-api';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { toast } from 'sonner';
 
 const createdResource: ResourceInfo = {
@@ -98,6 +110,7 @@ describe('PersonEditDialog', () => {
       { id: 'jt-lead', name: 'Tech Lead', isActive: true,
         createdAt: '', updatedAt: '' },
     ]);
+    vi.mocked(getResourceCustomFields).mockResolvedValue([]);
     vi.mocked(getDepartmentTree).mockResolvedValue([
       {
         id: 'dept-platform', name: 'Platform', isActive: true,
@@ -116,6 +129,7 @@ describe('PersonEditDialog', () => {
     renderDialog({ person: createdResource, onSaved: vi.fn() });
 
     await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() =>
@@ -166,6 +180,7 @@ describe('PersonEditDialog', () => {
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'alice@example.com' } });
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -200,6 +215,7 @@ describe('PersonEditDialog', () => {
 
     await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -216,18 +232,21 @@ describe('PersonEditDialog', () => {
     expect(upsertBody).not.toHaveProperty('department');
   });
 
-  it('disables Save until name is filled', () => {
+  it('disables Save until name is filled', async () => {
     renderDialog();
     const save = screen.getByRole('button', { name: /Save/i });
     expect(save).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'A' } });
-    expect(save).not.toBeDisabled();
+    // Also waits on the type's custom-field definitions: until they land nothing knows
+    // whether one of them is required.
+    await waitFor(() => expect(save).not.toBeDisabled());
   });
 
   it('shows a success toast with "Person created" after a successful create', async () => {
     renderDialog({ onSaved: vi.fn() });
 
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Person created'));
@@ -237,6 +256,7 @@ describe('PersonEditDialog', () => {
     renderDialog({ person: createdResource, onSaved: vi.fn() });
 
     await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Person updated'));
@@ -247,6 +267,7 @@ describe('PersonEditDialog', () => {
     renderDialog({ onSaved: vi.fn() });
 
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'Alice' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() =>
@@ -279,7 +300,9 @@ describe('PersonEditDialog', () => {
 
     const nameInput = screen.getByLabelText(/Name/);
     fireEvent.change(nameInput, { target: { value: 'Alice' } });
-    // Leave email blank
+    // Leave email blank. Wait for the custom-field definitions first: a submit before they
+    // land is refused on purpose, since nothing knows yet whether one of them is required.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.submit(nameInput.closest('form')!);
 
     await waitFor(() => expect(createResource).toHaveBeenCalled());
@@ -300,6 +323,7 @@ describe('PersonEditDialog', () => {
       target: { value: '80' },
     });
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     await waitFor(() => expect(createResource).toHaveBeenCalled());
@@ -357,7 +381,8 @@ describe('PersonEditDialog', () => {
       fireEvent.click(crossSite);
       await waitFor(() => expect(crossSite).not.toBeChecked());
 
-      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+      await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
       await waitFor(() => expect(onSaved).toHaveBeenCalled());
       expect(updateResource).toHaveBeenCalledWith(
@@ -487,7 +512,8 @@ describe('PersonEditDialog', () => {
       fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' });
       await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
 
-      fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+      await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
       await waitFor(() => expect(onSaved).toHaveBeenCalled());
 
       // Both deactivated IDs must be preserved — not cleared to null.
@@ -499,5 +525,143 @@ describe('PersonEditDialog', () => {
         }),
       );
     });
+  });
+
+  // ── custom fields ─────────────────────────────────────────────────────────
+
+  function personField(overrides: Partial<CustomFieldsApi.ResourceCustomField> & { key: string }) {
+    return {
+      id: `field-${overrides.key}`,
+      resourceTypeId: 'rt-person',
+      label: overrides.key,
+      dataType: 'text' as const,
+      isRequired: false,
+      sortOrder: 0,
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('has no Custom Fields tab when the tenant defined none', async () => {
+    renderDialog({ onSaved: vi.fn() });
+
+    await screen.findByLabelText(/Name/);
+    await waitFor(() => expect(getResourceCustomFields).toHaveBeenCalled());
+    expect(screen.queryByRole('tab', { name: /Custom Fields/ })).not.toBeInTheDocument();
+  });
+
+  it('gives the tenant’s fields their own tab', async () => {
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      personField({ key: 'badge_number', label: 'Badge number' }),
+      personField({ key: 'retired', label: 'Retired field', isActive: false }),
+    ]);
+
+    renderDialog({ onSaved: vi.fn() });
+
+    await userEvent.click(await screen.findByRole('tab', { name: /Custom Fields/ }));
+    expect(screen.getByLabelText('Badge number')).toBeInTheDocument();
+    // Retired fields keep their values but stop being asked for.
+    expect(screen.queryByLabelText('Retired field')).not.toBeInTheDocument();
+  });
+
+  it('saves custom-field values with the person', async () => {
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      personField({ key: 'badge_number', label: 'Badge number' }),
+    ]);
+
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: 'Alice' } });
+    await userEvent.click(await screen.findByRole('tab', { name: /Custom Fields/ }));
+    fireEvent.change(screen.getByLabelText('Badge number'), { target: { value: 'B-7' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() =>
+      expect(createResource).toHaveBeenCalledWith(
+        expect.objectContaining({ customFields: { badge_number: 'B-7' } }),
+      ),
+    );
+  });
+
+  it('will not save a person missing a required custom field', async () => {
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      personField({ key: 'badge_number', label: 'Badge number', isRequired: true }),
+    ]);
+
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: 'Alice' } });
+    await screen.findByRole('tab', { name: /Custom Fields/ });
+    expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole('tab', { name: /Custom Fields/ }));
+    fireEvent.change(screen.getByLabelText(/Badge number/), { target: { value: 'B-7' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
+  });
+
+  it('says which field is missing while its tab is out of sight', async () => {
+    // The panel is hidden behind another tab, so a disabled Save has to be explained here.
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      personField({ key: 'badge_number', label: 'Badge number', isRequired: true }),
+    ]);
+
+    renderDialog({ onSaved: vi.fn() });
+
+    // Still on Details, where the field is not visible.
+    expect(await screen.findByText('Badge number is required.')).toBeInTheDocument();
+    expect(screen.getByLabelText('custom fields warning')).toBeInTheDocument();
+  });
+
+  it('sends a submit with a missing required field to the tab that owns it', async () => {
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      personField({ key: 'badge_number', label: 'Badge number', isRequired: true }),
+    ]);
+
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: 'Alice' } });
+    await screen.findByRole('tab', { name: /Custom Fields/ });
+    // Enter submits the form even while the Save button is disabled.
+    fireEvent.submit(screen.getByLabelText(/Name/).closest('form')!);
+
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Custom Fields/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    );
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to create person',
+      expect.objectContaining({ description: 'Fill in the required custom fields' }),
+    );
+    expect(createResource).not.toHaveBeenCalled();
+  });
+
+  it('will not submit before the field definitions have arrived', async () => {
+    // Enter submits even while Save is disabled, and until the definitions land nothing knows
+    // whether one of them is required — so the gate has to be on the submit, not the button.
+    let resolve!: (fields: CustomFieldsApi.ResourceCustomField[]) => void;
+    vi.mocked(getResourceCustomFields).mockReturnValue(
+      new Promise<CustomFieldsApi.ResourceCustomField[]>((r) => { resolve = r; }),
+    );
+
+    renderDialog({ onSaved: vi.fn() });
+
+    fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: 'Alice' } });
+    fireEvent.submit(screen.getByLabelText(/Name/).closest('form')!);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Failed to create person',
+        expect.objectContaining({ description: expect.stringContaining('Still loading') }),
+      ),
+    );
+    expect(createResource).not.toHaveBeenCalled();
+
+    resolve([]);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
   });
 });

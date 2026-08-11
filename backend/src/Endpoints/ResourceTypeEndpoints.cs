@@ -17,7 +17,10 @@ public static class ResourceTypeEndpoints
         var group = app.MapGroup("/api/resource-types")
             .WithTags("ResourceTypes")
             .RequireAuthorization()
-            .RequireMemberReadEditorWrite();
+            // Defining the catalogue of things a tenant manages — and the custom fields each
+            // one carries — is governance: it changes what every editor is asked to fill in.
+            // Reads stay member-open because resource pages and forms list types.
+            .RequireMemberReadAdminWrite();
 
         group.MapGet("/", async (IResourceTypeService service, bool? isActive, CancellationToken ct) =>
             Results.Ok(await service.GetAllAsync(isActive, ct)))

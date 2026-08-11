@@ -192,7 +192,6 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="settings" element={<RequireEditor><SettingsPage /></RequireEditor>}>
             <Route index element={<Navigate to="criteria" replace />} />
             <Route path="criteria" element={<CriteriaSettings />} />
-            <Route path="resource-types" element={<ResourceTypeSettings />} />
             <Route path="templates" element={<TemplateSettings entityType="request" />} />
             <Route path="presets" element={<PresetSettings />} />
             <Route path="scheduling" element={<SchedulingSettings />} />
@@ -211,6 +210,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="usage-limits" element={<UsageLimitsSettings />} />
+            <Route path="resource-types" element={<ResourceTypeSettings />} />
           </Route>
 
           {/* People — nested sub-routes. Skills and absences are managed per-person
@@ -244,6 +244,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="settings/users"         element={<Navigate to={`${ROUTE_TENANT_ADMIN}/users`} replace />} />
           <Route path="settings/organization"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/organization`} replace />} />
           <Route path="settings/configuration" element={<Navigate to={`${ROUTE_TENANT_ADMIN}/configuration`} replace />} />
+          <Route path="settings/resource-types" element={<Navigate to={`${ROUTE_TENANT_ADMIN}/resource-types`} replace />} />
           <Route path="settings/integrations"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/integrations`} replace />} />
           <Route path="settings/usage-limits"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/usage-limits`} replace />} />
         </Route>

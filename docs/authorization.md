@@ -31,7 +31,7 @@ write endpoint is protected by default. Defined in
 | Convention | Reads | Writes | Use for |
 |------------|-------|--------|---------|
 | `RequireMemberReadEditorWrite()` | member | Editor+ | general tenant content (the default) |
-| `RequireMemberReadAdminWrite()` | member | Admin | content read app-wide but governed (Sites, tenant settings) |
+| `RequireMemberReadAdminWrite()` | member | Admin | content read app-wide but governed (Sites, tenant settings, resource types and their custom fields — the reads serve resource pages and forms) |
 | `RequireAdminArea()` | Admin | Admin | the Administration area |
 | `AllowMemberWrite()` *(per-route)* | — | — | opt a **non-mutating** POST (validate/preview) out of the write gate |
 

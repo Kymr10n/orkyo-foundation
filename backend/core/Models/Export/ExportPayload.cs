@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Models;
 
@@ -57,6 +58,8 @@ public record ExportResource
     /// <summary>Code of the resource's home site; null when it belongs to no site.</summary>
     public string? HomeSiteCode { get; init; }
     public Dictionary<string, object>? Metadata { get; init; }
+    /// <summary>Values for the resource type's custom fields, keyed by field key.</summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
     public List<ExportCapability>? Capabilities { get; init; }
 }
 
@@ -79,6 +82,8 @@ public record ExportSpace
     public required bool IsPhysical { get; init; }
     public SpaceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
+    /// <summary>Values for the space type's custom fields, keyed by field key.</summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
     public string? GroupKey { get; init; }
     public List<ExportCapability>? Capabilities { get; init; }
 }

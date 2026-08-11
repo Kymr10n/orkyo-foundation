@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { errorMessage } from './mutation-utils';
+import { stableStringify } from '@foundation/src/lib/utils/stable-stringify';
 
 /**
  * Shared scaffold for the standard entity edit dialog (see docs/dialog-feedback.md):
@@ -73,7 +74,9 @@ export function useEntityFormDialog<TEntity, TForm, TSaved>({
     setBaseline(next);
   }, [open, entity]);
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
+  // Stable: a form may carry a user-edited map (custom fields), where re-adding a key
+  // changes insertion order without changing the data.
+  const isDirty = stableStringify(form) !== stableStringify(baseline);
 
   const lowerLabel = entityLabel.toLowerCase();
   const mutation = useMutation({
