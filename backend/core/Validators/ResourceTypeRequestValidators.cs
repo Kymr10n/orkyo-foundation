@@ -11,7 +11,10 @@ namespace Api.Validators;
 /// </summary>
 internal static class ResourceTypeKeyRules
 {
-    public const string Pattern = "^[a-z][a-z0-9_]{0,49}$";
+    // \A and \z, not ^ and $: in .NET `$` also matches immediately before a trailing newline,
+    // so "serial_number\n" would pass here and then fail the identical Postgres CHECK as an
+    // unmapped 23514. The database is the stricter reading, so match it.
+    public const string Pattern = @"\A[a-z][a-z0-9_]{0,49}\z";
     public const string Message =
         "Key must start with a lowercase letter and contain only lowercase letters, numbers, and underscores";
 }

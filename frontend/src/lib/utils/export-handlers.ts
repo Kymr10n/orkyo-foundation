@@ -8,6 +8,7 @@ import type { User } from '@foundation/src/types/auth';
 import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import { getResources, type CreateResourceRequest, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import type { CustomFieldDataType, CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { resourceContext } from './import-export';
 import {
   arrayToCSV,
@@ -86,7 +87,7 @@ export type ResourceExportRow = ResourceInfo & Record<string, unknown>;
 
 /** Fields that describe the row's identity in THIS system, not its content. */
 const RESOURCE_INTERNAL_FIELDS = new Set([
-  'resourceTypeId', 'currentSiteId', 'createdAt', 'updatedAt', 'metadata',
+  'resourceTypeId', 'currentSiteId', 'createdAt', 'updatedAt', 'customFields',
 ]);
 
 /** camelCase → snake_case, matching the column style of the other exporters. */
@@ -102,7 +103,7 @@ function resourceToRow(resource: ResourceExportRow): Record<string, unknown> {
   }
   // A type's own fields round-trip under a `meta.` prefix, so a custom field can
   // never collide with a core column.
-  for (const [key, value] of Object.entries(resource.metadata ?? {})) {
+  for (const [key, value] of Object.entries(resource.customFields ?? {})) {
     row[`meta.${key}`] = value;
   }
   return row;
@@ -126,6 +127,24 @@ export async function exportResources(
   downloadFile(arrayToCSV(rows, headers), filename, 'text/csv');
 }
 
+/**
+ * Reads a CSV cell back as the type its field declares. Guessing from the text cannot work in
+ * either direction — an all-digit serial number is text, and "1200" in a number field is a
+ * number — so the declared type decides. A value that does not parse is passed through
+ * unchanged for the server to reject by name, rather than being silently dropped.
+ */
+function coerceToDeclaredType(value: string, dataType: CustomFieldDataType | undefined): CustomFieldValue {
+  if (dataType === 'number') {
+    const parsed = Number(value);
+    return value.trim() !== '' && Number.isFinite(parsed) ? parsed : value;
+  }
+  if (dataType === 'boolean') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+  return value;
+}
+
 /** A parsed import row: the create-request plus the raw columns behind it. */
 export interface ResourceImportRow {
   request: CreateResourceRequest;
@@ -137,12 +156,17 @@ export interface ResourceImportRow {
  * Parses an export back into create-requests. Unknown columns are kept on
  * `source` (a page may own side tables the core request cannot express), `id`
  * is dropped (an import creates, it does not overwrite), and `meta.*` columns
- * are folded back into the metadata document.
+ * are folded back into the custom-field document.
+ *
+ * @param customFieldTypes the type's custom fields keyed by field key, so CSV strings can be
+ *   read back as numbers and booleans. Omit when the caller has no definitions to hand: values
+ *   then arrive as text and the server rejects any that its field disagrees with.
  */
 export async function importResources(
   file: File,
   format: ImportFormat,
   typeKey: string,
+  customFieldTypes: Record<string, CustomFieldDataType> = {},
 ): Promise<ResourceImportRow[]> {
   const text = await file.text();
   const rows: Record<string, unknown>[] =
@@ -159,10 +183,18 @@ export async function importResources(
   return rows
     .filter((row) => cell(row.name).trim().length > 0)
     .map((row) => {
-      const metadata: Record<string, unknown> = {};
+      // `meta.<key>` columns carry custom-field values. A JSON export keeps its types; every
+      // CSV cell is a string, so each is read back as whatever its field declares — without
+      // that, a file this module exported could not be re-imported once the server started
+      // type-checking values. Anything non-scalar is not a value.
+      const customFields: Record<string, CustomFieldValue> = {};
       for (const [key, value] of Object.entries(row)) {
-        if (key.startsWith('meta.') && value !== '' && value !== null) {
-          metadata[key.slice('meta.'.length)] = value;
+        if (!key.startsWith('meta.') || value === '' || value == null) continue;
+        const fieldKey = key.slice('meta.'.length);
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          customFields[fieldKey] = value;
+        } else if (typeof value === 'string') {
+          customFields[fieldKey] = coerceToDeclaredType(value, customFieldTypes[fieldKey]);
         }
       }
       const request: CreateResourceRequest = {
@@ -179,7 +211,7 @@ export async function importResources(
       if (cell(row.cross_site_allowed)) {
         request.crossSiteAllowed = cell(row.cross_site_allowed) === 'true';
       }
-      if (Object.keys(metadata).length > 0) request.metadata = metadata;
+      if (Object.keys(customFields).length > 0) request.customFields = customFields;
       return { request, source: row };
     });
 }

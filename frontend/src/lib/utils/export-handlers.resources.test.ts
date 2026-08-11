@@ -60,7 +60,7 @@ describe('exportResources', () => {
 
   it('flattens a type’s own fields under meta.', async () => {
     await exportResources(
-      [makeResource({ metadata: { capacityKg: 1200, fuel: 'diesel' } })],
+      [makeResource({ customFields: { capacityKg: 1200, fuel: 'diesel' } })],
       'csv',
       'tool',
     );
@@ -73,8 +73,8 @@ describe('exportResources', () => {
   it('unions headers so a row missing a custom field cannot truncate the file', async () => {
     await exportResources(
       [
-        makeResource({ id: 'a', metadata: { fuel: 'diesel' } }),
-        makeResource({ id: 'b', metadata: { capacityKg: 900 } }),
+        makeResource({ id: 'a', customFields: { fuel: 'diesel' } }),
+        makeResource({ id: 'b', customFields: { capacityKg: 900 } }),
       ],
       'csv',
       'tool',
@@ -124,10 +124,44 @@ describe('importResources', () => {
     });
   });
 
-  it('folds meta. columns back into the metadata document', async () => {
+  it('folds meta. columns back into the custom-field document', async () => {
     const csv = 'name,meta.fuel,meta.capacityKg\nForklift 3,diesel,1200';
     const [row] = await importResources(fileOf(csv), 'csv', 'tool');
-    expect(row.request.metadata).toEqual({ fuel: 'diesel', capacityKg: '1200' });
+    expect(row.request.customFields).toEqual({ fuel: 'diesel', capacityKg: '1200' });
+  });
+
+  it('reads a cell back as the type its field declares', async () => {
+    // Every CSV cell is a string, so without the declared types a number field's column would
+    // be rejected by the server and a file this module exported could not be re-imported.
+    const csv = 'name,meta.capacity_kg,meta.certified,meta.serial\nForklift 3,1200,true,00420';
+    const [row] = await importResources(fileOf(csv), 'csv', 'tool', {
+      capacity_kg: 'number',
+      certified: 'boolean',
+      serial: 'text',
+    });
+
+    expect(row.request.customFields).toEqual({
+      capacity_kg: 1200,
+      certified: true,
+      // An all-digit serial is text, and stays text — the declared type decides, not the shape.
+      serial: '00420',
+    });
+  });
+
+  it('passes an unparseable cell through for the server to reject by name', async () => {
+    const csv = 'name,meta.capacity_kg\nForklift 3,heavy';
+    const [row] = await importResources(fileOf(csv), 'csv', 'tool', { capacity_kg: 'number' });
+
+    expect(row.request.customFields).toEqual({ capacity_kg: 'heavy' });
+  });
+
+  it('skips a meta. value that is not a scalar', async () => {
+    const json = JSON.stringify({
+      data: [{ name: 'Forklift 3', 'meta.notes': { nested: 'object' }, 'meta.tags': ['a'] }],
+    });
+    const [row] = await importResources(fileOf(json), 'json', 'tool');
+
+    expect(row.request.customFields).toBeUndefined();
   });
 
   it('drops the id — an import creates, it never overwrites', async () => {
@@ -164,7 +198,7 @@ describe('importResources', () => {
 
 describe('resource export/import round trip', () => {
   it('preserves the fields an import can restore', async () => {
-    const original = makeResource({ metadata: { fuel: 'diesel' } });
+    const original = makeResource({ customFields: { fuel: 'diesel' } });
     await exportResources([original], 'csv', 'tool');
 
     const [row] = await importResources(fileOf(downloaded[0].content), 'csv', 'tool');
@@ -172,6 +206,17 @@ describe('resource export/import round trip', () => {
     expect(row.request.name).toBe(original.name);
     expect(row.request.description).toBe(original.description);
     expect(row.request.homeSiteId).toBe(original.homeSiteId);
-    expect(row.request.metadata).toEqual({ fuel: 'diesel' });
+    expect(row.request.customFields).toEqual({ fuel: 'diesel' });
+  });
+
+  it('round-trips a number field through CSV', async () => {
+    const original = makeResource({ customFields: { capacity_kg: 1200 } });
+    await exportResources([original], 'csv', 'tool');
+
+    const [row] = await importResources(fileOf(downloaded[0].content), 'csv', 'tool', {
+      capacity_kg: 'number',
+    });
+
+    expect(row.request.customFields).toEqual({ capacity_kg: 1200 });
   });
 });

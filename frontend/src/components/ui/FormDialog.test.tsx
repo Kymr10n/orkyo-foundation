@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FormDialog } from './FormDialog';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
@@ -98,6 +98,78 @@ describe('FormDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
 
     await user.click(screen.getByRole('button', { name: /Discard changes/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // ── unsaved-changes guard ─────────────────────────────────────────────────
+
+  it('asks before closing when there are unsaved changes', async () => {
+    const { onOpenChange } = renderDialog({ dirty: true });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('lets "Keep editing" return to the form without re-prompting', async () => {
+    // Regression: the prompt used to reappear the moment it was dismissed — a trailing
+    // outside interaction re-triggered it — so the only way out was to discard the work.
+    const { onOpenChange } = renderDialog({ dirty: true });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    // Still editable, and still not closed.
+    expect(screen.getByLabelText('name')).toBeInTheDocument();
+  });
+
+  it('does not let an outside interaction dismiss a dirty form', async () => {
+    const { onOpenChange } = renderDialog({ dirty: true });
+    // Radix attaches its outside-pointer listener in a timeout, so fire after a tick or
+    // the click lands before anything is listening and the test proves nothing.
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
+
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('stays put when a stray outside event trails the "Keep editing" click', async () => {
+    // The trap: dismissing the prompt let a trailing pointer/focus-outside event through,
+    // which re-opened it. Discarding was then the only way out of the dialog.
+    const { onOpenChange } = renderDialog({ dirty: true });
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(document.body);
+
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('name')).toBeInTheDocument();
+  });
+
+  it('discards and closes when the person says so', async () => {
+    const { onOpenChange } = renderDialog({ dirty: true });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('closes straight away when nothing has been edited', async () => {
+    const { onOpenChange } = renderDialog({ dirty: false });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

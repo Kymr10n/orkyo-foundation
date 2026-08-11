@@ -20,6 +20,10 @@ import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 import { useIsMultiSite, useSites } from '@foundation/src/hooks/useSites';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
+import { useResourceCustomFieldForm } from '@foundation/src/hooks/useResourceCustomFieldForm';
+import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
+import { CustomFieldInput } from './CustomFieldInput';
 
 interface ResourceEditDialogProps {
   resourceType: ResourceTypeInfo;
@@ -37,6 +41,12 @@ interface FormState {
   /** Empty string = unset. Select cannot hold an empty value, hence the sentinel below. */
   homeSiteId: string;
   crossSiteAllowed: boolean;
+  /**
+   * The resource's whole custom-field document, not just the fields on screen. Values for
+   * retired fields ride along untouched, because a save replaces the document wholesale and
+   * anything left out of it is discarded.
+   */
+  customFields: Record<string, CustomFieldValue>;
 }
 
 /** Radix Select rejects an empty item value, so "no home site" needs a stand-in. */
@@ -50,6 +60,13 @@ export function ResourceEditDialog({
 }: ResourceEditDialogProps) {
   const { data: sites = [] } = useSites();
   const isMultiSite = useIsMultiSite();
+  // A placeable resource is anchored: its shape belongs to one floorplan, and scheduling
+  // rules pick the first resource that cannot travel to decide where work happens. So
+  // "available for other sites" is not a choice for these types — the server rejects the
+  // combination outright — and offering the checkbox only produces an unexplained 400.
+  const isPlaceable = resourceType.hasGeometry;
+
+  const customFields = useResourceCustomFieldForm(resourceType.id, open);
 
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ResourceInfo,
@@ -67,7 +84,8 @@ export function ResourceEditDialog({
       allocationMode: ALLOCATION_MODE.EXCLUSIVE,
       baseAvailabilityPercent: 100,
       homeSiteId: '',
-      crossSiteAllowed: true,
+      crossSiteAllowed: !isPlaceable,
+      customFields: {},
     }),
     toForm: (r) => ({
       name: r.name,
@@ -76,7 +94,8 @@ export function ResourceEditDialog({
       allocationMode: r.allocationMode ?? ALLOCATION_MODE.EXCLUSIVE,
       baseAvailabilityPercent: r.baseAvailabilityPercent ?? 100,
       homeSiteId: r.homeSiteId ?? '',
-      crossSiteAllowed: r.crossSiteAllowed ?? true,
+      crossSiteAllowed: isPlaceable ? false : (r.crossSiteAllowed ?? true),
+      customFields: { ...(r.customFields ?? {}) },
     }),
     save: (form, r) => {
       const fields = {
@@ -86,7 +105,8 @@ export function ResourceEditDialog({
         allocationMode: form.allocationMode,
         baseAvailabilityPercent: form.baseAvailabilityPercent,
         homeSiteId: form.homeSiteId || null,
-        crossSiteAllowed: form.crossSiteAllowed,
+        crossSiteAllowed: isPlaceable ? false : form.crossSiteAllowed,
+        customFields: customFields.forSave(form.customFields),
       };
       return r
         ? updateResource(r.id, fields)
@@ -96,7 +116,10 @@ export function ResourceEditDialog({
     invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
   });
 
-  const canSubmit = form.name.trim().length > 0;
+  const setCustomField = (key: string, value: CustomFieldValue) =>
+    set({ customFields: customFields.withValue(form.customFields, key, value) });
+
+  const canSubmit = form.name.trim().length > 0 && customFields.isSatisfied(form.customFields);
 
   return (
     <FormDialog
@@ -206,17 +229,41 @@ export function ResourceEditDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="resource-cross-site"
-              checked={form.crossSiteAllowed}
-              onCheckedChange={(c) => set({ crossSiteAllowed: !!c })}
-            />
-            <Label htmlFor="resource-cross-site" className="cursor-pointer text-sm">
-              Available for other sites
-            </Label>
-          </div>
+          {isPlaceable ? (
+            <p className="text-muted-foreground text-sm">
+              {resourceType.displayNamePlural} are placed on a floorplan, so they belong to
+              their site and cannot be used at another one.
+            </p>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="resource-cross-site"
+                checked={form.crossSiteAllowed}
+                onCheckedChange={(c) => set({ crossSiteAllowed: !!c })}
+              />
+              <Label htmlFor="resource-cross-site" className="cursor-pointer text-sm">
+                Available for other sites
+              </Label>
+            </div>
+          )}
         </>
+      )}
+
+      {customFields.isError && (
+        <ErrorAlert message="Could not load this type's custom fields. Close and reopen to try again — saving is blocked until they load, so nothing required is missed." />
+      )}
+
+      {customFields.fields.length > 0 && (
+        <div className="space-y-4 border-t pt-4">
+          {customFields.fields.map((field) => (
+            <CustomFieldInput
+              key={field.id}
+              field={field}
+              value={customFields.valueOf(field, form.customFields)}
+              onChange={(value) => setCustomField(field.key, value)}
+            />
+          ))}
+        </div>
       )}
     </FormDialog>
   );

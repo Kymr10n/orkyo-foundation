@@ -31,6 +31,7 @@ public interface IResourceService
 public class ResourceService(
     IResourceRepository resourceRepository,
     IResourceTypeRepository resourceTypeRepository,
+    IResourceCustomFieldService customFieldService,
     IQuotaEnforcer quotaEnforcer,
     IQuotaUsageRollup rollup) : IResourceService
 {
@@ -51,6 +52,11 @@ public class ResourceService(
             throw new ArgumentException($"Resource type '{resourceType.Key}' is not active");
 
         ValidatePlacement(resourceType, request);
+
+        // An omitted document is an empty one, so a required field cannot be dodged by leaving
+        // customFields out of the request.
+        await customFieldService.ValidateValuesAsync(
+            resourceType.Id, request.CustomFields ?? [], ct);
 
         // Keyed on the type flag, not on the space key: the quota counts what occupies a
         // floorplan, and any type can now declare that it does.
@@ -87,6 +93,11 @@ public class ResourceService(
             if (!resourceType.HasGeometry)
                 throw new ArgumentException($"Resource type '{resourceType.Key}' cannot be placed, so it has no code, geometry, properties or capacity");
         }
+
+        // Null means the caller is not editing custom fields at all — a rename must not have to
+        // restate them. A document that is present replaces what is stored, so it is validated whole.
+        if (request.CustomFields is not null)
+            await customFieldService.ValidateValuesAsync(existing.ResourceTypeId, request.CustomFields, ct);
 
         return await resourceRepository.UpdateAsync(id, request, ct);
     }

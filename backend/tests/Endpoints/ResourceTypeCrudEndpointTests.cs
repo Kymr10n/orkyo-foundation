@@ -243,6 +243,44 @@ public class ResourceTypeCrudEndpointTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task EditorCannotWriteResourceTypes()
+    {
+        // Defining the catalogue is governance, not content editing — an editor who can
+        // create resources all day still cannot invent a new kind of them.
+        var editor = _fixture.CreateClientWithRole("editor");
+        var existing = await CreateTypeAsync();
+
+        var created = await editor.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("editor"),
+            DisplayName = "Nope",
+            DisplayNamePlural = "Nopes",
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, created.StatusCode);
+
+        var updated = await editor.PutAsJsonAsync($"/api/resource-types/{existing.Id}",
+            new UpdateResourceTypeRequest { DisplayName = "Hijacked" });
+        Assert.Equal(HttpStatusCode.Forbidden, updated.StatusCode);
+
+        var deleted = await editor.DeleteAsync($"/api/resource-types/{existing.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, deleted.StatusCode);
+    }
+
+    [Fact]
+    public async Task EditorCanReadResourceTypes()
+    {
+        // Reads stay member-open: every resource page and form needs the type list.
+        await CreateTypeAsync();
+        var editor = _fixture.CreateClientWithRole("editor");
+
+        var response = await editor.GetAsync("/api/resource-types");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var types = (await response.Content.ReadFromJsonAsync<List<ResourceTypeInfo>>())!;
+        Assert.NotEmpty(types);
+    }
+
     // ── field definitions ─────────────────────────────────────────────────────
 
     // ── Behaviour flags ───────────────────────────────────────────────────────

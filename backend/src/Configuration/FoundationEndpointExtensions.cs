@@ -49,6 +49,7 @@ public static class FoundationEndpointExtensions
         app.MapPresetEndpoints();
         app.MapRequestEndpoints();
         app.MapResourceAssignmentEndpoints();
+        app.MapResourceCustomFieldEndpoints();
         app.MapResourceEndpoints();
         app.MapResourceGroupEndpoints();
         app.MapResourceGroupMemberEndpoints();

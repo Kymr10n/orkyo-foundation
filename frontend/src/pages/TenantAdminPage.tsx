@@ -21,6 +21,7 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
   integrations: '/tenant-admin/integrations',
   'audit-log': '/tenant-admin/audit-log',
   'usage-limits': '/tenant-admin/usage-limits',
+  'resource-types': '/tenant-admin/resource-types',
 };
 
 export function TenantAdminPage() {
@@ -45,6 +46,7 @@ export function TenantAdminPage() {
       { value: 'integrations', label: 'Integrations' },
       { value: 'audit-log', label: 'Audit Log' },
       { value: 'usage-limits', label: 'Usage & Limits' },
+      { value: 'resource-types', label: 'Resource Types' },
     ];
   }, [showSites]);
 
