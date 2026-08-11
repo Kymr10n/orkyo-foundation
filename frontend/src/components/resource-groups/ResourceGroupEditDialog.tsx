@@ -4,7 +4,6 @@ import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
 import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 
@@ -74,11 +73,6 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
     return name !== '' || description !== '' || defaultAvailabilityPercent !== 100;
   }, [group, name, description, defaultAvailabilityPercent]);
 
-  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
-    isDirty,
-    onOpenChange: (o) => { if (!o) onClose(); },
-  });
-
   const errorMessage = saveMutation.error
     ? saveMutation.error instanceof Error
       ? saveMutation.error.message
@@ -89,7 +83,8 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
     <>
     <FormDialog
       open={isOpen}
-      onOpenChange={guardedOnOpenChange}
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      dirty={isDirty}
       title={group ? `Edit ${entityLabel}` : `Add ${entityLabel}`}
       error={errorMessage}
       onSubmit={handleSubmit}
@@ -129,7 +124,6 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
         />
       </div>
     </FormDialog>
-    {ConfirmDiscardDialog}
     </>
   );
 }

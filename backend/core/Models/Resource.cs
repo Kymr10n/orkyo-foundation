@@ -71,6 +71,13 @@ public record ResourceInfo
     /// SingleGroupMembership; for a type that does not, the read reports one arbitrary membership.</summary>
     public Guid? GroupId { get; init; }
 
+    /// <summary>
+    /// Values for the resource type's custom fields, keyed by field key. Descriptive only —
+    /// nothing here is matchable, and the solver never reads it (see migration 1770). Carries
+    /// values for retired fields too, so an edit that round-trips the document keeps them.
+    /// </summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
+
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
@@ -120,6 +127,10 @@ public record CreateResourceRequest
     public Dictionary<string, object>? Properties { get; init; }
     public int Capacity { get; init; } = 1;
 
+    /// <summary>Values for the type's custom fields. Absent is the same as empty: every field
+    /// the type marks required must still be present, so a required field cannot be skipped
+    /// by leaving the document out.</summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 public record UpdateResourceRequest
@@ -142,6 +153,10 @@ public record UpdateResourceRequest
     public Dictionary<string, object>? Properties { get; init; }
     public int? Capacity { get; init; }
 
+    /// <summary>Replaces the whole value document; null leaves it untouched. Clients that render
+    /// the form must send back the values they did not show (retired fields), or those values are
+    /// what "replaces" discards.</summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 public record ResourceListFilter

@@ -38,9 +38,10 @@ export interface ResourceCapabilitiesEditorProps {
  * resource's existing values, upserts on save (the backend POST upserts), and offers
  * quick-create of a new criterion already tagged for this type.
  *
- * This is the successor to the deleted per-type custom fields: criteria carry the same
- * value shapes and constraints, and unlike metadata they can be required by a request and
- * reasoned over by the solver.
+ * Distinct from a resource's custom fields, which live on the resource form: those are
+ * descriptive only. A criterion is the matchable kind of attribute — a request can require
+ * it and the solver reasons over it, which is why it is assigned here rather than typed in
+ * alongside the name.
  */
 export function ResourceCapabilitiesEditor({
   open,

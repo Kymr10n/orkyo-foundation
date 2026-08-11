@@ -14,7 +14,6 @@ import { Textarea } from "@foundation/src/components/ui/textarea";
 import type { Space } from "@foundation/src/types/space";
 import { useEffect, useMemo, useState } from "react";
 import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
-import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface EditSpaceDialogProps {
@@ -57,11 +56,6 @@ export function EditSpaceDialog({
     [name, description, capacity, space],
   );
 
-  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
-    isDirty,
-    onOpenChange,
-  });
-
   const handleSubmit = async () => {
     setError(null);
 
@@ -93,7 +87,8 @@ export function EditSpaceDialog({
     <>
       <FormDialog
         open={open}
-        onOpenChange={guardedOnOpenChange}
+        onOpenChange={onOpenChange}
+        dirty={isDirty}
         title="Edit Space"
         description="Update the name, description, and capacity for this space."
         srOnlyDescription
@@ -155,7 +150,6 @@ export function EditSpaceDialog({
           </p>
         </div>
       </FormDialog>
-      {ConfirmDiscardDialog}
     </>
   );
 }

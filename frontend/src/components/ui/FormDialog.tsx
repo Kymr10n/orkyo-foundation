@@ -39,9 +39,12 @@ export interface FormDialogProps {
   /**
    * When provided and true, a close attempt (Cancel / X / ESC / overlay) is
    * intercepted with a discard-changes confirmation. Leave unset for dialogs
-   * that don't track dirtiness. Consumers that already wrap their own
-   * `onOpenChange` with `useDialogDirtyGuard` should NOT also pass this
-   * (they self-guard; passing `dirty` would double-prompt).
+   * that don't track dirtiness.
+   *
+   * Prefer this over wrapping your own `onOpenChange` with `useDialogDirtyGuard`:
+   * this dialog also has to stop Radix dismissing itself while the prompt is up,
+   * which a caller-side guard cannot do from outside. A caller that self-guards
+   * must not also pass `dirty` — that would prompt twice.
    */
   dirty?: boolean;
 }
@@ -76,7 +79,7 @@ export function FormDialog({
   // Passive when `dirty` is unset/false: guardedOnOpenChange just forwards to
   // onOpenChange, so consumers that don't opt in (or that self-guard) are
   // unaffected. When `dirty` is true, close attempts prompt to discard.
-  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
+  const { guardedOnOpenChange, confirmOpen, ConfirmDiscardDialog } = useDialogDirtyGuard({
     isDirty: dirty ?? false,
     onOpenChange,
   });
@@ -89,6 +92,14 @@ export function FormDialog({
           the form width. Tall forms scroll their body with header/footer pinned. */}
       <DialogContent
         className={cn('gap-0', DIALOG_SIZE[size], contentClassName)}
+        // While there are unsaved changes, an outside interaction must not dismiss the
+        // dialog. Guarding on `dirty` — stable across the whole interaction — rather than
+        // only `confirmOpen`, which flips to false the instant "Keep editing" closes the
+        // prompt: a trailing pointer or focus-outside event would then re-open the prompt,
+        // and the only escape is to discard. Closing stays available through X / Cancel /
+        // Escape, which run the prompt exactly once.
+        onInteractOutside={(e) => { if (dirty || confirmOpen) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (confirmOpen) e.preventDefault(); }}
       >
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>

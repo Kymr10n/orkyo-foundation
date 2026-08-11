@@ -4,6 +4,7 @@
 
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import type { CustomFieldValue } from './resource-custom-fields-api';
 
 export interface ResourceInfo {
   id: string;
@@ -23,8 +24,9 @@ export interface ResourceInfo {
   currentSiteId?: string | null;
   /** Whether the resource may be assigned to requests at another site (backend defaults true). */
   crossSiteAllowed?: boolean;
-  /** Custom field values, keyed by the resource type's field keys. */
-  metadata?: Record<string, unknown> | null;
+  /** Values for the type's custom fields, keyed by field key. Includes values for retired
+   * fields, so an edit that sends the document back keeps them. */
+  customFields?: Record<string, CustomFieldValue> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,8 +40,9 @@ export interface CreateResourceRequest {
   baseAvailabilityPercent?: number;
   homeSiteId?: string | null;
   crossSiteAllowed?: boolean;
-  /** Custom field values. Validated server-side against the type's field definitions. */
-  metadata?: Record<string, unknown>;
+  /** Values for the type's custom fields. Absent is the same as empty, so a required field
+   * cannot be skipped by leaving the document out. */
+  customFields?: Record<string, CustomFieldValue>;
 }
 
 export interface UpdateResourceRequest {
@@ -52,7 +55,7 @@ export interface UpdateResourceRequest {
   homeSiteId?: string | null;
   crossSiteAllowed?: boolean;
   /** Omit to leave stored values untouched; a supplied document replaces them wholesale. */
-  metadata?: Record<string, unknown>;
+  customFields?: Record<string, CustomFieldValue>;
 }
 
 export interface ResourcesResponse {

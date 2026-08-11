@@ -91,7 +91,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         "r.id, r.resource_type_id, rt.key as resource_type_key, r.name, r.description, " +
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
         "r.home_site_id, " + CurrentSiteExpr + " AS current_site_id, r.cross_site_allowed, " +
-        "r.code, r.is_physical, r.geometry, r.properties, r.capacity, " +
+        "r.code, r.is_physical, r.geometry, r.properties, r.capacity, r.custom_fields, " +
         GroupIdExpr + " AS group_id, " +
         "r.is_active, r.created_at, r.updated_at";
 
@@ -197,9 +197,10 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 throw new ConflictException($"Code '{request.Code}' already exists for this site");
         }
 
-        // properties is NOT NULL: an absent object is an empty one, never a SQL NULL.
+        // properties and custom_fields are NOT NULL: an absent object is an empty one, never a SQL NULL.
         var geometryJson = request.Geometry is null ? null : JsonSerializer.Serialize(request.Geometry);
         var propertiesJson = request.Properties is null ? "{}" : JsonSerializer.Serialize(request.Properties);
+        var customFieldsJson = request.CustomFields is null ? "{}" : JsonSerializer.Serialize(request.CustomFields);
         var insertedId = Guid.NewGuid();
 
         return (await db.QuerySingleOrDefaultAsync(@"
@@ -207,12 +208,12 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 (id, resource_type_id, name, description, external_reference,
                  allocation_mode, base_availability_percent,
                  home_site_id, cross_site_allowed,
-                 code, is_physical, geometry, properties, capacity)
+                 code, is_physical, geometry, properties, capacity, custom_fields)
             VALUES
                 (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent,
                  @homeSiteId, @crossSiteAllowed,
-                 @code, @isPhysical, @geometry, @properties, @capacity)
+                 @code, @isPhysical, @geometry, @properties, @capacity, @customFields)
             RETURNING id, created_at, updated_at",
             p =>
             {
@@ -230,6 +231,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 p.AddJsonb("geometry", geometryJson);
                 p.AddJsonb("properties", propertiesJson);
                 p.AddWithValue("capacity", request.Capacity);
+                p.AddJsonb("customFields", customFieldsJson);
             },
             r => new ResourceInfo
             {
@@ -250,6 +252,8 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 Geometry = request.Geometry,
                 Properties = request.Properties,
                 Capacity = request.Capacity,
+                // Matches how Map reads it back: an empty document is reported as no values.
+                CustomFields = request.CustomFields is { Count: > 0 } ? request.CustomFields : null,
                 // Membership is managed by the resource-group members editor, never at create time.
                 GroupId = null,
                 IsActive = true,
@@ -266,6 +270,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         // statement that reaches this table, including the ones written elsewhere.
         var geometryJson = request.Geometry is null ? null : JsonSerializer.Serialize(request.Geometry);
         var propertiesJson = request.Properties is null ? null : JsonSerializer.Serialize(request.Properties);
+        var customFieldsJson = request.CustomFields is null ? null : JsonSerializer.Serialize(request.CustomFields);
 
         var update = new UpdateBuilder();
         update.SetIfNotNull("name", request.Name);
@@ -282,6 +287,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         // Bound by hand rather than through the builder so the parameter carries its jsonb type.
         if (geometryJson is not null) update.SetExpression("geometry = @geometry");
         if (propertiesJson is not null) update.SetExpression("properties = @properties");
+        if (customFieldsJson is not null) update.SetExpression("custom_fields = @customFields");
         if (request.Capacity.HasValue) update.Set("capacity", request.Capacity.Value);
 
         if (update.IsEmpty) return await GetByIdAsync(id, ct);
@@ -293,6 +299,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
                 update.Apply(p);
                 if (geometryJson is not null) p.AddJsonb("geometry", geometryJson);
                 if (propertiesJson is not null) p.AddJsonb("properties", propertiesJson);
+                if (customFieldsJson is not null) p.AddJsonb("customFields", customFieldsJson);
             }, ct);
 
         return await GetByIdAsync(id, ct);
@@ -378,6 +385,7 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         // properties at all, which is what the space shape has always published.
         var geometryJson = r.GetNullableString("geometry");
         var propertiesJson = r.GetNullableString("properties") ?? "{}";
+        var customFieldsJson = r.GetNullableString("custom_fields") ?? "{}";
 
         return new ResourceInfo
         {
@@ -398,6 +406,9 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             Properties = propertiesJson == "{}" ? null : JsonSerializer.Deserialize<Dictionary<string, object>>(propertiesJson),
             Capacity = r.GetInt32("capacity"),
             GroupId = r.GetNullableGuid("group_id"),
+            CustomFields = customFieldsJson == "{}"
+                ? null
+                : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(customFieldsJson),
             IsActive = r.GetBoolean(r.GetOrdinal("is_active")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
             UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),

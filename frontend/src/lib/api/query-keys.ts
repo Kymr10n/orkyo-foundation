@@ -89,6 +89,8 @@ export const qk = {
     /** The tenant's resource types (also its own invalidation prefix). */
     all: () => ["resource-types"] as const,
     /** Custom field definitions of one resource type. */
+    customFields: (resourceTypeId: string) =>
+      ["resource-types", resourceTypeId, "custom-fields"] as const,
   },
 
   criteria: {

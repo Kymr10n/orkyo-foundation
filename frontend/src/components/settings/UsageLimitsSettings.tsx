@@ -1,7 +1,10 @@
 import { useQuotas } from "@foundation/src/hooks/useQuotas";
 import { StorageUsageMonitor } from "./StorageUsageMonitor";
 import { Card, CardContent, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
-import { Badge } from "@foundation/src/components/ui/badge";
+import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
+import { Skeleton } from "@foundation/src/components/ui/skeleton";
+import { StatusBadge } from "@foundation/src/components/ui/status-badge";
+import { SettingsPageHeader } from "./SettingsPageHeader";
 import type { NumericQuota, Entitlement } from "@foundation/src/lib/api/quotas-api";
 import { QUOTA_LABELS, ENTITLEMENT_LABELS, quotaSeverity } from "@foundation/src/lib/quotas/quota-display";
 
@@ -41,34 +44,47 @@ function EntitlementRow({ entitlement }: { entitlement: Entitlement }) {
       <span className="text-sm text-muted-foreground">
         {ENTITLEMENT_LABELS[entitlement.key] ?? entitlement.key}
       </span>
-      <Badge variant={entitlement.enabled ? "default" : "secondary"}>
-        {entitlement.enabled ? "Enabled" : "Not available"}
-      </Badge>
+      {entitlement.enabled ? (
+        <StatusBadge status="active" label="Enabled" />
+      ) : (
+        <StatusBadge status="inactive" label="Not available" />
+      )}
     </div>
   );
 }
 
+function UsageHeader() {
+  return (
+    <SettingsPageHeader
+      title="Usage & Limits"
+      description="What this workspace is using, and the limits its plan allows. Read-only — limits change with the plan."
+    />
+  );
+}
+
 /**
- * Read-only "Usage & Limits" settings tab.
- * SaaS: shows all quotas + entitlements with live usage.
- * Community: shows only storage (no limit enforced).
+ * Read-only "Usage & Limits" tab: what this workspace is consuming, against whatever
+ * the server says its plan allows. Quotas and entitlements both come from the server,
+ * so this renders what it is given rather than branching per edition.
  */
 export function UsageLimitsSettings() {
   const { data, isLoading, isError } = useQuotas();
 
   if (isLoading) {
     return (
-      <div className="space-y-4 p-4 max-w-2xl">
-        <div className="h-32 w-full rounded-md bg-muted animate-pulse" />
-        <div className="h-32 w-full rounded-md bg-muted animate-pulse" />
+      <div className="space-y-6">
+        <UsageHeader />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">
-        Unable to load usage data. Try refreshing the page.
+      <div className="space-y-6">
+        <UsageHeader />
+        <ErrorAlert message="Unable to load usage data. Try refreshing the page." />
       </div>
     );
   }
@@ -77,7 +93,9 @@ export function UsageLimitsSettings() {
   const countQuotas = data.quotas.filter((q) => q.unit === "count");
 
   return (
-    <div className="space-y-6 p-4 max-w-2xl">
+    <div className="space-y-6">
+      <UsageHeader />
+
       {storageQuota && (
         <Card>
           <CardHeader>

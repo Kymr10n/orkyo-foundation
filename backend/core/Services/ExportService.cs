@@ -185,6 +185,7 @@ public class ExportService : IExportService
                     ? code
                     : null,
                 Metadata = r.Properties,
+                CustomFields = r.CustomFields,
                 Capabilities = MapCapabilities(
                     capsByResource.GetValueOrDefault(r.Id, []).Select(c => (c.CriterionId, (object?)c.Value.GetRawText())),
                     criterionIdToKey)
@@ -224,6 +225,7 @@ public class ExportService : IExportService
                     IsPhysical = space.IsPhysical,
                     Geometry = space.Geometry,
                     Properties = space.Properties,
+                    CustomFields = space.CustomFields,
                     GroupKey = space.GroupId.HasValue && groupIdToKey.TryGetValue(space.GroupId.Value, out var gk) ? gk : null,
                     Capabilities = MapCapabilities(caps.Select(c => (c.CriterionId, (object?)c.Value.GetRawText())), criterionIdToKey)
                 });

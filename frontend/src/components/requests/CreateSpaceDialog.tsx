@@ -14,7 +14,6 @@ import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import type { SpaceGeometry, CreateSpaceRequest } from '@foundation/src/types/space';
-import { useDialogDirtyGuard } from '@foundation/src/hooks/useDialogDirtyGuard';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface CreateSpaceDialogProps {
@@ -39,11 +38,6 @@ export function CreateSpaceDialog({
   const [error, setError] = useState<string | null>(null);
 
   const isDirty = name !== '' || code !== '' || description !== '';
-
-  const { guardedOnOpenChange, ConfirmDiscardDialog } = useDialogDirtyGuard({
-    isDirty,
-    onOpenChange,
-  });
 
   const handleSubmit = async () => {
     setError(null);
@@ -84,7 +78,8 @@ export function CreateSpaceDialog({
     <>
       <FormDialog
         open={open}
-        onOpenChange={guardedOnOpenChange}
+        onOpenChange={onOpenChange}
+        dirty={isDirty}
         title="Create New Space"
         description="Define the space details for the area you've drawn on the floorplan."
         error={error}
@@ -145,7 +140,6 @@ export function CreateSpaceDialog({
           />
         </div>
       </FormDialog>
-      {ConfirmDiscardDialog}
     </>
   );
 }
