@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { errorMessage } from './mutation-utils';
 import { stableStringify } from '@foundation/src/lib/utils/stable-stringify';
@@ -55,24 +55,29 @@ export function useEntityFormDialog<TEntity, TForm, TSaved>({
   invalidates,
   onSaved,
 }: UseEntityFormDialogOptions<TEntity, TForm, TSaved>): UseEntityFormDialogResult<TForm> {
-  // Callers pass inline closures; keep the latest without making them effect deps.
-  const emptyFormRef = useRef(emptyForm);
-  emptyFormRef.current = emptyForm;
-  const toFormRef = useRef(toForm);
-  toFormRef.current = toForm;
-
-  const [form, setForm] = useState<TForm>(() => emptyFormRef.current());
+  const [form, setForm] = useState<TForm>(() => (open && entity ? toForm(entity) : emptyForm()));
   // Snapshot of the form as last synced; the dirty guard compares against it.
   const [baseline, setBaseline] = useState<TForm>(form);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    const next = entity ? toFormRef.current(entity) : emptyFormRef.current();
-    setForm(next);
-    setBaseline(next);
-  }, [open, entity]);
+  // Reseed when the dialog opens, or when it swaps entity while open. This is React's
+  // "adjusting state when a prop changes" render-phase update rather than an effect: an
+  // effect would paint the stale form for one frame and cascade a second render pass.
+  // `synced` tracks `open` even while closed, so closing and reopening the same entity
+  // still reseeds (a discarded edit must not survive the reopen).
+  const [synced, setSynced] = useState<{
+    open: boolean;
+    entity: TEntity | null | undefined;
+  } | null>(null);
+  if (synced?.open !== open || synced.entity !== entity) {
+    setSynced({ open, entity });
+    if (open) {
+      setError(null);
+      const next = entity ? toForm(entity) : emptyForm();
+      setForm(next);
+      setBaseline(next);
+    }
+  }
 
   // Stable: a form may carry a user-edited map (custom fields), where re-adding a key
   // changes insertion order without changing the data.

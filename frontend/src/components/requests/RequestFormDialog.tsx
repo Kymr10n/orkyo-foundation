@@ -393,6 +393,8 @@ export function RequestFormDialog({
   // Virtualize the candidate list so the picker opens instantly regardless of
   // how many requests the tenant has (only ~15 rows mount at once).
   const addExistingViewportRef = useRef<HTMLDivElement>(null);
+  // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const addExistingVirtualizer = useVirtualizer({
     count: addExistingCandidates.length,
     getScrollElement: () => addExistingViewportRef.current,

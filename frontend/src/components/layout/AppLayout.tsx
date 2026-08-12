@@ -29,7 +29,6 @@ interface AppLayoutProps {
 export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
-  const [isSiteValidated, setIsSiteValidated] = useState(false);
   const { isOpen: isCommandPaletteOpen, setIsOpen: setCommandPaletteOpen, open: openCommandPalette } = useCommandPalette();
 
   const { appUser } = useAuth();
@@ -41,10 +40,13 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const { isPhone, isTablet } = useBreakpoint();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
-  // Leaving the phone layout (resize / rotate) must not strand an open drawer.
-  useEffect(() => {
-    if (!isPhone && isMobileNavOpen) setIsMobileNavOpen(false);
-  }, [isPhone, isMobileNavOpen]);
+  // Leaving the phone layout (resize / rotate) must not strand an open drawer. Render-phase
+  // update, not an effect (see useEntityFormDialog.ts).
+  const [syncedIsPhone, setSyncedIsPhone] = useState(isPhone);
+  if (syncedIsPhone !== isPhone) {
+    setSyncedIsPhone(isPhone);
+    if (!isPhone) setIsMobileNavOpen(false);
+  }
 
   // Auto-show tour once per session for users who haven't seen it
   useEffect(() => {
@@ -77,23 +79,34 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
 
   // Load sites (shared React Query cache) and validate/set default selection.
   const { data: sites, isSuccess: sitesLoaded, isError: sitesError, error: sitesLoadError } = useSites();
+  // Derived, not stored: we are validated once sites failed to load, or loaded and either
+  // there are none or the current selection actually exists. Deriving keeps the effect below
+  // free of setState — it only writes the external store and logs.
+  const siteSelectionValid =
+    sitesError ||
+    (sitesLoaded && !!sites && (sites.length === 0 || sites.some((s) => s.id === selectedSiteId)));
+
+  // Latched, because the gate below unmounts the whole route tree. The first validation is a
+  // real gate (it stops pages firing API calls with a stale site id before we know it is good).
+  // Afterwards it must stay open: if a refetch later drops the selected site — deleted here or
+  // in another session — the effect below swaps the store to a valid one within the same tick,
+  // and re-closing the gate for that tick would discard every page's local state (open dialogs,
+  // half-typed forms, scroll position) instead of quietly swapping underneath it.
+  const [everValidated, setEverValidated] = useState(false);
+  if (siteSelectionValid && !everValidated) setEverValidated(true);
+  const isSiteValidated = siteSelectionValid || everValidated;
+
   useEffect(() => {
     if (sitesError) {
       logger.error("Failed to load sites:", sitesLoadError);
-      setIsSiteValidated(true);
       return;
     }
-    if (!sitesLoaded || !sites) return;
-    if (sites.length === 0) {
-      setIsSiteValidated(true);
-      return;
-    }
+    if (!sitesLoaded || !sites || sites.length === 0) return;
 
     // If no site selected or selected site doesn't exist, use first site
     if (!selectedSiteId || !sites.find((s) => s.id === selectedSiteId)) {
       setSelectedSiteId(sites[0].id);
     }
-    setIsSiteValidated(true);
   }, [sitesLoaded, sitesError, sitesLoadError, sites, selectedSiteId, setSelectedSiteId]);
 
   // Don't render child routes until site is validated - prevents stale site ID API calls

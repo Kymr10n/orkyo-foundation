@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
@@ -162,12 +162,16 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
   const selectedCustomDate = customExpiresAt ? fromDateOnly(customExpiresAt) : undefined;
   const today = fromDateOnly(toDateOnly(new Date())) ?? new Date();
 
-  useEffect(() => {
-    if (!open) return;
-    setName("");
-    setExpiryMode("7");
-    setCustomExpiresAt("");
-  }, [open]);
+  // Reset the form each time the dialog opens — render-phase, not an effect (see useEntityFormDialog.ts).
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
+    if (open) {
+      setName("");
+      setExpiryMode("7");
+      setCustomExpiresAt("");
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: () => createReportingToken({

@@ -187,6 +187,8 @@ export function ConflictsTab() {
   // Virtualize the (potentially large) conflict list — render only the visible rows. Heights vary
   // (peer link, multi-line messages), so measureElement handles dynamic sizing.
   const scrollRef = useRef<HTMLDivElement>(null);
+  // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: visibleConflictItems.length,
     getScrollElement: () => scrollRef.current,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { FormField } from "@foundation/src/components/ui/FormField";
 import { Input } from "@foundation/src/components/ui/input";
@@ -45,13 +45,18 @@ export function SiteEditDialog({ site, open, onOpenChange, onSaved }: SiteEditDi
   const updateMutation = useUpdateSite();
   const isSubmitting = site ? updateMutation.isPending : createMutation.isPending;
 
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    const next = site ? fromSite(site) : empty;
-    setForm(next);
-    setBaseline(next);
-  }, [site, open]);
+  // Reseed when the dialog opens, or swaps site while open — a render-phase update, not an
+  // effect (see useEntityFormDialog.ts).
+  const [synced, setSynced] = useState<{ open: boolean; site: Site | null } | null>(null);
+  if (synced?.open !== open || synced.site !== site) {
+    setSynced({ open, site });
+    if (open) {
+      setError(null);
+      const next = site ? fromSite(site) : empty;
+      setForm(next);
+      setBaseline(next);
+    }
+  }
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
 

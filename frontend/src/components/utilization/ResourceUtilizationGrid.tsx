@@ -236,14 +236,19 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   //    Deferred by CONFLICT_CHECK_DELAY_MS so the grid renders immediately and
   //    conflict badges appear in the background — this call is decorative only.
   const [conflictCheckReady, setConflictCheckReady] = useState(false);
+  // Standing down when there is nothing to check is a render-phase update; arming the delay
+  // is a real timer side effect and stays in the effect below.
+  const hasAssignments = allAssignmentsFlat.length > 0;
+  const [syncedHasAssignments, setSyncedHasAssignments] = useState(hasAssignments);
+  if (syncedHasAssignments !== hasAssignments) {
+    setSyncedHasAssignments(hasAssignments);
+    if (!hasAssignments) setConflictCheckReady(false);
+  }
   useEffect(() => {
-    if (allAssignmentsFlat.length === 0) {
-      setConflictCheckReady(false);
-      return;
-    }
+    if (!hasAssignments) return;
     const id = setTimeout(() => setConflictCheckReady(true), CONFLICT_CHECK_DELAY_MS);
     return () => clearTimeout(id);
-  }, [allAssignmentsFlat.length]);
+  }, [hasAssignments]);
 
   const { data: conflictedAssignmentIds = EMPTY_SET } = useQuery({
     // Keyed off the query that produced the assignments plus their count, not the id list

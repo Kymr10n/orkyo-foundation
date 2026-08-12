@@ -46,13 +46,19 @@ export function Combobox({
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Clearing the query is a render-phase update; focusing is a real side effect and stays
+  // in an effect below.
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
+    if (open) setQuery("");
+  }
+
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      // Focus the search field once the popover mounts.
-      const t = setTimeout(() => inputRef.current?.focus(), 0);
-      return () => clearTimeout(t);
-    }
+    if (!open) return;
+    // Focus the search field once the popover mounts.
+    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
   }, [open]);
 
   const selected = options.find((o) => o.id === value);

@@ -66,6 +66,8 @@ function ResourceTypePicker({
   return (
     <div>
       <h4 className="text-sm font-medium flex items-center gap-2">
+        {/* Stable reference from a module-level icon registry, not built in render. */}
+        {/* eslint-disable-next-line react-hooks/static-components */}
         <Icon className="h-4 w-4" />
         {type.displayName}
         <ConflictIndicator conflicts={conflicts} />

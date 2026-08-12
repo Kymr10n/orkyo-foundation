@@ -62,6 +62,8 @@ export function DiagnosticsTab() {
     }
   }, []);
 
+  // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   if (loading && !data) {

@@ -73,13 +73,16 @@ export function useResizeGesture(
     latestEndMs: number;
   } | null>(null);
 
-  // Ref-stable callbacks so closures are never stale.
+  // Ref-stable callbacks so closures are never stale, and options refed for safety.
+  // Both are read from document-level pointer handlers rather than from an effect, so
+  // useEffectEvent does not apply; syncing in an effect keeps the write out of render.
+  // A gesture cannot begin before the first effect flush, so the handlers never read stale.
   const cbRef = useRef(callbacks);
-  cbRef.current = callbacks;
-
-  // Options are expected to be constants but we ref them for safety.
   const optsRef = useRef(options);
-  optsRef.current = options;
+  useEffect(() => {
+    cbRef.current = callbacks;
+    optsRef.current = options;
+  });
 
   /** Timestamp of the last completed resize — exposed for click suppression. */
   const lastCommitMsRef = useRef(0);

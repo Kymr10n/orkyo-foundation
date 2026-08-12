@@ -153,6 +153,8 @@ const RequestCard = React.memo(function RequestCard({
           <GripVertical className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
         )}
 
+        {/* Stable reference from a module-level icon registry, not built in render. */}
+        {/* eslint-disable-next-line react-hooks/static-components */}
         <ModeIcon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
 
         <div className="flex-1 min-w-0">
@@ -270,6 +272,8 @@ export function RequestsPanel({ requests, isLoading, onCreateChild, onRequestCli
     [flatEntries, searchQuery, statusFilter, scheduledFilter, collapsedIds],
   );
 
+  // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: visibleEntries.length,
     getScrollElement: () => listScrollRef.current,

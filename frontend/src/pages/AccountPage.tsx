@@ -284,6 +284,8 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   }, [send]);
 
   useEffect(() => {
+    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMemberships();
   }, [loadMemberships]);
 

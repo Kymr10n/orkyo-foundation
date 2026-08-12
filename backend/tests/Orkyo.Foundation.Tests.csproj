@@ -20,6 +20,15 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <!--
+      Transitive security pin, not a dependency this project uses directly. Testcontainers
+      pulls SSH.NET, and every version <= 2025.1.0 carries GHSA-q939-rpr3-3284 (High): a
+      recursive ScpClient download honours server-controlled filenames and can write outside
+      the target directory. Testcontainers has no release referencing the patched 2026.0.0
+      yet, so the version is forced here. Drop this line once Testcontainers.PostgreSql
+      resolves 2026.0.0 or later on its own.
+    -->
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>

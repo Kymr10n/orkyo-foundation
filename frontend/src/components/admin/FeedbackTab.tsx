@@ -60,6 +60,15 @@ const STATUS_LABEL: Record<FeedbackStatus, string> = {
   wont_fix: "Won't fix",
 };
 
+function Field({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="text-sm whitespace-pre-wrap break-words">{value === null || value === '' ? '—' : value}</div>
+    </div>
+  );
+}
+
 export function FeedbackTab() {
   const [items, setItems] = useState<FeedbackSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +90,8 @@ export function FeedbackTab() {
   }, []);
 
   useEffect(() => {
+    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load(statusFilter);
   }, [load, statusFilter]);
 
@@ -266,13 +277,16 @@ function FeedbackDetailDialog({
     onSuccess: () => onSaved(),
   });
 
-  useEffect(() => {
+  // Seed the editor when an item is selected — a render-phase update, not an effect (see useEntityFormDialog.ts).
+  const [syncedFeedback, setSyncedFeedback] = useState(feedback);
+  if (syncedFeedback !== feedback) {
+    setSyncedFeedback(feedback);
     if (feedback) {
       setStatus(feedback.status);
       setNotes(feedback.adminNotes ?? '');
       setGithubUrl(feedback.githubIssueUrl ?? '');
     }
-  }, [feedback]);
+  }
 
   if (!feedback) return null;
 
@@ -284,13 +298,6 @@ function FeedbackDetailDialog({
   const handleSave = () => {
     saveMutation.mutate({ id: feedback.id, status, adminNotes: notes, githubIssueUrl: githubUrl });
   };
-
-  const Field = ({ label, value }: { label: string; value: string | null }) => (
-    <div>
-      <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className="text-sm whitespace-pre-wrap break-words">{value === null || value === '' ? '—' : value}</div>
-    </div>
-  );
 
   return (
     <Dialog open={!!feedback} onOpenChange={(open) => { if (!open) onClose(); }}>

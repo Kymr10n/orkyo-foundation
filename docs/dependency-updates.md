@@ -43,8 +43,9 @@ Run lint / smoke-test after each.
 
 | Package | Jump | Notes |
 |---|---|---|
-| `eslint-plugin-react-hooks` | 5 → 7 | New rules may surface warnings |
+| ~~`eslint-plugin-react-hooks`~~ | ~~5 → 7~~ | **DONE 2026-08-12.** Not "warnings": v6 folded the React Compiler rules into the plugin's `recommended` preset, so the preset grew from 2 rules to 16 and produced **80 findings (75 errors) across 51 files** that the bump itself never touched. `eslint.config.js` no longer spreads `reactHooks.configs.recommended.rules` — the rules are enumerated one by one, so the next plugin major arrives as a diff to that list instead of as a CI surprise. `lint` now runs `--max-warnings=0`. |
 | `eslint` | 9 → 10 | Already on flat config; minimal migration |
+| ~~`tsc-alias`~~ | ~~1.8 → 1.9~~ | **DONE 2026-08-12.** Second silent breakage from the same refresh: 1.9 requires an explicit `compilerOptions.rootDir` whenever `baseUrl` is implicit, so `typecheck` and `build` failed on main independently of lint. Fixed by stating `"rootDir": "."` in `frontend/tsconfig.json` — the root the emit already used (package exports resolve `.tsbuild/src/*` and `.tsbuild/contracts/*`), so it records the existing layout rather than changing it. |
 | `Swashbuckle.AspNetCore` | 9 → 10 | OpenAPI UI config changed; verify `/swagger` after deploy |
 | `Serilog.Sinks.Grafana.Loki` | 8 → 9 | Spot-check Grafana Loki ingestion after deploy |
 | `coverlet.collector` | 6 → 10 | Dev-only; no prod impact |

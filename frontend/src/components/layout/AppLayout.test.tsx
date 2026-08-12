@@ -139,7 +139,8 @@ describe('AppLayout', () => {
 });
 
 describe('AppLayout — responsive shell', () => {
-  const originalMatchMedia = window.matchMedia;
+  // Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
+  const originalMatchMedia = window.matchMedia.bind(window);
 
   function setViewport(width: number) {
     Object.defineProperty(window, 'matchMedia', {

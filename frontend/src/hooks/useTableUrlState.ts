@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type {
   ColumnDef,
@@ -73,8 +73,6 @@ export function useTableUrlState<TData>(
   // Local echo for text filters: the URL write is debounced so typing doesn't churn history
   // state per keystroke, but the input must reflect keystrokes immediately.
   const [echo, setEcho] = useState<ColumnFiltersState | null>(null);
-  const echoRef = useRef(echo);
-  echoRef.current = echo;
 
   const writeToUrl = useCallback(
     (sorting: SortingState, filters: ColumnFiltersState) => {
@@ -111,7 +109,7 @@ export function useTableUrlState<TData>(
 
   const onColumnFiltersChange: OnChangeFn<ColumnFiltersState> = useCallback(
     (updater: Updater<ColumnFiltersState>) => {
-      const current = echoRef.current ?? decoded.columnFilters;
+      const current = echo ?? decoded.columnFilters;
       const next = typeof updater === 'function' ? updater(current) : updater;
       // Only text filters arrive per keystroke; everything else commits immediately so the
       // URL never lags a click.
@@ -127,16 +125,16 @@ export function useTableUrlState<TData>(
         writeToUrl(decoded.sorting, next);
       }
     },
-    [decoded, metaByColumn, writeDebounced, writeToUrl],
+    [decoded, echo, metaByColumn, writeDebounced, writeToUrl],
   );
 
   const onSortingChange: OnChangeFn<SortingState> = useCallback(
     (updater: Updater<SortingState>) => {
       const next = typeof updater === 'function' ? updater(decoded.sorting) : updater;
       writeDebounced.cancel();
-      writeToUrl(next, echoRef.current ?? decoded.columnFilters);
+      writeToUrl(next, echo ?? decoded.columnFilters);
     },
-    [decoded, writeDebounced, writeToUrl],
+    [decoded, echo, writeDebounced, writeToUrl],
   );
 
   return { sorting: decoded.sorting, onSortingChange, columnFilters, onColumnFiltersChange };
@@ -198,18 +196,18 @@ function useMemoStableMeta<TData>(columns: ColumnDef<TData>[]) {
     })
     .join('|');
 
-  // A ref-cache rather than useMemo keyed on the array: call sites rebuild their columns
-  // array every render, and this map must not change identity when the contents have not.
-  const cache = useRef<{ signature: string; map: Map<string, { filter?: ColumnFilterMeta }> } | null>(null);
-  if (cache.current?.signature !== signature) {
+  // Keyed on the content signature, not on `columns`: call sites rebuild their columns array
+  // every render, so depending on it would rebuild the map every render and defeat the point.
+  // Reading `columns` inside is safe precisely because `signature` covers everything read.
+  return useMemo(() => {
     const map = new Map<string, { filter?: ColumnFilterMeta }>();
     for (const c of columns) {
       const id = columnId(c);
       if (id) map.set(id, { filter: c.meta?.filter });
     }
-    cache.current = { signature, map };
-  }
-  return cache.current.map;
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
 }
 
 function columnId<TData>(c: ColumnDef<TData>): string {

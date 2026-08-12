@@ -102,7 +102,34 @@ export default defineConfig(
       // must be registered so inline disable comments in source files are valid.
       'react-refresh/only-export-components': 'off',
       '@typescript-eslint/non-nullable-type-assertion-style': 'off',
-      ...reactHooks.configs.recommended.rules,
+      // react-hooks rules are listed one by one rather than spread from
+      // `reactHooks.configs.recommended.rules`. The spread inherits whatever the installed
+      // plugin happens to consider recommended, so the 5 → 7 bump silently grew the set from
+      // 2 rules to 16 (the React Compiler rules joined the preset in v6) and turned a routine
+      // dependency refresh into 80 findings with no diff to review. Enumerating them means a
+      // future plugin major shows up as a diff to THIS list instead. Same principle as the
+      // repo-wide "no silent defaults" rule for env config.
+      //
+      // All at 'error': the lint script runs --max-warnings=0, so a 'warn' would block the
+      // build anyway while reading as optional. Three deliberately deviate from the preset,
+      // which ships them at 'warn' — exhaustive-deps, incompatible-library and
+      // unsupported-syntax. Keep this list sorted as the plugin lists it.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/static-components': 'error',
+      'react-hooks/use-memo': 'error',
+      'react-hooks/preserve-manual-memoization': 'error',
+      'react-hooks/incompatible-library': 'error',
+      'react-hooks/immutability': 'error',
+      'react-hooks/globals': 'error',
+      'react-hooks/refs': 'error',
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/error-boundaries': 'error',
+      'react-hooks/purity': 'error',
+      'react-hooks/set-state-in-render': 'error',
+      'react-hooks/unsupported-syntax': 'error',
+      'react-hooks/config': 'error',
+      'react-hooks/gating': 'error',
       'react/prop-types': 'off',
       'react/display-name': 'off',
       'react/no-unescaped-entities': 'off',

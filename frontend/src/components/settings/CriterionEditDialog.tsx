@@ -60,11 +60,20 @@ export function CriterionEditDialog({
     createMutation.isPending || updateMutation.isPending || applicabilityMutation.isPending;
   const dataTypeLocked = !!criterion?.inUse;
 
+  // The plain state below is seeded as a render-phase update; `form.reset` mutates
+  // react-hook-form's external store and so stays in the effect that follows.
+  const [synced, setSynced] = useState<{ open: boolean; criterion: typeof criterion } | null>(null);
+  if (synced?.open !== open || synced.criterion !== criterion) {
+    setSynced({ open, criterion });
+    if (open) {
+      setError(null);
+      setName(criterion?.name ?? '');
+      setDataType(criterion?.dataType ?? 'Boolean');
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
-    setError(null);
-    setName(criterion?.name ?? '');
-    setDataType(criterion?.dataType ?? 'Boolean');
     form.reset({
       description: criterion?.description ?? '',
       unit: criterion?.unit ?? '',

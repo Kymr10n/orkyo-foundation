@@ -190,7 +190,7 @@ export function ConflictTrendChart({
         <XAxis dataKey="label" fontSize={r.axisFontSize} interval={r.xAxisInterval} minTickGap={r.xAxisMinTickGap} />
         <YAxis fontSize={r.axisFontSize} width={r.yAxisWidth} allowDecimals={false} />
         <Tooltip />
-        <Legend verticalAlign="bottom" wrapperStyle={r.legendStyle} />
+        <Legend position="bottom" wrapperStyle={r.legendStyle} />
         <Bar dataKey="Overbooking" stackId="c" fill={COLORS.overbooking} />
         <Bar dataKey="Criteria mismatch" stackId="c" fill={COLORS.criteriaMismatch} />
         <Bar dataKey="Resource unavailable" stackId="c" fill={COLORS.resourceUnavailable} />
@@ -237,7 +237,7 @@ export function RequestStatusTrendChart({
         <XAxis dataKey="label" fontSize={r.axisFontSize} interval={r.xAxisInterval} minTickGap={r.xAxisMinTickGap} />
         <YAxis fontSize={r.axisFontSize} width={r.yAxisWidth} allowDecimals={false} />
         <Tooltip />
-        <Legend verticalAlign="bottom" wrapperStyle={r.legendStyle} />
+        <Legend position="bottom" wrapperStyle={r.legendStyle} />
         <Bar dataKey="New" stackId="r" fill={COLORS.new} />
         <Bar dataKey="In progress" stackId="r" fill={COLORS.inProgress} />
         <Bar dataKey="Done" stackId="r" fill={COLORS.done} />

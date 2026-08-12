@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 export interface DebouncedCallback<A extends unknown[]> {
   (...args: A): void;
@@ -18,7 +18,11 @@ export function useDebouncedCallback<A extends unknown[]>(
   delay: number,
 ): DebouncedCallback<A> {
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  // Synced in an effect, not during render. The debounced call fires a whole `delay` later,
+  // by which time the effect has long flushed, so it still sees the latest callback.
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const cancel = useCallback(() => {
@@ -30,17 +34,17 @@ export function useDebouncedCallback<A extends unknown[]>(
 
   useEffect(() => cancel, [cancel]);
 
-  const debounced = useCallback(
-    (...args: A) => {
+  // Built inside the memo so `.cancel` is attached while the function is still a local
+  // value — attaching it afterwards would modify a value already returned by a hook.
+  return useMemo(() => {
+    const debounced = ((...args: A) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         timeoutRef.current = undefined;
         callbackRef.current(...args);
       }, delay);
-    },
-    [delay],
-  ) as DebouncedCallback<A>;
-
-  debounced.cancel = cancel;
-  return debounced;
+    }) as DebouncedCallback<A>;
+    debounced.cancel = cancel;
+    return debounced;
+  }, [delay, cancel]);
 }

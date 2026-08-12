@@ -1,4 +1,3 @@
-import { useSearchParams } from 'react-router';
 import { useAppStore } from '@foundation/src/store/app-store';
 import { SpaceManagementPanel } from './SpaceManagementPanel';
 
@@ -11,8 +10,6 @@ import { SpaceManagementPanel } from './SpaceManagementPanel';
  */
 export function FloorplanView() {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
-  const [searchParams] = useSearchParams();
-  const editResourceId = searchParams.get('edit');
 
   if (!selectedSiteId) {
     return (
@@ -24,7 +21,7 @@ export function FloorplanView() {
 
   return (
     <div className="h-full flex flex-col">
-      <SpaceManagementPanel siteId={selectedSiteId} editResourceId={editResourceId} className="flex-1" />
+      <SpaceManagementPanel siteId={selectedSiteId} className="flex-1" />
     </div>
   );
 }
