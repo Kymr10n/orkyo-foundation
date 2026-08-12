@@ -153,10 +153,12 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
     onClose();
   };
 
-  // Restart at the welcome step each time the tour opens.
-  useEffect(() => {
+  // Restart at the welcome step each time the tour opens — render-phase, not an effect (see useEntityFormDialog.ts).
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
     if (open) setStep(0);
-  }, [open]);
+  }
 
   // Each step navigates to its page so the user browses the app behind the panel.
   useEffect(() => {

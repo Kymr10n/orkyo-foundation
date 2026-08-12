@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
 import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 
 interface ResourceGroupEditDialogProps {
   resourceTypeKey: string;
@@ -16,88 +15,66 @@ interface ResourceGroupEditDialogProps {
   entityLabel?: string;
 }
 
+interface FormState {
+  name: string;
+  description: string;
+  defaultAvailabilityPercent: number;
+}
+
+const EMPTY: FormState = { name: '', description: '', defaultAvailabilityPercent: 100 };
+
 export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClose, onSaved, entityLabel = 'Group' }: ResourceGroupEditDialogProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [defaultAvailabilityPercent, setDefaultAvailabilityPercent] = useState(100);
-
-  useEffect(() => {
-    if (group) {
-      setName(group.name);
-      setDescription(group.description ?? '');
-      setDefaultAvailabilityPercent(group.defaultAvailabilityPercent);
-    } else {
-      setName('');
-      setDescription('');
-      setDefaultAvailabilityPercent(100);
-    }
-  }, [group, isOpen]);
-
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      group
-        ? updateResourceGroup(group.id, {
-            name,
-            description: description || undefined,
-            defaultAvailabilityPercent,
+  // The shared scaffold owns form + baseline, reseed-on-open, the dirty compare and the
+  // create-or-update mutation with its meta feedback — this dialog is exactly the shape it
+  // was extracted for, so it keeps only field rendering and the name-required rule.
+  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
+    open: isOpen,
+    onOpenChange: (o: boolean) => { if (!o) onClose(); },
+    entity: group,
+    emptyForm: () => EMPTY,
+    toForm: (g: ResourceGroupInfo): FormState => ({
+      name: g.name,
+      description: g.description ?? '',
+      defaultAvailabilityPercent: g.defaultAvailabilityPercent,
+    }),
+    save: (f: FormState, g: ResourceGroupInfo | null) =>
+      g
+        ? updateResourceGroup(g.id, {
+            name: f.name,
+            description: f.description || undefined,
+            defaultAvailabilityPercent: f.defaultAvailabilityPercent,
           })
         : createResourceGroup({
             resourceTypeKey,
-            name,
-            description: description || undefined,
-            defaultAvailabilityPercent,
+            name: f.name,
+            description: f.description || undefined,
+            defaultAvailabilityPercent: f.defaultAvailabilityPercent,
           }),
-    meta: {
-      successMessage: `${entityLabel} ${group ? 'updated' : 'created'}`,
-      errorMessage: `Failed to ${group ? 'update' : 'create'} ${entityLabel.toLowerCase()}`,
-      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
-    },
-    onSuccess: onSaved,
+    entityLabel,
+    invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
+    onSaved,
   });
 
-  const handleSubmit = () => {
-    if (!name.trim()) return;
-    saveMutation.mutate();
-  };
-
-  // Mirror EditSpaceDialog: a single isDirty convention (current form vs. the
-  // group's persisted values, or vs. empty when creating) feeds the discard guard.
-  const isDirty = useMemo(() => {
-    if (group) {
-      return (
-        name !== group.name ||
-        description !== (group.description ?? '') ||
-        defaultAvailabilityPercent !== group.defaultAvailabilityPercent
-      );
-    }
-    return name !== '' || description !== '' || defaultAvailabilityPercent !== 100;
-  }, [group, name, description, defaultAvailabilityPercent]);
-
-  const errorMessage = saveMutation.error
-    ? saveMutation.error instanceof Error
-      ? saveMutation.error.message
-      : `Failed to ${group ? 'update' : 'create'} ${entityLabel.toLowerCase()}`
-    : null;
+  const nameValid = !!form.name.trim();
 
   return (
-    <>
     <FormDialog
       open={isOpen}
       onOpenChange={(o) => { if (!o) onClose(); }}
       dirty={isDirty}
       title={group ? `Edit ${entityLabel}` : `Add ${entityLabel}`}
-      error={errorMessage}
-      onSubmit={handleSubmit}
-      isSubmitting={saveMutation.isPending}
+      error={error}
+      onSubmit={() => { if (nameValid) submit(); }}
+      isSubmitting={isSubmitting}
       submitLabel="Save"
-      submitDisabled={!name.trim()}
+      submitDisabled={!nameValid}
     >
       <div className="space-y-2">
         <Label htmlFor="name">Name *</Label>
         <Input
           id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          value={form.name}
+          onChange={(e) => set({ name: e.target.value })}
           required
         />
       </div>
@@ -106,8 +83,8 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
         <Label htmlFor="description">Description</Label>
         <Textarea
           id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={form.description}
+          onChange={(e) => set({ description: e.target.value })}
           rows={3}
         />
       </div>
@@ -117,13 +94,12 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
         <Input
           id="defaultAvailability"
           type="number"
-          value={defaultAvailabilityPercent}
-          onChange={(e) => setDefaultAvailabilityPercent(Number(e.target.value))}
+          value={form.defaultAvailabilityPercent}
+          onChange={(e) => set({ defaultAvailabilityPercent: Number(e.target.value) })}
           min={0}
           max={100}
         />
       </div>
     </FormDialog>
-    </>
   );
 }

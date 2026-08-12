@@ -41,11 +41,15 @@ export function RequireAuth({
 
   // Delay the spinner so fast BFF cookie checks don't produce a flash.
   const [showSpinner, setShowSpinner] = useState(false);
+  // Clearing the spinner when loading ends is a render-phase update; arming the delay is a
+  // real timer side effect and stays in the effect below.
+  const [syncedLoading, setSyncedLoading] = useState(isLoading);
+  if (syncedLoading !== isLoading) {
+    setSyncedLoading(isLoading);
+    if (!isLoading) setShowSpinner(false);
+  }
   useEffect(() => {
-    if (!isLoading) {
-      setShowSpinner(false);
-      return;
-    }
+    if (!isLoading) return;
     const id = setTimeout(() => setShowSpinner(true), SPINNER_DELAY_MS);
     return () => clearTimeout(id);
   }, [isLoading]);

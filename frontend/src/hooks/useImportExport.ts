@@ -4,7 +4,7 @@
  * means a fresh trigger to consume.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
@@ -29,8 +29,9 @@ export function useExportHandler(
   const registerExport = useUiActionsStore((s) => s.registerExport);
   const unregisterExport = useUiActionsStore((s) => s.unregisterExport);
   const lastTickRef = useRef(tick);
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+  // Effect event, not a ref: read only from the effect below, and must see the latest
+  // handler without retriggering on every render that passes a new inline closure.
+  const runExport = useEffectEvent((format: ExportFormat) => handler(format));
 
   // Registering IS the offer: the TopBar enables Export for exactly as long as
   // this component is mounted, so a moved route can never silently orphan it.
@@ -46,7 +47,7 @@ export function useExportHandler(
     if (tick === lastTickRef.current) return;
     lastTickRef.current = tick;
     if (payload?.context === context) {
-      void handlerRef.current(payload.format);
+      void runExport(payload.format);
     }
   }, [tick, payload, context]);
 }
@@ -100,10 +101,26 @@ export function useImportHandler<T = void>(
   const registerImport = useUiActionsStore((s) => s.registerImport);
   const unregisterImport = useUiActionsStore((s) => s.unregisterImport);
   const lastTickRef = useRef(tick);
-  const handlerRef = useRef(handler);
-  handlerRef.current = handler;
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  // The whole import run is an effect event: it must see the latest handler and options
+  // without either becoming a dependency of the tick effect below.
+  const runImport = useEffectEvent(async (file: File, format: ImportFormat) => {
+    const opts = options;
+    try {
+      const result = await handler(file, format);
+      if (!opts) return; // legacy consumers own their feedback
+      opts.invalidates?.forEach((queryKey) => {
+        void queryClient.invalidateQueries({ queryKey, exact: false });
+      });
+      const successMessage =
+        typeof opts.successMessage === 'function' ? opts.successMessage(result) : opts.successMessage;
+      if (successMessage) toast.success(successMessage);
+    } catch (error) {
+      if (!opts) throw error; // preserve legacy behavior (handler's own try/catch)
+      toast.error(opts.errorMessage ?? 'Import failed', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
 
   const importFormatsKey = (options?.formats ?? ['csv']).join(',');
   useEffect(() => {
@@ -116,26 +133,6 @@ export function useImportHandler<T = void>(
     lastTickRef.current = tick;
     if (payload?.context !== context) return;
 
-    void (async () => {
-      const opts = optionsRef.current;
-      try {
-        const result = await handlerRef.current(payload.file, payload.format);
-        if (!opts) return; // legacy consumers own their feedback
-        opts.invalidates?.forEach((queryKey) => {
-          void queryClient.invalidateQueries({ queryKey, exact: false });
-        });
-        const successMessage =
-          typeof opts.successMessage === 'function'
-            ? opts.successMessage(result)
-            : opts.successMessage;
-        if (successMessage) toast.success(successMessage);
-      } catch (error) {
-        const opts2 = optionsRef.current;
-        if (!opts2) throw error; // preserve legacy behavior (handler's own try/catch)
-        toast.error(opts2.errorMessage ?? 'Import failed', {
-          description: error instanceof Error ? error.message : undefined,
-        });
-      }
-    })();
-  }, [tick, payload, context, queryClient]);
+    void runImport(payload.file, payload.format);
+  }, [tick, payload, context]);
 }

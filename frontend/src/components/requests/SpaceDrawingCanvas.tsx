@@ -139,13 +139,15 @@ export function SpaceDrawingCanvas({
     return () => resizeObserver.disconnect();
   }, [updateBaseScale]);
 
-  // Reset drawing when mode changes
-  useEffect(() => {
+  // Reset drawing when the mode changes — a render-phase update, not an effect (see useEntityFormDialog.ts).
+  const [syncedMode, setSyncedMode] = useState(drawingMode);
+  if (syncedMode !== drawingMode) {
+    setSyncedMode(drawingMode);
     if (isPassiveMode) {
       setDrawingPoints([]);
       setMousePosition(null);
     }
-  }, [drawingMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // Convert screen coordinates to canvas coordinates (accounting for zoom and offset)
   const screenToCanvas = (screenX: number, screenY: number): Coordinate => {

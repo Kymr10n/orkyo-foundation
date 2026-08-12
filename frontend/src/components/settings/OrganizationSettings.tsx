@@ -68,7 +68,9 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   const [originalName, setOriginalName] = useState("");
   const [admins, setAdmins] = useState<UserWithRole[]>([]);
   const [selectedNewOwner, setSelectedNewOwner] = useState("");
-  const [loading, setLoading] = useState(true);
+  // Tracks only the admin-list fetch; `loading` below folds in the fact that the fetch never
+  // runs without manage rights, so the effect has no non-loading branch to set.
+  const [adminsLoading, setAdminsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -87,11 +89,21 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   const tenantSlug = membership?.slug ?? "";
   const currentUserId = appUser?.id ?? "";
 
+  // Seeding the name fields from the membership is a render-phase update; loading the admin
+  // list is a real fetch and stays in the effect below.
+  // Wrapped so "not yet synced" is distinguishable from "synced to null": RequireAuth resolves
+  // membership before this mounts, so it is normally present on the first render and must seed.
+  const [syncedMembership, setSyncedMembership] = useState<{ v: typeof membership } | null>(null);
+  if (syncedMembership?.v !== membership) {
+    setSyncedMembership({ v: membership });
+    if (membership) {
+      setDisplayName(membership.displayName);
+      setOriginalName(membership.displayName);
+    }
+  }
+
   useEffect(() => {
     if (!membership) return;
-
-    setDisplayName(membership.displayName);
-    setOriginalName(membership.displayName);
 
     // Load admin users for ownership transfer
     async function loadAdmins() {
@@ -108,16 +120,14 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
       } catch (err) {
         logger.error("Failed to load admins:", err);
       } finally {
-        setLoading(false);
+        setAdminsLoading(false);
       }
     }
 
-    if (canManageOrg) {
-      loadAdmins();
-    } else {
-      setLoading(false);
-    }
+    if (canManageOrg) loadAdmins();
   }, [membership, canManageOrg, currentUserId]);
+
+  const loading = canManageOrg && adminsLoading;
 
   const handleSaveName = async () => {
     if (!tenantId || displayName === originalName) return;

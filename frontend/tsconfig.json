@@ -12,6 +12,7 @@
     "declaration": true,
     "declarationMap": true,
     "outDir": "./.tsbuild",
+    "rootDir": ".",
     "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
     "skipLibCheck": true,
     "types": ["vitest/globals", "vite/client", "node"],

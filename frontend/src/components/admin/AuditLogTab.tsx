@@ -140,15 +140,19 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
   }, [page, apiFilters]);
 
   useEffect(() => {
+    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (available) void load();
   }, [available, load]);
 
-  // A page number only means something within one filtered set.
+  // A page number only means something within one filtered set. Render-phase, not an effect:
+  // an effect would first issue one request for the stale page (see useEntityFormDialog.ts).
   const filterSignature = JSON.stringify(apiFilters);
-  useEffect(() => {
+  const [syncedSignature, setSyncedSignature] = useState(filterSignature);
+  if (syncedSignature !== filterSignature) {
+    setSyncedSignature(filterSignature);
     setPage(0);
-
-  }, [filterSignature]);
+  }
 
   // Phone presentation: action + actor/target stacked, timestamp last. Read-only, no actions.
   const renderCard = (e: TenantAuditEvent) => {

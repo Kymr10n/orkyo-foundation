@@ -27,7 +27,7 @@ import { AlertCircle, Download, Upload } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@foundation/src/components/ui/alert";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { useDataExportAvailable } from "@foundation/src/hooks/useDataExportAvailable";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 
 interface ImportExportDialogProps {
   open: boolean;
@@ -78,14 +78,29 @@ export function ImportExportDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset format when context changes or dialog opens
-  useEffect(() => {
+  // Reset the format when the context changes or the dialog opens — a render-phase update,
+  // not an effect (see useEntityFormDialog.ts).
+  const [synced, setSynced] = useState<{
+    open: boolean;
+    context: typeof context;
+    mode: typeof mode;
+    defaultExportFormat: typeof defaultExportFormat;
+    defaultImportFormat: typeof defaultImportFormat;
+  } | null>(null);
+  if (
+    synced?.open !== open ||
+    synced.context !== context ||
+    synced.mode !== mode ||
+    synced.defaultExportFormat !== defaultExportFormat ||
+    synced.defaultImportFormat !== defaultImportFormat
+  ) {
+    setSynced({ open, context, mode, defaultExportFormat, defaultImportFormat });
     if (open) {
       if (mode === 'export' && defaultExportFormat) setExportFormat(defaultExportFormat);
       if (mode === 'import' && defaultImportFormat) setImportFormat(defaultImportFormat);
       setSelectedFile(null);
     }
-  }, [open, context, mode, defaultExportFormat, defaultImportFormat]);
+  }
 
   const handleExport = () => {
     if (onExport && exportFormat) {

@@ -60,6 +60,8 @@ export function SettingsTab() {
     }
   }, []);
 
+  // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {

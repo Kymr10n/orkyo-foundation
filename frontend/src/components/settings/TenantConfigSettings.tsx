@@ -6,7 +6,7 @@
  * Only visible to tenant admins / owners / break-glass users.
  */
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Save,
   AlertCircle,
@@ -60,8 +60,13 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
   const [resettingKey, setResettingKey] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Seed edit values when data loads
-  useEffect(() => {
+  // Seed edit values when the data loads — a render-phase update, not an effect, so the
+  // inputs are never rendered empty behind loaded data (see useEntityFormDialog.ts).
+  // Wrapped so "not yet synced" is distinguishable from "synced to undefined": a warm query
+  // cache can deliver `data` on the very first render, which still has to seed.
+  const [syncedData, setSyncedData] = useState<{ v: typeof data } | null>(null);
+  if (syncedData?.v !== data) {
+    setSyncedData({ v: data });
     if (data?.settings) {
       const initial: Record<string, string> = {};
       for (const s of data.settings) {
@@ -69,7 +74,7 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
       }
       setEditValues(initial);
     }
-  }, [data]);
+  }
 
   // Filter by scope if specified, then group by category
   const visibleSettings = useMemo(() => {

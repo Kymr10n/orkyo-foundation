@@ -97,12 +97,6 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
   const [deletingTenants, setDeletingTenants] = useState<TenantMembership[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkCanCreate();
-    loadTemplates();
-    loadDeletingTenants();
-  }, []);
-
   const checkCanCreate = async () => {
     try {
       const data = await canCreateTenant();
@@ -146,6 +140,16 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
       setTemplatesError(true);
     }
   };
+
+  // Declared after the loaders on purpose: referencing them earlier reads them before their
+  // declaration, which the compiler rejects even though the effect only runs after render.
+  useEffect(() => {
+    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkCanCreate();
+    loadTemplates();
+    loadDeletingTenants();
+  }, []);
 
   const slugError = slugTouched ? validateSlug(slug) : null;
 

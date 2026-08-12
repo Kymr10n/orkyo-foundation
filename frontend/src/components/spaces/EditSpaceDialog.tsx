@@ -12,7 +12,7 @@ import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import type { Space } from "@foundation/src/types/space";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
@@ -39,14 +39,17 @@ export function EditSpaceDialog({
   const updateMutation = useUpdateSpace(siteId);
   const isSubmitting = updateMutation.isPending;
 
-  useEffect(() => {
+  // Reseed on open / space swap — a render-phase update, not an effect (see useEntityFormDialog.ts).
+  const [synced, setSynced] = useState<{ open: boolean; space: Space } | null>(null);
+  if (synced?.open !== open || synced.space !== space) {
+    setSynced({ open, space });
     if (open) {
       setName(space.name);
       setDescription(space.description || "");
       setCapacity(space.capacity ?? 1);
       setError(null);
     }
-  }, [open, space]);
+  }
 
   const isDirty = useMemo(
     () =>

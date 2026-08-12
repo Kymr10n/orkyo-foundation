@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ScrollableDialogBody } from '@foundation/src/components/ui/dialog';
@@ -191,14 +191,22 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
     enabled: isOpen && !!person?.id,
   });
 
-  // Sync server data into form state when it arrives or when the dialog opens
-  useEffect(() => {
-    if (!isOpen) return;
-    setTab('details');
-    const next = person ? fromResourceAndProfile(person, profile ?? null) : emptyForm;
-    setForm(next);
-    setBaseline(next);
-  }, [person, isOpen, profile]);
+  // Sync server data into form state when it arrives or the dialog opens — a render-phase
+  // update, not an effect (see useEntityFormDialog.ts). Keyed on `profile` too, which lands after the person.
+  const [synced, setSynced] = useState<{
+    isOpen: boolean;
+    person: typeof person;
+    profile: typeof profile;
+  } | null>(null);
+  if (synced?.isOpen !== isOpen || synced.person !== person || synced.profile !== profile) {
+    setSynced({ isOpen, person, profile });
+    if (isOpen) {
+      setTab('details');
+      const next = person ? fromResourceAndProfile(person, profile ?? null) : emptyForm;
+      setForm(next);
+      setBaseline(next);
+    }
+  }
 
   const isDirty = useMemo(
     // Stable: form.customFields is a user-edited map, where re-adding a key changes

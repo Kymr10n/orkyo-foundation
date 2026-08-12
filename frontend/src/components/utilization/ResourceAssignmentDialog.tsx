@@ -162,47 +162,8 @@ export function ResourceAssignmentDialog({
   const [eligibilityLoaded, setEligibilityLoaded] = useState(false);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [eligibilityError, setEligibilityError] = useState(false);
+  const [periodPassed, setPeriodPassed] = useState(false);
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setSearch("");
-    setItemStatus(new Map());
-    setConflicts(new Map());
-    setEligibleOnly(false);
-    setIneligible(new Set());
-    setEligibilityLoaded(false);
-    setEligibilityLoading(false);
-    setEligibilityError(false);
-    setLoadError(null);
-    setIsLoading(true);
-    getResourceAssignmentOptions(resourceId, start, end)
-      .then((opts) => {
-        if (cancelled) return;
-        setOptions(
-          [...opts].sort((a, b) => {
-            const aAssigned = a.assignmentId !== null ? 0 : 1;
-            const bAssigned = b.assignmentId !== null ? 0 : 1;
-            if (aAssigned !== bAssigned) return aAssigned - bAssigned;
-            return a.name.localeCompare(b.name);
-          }),
-        );
-        // Surface existing conflicts on the already-assigned rows. Decorative — runs
-        // in the background; each assignment is excluded from its own overbook check.
-        void loadConflicts(opts, cancelled);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, resourceId, start, end]);
 
   const loadConflicts = async (opts: ResourceAssignmentOption[], cancelled: boolean) => {
     const assigned = opts.filter(
@@ -235,6 +196,68 @@ export function ResourceAssignmentDialog({
       // Conflict badges are decorative — ignore validation failures.
     }
   };
+
+  // Clearing the working state on open / target change is a render-phase update, not an
+  // effect (see useEntityFormDialog.ts); the fetch that follows is a real side effect and stays below.
+  const [synced, setSynced] = useState<{
+    open: boolean;
+    resourceId: string;
+    start: string;
+    end: string;
+  } | null>(null);
+  if (
+    synced?.open !== open ||
+    synced.resourceId !== resourceId ||
+    synced.start !== start ||
+    synced.end !== end
+  ) {
+    setSynced({ open, resourceId, start, end });
+    if (open) {
+      setSearch("");
+      setItemStatus(new Map());
+      setConflicts(new Map());
+      setEligibleOnly(false);
+      setIneligible(new Set());
+      setEligibilityLoaded(false);
+      setEligibilityLoading(false);
+      setEligibilityError(false);
+      setLoadError(null);
+      setIsLoading(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getResourceAssignmentOptions(resourceId, start, end)
+      .then((opts) => {
+        if (cancelled) return;
+        // Stamped here rather than read during render: the empty-state wording depends on
+        // whether the period is already over, and reading the clock in render is impure.
+        setPeriodPassed(new Date(end).getTime() <= Date.now());
+        setOptions(
+          [...opts].sort((a, b) => {
+            const aAssigned = a.assignmentId !== null ? 0 : 1;
+            const bAssigned = b.assignmentId !== null ? 0 : 1;
+            if (aAssigned !== bAssigned) return aAssigned - bAssigned;
+            return a.name.localeCompare(b.name);
+          }),
+        );
+        // Surface existing conflicts on the already-assigned rows. Decorative — runs
+        // in the background; each assignment is excluded from its own overbook check.
+        void loadConflicts(opts, cancelled);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, resourceId, start, end]);
 
   // Validate the unassigned candidates once (lazily, on first "Eligible only" toggle) to learn which
   // carry a hard blocker. Same window/allocation params as handleToggle; fail-open on error.
@@ -442,7 +465,7 @@ export function ResourceAssignmentDialog({
             ) : options.length === 0 ? (
               <div className="text-center py-8 border rounded-lg border-dashed">
                 <p className="text-sm text-muted-foreground" data-testid="no-options-message">
-                  {new Date(end).getTime() <= Date.now()
+                  {periodPassed
                     ? "This period has already passed — completed work isn’t assignable here."
                     : "No open requests overlap this period."}
                 </p>

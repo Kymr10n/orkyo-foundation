@@ -260,8 +260,9 @@ export function SchedulerGrid({
     setEdgeScrollDirection(null);
   }, []);
 
-  // Edge scroll animation loop
-  const edgeScrollLoop = useCallback(() => {
+  // Edge scroll animation loop. Named so the loop can re-schedule itself through its own
+  // binding — referencing the outer `edgeScrollLoop` const reads it before it is declared.
+  const edgeScrollLoop = useCallback(function edgeScrollTick() {
     if (!isDraggingCursor || !timeColumnsRef.current || !onAnchorChange) {
       stopEdgeScroll();
       return;
@@ -311,7 +312,7 @@ export function SchedulerGrid({
 
     // Continue the loop at ~20fps for smooth scrolling
     edgeScrollRef.current = requestAnimationFrame(() => {
-      setTimeout(() => edgeScrollLoop(), 50);
+      setTimeout(() => edgeScrollTick(), 50);
     });
   }, [isDraggingCursor, onAnchorChange, columns, onTimeCursorClick, stopEdgeScroll]);
 

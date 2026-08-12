@@ -166,7 +166,8 @@ describe('JobTitleSettings', () => {
   });
 
   describe('phone card mode', () => {
-    const originalMatchMedia = window.matchMedia;
+    // Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
+    const originalMatchMedia = window.matchMedia.bind(window);
 
     function setPhoneViewport() {
       Object.defineProperty(window, 'matchMedia', {

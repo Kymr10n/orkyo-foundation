@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { useSearchParams } from "react-router";
 
 interface UseEditQueryParamOptions<T> {
@@ -24,10 +24,12 @@ export function useEditQueryParam<T>(
   const { ready = true, getId } = options ?? {};
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const onOpenRef = useRef(onOpen);
-  onOpenRef.current = onOpen;
-  const getIdRef = useRef(getId);
-  getIdRef.current = getId;
+  // Effect events, not refs: both are read only from the effect below and must see the
+  // latest closure without becoming a dependency of it.
+  const openItem = useEffectEvent((item: T) => onOpen(item));
+  const readId = useEffectEvent((item: T) =>
+    getId ? getId(item) : (item as { id: string }).id,
+  );
   // Tracks the id we've already opened for. Guards against firing `onOpen` more
   // than once for the same id before the param-clear commits — notably React
   // StrictMode's double-invoked mount effect, which re-runs before the URL updates.
@@ -42,12 +44,11 @@ export function useEditQueryParam<T>(
     }
     if (!ready || !items?.length || handledIdRef.current === editId) return;
 
-    const readId = getIdRef.current ?? ((item: T) => (item as { id: string }).id);
     const match = items.find((item) => readId(item) === editId);
     if (!match) return;
 
     handledIdRef.current = editId;
-    onOpenRef.current(match);
+    openItem(match);
     setSearchParams(
       (prev) => {
         prev.delete("edit");
