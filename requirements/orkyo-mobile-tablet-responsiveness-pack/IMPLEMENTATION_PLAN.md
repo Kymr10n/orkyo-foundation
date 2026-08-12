@@ -1,5 +1,34 @@
 # Orkyo Mobile & Tablet Responsiveness Implementation Plan
 
+> **Status (verified 2026-08-12): largely implemented.** The plan below was never annotated
+> during execution, so it understates what shipped. Phases 2, 3, 4 and 6 are done, and most of
+> 7 and 9. The work landed under different names than the plan proposed — see the name map.
+>
+> | Phase | State |
+> |---|---|
+> | 1 – Assessment | **Open** — no assessment document exists in this pack |
+> | 2 – Responsive foundation | **Done**, renamed (see map) |
+> | 3 – Navigation | **Done** — `AppLayout.tsx`: phone `Sheet` drawer, tablet `SidebarNav forceCollapsed` |
+> | 4 – Data presentation | **Done** — card mode on ~19 list surfaces |
+> | 5 – Request management | **Partly done** — see Phase 9 dialogs |
+> | 6 – Calendar | **Done** — `RequestCalendar.tsx` agenda view on phone |
+> | 7 – Utilization | **Mostly done** — `UtilizationPage.tsx` drag-free phone agenda; separate mouse/touch sensors |
+> | 8 – Floorplans | **Open** — `CollapsibleFloorplan.tsx` has no pinch/zoom/pan or touch handling |
+> | 9 – Touch alternatives | **Mostly done** — `ScheduleToDialog.tsx` is the non-drag path |
+> | 10 – QA | **Open** — no device-matrix sign-off; `frontend/e2e/mobile.spec.ts` covers part of it |
+>
+> **Name map** — the plan's proposed primitives versus what exists:
+>
+> | Planned | Shipped as |
+> |---|---|
+> | `useBreakpoint()` | `frontend/src/hooks/useBreakpoint.ts` (phone/tablet/desktop at 768/1280) — same name, and the single source of truth for breakpoints |
+> | `MobileCardList` | `renderCard` prop on `frontend/src/components/ui/OrkyoDataTable.tsx` |
+> | `ResponsiveDialog` | `frontend/src/components/ui/ScaffoldDialog.tsx` |
+> | `ResponsivePageLayout`, `ResponsiveToolbar`, `DetailDrawer`, `StickyActionBar` | Not created as named components; the behaviour sits in `AppLayout.tsx` and per-page density passes |
+>
+> **Remaining work:** Phase 8 floorplan touch, zoom and pan; the Phase 1 assessment document;
+> the Phase 10 device-matrix sign-off. This pack is not in `requirements/COMPLETIONS_INDEX.md`.
+
 ## Phase 1 – Assessment
 
 ### Goal
