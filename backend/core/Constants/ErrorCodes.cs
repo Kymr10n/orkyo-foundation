@@ -19,4 +19,7 @@ public static class ErrorCodes
 
     /// <summary>Unprocessable entity (422)</summary>
     public const string UnprocessableEntity = "UNPROCESSABLE_ENTITY";
+
+    /// <summary>Bot-challenge verification failed (403)</summary>
+    public const string ChallengeFailed = "CHALLENGE_FAILED";
 }

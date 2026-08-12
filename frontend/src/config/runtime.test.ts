@@ -42,6 +42,28 @@ describe('runtime config', () => {
     });
   });
 
+  describe('turnstileSiteKey', () => {
+    it('defaults to empty string (challenge disabled)', async () => {
+      window.__RUNTIME_CONFIG__ = {};
+      vi.resetModules();
+
+      const { runtimeConfig } = await import('./runtime');
+
+      expect(runtimeConfig.turnstileSiteKey).toBe('');
+    });
+
+    it('returns the container-injected site key', async () => {
+      window.__RUNTIME_CONFIG__ = {
+        TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+      };
+      vi.resetModules();
+
+      const { runtimeConfig } = await import('./runtime');
+
+      expect(runtimeConfig.turnstileSiteKey).toBe('1x00000000000000000000AA');
+    });
+  });
+
   describe('apiBaseUrl (same-origin mode)', () => {
     it('returns empty string when runtime config has empty API_BASE_URL (same-origin)', async () => {
       window.__RUNTIME_CONFIG__ = {

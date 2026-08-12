@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Security;
+using Api.Security.Challenge;
 using Api.Security.Encryption;
 using Api.Security.Features;
 using Api.Security.Quotas;
@@ -12,6 +13,7 @@ using Api.Validators;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Orkyo.Shared;
 using Orkyo.Shared.Keycloak;
 
 namespace Api.Configuration;
@@ -83,6 +85,14 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAuthorizationContext>(sp => sp.GetRequiredService<CurrentAuthorizationContext>());
         // Real-client-IP resolution behind the reverse-proxy chain (config-only, stateless).
         services.AddSingleton<IClientIpAccessor, ClientIpAccessor>();
+        // Bot-challenge verification for public anonymous forms. Key-gated: the real
+        // Turnstile provider is registered only when the secret key is non-empty —
+        // CloudflareTurnstileProvider uses GetRequired, so this invariant must hold.
+        // Without a key every edition gets the fail-open NoOp provider (dev, Community).
+        if (!string.IsNullOrEmpty(configuration[ConfigKeys.TurnstileSecretKey]))
+            services.AddHttpClient<IChallengeProvider, CloudflareTurnstileProvider>();
+        else
+            services.AddSingleton<IChallengeProvider, NoOpChallengeProvider>();
         // Single seam for establishing a BFF session (record + cookies + device capture).
         services.AddScoped<IBffSessionEstablisher, BffSessionEstablisher>();
         // Refresh-time credential resolution per session AuthClient. TryAdd so an
