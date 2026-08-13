@@ -7,7 +7,9 @@ name: CI
 #   nightly 02:00 UTC       — audits + build + test + publish nightly package
 #                             (when commits since last nightly) + dispatch
 #                             foundation_updated to saas + community
-#   workflow_dispatch       — manual full pipeline run
+#   workflow_dispatch       — manual full pipeline run; with publish_nightly=true
+#                             it also publishes a nightly, WITHOUT the consumer
+#                             fan-out (for a consumer waiting on this commit)
 
 on:
   pull_request:
@@ -24,6 +26,12 @@ on:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      publish_nightly:
+        description: "Publish a nightly package from this commit (for a consumer that is waiting on an unpublished change)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: release-ci-${{ github.ref }}
@@ -752,17 +760,26 @@ jobs:
     # so this delays nothing. !failure()/!cancelled() because backend/frontend may
     # be legitimately skipped by detect-changes.
     #
-    # SCHEDULE-ONLY since 2026-08-08. Publishing a nightly on every main push made
-    # each merge fan out into a package publish plus full CI on BOTH consumers via
-    # auto-bump — and a release that followed re-ran the same consumer CI again for
-    # the same foundation commit on the stable channel. One merge cost ~6 consumer
-    # CI runs on a release day. The 02:00 cron keeps staging current daily, which
-    # is the nightly channel's actual purpose.
+    # NOT ON EVERY PUSH, since 2026-08-08. Publishing a nightly on every main push
+    # made each merge fan out into a package publish plus full CI on BOTH consumers
+    # via auto-bump — and a release that followed re-ran the same consumer CI again
+    # for the same foundation commit on the stable channel. One merge cost ~6
+    # consumer CI runs on a release day. The 02:00 cron keeps staging current daily,
+    # which is the nightly channel's actual purpose.
+    #
+    # Dispatch is allowed too, behind `publish_nightly` (2026-08-13). Removing the
+    # push trigger also removed the only way to publish on demand, and foundation is
+    # the shared core: a change here that saas or community must compile against
+    # could not be consumed until 02:00, which blocked a cross-repo feature for
+    # seven hours. The fan-out — not the publish — is what cost the CI runs, so a
+    # dispatched publish skips the consumer auto-bump instead (see the dispatch
+    # steps in publish-nightly). Bump the one consumer that needs it, in its own PR.
     needs: [backend-ci, frontend-ci]
     if: >-
       !failure() && !cancelled() &&
-      github.event_name == 'schedule' &&
-      github.ref == 'refs/heads/main'
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish_nightly))
     outputs:
       should_publish: ${{ steps.gate.outputs.should_publish }}
     permissions:
@@ -813,9 +830,10 @@ jobs:
     needs: [backend-ci, frontend-ci, nightly-publish-gate]
     if: >-
       !failure() && !cancelled() &&
-      github.event_name == 'schedule' &&
       github.ref == 'refs/heads/main' &&
-      needs.nightly-publish-gate.outputs.should_publish == 'true'
+      needs.nightly-publish-gate.outputs.should_publish == 'true' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish_nightly))
     permissions:
       contents: read
       packages: write
@@ -960,7 +978,14 @@ jobs:
           fi
           echo "Keycloak nightly image present: $V_TAG"
 
+      # Auto-bump fan-out — scheduled runs only. A dispatched publish exists to
+      # unblock ONE consumer that is waiting on this commit; bumping both of them
+      # here is what made publishing expensive (~6 consumer CI runs per merge) and
+      # is why on-demand publishing was removed in the first place. The publisher
+      # bumps the consumer they need, in that consumer's own PR, so the cost is one
+      # CI run they were going to spend anyway.
       - name: Dispatch foundation_updated to SaaS (nightly)
+        if: github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
@@ -970,6 +995,7 @@ jobs:
             --field "client_payload[channel]=nightly"
 
       - name: Dispatch foundation_updated to Community (nightly)
+        if: github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
@@ -977,6 +1003,12 @@ jobs:
             --field event_type=foundation_updated \
             --field "client_payload[version]=${{ steps.version.outputs.VERSION }}" \
             --field "client_payload[channel]=nightly"
+
+      - name: Note the skipped fan-out
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Dispatched publish: consumer auto-bump skipped by design." >> "$GITHUB_STEP_SUMMARY"
+          echo "Pin \`${{ steps.version.outputs.VERSION }}\` in the consumer that needs it, in its own PR." >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────
   # EVIDENCE BUNDLE — always runs, collects results
