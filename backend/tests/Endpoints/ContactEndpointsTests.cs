@@ -158,6 +158,33 @@ public class ContactEndpointsTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task ChallengeTokenTooLong_Returns400()
+    {
+        var payload = new
+        {
+            name = "Test User",
+            email = "valid@test.local",
+            subject = "demo",
+            message = "Hello",
+            challengeToken = new string('t', 2049)
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/contact", payload);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task SubmissionWithoutChallengeToken_NoTurnstileKeyConfigured_Succeeds()
+    {
+        // The test factory has no TURNSTILE_SECRET_KEY, so the NoOp provider is
+        // registered and token-less submissions must pass (fail-open contract).
+        var response = await _client.PostAsJsonAsync("/api/contact", ValidPayload());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

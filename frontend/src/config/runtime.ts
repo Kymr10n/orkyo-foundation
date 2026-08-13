@@ -55,6 +55,9 @@ export const runtimeConfig = {
   /** Subdomain prefix for staging (e.g. "staging-" → staging-acme.orkyo.com) */
   subdomainPrefix: optionalEnv('VITE_SUBDOMAIN_PREFIX', ''),
 
+  /** Cloudflare Turnstile site key (public). Empty string = challenge disabled. */
+  turnstileSiteKey: optionalEnv('VITE_TURNSTILE_SITE_KEY', ''),
+
   /** Whether we're running in development mode */
   isDev: !cfg.API_BASE_URL && import.meta.env.DEV,
 } as const;

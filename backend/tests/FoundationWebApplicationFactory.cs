@@ -353,6 +353,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<IUserSessionService, UserSessionService>();
         builder.Services.AddSingleton<Api.Security.IClientIpAccessor, Api.Security.ClientIpAccessor>();
+        // No Turnstile key in tests — the NoOp provider mirrors the keyless production path.
+        builder.Services.AddSingleton<Api.Security.Challenge.IChallengeProvider, Api.Security.Challenge.NoOpChallengeProvider>();
         builder.Services.AddScoped<Api.Security.IBffSessionEstablisher, Api.Security.BffSessionEstablisher>();
         builder.Services.AddSingleton<Api.Security.IBffAuthClientRegistry, Api.Security.DefaultBffAuthClientRegistry>();
         builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();

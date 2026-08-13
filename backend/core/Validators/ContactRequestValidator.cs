@@ -15,5 +15,6 @@ public class ContactRequestValidator : AbstractValidator<ContactRequest>
             .WithMessage("Subject must be one of: demo, sales, support, security, other");
         RuleFor(x => x.Message).NotEmpty().MaximumLength(5000);
         RuleFor(x => x.Company).MaximumLength(200).When(x => x.Company is not null);
+        RuleFor(x => x.ChallengeToken).MaximumLength(2048).When(x => x.ChallengeToken is not null);
     }
 }

@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
+using Api.Security.Challenge;
 using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
@@ -69,6 +70,7 @@ public static class ContactEndpoints
         })
         .WithName("SubmitContactForm")
         .WithSummary("Submit the marketing contact form")
-        .RequireRateLimiting(FoundationRateLimitPolicies.ContactForm);
+        .RequireRateLimiting(FoundationRateLimitPolicies.ContactForm)
+        .RequireChallengeVerification();
     }
 }
