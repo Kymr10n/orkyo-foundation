@@ -33,7 +33,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useSearchParams } from "react-router";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
 import {
@@ -42,17 +41,16 @@ import {
   useUpdateSpace,
   useMoveSpace,
 } from "@foundation/src/hooks/useSpaces";
+import { useEditQueryParam } from "@foundation/src/hooks/useEditQueryParam";
 import { logger } from "@foundation/src/lib/core/logger";
 
 interface SpaceManagementPanelProps {
   siteId: string;
-  editResourceId?: string | null;
   className?: string;
 }
 
 export function SpaceManagementPanel({
   siteId,
-  editResourceId,
   className,
 }: SpaceManagementPanelProps) {
   // React Query hooks
@@ -84,22 +82,10 @@ export function SpaceManagementPanel({
   // Master edit switch — view mode (pan/zoom only) by default; protects against
   // accidental, un-undoable move/resize. Double-click-to-inspect ignores this.
   const [editEnabled, setEditEnabled] = useState(false);
-  const [, setSearchParams] = useSearchParams();
 
-  // Handle ?edit=<id> query param from global search
-  useEffect(() => {
-    if (editResourceId && spaces.length > 0 && !isLoadingSpaces) {
-      const spaceToEdit = spaces.find(s => s.id === editResourceId);
-      if (spaceToEdit) {
-        setEditingSpace(spaceToEdit);
-        // Clear the query param
-        setSearchParams((prev) => {
-          prev.delete('edit');
-          return prev;
-        }, { replace: true });
-      }
-    }
-  }, [editResourceId, spaces, isLoadingSpaces, setSearchParams]);
+  // Handle ?edit=<id> query param from global search. The shared hook reads and clears the
+  // param itself and guards StrictMode's double-invoked mount, which this hand-rolled copy did not.
+  useEditQueryParam(spaces, setEditingSpace, { ready: !isLoadingSpaces });
 
 
   // Load floorplan metadata on mount
@@ -111,12 +97,13 @@ export function SpaceManagementPanel({
     }
   }, [siteId]);
 
-  // Fetch floorplan image with auth headers and create a data URL
+  // Fetch floorplan image with auth headers and create a data URL. Keyed on the metadata
+  // object, not merely on whether one exists: replacing a floorplan swaps the metadata while
+  // it stays truthy, and that must refetch rather than leave the previous image on the canvas.
+  // No clearing here — `floorplanUrl` below already reads through the current metadata, so a
+  // stale blob url is never rendered.
   useEffect(() => {
-    if (!siteId || !floorplanMetadata) {
-      setFloorplanBlobUrl(null);
-      return;
-    }
+    if (!siteId || !floorplanMetadata) return;
     let cancelled = false;
     getFloorplanImageUrl(siteId)
       .then((url) => {

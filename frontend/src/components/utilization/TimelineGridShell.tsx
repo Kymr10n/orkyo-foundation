@@ -142,6 +142,8 @@ export function TimelineGridShell<R>({
     }));
   }, [columns, scale]);
 
+  // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => bodyScrollRef.current,

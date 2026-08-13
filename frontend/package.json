@@ -27,7 +27,7 @@
     "test": "vitest run",
     "test:browsers": "playwright test --project=chromium --project=firefox --project=webkit",
     "test:mobile": "playwright test --project=mobile-webkit --project=mobile-chromium --project=tablet-webkit",
-    "lint": "eslint src contracts"
+    "lint": "eslint src contracts --max-warnings=0"
   },
   "peerDependencies": {
     "@dnd-kit/core": "^6.3.1",

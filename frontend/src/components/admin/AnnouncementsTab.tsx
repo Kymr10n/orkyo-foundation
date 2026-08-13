@@ -80,6 +80,8 @@ export function AnnouncementsTab() {
   }, []);
 
   useEffect(() => {
+    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAnnouncements();
   }, [loadAnnouncements]);
 
@@ -352,8 +354,13 @@ function AnnouncementFormDialog({
       checked ? [...new Set([...prev, channel])] : prev.filter((c) => c !== channel),
     );
 
-  // Populate form on open
-  useEffect(() => {
+  // Populate the form on open — a render-phase update, not an effect (see useEntityFormDialog.ts).
+  const [synced, setSynced] = useState<{
+    open: boolean;
+    announcement: Announcement | null;
+  } | null>(null);
+  if (synced?.open !== open || synced.announcement !== announcement) {
+    setSynced({ open, announcement });
     if (open) {
       if (announcement) {
         setTitle(announcement.title);
@@ -371,7 +378,7 @@ function AnnouncementFormDialog({
       }
       setError(null);
     }
-  }, [open, announcement]);
+  }
 
   const handleSubmit = async () => {
     try {

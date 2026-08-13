@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { cn } from "@foundation/src/lib/utils";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
@@ -269,13 +269,11 @@ function AddScopeForm({
     setFilterTypeKey("");
   };
 
-  // If the active type filter no longer matches any options (e.g. data
-  // refresh), clear the selected target to avoid a stale id.
-  useEffect(() => {
-    if (targetId && !targetOptions.some((o) => o.id === targetId)) {
-      setTargetId("");
-    }
-  }, [targetOptions, targetId]);
+  // If the active type filter no longer matches any options (e.g. data refresh), clear the
+  // selected target to avoid a stale id. Render-phase, not an effect (see useEntityFormDialog.ts).
+  if (targetId && !targetOptions.some((o) => o.id === targetId)) {
+    setTargetId("");
+  }
 
   const showTypeFilter =
     targetType === "resource" || targetType === "resource_group";
@@ -425,33 +423,37 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
   // Live scopes state (optimistic-ish: re-read from event prop, refreshed via query invalidation)
   const serverScopes = event?.scopes ?? [];
 
-  useEffect(() => {
-    if (!open) return;
-    setTitle(event?.title ?? "");
-    setEventType(event?.eventType ?? "public_holiday");
-    setDefaultEffect(event?.defaultEffect ?? "closed");
-    setStartLocal(event ? toDateTimeLocal(event.startTs) : "");
-    setEndLocal(event ? toDateTimeLocal(event.endTs) : "");
-    setIsRecurring(event?.isRecurring ?? false);
-    setRecurrenceRule(event?.recurrenceRule ?? "");
-    setEnabled(event?.enabled ?? true);
-    setError(null);
-    setShowAddScope(false);
-    setDraftScopes([]);
-    setBaseline(
-      JSON.stringify({
-        title: event?.title ?? "",
-        eventType: event?.eventType ?? "public_holiday",
-        defaultEffect: event?.defaultEffect ?? "closed",
-        startLocal: event ? toDateTimeLocal(event.startTs) : "",
-        endLocal: event ? toDateTimeLocal(event.endTs) : "",
-        isRecurring: event?.isRecurring ?? false,
-        recurrenceRule: event?.recurrenceRule ?? "",
-        enabled: event?.enabled ?? true,
-        draftScopes: [] as ScopeDraft[],
-      }),
-    );
-  }, [event, open]);
+  // Reseed on open / event swap — a render-phase update, not an effect (see useEntityFormDialog.ts).
+  const [synced, setSynced] = useState<{ open: boolean; event: typeof event } | null>(null);
+  if (synced?.open !== open || synced.event !== event) {
+    setSynced({ open, event });
+    if (open) {
+      setTitle(event?.title ?? "");
+      setEventType(event?.eventType ?? "public_holiday");
+      setDefaultEffect(event?.defaultEffect ?? "closed");
+      setStartLocal(event ? toDateTimeLocal(event.startTs) : "");
+      setEndLocal(event ? toDateTimeLocal(event.endTs) : "");
+      setIsRecurring(event?.isRecurring ?? false);
+      setRecurrenceRule(event?.recurrenceRule ?? "");
+      setEnabled(event?.enabled ?? true);
+      setError(null);
+      setShowAddScope(false);
+      setDraftScopes([]);
+      setBaseline(
+        JSON.stringify({
+          title: event?.title ?? "",
+          eventType: event?.eventType ?? "public_holiday",
+          defaultEffect: event?.defaultEffect ?? "closed",
+          startLocal: event ? toDateTimeLocal(event.startTs) : "",
+          endLocal: event ? toDateTimeLocal(event.endTs) : "",
+          isRecurring: event?.isRecurring ?? false,
+          recurrenceRule: event?.recurrenceRule ?? "",
+          enabled: event?.enabled ?? true,
+          draftScopes: [] as ScopeDraft[],
+        }),
+      );
+    }
+  }
 
   const isDirty = useMemo(
     () =>

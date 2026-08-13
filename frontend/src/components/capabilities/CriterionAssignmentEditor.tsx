@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
@@ -106,10 +106,13 @@ export function CriterionAssignmentEditor({
     if (controlledSelectedId === undefined) setInternalSelectedId(id);
   };
 
-  // Reseed the working copy whenever the persisted assignments arrive/change.
-  useEffect(() => {
+  // Reseed the working copy when the persisted assignments arrive or change — a render-phase
+  // update, not an effect, so no edit ever lands against the previous copy (see useEntityFormDialog.ts).
+  const [syncedInitial, setSyncedInitial] = useState(initialAssignments);
+  if (syncedInitial !== initialAssignments) {
+    setSyncedInitial(initialAssignments);
     setAssignments(new Map(initialAssignments));
-  }, [initialAssignments]);
+  }
 
   const handleAdd = () => {
     if (!selectedCriterionId) return;

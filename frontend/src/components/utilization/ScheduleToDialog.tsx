@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { addHours, isValid, parse, startOfHour } from "date-fns";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Label } from "@foundation/src/components/ui/label";
@@ -59,13 +59,16 @@ export function ScheduleToDialog({
     [defaultStart],
   );
 
-  // Reset the picker each time the dialog opens for a new request.
-  useEffect(() => {
+  // Reset the picker each time the dialog opens for a new request — render-phase, not an
+  // effect (see useEntityFormDialog.ts).
+  const [synced, setSynced] = useState<{ open: boolean; initialStart: Date } | null>(null);
+  if (synced?.open !== open || synced.initialStart !== initialStart) {
+    setSynced({ open, initialStart });
     if (open) {
       setSpaceId("");
       setStartValue(toLocalInput(initialStart));
     }
-  }, [open, initialStart]);
+  }
 
   const parsedStart = startValue
     ? parse(startValue, "yyyy-MM-dd'T'HH:mm", new Date())

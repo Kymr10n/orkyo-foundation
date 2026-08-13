@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import {
   AlertDialog,
@@ -52,10 +52,13 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState("");
 
-  // Reset the typed phrase whenever the dialog closes so a reopen starts clean.
-  useEffect(() => {
+  // Reset the typed phrase whenever the dialog closes so a reopen starts clean. Render-phase
+  // update, not an effect (see useEntityFormDialog.ts).
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
     if (!open) setTyped("");
-  }, [open]);
+  }
 
   const phraseSatisfied = !confirmPhrase || typed === confirmPhrase;
   const confirmDisabled = !!isPending || !phraseSatisfied;

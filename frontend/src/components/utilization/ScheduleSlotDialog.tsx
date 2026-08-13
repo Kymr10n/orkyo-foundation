@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { Button } from "@foundation/src/components/ui/button";
 import {
@@ -53,10 +53,13 @@ export function ScheduleSlotDialog({
 }: ScheduleSlotDialogProps) {
   const [selectedId, setSelectedId] = useState("");
 
-  // Reset the picker each time the dialog opens for a new slot.
-  useEffect(() => {
+  // Reset the picker each time the dialog opens for a new slot — render-phase, not an
+  // effect (see useEntityFormDialog.ts).
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
     if (open) setSelectedId("");
-  }, [open]);
+  }
 
   const rangeLabel = selection
     ? `${resourceName ? `${resourceName} — ` : ""}${formatLocalized(selection.start, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })} – ${formatLocalized(selection.end, { hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE })}`

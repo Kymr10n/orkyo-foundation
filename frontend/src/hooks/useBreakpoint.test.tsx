@@ -47,7 +47,8 @@ function mockViewport(initialWidth: number) {
   };
 }
 
-const originalMatchMedia = window.matchMedia;
+// Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
+const originalMatchMedia = window.matchMedia.bind(window);
 afterEach(() => {
   Object.defineProperty(window, "matchMedia", {
     value: originalMatchMedia,

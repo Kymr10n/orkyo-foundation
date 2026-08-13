@@ -46,6 +46,8 @@ export function RequestIconSelector({
           aria-label={value ? `Icon: ${value}` : "Pick an icon"}
           className="h-9 w-9"
         >
+          {/* Stable reference from a module-level icon registry, not built in render. */}
+          {/* eslint-disable-next-line react-hooks/static-components */}
           {Current ? <Current className="h-4 w-4" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
         </Button>
       </PopoverTrigger>

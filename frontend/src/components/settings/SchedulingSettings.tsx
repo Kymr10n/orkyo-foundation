@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
@@ -161,14 +161,11 @@ export function SchedulingSettings() {
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
-  const formRef = useRef(form);
-  formRef.current = form;
-
   // Seed form once per site when settings arrive
   const [initializedForSite, setInitializedForSite] = useState<string | null>(null);
-  useEffect(() => {
-    if (!selectedSiteId || selectedSiteId === initializedForSite) return;
-
+  // Render-phase update, not an effect (see useEntityFormDialog.ts): `initializedForSite` already
+  // tracks what has been seeded, so it doubles as the marker.
+  if (selectedSiteId && selectedSiteId !== initializedForSite) {
     if (settings) {
       setForm(settingsFromApi(settings));
       setInitializedForSite(selectedSiteId);
@@ -176,7 +173,7 @@ export function SchedulingSettings() {
       setForm(DEFAULT_SETTINGS);
       setInitializedForSite(selectedSiteId);
     }
-  }, [initializedForSite, selectedSiteId, settings, settingsLoading]);
+  }
 
   const saveSettings = useCallback(async (formState: SettingsFormState) => {
     if (!selectedSiteId) return;
@@ -215,7 +212,7 @@ export function SchedulingSettings() {
   }, [saveStatus]);
 
   const updateField = <K extends keyof SettingsFormState>(key: K, value: SettingsFormState[K]) => {
-    const next = { ...formRef.current, [key]: value };
+    const next = { ...form, [key]: value };
     setForm(next);
     setError(null);
     setSaveStatus("idle");

@@ -138,13 +138,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Reset selection and focus when dialog opens
+  // Resetting the selection is a render-phase update; focusing after the dialog animation
+  // is a real side effect and stays in the effect below.
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
+    if (open) setSelectedIndex(0);
+  }
+
   useEffect(() => {
-    if (open) {
-      setSelectedIndex(0);
-      // Focus input after dialog animation
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (!open) return;
+    // Focus input after dialog animation
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
   }, [open]);
 
   const runSearch = useDebouncedCallback(() => {
@@ -169,16 +175,26 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     });
   }, 200);
 
-  // Debounced search
-  useEffect(() => {
-    if (!query.trim()) {
-      runSearch.cancel();
+  // Clearing the results when the query empties is a render-phase update; running and
+  // cancelling the debounced search is a timer side effect and stays in the effect below.
+  const queryEmpty = !query.trim();
+  const [syncedEmpty, setSyncedEmpty] = useState(queryEmpty);
+  if (syncedEmpty !== queryEmpty) {
+    setSyncedEmpty(queryEmpty);
+    if (queryEmpty) {
       setResults([]);
       setSelectedIndex(0);
+    }
+  }
+
+  // Debounced search
+  useEffect(() => {
+    if (queryEmpty) {
+      runSearch.cancel();
       return;
     }
     runSearch();
-  }, [query, selectedSiteId, canEdit, isTenantAdmin, runSearch]);
+  }, [queryEmpty, query, selectedSiteId, canEdit, isTenantAdmin, runSearch]);
 
   // Scroll selected item into view
   useEffect(() => {
