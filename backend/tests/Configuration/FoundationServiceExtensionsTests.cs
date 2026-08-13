@@ -2,6 +2,7 @@ using Api.Configuration;
 using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Security;
+using Api.Security.Challenge;
 using Api.Services;
 using Api.Services.AutoSchedule;
 using Api.Services.Reporting;
@@ -255,5 +256,54 @@ public class FoundationServiceExtensionsTests
         solvers.Should().HaveCount(2);
         solvers.Should().Contain(sd => sd.ImplementationType == typeof(OrToolsSchedulingSolver));
         solvers.Should().Contain(sd => sd.ImplementationType == typeof(GreedySchedulingSolver));
+    }
+
+    // ── Bot-challenge provider: key-gated ─────────────────────────────────────
+
+    [Fact]
+    public void AddFoundationServices_WithNoTurnstileSecret_RegistersTheFailOpenProvider()
+    {
+        // Dev, Community, and any unconfigured environment must get NoOp. This is also a
+        // construction guard: CloudflareTurnstileProvider reads the key with GetRequired
+        // and throws without one, so registering it here would fail at first resolution.
+        var (services, _) = BuildServices();
+
+        services.Should().ContainSingle(sd =>
+            sd.ServiceType == typeof(IChallengeProvider) &&
+            sd.ImplementationType == typeof(NoOpChallengeProvider));
+    }
+
+    [Fact]
+    public void AddFoundationServices_WithATurnstileSecret_RegistersTheTurnstileProvider()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ConfigKeys.OidcAuthority] = "https://auth.example.com/realms/orkyo",
+                [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
+                [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
+                [ConfigKeys.KeycloakRealm] = "orkyo",
+                [ConfigKeys.KeycloakBackendClientSecret] = "test-secret",
+                [ConfigKeys.TurnstileSecretKey] = "0x-turnstile-secret",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        // The host registers IConfiguration in a real app; the provider is constructed from it.
+        services.AddSingleton<IConfiguration>(config);
+        services.AddFoundationServices(config);
+
+        // AddHttpClient registers via factory rather than ImplementationType.
+        services.Should().ContainSingle(sd => sd.ServiceType == typeof(IChallengeProvider));
+        services.Should().NotContain(sd =>
+            sd.ServiceType == typeof(IChallengeProvider) &&
+            sd.ImplementationType == typeof(NoOpChallengeProvider));
+
+        // It must actually resolve: the provider throws in its constructor without a key,
+        // so a mis-ordered registration would only surface here.
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IChallengeProvider>()
+            .Should().BeOfType<CloudflareTurnstileProvider>();
     }
 }

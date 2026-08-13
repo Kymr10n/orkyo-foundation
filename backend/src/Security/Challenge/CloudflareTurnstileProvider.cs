@@ -26,12 +26,6 @@ public sealed class CloudflareTurnstileProvider : IChallengeProvider
 
     public async Task<ChallengeVerificationResult> VerifyAsync(string token, string clientIp, CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(_secretKey))
-        {
-            _logger.LogWarning("Turnstile secret key not configured, allowing request");
-            return new ChallengeVerificationResult(true);
-        }
-
         try
         {
             var payload = new FormUrlEncodedContent(new Dictionary<string, string>
