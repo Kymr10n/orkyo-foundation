@@ -105,6 +105,37 @@ nightly channel.
 - **`scripts/ci/lint-migration-headers.sh` enforces this in CI** (Rule 3 — diff-filter=M). The check runs in the `audit-secrets` job on every PR and push to `main`. If CI rejects your change with "existing migration files must never be modified", create a new migration file instead.
 - **Testcontainers failures caused by `IF EXISTS` additions are a signal, not an invitation to patch.** If a migration fails on a fresh DB because of a missing object, the migration itself was wrong — do not add `IF EXISTS` guards after the fact. Either fix the migration in the same PR before it is merged, or write a compensating migration.
 
+## Test coverage (every code change)
+
+**Every change ships at or above 80% patch coverage.** Measure locally before opening a PR —
+codecov reporting it afterwards means a review round trip that a two-minute local run avoids:
+
+```bash
+dotnet test backend/tests/Orkyo.Foundation.Tests.csproj --collect:"XPlat Code Coverage"
+# then read the cobertura report for the files you touched
+npx vitest run --coverage        # frontend
+```
+
+Cover the paths that carry risk first: rejection and error branches, authorization decisions,
+and anything a security control depends on. A happy path with no failure case tested is the
+usual reason a patch lands under 80%.
+
+Three exemptions, and nothing else. State the reason in the PR:
+
+- **Unreachable code.** If a branch cannot execute, the fix is to delete it, not to test it —
+  see "no error handling for impossible scenarios" below. A coverage gap is often how dead
+  code announces itself.
+- **Composition-root wiring** whose only assertion would restate the registration line.
+  Registrations that encode a rule — which implementation a config key selects — are behavior
+  and must be tested.
+- **Third-party integration surfaces** that cannot run under the test host: a browser widget
+  loading a remote script, a container entrypoint. Test the decision around them (does the
+  widget render at all?) rather than the vendor's code.
+
+This is a rule of practice, not a CI gate. Codecov reports the number and does not block the
+merge; deliberately, because a hard threshold turns into a treadmill of tests written to move
+a percentage rather than to catch a defect.
+
 ## Things not to do
 
 - Don't move code out of foundation without checking the placement rule first.
