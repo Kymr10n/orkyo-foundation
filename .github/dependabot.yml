@@ -1,0 +1,22 @@
+# Dependency-update automation for every ecosystem this repo pins:
+# NuGet (central versions in Directory.Packages.props), npm (the published
+# @kymr10n/foundation package), the SHA-pinned GitHub Actions in workflows,
+# and the digest-pinned Keycloak base image.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /keycloak
+    schedule:
+      interval: weekly
