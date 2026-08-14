@@ -26,7 +26,8 @@ public class ResourceCustomFieldRepository(OrgContext orgContext, IOrgDbConnecti
 {
     private const string SelectColumns =
         "id, resource_type_id, key, label, description, data_type, "
-        + "is_required, sort_order, is_active, created_at, updated_at";
+        + "is_required, sort_order, is_active, list_definition_id, list_instance_id, "
+        + "created_at, updated_at";
 
     // Form order, with label as the tiebreak so two fields sharing a sort_order do not swap
     // places between requests.
@@ -56,8 +57,10 @@ public class ResourceCustomFieldRepository(OrgContext orgContext, IOrgDbConnecti
         {
             return (await db.QuerySingleOrDefaultAsync(
                 $@"INSERT INTO resource_custom_fields
-                       (resource_type_id, key, label, description, data_type, is_required, sort_order)
-                   VALUES (@typeId, @key, @label, @description, @dataType, @isRequired, @sortOrder)
+                       (resource_type_id, key, label, description, data_type, is_required, sort_order,
+                        list_definition_id, list_instance_id)
+                   VALUES (@typeId, @key, @label, @description, @dataType, @isRequired, @sortOrder,
+                           @listDefinitionId, @listInstanceId)
                    RETURNING {SelectColumns}",
                 p =>
                 {
@@ -68,6 +71,8 @@ public class ResourceCustomFieldRepository(OrgContext orgContext, IOrgDbConnecti
                     p.AddWithValue("dataType", request.DataType);
                     p.AddWithValue("isRequired", request.IsRequired);
                     p.AddWithValue("sortOrder", request.SortOrder);
+                    p.AddNullable("listDefinitionId", request.ListDefinitionId);
+                    p.AddNullable("listInstanceId", request.ListInstanceId);
                 }, Map, ct))!;
         }
         catch (PostgresException pg) when (pg.SqlState == PostgresErrorCodes.UniqueViolation)
@@ -150,6 +155,8 @@ public class ResourceCustomFieldRepository(OrgContext orgContext, IOrgDbConnecti
         IsRequired = r.GetBoolean(r.GetOrdinal("is_required")),
         SortOrder = r.GetInt32(r.GetOrdinal("sort_order")),
         IsActive = r.GetBoolean(r.GetOrdinal("is_active")),
+        ListDefinitionId = r.GetNullableGuid("list_definition_id"),
+        ListInstanceId = r.GetNullableGuid("list_instance_id"),
         CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
         UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
     };
