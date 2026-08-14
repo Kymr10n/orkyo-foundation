@@ -117,6 +117,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
         services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
         services.AddScoped<IResourceCustomFieldRepository, ResourceCustomFieldRepository>();
+        services.AddScoped<IListDefinitionRepository, ListDefinitionRepository>();
+        services.AddScoped<IListInstanceRepository, ListInstanceRepository>();
         services.AddScoped<IResourceRepository, ResourceRepository>();
         services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
         services.AddScoped<ICalendarFeedTokenRepository, CalendarFeedTokenRepository>();
@@ -153,6 +155,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         services.AddScoped<IConflictService, ConflictService>();
         services.AddScoped<IResourceCustomFieldService, ResourceCustomFieldService>();
+        services.AddScoped<IListDefinitionService, ListDefinitionService>();
+        services.AddScoped<IListRowService, ListRowService>();
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<IResourceTypeService, ResourceTypeService>();
         services.AddScoped<ISchedulingService, SchedulingService>();
