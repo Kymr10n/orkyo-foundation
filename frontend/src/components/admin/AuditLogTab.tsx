@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@foundation/src/lib/table/features';
 import { format } from 'date-fns';
 
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';

@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type {
-  ColumnDef,
   ColumnFiltersState,
   OnChangeFn,
+  RowData,
   SortingState,
   Updater,
 } from '@tanstack/react-table';
+import type { ColumnDef } from '@foundation/src/lib/table/features';
 import type { ColumnFilterMeta } from '@foundation/src/lib/table/column-meta';
 import { useDebouncedCallback } from '@foundation/src/hooks/useDebouncedCallback';
 
@@ -25,7 +26,7 @@ import { useDebouncedCallback } from '@foundation/src/hooks/useDebouncedCallback
  * never be misread as a range. Anything invalid — unknown column, bad direction, a filter on a
  * column that declares none — is ignored and dropped on the next write.
  */
-export function useTableUrlState<TData>(
+export function useTableUrlState<TData extends RowData>(
   urlKey: string,
   columns: ColumnDef<TData>[],
 ): {
@@ -187,7 +188,7 @@ function decodeFilterValue(meta: ColumnFilterMeta, raw: string): unknown {
 }
 
 /** Map of column id → meta, stable across re-created column arrays with identical contents. */
-function useMemoStableMeta<TData>(columns: ColumnDef<TData>[]) {
+function useMemoStableMeta<TData extends RowData>(columns: ColumnDef<TData>[]) {
   const signature = columns
     .map((c) => {
       const id = columnId(c);
@@ -210,6 +211,6 @@ function useMemoStableMeta<TData>(columns: ColumnDef<TData>[]) {
   }, [signature]);
 }
 
-function columnId<TData>(c: ColumnDef<TData>): string {
+function columnId<TData extends RowData>(c: ColumnDef<TData>): string {
   return c.id ?? ('accessorKey' in c && typeof c.accessorKey === 'string' ? c.accessorKey : '');
 }

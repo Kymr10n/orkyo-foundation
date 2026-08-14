@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import type { Column } from '@tanstack/react-table';
+import type { RowData } from '@tanstack/table-core';
+import type { Column } from '@foundation/src/lib/table/features';
 import { ArrowDown, ArrowUp, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
@@ -32,15 +33,26 @@ const SORT_LABELS: Record<ColumnFilterMeta['type'] | 'default', [string, string]
   default: ['Sort A → Z', 'Sort Z → A'],
 };
 
-interface DataTableColumnHeaderProps<TData> {
+interface DataTableColumnHeaderProps<TData extends RowData> {
   column: Column<TData, unknown>;
   /** The already-rendered header content from the columnDef — string or element. */
   title: ReactNode;
   /** Plain-text name for aria labels, resolved by the table from meta.label or the header string. */
   label: string;
+  /**
+   * Server-paged tables hold one window of the rows, so facet counts taken from them would
+   * describe the page rather than the data — the table sets this to drop the counts instead
+   * of showing numbers that are quietly wrong.
+   */
+  facetsUnavailable?: boolean;
 }
 
-export function DataTableColumnHeader<TData>({ column, title, label }: DataTableColumnHeaderProps<TData>) {
+export function DataTableColumnHeader<TData extends RowData>({
+  column,
+  title,
+  label,
+  facetsUnavailable,
+}: DataTableColumnHeaderProps<TData>) {
   const [open, setOpen] = useState(false);
   const meta = column.columnDef.meta?.filter;
   const canSort = column.getCanSort();
@@ -105,7 +117,14 @@ export function DataTableColumnHeader<TData>({ column, title, label }: DataTable
         {meta && (
           <div className="p-2">
             {meta.type === 'text' && <TextFilter column={column} label={label} />}
-            {meta.type === 'enum' && <EnumFilter column={column} meta={meta} label={label} />}
+            {meta.type === 'enum' && (
+              <EnumFilter
+                column={column}
+                meta={meta}
+                label={label}
+                facetsUnavailable={facetsUnavailable}
+              />
+            )}
             {(meta.type === 'date' || meta.type === 'number') && (
               <RangeFilter column={column} kind={meta.type} label={label} />
             )}
@@ -145,7 +164,7 @@ function SortOption({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function TextFilter<TData>({ column, label }: { column: Column<TData, unknown>; label: string }) {
+function TextFilter<TData extends RowData>({ column, label }: { column: Column<TData, unknown>; label: string }) {
   return (
     <Input
       value={(column.getFilterValue() as string) ?? ''}
@@ -157,20 +176,23 @@ function TextFilter<TData>({ column, label }: { column: Column<TData, unknown>; 
   );
 }
 
-function EnumFilter<TData>({
+function EnumFilter<TData extends RowData>({
   column,
   meta,
   label,
+  facetsUnavailable,
 }: {
   column: Column<TData, unknown>;
   meta: Extract<ColumnFilterMeta, { type: 'enum' }>;
   label: string;
+  facetsUnavailable?: boolean;
 }) {
   // Counts come from the faceted model, which reflects the rows the *other* filters leave —
   // so counts narrow as you filter elsewhere, which is what makes them useful.
-  const faceted = meta.isArray
-    ? flattenFacets(column.getFacetedUniqueValues())
+  const rawFacets = facetsUnavailable
+    ? new Map<unknown, number>()
     : column.getFacetedUniqueValues();
+  const faceted = meta.isArray ? flattenFacets(rawFacets) : rawFacets;
   const options = [...faceted.entries()]
     .map(([value, count]) => {
       const raw = String(value);
@@ -208,7 +230,7 @@ function EnumFilter<TData>({
   );
 }
 
-function RangeFilter<TData>({
+function RangeFilter<TData extends RowData>({
   column,
   kind,
   label,

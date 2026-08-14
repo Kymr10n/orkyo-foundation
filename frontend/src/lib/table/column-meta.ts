@@ -1,4 +1,5 @@
-import type { FilterFnOption, RowData } from '@tanstack/react-table';
+import type { CellData, FilterFnOption, RowData, TableFeatures } from '@tanstack/react-table';
+import type { OrkyoTableFeatures } from '@foundation/src/lib/table/features';
 
 /**
  * The declaration a column makes to opt into header filtering. Sorting needs no declaration —
@@ -27,16 +28,21 @@ export type ColumnFilterMeta =
 
 declare module '@tanstack/react-table' {
   // TanStack declares these generics on ColumnMeta; the merge must repeat them verbatim.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<TData extends RowData, TValue> {
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  interface ColumnMeta<
+    TFeatures extends TableFeatures,
+    TData extends RowData,
+    TValue extends CellData = CellData,
+  > {
     filter?: ColumnFilterMeta;
     /** Accessible name when `header` is not a plain string (aria-labels, menu heading). */
     label?: string;
   }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 }
 
 /** The filterFn each meta type resolves to. Names registered in OrkyoDataTable's filterFns. */
-export function filterFnFor(meta: ColumnFilterMeta): FilterFnOption<never> {
+export function filterFnFor(meta: ColumnFilterMeta): FilterFnOption<OrkyoTableFeatures, RowData> {
   switch (meta.type) {
     case 'text':
       return 'includesString';

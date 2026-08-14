@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowData, TableFeatures } from '@tanstack/table-core';
 import { arrayOverlaps, dateBetween, flattenFacets, oneOf } from './filter-fns';
 
 /** The fns only call row.getValue(columnId), so a stub row is all they need. */
-const rowWith = (value: unknown) => ({ getValue: () => value }) as unknown as Row<unknown>;
+const rowWith = (value: unknown) => ({ getValue: () => value }) as unknown as Row<TableFeatures, RowData>;
 
 describe('oneOf', () => {
   it('passes rows whose value is checked and drops the rest', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { MemoryRouter, useSearchParams } from 'react-router';
 import type { ReactNode } from 'react';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@foundation/src/lib/table/features';
 import { useTableUrlState } from './useTableUrlState';
 
 interface Row {

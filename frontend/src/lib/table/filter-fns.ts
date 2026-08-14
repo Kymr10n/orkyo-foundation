@@ -1,4 +1,9 @@
-import type { FilterFn } from '@tanstack/react-table';
+import type { FilterFn, RowData, TableFeatures } from '@tanstack/table-core';
+
+// Typed against the base constraints, not Orkyo's concrete feature set: these fns only read
+// one cell, and importing OrkyoTableFeatures here would cycle with features.ts, which
+// registers them.
+type AnyFilterFn = FilterFn<TableFeatures, RowData>;
 
 /**
  * Custom column filter functions for OrkyoDataTable, registered once there and referenced by
@@ -7,14 +12,14 @@ import type { FilterFn } from '@tanstack/react-table';
  */
 
 /** Facet filter for scalar cells: the row passes when its value is one of the checked ones. */
-export const oneOf: FilterFn<unknown> = (row, columnId, filterValue: string[]) =>
+export const oneOf: AnyFilterFn = (row, columnId, filterValue: string[]) =>
   filterValue.includes(String(row.getValue(columnId)));
 // An empty facet selection means "no filter", not "match nothing" — without autoRemove an
 // empty array would blank the table the moment the last checkbox is unticked.
 oneOf.autoRemove = (value) => !Array.isArray(value) || value.length === 0;
 
 /** Facet filter for array-valued cells (e.g. a criterion's applicable types): overlap, not equality. */
-export const arrayOverlaps: FilterFn<unknown> = (row, columnId, filterValue: string[]) => {
+export const arrayOverlaps: AnyFilterFn = (row, columnId, filterValue: string[]) => {
   const cell = row.getValue<string[] | null>(columnId);
   return Array.isArray(cell) && cell.some((v) => filterValue.includes(v));
 };
@@ -25,7 +30,7 @@ arrayOverlaps.autoRemove = (value) => !Array.isArray(value) || value.length === 
  * A cell that does not parse (null date, e.g. "never logged in") is excluded from range
  * results — asking for a range is asking for rows that have a date in it.
  */
-export const dateBetween: FilterFn<unknown> = (row, columnId, filterValue: [string?, string?]) => {
+export const dateBetween: AnyFilterFn = (row, columnId, filterValue: [string?, string?]) => {
   const [lo, hi] = filterValue;
   const t = new Date(row.getValue<string | number>(columnId)).getTime();
   if (Number.isNaN(t)) return false;
@@ -57,8 +62,8 @@ export function flattenFacets(faceted: Map<unknown, number>): Map<string, number
 
 declare module '@tanstack/react-table' {
   interface FilterFns {
-    oneOf: FilterFn<unknown>;
-    arrayOverlaps: FilterFn<unknown>;
-    dateBetween: FilterFn<unknown>;
+    oneOf: AnyFilterFn;
+    arrayOverlaps: AnyFilterFn;
+    dateBetween: AnyFilterFn;
   }
 }

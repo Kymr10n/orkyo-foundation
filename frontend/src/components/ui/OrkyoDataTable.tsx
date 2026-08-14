@@ -1,22 +1,17 @@
 import { useState, useCallback, useMemo, type ReactNode } from 'react';
+import { useTable, flexRender } from '@tanstack/react-table';
+import type {
+  ColumnFiltersState,
+  OnChangeFn,
+  PaginationState,
+  RowData,
+  SortingState,
+} from '@tanstack/table-core';
 import {
-  useReactTable,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  flexRender,
+  orkyoTableFeatures,
   type Column,
   type ColumnDef,
-  type ColumnFiltersState,
-  type FilterFn,
-  type OnChangeFn,
-  type PaginationState,
-  type RowData,
-  type SortingState,
-} from '@tanstack/react-table';
+} from '@foundation/src/lib/table/features';
 import { AlertCircle, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { Skeleton } from '@foundation/src/components/ui/skeleton';
@@ -33,25 +28,24 @@ import {
 } from '@foundation/src/components/ui/table';
 import { DataTableColumnHeader } from '@foundation/src/components/ui/DataTableColumnHeader';
 import { filterFnFor } from '@foundation/src/lib/table/column-meta';
-import { arrayOverlaps, dateBetween, oneOf } from '@foundation/src/lib/table/filter-fns';
 import { useBreakpoint } from '@foundation/src/hooks/useBreakpoint';
 import { cn } from '@foundation/src/lib/utils';
 
 // Re-export so callers don't need a separate @tanstack/react-table import for ColumnDef
 export type { ColumnDef, RowData };
 
-function ariaSort<TData>(column: Column<TData, unknown>): 'ascending' | 'descending' | undefined {
+function ariaSort<TData extends RowData>(column: Column<TData, unknown>): 'ascending' | 'descending' | undefined {
   const sorted = column.getIsSorted();
   return sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined;
 }
 
 /** Plain-text column name for aria labels: meta.label, else the header string, else the id. */
-function columnLabel<TData>(column: Column<TData, unknown>): string {
+function columnLabel<TData extends RowData>(column: Column<TData, unknown>): string {
   const def = column.columnDef;
   return def.meta?.label ?? (typeof def.header === 'string' ? def.header : column.id);
 }
 
-export interface OrkyoDataTableProps<TData> {
+export interface OrkyoDataTableProps<TData extends RowData> {
   columns: ColumnDef<TData>[];
   data: TData[];
   isLoading?: boolean;
@@ -104,7 +98,7 @@ export interface OrkyoDataTableProps<TData> {
   renderCard?: (row: TData) => ReactNode;
 }
 
-export function OrkyoDataTable<TData>({
+export function OrkyoDataTable<TData extends RowData>({
   columns,
   data,
   isLoading,
@@ -172,36 +166,14 @@ export function OrkyoDataTable<TData>({
     [columns],
   );
 
-  // TanStack Table's API is not memoizable, so the compiler skips this component. Nothing to fix.
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features: orkyoTableFeatures,
     data,
     columns: resolvedColumns,
-    // The fns are row-type-agnostic (they only read one cell), but registering them as
-    // FilterFn<unknown> would pin the whole table's generic to unknown.
-    filterFns: {
-      oneOf: oneOf as FilterFn<TData>,
-      arrayOverlaps: arrayOverlaps as FilterFn<TData>,
-      dateBetween: dateBetween as FilterFn<TData>,
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    // Facet counts read the full client row set; a server-paged window would produce
-    // counts for the visible page only, which reads as data loss — skip them there.
-    ...(isManualTable
-      ? {}
-      : {
-          // Explicit generics: inside a conditional spread the factories lose contextual
-          // typing and would anchor the whole table's row type to unknown.
-          getFacetedRowModel: getFacetedRowModel<TData>(),
-          getFacetedUniqueValues: getFacetedUniqueValues<TData>(),
-        }),
     onColumnFiltersChange: handleColumnFiltersChange,
     onSortingChange: handleSortingChange,
     ...(pageSize
       ? {
-          getPaginationRowModel: getPaginationRowModel(),
           onPaginationChange: isServerPagination ? undefined : setPagination,
           manualPagination: isServerPagination,
           pageCount: serverPageCount,
@@ -362,6 +334,7 @@ export function OrkyoDataTable<TData>({
                             column={column}
                             title={flexRender(column.columnDef.header, header.getContext())}
                             label={columnLabel(column)}
+                            facetsUnavailable={isManualTable}
                           />
                         ) : (
                           flexRender(column.columnDef.header, header.getContext())
