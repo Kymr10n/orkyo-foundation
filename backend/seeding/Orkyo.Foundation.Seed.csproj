@@ -22,6 +22,8 @@
   <ItemGroup>
     <PackageReference Include="Bogus" />
     <PackageReference Include="CommandLineParser" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Npgsql" />
   </ItemGroup>
 </Project>
