@@ -2,21 +2,67 @@
 # NuGet (central versions in Directory.Packages.props), npm (the published
 # @kymr10n/foundation package), the SHA-pinned GitHub Actions in workflows,
 # and the digest-pinned Keycloak base image.
+#
+# Each ecosystem raises at most two pull requests per run: one batching all
+# minor and patch updates, and one batching majors. Majors stay separate
+# because they need a deliberate review, not because they are unwelcome —
+# nothing is ignored, so a security fix that only ships in a new major still
+# reaches us. `applies-to: version-updates` keeps Dependabot security updates
+# out of the groups, so an advisory-driven fix arrives on its own, at once.
 version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
       interval: weekly
+    groups:
+      nuget-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      nuget-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      npm-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      actions-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
+
   - package-ecosystem: docker
     directory: /keycloak
     schedule:
       interval: weekly
+    groups:
+      docker-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      docker-major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["major"]
