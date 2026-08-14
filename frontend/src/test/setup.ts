@@ -1,7 +1,14 @@
 import '@testing-library/jest-dom';
 import { afterEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import type * as PermissionsModule from '@foundation/src/hooks/usePermissions';
+
+// Testing Library's default asyncUtilTimeout is 1000ms, which is a wall-clock budget rather
+// than a correctness bound: findBy*/waitFor still resolve the moment their condition holds,
+// so a passing test is no slower for this. The default is too tight for suites that render
+// lazily-loaded routes behind <Suspense> while the machine is busy — a loaded CI container
+// exceeded it and failed tests that pass every time in isolation.
+configure({ asyncUtilTimeout: 5000 });
 
 // Pin the locale so USER_LOCALE (captured once at module load in lib/formatters) is deterministic
 // across CI runners. Drives the 12h/24h + date formatting that the utilization grid/calendar render.

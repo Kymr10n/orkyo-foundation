@@ -885,7 +885,7 @@ describe('RequestsPage', () => {
     fireEvent.click(screen.getByText('New Request'));
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-close'));
-    await waitFor(() => expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
   });
 
   it('closes the delete dialog via Cancel', async () => {
@@ -898,6 +898,6 @@ describe('RequestsPage', () => {
     fireEvent.click(screen.getAllByText('Delete')[0]);
     await waitFor(() => expect(screen.getByText('Delete request')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    await waitFor(() => expect(screen.queryByText('Delete request')).not.toBeInTheDocument());
+    expect(screen.queryByText('Delete request')).not.toBeInTheDocument();
   });
 });

@@ -203,7 +203,7 @@ describe('CriteriaSettings', () => {
     if (addBtn) await user.click(addBtn);
     await waitFor(() => screen.getByTestId('create-success-btn'));
     await user.click(screen.getByTestId('create-success-btn'));
-    await waitFor(() => expect(screen.queryByTestId('create-success-btn')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('create-success-btn')).not.toBeInTheDocument();
   });
 
   it('clicking edit icon opens edit dialog (setEditingCriterion)', async () => {
@@ -226,7 +226,7 @@ describe('CriteriaSettings', () => {
     if (editBtns.length > 0) await user.click(editBtns[0]);
     await waitFor(() => screen.getByTestId('edit-success-btn'));
     await user.click(screen.getByTestId('edit-success-btn'));
-    await waitFor(() => expect(screen.queryByTestId('edit-success-btn')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('edit-success-btn')).not.toBeInTheDocument();
   });
 
   it('Try again button in error state calls refetch', async () => {

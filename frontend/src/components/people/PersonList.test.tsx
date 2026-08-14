@@ -410,7 +410,7 @@ describe('PersonList', () => {
     expect(within(facets).getByText('Designer')).toBeInTheDocument();
 
     await user.click(within(facets).getByText('Engineer'));
-    await waitFor(() => expect(screen.queryByText('Bob')).not.toBeInTheDocument());
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 

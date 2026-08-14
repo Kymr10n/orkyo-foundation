@@ -228,7 +228,7 @@ describe("ResourceAssignmentDialog", () => {
     await userEvent.click(screen.getByTestId("eligible-only-toggle"));
 
     // Hard-blocked one is hidden; clean + soft-blocker ones remain.
-    await waitFor(() => expect(screen.queryByText("Request Beta")).not.toBeInTheDocument());
+    expect(screen.queryByText("Request Beta")).not.toBeInTheDocument();
     expect(screen.getByText("Request Delta")).toBeInTheDocument();
     expect(screen.getByText("Request Epsilon")).toBeInTheDocument();
 

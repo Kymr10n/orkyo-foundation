@@ -204,6 +204,6 @@ describe('ResourceTypeSettings', () => {
     await screen.findByTestId('fields-dialog');
 
     await userEvent.click(screen.getByRole('button', { name: 'close fields' }));
-    await waitFor(() => expect(screen.queryByTestId('fields-dialog')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('fields-dialog')).not.toBeInTheDocument();
   });
 });

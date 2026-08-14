@@ -368,7 +368,7 @@ describe('UserSettings', () => {
     if (inviteBtns.length > 0) await user.click(inviteBtns[0]);
     await waitFor(() => screen.getByTestId('invite-success'));
     await user.click(screen.getByTestId('invite-success'));
-    await waitFor(() => expect(screen.queryByTestId('invite-success')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('invite-success')).not.toBeInTheDocument();
   });
 
   it('clicking Edit user role button opens edit dialog (setEditingUser)', async () => {
@@ -388,7 +388,7 @@ describe('UserSettings', () => {
     if (editBtns.length > 0) await user.click(editBtns[0]);
     await waitFor(() => screen.getByTestId('role-success'));
     await user.click(screen.getByTestId('role-success'));
-    await waitFor(() => expect(screen.queryByTestId('role-success')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('role-success')).not.toBeInTheDocument();
   });
 
   it('renders default badge colors for inactive role and non-active statuses', async () => {

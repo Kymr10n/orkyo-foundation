@@ -800,7 +800,7 @@ describe("UtilizationPage", () => {
 
     fireEvent.click(screen.getByTestId("save-request"));
     await waitFor(() => expect(updateRequest).toHaveBeenCalled());
-    await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
   });
 
   // --- Spaces-grid empty-cell scheduling ---
@@ -916,6 +916,8 @@ describe("UtilizationPage", () => {
     await waitFor(() => expect(screen.getByText("Task 1")).toBeInTheDocument());
 
     capturedOnDragCancel!();
+    // Genuinely asynchronous: the drag overlay clears on a later tick, unlike the other
+    // absence assertions in this suite which hold immediately after the awaited action.
     await waitFor(() => expect(screen.queryByText("Task 1")).not.toBeInTheDocument());
   });
 
@@ -938,7 +940,7 @@ describe("UtilizationPage", () => {
     await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId("close-form"));
-    await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
   });
 
   it("closing the create-child dialog clears the parent", async () => {
@@ -950,7 +952,7 @@ describe("UtilizationPage", () => {
     await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId("close-form"));
-    await waitFor(() => expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
   });
 
   // --- Save child request ---

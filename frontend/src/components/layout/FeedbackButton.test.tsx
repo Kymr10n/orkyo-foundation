@@ -92,7 +92,7 @@ describe('FeedbackButton', () => {
   it('closes dialog when Cancel is clicked', async () => {
     const user = await openDialog();
     await user.click(screen.getByRole('button', { name: /cancel/i }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('shows description text matching the selected feedback type', async () => {
