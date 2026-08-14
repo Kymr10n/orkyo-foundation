@@ -137,86 +137,18 @@ public class ResourceCustomFieldService(
 
             // An empty value is an unfilled optional field, whatever its type. Whether it is
             // allowed to be empty is the required check below, not a type question.
-            if (IsEmpty(value)) continue;
+            if (CustomFieldValueRules.IsEmpty(value)) continue;
 
-            ValidateValue(field, value);
+            CustomFieldValueRules.Validate($"Custom field '{field.Label}'", field.DataType, value);
         }
 
         // Only active fields can be required: a field retired while resources still lack a value
         // for it must not make those resources unsaveable.
         foreach (var field in definitions.Where(f => f is { IsActive: true, IsRequired: true }))
         {
-            if (!values.TryGetValue(field.Key, out var value) || IsEmpty(value))
+            if (!values.TryGetValue(field.Key, out var value) || CustomFieldValueRules.IsEmpty(value))
                 throw new ArgumentException($"Custom field '{field.Label}' is required");
         }
     }
 
-    // Values are stored whole in the resource's jsonb document and shipped back with every
-    // list read, so they are bounded here — nothing else bounds them. Generous enough for a
-    // note, small enough that a resource row stays a row.
-    private const int MaxTextLength = 2000;
-    private const int MaxUrlLength = 2048;
-
-    /// <summary>Null, and the empty string a cleared text input sends, both mean "no value".</summary>
-    private static bool IsEmpty(JsonElement value) =>
-        value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
-        || (value.ValueKind is JsonValueKind.String && string.IsNullOrWhiteSpace(value.GetString()));
-
-    private static void ValidateValue(ResourceCustomFieldInfo field, JsonElement value)
-    {
-        switch (field.DataType)
-        {
-            case CustomFieldDataTypes.Text:
-                Expect(field, value, JsonValueKind.String, "text");
-                if (value.GetString()!.Length > MaxTextLength)
-                    throw Mismatch(field, $"at most {MaxTextLength} characters");
-                break;
-
-            case CustomFieldDataTypes.Number:
-                if (value.ValueKind is not JsonValueKind.Number)
-                    throw Mismatch(field, "a number");
-                // A JSON number can carry an exponent Postgres numeric cannot hold, in either
-                // direction — 1e1000000 overflows a double, 1e-1000000 quietly becomes 0.0 while
-                // the raw token still reaches jsonb. Either way it is a 22003 nobody maps, which
-                // surfaces as a 500. TryGetDecimal accepts the range jsonb actually stores.
-                if (!value.TryGetDecimal(out _))
-                    throw Mismatch(field, "a number within the usual range");
-                break;
-
-            case CustomFieldDataTypes.Boolean:
-                if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                    throw Mismatch(field, "true or false");
-                break;
-
-            case CustomFieldDataTypes.Date:
-                Expect(field, value, JsonValueKind.String, "a date");
-                if (!DateOnly.TryParseExact(value.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                        DateTimeStyles.None, out _))
-                    throw Mismatch(field, "a date in yyyy-MM-dd format");
-                break;
-
-            case CustomFieldDataTypes.Url:
-                Expect(field, value, JsonValueKind.String, "a URL");
-                if (value.GetString()!.Length > MaxUrlLength)
-                    throw Mismatch(field, $"at most {MaxUrlLength} characters");
-                // Absolute and http(s) only: the value is rendered as a link, and a relative or
-                // javascript: URL there is a navigation the tenant did not intend.
-                if (!Uri.TryCreate(value.GetString(), UriKind.Absolute, out var uri)
-                    || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                    throw Mismatch(field, "an absolute http(s) URL");
-                break;
-
-            default:
-                // Unreachable while the CHECK constraint and the create validator agree on the set.
-                throw new InvalidOperationException($"Unknown custom field data type '{field.DataType}'");
-        }
-    }
-
-    private static void Expect(ResourceCustomFieldInfo field, JsonElement value, JsonValueKind kind, string expected)
-    {
-        if (value.ValueKind != kind) throw Mismatch(field, expected);
-    }
-
-    private static ArgumentException Mismatch(ResourceCustomFieldInfo field, string expected) =>
-        new($"Custom field '{field.Label}' expects {expected}");
 }

@@ -3,6 +3,10 @@
 Status: **approved plan, implementation starting 2026-08-12.** This block is updated as
 phases land, with deviations recorded. Supersedes the discarded `catalogs-plan.md` draft.
 
+**Reviewed against the codebase 2026-08-15 before implementation; corrections applied**
+(citations, paths, and three design gaps — i18n, boolean column filters, the phase A/B
+type gate). The design itself is unchanged.
+
 ## Context
 
 PR #111 (`d730449`) introduced tenant-defined custom fields on resource types
@@ -26,7 +30,9 @@ Decisions (2026-08-12):
   *Listeninstanz*) = a data holder created from a definition. Shared instances are named
   ("Standard components"); per-resource instances are anonymous — the custom field's
   label serves. The UI uses these terms verbatim.
-- New admin section in the left-hand sidebar: **"Resources"** (de: *Ressourcen*), a
+- New admin section in the left-hand sidebar: **"Resources"** (German glossary term
+  *Ressourcen* is documentation-only — the frontend has no i18n layer, every string is a
+  hardcoded English literal, so the UI ships English), a
   dedicated page with tabs of its own, housing **Resource Types** (moved from
   Administration) and **List definitions**. Route `/configuration` (label ≠ route has
   precedent: "Administration" lives at `/tenant-admin`; `/resources` is taken by the
@@ -104,7 +110,10 @@ and model docs: the solver never reads list data; matchable attributes remain cr
 
 ### 1. Migration — `backend/migrations-foundation/sql/tenant/1780.foundation.lists.sql`
 
-`-- @migration-class: expand` (+ revert script). Creates the four tables with updated_at
+`-- @migration-class: expand`, plus a revert at
+`backend/migrations-foundation/revert/1780.foundation.lists.revert.sql` (parallel
+directory, referenced from the migration header the way 1770 does). Creates the four
+tables with updated_at
 triggers: `list_definitions` (no key column — `UNIQUE(name)` like `job_titles`;
 `is_active` is the retire path under RESTRICT), `list_columns` (key-format CHECK
 `^[a-z][a-z0-9_]{0,49}$`, `data_type IN (text,number,boolean,date,url,select)`,
@@ -112,7 +121,8 @@ triggers: `list_definitions` (no key column — `UNIQUE(name)` like `job_titles`
 `resource_custom_fields`), `list_instances` (kind-shape CHECK, the two UNIQUEs),
 `list_rows` (plain `(list_instance_id)` index inside the transaction — never
 CONCURRENTLY). Alters `resource_custom_fields`: widen the data_type CHECK by same-name
-drop/re-add (1610 precedent) with `list` + `list_lookup`, add the two FK columns
+drop/re-add (same technique as 1610, which drops and re-adds `requests_status_check`)
+with `list` + `list_lookup`, add the two FK columns
 (RESTRICT) + the bidirectional binding CHECK. The header restates non-matchability and
 notes this is where the deferred `select` lands — for list columns only.
 
@@ -184,20 +194,28 @@ Pattern sources: `ResourceCustomFieldRepository/Service/Endpoints`, `JobTitleRep
    `/configuration`.
 4. `pages/TenantAdminPage.tsx`: drop the resource-types tab, update `LEGACY_TAB_TO_PATH`.
 5. `components/layout/SidebarNav.tsx`: admin-gated "Resources" item, next to the
-   Administration item. Check first for a literal "Resources" group label over the
-   per-type items — if present, surface the collision before proceeding.
+   Administration item. No collision: SidebarNav is a flat list with no group labels, and
+   no item is named "Resources" (verified 2026-08-15). Only a tenant type whose
+   `displayNamePlural` is "Resources" could ever clash, and none ships.
 
 **API layer:** `lib/core/api-paths.ts` (+ list paths); `lib/api/lists-api.ts` (new,
 pattern `resource-custom-fields-api.ts`, incl. `LIST_COLUMN_DATA_TYPES`);
 `resource-custom-fields-api.ts` (types `'list' | 'list_lookup'` + hints,
 `CustomFieldValue` += `string[]`, `listDefinitionId`/`listInstanceId` fields);
-`query-keys.ts` (`qk.lists.*`); `hooks/useListDefinitions.ts`.
+`lib/api/query-keys.ts` (`qk.lists.*`); `hooks/useListDefinitions.ts`.
+
+Widening `CustomFieldValue` to include `string[]` ripples through a fixed set — miss one
+and the type lies: `CustomFieldValue` and `CustomFieldDataType`, `CUSTOM_FIELD_DATA_TYPES`,
+`customFieldDataTypeLabel`, `hasCustomFieldValue` (in
+`components/resources/CustomFieldInput.tsx`), and `hooks/useResourceCustomFieldForm.ts`.
 
 **Frontend primitive kit (`components/lists/` + hooks)** — every surface below is an
 assembly of these primitives; future surfaces (Space/People dissolution, new admin
 grids) reuse them unchanged:
 
-1. `components/fields/ScalarValueInput.tsx` (new): one typed-value input driven by
+1. `components/fields/ScalarValueInput.tsx` (new — `components/fields/` does not exist yet
+   and is created here as the reuse point; `CustomFieldInput.tsx` itself lives in
+   `components/resources/`): one typed-value input driven by
    `{ dataType, options?, value, onChange, id }` — the frontend counterpart of the
    backend `CustomFieldValueRules` extraction; all six scalar types incl. `select`.
    `CustomFieldInput.tsx` delegates its scalar rendering to it (public prop API
@@ -206,7 +224,19 @@ grids) reuse them unchanged:
    `formatListCell(column, value)` used by tables, cards, and the picker.
 3. `components/lists/ListRowsTable.tsx` (new): schema-driven `OrkyoDataTable` wrapper —
    dynamic columns from `ListColumn[]`, phone `renderCard`, optional `RowActions`. Pure
-   presentation.
+   presentation. Four constraints come from the react-table v9 seam
+   (`lib/table/features.ts`, migrated 2026-08-14):
+   - type runtime-built columns as the `ColumnDef<TData>` alias from `lib/table/features`,
+     never the raw `@tanstack/react-table` type, or the feature generic will not line up;
+   - filter functions are registered centrally and named, not passed: only `oneOf`,
+     `arrayOverlaps`, `dateBetween`, `includesString` and `inNumberRange` exist, and
+     adding one edits a file shared by every table in the product;
+   - filters are declared only through `meta.filter`, resolved by `filterFnFor` in
+     `lib/table/column-meta.ts`;
+   - `ColumnFilterMeta` is a closed union (`text | enum | date | number`) with **no
+     boolean**. v1: `select` columns declare `enum`; `boolean` columns declare no filter
+     and remain sortable. Extra meta keys need the `declare module` augmentation in
+     `column-meta.ts`.
 4. `hooks/useListRows.ts` (new): row queries/mutations keyed by **instanceId** — one
    data path, no adapter interface (`apiFor(instanceId)` over `createCrudApi` mirrors
    `resource-custom-fields-api.ts`). Plus `useResourceListInstance(resourceId, fieldId)`:
@@ -227,7 +257,9 @@ grids) reuse them unchanged:
   ResourceTypeSettings/JobTitleSettings) → `ListDefinitionEditDialog`
   (name/description/active) → `ListColumnsDialog` (pattern
   ResourceTypeCustomFieldsDialog) → `ListColumnEditDialog` (pattern
-  CustomFieldEditDialog, reuse `keyFromLabel` + `EnumValueEditor` for select options) →
+  CustomFieldEditDialog; `keyFromLabel` is currently module-private in
+  `CustomFieldEditDialog.tsx` and must be exported/extracted first, then reused with
+  `EnumValueEditor` for select options) →
   `ListInstancesDialog` (shared instances of one definition) → `ListInstanceDataDialog` =
   ScaffoldDialog wrapping `ListRowsEditor(instanceId)`.
 - Resource form: `CustomFieldInput.tsx` branches — `list` →
@@ -266,7 +298,9 @@ ScalarValueInput refactor must keep existing tests green).
 ### Phasing (PR boundaries only; migration 1780 complete from day one)
 
 A: migration + definition/column backend + "Resources" section + primitive kit (items
-1–6) + `list` type + per-resource rows editor. B: shared instances + data grid (reusing
+1–6) + `list` type + per-resource rows editor. Migration 1780 admits both CHECK values on
+day one, but `CustomFieldDataTypes.All` is the API gate: phase A adds **only** `List`, so
+`list_lookup` cannot be created before its binding validation lands in B. B: shared instances + data grid (reusing
 the kit) + `list_lookup` + `ListRowPicker` + row-delete strip. C: export + polish. D:
 dissolution readiness (below).
 
@@ -281,7 +315,8 @@ guarantees this feature holds, and the remaining backlog.
 1. List fields bind by `resource_type_id`; space and person are ordinary
    `resource_types` rows, so tenants can attach lists to them (certifications on a
    person, equipment in a space) with zero special-casing. Per-resource instances key on
-   `resources.id` — spaces and people ARE `resources` rows since migration 1710. A
+   `resources.id` — spaces and people ARE `resources` rows since migration 1700 (1710 is
+   the contract half that dropped the side tables). A
    backend test pins this end-to-end on the system person type.
 2. `list` fields cannot be required, so `EnsureRequirable`/foundation#110 (the space
    create form carries no custom-field document) is not aggravated — rows attach after
@@ -318,8 +353,9 @@ guarantees this feature holds, and the remaining backlog.
 
 ## Verification
 
-- `dotnet test` in `backend` (includes migration-numbering + authorization
-  contract/matrix guards); `npm test`, `npm run lint`, `tsc` in `frontend`.
+- `dotnet test` in `backend` (includes the authorization contract/matrix guards). Migration
+  numbering is not test-guarded: `scripts/ci/lint-migration-headers.sh` checks the class
+  header and `migrator-runtime/MigrationOrderer.cs` rejects duplicate ids; `npm test`, `npm run lint`, `tsc` in `frontend`.
 - Manual: (1) create a "Maintenance log" definition (date+number), bind it as a `list`
   field on a type, add/edit/delete rows on a resource, delete the resource → rows gone.
   (2) "Components" definition with a select column, shared instance, `list_lookup` field
@@ -331,7 +367,7 @@ guarantees this feature holds, and the remaining backlog.
 
 ## User-visible changes to announce
 
-A new admin-only sidebar section **"Resources"** (de: Ressourcen) with tabs of its own:
+A new admin-only sidebar section **"Resources"** with tabs of its own:
 Resource Types (moved out of Administration) and List definitions (new). Administration
 keeps its "Configuration" tab unchanged — no tab is renamed. Old resource-types URLs
 redirect.
