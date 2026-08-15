@@ -1,3 +1,4 @@
+using System.Text.Json;
 namespace Api.Models;
 
 /// <summary>
@@ -77,6 +78,12 @@ public record SpaceInfo
     public Dictionary<string, object>? Properties { get; init; }
     public Guid? GroupId { get; init; }
     public int Capacity { get; init; } = 1;
+    /// <summary>
+    /// Values for the custom fields defined on the space resource type, keyed by field key.
+    /// A space is an ordinary resource, so it carries the same descriptive properties any other
+    /// type can — including lists, whose rows hang off the space itself.
+    /// </summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 
@@ -97,6 +104,7 @@ public record SpaceInfo
         Properties = resource.Properties,
         GroupId = resource.GroupId,
         Capacity = resource.Capacity,
+        CustomFields = resource.CustomFields,
         CreatedAt = resource.CreatedAt,
         UpdatedAt = resource.UpdatedAt,
     };
@@ -123,6 +131,12 @@ public record CreateSpaceRequest : ISpaceGeometryRequest
     public SpaceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int Capacity { get; init; } = 1;
+    /// <summary>
+    /// Values for the space type's custom fields. Present here so a space can be created with
+    /// them, which is what foundation#110 was waiting on — before this the only endpoint that
+    /// creates a space had nowhere to put them.
+    /// </summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 /// <summary>
@@ -137,4 +151,9 @@ public record UpdateSpaceRequest : ISpaceGeometryRequest
     public SpaceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int? Capacity { get; init; }
+    /// <summary>
+    /// The complete value document, as on any resource: it replaces what the space holds, so an
+    /// omitted field is an emptied field. Null leaves the values untouched.
+    /// </summary>
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }

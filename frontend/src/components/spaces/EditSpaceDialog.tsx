@@ -7,6 +7,11 @@
  * - Error handling and validation
  */
 
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
+import { useResourceCustomFieldForm } from '@foundation/src/hooks/useResourceCustomFieldForm';
+import { CustomFieldInput } from '@foundation/src/components/resources/CustomFieldInput';
+import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
+import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
@@ -34,7 +39,20 @@ export function EditSpaceDialog({
   const [name, setName] = useState(space.name);
   const [description, setDescription] = useState(space.description || "");
   const [capacity, setCapacity] = useState(space.capacity ?? 1);
+  const [customFieldValues, setCustomFieldValues] = useState(space.customFields ?? {});
+  // Snapshot of the values as last seeded. Dirtiness compares identity against it, which works
+  // because every edit builds a new object — comparing against `space.customFields ?? {}`
+  // instead would allocate a fresh {} each render and report the form dirty forever.
+  const [customFieldsBaseline, setCustomFieldsBaseline] = useState(customFieldValues);
   const [error, setError] = useState<string | null>(null);
+
+  // A space is a resource, so a tenant can put custom fields on it like any other type — lists
+  // included, whose rows hang off the space itself. The dialog knows only the key.
+  const { data: resourceTypes = [] } = useResourceTypes();
+  const spaceTypeId = resourceTypes.find((t) => t.key === RESOURCE_TYPE_KEY.SPACE)?.id;
+  const customFields = useResourceCustomFieldForm(spaceTypeId, open);
+  const setCustomField = (key: string, value: CustomFieldValue) =>
+    setCustomFieldValues((current) => customFields.withValue(current, key, value));
 
   const updateMutation = useUpdateSpace(siteId);
   const isSubmitting = updateMutation.isPending;
@@ -47,6 +65,9 @@ export function EditSpaceDialog({
       setName(space.name);
       setDescription(space.description || "");
       setCapacity(space.capacity ?? 1);
+      const seededCustomFields = space.customFields ?? {};
+      setCustomFieldValues(seededCustomFields);
+      setCustomFieldsBaseline(seededCustomFields);
       setError(null);
     }
   }
@@ -55,8 +76,9 @@ export function EditSpaceDialog({
     () =>
       name !== space.name ||
       description !== (space.description || "") ||
-      capacity !== (space.capacity ?? 1),
-    [name, description, capacity, space],
+      capacity !== (space.capacity ?? 1) ||
+      customFieldValues !== customFieldsBaseline,
+    [name, description, capacity, customFieldValues, customFieldsBaseline, space],
   );
 
   const handleSubmit = async () => {
@@ -77,6 +99,7 @@ export function EditSpaceDialog({
           isPhysical: space.isPhysical,
           geometry: space.geometry,
           capacity,
+          customFields: customFields.forSave(customFieldValues),
         },
       });
       onSuccess(space); // Just close dialog, cache will update
@@ -99,6 +122,7 @@ export function EditSpaceDialog({
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
+        submitDisabled={!customFields.isSatisfied(customFieldValues)}
       >
         {/* Code (read-only) */}
         <div className="space-y-2">
@@ -152,6 +176,22 @@ export function EditSpaceDialog({
             Number of concurrent allocations allowed (e.g., 5 for a hot desk area with 5 desks)
           </p>
         </div>
+
+        {/* Custom fields defined on the space type — the same block the resource and person
+            forms render, so a field behaves identically wherever its type is edited. */}
+        {customFields.fields.length > 0 && (
+          <div className="space-y-4 border-t pt-4">
+            {customFields.fields.map((field) => (
+              <CustomFieldInput
+                key={field.id}
+                field={field}
+                value={customFields.valueOf(field, customFieldValues)}
+                onChange={(value) => setCustomField(field.key, value)}
+                resourceId={space.id}
+              />
+            ))}
+          </div>
+        )}
       </FormDialog>
     </>
   );

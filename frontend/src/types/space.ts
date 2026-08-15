@@ -2,6 +2,8 @@
  * Space-related types for geometry-based space creation
  */
 
+import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
+
 export interface Coordinate {
   x: number;
   y: number;
@@ -25,6 +27,8 @@ export interface Space {
   properties?: Record<string, unknown>;
   groupId?: string;
   capacity: number;
+  /** Values for the space type's custom fields, keyed by field key. */
+  customFields?: Record<string, CustomFieldValue>;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +41,7 @@ export interface CreateSpaceRequest {
   geometry?: SpaceGeometry;
   properties?: Record<string, unknown>;
   capacity?: number;
+  customFields?: Record<string, CustomFieldValue>;
 }
 
 export interface UpdateSpaceRequest {
@@ -47,6 +52,8 @@ export interface UpdateSpaceRequest {
   geometry?: SpaceGeometry;
   properties?: Record<string, unknown>;
   capacity?: number;
+  /** The complete document — an omitted field is an emptied one, as on any resource. */
+  customFields?: Record<string, CustomFieldValue>;
 }
 
 /**

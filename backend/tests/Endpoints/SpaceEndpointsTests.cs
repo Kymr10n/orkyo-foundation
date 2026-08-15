@@ -693,4 +693,53 @@ public class SpaceEndpointsTests
     }
 
     #endregion
+
+    [Fact]
+    public async Task Space_CarriesCustomFieldValues_OnCreateAndUpdate()
+    {
+        // foundation#110: a space is an ordinary resource, so it holds the custom fields its type
+        // defines. Before this the space endpoints had nowhere to put them, and the values a
+        // tenant entered anywhere else were dropped on the way through.
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+
+        var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
+        var spaceType = types!.Single(t => t.Key == ResourceTypeKeys.Space);
+
+        var key = $"floor_finish_{Guid.NewGuid():N}"[..40];
+        var field = await _client.PostAsJsonAsync($"/api/resource-types/{spaceType.Id}/custom-fields",
+            new CreateResourceCustomFieldRequest
+            {
+                Key = key,
+                Label = "Floor finish",
+                DataType = CustomFieldDataTypes.Text,
+            });
+        Assert.Equal(HttpStatusCode.Created, field.StatusCode);
+
+        var created = await _client.PostAsJsonAsync($"/api/sites/{siteId}/spaces", new CreateSpaceRequest
+        {
+            Name = "Workshop",
+            Code = $"W-{Guid.NewGuid():N}"[..10],
+            // Non-physical: a physical space must carry geometry, which is beside the point here.
+            IsPhysical = false,
+            CustomFields = new Dictionary<string, JsonElement>
+            {
+                [key] = JsonDocument.Parse("\"sealed concrete\"").RootElement,
+            },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var space = (await created.Content.ReadFromJsonAsync<SpaceInfo>())!;
+        Assert.Equal("sealed concrete", space.CustomFields![key].GetString());
+
+        var updated = await _client.PutAsJsonAsync($"/api/sites/{siteId}/spaces/{space.Id}",
+            new UpdateSpaceRequest
+            {
+                Name = "Workshop",
+                CustomFields = new Dictionary<string, JsonElement>
+                {
+                    [key] = JsonDocument.Parse("\"epoxy\"").RootElement,
+                },
+            });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.Equal("epoxy", (await updated.Content.ReadFromJsonAsync<SpaceInfo>())!.CustomFields![key].GetString());
+    }
 }

@@ -71,6 +71,7 @@ public static class SpaceEndpoints
                     Geometry = request.Geometry,
                     Properties = request.Properties,
                     Capacity = request.Capacity,
+                    CustomFields = request.CustomFields,
                 }, ct);
                 logger.LogInformation("Created space {ResourceId} for site {SiteId}", space.Id, siteId);
                 return Results.Created($"/sites/{siteId}/spaces/{space.Id}", SpaceInfo.FromResource(space));
@@ -96,6 +97,7 @@ public static class SpaceEndpoints
                     Geometry = request.Geometry,
                     Properties = request.Properties,
                     Capacity = request.Capacity,
+                    CustomFields = request.CustomFields,
                 }, ct);
                 if (space == null) return ErrorResponses.NotFound("Space", resourceId);
                 logger.LogInformation("Updated space {ResourceId} for site {SiteId}", resourceId, siteId);
