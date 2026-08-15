@@ -1,0 +1,324 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Api.Constants;
+using Api.Models;
+using Xunit;
+
+namespace Orkyo.Foundation.Tests.Endpoints;
+
+/// <summary>
+/// List definitions: the reusable shape a list takes. What is load-bearing here, and asserted,
+/// is that reshaping a list is Admin-only while reading the shape is not, that a column's key
+/// and data type never change once cells could exist behind them, and that deleting either a
+/// definition in use or a column with data does the safe thing rather than the convenient one.
+/// </summary>
+[Collection("Database collection")]
+public class ListDefinitionEndpointsTests
+{
+    private readonly HttpClient _client;
+    private readonly DatabaseFixture _fixture;
+
+    public ListDefinitionEndpointsTests(DatabaseFixture databaseFixture)
+    {
+        _fixture = databaseFixture;
+        _client = databaseFixture.CreateAuthorizedClient();
+    }
+
+    private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
+    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
+
+    private async Task<ListDefinitionInfo> CreateDefinitionAsync(string? name = null)
+    {
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest { Name = name ?? UniqueName("Maintenance log") });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+    }
+
+    private async Task<ListColumnInfo> CreateColumnAsync(
+        Guid definitionId, string dataType = ListColumnDataTypes.Text,
+        IReadOnlyList<string>? options = null, bool isRequired = false, string? key = null)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/list-definitions/{definitionId}/columns",
+            new CreateListColumnRequest
+            {
+                Key = key ?? UniqueKey("col"),
+                Label = "Column",
+                DataType = dataType,
+                Options = options,
+                IsRequired = isRequired,
+            });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ListColumnInfo>())!;
+    }
+
+    // ── definition lifecycle ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateDefinition_ReturnsItWithNoColumns()
+    {
+        var definition = await CreateDefinitionAsync();
+
+        Assert.True(definition.IsActive);
+        Assert.Empty(definition.Columns);
+    }
+
+    [Fact]
+    public async Task GetDefinition_IncludesColumnsInFormOrder()
+    {
+        var definition = await CreateDefinitionAsync();
+        await CreateColumnAsync(definition.Id, key: "second");
+        await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "first",
+                Label = "First",
+                DataType = ListColumnDataTypes.Text,
+                SortOrder = -1,
+            });
+
+        var fetched = await _client.GetFromJsonAsync<ListDefinitionInfo>($"/api/list-definitions/{definition.Id}");
+
+        Assert.Equal(2, fetched!.Columns.Count);
+        Assert.Equal("first", fetched.Columns[0].Key);
+    }
+
+    [Fact]
+    public async Task GetDefinitions_OmitsInactiveUnlessAsked()
+    {
+        var definition = await CreateDefinitionAsync();
+        await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { IsActive = false });
+
+        var active = await _client.GetFromJsonAsync<List<ListDefinitionInfo>>("/api/list-definitions");
+        var all = await _client.GetFromJsonAsync<List<ListDefinitionInfo>>("/api/list-definitions?includeInactive=true");
+
+        Assert.DoesNotContain(active!, d => d.Id == definition.Id);
+        Assert.Contains(all!, d => d.Id == definition.Id);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_RejectsADuplicateName()
+    {
+        var name = UniqueName("Components");
+        await CreateDefinitionAsync(name);
+
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest { Name = name });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    // ── columns ───────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateColumn_RejectsAnUnknownDataType()
+    {
+        var definition = await CreateDefinitionAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest { Key = "k", Label = "K", DataType = "duration" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateColumn_RejectsASelectWithNoOptions()
+    {
+        var definition = await CreateDefinitionAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest { Key = "status", Label = "Status", DataType = ListColumnDataTypes.Select });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateColumn_RejectsDuplicateOptions()
+    {
+        var definition = await CreateDefinitionAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "status",
+                Label = "Status",
+                DataType = ListColumnDataTypes.Select,
+                Options = ["new", "new"],
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateColumn_RejectsOptionsOnANonSelectColumn()
+    {
+        var definition = await CreateDefinitionAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "mileage",
+                Label = "Mileage",
+                DataType = ListColumnDataTypes.Number,
+                Options = ["a"],
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateColumn_RejectsOptionsOnANonSelectColumn()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(definition.Id, ListColumnDataTypes.Number);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { Options = ["a"] });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateColumn_ChangesNeitherKeyNorDataType()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(definition.Id, ListColumnDataTypes.Text, key: "serial");
+
+        // The update request has no key or dataType member at all — this pins that, so a later
+        // "small addition" to the request type has to argue with a test.
+        var properties = typeof(UpdateListColumnRequest).GetProperties().Select(p => p.Name).ToList();
+        Assert.DoesNotContain("Key", properties);
+        Assert.DoesNotContain("DataType", properties);
+
+        var updated = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { Label = "Serial number" });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+
+        var body = (await updated.Content.ReadFromJsonAsync<ListColumnInfo>())!;
+        Assert.Equal("serial", body.Key);
+        Assert.Equal(ListColumnDataTypes.Text, body.DataType);
+    }
+
+    [Fact]
+    public async Task UpdateColumn_OnAnotherDefinition_IsNotFound()
+    {
+        var definition = await CreateDefinitionAsync();
+        var other = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(definition.Id);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{other.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { Label = "Hijacked" });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // ── delete semantics ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteDefinition_WhileAFieldBindsIt_IsAConflict()
+    {
+        var definition = await CreateDefinitionAsync();
+        await CreateColumnAsync(definition.Id);
+
+        var type = await CreateResourceTypeAsync();
+        var field = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
+            new CreateResourceCustomFieldRequest
+            {
+                Key = "log",
+                Label = "Log",
+                DataType = CustomFieldDataTypes.List,
+                ListDefinitionId = definition.Id,
+            });
+        Assert.Equal(HttpStatusCode.Created, field.StatusCode);
+
+        var response = await _client.DeleteAsync($"/api/list-definitions/{definition.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteColumn_StripsItsCellsFromExistingRows()
+    {
+        var definition = await CreateDefinitionAsync();
+        var keep = await CreateColumnAsync(definition.Id, key: "keep");
+        var drop = await CreateColumnAsync(definition.Id, key: "drop");
+
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var row = await _client.PostAsJsonAsync($"/api/list-instances/{instance.Id}/rows",
+            new ListRowRequest
+            {
+                Values = new Dictionary<string, JsonElement>
+                {
+                    ["keep"] = JsonDocument.Parse("\"kept\"").RootElement,
+                    ["drop"] = JsonDocument.Parse("\"dropped\"").RootElement,
+                },
+            });
+        Assert.Equal(HttpStatusCode.Created, row.StatusCode);
+
+        var deleted = await _client.DeleteAsync($"/api/list-definitions/{definition.Id}/columns/{drop.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        var rows = await _client.GetFromJsonAsync<List<ListRowInfo>>($"/api/list-instances/{instance.Id}/rows");
+        var stored = Assert.Single(rows!);
+        Assert.True(stored.Values.ContainsKey("keep"));
+        // The cell goes with the column: left behind, it would resurrect under a later column
+        // that reused the key, with a different type and nothing to validate it.
+        Assert.False(stored.Values.ContainsKey("drop"));
+        Assert.NotEqual(Guid.Empty, keep.Id);
+    }
+
+    // ── authorization ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Viewer_CanReadDefinitions_ButNotDefineThem()
+    {
+        var member = _fixture.CreateClientWithRole(RoleConstants.Viewer);
+
+        var read = await member.GetAsync("/api/list-definitions");
+        var write = await member.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest { Name = UniqueName("Nope") });
+
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+    }
+
+    [Fact]
+    public async Task Editor_CannotDefineAList()
+    {
+        var editor = _fixture.CreateClientWithRole(RoleConstants.Editor);
+
+        // Reshaping a list is governance even for an editor: they fill lists in, they do not
+        // decide what a list consists of.
+        var response = await editor.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest { Name = UniqueName("Nope") });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    private async Task<ResourceTypeInfo> CreateResourceTypeAsync()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("machine"),
+            DisplayName = "Machine",
+            DisplayNamePlural = "Machines",
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
+    }
+
+    private async Task<ListInstanceInfo> CreateSharedInstanceAsync(Guid definitionId)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/list-definitions/{definitionId}/instances",
+            new CreateListInstanceRequest { Name = UniqueName("Standard") });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ListInstanceInfo>())!;
+    }
+}

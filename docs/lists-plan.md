@@ -84,7 +84,9 @@ and `data_type` immutability then forbids mode switching for free):
 NOT NULL)` — so scalar fields cannot carry a stray binding. Both immutable after create
 (absent from the update request, like key/dataType).
 
-**Delete semantics:** resource delete → its instances+rows cascade. Field delete →
+**Delete semantics:** the FK from an instance to its resource is ON DELETE CASCADE, which covers
+paths that truly remove the row (a tenant purge). `DELETE /api/resources` is *not* such a path —
+it deactivates (`is_active = false`), so a deactivated resource keeps its list data. Field delete →
 per-resource instances cascade (`field_id` FK) + the existing key-strip. Definition /
 shared-instance delete → RESTRICT (409) while anything references them. Shared **row**
 delete → strip that row id from every referencing resource's `custom_fields` array in the

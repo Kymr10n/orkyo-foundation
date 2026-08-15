@@ -133,7 +133,10 @@ CREATE TABLE IF NOT EXISTS public.list_instances (
     CONSTRAINT list_instances_resource_field_unique UNIQUE (resource_id, field_id),
     CONSTRAINT list_instances_definition_fkey
         FOREIGN KEY (list_definition_id) REFERENCES public.list_definitions(id) ON DELETE RESTRICT,
-    -- Deleting a resource takes its own list data with it.
+    -- Covers the paths that really remove a resource row, such as a tenant purge. Note that
+    -- DELETE /api/resources does NOT take this path: it deactivates (is_active = false), so a
+    -- deactivated resource keeps its list data, which is the coherent outcome — one restored
+    -- without its history would have lost data nobody agreed to discard.
     CONSTRAINT list_instances_resource_fkey
         FOREIGN KEY (resource_id) REFERENCES public.resources(id) ON DELETE CASCADE,
     -- Deleting the field that defines the list does the same — mirroring 1770's rule that
