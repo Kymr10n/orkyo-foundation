@@ -370,7 +370,29 @@ guarantees this feature holds, and the remaining backlog.
 - D1: foundation#110 — `SpaceInfo`/`Create/UpdateSpaceRequest` gain `CustomFields`;
   `EditSpaceDialog` renders the custom-fields block (incl. list fields via the kit).
 - D2: directory fields onto the generic contract (`ResourceInfo` + requests, gated by
-  `has_directory_profile`); retire `PersonProfileEndpoints` + `person-profiles-api.ts`.
+  `has_directory_profile`) — **DONE**. Retiring `PersonProfileEndpoints` +
+  `person-profiles-api.ts` is **refuted**: see below.
+
+  **D2 revision (2026-08-15, evidence from the consumers).** The profile endpoints are not a
+  thin shim over the same data — they are a read-optimised projection layer, and the generic
+  per-resource contract cannot replace them:
+
+  - `POST /api/person-profiles/job-titles` returns `{resourceId, jobTitleName}` only. It exists
+    because `ResourceUtilizationGrid` previously fanned out one request per resource. It needs
+    the *resolved* name, not the id.
+  - `POST /api/person-profiles/batch` serves `PersonList`, which renders `jobTitleName` and
+    `departmentPath` for every row.
+  - `POST|DELETE /{id}/link` is its own operation with its own checks; `LinkedUserId` is
+    deliberately absent from the generic requests for the same reason.
+
+  Both resolved fields come from a `LEFT JOIN` to `job_titles` and a recursive CTE that walks
+  the department parent chain. Putting them on `ResourceInfo` would add both to *every* resource
+  read — including list reads and the utilization grid — to serve two screens.
+
+  What can still be simplified: `GET /{id}` and `PUT /{id}` are now genuinely duplicated by
+  `/api/resources/{id}`, so `PersonEditDialog` could move its read and write across, leaving the
+  profile API as a pure projection layer (`/job-titles`, `/batch`, `/link`). That is a smaller,
+  honest change than the retirement this plan assumed, and it is what should be scheduled.
 - D3: retire the `SpaceEndpoints` thin shim in favour of `/api/resources` (needs D1; the
   placeable-cannot-travel rule is already enforced centrally in `ResourceService`).
 - D4: frontend convergence — retire `TYPES_WITH_DEDICATED_PAGES`; `SpacesPage`/
