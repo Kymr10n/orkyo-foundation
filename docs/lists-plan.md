@@ -337,6 +337,45 @@ day one, but `CustomFieldDataTypes.All` is the API gate: phase A adds **only** `
 the kit) + `list_lookup` + `ListRowPicker` + row-delete strip. C: export + polish. D:
 dissolution readiness (below).
 
+## Backlog — a designated display column (requested 2026-08-15, from review)
+
+**What is wrong today.** A row has no single field that identifies it, so every surface that
+must show a row in one line invents an answer: `describeRow` in `ListRowPicker` takes the first
+active column as the head and appends the rest as context, joined with `—` and `·`. Reviewing a
+lookup field on the space form showed the result — `Name — 7'865` — which is a concatenation, not
+a name. The author knows which column identifies a row; the code is guessing.
+
+**What is wanted.** The admin marks one column of a definition as the one shown wherever a row
+is represented as a single value.
+
+**Shape.** A nullable `display_column_id` on `list_definitions`, FK to `list_columns` with
+`ON DELETE SET NULL`, rather than an `is_display` flag on the column — one definition has exactly
+one display column, and a single FK cannot drift into two columns both claiming it. `SET NULL`
+matters: deleting the designated column must not take the definition with it, and the fallback
+below then applies again.
+
+**Rules.**
+- The column must belong to that definition (validate on set, like every other cross-entity
+  binding here).
+- Unset falls back to the current behaviour — first active column by `sort_order`, then label.
+  Existing definitions therefore keep working with no migration of data.
+- A designated column that is later deactivated falls back the same way rather than showing a
+  field the row form no longer asks for.
+- Any column type may be designated. A `boolean` display column reads "Yes"/"No", which is
+  useless but is the author's choice to make, and refusing it adds a rule to explain.
+
+**Surfaces that consume it.** `ListRowPicker.describeRow` (the case that prompted this),
+`ListRowsTable` for the phone card heading, and any future place a row is rendered as one value.
+`formatListCell` already produces the text; this only decides which column to hand it.
+
+**UI.** A "Shown in forms" picker in `ListDefinitionEditDialog`, listing the definition's active
+columns; or a radio in the columns dialog. The dialog needs the columns loaded either way, which
+`ListColumnsDialog` already does.
+
+**Tests.** The fallback when unset, when the designated column is deactivated, and when it is
+deleted; rejection of a column from another definition; and that the picker's line changes to
+the designated column's value alone.
+
 ## Path to Space/People dissolution (Phase D)
 
 The end goal is moving the built-in Space and People types onto the generic model
