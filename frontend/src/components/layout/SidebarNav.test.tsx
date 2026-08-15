@@ -128,6 +128,24 @@ describe('SidebarNav', () => {
     expect(labels.indexOf('Administration')).toBe(labels.indexOf('Settings') + 1);
   });
 
+  it('shows the Resources item for tenant admins only', () => {
+    authState.membership = { isTenantAdmin: true };
+    renderSidebar();
+
+    expect(screen.getByText('Resources')).toBeInTheDocument();
+    expect(screen.getAllByRole('link').map((l) => l.getAttribute('href'))).toContain(
+      '/configuration',
+    );
+  });
+
+  it('hides Resources from a member who is not a tenant admin', () => {
+    authState.membership = { isTenantAdmin: false };
+    renderSidebar();
+
+    // Same gate as Administration: it shapes tenant-wide data, so it is not an editor surface.
+    expect(screen.queryByText('Resources')).not.toBeInTheDocument();
+  });
+
   describe('active state', () => {
     const activeLink = () =>
       screen

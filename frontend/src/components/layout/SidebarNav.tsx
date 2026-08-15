@@ -2,7 +2,11 @@ import { Button } from "@foundation/src/components/ui/button";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
+import {
+  ROUTE_CONFIGURATION,
+  ROUTE_SETTINGS,
+  ROUTE_TENANT_ADMIN,
+} from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
@@ -15,6 +19,7 @@ import {
   LineChart,
   Package,
   Settings,
+  Boxes,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -35,6 +40,9 @@ const workNavItems = [
 
 // Settings visible to editors and admins; Administration to tenant admins only.
 const settingsNavItem = { to: ROUTE_SETTINGS, label: "Settings", icon: Settings };
+// Sits next to Administration and shares its gate: both are tenant-admin surfaces, but this one
+// shapes the data (resource types, list definitions) rather than governing the tenant.
+const configurationNavItem = { to: ROUTE_CONFIGURATION, label: "Resources", icon: Boxes };
 const adminNavItem = { to: ROUTE_TENANT_ADMIN, label: "Administration", icon: ShieldCheck };
 
 interface SidebarNavProps {
@@ -69,7 +77,7 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
     ...typeNavItems,
     ...workNavItems,
     ...(canEdit ? [settingsNavItem] : []),
-    ...(isTenantAdmin ? [adminNavItem] : []),
+    ...(isTenantAdmin ? [adminNavItem, configurationNavItem] : []),
   ];
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);

@@ -28,7 +28,8 @@ import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoun
 import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ACCOUNT, ROUTE_TENANT_ADMIN, isBlockedTenantState } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ACCOUNT, ROUTE_CONFIGURATION,
+  ROUTE_TENANT_ADMIN, isBlockedTenantState } from '@foundation/src/constants/auth';
 import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
@@ -56,6 +57,8 @@ const JobTitleSettings = lazy(() => import('@foundation/src/components/settings/
 const DepartmentSettings = lazy(() => import('@foundation/src/components/settings/DepartmentSettings').then(m => ({ default: m.DepartmentSettings })));
 const CriteriaSettings = lazy(() => import('@foundation/src/components/settings/CriteriaSettings').then(m => ({ default: m.CriteriaSettings })));
 const ResourceTypeSettings = lazy(() => import('@foundation/src/components/settings/ResourceTypeSettings').then(m => ({ default: m.ResourceTypeSettings })));
+const ListDefinitionSettings = lazy(() => import('@foundation/src/components/settings/ListDefinitionSettings').then(m => ({ default: m.ListDefinitionSettings })));
+const ConfigurationPage = lazy(() => import('@foundation/src/pages/ConfigurationPage').then(m => ({ default: m.ConfigurationPage })));
 const ResourcesPage = lazy(() => import('@foundation/src/pages/ResourcesPage').then(m => ({ default: m.ResourcesPage })));
 const ResourceListTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceListTab })));
 const ResourceGroupsTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceGroupsTab })));
@@ -73,7 +76,7 @@ const FloorplanView = lazy(() => import('@foundation/src/components/spaces/Floor
 const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/resources", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin"];
+const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/resources", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin", "/configuration"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -210,7 +213,18 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="usage-limits" element={<UsageLimitsSettings />} />
+          </Route>
+
+          {/* Resources — how the tenant shapes what it schedules. Admin-gated like
+              Administration, but a different question: not who is in the tenant, but what
+              its resources are and what they carry. Default = resource types. */}
+          <Route
+            path="configuration"
+            element={<RequireTenantAdmin><ConfigurationPage /></RequireTenantAdmin>}
+          >
+            <Route index element={<Navigate to="resource-types" replace />} />
             <Route path="resource-types" element={<ResourceTypeSettings />} />
+            <Route path="list-definitions" element={<ListDefinitionSettings />} />
           </Route>
 
           {/* People — nested sub-routes. Skills and absences are managed per-person
@@ -244,7 +258,9 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           <Route path="settings/users"         element={<Navigate to={`${ROUTE_TENANT_ADMIN}/users`} replace />} />
           <Route path="settings/organization"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/organization`} replace />} />
           <Route path="settings/configuration" element={<Navigate to={`${ROUTE_TENANT_ADMIN}/configuration`} replace />} />
-          <Route path="settings/resource-types" element={<Navigate to={`${ROUTE_TENANT_ADMIN}/resource-types`} replace />} />
+          <Route path="settings/resource-types" element={<Navigate to={`${ROUTE_CONFIGURATION}/resource-types`} replace />} />
+          {/* Resource types moved out of Administration into Resources. */}
+          <Route path="tenant-admin/resource-types" element={<Navigate to={`${ROUTE_CONFIGURATION}/resource-types`} replace />} />
           <Route path="settings/integrations"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/integrations`} replace />} />
           <Route path="settings/usage-limits"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/usage-limits`} replace />} />
         </Route>

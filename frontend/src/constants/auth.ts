@@ -163,6 +163,14 @@ export const ROUTE_SETTINGS = '/settings';
 
 /** Tenant-admin Administration area (sites, users, organization, …). */
 export const ROUTE_TENANT_ADMIN = '/tenant-admin';
+/**
+ * The Resources section — resource types and list definitions.
+ *
+ * Not '/resources': that prefix belongs to the per-type resource pages
+ * (/resources/:typeKey). Administration sets the precedent for a label that differs
+ * from its path.
+ */
+export const ROUTE_CONFIGURATION = '/configuration';
 
 /** The current user's account page (memberships, profile, security). */
 export const ROUTE_ACCOUNT = '/account';
