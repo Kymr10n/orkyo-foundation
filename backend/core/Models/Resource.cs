@@ -147,6 +147,17 @@ public record CreateResourceRequest
     /// the type marks required must still be present, so a required field cannot be skipped
     /// by leaving the document out.</summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
+
+    // Directory details — rejected unless the named type declares HasDirectoryProfile, the same
+    // way placement is rejected on a type that cannot be placed. LinkedUserId is absent on
+    // purpose: linking a person to a user account is its own operation with its own checks, not
+    // a field on a create form.
+    public string? Email { get; init; }
+    public Guid? JobTitleId { get; init; }
+    public Guid? DepartmentId { get; init; }
+    /// <summary>Confidential free text — encrypted before it is stored.</summary>
+    public string? Notes { get; init; }
+
 }
 
 public record UpdateResourceRequest
@@ -173,6 +184,13 @@ public record UpdateResourceRequest
     /// the form must send back the values they did not show (retired fields), or those values are
     /// what "replaces" discards.</summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
+
+    // Directory details — rejected unless the resource's type declares HasDirectoryProfile.
+    // Null means "not editing this field", as everywhere else in a patch request.
+    public string? Email { get; init; }
+    public Guid? JobTitleId { get; init; }
+    public Guid? DepartmentId { get; init; }
+    public string? Notes { get; init; }
 }
 
 public record ResourceListFilter

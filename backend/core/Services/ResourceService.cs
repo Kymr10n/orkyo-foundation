@@ -58,6 +58,13 @@ public class ResourceService(
         await customFieldService.ValidateValuesAsync(
             resourceType.Id, request.CustomFields ?? [], ct);
 
+        if ((request.Email is not null || request.JobTitleId is not null
+             || request.DepartmentId is not null || request.Notes is not null)
+            && !resourceType.HasDirectoryProfile)
+        {
+            throw new ArgumentException($"Resource type '{resourceType.Key}' has no directory profile, so it has no email, job title, department or notes");
+        }
+
         // Keyed on the type flag, not on the space key: the quota counts what occupies a
         // floorplan, and any type can now declare that it does.
         if (resourceType.HasGeometry)
@@ -92,6 +99,15 @@ public class ResourceService(
                 ?? throw new InvalidOperationException($"Resource type {existing.ResourceTypeId} not found");
             if (!resourceType.HasGeometry)
                 throw new ArgumentException($"Resource type '{resourceType.Key}' cannot be placed, so it has no code, geometry, properties or capacity");
+        }
+
+        if (request.Email is not null || request.JobTitleId is not null
+            || request.DepartmentId is not null || request.Notes is not null)
+        {
+            var resourceType = await resourceTypeRepository.GetByIdAsync(existing.ResourceTypeId, ct)
+                ?? throw new InvalidOperationException($"Resource type {existing.ResourceTypeId} not found");
+            if (!resourceType.HasDirectoryProfile)
+                throw new ArgumentException($"Resource type '{resourceType.Key}' has no directory profile, so it has no email, job title, department or notes");
         }
 
         // Null means the caller is not editing custom fields at all — a rename must not have to

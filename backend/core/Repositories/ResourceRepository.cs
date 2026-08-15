@@ -215,12 +215,14 @@ public class ResourceRepository(
                 (id, resource_type_id, name, description, external_reference,
                  allocation_mode, base_availability_percent,
                  home_site_id, cross_site_allowed,
-                 code, is_physical, geometry, properties, capacity, custom_fields)
+                 code, is_physical, geometry, properties, capacity, custom_fields,
+                 email, job_title_id, department_id, notes)
             VALUES
                 (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent,
                  @homeSiteId, @crossSiteAllowed,
-                 @code, @isPhysical, @geometry, @properties, @capacity, @customFields)
+                 @code, @isPhysical, @geometry, @properties, @capacity, @customFields,
+                 @email, @jobTitleId, @departmentId, @notes)
             RETURNING id, created_at, updated_at",
             p =>
             {
@@ -239,6 +241,12 @@ public class ResourceRepository(
                 p.AddJsonb("properties", propertiesJson);
                 p.AddWithValue("capacity", request.Capacity);
                 p.AddJsonb("customFields", customFieldsJson);
+                p.AddNullable("email", request.Email);
+                p.AddNullable("jobTitleId", request.JobTitleId);
+                p.AddNullable("departmentId", request.DepartmentId);
+                // Encrypted on the way in, exactly as PersonProfileRepository does it — the
+                // column holds ciphertext and nothing else may write plaintext into it.
+                p.AddNullable("notes", encryption.ProtectString(request.Notes, orgContext.OrgId));
             },
             r => new ResourceInfo
             {
@@ -261,6 +269,11 @@ public class ResourceRepository(
                 Capacity = request.Capacity,
                 // Matches how Map reads it back: an empty document is reported as no values.
                 CustomFields = request.CustomFields is { Count: > 0 } ? request.CustomFields : null,
+                Email = request.Email,
+                JobTitleId = request.JobTitleId,
+                DepartmentId = request.DepartmentId,
+                // The plaintext the caller sent, not the ciphertext just stored.
+                Notes = request.Notes,
                 // Membership is managed by the resource-group members editor, never at create time.
                 GroupId = null,
                 IsActive = true,
@@ -296,6 +309,13 @@ public class ResourceRepository(
         if (propertiesJson is not null) update.SetExpression("properties = @properties");
         if (customFieldsJson is not null) update.SetExpression("custom_fields = @customFields");
         if (request.Capacity.HasValue) update.Set("capacity", request.Capacity.Value);
+        update.SetIfNotNull("email", request.Email);
+        if (request.JobTitleId.HasValue) update.Set("job_title_id", request.JobTitleId.Value);
+        if (request.DepartmentId.HasValue) update.Set("department_id", request.DepartmentId.Value);
+        // Encrypted before it reaches the SET clause, so no write path can put plaintext in the
+        // column even by accident.
+        if (request.Notes is not null)
+            update.Set("notes", encryption.ProtectString(request.Notes, orgContext.OrgId)!);
 
         if (update.IsEmpty) return await GetByIdAsync(id, ct);
 

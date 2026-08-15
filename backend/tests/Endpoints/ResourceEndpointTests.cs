@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Endpoints;
 using Api.Models;
+using Npgsql;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -371,5 +372,61 @@ public class ResourceEndpointTests
         Assert.Null(tool.Email);
         Assert.Null(tool.JobTitleId);
         Assert.Null(tool.Notes);
+    }
+
+    [Fact]
+    public async Task CreateResource_Person_WritesDirectoryFields_AndStoresNotesEncrypted()
+    {
+        var email = $"dir_{Guid.NewGuid():N}@example.com";
+        var request = new CreateResourceRequest
+        {
+            ResourceTypeKey = "person",
+            Name = $"Dir-{Guid.NewGuid():N}"[..20],
+            AllocationMode = "Fractional",
+            Email = email,
+            Notes = "Salary review due",
+        };
+
+        var created = await _client.PostAsJsonAsync("/api/resources", request);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var person = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
+
+        Assert.Equal(email, person.Email);
+        Assert.Equal("Salary review due", person.Notes);
+
+        // Round-tripping plaintext proves the pair of transforms agree, not that anything is
+        // encrypted — an implementation that stored plaintext would pass that too. So read the
+        // column directly: what is at rest must not be what the caller sent.
+        var tenantConnectionString =
+            $"Host=localhost;Port={_fixture.DatabasePort};Database={TestConstants.TenantDatabase};"
+            + "Username=postgres;Password=postgres";
+        await using var db = new NpgsqlConnection(tenantConnectionString);
+        await db.OpenAsync();
+        await using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT notes FROM resources WHERE id = @id";
+        cmd.Parameters.AddWithValue("id", person.Id);
+        var stored = (string?)await cmd.ExecuteScalarAsync();
+
+        Assert.NotNull(stored);
+        Assert.NotEqual("Salary review due", stored);
+    }
+
+    [Fact]
+    public async Task UpdateResource_RejectsDirectoryFieldsOnATypeWithoutADirectoryProfile()
+    {
+        // The mirror of the placement rule: a type that declares no directory profile has no
+        // email or notes, and a request carrying them half-means something else.
+        var created = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "tool",
+            Name = $"Tool-{Guid.NewGuid():N}"[..20],
+            AllocationMode = "Exclusive",
+        });
+        var tool = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
+
+        var response = await _client.PutAsJsonAsync($"/api/resources/{tool.Id}",
+            new UpdateResourceRequest { Notes = "not allowed here" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 }
