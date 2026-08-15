@@ -318,4 +318,62 @@ public class ExportEndpointsTests
     }
 
     #endregion
+
+    [Fact]
+    public async Task Export_IncludesListDefinitionsWithColumnsAndSharedRows()
+    {
+        // Arrange — a definition with a column, a shared instance, and a row in it.
+        var adminClient = _client;
+        var createDefinition = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/list-definitions",
+            new CreateListDefinitionRequest { Name = $"Components {Guid.NewGuid():N}" });
+        var definitionResponse = await adminClient.SendAsync(createDefinition);
+        Assert.Equal(HttpStatusCode.Created, definitionResponse.StatusCode);
+        var definition = (await definitionResponse.Content.ReadFromJsonAsync<ListDefinitionInfo>(_jsonOptions))!;
+
+        var createColumn = await CreateAuthenticatedRequestAsync(HttpMethod.Post,
+            $"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest { Key = "name", Label = "Name", DataType = ListColumnDataTypes.Text });
+        Assert.Equal(HttpStatusCode.Created, (await adminClient.SendAsync(createColumn)).StatusCode);
+
+        var createInstance = await CreateAuthenticatedRequestAsync(HttpMethod.Post,
+            $"/api/list-definitions/{definition.Id}/instances",
+            new CreateListInstanceRequest { Name = "Standard" });
+        var instanceResponse = await adminClient.SendAsync(createInstance);
+        Assert.Equal(HttpStatusCode.Created, instanceResponse.StatusCode);
+        var instance = (await instanceResponse.Content.ReadFromJsonAsync<ListInstanceInfo>(_jsonOptions))!;
+
+        var createRow = await CreateAuthenticatedRequestAsync(HttpMethod.Post,
+            $"/api/list-instances/{instance.Id}/rows",
+            new ListRowRequest
+            {
+                Values = new Dictionary<string, JsonElement>
+                {
+                    ["name"] = JsonDocument.Parse("\"Bolt\"").RootElement,
+                },
+            });
+        var rowResponse = await adminClient.SendAsync(createRow);
+        Assert.Equal(HttpStatusCode.Created, rowResponse.StatusCode);
+        var row = (await rowResponse.Content.ReadFromJsonAsync<ListRowInfo>(_jsonOptions))!;
+
+        // Act
+        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", new ExportRequest());
+        var response = await adminClient.SendAsync(request);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
+
+        var exported = Assert.Single(
+            payload!.Data!.ListDefinitions!, d => d.Name == definition.Name);
+        Assert.Equal("name", Assert.Single(exported.Columns).Key);
+
+        var exportedInstance = Assert.Single(exported.SharedInstances);
+        Assert.Equal("Standard", exportedInstance.Name);
+
+        var exportedRow = Assert.Single(exportedInstance.Rows);
+        Assert.Equal("Bolt", exportedRow.Values["name"].GetString());
+        // The row id travels because lookup values reference rows by id: without it an exported
+        // selection would name something the export does not contain.
+        Assert.Equal(row.Id, exportedRow.Id);
+    }
 }

@@ -39,6 +39,54 @@ public record ExportData
     /// <see cref="ExportSite.Spaces"/>), which is where they are managed.
     /// </summary>
     public List<ExportResource>? Resources { get; init; }
+
+    /// <summary>
+    /// List definitions with their columns, and the shared instances built from them, rows
+    /// included. Per-resource list rows are NOT here: they belong to one resource each and would
+    /// need the resource identity to round-trip, which is its own piece of work (follow-up
+    /// issue). Lookup values already travel inside <see cref="ExportResource.CustomFields"/> as
+    /// the row ids they are, so a shared list and the picks referencing it export together.
+    /// </summary>
+    public List<ExportListDefinition>? ListDefinitions { get; init; }
+}
+
+/// <summary>A list definition: the reusable shape, its columns, and its shared instances.</summary>
+public record ExportListDefinition
+{
+    public required string Name { get; init; }
+    public string? Description { get; init; }
+    public bool IsActive { get; init; }
+    public required List<ExportListColumn> Columns { get; init; }
+    public required List<ExportListInstance> SharedInstances { get; init; }
+}
+
+public record ExportListColumn
+{
+    public required string Key { get; init; }
+    public required string Label { get; init; }
+    public string? Description { get; init; }
+    public required string DataType { get; init; }
+    /// <summary>Declared options for a `select` column; absent for every other type.</summary>
+    public List<string>? Options { get; init; }
+    public bool IsRequired { get; init; }
+    public int SortOrder { get; init; }
+    public bool IsActive { get; init; }
+}
+
+public record ExportListInstance
+{
+    public required string Name { get; init; }
+    /// <summary>
+    /// Rows carry their id because lookup values reference them by id: dropping it would export
+    /// a selection that names nothing.
+    /// </summary>
+    public required List<ExportListRow> Rows { get; init; }
+}
+
+public record ExportListRow
+{
+    public required Guid Id { get; init; }
+    public required Dictionary<string, JsonElement> Values { get; init; }
 }
 
 /// <summary>

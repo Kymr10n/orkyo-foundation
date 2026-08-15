@@ -22,6 +22,8 @@ public class ExportService : IExportService
     private readonly ISchedulingRepository _schedulingRepo;
     private readonly IAvailabilityEventRepository _availabilityEventRepo;
     private readonly IRequestRepository _requestRepo;
+    private readonly IListDefinitionRepository _listDefinitionRepo;
+    private readonly IListInstanceRepository _listInstanceRepo;
     private readonly ICurrentTenant _currentTenant;
 
     public ExportService(
@@ -36,6 +38,8 @@ public class ExportService : IExportService
         ISchedulingRepository schedulingRepo,
         IAvailabilityEventRepository availabilityEventRepo,
         IRequestRepository requestRepo,
+        IListDefinitionRepository listDefinitionRepo,
+        IListInstanceRepository listInstanceRepo,
         ICurrentTenant currentTenant)
     {
         _siteRepo = siteRepo;
@@ -49,6 +53,8 @@ public class ExportService : IExportService
         _schedulingRepo = schedulingRepo;
         _availabilityEventRepo = availabilityEventRepo;
         _requestRepo = requestRepo;
+        _listDefinitionRepo = listDefinitionRepo;
+        _listInstanceRepo = listInstanceRepo;
         _currentTenant = currentTenant;
     }
 
@@ -129,6 +135,7 @@ public class ExportService : IExportService
         var exportTemplates = await BuildTemplatesAsync(criterionIdToKey);
         var exportSites = await BuildSitesAsync(sites, groupIdToKey, criterionIdToKey);
         var exportResources = await BuildResourcesAsync(sites, criterionIdToKey);
+        var exportListDefinitions = await BuildListDefinitionsAsync();
 
         return new ExportData
         {
@@ -136,7 +143,8 @@ public class ExportService : IExportService
             Criteria = exportCriteria,
             SpaceGroups = exportGroups,
             Templates = exportTemplates,
-            Resources = exportResources
+            Resources = exportResources,
+            ListDefinitions = exportListDefinitions
         };
     }
 
@@ -146,6 +154,62 @@ public class ExportService : IExportService
     /// (BuildSitesAsync); before this existed the payload simply omitted the rest,
     /// so an "export my data" of a tools-and-people tenant returned neither.
     /// </summary>
+    /// <summary>
+    /// Every list definition with its columns, and the shared instances built from it with their
+    /// rows.
+    ///
+    /// Inactive definitions are included: a retired shape still describes data that exists, and
+    /// an export that dropped it would lose the meaning of the rows it exported. Per-resource
+    /// instances are deliberately absent — see ExportData.ListDefinitions.
+    /// </summary>
+    private async Task<List<ExportListDefinition>> BuildListDefinitionsAsync()
+    {
+        var definitions = await _listDefinitionRepo.GetAllAsync(includeInactive: true);
+        var exported = new List<ExportListDefinition>();
+
+        foreach (var definition in definitions)
+        {
+            var columns = await _listDefinitionRepo.GetColumnsAsync(definition.Id);
+            var instances = await _listInstanceRepo.GetSharedByDefinitionAsync(definition.Id);
+
+            var exportedInstances = new List<ExportListInstance>();
+            foreach (var instance in instances)
+            {
+                var rows = await _listInstanceRepo.GetRowsAsync(instance.Id);
+                exportedInstances.Add(new ExportListInstance
+                {
+                    Name = instance.Name!,
+                    Rows = rows.Select(row => new ExportListRow
+                    {
+                        Id = row.Id,
+                        Values = new Dictionary<string, JsonElement>(row.Values),
+                    }).ToList(),
+                });
+            }
+
+            exported.Add(new ExportListDefinition
+            {
+                Name = definition.Name,
+                Description = definition.Description,
+                IsActive = definition.IsActive,
+                Columns = columns.Select(column => new ExportListColumn
+                {
+                    Key = column.Key,
+                    Label = column.Label,
+                    Description = column.Description,
+                    DataType = column.DataType,
+                    Options = column.Options?.ToList(),
+                    IsRequired = column.IsRequired,
+                    SortOrder = column.SortOrder,
+                    IsActive = column.IsActive,
+                }).ToList(),
+                SharedInstances = exportedInstances,
+            });
+        }
+
+        return exported;
+    }
+
     private async Task<List<ExportResource>> BuildResourcesAsync(
         List<SiteInfo> sites,
         Dictionary<Guid, string> criterionIdToKey)
