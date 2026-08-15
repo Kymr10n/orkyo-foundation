@@ -42,7 +42,7 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
     : IListDefinitionRepository
 {
     private const string DefinitionColumns =
-        "id, name, description, is_active, created_at, updated_at";
+        "id, name, description, is_active, display_column_id, created_at, updated_at";
 
     private const string ColumnColumns =
         "id, list_definition_id, key, label, description, data_type, options, "
@@ -104,6 +104,10 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
         update.SetIfNotNull("name", request.Name);
         update.SetIfNotNull("description", request.Description);
         if (request.IsActive.HasValue) update.Set("is_active", request.IsActive.Value);
+        // Clearing wins over setting: a request that says both is contradictory, and dropping the
+        // designation is the safer reading of it.
+        if (request.ClearDisplayColumn) update.SetExpression("display_column_id = NULL");
+        else if (request.DisplayColumnId.HasValue) update.Set("display_column_id", request.DisplayColumnId.Value);
 
         if (update.IsEmpty) return await GetByIdAsync(id, ct);
 
@@ -257,6 +261,7 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
         Name = r.GetString("name"),
         Description = r.GetNullableString("description"),
         IsActive = r.GetBoolean("is_active"),
+        DisplayColumnId = r.GetNullableGuid("display_column_id"),
         CreatedAt = r.GetDateTime("created_at"),
         UpdatedAt = r.GetDateTime("updated_at"),
     };

@@ -67,6 +67,11 @@ export interface ListDefinition {
   name: string;
   description?: string | null;
   isActive: boolean;
+  /**
+   * The column that identifies a row wherever one is shown as a single value. Null falls back to
+   * the first active column, which is what every surface did before this existed.
+   */
+  displayColumnId?: string | null;
   createdAt: string;
   updatedAt: string;
   /** Populated when one definition is fetched; empty in the collection response. */
@@ -105,6 +110,10 @@ export interface UpdateListDefinitionRequest {
   name?: string;
   description?: string;
   isActive?: boolean;
+  /** Must be a column of this definition. */
+  displayColumnId?: string;
+  /** Removes the designation — null on displayColumnId cannot mean both "unchanged" and "cleared". */
+  clearDisplayColumn?: boolean;
 }
 
 export interface CreateListColumnRequest {

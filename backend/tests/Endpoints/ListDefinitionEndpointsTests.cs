@@ -280,6 +280,61 @@ public class ListDefinitionEndpointsTests
         Assert.Equal("used", Assert.Single(rows!).Values["condition"].GetString());
     }
 
+    // ── display column ────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DisplayColumn_IsUnsetUntilDesignated_AndCanBeSetAndCleared()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(definition.Id, key: "part_name");
+
+        Assert.Null(definition.DisplayColumnId);
+
+        var set = await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { DisplayColumnId = column.Id });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+        Assert.Equal(column.Id, (await set.Content.ReadFromJsonAsync<ListDefinitionInfo>())!.DisplayColumnId);
+
+        // Null on DisplayColumnId means "unchanged", so clearing needs its own flag.
+        var cleared = await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { ClearDisplayColumn = true });
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Null((await cleared.Content.ReadFromJsonAsync<ListDefinitionInfo>())!.DisplayColumnId);
+    }
+
+    [Fact]
+    public async Task DisplayColumn_RejectsAColumnOfAnotherDefinition()
+    {
+        var definition = await CreateDefinitionAsync();
+        var other = await CreateDefinitionAsync();
+        var strayColumn = await CreateColumnAsync(other.Id);
+
+        // The FK cannot express "belongs to this definition" — it would name a cell these rows
+        // do not have.
+        var response = await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { DisplayColumnId = strayColumn.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeletingTheDisplayColumn_ClearsTheDesignation_AndKeepsTheDefinition()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(definition.Id, key: "part_name");
+        await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { DisplayColumnId = column.Id });
+
+        var deleted = await _client.DeleteAsync($"/api/list-definitions/{definition.Id}/columns/{column.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        // ON DELETE SET NULL, not CASCADE: losing the designated column must not take the
+        // definition and every row built from it.
+        var fetched = await _client.GetFromJsonAsync<ListDefinitionInfo>($"/api/list-definitions/{definition.Id}");
+        Assert.NotNull(fetched);
+        Assert.Null(fetched!.DisplayColumnId);
+    }
+
     // ── delete semantics ──────────────────────────────────────────────────────
 
     [Fact]

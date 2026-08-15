@@ -41,8 +41,20 @@ public class ListDefinitionService(
     public Task<ListDefinitionInfo> CreateAsync(CreateListDefinitionRequest request, CancellationToken ct = default)
         => repository.CreateAsync(request, ct);
 
-    public Task<ListDefinitionInfo?> UpdateAsync(Guid id, UpdateListDefinitionRequest request, CancellationToken ct = default)
-        => repository.UpdateAsync(id, request, ct);
+    public async Task<ListDefinitionInfo?> UpdateAsync(
+        Guid id, UpdateListDefinitionRequest request, CancellationToken ct = default)
+    {
+        // A display column from another definition would name a cell these rows do not have. The
+        // FK cannot express "belongs to this definition", so it is checked here.
+        if (!request.ClearDisplayColumn && request.DisplayColumnId is { } columnId)
+        {
+            var column = await repository.GetColumnAsync(columnId, ct);
+            if (column is null || column.ListDefinitionId != id)
+                throw new ArgumentException("The display column must be a column of this list definition");
+        }
+
+        return await repository.UpdateAsync(id, request, ct);
+    }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
         => repository.DeleteAsync(id, ct);

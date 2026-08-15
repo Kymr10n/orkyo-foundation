@@ -48,6 +48,12 @@ public record ListDefinitionInfo
     public string? Description { get; init; }
     /// <summary>Deactivating retires a definition from new bindings; delete is RESTRICTed while in use.</summary>
     public required bool IsActive { get; init; }
+    /// <summary>
+    /// The column that identifies a row wherever one is shown as a single value — the row picker,
+    /// a phone card heading. Null falls back to the first active column, which is what every
+    /// surface did before this existed, so an unset definition behaves as it always has.
+    /// </summary>
+    public Guid? DisplayColumnId { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
     /// <summary>Populated on single reads; empty on list reads.</summary>
@@ -118,6 +124,13 @@ public record UpdateListDefinitionRequest
     public string? Name { get; init; }
     public string? Description { get; init; }
     public bool? IsActive { get; init; }
+    /// <summary>
+    /// The column to show wherever a row is one value. Must belong to this definition. Absent
+    /// leaves the current designation alone; <see cref="ClearDisplayColumn"/> removes it, because
+    /// null here cannot mean both "unchanged" and "cleared".
+    /// </summary>
+    public Guid? DisplayColumnId { get; init; }
+    public bool ClearDisplayColumn { get; init; }
 }
 
 public record CreateListColumnRequest

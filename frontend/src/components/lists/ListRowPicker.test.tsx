@@ -112,6 +112,29 @@ describe('ListRowPicker', () => {
     expect(onChange).toHaveBeenCalledWith(['row-bolt', 'row-nut']);
   });
 
+  it('names a row by the designated display column alone', async () => {
+    // The author said which column identifies a row, so nothing else is appended — this is the
+    // case that produced "Name — 7'865" before the designation existed.
+    getListDefinition.mockResolvedValue({ ...definition, displayColumnId: 'c2' });
+    renderPicker([]);
+
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    expect(screen.queryByText('Bolt — 2')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the guess when the designated column has been deactivated', async () => {
+    // Not in the active columns, so naming the row by it would use a field the row form no longer
+    // asks for.
+    getListDefinition.mockResolvedValue({
+      ...definition,
+      displayColumnId: 'c2',
+      columns: [column(), column({ id: 'c2', key: 'price', label: 'Price', dataType: 'number', isActive: false })],
+    });
+    renderPicker([]);
+
+    expect(await screen.findByText('Bolt')).toBeInTheDocument();
+  });
+
   it('says where the rows come from when the shared list is empty', async () => {
     getListRows.mockResolvedValue([]);
     renderPicker([]);

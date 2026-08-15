@@ -76,7 +76,7 @@ export function ListRowPicker({
               className="mt-0.5"
             />
             <Label htmlFor={inputId} className="cursor-pointer text-sm font-normal">
-              {describeRow(row, activeColumns)}
+              {describeRow(row, activeColumns, definition?.displayColumnId ?? null)}
             </Label>
           </div>
         );
@@ -86,13 +86,26 @@ export function ListRowPicker({
 }
 
 /**
- * A row as one line: the first column carries the identity, the rest follow as context.
+ * A row as one line.
+ *
+ * When the definition designates a display column, that column alone names the row — the author
+ * said which field identifies it, so nothing else is appended. Without a designation the first
+ * active column leads and the rest follow as context, which is a guess and reads like one
+ * ("Name — 7'865"); that fallback exists so definitions predating the designation still render.
  *
  * Uses the same formatter the table does, so a date reads identically whether it is being picked
  * or being displayed.
  */
-function describeRow(row: ListRow, columns: ListColumn[]): string {
+function describeRow(row: ListRow, columns: ListColumn[], displayColumnId: string | null): string {
   if (columns.length === 0) return row.id;
+
+  // A designated column that has since been deactivated is not in `columns`, so this falls
+  // through to the guess rather than naming the row by a field the form no longer asks for.
+  const designated = displayColumnId
+    ? columns.find((column) => column.id === displayColumnId)
+    : undefined;
+
+  if (designated) return formatListCell(designated, row.values[designated.key] ?? null);
 
   const [primary, ...rest] = columns;
   const head = formatListCell(primary, row.values[primary.key] ?? null);
