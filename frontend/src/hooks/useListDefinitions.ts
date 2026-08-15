@@ -1,16 +1,21 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import {
   createListColumn,
   createListDefinition,
+  createSharedListInstance,
   deleteListColumn,
   deleteListDefinition,
+  deleteSharedListInstance,
   getListDefinition,
   getListDefinitions,
+  getSharedListInstances,
   updateListColumn,
   updateListDefinition,
+  updateSharedListInstance,
   type CreateListColumnRequest,
   type CreateListDefinitionRequest,
   type UpdateListColumnRequest,
+  type ListInstanceRequest,
   type UpdateListDefinitionRequest,
 } from "@foundation/src/lib/api/lists-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -104,3 +109,68 @@ export const useDeleteListColumn = (definitionId: string) =>
       invalidates: LIST_INVALIDATES,
     },
   });
+
+// ── shared instances ────────────────────────────────────────────────────────
+
+/** The named instances of one definition. Null id disables the query. */
+export const useSharedListInstances = (definitionId: string | null) =>
+  useQuery({
+    queryKey: qk.lists.sharedInstances(definitionId ?? "none"),
+    queryFn: () => getSharedListInstances(definitionId!),
+    enabled: definitionId !== null,
+  });
+
+export const useCreateSharedListInstance = (definitionId: string) =>
+  useMutation({
+    mutationFn: (request: ListInstanceRequest) => createSharedListInstance(definitionId, request),
+    meta: {
+      successMessage: "Shared list created",
+      errorMessage: "Failed to create shared list",
+      invalidates: LIST_INVALIDATES,
+    },
+  });
+
+export const useUpdateSharedListInstance = (definitionId: string) =>
+  useMutation({
+    mutationFn: ({ instanceId, request }: { instanceId: string; request: ListInstanceRequest }) =>
+      updateSharedListInstance(definitionId, instanceId, request),
+    meta: {
+      successMessage: "Shared list renamed",
+      errorMessage: "Failed to rename shared list",
+      invalidates: LIST_INVALIDATES,
+    },
+  });
+
+/** Rejected with a 409 while a lookup field still points at the instance. */
+export const useDeleteSharedListInstance = (definitionId: string) =>
+  useMutation({
+    mutationFn: (instanceId: string) => deleteSharedListInstance(definitionId, instanceId),
+    meta: {
+      successMessage: "Shared list removed",
+      errorMessage: "Failed to remove shared list",
+      invalidates: LIST_INVALIDATES,
+    },
+  });
+
+/**
+ * Every shared instance the tenant has, paired with the definition it came from.
+ *
+ * There is no endpoint that returns this in one call, and adding one for a picker that runs on a
+ * handful of definitions would be a server change to save a few parallel reads. React Query fans
+ * the per-definition calls out and caches them under the same keys the instances dialog uses, so
+ * opening that dialog afterwards costs nothing.
+ */
+export const useAllSharedListInstances = () => {
+  const { data: definitions = [] } = useListDefinitions();
+
+  const results = useQueries({
+    queries: definitions.map((definition) => ({
+      queryKey: qk.lists.sharedInstances(definition.id),
+      queryFn: () => getSharedListInstances(definition.id),
+    })),
+  });
+
+  return definitions.flatMap((definition, i) =>
+    (results[i]?.data ?? []).map((instance) => ({ definitionName: definition.name, instance })),
+  );
+};

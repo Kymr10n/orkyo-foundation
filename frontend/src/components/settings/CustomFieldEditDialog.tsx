@@ -21,7 +21,10 @@ import {
   type ResourceCustomField,
 } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { keyFromLabel } from '@foundation/src/lib/key-from-label';
-import { useListDefinitions } from '@foundation/src/hooks/useListDefinitions';
+import {
+  useAllSharedListInstances,
+  useListDefinitions,
+} from '@foundation/src/hooks/useListDefinitions';
 
 interface CustomFieldEditDialogProps {
   resourceTypeId: string;
@@ -37,6 +40,7 @@ interface FormState {
   description: string;
   dataType: CustomFieldDataType;
   listDefinitionId: string;
+  listInstanceId: string;
   isRequired: boolean;
   /** Raw input text: an emptied box is '' while retyping, not 0. */
   sortOrder: string;
@@ -55,6 +59,7 @@ export function CustomFieldEditDialog({
   // Only active definitions: an inactive one is out of circulation and the server refuses a
   // new binding to it.
   const { data: listDefinitions = [] } = useListDefinitions();
+  const sharedInstances = useAllSharedListInstances();
 
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ResourceCustomField,
@@ -70,6 +75,7 @@ export function CustomFieldEditDialog({
       description: '',
       dataType: 'text',
       listDefinitionId: '',
+      listInstanceId: '',
       isRequired: false,
       sortOrder: '0',
       isActive: true,
@@ -80,6 +86,7 @@ export function CustomFieldEditDialog({
       description: f.description ?? '',
       dataType: f.dataType,
       listDefinitionId: f.listDefinitionId ?? '',
+      listInstanceId: f.listInstanceId ?? '',
       isRequired: f.isRequired,
       sortOrder: String(f.sortOrder),
       isActive: f.isActive,
@@ -100,6 +107,7 @@ export function CustomFieldEditDialog({
             dataType: form.dataType,
             // Only a list field carries a binding; the server rejects one on any other type.
             ...(form.dataType === 'list' ? { listDefinitionId: form.listDefinitionId } : {}),
+            ...(form.dataType === 'list_lookup' ? { listInstanceId: form.listInstanceId } : {}),
             isRequired: form.isRequired,
             sortOrder: Number(form.sortOrder) || 0,
           }),
@@ -189,6 +197,34 @@ export function CustomFieldEditDialog({
               {CUSTOM_FIELD_DATA_TYPES.find((o) => o.value === form.dataType)?.hint}
             </p>
           </div>
+
+          {form.dataType === 'list_lookup' && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-field-list-instance">
+                Shared list<span className="text-destructive ml-1">*</span>
+              </Label>
+              <Select
+                value={form.listInstanceId || undefined}
+                onValueChange={(v) => set({ listInstanceId: v })}
+              >
+                <SelectTrigger id="custom-field-list-instance">
+                  <SelectValue placeholder="Choose a shared list…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sharedInstances.map((entry) => (
+                    <SelectItem key={entry.instance.id} value={entry.instance.id}>
+                      {entry.definitionName} — {entry.instance.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {sharedInstances.length === 0
+                  ? 'No shared lists yet — create one from a list definition under Resources first.'
+                  : 'The rows this field picks from. Fixed once the field exists.'}
+              </p>
+            </div>
+          )}
 
           {form.dataType === 'list' && (
             <div className="space-y-2">

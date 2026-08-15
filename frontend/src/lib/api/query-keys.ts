@@ -92,6 +92,7 @@ export const qk = {
     definition: (definitionId: string) => ["lists", "definitions", definitionId] as const,
     sharedInstances: (definitionId: string) =>
       ["lists", "definitions", definitionId, "instances"] as const,
+    instance: (instanceId: string) => ["lists", "instances", instanceId] as const,
     instanceRows: (instanceId: string) => ["lists", "instances", instanceId, "rows"] as const,
     /** Keyed by the pair, not the instance: the caller has these before an instance exists. */
     resourceInstance: (resourceId: string, fieldId: string) =>

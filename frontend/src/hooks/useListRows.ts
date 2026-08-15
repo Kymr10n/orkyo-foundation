@@ -4,6 +4,7 @@ import {
   deleteListRow,
   ensureResourceListInstance,
   getListRows,
+  getListInstance,
   getResourceListInstance,
   updateListRow,
   type ListRowRequest,
@@ -21,6 +22,17 @@ export const useListRows = (instanceId: string | null) =>
     queryFn: () => getListRows(instanceId!),
     // A per-resource list has no instance until its first write, and that is an ordinary state:
     // the caller renders an empty table rather than a spinner that never resolves.
+    enabled: instanceId !== null,
+  });
+
+/**
+ * One instance on its own — used when the caller holds an instance id and needs the definition
+ * behind it, as a lookup field does to label the rows it offers.
+ */
+export const useListInstance = (instanceId: string | null) =>
+  useQuery({
+    queryKey: qk.lists.instance(instanceId ?? "none"),
+    queryFn: () => getListInstance(instanceId!),
     enabled: instanceId !== null,
   });
 

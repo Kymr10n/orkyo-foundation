@@ -1,6 +1,8 @@
 import { Label } from '@foundation/src/components/ui/label';
 import { ScalarValueInput } from '@foundation/src/components/fields/ScalarValueInput';
 import { ListRowsEditor } from '@foundation/src/components/lists/ListRowsEditor';
+import { ListRowPicker } from '@foundation/src/components/lists/ListRowPicker';
+import { useListInstance } from '@foundation/src/hooks/useListRows';
 import { useListDefinition } from '@foundation/src/hooks/useListDefinitions';
 import { useResourceListInstance } from '@foundation/src/hooks/useListRows';
 import type {
@@ -41,6 +43,18 @@ export function CustomFieldInput({ field, value, onChange, resourceId }: CustomF
     );
   }
 
+  // A lookup IS a value — an array of row ids — so it goes through onChange like any other.
+  if (field.dataType === 'list_lookup') {
+    return (
+      <LookupFieldInput
+        field={field}
+        value={Array.isArray(value) ? value : []}
+        onChange={onChange}
+        labelId={inputId}
+      />
+    );
+  }
+
   // A checkbox carries its own label inline, so it gets no label row above it.
   if (field.dataType === 'boolean') {
     return (
@@ -48,7 +62,7 @@ export function CustomFieldInput({ field, value, onChange, resourceId }: CustomF
         <ScalarValueInput
           id={inputId}
           dataType="boolean"
-          value={value}
+          value={Array.isArray(value) ? null : value}
           onChange={onChange}
           required={field.isRequired}
           label={field.label}
@@ -68,8 +82,9 @@ export function CustomFieldInput({ field, value, onChange, resourceId }: CustomF
       </Label>
       <ScalarValueInput
         id={inputId}
-        dataType={field.dataType}
-        value={value}
+        // Both list types returned above, so what remains is a scalar type and a scalar value.
+        dataType={field.dataType as 'text' | 'number' | 'date' | 'url'}
+        value={Array.isArray(value) ? null : value}
         onChange={onChange}
         required={field.isRequired}
       />
@@ -124,6 +139,42 @@ function ListFieldInput({
 }
 
 /**
+ * A lookup field: rows picked out of a shared list, stored as their ids.
+ *
+ * The rows themselves belong to the shared instance and are edited under Resources — here they
+ * are only chosen, which is why this is a picker and not an editor.
+ */
+function LookupFieldInput({
+  field,
+  value,
+  onChange,
+  labelId,
+}: {
+  field: ResourceCustomField;
+  value: string[];
+  onChange: (value: CustomFieldValue) => void;
+  labelId: string;
+}) {
+  const { data: instance } = useListInstance(field.listInstanceId ?? null);
+
+  return (
+    <div className="space-y-2">
+      <Label id={labelId}>
+        {field.label}
+        {field.isRequired && <span className="text-destructive ml-1">*</span>}
+      </Label>
+      {field.description && <p className="text-muted-foreground text-xs">{field.description}</p>}
+      <ListRowPicker
+        instanceId={field.listInstanceId ?? null}
+        definitionId={instance?.listDefinitionId ?? null}
+        value={value}
+        onChange={(rowIds) => onChange(rowIds)}
+      />
+    </div>
+  );
+}
+
+/**
  * Whether a value counts as filled in — the shared test behind "required" and "can submit".
  *
  * A list field never has one: its rows are not part of the resource document, and it cannot be
@@ -132,5 +183,8 @@ function ListFieldInput({
 export function hasCustomFieldValue(value: CustomFieldValue | undefined): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim().length > 0;
+  // An empty selection is unfilled, the same way an empty string is — the server agrees, so a
+  // required lookup with nothing picked is refused rather than silently accepted.
+  if (Array.isArray(value)) return value.length > 0;
   return true;
 }

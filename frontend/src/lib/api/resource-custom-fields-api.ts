@@ -18,7 +18,14 @@ import { createCrudApi } from './create-crud-api';
  * `customFields` document at all. Its rows live in their own instance, addressed by (resource,
  * field), so a whole-document replace on the resource form can never clobber them.
  */
-export type CustomFieldDataType = 'text' | 'number' | 'boolean' | 'date' | 'url' | 'list';
+export type CustomFieldDataType =
+  | 'text'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'url'
+  | 'list'
+  | 'list_lookup';
 
 /**
  * Every data type, with the words the UI uses for it. One source, because the list dialog's
@@ -39,14 +46,24 @@ export const CUSTOM_FIELD_DATA_TYPES: readonly {
     label: 'List',
     hint: 'Rows of their own, shaped by a list definition — a maintenance log, a set of parts.',
   },
+  {
+    value: 'list_lookup',
+    label: 'Choice from a list',
+    hint: 'Rows picked from a shared list — edit the list once and every resource sees it.',
+  },
 ];
 
 export function customFieldDataTypeLabel(dataType: CustomFieldDataType): string {
   return CUSTOM_FIELD_DATA_TYPES.find((t) => t.value === dataType)?.label ?? dataType;
 }
 
-/** A value a resource holds for one custom field. `null` means the field is unfilled. */
-export type CustomFieldValue = string | number | boolean | null;
+/**
+ * A value a resource holds for one custom field. `null` means unfilled.
+ *
+ * The array is a `list_lookup` value: the ids of the rows this resource picked out of a shared
+ * instance. An empty array is unfilled, the same way an empty string is for text.
+ */
+export type CustomFieldValue = string | number | boolean | string[] | null;
 
 export interface ResourceCustomField {
   id: string;
@@ -59,6 +76,8 @@ export interface ResourceCustomField {
   dataType: CustomFieldDataType;
   /** For `list`: the definition its rows take their shape from. Fixed at creation. */
   listDefinitionId?: string | null;
+  /** For `list_lookup`: the shared instance its rows are picked from. Fixed at creation. */
+  listInstanceId?: string | null;
   isRequired: boolean;
   sortOrder: number;
   /** Inactive fields leave the form but keep the values already captured. */
@@ -74,6 +93,8 @@ export interface CreateResourceCustomFieldRequest {
   dataType: CustomFieldDataType;
   /** Required for `list`, rejected for every other type — the binding is part of the shape. */
   listDefinitionId?: string;
+  /** Required for `list_lookup`, rejected for every other type. */
+  listInstanceId?: string;
   isRequired?: boolean;
   sortOrder?: number;
 }

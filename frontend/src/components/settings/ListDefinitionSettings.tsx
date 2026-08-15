@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Columns3, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Columns3, Pencil, Plus, Rows3, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
@@ -8,6 +8,7 @@ import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { SettingsPageHeader } from './SettingsPageHeader';
 import { ListDefinitionEditDialog } from './ListDefinitionEditDialog';
 import { ListColumnsDialog } from './ListColumnsDialog';
+import { ListInstancesDialog } from './ListInstancesDialog';
 import {
   useDeleteListDefinition,
   useListDefinitions,
@@ -28,6 +29,7 @@ export function ListDefinitionSettings() {
   const [editing, setEditing] = useState<ListDefinition | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [managingColumns, setManagingColumns] = useState<ListDefinition | null>(null);
+  const [managingInstances, setManagingInstances] = useState<ListDefinition | null>(null);
   const [removing, setRemoving] = useState<ListDefinition | null>(null);
 
   const renderActions = (definition: ListDefinition) => (
@@ -35,6 +37,7 @@ export function ListDefinitionSettings() {
       triggerLabel={`Actions for ${definition.name}`}
       actions={[
         { label: 'Columns', icon: Columns3, onSelect: () => setManagingColumns(definition) },
+        { label: 'Shared lists', icon: Rows3, onSelect: () => setManagingInstances(definition) },
         { label: 'Edit', icon: Pencil, onSelect: () => setEditing(definition) },
         {
           label: 'Remove',
@@ -131,6 +134,15 @@ export function ListDefinitionSettings() {
           onOpenChange={(open) => !open && setManagingColumns(null)}
           definitionId={managingColumns.id}
           definitionName={managingColumns.name}
+        />
+      )}
+
+      {managingInstances && (
+        <ListInstancesDialog
+          open={managingInstances !== null}
+          onOpenChange={(open) => !open && setManagingInstances(null)}
+          definitionId={managingInstances.id}
+          definitionName={managingInstances.name}
         />
       )}
 

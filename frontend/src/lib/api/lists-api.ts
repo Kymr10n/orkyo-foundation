@@ -253,6 +253,11 @@ function rowsApi(instanceId: string) {
   });
 }
 
+/** The instance itself — its kind and the definition it was built from. */
+export function getListInstance(instanceId: string): Promise<ListInstance> {
+  return apiGet<ListInstance>(API_PATHS.listInstance(instanceId));
+}
+
 export function getListRows(instanceId: string): Promise<ListRow[]> {
   return rowsApi(instanceId).list();
 }

@@ -73,8 +73,7 @@ describe('resource-custom-fields-api', () => {
   describe('data types', () => {
     it('offers every type the server accepts, each with a label and a hint', () => {
       // Mirrors CustomFieldDataTypes.All on the server, which is the gate on what can be
-      // created. `list_lookup` is deliberately absent: the CHECK constraint admits it, but the
-      // API does not create one until phase B brings its binding validation.
+      // created. Both list types are in as of phase B.
       expect(CUSTOM_FIELD_DATA_TYPES.map((t) => t.value)).toEqual([
         'text',
         'number',
@@ -82,6 +81,7 @@ describe('resource-custom-fields-api', () => {
         'date',
         'url',
         'list',
+        'list_lookup',
       ]);
       expect(CUSTOM_FIELD_DATA_TYPES.every((t) => t.label && t.hint)).toBe(true);
     });
