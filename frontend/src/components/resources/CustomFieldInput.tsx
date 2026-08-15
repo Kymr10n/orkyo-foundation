@@ -1,6 +1,5 @@
-import { Checkbox } from '@foundation/src/components/ui/checkbox';
-import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
+import { ScalarValueInput } from '@foundation/src/components/fields/ScalarValueInput';
 import type {
   CustomFieldValue,
   ResourceCustomField,
@@ -18,24 +17,25 @@ interface CustomFieldInputProps {
  * Not `CriterionRequirementInput`: that one models a *requirement* — it offers a comparison
  * operator and a unit, because a request asks for "capacity ≥ 4". A custom field is a plain
  * value the tenant records, and there is nothing to compare it to.
+ *
+ * The control itself is `ScalarValueInput`, shared with list-row cells; what stays here is the
+ * field-form chrome around it — the label row, the required marker and the description.
  */
 export function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
   const inputId = `custom-field-${field.key}`;
 
+  // A checkbox carries its own label inline, so it gets no label row above it.
   if (field.dataType === 'boolean') {
     return (
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={inputId}
-            checked={value === true}
-            onCheckedChange={(c) => onChange(!!c)}
-          />
-          <Label htmlFor={inputId} className="cursor-pointer text-sm">
-            {field.label}
-            {field.isRequired && <span className="text-destructive ml-1">*</span>}
-          </Label>
-        </div>
+        <ScalarValueInput
+          id={inputId}
+          dataType="boolean"
+          value={value}
+          onChange={onChange}
+          required={field.isRequired}
+          label={field.label}
+        />
         {field.description && (
           <p className="text-muted-foreground text-xs">{field.description}</p>
         )}
@@ -49,26 +49,13 @@ export function CustomFieldInput({ field, value, onChange }: CustomFieldInputPro
         {field.label}
         {field.isRequired && <span className="text-destructive ml-1">*</span>}
       </Label>
-      {field.dataType === 'number' ? (
-        <Input
-          id={inputId}
-          type="number"
-          value={typeof value === 'number' ? value : ''}
-          // An empty box is an unfilled field, not the number zero.
-          onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-          required={field.isRequired}
-        />
-      ) : (
-        <Input
-          id={inputId}
-          type={field.dataType === 'date' ? 'date' : field.dataType === 'url' ? 'url' : 'text'}
-          value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onChange(e.target.value)}
-          maxLength={field.dataType === 'text' ? 2000 : undefined}
-          placeholder={field.dataType === 'url' ? 'https://…' : undefined}
-          required={field.isRequired}
-        />
-      )}
+      <ScalarValueInput
+        id={inputId}
+        dataType={field.dataType}
+        value={value}
+        onChange={onChange}
+        required={field.isRequired}
+      />
       {field.description && (
         <p className="text-muted-foreground text-xs">{field.description}</p>
       )}
