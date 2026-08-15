@@ -612,6 +612,7 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
                       field={field}
                       value={customFields.valueOf(field, form.customFields)}
                       onChange={(value) => setCustomField(field.key, value)}
+                      resourceId={person?.id ?? null}
                     />
                   ))}
                 </TabsContent>

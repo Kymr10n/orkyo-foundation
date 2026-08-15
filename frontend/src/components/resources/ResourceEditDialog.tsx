@@ -261,6 +261,9 @@ export function ResourceEditDialog({
               field={field}
               value={customFields.valueOf(field, form.customFields)}
               onChange={(value) => setCustomField(field.key, value)}
+              // Null while creating: a list field's rows hang off the resource, so there is
+              // nowhere to put them until it exists.
+              resourceId={resource?.id ?? null}
             />
           ))}
         </div>

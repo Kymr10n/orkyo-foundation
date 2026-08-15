@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CustomFieldInput, hasCustomFieldValue } from './CustomFieldInput';
 import type { ResourceCustomField } from '@foundation/src/lib/api/resource-custom-fields-api';
 
@@ -56,6 +57,47 @@ describe('CustomFieldInput', () => {
     render(<CustomFieldInput field={field({ isRequired: true })} value={null} onChange={() => {}} />);
 
     expect(screen.getByText('*')).toBeInTheDocument();
+  });
+});
+
+describe('CustomFieldInput — list fields', () => {
+  function renderList(resourceId: string | null) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={client}>
+        <CustomFieldInput
+          field={field({ dataType: 'list', label: 'Maintenance log', listDefinitionId: 'def-1' })}
+          value={null}
+          onChange={() => {}}
+          resourceId={resourceId}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  it('says rows come later while the resource is still being created', () => {
+    renderList(null);
+
+    // Nothing to hang rows off yet, so the editor is not offered at all rather than offered and
+    // failing on the first click.
+    expect(screen.getByText(/Rows can be added once this has been created/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add row/i })).not.toBeInTheDocument();
+  });
+
+  it('offers the row editor once the resource exists', async () => {
+    renderList('resource-1');
+
+    expect(screen.queryByText(/Rows can be added once/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /add row/i })).toBeInTheDocument();
+  });
+
+  it('renders the field label, and no required marker — a list cannot be required', () => {
+    renderList('resource-1');
+
+    expect(screen.getByText('Maintenance log')).toBeInTheDocument();
+    expect(screen.queryByText('*')).not.toBeInTheDocument();
   });
 });
 

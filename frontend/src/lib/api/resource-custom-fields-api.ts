@@ -13,7 +13,12 @@
 import { API_PATHS } from '../core/api-paths';
 import { createCrudApi } from './create-crud-api';
 
-export type CustomFieldDataType = 'text' | 'number' | 'boolean' | 'date' | 'url';
+/**
+ * `list` is the sixth type and behaves unlike the other five: it holds no value in the resource's
+ * `customFields` document at all. Its rows live in their own instance, addressed by (resource,
+ * field), so a whole-document replace on the resource form can never clobber them.
+ */
+export type CustomFieldDataType = 'text' | 'number' | 'boolean' | 'date' | 'url' | 'list';
 
 /**
  * Every data type, with the words the UI uses for it. One source, because the list dialog's
@@ -29,6 +34,11 @@ export const CUSTOM_FIELD_DATA_TYPES: readonly {
   { value: 'boolean', label: 'Yes / no', hint: 'A checkbox on the resource form.' },
   { value: 'date', label: 'Date', hint: 'A calendar date — purchased on, warranty until.' },
   { value: 'url', label: 'Link', hint: 'An http(s) address — a datasheet, a manual.' },
+  {
+    value: 'list',
+    label: 'List',
+    hint: 'Rows of their own, shaped by a list definition — a maintenance log, a set of parts.',
+  },
 ];
 
 export function customFieldDataTypeLabel(dataType: CustomFieldDataType): string {
@@ -47,6 +57,8 @@ export interface ResourceCustomField {
   description?: string | null;
   /** Immutable after creation — changing it would reinterpret stored values. */
   dataType: CustomFieldDataType;
+  /** For `list`: the definition its rows take their shape from. Fixed at creation. */
+  listDefinitionId?: string | null;
   isRequired: boolean;
   sortOrder: number;
   /** Inactive fields leave the form but keep the values already captured. */
@@ -60,6 +72,8 @@ export interface CreateResourceCustomFieldRequest {
   label: string;
   description?: string;
   dataType: CustomFieldDataType;
+  /** Required for `list`, rejected for every other type — the binding is part of the shape. */
+  listDefinitionId?: string;
   isRequired?: boolean;
   sortOrder?: number;
 }
