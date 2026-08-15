@@ -128,6 +128,10 @@ function ListFieldInput({
         </p>
       ) : (
         <ListRowsEditor
+          // Keyed by the pair it belongs to: the editor remembers the instance it created until
+          // the resolver's query catches up, and that memory must not survive into a different
+          // resource's list. A key change remounts it, which discards the memory with it.
+          key={`${resourceId}:${field.id}`}
           columns={definition?.columns ?? []}
           instanceId={instanceId}
           ensureInstanceId={ensureInstanceId}

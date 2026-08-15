@@ -218,6 +218,68 @@ public class ListDefinitionEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task UpdateColumn_ReplacesTheOptionsOfASelect()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(
+            definition.Id, ListColumnDataTypes.Select, options: ["new", "used"]);
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { Options = ["new", "used", "refurbished"] });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = (await response.Content.ReadFromJsonAsync<ListColumnInfo>())!;
+        Assert.Equal(["new", "used", "refurbished"], updated.Options);
+    }
+
+    [Fact]
+    public async Task UpdateColumn_RejectsEmptyOptionsOnASelect()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(
+            definition.Id, ListColumnDataTypes.Select, options: ["new"]);
+
+        // Emptying the options would leave a menu nothing can be chosen from — the same state
+        // creation refuses, so editing refuses it too.
+        var response = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { Options = [] });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RemovingAnOption_LeavesRowsThatAlreadyUseItAlone()
+    {
+        // Matches criteria enum_values semantics: options are validated on write, never
+        // retroactively — a row recorded under an option that is later withdrawn keeps its value
+        // rather than being silently rewritten or made unreadable.
+        var definition = await CreateDefinitionAsync();
+        var column = await CreateColumnAsync(
+            definition.Id, ListColumnDataTypes.Select, options: ["new", "used"], key: "condition");
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+
+        var row = await _client.PostAsJsonAsync($"/api/list-instances/{instance.Id}/rows",
+            new ListRowRequest
+            {
+                Values = new Dictionary<string, JsonElement>
+                {
+                    ["condition"] = JsonDocument.Parse("\"used\"").RootElement,
+                },
+            });
+        Assert.Equal(HttpStatusCode.Created, row.StatusCode);
+
+        var narrowed = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { Options = ["new"] });
+        Assert.Equal(HttpStatusCode.OK, narrowed.StatusCode);
+
+        var rows = await _client.GetFromJsonAsync<List<ListRowInfo>>($"/api/list-instances/{instance.Id}/rows");
+        Assert.Equal("used", Assert.Single(rows!).Values["condition"].GetString());
+    }
+
     // ── delete semantics ──────────────────────────────────────────────────────
 
     [Fact]
