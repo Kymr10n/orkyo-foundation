@@ -331,4 +331,45 @@ public class ResourceEndpointTests
         Assert.Equal(criterion.Name, capability.Criterion.Name);
         Assert.Equal(CriterionDataType.Number, capability.Criterion.DataType);
     }
+
+    [Fact]
+    public async Task GetResource_Person_CarriesDirectoryFields_WithNotesDecrypted()
+    {
+        // D2: the directory details a person carries are part of the generic resource contract,
+        // not a separate document to fetch. The fields live on `resources` (migration 1700), so
+        // this reads them from the same row rather than joining anything.
+        var person = await CreatePersonAsync($"Dir-{Guid.NewGuid():N}"[..20]);
+        var email = $"dir_{Guid.NewGuid():N}@example.com";
+
+        var upsert = await _client.PutAsJsonAsync($"/api/person-profiles/{person.Id}",
+            new UpsertPersonProfileRequest { Email = email, Notes = "Confidential note" });
+        Assert.Equal(HttpStatusCode.OK, upsert.StatusCode);
+
+        var fetched = await _client.GetFromJsonAsync<ResourceInfo>($"/api/resources/{person.Id}");
+
+        Assert.Equal(email, fetched!.Email);
+        // Notes are encrypted at rest, so a read path that forgot to decrypt would return
+        // ciphertext rather than fail — which is why this asserts the plaintext, not just non-null.
+        Assert.Equal("Confidential note", fetched.Notes);
+    }
+
+    [Fact]
+    public async Task GetResource_NonPerson_HasNoDirectoryFields()
+    {
+        // A type that declares no directory profile simply has nulls there: the columns exist for
+        // every resource, and nothing populates them.
+        var request = new CreateResourceRequest
+        {
+            ResourceTypeKey = "tool",
+            Name = $"Tool-{Guid.NewGuid():N}"[..20],
+            AllocationMode = "Exclusive",
+        };
+        var created = await _client.PostAsJsonAsync("/api/resources", request);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var tool = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
+
+        Assert.Null(tool.Email);
+        Assert.Null(tool.JobTitleId);
+        Assert.Null(tool.Notes);
+    }
 }

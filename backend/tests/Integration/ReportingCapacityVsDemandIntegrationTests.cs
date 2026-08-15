@@ -1,7 +1,9 @@
+using System.Security.Cryptography;
 using Api.Constants;
 using Api.Models;
 using Api.Models.Reporting;
 using Api.Repositories;
+using Api.Security.Encryption;
 using Api.Services;
 using Api.Services.Reporting;
 using Npgsql;
@@ -32,7 +34,7 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
             OrgSlug = "test-tenant",
             DbConnectionString = _fixture.TestTenantConnectionString,
         };
-        var resources = new ResourceRepository(org, factory);
+        var resources = new ResourceRepository(org, factory, TestEncryption());
         var groups = new ResourceGroupRepository(org, factory);
         var members = new ResourceGroupMemberRepository(org, factory);
 
@@ -140,4 +142,12 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
         cmd.Parameters.AddWithValue("reqs", new[] { req1, req2 });
         await cmd.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// A throwaway encryption service for repositories constructed directly. The key is
+    /// test-local: these tests write and read within one process, so nothing has to decrypt it
+    /// afterwards.
+    /// </summary>
+    private static IEncryptionService TestEncryption() =>
+        new AesGcmEncryptionService(RandomNumberGenerator.GetBytes(32));
 }

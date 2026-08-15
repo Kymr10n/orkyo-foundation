@@ -2,6 +2,7 @@ using System.Text.Json;
 using Api.Constants;
 using Api.Helpers;
 using Api.Models;
+using Api.Security.Encryption;
 using Api.Services;
 using Npgsql;
 
@@ -41,7 +42,10 @@ public interface IResourceRepository
     Task<int> GetPlaceableCountAsync(CancellationToken ct = default);
 }
 
-public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
+public class ResourceRepository(
+    OrgContext orgContext,
+    IOrgDbConnectionFactory connectionFactory,
+    IEncryptionService encryption)
     : IResourceRepository
 {
     // Derived "current site": where the resource is right now — wherever a non-cancelled
@@ -92,6 +96,9 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
         "r.home_site_id, " + CurrentSiteExpr + " AS current_site_id, r.cross_site_allowed, " +
         "r.code, r.is_physical, r.geometry, r.properties, r.capacity, r.custom_fields, " +
+        // Directory columns. email is CITEXT and Npgsql has no handler for it, so it is cast —
+        // the same cast PersonProfileRepository makes.
+        "r.email::text AS email, r.job_title_id, r.department_id, r.linked_user_id, r.notes, " +
         GroupIdExpr + " AS group_id, " +
         "r.is_active, r.created_at, r.updated_at";
 
@@ -379,7 +386,10 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             $"SELECT COUNT(*) {FromClause} WHERE {PlaceableScope}", null, ct);
     }
 
-    private static ResourceInfo Map(NpgsqlDataReader r)
+    // Not static: it decrypts `notes`, which needs the injected service and the org id. Keeping
+    // the decryption inside the one mapper every read path already uses is what stops a future
+    // read path from returning ciphertext by omission.
+    private ResourceInfo Map(NpgsqlDataReader r)
     {
         // The columns are jsonb; the DTO is typed. An empty properties object is reported as no
         // properties at all, which is what the space shape has always published.
@@ -409,6 +419,13 @@ public class ResourceRepository(OrgContext orgContext, IOrgDbConnectionFactory c
             CustomFields = customFieldsJson == "{}"
                 ? null
                 : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(customFieldsJson),
+            Email = r.GetNullableString("email"),
+            JobTitleId = r.GetNullableGuid("job_title_id"),
+            DepartmentId = r.GetNullableGuid("department_id"),
+            LinkedUserId = r.GetNullableGuid("linked_user_id"),
+            // Decrypted here rather than by the caller: every read path goes through this mapper,
+            // so a caller that forgot would hand ciphertext to a client.
+            Notes = encryption.UnprotectString(r.GetNullableString("notes"), orgContext.OrgId),
             IsActive = r.GetBoolean(r.GetOrdinal("is_active")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
             UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),

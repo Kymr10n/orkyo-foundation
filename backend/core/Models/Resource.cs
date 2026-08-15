@@ -78,6 +78,22 @@ public record ResourceInfo
     /// </summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
 
+    // Directory details. Only types declaring HasDirectoryProfile carry them; for every other
+    // type they are null. The columns live on `resources` (migration 1700), so reading them here
+    // adds no join and no cost — the resolved display names (job title, department path) are the
+    // part that needs joins, and those stay on the person-profile projection.
+    /// <summary>Lookup and display address. Stored CITEXT, so comparisons are case-insensitive.</summary>
+    public string? Email { get; init; }
+    public Guid? JobTitleId { get; init; }
+    public Guid? DepartmentId { get; init; }
+    /// <summary>The user account this person signs in as, when one is linked.</summary>
+    public Guid? LinkedUserId { get; init; }
+    /// <summary>
+    /// Confidential free text — encrypted at rest, decrypted on the way out. Never log it and
+    /// never put it in an error message.
+    /// </summary>
+    public string? Notes { get; init; }
+
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }

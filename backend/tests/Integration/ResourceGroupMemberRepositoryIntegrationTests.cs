@@ -1,6 +1,8 @@
+using System.Security.Cryptography;
 using Api.Constants;
 using Api.Models;
 using Api.Repositories;
+using Api.Security.Encryption;
 using Api.Services;
 using Npgsql;
 
@@ -82,7 +84,7 @@ public sealed class ResourceGroupMemberRepositoryIntegrationTests
         };
         return (
             new ResourceGroupMemberRepository(org, factory),
-            new ResourceRepository(org, factory),
+            new ResourceRepository(org, factory, TestEncryption()),
             new ResourceGroupRepository(org, factory));
     }
 
@@ -123,4 +125,12 @@ public sealed class ResourceGroupMemberRepositoryIntegrationTests
         cmd.Parameters.AddWithValue("g", groupId);
         await cmd.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// A throwaway encryption service for repositories constructed directly. The key is
+    /// test-local: these tests write and read within one process, so nothing has to decrypt it
+    /// afterwards.
+    /// </summary>
+    private static IEncryptionService TestEncryption() =>
+        new AesGcmEncryptionService(RandomNumberGenerator.GetBytes(32));
 }
