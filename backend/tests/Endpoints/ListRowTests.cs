@@ -105,7 +105,7 @@ public class ListRowTests
     // ── the resolver ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ResolverGet_BeforeAnyWrite_IsNotFound_AndCreatesNothing()
+    public async Task ResolverGet_BeforeAnyWrite_IsNull_AndCreatesNothing()
     {
         var definition = await CreateLogDefinitionAsync();
         var type = await CreateResourceTypeAsync();
@@ -116,8 +116,11 @@ public class ListRowTests
         // Read twice: if the first GET had quietly created a holder, the second would find one.
         var second = await _client.GetAsync($"/api/resources/{resource.Id}/list-fields/{field.Id}/instance");
 
-        Assert.Equal(HttpStatusCode.NotFound, first.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, second.StatusCode);
+        // 200 with a null body: an untouched list is ordinary, not an error.
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Null(await first.Content.ReadFromJsonAsync<ListInstanceInfo>());
+        Assert.Null(await second.Content.ReadFromJsonAsync<ListInstanceInfo>());
     }
 
     [Fact]

@@ -67,6 +67,21 @@ export const API_PATHS = {
   resourceCustomField: (resourceTypeId: string, fieldId: string) =>
     `/api/resource-types/${resourceTypeId}/custom-fields/${fieldId}`,
 
+  LIST_DEFINITIONS: '/api/list-definitions',
+  listDefinition: (definitionId: string) => `/api/list-definitions/${definitionId}`,
+  listColumns: (definitionId: string) => `/api/list-definitions/${definitionId}/columns`,
+  listColumn: (definitionId: string, columnId: string) =>
+    `/api/list-definitions/${definitionId}/columns/${columnId}`,
+  sharedListInstances: (definitionId: string) => `/api/list-definitions/${definitionId}/instances`,
+  sharedListInstance: (definitionId: string, instanceId: string) =>
+    `/api/list-definitions/${definitionId}/instances/${instanceId}`,
+  listInstance: (instanceId: string) => `/api/list-instances/${instanceId}`,
+  listRows: (instanceId: string) => `/api/list-instances/${instanceId}/rows`,
+  listRow: (instanceId: string, rowId: string) => `/api/list-instances/${instanceId}/rows/${rowId}`,
+  /** The instance behind one resource's list field. GET resolves, POST get-or-creates. */
+  resourceListInstance: (resourceId: string, fieldId: string) =>
+    `/api/resources/${resourceId}/list-fields/${fieldId}/instance`,
+
   // Resources
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,

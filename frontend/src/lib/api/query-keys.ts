@@ -85,6 +85,19 @@ export const qk = {
     allFlat: () => ["resource-groups-all"] as const,
   },
 
+  lists: {
+    /** Every list key hangs off this, so a column change can invalidate rows too. */
+    all: () => ["lists"] as const,
+    definitions: () => ["lists", "definitions"] as const,
+    definition: (definitionId: string) => ["lists", "definitions", definitionId] as const,
+    sharedInstances: (definitionId: string) =>
+      ["lists", "definitions", definitionId, "instances"] as const,
+    instanceRows: (instanceId: string) => ["lists", "instances", instanceId, "rows"] as const,
+    /** Keyed by the pair, not the instance: the caller has these before an instance exists. */
+    resourceInstance: (resourceId: string, fieldId: string) =>
+      ["lists", "resource-instance", resourceId, fieldId] as const,
+  },
+
   resourceTypes: {
     /** The tenant's resource types (also its own invalidation prefix). */
     all: () => ["resource-types"] as const,

@@ -111,12 +111,19 @@ public static class ListInstanceEndpoints
             CancellationToken ct) =>
         {
             var instance = await service.ResolveResourceInstanceAsync(resourceId, fieldId, ct);
-            // 404 until the first write: a read never creates a holder, so a resource whose list
-            // is still empty simply has nothing here yet.
-            return EndpointHelpers.OkOrNotFound(instance, "ListInstance", fieldId);
+            // 200 with a null body rather than 404: a list nobody has written to yet is the
+            // ordinary state, not an error, and a read never creates a holder. This mirrors the
+            // floorplan metadata endpoint, so the client renders an empty list instead of having
+            // to tell an expected 404 apart from a real one.
+            // Ok(null) sends an empty body, which is not parseable JSON. The literal is written
+            // explicitly for the empty case, leaving the found case on the ordinary Ok path so its
+            // serialization matches every other endpoint.
+            return instance is null
+                ? Results.Content("null", "application/json")
+                : Results.Ok(instance);
         })
             .WithName("GetResourceListInstance")
-            .WithSummary("Get the list instance for a resource's list field, if it exists yet");
+            .WithSummary("Get the list instance for a resource's list field, or null if untouched");
 
         resolver.MapPost("/instance", async (
             Guid resourceId,
