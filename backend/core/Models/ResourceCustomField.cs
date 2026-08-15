@@ -20,12 +20,12 @@ public static class CustomFieldDataTypes
     public const string ListLookup = "list_lookup";
 
     /// <summary>
-    /// What the API will create. Migration 1780 widened the CHECK to admit both list types, but this
-    /// set is the gate: <see cref="ListLookup"/> joins it in phase B, together with the shared
-    /// instances and the binding validation it depends on. Until then it cannot be created.
+    /// What the API will create. Both list types are in: a `list` field owns its rows, a
+    /// `list_lookup` field picks them out of a shared instance, and each is refused unless its
+    /// binding names something that exists (see ResourceCustomFieldService.EnsureBindingAsync).
     /// </summary>
     public static readonly IReadOnlySet<string> All =
-        new HashSet<string>(StringComparer.Ordinal) { Text, Number, Boolean, Date, Url, List };
+        new HashSet<string>(StringComparer.Ordinal) { Text, Number, Boolean, Date, Url, List, ListLookup };
 
     /// <summary>The types whose values are validated as scalars against a jsonb document.</summary>
     public static readonly IReadOnlySet<string> Scalar =
