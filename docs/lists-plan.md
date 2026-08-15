@@ -1,7 +1,38 @@
 # Lists — tenant-defined list definitions and instances, linkable from custom fields
 
-Status: **approved plan, implementation starting 2026-08-12.** This block is updated as
-phases land, with deviations recorded. Supersedes the discarded `catalogs-plan.md` draft.
+Status: **phases A, B and C implemented 2026-08-15** on branch
+`everythingisaresource`, unpushed and awaiting visual sign-off. Phase D (Space/People
+dissolution, D1-D7) remains as backlog. Supersedes the discarded `catalogs-plan.md` draft.
+
+### What shipped
+
+Migration 1780 (validated against a real Postgres: full chain, constraint behaviours,
+revert, re-apply), the definition/instance/row API with its governance split, per-resource
+lists and shared lists with lookup fields, the "Resources" admin section, and export of
+definitions with their shared rows. 3029 backend tests and 3822 frontend tests.
+
+### Deviations from this plan, and why
+
+1. **Resource delete does not cascade list data.** The plan said it did. `DELETE
+   /api/resources` deactivates (`is_active = false`) rather than deleting, so the FK
+   cascade never fires and a deactivated resource keeps its rows — the coherent outcome,
+   since one restored without its history would have lost data nobody agreed to discard.
+   The CASCADE still covers paths that truly remove a row, such as a tenant purge. Found by
+   a test, not by review; an earlier check against Postgres had exercised a hard DELETE and
+   so confirmed a path the API never takes.
+2. **The per-resource resolver GET answers 200 with a null body**, not 404. An untouched
+   list is the ordinary state, not an error, and this repo already answers that question
+   this way in `getFloorplanMetadata`.
+3. **German UI names dropped.** The frontend has no i18n layer at all, so the plan's
+   `de:` names had nowhere to live. English only; the German terms stay a documentation
+   glossary.
+4. **Boolean list columns declare no filter.** `ColumnFilterMeta` has no boolean case;
+   they still sort, which is the useful half.
+5. **`keyFromLabel` extracted** to `src/lib/key-from-label.ts` — it was module-private in
+   `CustomFieldEditDialog` and list columns need the same derivation, which must agree with
+   the server's key CHECK.
+6. **The sidebar item sits after Administration**, not between it and Settings:
+   `SidebarNav.test` pins that adjacency deliberately.
 
 **Reviewed against the codebase 2026-08-15 before implementation; corrections applied**
 (citations, paths, and three design gaps — i18n, boolean column filters, the phase A/B
