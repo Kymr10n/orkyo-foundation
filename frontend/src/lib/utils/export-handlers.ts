@@ -1,11 +1,11 @@
 import type { CreateRequestRequest, DurationUnit, Request, RequestStatus } from '@foundation/src/types/requests';
-import type { Space, GeometryType } from '@foundation/src/types/space';
+import type { GeometryType } from '@foundation/src/types/geometry';
 import type { Criterion, CriterionDataType } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
 import type { Conflict } from '@foundation/src/types/requests';
 import type { Template } from '@foundation/src/types/templates';
 import type { User } from '@foundation/src/types/auth';
-import { getSpaceResourceId } from '@foundation/src/domain/scheduling/request-assignments';
+import { getPlacementResourceId } from '@foundation/src/domain/scheduling/request-assignments';
 import { getResources, type CreateResourceRequest, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import type { CustomFieldDataType, CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
@@ -90,6 +90,9 @@ const RESOURCE_INTERNAL_FIELDS = new Set([
   'resourceTypeId', 'currentSiteId', 'createdAt', 'updatedAt', 'customFields',
 ]);
 
+/** Objects that need their own serialization — a CSV cell cannot hold one. */
+const RESOURCE_STRUCTURED_FIELDS = new Set(['geometry', 'properties']);
+
 /** camelCase → snake_case, matching the column style of the other exporters. */
 function toColumnName(field: string): string {
   return field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
@@ -99,7 +102,18 @@ function resourceToRow(resource: ResourceExportRow): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(resource)) {
     if (RESOURCE_INTERNAL_FIELDS.has(key)) continue;
+    if (RESOURCE_STRUCTURED_FIELDS.has(key)) continue;
     row[toColumnName(key)] = value;
+  }
+  // Placement. A shape is two columns rather than one blob so a spreadsheet stays legible, and
+  // they keep the names the retired spaces export used, so files people already have still read.
+  // Emitted only when the resource actually carries geometry — a person's export is unchanged.
+  if (resource.geometry) {
+    row.geometry_type = resource.geometry.type;
+    row.coordinates = JSON.stringify(resource.geometry.coordinates);
+  }
+  if (resource.properties && Object.keys(resource.properties).length > 0) {
+    row.properties = JSON.stringify(resource.properties);
   }
   // A type's own fields round-trip under a `meta.` prefix, so a custom field can
   // never collide with a core column.
@@ -211,68 +225,45 @@ export async function importResources(
       if (cell(row.cross_site_allowed)) {
         request.crossSiteAllowed = cell(row.cross_site_allowed) === 'true';
       }
+
+      // Placement. Absent on a non-placeable type's file, and the server rejects any that turn
+      // up on one — so they are read whenever present rather than gated on the type here.
+      if (cell(row.code)) request.code = cell(row.code);
+      if (cell(row.is_physical)) request.isPhysical = cell(row.is_physical) === 'true';
+      if (cell(row.capacity)) request.capacity = Number(cell(row.capacity));
+      if (cell(row.coordinates)) {
+        // A malformed shape is left out rather than guessed at: the server names the field it
+        // rejected, which is more use than a resource placed at coordinates nobody drew.
+        try {
+          request.geometry = {
+            type: cell(row.geometry_type) as GeometryType,
+            coordinates: JSON.parse(cell(row.coordinates)),
+          };
+        } catch {
+          // Falls through with no geometry; a physical row without one is rejected by name.
+        }
+      }
+      if (cell(row.properties)) {
+        try {
+          request.properties = JSON.parse(cell(row.properties)) as Record<string, unknown>;
+        } catch {
+          // Same reasoning as geometry.
+        }
+      }
       if (Object.keys(customFields).length > 0) request.customFields = customFields;
       return { request, source: row };
     });
 }
 
 // ============================================================================
-// SPACES EXPORT/IMPORT
-// ============================================================================
-
-export async function exportSpaces(spaces: Space[], format: ExportFormat, _siteId?: string) {
-  const filename = getExportFilename('spaces', format);
-
-  if (format === 'csv') {
-    const data = spaces.map(space => ({
-      id: space.id,
-      name: space.name,
-      code: space.code || '',
-      description: space.description || '',
-      is_physical: space.isPhysical,
-      geometry_type: space.geometry?.type || '',
-      coordinates: space.geometry?.coordinates ? JSON.stringify(space.geometry.coordinates) : '',
-      site_id: space.siteId || '',
-      group_id: space.groupId || '',
-      created_at: space.createdAt,
-      updated_at: space.updatedAt,
-    }));
-
-    const csv = arrayToCSV(data);
-    downloadFile(csv, filename, 'text/csv');
-  }
-}
-
-export async function importSpaces(file: File, format: ImportFormat): Promise<Space[]> {
-  const content = await file.text();
-
-  if (format === 'csv') {
-    const rows = csvToArray(content);
-    return rows.map(row => ({
-      id: row.id,
-      siteId: row.site_id,
-      name: row.name,
-      code: row.code || undefined,
-      description: row.description || undefined,
-      isPhysical: row.is_physical === 'true',
-      geometry: row.coordinates ? {
-        type: row.geometry_type as GeometryType,
-        coordinates: JSON.parse(row.coordinates),
-      } : undefined,
-      groupId: row.group_id || undefined,
-      createdAt: row.created_at || new Date().toISOString(),
-      updatedAt: row.updated_at || new Date().toISOString(),
-    })) as Space[];
-  }
-
-  return [];
-}
-
-// ============================================================================
 // REQUESTS EXPORT/IMPORT
 // ============================================================================
 
-export async function exportRequests(requests: Request[], format: ExportFormat) {
+export async function exportRequests(
+  requests: Request[],
+  format: ExportFormat,
+  placeableKeys: ReadonlySet<string>,
+) {
   const filename = getExportFilename('requests', format);
 
   if (format === 'csv') {
@@ -283,7 +274,7 @@ export async function exportRequests(requests: Request[], format: ExportFormat) 
       status: request.status,
       start_ts: request.startTs || '',
       end_ts: request.endTs || '',
-      resource_id: getSpaceResourceId(request) || '',
+      resource_id: getPlacementResourceId(request, placeableKeys) || '',
       resource_name: '', // Resource name needs to be fetched separately
       earliest_start_ts: request.earliestStartTs || '',
       latest_end_ts: request.latestEndTs || '',

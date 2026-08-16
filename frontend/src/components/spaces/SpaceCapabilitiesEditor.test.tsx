@@ -6,11 +6,11 @@ import type { ReactElement } from "react";
 import { SpaceCapabilitiesEditor } from "./SpaceCapabilitiesEditor";
 import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
 import * as criteriaApi from "@foundation/src/lib/api/criteria-api";
-import * as spaceCapApi from "@foundation/src/lib/api/space-capability-api";
+import * as spaceCapApi from "@foundation/src/lib/api/resource-capabilities-api";
 import type { Criterion } from "@foundation/src/types/criterion";
 
 vi.mock("@foundation/src/lib/api/criteria-api");
-vi.mock("@foundation/src/lib/api/space-capability-api");
+vi.mock("@foundation/src/lib/api/resource-capabilities-api");
 vi.mock("@foundation/src/lib/core/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -45,7 +45,6 @@ describe("SpaceCapabilitiesEditor", () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    siteId: "site-1",
     resourceId: "space-1",
     spaceName: "Room 101",
   };
@@ -53,13 +52,13 @@ describe("SpaceCapabilitiesEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue(mockCriteria);
-    vi.mocked(spaceCapApi.getSpaceCapabilities).mockResolvedValue(mockExistingCaps);
-    vi.mocked(spaceCapApi.addSpaceCapability).mockResolvedValue({
+    vi.mocked(spaceCapApi.getResourceCapabilities).mockResolvedValue(mockExistingCaps);
+    vi.mocked(spaceCapApi.upsertResourceCapability).mockResolvedValue({
       id: "cap-new", resourceId: "space-1", criterionId: "c2", value: 0,
       createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z",
       criterion: { id: "c2", name: "Capacity", dataType: "Number" },
     });
-    vi.mocked(spaceCapApi.deleteSpaceCapability).mockResolvedValue(undefined);
+    vi.mocked(spaceCapApi.deleteResourceCapability).mockResolvedValue(undefined);
   });
 
   it("renders dialog title with space name", async () => {
@@ -73,7 +72,8 @@ describe("SpaceCapabilitiesEditor", () => {
     render(<SpaceCapabilitiesEditor {...defaultProps} />);
     await waitFor(() => {
       expect(criteriaApi.getCriteria).toHaveBeenCalled();
-      expect(spaceCapApi.getSpaceCapabilities).toHaveBeenCalledWith("site-1", "space-1");
+      // Addressed by resource id — the site was only ever in the URL, never a scope check.
+      expect(spaceCapApi.getResourceCapabilities).toHaveBeenCalledWith("space-1");
     });
   });
 
@@ -131,7 +131,7 @@ describe("SpaceCapabilitiesEditor", () => {
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     await waitFor(() => {
-      expect(spaceCapApi.getSpaceCapabilities).toHaveBeenCalledTimes(2);
+      expect(spaceCapApi.getResourceCapabilities).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -152,7 +152,7 @@ describe("SpaceCapabilitiesEditor", () => {
   });
 
   it("shows error on save failure (inline + toast)", async () => {
-    vi.mocked(spaceCapApi.getSpaceCapabilities)
+    vi.mocked(spaceCapApi.getResourceCapabilities)
       .mockResolvedValueOnce(mockExistingCaps) // initial load
       .mockRejectedValueOnce(new Error("Save error")); // save diff
 
@@ -178,10 +178,10 @@ describe("SpaceCapabilitiesEditor", () => {
     render(<SpaceCapabilitiesEditor {...defaultProps} />);
     await waitFor(() => {
       expect(criteriaApi.getCriteria).toHaveBeenCalled();
-      expect(spaceCapApi.getSpaceCapabilities).toHaveBeenCalled();
+      expect(spaceCapApi.getResourceCapabilities).toHaveBeenCalled();
     });
     // Both should be called in the same tick (Promise.all)
     expect(criteriaApi.getCriteria).toHaveBeenCalledTimes(1);
-    expect(spaceCapApi.getSpaceCapabilities).toHaveBeenCalledTimes(1);
+    expect(spaceCapApi.getResourceCapabilities).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,7 +9,7 @@
  */
 
 import { cn } from "@foundation/src/lib/utils";
-import type { Coordinate, DrawingMode, SpaceGeometry } from "@foundation/src/types/space";
+import type { Coordinate, DrawingMode, ResourceGeometry } from "@foundation/src/types/geometry";
 import {
   type MouseEvent as ReactMouseEvent,
   useEffect,
@@ -28,15 +28,17 @@ interface SpaceDrawingCanvasProps {
   /** Current drawing mode */
   drawingMode: DrawingMode;
   /** Callback when drawing is complete */
-  onDrawingComplete: (geometry: SpaceGeometry) => void;
+  onDrawingComplete: (geometry: ResourceGeometry) => void;
   /** Callback when drawing is cancelled */
   onDrawingCancel: () => void;
-  /** Existing spaces to display */
+  /** Existing placeable resources to display. Structurally typed rather than tied to
+   *  ResourceInfo — the canvas draws shapes and needs nothing else. Nullable code/geometry match
+   *  the wire shape, where an absent value is null rather than undefined. */
   existingSpaces?: {
     id: string;
     name: string;
-    code?: string;
-    geometry?: SpaceGeometry;
+    code?: string | null;
+    geometry?: ResourceGeometry | null;
   }[];
   /** When true, spaces are interactive: single-click selects, drag moves, handles resize */
   editEnabled?: boolean;
@@ -47,9 +49,9 @@ interface SpaceDrawingCanvasProps {
   /** Callback when a space is double-clicked (open detail dialog; works regardless of editEnabled) */
   onSpaceDoubleClick?: (resourceId: string) => void;
   /** Callback when a space is moved */
-  onSpaceMove?: (resourceId: string, newGeometry: SpaceGeometry) => void;
+  onSpaceMove?: (resourceId: string, newGeometry: ResourceGeometry) => void;
   /** Callback when a space is resized */
-  onSpaceResize?: (resourceId: string, newGeometry: SpaceGeometry) => void;
+  onSpaceResize?: (resourceId: string, newGeometry: ResourceGeometry) => void;
   /** Current zoom level */
   zoom?: number;
   /** Custom colors per space ID - { fill, stroke } */
@@ -86,12 +88,12 @@ export function SpaceDrawingCanvas({
   const [draggingSpace, setDraggingSpace] = useState<{
     id: string;
     startPos: Coordinate;
-    geometry: SpaceGeometry;
+    geometry: ResourceGeometry;
   } | null>(null);
   const [resizingSpace, setResizingSpace] = useState<{
     id: string;
     handleIndex: number;
-    geometry: SpaceGeometry;
+    geometry: ResourceGeometry;
   } | null>(null);
   const [baseScale, setBaseScale] = useState<number | null>(null);
   const baseScaleRef = useRef<number | null>(null);
@@ -242,7 +244,7 @@ export function SpaceDrawingCanvas({
         const newCoords = [...resizingSpace.geometry.coordinates];
         newCoords[resizingSpace.handleIndex] = mousePosition;
 
-        const newGeometry: SpaceGeometry = {
+        const newGeometry: ResourceGeometry = {
           type: "rectangle",
           coordinates: newCoords,
         };
@@ -253,7 +255,7 @@ export function SpaceDrawingCanvas({
         const newCoords = [...resizingSpace.geometry.coordinates];
         newCoords[resizingSpace.handleIndex] = mousePosition;
 
-        const newGeometry: SpaceGeometry = {
+        const newGeometry: ResourceGeometry = {
           type: "polygon",
           coordinates: newCoords,
         };
@@ -273,7 +275,7 @@ export function SpaceDrawingCanvas({
 
       // Only save if actually moved
       if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
-        const newGeometry: SpaceGeometry = {
+        const newGeometry: ResourceGeometry = {
           type: draggingSpace.geometry.type,
           coordinates: draggingSpace.geometry.coordinates.map((coord) => ({
             x: coord.x + deltaX,
@@ -320,7 +322,7 @@ export function SpaceDrawingCanvas({
         setDrawingPoints([point]);
       } else if (drawingPoints.length === 1) {
         // Second point - complete rectangle
-        const geometry: SpaceGeometry = {
+        const geometry: ResourceGeometry = {
           type: "rectangle",
           coordinates: [drawingPoints[0], point],
         };
@@ -337,7 +339,7 @@ export function SpaceDrawingCanvas({
     if (drawingMode === "polygon" && drawingPoints.length >= 3) {
       e.preventDefault();
       // Complete polygon (don't add the double-click point)
-      const geometry: SpaceGeometry = {
+      const geometry: ResourceGeometry = {
         type: "polygon",
         coordinates: drawingPoints,
       };
@@ -450,7 +452,7 @@ export function SpaceDrawingCanvas({
               const deltaX = mousePosition.x - draggingSpace.startPos.x;
               const deltaY = mousePosition.y - draggingSpace.startPos.y;
 
-              const previewGeometry: SpaceGeometry = {
+              const previewGeometry: ResourceGeometry = {
                 type: draggingSpace.geometry.type,
                 coordinates: draggingSpace.geometry.coordinates.map(
                   (coord) => ({

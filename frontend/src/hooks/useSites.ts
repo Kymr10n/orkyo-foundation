@@ -6,7 +6,7 @@ import type { CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types
 
 // Deleting a site cascades to spaces and requests; over-invalidating on
 // create/update is harmless and keeps the feedback declaration uniform.
-const SITE_INVALIDATES = [qk.sites.list(), qk.spaces.all(), qk.requests.all()] as const;
+const SITE_INVALIDATES = [qk.sites.list(), qk.resources.all(), qk.requests.all()] as const;
 
 export const useSites = () =>
   useQuery({

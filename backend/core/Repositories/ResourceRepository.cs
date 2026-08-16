@@ -29,13 +29,9 @@ public interface IResourceRepository
     // site from home_site_id alone: a placeable resource cannot travel, so the derived current
     // site of the generic list filter would only ever repeat its home site.
 
-    /// <summary>Active placeable resources at the site, ordered by code then name.</summary>
-    Task<List<ResourceInfo>> GetPlaceableBySiteAsync(Guid siteId, CancellationToken ct = default);
-    /// <summary>A page of active placeable resources at the site, ordered by code then name.</summary>
-    Task<PagedResult<ResourceInfo>> GetPlaceableBySiteAsync(Guid siteId, PageRequest page, CancellationToken ct = default);
-    /// <summary>One active placeable resource at the site, or <c>null</c> — the site scope is what
-    /// makes a foreign resource id a 404 rather than someone else's row.</summary>
-    Task<ResourceInfo?> GetPlaceableAsync(Guid siteId, Guid resourceId, CancellationToken ct = default);
+    // The single-site reads that used to live here went with the space routes. Callers ask the
+    // generic list for `hasGeometry=true&isActive=true&siteId=`, which selects the same rows.
+
     /// <summary>Bulk fetch for many sites in one query, keyed by site id — for export.</summary>
     Task<Dictionary<Guid, List<ResourceInfo>>> GetPlaceableBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default);
     /// <summary>Exact count of active placeable resources across the tenant — the "spaces" quota usage.</summary>
@@ -132,6 +128,11 @@ public class ResourceRepository(
         {
             where.Add("r.name ILIKE @search");
             cmd.Parameters.AddWithValue("search", $"%{filter.Search}%");
+        }
+        if (filter.HasGeometry.HasValue)
+        {
+            where.Add("rt.has_geometry = @hasGeometry");
+            cmd.Parameters.AddWithValue("hasGeometry", filter.HasGeometry.Value);
         }
         if (filter.SiteId.HasValue)
         {
@@ -344,38 +345,6 @@ public class ResourceRepository(
 
     // ── Placeable resources ───────────────────────────────────────────────────
 
-    public async Task<List<ResourceInfo>> GetPlaceableBySiteAsync(Guid siteId, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QueryListAsync(
-            $"SELECT {SelectColumns} {FromClause} WHERE {PlaceableScope} " +
-            "AND r.home_site_id = @siteId ORDER BY r.code, r.name LIMIT 1000",
-            p => p.AddWithValue("siteId", siteId), Map, ct);
-    }
-
-    public async Task<PagedResult<ResourceInfo>> GetPlaceableBySiteAsync(Guid siteId, PageRequest page, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QueryPagedAsync(
-            page,
-            countSql: $"SELECT COUNT(*) {FromClause} WHERE {PlaceableScope} AND r.home_site_id = @siteId",
-            querySql: $"SELECT {SelectColumns} {FromClause} WHERE {PlaceableScope} " +
-                      "AND r.home_site_id = @siteId ORDER BY r.code, r.name LIMIT @limit OFFSET @offset",
-            bind: p => p.AddWithValue("siteId", siteId),
-            map: Map,
-            ct: ct);
-    }
-
-    public async Task<ResourceInfo?> GetPlaceableAsync(Guid siteId, Guid resourceId, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QuerySingleOrDefaultAsync(
-            $"SELECT {SelectColumns} {FromClause} WHERE {PlaceableScope} " +
-            "AND r.home_site_id = @siteId AND r.id = @resourceId",
-            p => { p.AddWithValue("siteId", siteId); p.AddWithValue("resourceId", resourceId); },
-            Map, ct);
-    }
-
     public async Task<Dictionary<Guid, List<ResourceInfo>>> GetPlaceableBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default)
     {
         if (siteIds.Count == 0) return [];
@@ -432,7 +401,7 @@ public class ResourceRepository(
             CrossSiteAllowed = r.GetBoolean(r.GetOrdinal("cross_site_allowed")),
             Code = r.GetNullableString("code"),
             IsPhysical = r.GetBoolean("is_physical"),
-            Geometry = geometryJson is null ? null : JsonSerializer.Deserialize<SpaceGeometry>(geometryJson),
+            Geometry = geometryJson is null ? null : JsonSerializer.Deserialize<ResourceGeometry>(geometryJson),
             Properties = propertiesJson == "{}" ? null : JsonSerializer.Deserialize<Dictionary<string, object>>(propertiesJson),
             Capacity = r.GetInt32("capacity"),
             GroupId = r.GetNullableGuid("group_id"),

@@ -6,9 +6,9 @@ import userEvent from '@testing-library/user-event';
 import { SpaceListView } from './SpaceListView';
 
 vi.mock('@foundation/src/store/app-store', () => ({ useAppStore: vi.fn() }));
-vi.mock('@foundation/src/hooks/useSpaces', () => ({
-  useSpaces: vi.fn(),
-  useDeleteSpace: vi.fn(),
+vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
+  usePlaceableResources: vi.fn(),
+  useDeletePlaceableResource: vi.fn(),
 }));
 vi.mock('./EditSpaceDialog', () => ({
   EditSpaceDialog: ({ space }: { space: { name: string } }) => (
@@ -22,7 +22,7 @@ vi.mock('./SpaceCapabilitiesEditor', () => ({
 }));
 
 import { useAppStore } from '@foundation/src/store/app-store';
-import { useSpaces, useDeleteSpace } from '@foundation/src/hooks/useSpaces';
+import { usePlaceableResources, useDeletePlaceableResource } from '@foundation/src/hooks/usePlaceableResources';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
@@ -63,14 +63,14 @@ describe('SpaceListView', () => {
     vi.clearAllMocks();
     setSite('site-1');
     mutateAsync = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(useDeleteSpace).mockReturnValue({
+    vi.mocked(useDeletePlaceableResource).mockReturnValue({
       mutateAsync,
       isPending: false,
-    } as unknown as ReturnType<typeof useDeleteSpace>);
-    vi.mocked(useSpaces).mockReturnValue({
+    } as unknown as ReturnType<typeof useDeletePlaceableResource>);
+    vi.mocked(usePlaceableResources).mockReturnValue({
       data: spaces,
       isLoading: false,
-    } as unknown as ReturnType<typeof useSpaces>);
+    } as unknown as ReturnType<typeof usePlaceableResources>);
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);
   });

@@ -20,11 +20,14 @@ import type { DraftInteraction, PreviewEntry, PreviewSchedule } from "./schedule
 import { toScheduledEntry } from "./schedule-model";
 
 /** Build the draft-free schedule from the committed request list. */
-export function buildCommittedSchedule(committed: Request[]): PreviewSchedule {
+export function buildCommittedSchedule(
+  committed: Request[],
+  placeableKeys: ReadonlySet<string>,
+): PreviewSchedule {
   const preview: PreviewSchedule = new Map();
 
   for (const request of committed) {
-    const entry = toScheduledEntry(request);
+    const entry = toScheduledEntry(request, placeableKeys);
     if (!entry) continue;
 
     preview.set(entry.requestId, {
@@ -71,7 +74,8 @@ export function applyDraft(
 
 export function buildPreviewSchedule(
   committed: Request[],
-  draft: DraftInteraction
+  draft: DraftInteraction,
+  placeableKeys: ReadonlySet<string>,
 ): PreviewSchedule {
-  return applyDraft(buildCommittedSchedule(committed), draft);
+  return applyDraft(buildCommittedSchedule(committed, placeableKeys), draft);
 }

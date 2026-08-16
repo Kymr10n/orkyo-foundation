@@ -63,7 +63,6 @@ public static class FoundationEndpointExtensions
         app.MapQuotaEndpoints();
         app.MapSettingsEndpoints();
         app.MapSiteEndpoints();
-        app.MapSpaceEndpoints();
         app.MapTemplateEndpoints();
         app.MapUserAnnouncementEndpoints();
         app.MapUserManagementEndpoints();

@@ -4,7 +4,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, Layers } from "lucide-react";
 import { useSchedulerStore, MIN_DURATION_FLOOR_MS, RESIZE_MOVE_THRESHOLD_PX } from "@foundation/src/store/scheduler-store";
 import { useResizeGesture } from "@foundation/src/hooks/useResizeGesture";
-import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import type { ResizeGeometry } from "@foundation/src/hooks/useResizeGesture";
 import {
   selectRequestDisplayData,
@@ -70,8 +69,12 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     {
       onStart(edge) {
         if (!request.startTs || !request.endTs) return;
-        const spaceResourceId = getSpaceResourceId(request);
-        if (!spaceResourceId) return;
+        // The entry is already rendered against one row, and its resourceId is that row's
+        // resource — no need to re-derive it from the request's assignments. An unplaced but
+        // scheduled request carries its own id as a synthetic resourceId (see toScheduledEntry),
+        // and those have no row to resize against.
+        const spaceResourceId = entry.resourceId;
+        if (!spaceResourceId || spaceResourceId === request.id) return;
         startResize({
           requestId: request.id,
           resourceId: spaceResourceId,

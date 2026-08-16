@@ -432,12 +432,80 @@ guarantees this feature holds, and the remaining backlog.
   `/api/resources/{id}`, so `PersonEditDialog` could move its read and write across, leaving the
   profile API as a pure projection layer (`/job-titles`, `/batch`, `/link`). That is a smaller,
   honest change than the retirement this plan assumed, and it is what should be scheduled.
+
+  **D2 leftover is blocked (2026-08-15). The generic update cannot clear a field.**
+  `ResourceRepository.UpdateAsync` models every column as "null means the caller is not editing
+  it" (`SetIfNotNull` / `.HasValue`, lines 296-318). `upsertPersonProfile` instead replaces the
+  profile row, so it *can* clear. Moving `PersonEditDialog`'s write across as-is would silently
+  turn "remove this person's job title" into a no-op — the dialog already sends
+  `jobTitleId: form.jobTitleId === '' ? null : form.jobTitleId` and depends on null meaning erase.
+
+  The frontend contract has not landed either: `ResourceInfo` /
+  `Create|UpdateResourceRequest` in `resources-api.ts` carry no `email`, `jobTitleId`,
+  `departmentId`, `notes` or `hasDirectoryProfile`. D2 was backend-only.
+
+  **Pre-existing bug found while verifying this.** The same gap already bites `homeSiteId`.
+  `PersonEditDialog` maps the "Unset" option to `''` and sends `homeSiteId: form.homeSiteId || null`
+  (line 244); `UpdateAsync` line 304 tests `.HasValue`, so the column is never touched. Unsetting a
+  person's home site through this dialog does nothing and reports success. This is independent of
+  Lists and wants its own fix.
+
+  Unblocking needs a decision on how the generic update expresses erasure. The options, with the
+  in-repo precedent for each:
+  1. Per-field clear flags (`ClearJobTitle`, …), as `UpdateListDefinitionRequest.ClearDisplayColumn`
+     already does. Explicit and consistent; four more flags on an already wide request.
+  2. A presence-aware wrapper so "absent" and "null" differ on the wire. Fixes every field at once,
+     including `homeSiteId`; touches the whole update contract.
+  3. Leave directory writes on the profile upsert and close D2 as complete. Cheapest; keeps two
+     write paths for one row.
 - D3: retire the `SpaceEndpoints` thin shim in favour of `/api/resources` (needs D1; the
   placeable-cannot-travel rule is already enforced centrally in `ResourceService`).
+
+  **D3's "thin shim" premise is partly refuted (2026-08-15).** `SpaceEndpoints` delegates to the
+  generic stack but carries behaviour `/api/resources` cannot currently express:
+
+  - **Scope.** Every route filters on `PlaceableScope` = `rt.has_geometry AND r.is_active` plus
+    `home_site_id = @siteId`. The generic list has no placeable filter — only `resourceTypeKey`,
+    and reaching for `space` there is exactly the key-driven special-casing design guarantee §3
+    forbids.
+  - **Site semantics differ.** `ResourceListFilter.SiteId` also matches resources merely *assigned*
+    to the site, so `/api/resources?siteId=X` is a strictly wider set than `/api/sites/X/spaces`.
+  - **Create defaults.** The POST supplies `AllocationMode.Exclusive`, `HomeSiteId = siteId`,
+    `CrossSiteAllowed = false`. Retiring the route moves those defaults to every caller.
+  - **404 semantics.** A space belonging to another site reads as absent from this one; the generic
+    `GET /{id}` has no site in scope.
+
+  So D3 is not a deletion. Its real prerequisite is a `hasGeometry`/placeable filter on the generic
+  list, and the DTO migration (`SpaceInfo` → `ResourceInfo`) reaches `useSpaces`,
+  `SpreadsheetImportWizard`, `SpaceCapabilitiesEditor` and `SpaceResizeEndpoints`. Much of that is
+  D4/D5 work, so doing D3 first churns the same frontend twice — D4/D5 should lead.
 - D4: frontend convergence — retire `TYPES_WITH_DEDICATED_PAGES`; `SpacesPage`/
   `PeoplePage` become configured compositions of generic surfaces.
+
+  **D4 depends on D5; this list's order is backwards (2026-08-15).**
+  `TYPES_WITH_DEDICATED_PAGES` is a routing table, not a behaviour flag — its own docstring says
+  "identity, not behaviour", the same category §2.1/§2.2 calls permanent, and `DEDICATED_TYPE_ROUTES`
+  sits beside it holding the routes. Its three consumers all ask one question: does this type have a
+  page of its own? That stays true for as long as the pages exist. The set therefore cannot be
+  retired first — it dissolves as a *consequence* of the dedicated pages losing their reason to
+  exist, which is the floorplan (`/spaces/floorplan`) and teams (`/people/teams`) surfaces the
+  generic page lacks. Do D5 first.
 - D5: floorplan/utilization surfaces generalized by `has_geometry`
   (`SpaceManagementPanel`, the `UtilizationPage` space scheduler grid).
+
+  **D5 is not a substitution — it needs a cardinality decision first (2026-08-15).**
+  `UtilizationPage` assumes there is exactly *one* placeable type. `isSchedulerTab` is a boolean
+  (`activeTab === RESOURCE_TYPE_KEY.SPACE`, line 170), the tab's value is the literal `'space'`,
+  `gridTypes` is defined as "everything that is not space" (line 143), and `orderedTypes` prepends
+  the single space type (line 183). One floorplan height state serves it. Swapping the key for
+  `hasGeometry` does not generalize any of that — `.find(t => t.hasGeometry)` just picks an
+  arbitrary placeable type once a tenant defines a second one.
+
+  The open question is product, not code: **can a tenant have more than one placeable type, and if
+  so does each get its own scheduler tab and floorplan?** Today a second `has_geometry` type gets a
+  read-only grid tab and cannot be placed on a floorplan at all. Until that is answered, every
+  key→flag substitution in these surfaces is ambiguous, including the one-line one in
+  `EditSpaceDialog.tsx:52`.
 - D6: scheduling stops defaulting a missing target type to `space`
   (`SchedulingProblemBuilder.cs:51`, `RequestRepository.cs:437`).
 - D7: `absence_type`/`off_times.type` CHECK enums become tenant-editable reference data.

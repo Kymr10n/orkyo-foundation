@@ -126,7 +126,8 @@ describe('useSites', () => {
 
       await waitFor(() => {
         expect(spy).toHaveBeenCalledWith({ queryKey: ['sites'], exact: false });
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['spaces'], exact: false });
+        // Site mutations refresh the whole resource namespace now that the floorplan reads it.
+        expect(spy).toHaveBeenCalledWith({ queryKey: ['resources'], exact: false });
         expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
       });
     });

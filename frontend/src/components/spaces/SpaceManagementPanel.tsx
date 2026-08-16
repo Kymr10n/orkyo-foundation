@@ -14,11 +14,10 @@ import { cn } from "@foundation/src/lib/utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import type {
-  CreateSpaceRequest,
-  DrawingMode,
-  SpaceGeometry,
-  Space as SpaceType,
-} from "@foundation/src/types/space";
+  CreateResourceRequest,
+  ResourceInfo,
+} from "@foundation/src/lib/api/resources-api";
+import type { DrawingMode, ResourceGeometry } from "@foundation/src/types/geometry";
 import {
   Check,
   MapPin,
@@ -36,11 +35,11 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
 import {
-  useSpaces,
-  useCreateSpace,
-  useUpdateSpace,
-  useMoveSpace,
-} from "@foundation/src/hooks/useSpaces";
+  usePlaceableResources,
+  useCreatePlaceableResource,
+  useUpdatePlaceableResource,
+  useMovePlaceableResource,
+} from "@foundation/src/hooks/usePlaceableResources";
 import { useEditQueryParam } from "@foundation/src/hooks/useEditQueryParam";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -54,11 +53,11 @@ export function SpaceManagementPanel({
   className,
 }: SpaceManagementPanelProps) {
   // React Query hooks
-  const { data: spaces = [], isLoading: isLoadingSpaces } = useSpaces(siteId);
-  const createSpaceMutation = useCreateSpace(siteId);
-  const _updateSpaceMutation = useUpdateSpace(siteId);
-  const moveSpaceMutation = useMoveSpace(siteId);
-  const resizeSpaceMutation = useMoveSpace(siteId);
+  const { data: spaces = [], isLoading: isLoadingSpaces } = usePlaceableResources(siteId);
+  const createSpaceMutation = useCreatePlaceableResource(siteId);
+  const _updateSpaceMutation = useUpdatePlaceableResource(siteId);
+  const moveSpaceMutation = useMovePlaceableResource(siteId);
+  const resizeSpaceMutation = useMovePlaceableResource(siteId);
 
   const canEdit = useCanEdit();
   // Phone is a read-only floorplan: editing tools (delete + drawing modes) are
@@ -71,13 +70,13 @@ export function SpaceManagementPanel({
   const [floorplanBlobUrl, setFloorplanBlobUrl] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [drawingMode, setDrawingMode] = useState<DrawingMode>("none");
-  const [drawnGeometry, setDrawnGeometry] = useState<SpaceGeometry | null>(
+  const [drawnGeometry, setDrawnGeometry] = useState<ResourceGeometry | null>(
     null,
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteFloorplanOpen, setDeleteFloorplanOpen] = useState(false);
   const [isDeletingFloorplan, setIsDeletingFloorplan] = useState(false);
-  const [editingSpace, setEditingSpace] = useState<SpaceType | null>(null);
+  const [editingSpace, setEditingSpace] = useState<ResourceInfo | null>(null);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   // Master edit switch — view mode (pan/zoom only) by default; protects against
   // accidental, un-undoable move/resize. Double-click-to-inspect ignores this.
@@ -152,7 +151,7 @@ export function SpaceManagementPanel({
     setZoom(1);
   };
 
-  const handleDrawingComplete = (geometry: SpaceGeometry) => {
+  const handleDrawingComplete = (geometry: ResourceGeometry) => {
     setDrawnGeometry(geometry);
     setCreateDialogOpen(true);
     setDrawingMode("none");
@@ -162,7 +161,7 @@ export function SpaceManagementPanel({
     setDrawingMode("none");
   };
 
-  const handleCreateSpace = async (request: CreateSpaceRequest) => {
+  const handleCreateSpace = async (request: CreateResourceRequest) => {
     try {
       await createSpaceMutation.mutateAsync(request);
       setCreateDialogOpen(false);
@@ -198,31 +197,25 @@ export function SpaceManagementPanel({
 
   const handleMoveSpace = async (
     resourceId: string,
-    newGeometry: SpaceGeometry,
+    newGeometry: ResourceGeometry,
   ) => {
     try {
-      const space = spaces.find((s) => s.id === resourceId);
-      if (!space) return;
-
-      await moveSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
+      await moveSpaceMutation.mutateAsync({ resourceId, geometry: newGeometry });
     } catch (error) {
-      // Feedback owned by useMoveSpace's meta.errorMessage (central MutationCache).
-      logger.error("Failed to move space:", error);
+      // Feedback owned by the move mutation's meta.errorMessage (central MutationCache).
+      logger.error("Failed to move resource:", error);
     }
   };
 
   const handleResizeSpace = async (
     resourceId: string,
-    newGeometry: SpaceGeometry,
+    newGeometry: ResourceGeometry,
   ) => {
     try {
-      const space = spaces.find((s) => s.id === resourceId);
-      if (!space) return;
-
-      await resizeSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
+      await resizeSpaceMutation.mutateAsync({ resourceId, geometry: newGeometry });
     } catch (error) {
-      // Feedback owned by useMoveSpace's meta.errorMessage (central MutationCache).
-      logger.error("Failed to resize space:", error);
+      // Feedback owned by the move mutation's meta.errorMessage (central MutationCache).
+      logger.error("Failed to resize resource:", error);
     }
   };
 

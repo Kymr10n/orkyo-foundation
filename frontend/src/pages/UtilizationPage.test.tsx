@@ -139,7 +139,7 @@ vi.mock("@foundation/src/hooks/useUtilization", () => ({
   useBacklogRequests: () => mockUseBacklog(),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
-  useSpaces: (arg?: any) => mockUseSpaces(arg),
+  usePlaceableResources: (arg?: any) => mockUseSpaces(arg),
 }));
 
 vi.mock("@foundation/src/hooks/useImportExport", () => ({
@@ -241,7 +241,9 @@ vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
           data-testid="empty-cell-click"
           onClick={() =>
             onEmptyCellClick(
-              { id: "space-1", code: "CRA", name: "Conference Room A" },
+              // resourceTypeKey is what the chooser filters the backlog by — a real grid row
+              // always carries it, so the stub must too.
+              { id: "space-1", code: "CRA", name: "Conference Room A", resourceTypeKey: "space" },
               { start: new Date("2026-06-22T00:00:00Z"), end: new Date("2026-06-23T00:00:00Z"), label: "22 Mon" },
             )
           }
@@ -279,15 +281,21 @@ vi.mock("@foundation/src/components/utilization/AutoScheduleButton", () => ({
   ),
 }));
 
-const mockResourceType = (key: string, displayName: string, plural: string, isSystem = true) => ({
+// hasGeometry is required on ResourceTypeInfo and drives which tab a type lands on, so it is set
+// here rather than left undefined — this factory returns an untyped literal, so a missing field
+// is not a compile error and silently reads as false.
+const mockResourceType = (
+  key: string, displayName: string, plural: string, isSystem = true, hasGeometry = false,
+) => ({
   id: `type-${key}`, key, displayName, displayNamePlural: plural, isSystem, isActive: true,
+  hasGeometry,
   createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
 });
-// Tabs are derived from the active types: Spaces keeps its own scheduler tab, every other type
-// gets a grid tab. `forklift` stands in for a tenant-defined type.
+// Tabs are derived from the active types: placeable types share the scheduler tab, every other
+// type gets a grid tab. `forklift` stands in for a tenant-defined type.
 const mockResourceTypes = vi.fn(() => ({
   data: [
-    mockResourceType("space", "Space", "Spaces"),
+    mockResourceType("space", "Space", "Spaces", true, true),
     mockResourceType("person", "Person", "People"),
     mockResourceType("tool", "Tool", "Tools"),
     mockResourceType("forklift", "Forklift", "Forklifts", false),
@@ -344,7 +352,8 @@ vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
   },
 }));
 
-const createWrapper = (initialTab = "space") => {
+// The scheduler tab is identified by its surface now, not by the space type key.
+const createWrapper = (initialTab = "stations") => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -526,7 +535,7 @@ describe("UtilizationPage", () => {
     expect(mockSetAnchorTs).not.toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
     unmount();
 
-    const GridWrapper = createWrapper("space");
+    const GridWrapper = createWrapper("stations");
     render(<GridWrapper><UtilizationPage /></GridWrapper>);
     mockSetAnchorTs.mockClear();
     fireEvent.click(screen.getByTestId("nav-next"));
@@ -909,7 +918,7 @@ describe("UtilizationPage", () => {
   });
 
   it("drag start sets the overlay label and drag cancel clears it", async () => {
-    const Wrapper = createWrapper("space");
+    const Wrapper = createWrapper("stations");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     capturedOnDragStart!({ active: { data: { current: { type: "request", name: "Task 1" } } } });
@@ -996,13 +1005,54 @@ describe("UtilizationPage", () => {
   it("exports only the active tab's resource type", async () => {
     const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
     // The Spaces tab is on screen, so a PDF full of people would disagree with it.
-    const Wrapper = createWrapper("space");
+    const Wrapper = createWrapper("stations");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     await capturedExportHandler!("pdf");
 
     const types = vi.mocked(exportUtilization).mock.calls[0][3];
     expect(types.map((t) => t.key)).toEqual(["space"]);
+  });
+
+  it("gives a second placeable type no grid tab of its own", async () => {
+    // The floorplan read path never filtered by type — GET /api/sites/{id}/spaces scopes on
+    // `rt.has_geometry` — so a tenant-defined placeable type already rendered on the plan. While
+    // the grid tabs were "everything except the space key" it also got a tab, listing the same
+    // resources a second time under a surface that cannot place them.
+    mockResourceTypes.mockReturnValueOnce({
+      data: [
+        mockResourceType("space", "Space", "Spaces", true, true),
+        mockResourceType("zone", "Zone", "Zones", false, true),
+        mockResourceType("person", "Person", "People"),
+      ],
+      isSuccess: true,
+    });
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.queryByRole("tab", { name: "Zones" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "People" })).toBeInTheDocument();
+  });
+
+  it("exports every placeable type from the scheduler tab, not just the one the tab names", async () => {
+    const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+    // One floorplan holds every placeable type, so a PDF naming only the tab's own key would
+    // omit resources that are visibly on the plan.
+    mockResourceTypes.mockReturnValueOnce({
+      data: [
+        mockResourceType("space", "Space", "Spaces", true, true),
+        mockResourceType("zone", "Zone", "Zones", false, true),
+        mockResourceType("person", "Person", "People"),
+      ],
+      isSuccess: true,
+    });
+    const Wrapper = createWrapper("stations");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    await capturedExportHandler!("pdf");
+
+    const types = vi.mocked(exportUtilization).mock.calls[0][3];
+    expect(types.map((t) => t.key)).toEqual(["space", "zone"]);
   });
 
   it("exports every type from the Calendar tab, in tab order", async () => {

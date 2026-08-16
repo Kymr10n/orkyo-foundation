@@ -1,9 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CreateSpaceDialog } from './CreateSpaceDialog';
-import type { SpaceGeometry } from '@foundation/src/types/space';
+import type { ResourceGeometry } from '@foundation/src/types/geometry';
 
-const mockGeometry: SpaceGeometry = {
+// The dialog reads the tenant's placeable types to decide whether to ask which one is being
+// drawn. One type by default, so the picker stays hidden and the key is implied.
+const mockResourceTypes = vi.fn(() => ({
+  data: [{ id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true }],
+  isSuccess: true,
+}));
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: (...args: unknown[]) => mockResourceTypes(...(args as [])),
+}));
+
+const mockGeometry: ResourceGeometry = {
   type: 'rectangle',
   coordinates: [
     { x: 100, y: 100 },
@@ -71,10 +81,16 @@ describe('CreateSpaceDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
 
     await waitFor(() => {
+      // The dialog now supplies what the site-scoped space route used to hardcode server-side:
+      // the type, exclusive allocation, the home site, and no travelling off it.
       expect(defaultProps.onSubmit).toHaveBeenCalledWith({
+        resourceTypeKey: 'space',
         name: 'Zone A',
         code: 'ZA',
         description: 'My zone',
+        allocationMode: 'Exclusive',
+        homeSiteId: 'site-1',
+        crossSiteAllowed: false,
         isPhysical: true,
         geometry: mockGeometry,
       });
@@ -142,5 +158,40 @@ describe('CreateSpaceDialog', () => {
     await waitFor(() => {
       expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
     });
+  });
+
+  it('does not ask which type when only one thing can be placed', () => {
+    // A tenant with only the built-in space type is never asked a question with one answer.
+    renderDialog();
+    expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
+  });
+
+  it('asks which type is being drawn when the tenant has more than one', async () => {
+    mockResourceTypes.mockReturnValue({
+      data: [
+        { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true },
+        { id: 'type-booth', key: 'booth', displayName: 'Booth', displayNamePlural: 'Booths', hasGeometry: true, isActive: true },
+      ],
+      isSuccess: true,
+    });
+    renderDialog();
+
+    expect(screen.getByLabelText('Type')).toBeInTheDocument();
+  });
+
+  it('leaves non-placeable types out of the picker', () => {
+    // A person cannot be drawn on a floorplan, so offering the type would create a resource the
+    // backend rejects.
+    mockResourceTypes.mockReturnValue({
+      data: [
+        { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true },
+        { id: 'type-person', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, isActive: true },
+      ],
+      isSuccess: true,
+    });
+    renderDialog();
+
+    // Only one placeable type remains, so there is still nothing to ask.
+    expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
   });
 });

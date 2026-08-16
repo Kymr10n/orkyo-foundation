@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
 import {
-  addSpaceCapability,
-  deleteSpaceCapability,
-  getSpaceCapabilities,
-} from "@foundation/src/lib/api/space-capability-api";
+  deleteResourceCapability,
+  getResourceCapabilities,
+  upsertResourceCapability,
+} from "@foundation/src/lib/api/resource-capabilities-api";
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import { logger } from "@foundation/src/lib/core/logger";
 import { CriterionAssignmentEditor } from "../capabilities/CriterionAssignmentEditor";
@@ -15,7 +15,6 @@ import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 interface SpaceCapabilitiesEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  siteId: string;
   resourceId: string;
   spaceName: string;
 }
@@ -27,7 +26,6 @@ interface SpaceCapabilitiesEditorProps {
 export function SpaceCapabilitiesEditor({
   open,
   onOpenChange,
-  siteId,
   resourceId,
   spaceName,
 }: SpaceCapabilitiesEditorProps) {
@@ -45,7 +43,7 @@ export function SpaceCapabilitiesEditor({
       setLoadError(null);
       try {
         const [capsData, criteriaData] = await Promise.all([
-          getSpaceCapabilities(siteId, resourceId),
+          getResourceCapabilities(resourceId),
           getCriteria(),
         ]);
         const map = new Map<string, CriterionValue | null>();
@@ -61,17 +59,17 @@ export function SpaceCapabilitiesEditor({
     };
 
     loadData();
-  }, [open, siteId, resourceId]);
+  }, [open, resourceId]);
 
   const saveMutation = useMutation({
     mutationFn: async (desired: Map<string, CriterionValue | null>) => {
-      const existing = await getSpaceCapabilities(siteId, resourceId);
-      // 'add-new': the space backend POST upserts, but we preserve the historical
-      // add-new behavior here; see docs/dialog-feedback.md and capability-diff.ts.
+      const existing = await getResourceCapabilities(resourceId);
+      // 'add-new': the endpoint upserts, but the historical add-new behaviour is preserved
+      // here; see docs/dialog-feedback.md and capability-diff.ts.
       const { toPersist, toDeleteIds } = diffCapabilityAssignments(existing, desired, "add-new");
       await Promise.all([
-        ...toPersist.map((cap) => addSpaceCapability(siteId, resourceId, cap)),
-        ...toDeleteIds.map((id) => deleteSpaceCapability(siteId, resourceId, id)),
+        ...toPersist.map((cap) => upsertResourceCapability(resourceId, cap)),
+        ...toDeleteIds.map((id) => deleteResourceCapability(resourceId, id)),
       ]);
     },
     meta: {

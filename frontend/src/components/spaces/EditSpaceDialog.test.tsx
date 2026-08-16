@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { EditSpaceDialog } from './EditSpaceDialog';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
-import type { Space } from '@foundation/src/types/space';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 
 const mockMutateAsync = vi.fn();
 
-vi.mock('@foundation/src/hooks/useSpaces', () => ({
-  useUpdateSpace: vi.fn(() => ({
+vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
+  useUpdatePlaceableResource: vi.fn(() => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   })),
@@ -15,10 +15,16 @@ vi.mock('@foundation/src/hooks/useSpaces', () => ({
 
 const wrapper = createTestQueryWrapper();
 
-function makeSpace(overrides: Partial<Space> = {}): Space {
+function makeSpace(overrides: Partial<ResourceInfo> = {}): ResourceInfo {
   return {
     id: 'space-1',
-    siteId: 'site-1',
+    resourceTypeId: 'type-space',
+    resourceTypeKey: 'space',
+    allocationMode: 'Exclusive',
+    baseAvailabilityPercent: 100,
+    isActive: true,
+    homeSiteId: 'site-1',
+    crossSiteAllowed: false,
     name: 'Room A',
     code: 'RM-A',
     description: 'A meeting room',

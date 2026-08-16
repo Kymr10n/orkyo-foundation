@@ -32,10 +32,10 @@ function renderAt(initialPath: string) {
 }
 
 describe('SpacesPage', () => {
-  it('renders the tab triggers in order: Floorplan, Spaces, Groups', () => {
+  it('renders the tab triggers in order: Floorplan, Stations, Groups', () => {
     renderAt('/spaces/floorplan');
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs).toEqual(['Floorplan', 'Spaces', 'Groups']);
+    expect(tabs).toEqual(['Floorplan', 'Stations', 'Groups']);
   });
 
   it('index route redirects to /spaces/floorplan', () => {
@@ -54,7 +54,7 @@ describe('SpacesPage', () => {
 
   it('clicking a tab navigates to its sub-route', async () => {
     renderAt('/spaces/floorplan');
-    await userEvent.click(screen.getByRole('tab', { name: 'Spaces' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Stations' }));
     expect(screen.getByTestId('list')).toBeInTheDocument();
   });
 });

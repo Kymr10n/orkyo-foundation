@@ -3,9 +3,10 @@ import { SPACE_CANVAS_COLORS, SPACE_LEGEND_CELL_CLASS, SPACE_LEGEND_BORDER_CLASS
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
-import { useSpaces } from "@foundation/src/hooks/useSpaces";
+import { usePlaceableResources } from "@foundation/src/hooks/usePlaceableResources";
 import { useAppStore } from "@foundation/src/store/app-store";
-import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { getPlacementResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import type { Request } from "@foundation/src/types/requests";
 import { ChevronDown, ChevronUp, GripHorizontal, MapPin } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -46,7 +47,7 @@ export function CollapsibleFloorplan({
     data: spaces = [],
     isLoading: _isLoadingSpaces,
     error: spacesError,
-  } = useSpaces(selectedSiteId);
+  } = usePlaceableResources(selectedSiteId);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragStartY = useRef(0);
@@ -99,22 +100,23 @@ export function CollapsibleFloorplan({
     [isCollapsed, height, onHeightChange],
   );
 
+  const placeableKeys = usePlaceableTypeKeys();
   // Memoize cursor-time filtering
   const { occupiedResourceIds, conflictingResourceIds } = useMemo(() => {
     const active = requests.filter((req) => {
-      if (!req.startTs || !req.endTs || !getSpaceResourceId(req)) return false;
+      if (!req.startTs || !req.endTs || !getPlacementResourceId(req, placeableKeys)) return false;
       const start = new Date(req.startTs);
       const end = new Date(req.endTs);
       return start <= timeCursorTs && timeCursorTs < end;
     });
 
     return {
-      occupiedResourceIds: new Set(active.map((req) => getSpaceResourceId(req)!)),
+      occupiedResourceIds: new Set(active.map((req) => getPlacementResourceId(req, placeableKeys)!)),
       conflictingResourceIds: new Set(
-        active.filter((req) => conflicts.has(req.id)).map((req) => getSpaceResourceId(req)!),
+        active.filter((req) => conflicts.has(req.id)).map((req) => getPlacementResourceId(req, placeableKeys)!),
       ),
     };
-  }, [requests, timeCursorTs, conflicts]);
+  }, [requests, timeCursorTs, conflicts, placeableKeys]);
 
   const spacesWithGeometry = useMemo(
     () => spaces.filter((s) => s.geometry),

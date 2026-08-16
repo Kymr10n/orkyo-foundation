@@ -3,6 +3,9 @@ import { durationToMs, toScheduledEntry } from './schedule-model';
 import type { Request } from '@foundation/src/types/requests';
 import { spaceAssignment, makeAssignment } from '@foundation/src/test-utils/request-fixtures';
 
+// Placement is resolved by type set now; these fixtures are all spaces.
+const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -71,7 +74,7 @@ describe('toScheduledEntry', () => {
       startTs: '2024-06-01T08:00:00.000Z',
       endTs: '2024-06-01T10:00:00.000Z',
     });
-    const entry = toScheduledEntry(req);
+    const entry = toScheduledEntry(req, PLACEABLE_KEYS);
     expect(entry).not.toBeNull();
     expect(entry!.requestId).toBe('req-1');
     expect(entry!.resourceId).toBe('space-1');
@@ -82,7 +85,7 @@ describe('toScheduledEntry', () => {
 
   it('uses request id as synthetic resourceId when no space is assigned', () => {
     const req = makeRequest({ assignments: [], startTs: '2024-06-01T08:00:00Z', endTs: '2024-06-01T10:00:00Z' });
-    const entry = toScheduledEntry(req);
+    const entry = toScheduledEntry(req, PLACEABLE_KEYS);
     expect(entry).not.toBeNull();
     expect(entry!.resourceId).toBe('req-1');
     expect(entry!.requestId).toBe('req-1');
@@ -90,12 +93,12 @@ describe('toScheduledEntry', () => {
 
   it('returns null when startTs is missing', () => {
     const req = makeRequest({ assignments: [spaceAssignment('space-1')], endTs: '2024-06-01T10:00:00Z' });
-    expect(toScheduledEntry(req)).toBeNull();
+    expect(toScheduledEntry(req, PLACEABLE_KEYS)).toBeNull();
   });
 
   it('returns null when endTs is missing', () => {
     const req = makeRequest({ assignments: [spaceAssignment('space-1')], startTs: '2024-06-01T08:00:00Z' });
-    expect(toScheduledEntry(req)).toBeNull();
+    expect(toScheduledEntry(req, PLACEABLE_KEYS)).toBeNull();
   });
 
   it('returns null when startTs >= endTs (zero-duration)', () => {
@@ -104,7 +107,7 @@ describe('toScheduledEntry', () => {
       startTs: '2024-06-01T10:00:00Z',
       endTs: '2024-06-01T10:00:00Z',
     });
-    expect(toScheduledEntry(req)).toBeNull();
+    expect(toScheduledEntry(req, PLACEABLE_KEYS)).toBeNull();
   });
 
   it('returns null when startTs > endTs (inverted)', () => {
@@ -113,7 +116,7 @@ describe('toScheduledEntry', () => {
       startTs: '2024-06-01T12:00:00Z',
       endTs: '2024-06-01T08:00:00Z',
     });
-    expect(toScheduledEntry(req)).toBeNull();
+    expect(toScheduledEntry(req, PLACEABLE_KEYS)).toBeNull();
   });
 
   it('uses the space assignment when request also has person and tool assignments', () => {
@@ -128,7 +131,7 @@ describe('toScheduledEntry', () => {
       startTs: '2024-06-01T08:00:00Z',
       endTs: '2024-06-01T10:00:00Z',
     });
-    const entry = toScheduledEntry(req);
+    const entry = toScheduledEntry(req, PLACEABLE_KEYS);
     expect(entry).not.toBeNull();
     expect(entry!.resourceId).toBe('space-1');
   });

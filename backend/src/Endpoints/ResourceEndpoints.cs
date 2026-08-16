@@ -26,7 +26,8 @@ public static class ResourceEndpoints
             string? resourceTypeKey,
             bool? isActive,
             string? search,
-            Guid? siteId) =>
+            Guid? siteId,
+            bool? hasGeometry) =>
         {
             var items = await service.GetAllAsync(new ResourceListFilter
             {
@@ -34,6 +35,7 @@ public static class ResourceEndpoints
                 IsActive = isActive,
                 Search = search,
                 SiteId = siteId,
+                HasGeometry = hasGeometry,
             });
             return Results.Ok(new { data = items, total = items.Count, page = 1, pageSize = items.Count });
         })

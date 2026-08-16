@@ -29,7 +29,7 @@ import { Link, useLocation } from "react-router";
 // beneath People, rather than trailing the whole core list.
 const resourceNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
-  { to: "/spaces", label: "Spaces", icon: Box },
+  { to: "/spaces", label: "Floorplan", icon: Box },
   { to: "/people", label: "People", icon: Users },
 ];
 

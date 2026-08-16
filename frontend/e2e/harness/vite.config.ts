@@ -32,7 +32,7 @@ export default defineConfig({
       { find: /^@foundation\/src\/lib\/api\/criteria-api$/, replacement: `${apiStubsDir}/criteria-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/template-api$/, replacement: `${apiStubsDir}/template-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/site-api$/, replacement: `${apiStubsDir}/site-api.ts` },
-      { find: /^@foundation\/src\/lib\/api\/space-api$/, replacement: `${apiStubsDir}/space-api.ts` },
+      { find: /^@foundation\/src\/lib\/api\/resources-api$/, replacement: `${apiStubsDir}/space-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/resources-api$/, replacement: `${apiStubsDir}/resources-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/resource-assignments-api$/, replacement: `${apiStubsDir}/resource-assignments-api.ts` },
       { find: "@foundation/contracts", replacement: foundationContracts },

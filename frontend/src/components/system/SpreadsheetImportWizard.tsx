@@ -18,7 +18,7 @@ import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 import { useDataExportAvailable } from '@foundation/src/hooks/useDataExportAvailable';
 import { useSites } from '@foundation/src/hooks/useSites';
 import { useAppStore } from '@foundation/src/store/app-store';
-import { createSpace, getSpaces } from '@foundation/src/lib/api/space-api';
+import { createResource, getResources } from '@foundation/src/lib/api/resources-api';
 import { createRequest } from '@foundation/src/lib/api/request-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { invalidateRequestData } from '@foundation/src/lib/core/invalidate-request-data';
@@ -95,7 +95,7 @@ export function SpreadsheetImportWizard({
     try {
       const sheets = await readWorkbook(file);
       const parsed = parseTemplateWorkbook(sheets);
-      const existing = await getSpaces(effectiveSiteId);
+      const existing = (await getResources({ hasGeometry: true, isActive: true, siteId: effectiveSiteId })).data;
       const existingCodes = new Map(
         existing.filter((s) => s.code).map((s) => [s.code as string, s.id]),
       );
@@ -122,7 +122,7 @@ export function SpreadsheetImportWizard({
       // Workstations first, so a failure partway leaves a usable state — places
       // without jobs, rather than jobs pointing at places that don't exist.
       for (const workstation of toCreate) {
-        const space = await createSpace(effectiveSiteId, workstationToCreateSpace(workstation));
+        const space = await createResource(workstationToCreateSpace(workstation, effectiveSiteId));
         codeToResourceId.set(workstation.code, space.id);
         createdWorkstations++;
         setStep({ kind: 'committing', done: ++done, total });
@@ -147,7 +147,7 @@ export function SpreadsheetImportWizard({
         failure: errorMessage(err),
       });
     } finally {
-      queryClient.invalidateQueries({ queryKey: qk.spaces.list(effectiveSiteId) });
+      queryClient.invalidateQueries({ queryKey: qk.resources.all() });
       invalidateRequestData(queryClient);
     }
   };

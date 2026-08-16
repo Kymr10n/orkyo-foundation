@@ -37,20 +37,25 @@ export const qk = {
     list: () => ["requests", "list"] as const,
   },
 
-  spaces: {
-    /** Broad prefix — every site's spaces (use for cross-site invalidation). */
-    all: () => ["spaces"] as const,
-    list: (siteId: string | null) => ["spaces", siteId] as const,
-  },
-
   sites: {
     /** The tenant's site list (also its own invalidation prefix). */
     list: () => ["sites"] as const,
   },
 
   resources: {
+    /**
+     * Broad prefix over the `["resources", …]` namespace — reaches `byType` and
+     * `utilizationGrid`, so one invalidation refreshes every per-type list. Deliberately does NOT
+     * reach `allFlat`, which lives under its own root for the reason documented there.
+     */
+    all: () => ["resources"] as const,
     /** Resources of one type (e.g. the People list; also its own invalidation prefix). */
     byType: (resourceTypeKey: string) => ["resources", resourceTypeKey] as const,
+    /**
+     * Placeable resources at one site — everything the floorplan holds, across every type that
+     * declares geometry. Sits under the `["resources", …]` prefix so `all()` reaches it.
+     */
+    placeable: (siteId: string | null) => ["resources", "placeable", siteId] as const,
     /**
      * Resources of one type backing that type's utilization grid — name/metadata lookup.
      * Deliberately a distinct key from `byType(typeKey)` (different fetch scope/staleness); do

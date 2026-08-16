@@ -1,19 +1,20 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 // Domain pipeline
 import { buildCommittedSchedule, applyDraft } from "@foundation/src/domain/scheduling/schedule-preview";
 import { buildIndex, replaceIndexEntry, getOverlapping } from "@foundation/src/domain/scheduling/schedule-index";
 import { evaluateEntry } from "@foundation/src/domain/scheduling/schedule-validator";
-import { getSpaceResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { getPlacementResourceId } from "@foundation/src/domain/scheduling/request-assignments";
+import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useAppStore } from "@foundation/src/store/app-store";
 import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { Request } from "@foundation/src/types/requests";
-import type { Space } from "@foundation/src/types/space";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 
 const EMPTY_REQUESTS: Request[] = [];
 const EMPTY_ENTRIES: readonly PreviewEntry[] = [];
@@ -33,7 +34,7 @@ import {
 import { enrichColumnsWithOffTime } from "./time-grid-offtime";
 
 interface SchedulerGridProps {
-  spaces: Space[];
+  spaces: ResourceInfo[];
   requests: Request[];
   scale: TimeScale;
   anchorTs: Date;
@@ -44,7 +45,7 @@ interface SchedulerGridProps {
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
-  onEmptyCellClick?: (space: Space, col: TimeColumn) => void;
+  onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
   onTimeCursorClick: (ts: Date) => void;
   onAnchorChange?: (ts: Date) => void;
   offTimeRanges?: readonly OffTimeRange[];
@@ -102,7 +103,11 @@ export function SchedulerGrid({
   // ---------------------------------------------------------------------------
   const draft = useSchedulerStore((s) => s.draft);
 
-  const committedSchedule = useMemo(() => buildCommittedSchedule(requests), [requests]);
+  const placeableKeys = usePlaceableTypeKeys();
+  const committedSchedule = useMemo(
+    () => buildCommittedSchedule(requests, placeableKeys),
+    [requests, placeableKeys],
+  );
   const committedIndex = useMemo(() => buildIndex(committedSchedule), [committedSchedule]);
 
   const previewSchedule = useMemo(
@@ -128,14 +133,14 @@ export function SchedulerGrid({
   const requestsBySpaceId = useMemo(() => {
     const map = new Map<string, Request[]>();
     for (const r of requests) {
-      const spaceId = getSpaceResourceId(r);
+      const spaceId = getPlacementResourceId(r, placeableKeys);
       if (!spaceId) continue;
       const list = map.get(spaceId) ?? [];
       list.push(r);
       map.set(spaceId, list);
     }
     return map;
-  }, [requests]);
+  }, [requests, placeableKeys]);
 
   // Registry conflicts sliced per space, so each SpaceRow only receives (and
   // only re-renders for) the validation of its own requests.
@@ -184,16 +189,28 @@ export function SchedulerGrid({
   }, [committedValidationBySpace, draft, previewSchedule, scheduleIndex]);
   // ---------------------------------------------------------------------------
 
-  // Fetch groups — shared cache with everything else reading space groups.
-  const { data: groups = [], isLoading: groupsLoading } = useQuery<ResourceGroupInfo[]>({
-    queryKey: qk.resourceGroups.byType('space'),
-    queryFn: () => getResourceGroups('space'),
+  // Groups for every placeable type, merged — the rows on one floorplan can come from several
+  // types, and a row whose type was not fetched would silently fall into the ungrouped bucket.
+  // One query per type key, so each still shares its cache entry with the per-type group pages.
+  const sortedPlaceableKeys = useMemo(() => [...placeableKeys].sort(), [placeableKeys]);
+  const groupQueries = useQueries({
+    queries: sortedPlaceableKeys.map((key) => ({
+      queryKey: qk.resourceGroups.byType(key),
+      queryFn: () => getResourceGroups(key),
+    })),
   });
+  const groupsLoading = groupQueries.some((q) => q.isLoading);
+  const groups = useMemo<ResourceGroupInfo[]>(
+    () => groupQueries.flatMap((q) => q.data ?? []),
+    // The query results array is a new object every render; its data is what matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groupQueries.map((q) => q.dataUpdatedAt).join(',')],
+  );
 
   // Memoize sorting + grouping — expensive with 50+ spaces (#5). Spaces are
   // sorted (manual order, then code) before bucketing so each group keeps that
   // order. Empty groups are dropped (includeEmpty: false).
-  const shellGroups = useMemo<ShellGroup<Space>[]>(() => {
+  const shellGroups = useMemo<ShellGroup<ResourceInfo>[]>(() => {
     const sortedSpaces = [...spaces].sort((a, b) => {
       if (spaceOrder.length > 0) {
         const indexA = spaceOrder.indexOf(a.id);
@@ -423,7 +440,7 @@ export function SchedulerGrid({
   );
 
   const renderRow = useCallback(
-    (space: Space) => (
+    (space: ResourceInfo) => (
       <SpaceRow
         space={space}
         columns={columns}
@@ -442,12 +459,12 @@ export function SchedulerGrid({
   );
 
   return (
-    <TimelineGridShell<Space>
+    <TimelineGridShell<ResourceInfo>
       labelHeader="Space"
       columns={columns}
       scale={scale}
       groups={shellGroups}
-      collapseIdPrefix="spaces"
+      collapseIdPrefix="stations"
       getRowId={(s) => s.id}
       emptyMessage="No spaces available"
       isLoading={groupsLoading}

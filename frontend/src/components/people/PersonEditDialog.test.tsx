@@ -60,6 +60,8 @@ const createdResource: ResourceInfo = {
   name: 'Alice',
   allocationMode: 'Exclusive',
   baseAvailabilityPercent: 100,
+  isPhysical: false,
+  capacity: 1,
   isActive: true,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',

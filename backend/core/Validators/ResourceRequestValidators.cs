@@ -23,6 +23,21 @@ public class CreateResourceRequestValidator : AbstractValidator<CreateResourceRe
             .Must(m => KnownAllocationModes.Contains(m))
             .WithMessage($"AllocationMode must be one of: {string.Join(", ", KnownAllocationModes)}");
         RuleFor(x => x.BaseAvailabilityPercent).InclusiveBetween(0, 100);
+
+        // Placement shape. These are safe to apply unconditionally even though only placeable
+        // types may carry placement: a non-placeable request that sends any of it is rejected by
+        // ResourceService.ValidatePlacement, which is where the type is known. Here we only say
+        // what a well-formed shape looks like — the validator never sees the resource type.
+        RuleFor(x => x.Code!).MaximumLength(DomainLimits.ResourceCodeMaxLength)
+            .When(x => x.Code is not null);
+        RuleFor(x => x.Capacity).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.Geometry!)
+            .Must(g => g.IsValid())
+            .WithMessage(x => $"Invalid geometry: {x.Geometry!.Type} type requires correct number of coordinates")
+            .When(x => x.Geometry is not null);
+        RuleFor(x => x.Geometry)
+            .NotNull().WithMessage("Physical resources must have geometry")
+            .When(x => x.IsPhysical);
     }
 }
 
@@ -40,6 +55,18 @@ public class UpdateResourceRequestValidator : AbstractValidator<UpdateResourceRe
             .When(x => x.AllocationMode is not null);
         RuleFor(x => x.BaseAvailabilityPercent!.Value).InclusiveBetween(0, 100)
             .When(x => x.BaseAvailabilityPercent.HasValue);
+
+        // Placement shape — see the note on the create validator. There is no physical-implies-
+        // geometry rule here because IsPhysical is deliberately absent from the update request:
+        // a resource cannot stop being physical, so geometry can never be orphaned by an update.
+        RuleFor(x => x.Code!).MaximumLength(DomainLimits.ResourceCodeMaxLength)
+            .When(x => x.Code is not null);
+        RuleFor(x => x.Capacity!.Value).GreaterThanOrEqualTo(1)
+            .When(x => x.Capacity.HasValue);
+        RuleFor(x => x.Geometry!)
+            .Must(g => g.IsValid())
+            .WithMessage(x => $"Invalid geometry: {x.Geometry!.Type} type requires correct number of coordinates")
+            .When(x => x.Geometry is not null);
     }
 }
 

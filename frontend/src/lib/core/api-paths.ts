@@ -33,13 +33,7 @@ export const API_PATHS = {
   siteFloorplan: (siteId: string) => `/api/sites/${siteId}/floorplan`,
   siteFloorplanMetadata: (siteId: string) => `/api/sites/${siteId}/floorplan/metadata`,
 
-  // Spaces
-  spaces: (siteId: string) => `/api/sites/${siteId}/spaces`,
   siteRequests: (siteId: string) => `/api/sites/${siteId}/requests`,
-  space: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}`,
-  spaceCapabilities: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}/capabilities`,
-  spaceCapability: (siteId: string, resourceId: string, capabilityId: string) =>
-    `/api/sites/${siteId}/spaces/${resourceId}/capabilities/${capabilityId}`,
 
   // Group capabilities (the group itself is RESOURCE_GROUPS / resourceGroup below)
   groupCapabilities: (groupId: string) => `/api/resource-groups/${groupId}/capabilities`,

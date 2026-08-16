@@ -122,7 +122,7 @@ public static class FloorplanFactory
 
     /// <summary>
     /// Two-corner rectangle in PascalCase — matches how the API serializes
-    /// <c>SpaceGeometry</c> to the DB (System.Text.Json default casing), so the read path binds it.
+    /// <c>ResourceGeometry</c> to the DB (System.Text.Json default casing), so the read path binds it.
     /// </summary>
     internal static string RectangleGeometryJson(FloorplanRoom r) =>
         $$"""{"Type":"rectangle","Coordinates":[{"X":{{r.X}},"Y":{{r.Y}}},{"X":{{r.X + r.W}},"Y":{{r.Y + r.H}}}]}""";

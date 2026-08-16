@@ -16,11 +16,11 @@ const mockUseSpaces = vi.fn();
 const mockCreateMutateAsync = vi.fn();
 const mockMoveMutateAsync = vi.fn();
 
-vi.mock('@foundation/src/hooks/useSpaces', () => ({
-  useSpaces: (siteId: any) => mockUseSpaces(siteId),
-  useCreateSpace: () => ({ mutateAsync: mockCreateMutateAsync }),
-  useUpdateSpace: () => ({ mutateAsync: vi.fn() }),
-  useMoveSpace: () => ({ mutateAsync: mockMoveMutateAsync }),
+vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
+  usePlaceableResources: (siteId: any) => mockUseSpaces(siteId),
+  useCreatePlaceableResource: () => ({ mutateAsync: mockCreateMutateAsync }),
+  useUpdatePlaceableResource: () => ({ mutateAsync: vi.fn() }),
+  useMovePlaceableResource: () => ({ mutateAsync: mockMoveMutateAsync }),
 }));
 
 const mockGetFloorplanMetadata = vi.fn();

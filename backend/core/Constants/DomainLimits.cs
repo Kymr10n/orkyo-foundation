@@ -9,6 +9,9 @@ public static class DomainLimits
     /// <summary>Maximum length for site codes</summary>
     public const int SiteCodeMaxLength = 50;
 
+    /// <summary>Maximum length for a placeable resource's code — matches resources.code VARCHAR(63).</summary>
+    public const int ResourceCodeMaxLength = 63;
+
     /// <summary>Maximum length for site names</summary>
     public const int SiteNameMaxLength = 200;
 

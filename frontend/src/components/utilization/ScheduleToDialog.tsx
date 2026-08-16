@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import type { Request } from "@foundation/src/types/requests";
-import type { Space } from "@foundation/src/types/space";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 
 function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -24,7 +24,7 @@ interface ScheduleToDialogProps {
   /** The backlog request being scheduled. */
   request: Request | null;
   /** Spaces the grid currently shows (reuse of the page's spaces query). */
-  spaces: Space[];
+  spaces: ResourceInfo[];
   /**
    * Persist the choice. Given the picked space's resourceId and the start time,
    * the caller reuses the drag path's schedule handler (duration → endTs,

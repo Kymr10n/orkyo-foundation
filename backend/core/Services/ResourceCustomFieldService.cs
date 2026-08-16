@@ -53,16 +53,14 @@ public class ResourceCustomFieldService(
 
     /// <summary>
     /// Rejects a required field on the one type whose resources cannot carry one: the built-in
-    /// space. Spaces are created by POST /api/sites/{id}/spaces, whose request has no
-    /// custom-field document at all, so a required field there would make every space
-    /// uncreatable through the only endpoint that creates one.
+    /// space.
     ///
-    /// Half of foundation#110 has since landed: CreateSpaceRequest and UpdateSpaceRequest carry
-    /// values, and EditSpaceDialog renders the fields. The guard stays because that is the *edit*
-    /// path — a space is created by drawing it on the floorplan, and that flow still sends no
-    /// values, so a required field would still make new spaces unsaveable. Lifting this needs the
-    /// drawing flow to carry them too; a test that made a space field required proved the point
-    /// by breaking every later test that created a space.
+    /// foundation#110 landed the contract half — the generic create/update requests carry custom
+    /// field values and EditSpaceDialog renders them — so the *edit* path is covered. The guard
+    /// stays because of the create path: a space is created by drawing it on the floorplan, and
+    /// that flow sends no values, so a required field would make new spaces unsaveable. Lifting
+    /// this needs the drawing flow to carry them too; a test that made a space field required
+    /// proved the point by breaking every later test that created a space.
     /// </summary>
     /// <remarks>
     /// Scoped to the system space type on purpose, not to placeable types in general: a

@@ -1,9 +1,10 @@
 import { memo } from "react";
-import type { Coordinate, SpaceGeometry } from "@foundation/src/types/space";
+import type { Coordinate, ResourceGeometry } from "@foundation/src/types/geometry";
 import { cn } from "@foundation/src/lib/utils";
 
 interface SpaceShapeSvgProps {
-  space: { id: string; name: string; code?: string; geometry?: SpaceGeometry };
+  // Nullable to match the wire shape, where an absent code or geometry is null.
+  space: { id: string; name: string; code?: string | null; geometry?: ResourceGeometry | null };
   isDragging?: boolean;
   editEnabled?: boolean;
   selectedResourceId?: string;

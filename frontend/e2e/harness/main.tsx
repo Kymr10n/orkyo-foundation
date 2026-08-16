@@ -26,7 +26,6 @@ import { RequestCalendar } from "@foundation/src/components/utilization/RequestC
 import type { CalendarEvent } from "@foundation/src/components/utilization/request-calendar-events";
 import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
 import { makeRequest } from "@foundation/src/test-utils/request-fixtures";
-import type { Space } from "@foundation/src/types/space";
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
 import { RequestFormDialog } from "@foundation/src/components/requests/RequestFormDialog";
@@ -35,6 +34,7 @@ import { buildRequestTree, flattenVisibleTree } from "@foundation/src/domain/req
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { Request } from "@foundation/src/types/requests";
 import {
   GROUP_A_ID,
@@ -84,10 +84,16 @@ const calendarEvent: CalendarEvent = {
   extendedProps: { requestId: "r1", status: "new", conflictSeverity: null },
 };
 
-function makeSpace(id: string, name: string): Space {
+function makeSpace(id: string, name: string): ResourceInfo {
   return {
     id,
-    siteId: "site-1",
+    resourceTypeId: "type-space",
+    resourceTypeKey: "space",
+    allocationMode: "Exclusive",
+    baseAvailabilityPercent: 100,
+    isActive: true,
+    homeSiteId: "site-1",
+    crossSiteAllowed: false,
     name,
     isPhysical: true,
     capacity: 1,

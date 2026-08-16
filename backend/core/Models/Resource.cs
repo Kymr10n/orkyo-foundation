@@ -64,7 +64,7 @@ public record ResourceInfo
     public string? Code { get; init; }
     /// <summary>Occupies real floor area, so it must carry geometry (the DB CHECK enforces the pair).</summary>
     public bool IsPhysical { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int Capacity { get; init; } = 1;
     /// <summary>The group this resource belongs to. Single-valued because placeable types declare
@@ -139,7 +139,7 @@ public record CreateResourceRequest
     // Placement — rejected unless the named type declares HasGeometry.
     public string? Code { get; init; }
     public bool IsPhysical { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int Capacity { get; init; } = 1;
 
@@ -176,7 +176,7 @@ public record UpdateResourceRequest
     // deliberately: flipping it would have to add or remove geometry in the same statement to
     // satisfy resources_physical_has_geometry_check, so it is a create-time decision.
     public string? Code { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int? Capacity { get; init; }
 
@@ -207,4 +207,16 @@ public record ResourceListFilter
     public Guid? SiteId { get; init; }
     public DateTime? SiteWindowFrom { get; init; }
     public DateTime? SiteWindowTo { get; init; }
+
+    /// <summary>
+    /// When set, restricts results to types that do (or do not) declare geometry — the placeable
+    /// resources that can sit on a floorplan.
+    ///
+    /// With <see cref="SiteId"/>, this reproduces the site-scoped placeable read exactly. That is
+    /// not obvious, because SiteId is the wider "home or current site" predicate: a placeable
+    /// resource is created with cross_site_allowed = false and cannot be assigned away from its
+    /// site, so its current site is always its home site and the wider predicate collapses to
+    /// home_site_id = SiteId for these rows. A test pins the equivalence.
+    /// </summary>
+    public bool? HasGeometry { get; init; }
 }

@@ -7,5 +7,5 @@ export * from "./auth";
 export * from "./criterion";
 export * from "./requests";
 export * from "./site";
-export * from "./space";
+export * from "./geometry";
 export * from "./templates";

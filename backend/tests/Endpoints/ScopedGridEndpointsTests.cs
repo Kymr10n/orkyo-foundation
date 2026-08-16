@@ -53,15 +53,19 @@ public class ScopedGridEndpointsTests
     private async Task<Guid> CreateSpaceInSiteAsync(Guid siteId)
     {
         var code = $"SCOPED-{Guid.NewGuid():N}"[..15];
-        var resp = await _client.PostAsJsonAsync($"/api/sites/{siteId}/spaces", new CreateSpaceRequest
+        var resp = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
             Name = $"Scoped Space {code}",
             Code = code,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
             IsPhysical = false,
             Geometry = null,
         });
         resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<SpaceInfo>())!.Id;
+        return (await resp.Content.ReadFromJsonAsync<ResourceInfo>())!.Id;
     }
 
     private async Task<HashSet<Guid>> GetSiteWindowIdsAsync(Guid siteId, DateTime from, DateTime to)

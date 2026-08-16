@@ -128,7 +128,7 @@ public record ExportSpace
     public string? Code { get; init; }
     public string? Description { get; init; }
     public required bool IsPhysical { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     /// <summary>Values for the space type's custom fields, keyed by field key.</summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }

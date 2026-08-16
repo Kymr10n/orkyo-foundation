@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Validators;
 using FluentValidation;
@@ -6,14 +7,14 @@ namespace Orkyo.Foundation.Tests.Models;
 
 public class SpaceGeometryResizeTests
 {
-    private readonly IValidator<UpdateSpaceRequest> _updateValidator = new UpdateSpaceRequestValidator();
+    private readonly IValidator<UpdateResourceRequest> _updateValidator = new UpdateResourceRequestValidator();
 
     #region Rectangle Resize Tests
 
     [Fact]
     public void RectangleGeometry_ResizeByMovingCorner_RemainsValid()
     {
-        var originalGeometry = new SpaceGeometry
+        var originalGeometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -23,7 +24,7 @@ public class SpaceGeometryResizeTests
             }
         };
 
-        var resizedGeometry = new SpaceGeometry
+        var resizedGeometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -41,7 +42,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void RectangleGeometry_ResizeToZeroArea_IsValid()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -57,7 +58,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void RectangleGeometry_ResizeToNegativeCoordinates_IsValid()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -73,7 +74,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void RectangleGeometry_ResizeWithInvertedCorners_IsValid()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -98,7 +99,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void PolygonGeometry_ResizeByMovingVertex_RemainsValid()
     {
-        var originalGeometry = new SpaceGeometry
+        var originalGeometry = new ResourceGeometry
         {
             Type = "polygon",
             Coordinates = new List<Coordinate>
@@ -109,7 +110,7 @@ public class SpaceGeometryResizeTests
             }
         };
 
-        var resizedGeometry = new SpaceGeometry
+        var resizedGeometry = new ResourceGeometry
         {
             Type = "polygon",
             Coordinates = new List<Coordinate>
@@ -127,7 +128,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void PolygonGeometry_ResizeComplexShape_MaintainsVertexCount()
     {
-        var originalGeometry = new SpaceGeometry
+        var originalGeometry = new ResourceGeometry
         {
             Type = "polygon",
             Coordinates = new List<Coordinate>
@@ -140,7 +141,7 @@ public class SpaceGeometryResizeTests
             }
         };
 
-        var resizedGeometry = new SpaceGeometry
+        var resizedGeometry = new ResourceGeometry
         {
             Type = originalGeometry.Type,
             Coordinates = originalGeometry.Coordinates
@@ -157,7 +158,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void PolygonGeometry_ResizeToCollinearPoints_StillValid()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "polygon",
             Coordinates = new List<Coordinate>
@@ -178,7 +179,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void GetBoundingBox_AfterEnlarging_ReturnsCorrectBounds()
     {
-        var original = new SpaceGeometry
+        var original = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -188,7 +189,7 @@ public class SpaceGeometryResizeTests
             }
         };
 
-        var enlarged = new SpaceGeometry
+        var enlarged = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -210,7 +211,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void GetBoundingBox_AfterShrinking_ReturnsCorrectBounds()
     {
-        var original = new SpaceGeometry
+        var original = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -220,7 +221,7 @@ public class SpaceGeometryResizeTests
             }
         };
 
-        var shrunk = new SpaceGeometry
+        var shrunk = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -244,7 +245,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void Geometry_ResizeWithVeryLargeCoordinates_IsValid()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -260,7 +261,7 @@ public class SpaceGeometryResizeTests
     [Fact]
     public void Geometry_ResizeWithFloatingPointPrecision_HandlesCorrectly()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "rectangle",
             Coordinates = new List<Coordinate>
@@ -278,14 +279,14 @@ public class SpaceGeometryResizeTests
 
     #endregion
 
-    #region UpdateSpaceRequest With Geometry Tests
+    #region UpdateResourceRequest With Geometry Tests
 
     [Fact]
-    public void UpdateSpaceRequest_WithResizedGeometry_IsValid()
+    public void UpdateResourceRequest_WithResizedGeometry_IsValid()
     {
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -302,13 +303,13 @@ public class SpaceGeometryResizeTests
     }
 
     [Fact]
-    public void UpdateSpaceRequest_WithOnlyGeometryChange_LeavesOtherFieldsUnchanged()
+    public void UpdateResourceRequest_WithOnlyGeometryChange_LeavesOtherFieldsUnchanged()
     {
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
             Name = null,
             Description = null,
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>

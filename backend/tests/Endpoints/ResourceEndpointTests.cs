@@ -125,6 +125,136 @@ public class ResourceEndpointTests
             $"Expected 401/403, got {response.StatusCode}");
     }
 
+    // ── Placeable resources ───────────────────────────────────────────────────
+
+    private static async Task<List<ResourceInfo>> ReadListAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+    }
+
+    /// <summary>
+    /// Creates a placeable resource the way the space route does — the defaults it hardcodes are
+    /// supplied by the caller here, which is the point of the migration.
+    /// </summary>
+    private async Task<ResourceInfo> CreatePlaceableAsync(Guid siteId, string name, ResourceGeometry? geometry = null)
+    {
+        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "space",
+            Name = name,
+            AllocationMode = "Exclusive",
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            IsPhysical = geometry is not null,
+            Geometry = geometry,
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ResourceInfo>())!;
+    }
+
+    [Fact]
+    public async Task GetResources_HasGeometry_ReturnsPlaceableAndExcludesPeople()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var placeable = await CreatePlaceableAsync(siteId, $"Placeable-{Guid.NewGuid():N}"[..20]);
+        var person = await CreatePersonAsync($"NotPlaceable-{Guid.NewGuid():N}"[..20]);
+
+        var list = await ReadListAsync(await _client.GetAsync("/api/resources?hasGeometry=true"));
+
+        Assert.Contains(list, r => r.Id == placeable.Id);
+        Assert.DoesNotContain(list, r => r.Id == person.Id);
+    }
+
+    [Fact]
+    public async Task GetResources_HasGeometryFalse_ExcludesPlaceable()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var placeable = await CreatePlaceableAsync(siteId, $"OnlyPlaceable-{Guid.NewGuid():N}"[..20]);
+
+        var list = await ReadListAsync(await _client.GetAsync("/api/resources?hasGeometry=false"));
+
+        Assert.DoesNotContain(list, r => r.Id == placeable.Id);
+    }
+
+    [Fact]
+    public async Task GetResources_HasGeometryWithSite_ScopesToTheSitesOwnPlaceableResources()
+    {
+        // The property the retired space route's site scoping relied on, kept under test now that
+        // the route is gone. `siteId` on the generic list is the wider "home OR current site"
+        // predicate; it selects exactly the site's own placeable rows only because a placeable
+        // resource is created cross_site_allowed = false and so never has a different current
+        // site. If that ever stops holding, this fails rather than the floorplan quietly gaining
+        // another site's rows.
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var mine = await CreatePlaceableAsync(siteId, $"Mine-{Guid.NewGuid():N}"[..20]);
+
+        var otherSiteResp = await _client.PostAsJsonAsync(
+            "/api/sites", new CreateSiteRequest($"OS{Guid.NewGuid():N}"[..8], "Other Site", null, null));
+        otherSiteResp.EnsureSuccessStatusCode();
+        var otherSiteId = (await otherSiteResp.Content.ReadFromJsonAsync<SiteInfo>())!.Id;
+        var theirs = await CreatePlaceableAsync(otherSiteId, $"Theirs-{Guid.NewGuid():N}"[..20]);
+
+        var list = await ReadListAsync(
+            await _client.GetAsync($"/api/resources?hasGeometry=true&isActive=true&siteId={siteId}"));
+
+        Assert.Contains(list, r => r.Id == mine.Id);
+        Assert.DoesNotContain(list, r => r.Id == theirs.Id);
+    }
+
+    [Fact]
+    public async Task CreateResource_PhysicalWithoutGeometry_Returns400()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "space",
+            Name = "Physical without shape",
+            AllocationMode = "Exclusive",
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            IsPhysical = true,
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateResource_InvalidGeometry_Returns400()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        // A rectangle is exactly two points; one corner cannot describe a shape.
+        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "space",
+            Name = "Half a rectangle",
+            AllocationMode = "Exclusive",
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            IsPhysical = true,
+            Geometry = new ResourceGeometry
+            {
+                Type = "rectangle",
+                Coordinates = [new Coordinate { X = 0, Y = 0 }],
+            },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateResource_ZeroCapacity_Returns400()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "person",
+            Name = "No capacity",
+            AllocationMode = "Fractional",
+            Capacity = 0,
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // ── Capabilities ──────────────────────────────────────────────────────────
 
     private async Task<CriterionInfo> GetSeedCriterionAsync(string name)

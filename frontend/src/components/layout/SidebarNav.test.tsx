@@ -52,7 +52,8 @@ describe('SidebarNav', () => {
   it('renders all navigation links', () => {
     renderSidebar();
     expect(screen.getByText('Utilization')).toBeInTheDocument();
-    expect(screen.getByText('Spaces')).toBeInTheDocument();
+    // The nav names the surface — one floorplan holding every placeable type.
+    expect(screen.getByText('Floorplan')).toBeInTheDocument();
     expect(screen.getByText('Requests')).toBeInTheDocument();
     expect(screen.getByText('Insights')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
@@ -194,7 +195,7 @@ describe('SidebarNav', () => {
     it('calls onNavigate when a link is activated', async () => {
       const onNavigate = vi.fn();
       renderSidebar('/', { forceCollapsed: false, onNavigate });
-      await userEvent.click(screen.getByText('Spaces'));
+      await userEvent.click(screen.getByText('Floorplan'));
       expect(onNavigate).toHaveBeenCalledTimes(1);
     });
   });

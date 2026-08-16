@@ -3,12 +3,18 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleToDialog } from "./ScheduleToDialog";
 import { makeRequest } from "@foundation/src/test-utils/request-fixtures";
-import type { Space } from "@foundation/src/types/space";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 
-function makeSpace(id: string, name: string): Space {
+function makeSpace(id: string, name: string): ResourceInfo {
   return {
     id,
-    siteId: "site-1",
+    resourceTypeId: "type-space",
+    resourceTypeKey: "space",
+    allocationMode: "Exclusive",
+    baseAvailabilityPercent: 100,
+    isActive: true,
+    homeSiteId: "site-1",
+    crossSiteAllowed: false,
     name,
     isPhysical: true,
     capacity: 1,

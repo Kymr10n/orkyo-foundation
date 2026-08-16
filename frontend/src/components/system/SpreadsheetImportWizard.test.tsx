@@ -14,9 +14,9 @@ let dataExportAvailable = true;
 vi.mock('@foundation/src/lib/utils/spreadsheet-file', () => ({
   readWorkbook: (file: File) => readWorkbook(file),
 }));
-vi.mock('@foundation/src/lib/api/space-api', () => ({
-  getSpaces: (...args: unknown[]) => getSpaces(...args),
-  createSpace: (...args: unknown[]) => createSpace(...args),
+vi.mock('@foundation/src/lib/api/resources-api', () => ({
+  getResources: (...args: unknown[]) => getSpaces(...args),
+  createResource: (...args: unknown[]) => createSpace(...args),
 }));
 vi.mock('@foundation/src/lib/api/request-api', () => ({
   createRequest: (...args: unknown[]) => createRequest(...args),
@@ -62,8 +62,8 @@ async function pickFileAndReview(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => {
   dataExportAvailable = true;
   readWorkbook.mockReset().mockResolvedValue(TEMPLATE);
-  getSpaces.mockReset().mockResolvedValue([]);
-  createSpace.mockReset().mockImplementation((_siteId, req) =>
+  getSpaces.mockReset().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0 });
+  createSpace.mockReset().mockImplementation((req) =>
     Promise.resolve({ id: `space-${req.code}`, code: req.code, name: req.name }),
   );
   createRequest.mockReset().mockResolvedValue({ id: 'req-1' });
@@ -105,7 +105,7 @@ describe('SpreadsheetImportWizard', () => {
   });
 
   it('reuses a workstation whose code already exists on the site', async () => {
-    getSpaces.mockResolvedValue([{ id: 'existing-1', code: 'WS-01', name: 'Mill 1' }]);
+    getSpaces.mockResolvedValue({ data: [{ id: 'existing-1', code: 'WS-01', name: 'Mill 1' }], total: 1, page: 1, pageSize: 1 });
     const user = userEvent.setup();
     renderWizard();
     await pickFileAndReview(user);
@@ -120,7 +120,7 @@ describe('SpreadsheetImportWizard', () => {
 
   it('reports exactly what was created when a create fails mid-import', async () => {
     createSpace
-      .mockImplementationOnce((_s, req) => Promise.resolve({ id: 'space-1', code: req.code }))
+      .mockImplementationOnce((req) => Promise.resolve({ id: 'space-1', code: req.code }))
       .mockRejectedValueOnce(new Error('Quota exceeded'));
     const user = userEvent.setup();
     renderWizard();
