@@ -101,7 +101,8 @@ describe("useTenantSettings", () => {
         wrapper: createTestQueryWrapper(),
       });
 
-      await new Promise((r) => setTimeout(r, 50));
+      // No wait: an empty tenant id disables the query, so it is never scheduled and the
+      // assertions below are about state that is already settled.
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.fetchStatus).toBe("idle");

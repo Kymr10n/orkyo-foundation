@@ -91,6 +91,18 @@ export function RequestPeopleSection({
     return () => { cancelled = true; };
   }, [requestId]);
 
+  // Cancel every pending validation when the section goes away. Each row schedules a 400ms
+  // debounce, and without this they outlive the component: closing the dialog within that window
+  // still fires the request and then writes the result into a tree that is no longer mounted.
+  // The ref is the same Map the schedulers write to, so this cancels whatever is outstanding.
+  useEffect(() => {
+    const timers = debounceTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
+
   // Recompute blocker state whenever pending rows change. Only HARD blockers gate
   // saving — capability.missing / overbooked are soft (see SOFT_BLOCKER_CODES) and
   // the backend accepts them, so they must not disable Save here either.

@@ -39,8 +39,8 @@ describe('useConflictRegistry', () => {
 
   it('does not query when enabled is false (tab computes its own conflicts)', async () => {
     renderHook(() => useConflictRegistry({ enabled: false }), { wrapper: createWrapper() });
-    // Give react-query a tick; the query function must never run.
-    await new Promise((r) => setTimeout(r, 20));
+    // No wait: a query with enabled:false is never scheduled, so there is no moment at which it
+    // could start. Sleeping only moves the assertion later, it does not make it stronger.
     expect(getConflicts).not.toHaveBeenCalled();
   });
 

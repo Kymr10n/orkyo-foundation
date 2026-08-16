@@ -197,8 +197,8 @@ describe('MessagesTab', () => {
     await waitFor(() => screen.getByText('Welcome to Orkyo'));
     await user.click(screen.getByText('Welcome to Orkyo'));
 
-    // Small wait to ensure no async calls happen
-    await new Promise((r) => setTimeout(r, 50));
+    // No wait: userEvent.click already flushes act and the microtask queue, and the handler
+    // decides synchronously whether to mark as read.
     expect(mockMarkAnnouncementRead).not.toHaveBeenCalled();
   });
 

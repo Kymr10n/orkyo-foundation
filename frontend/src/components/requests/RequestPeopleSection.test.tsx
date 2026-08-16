@@ -405,8 +405,9 @@ describe('RequestPeopleSection', () => {
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
-    // Give the debounce window a chance to (not) fire.
-    await new Promise((r) => setTimeout(r, 50));
+    // No wait: the scheduler returns before setting a timer when start/end are missing, so the
+    // call is already impossible. The old 50ms sleep could not have observed the 400ms debounce
+    // anyway — all it did was give a timer leaked from an earlier test a window to land in.
     expect(validateAssignment).not.toHaveBeenCalled();
   });
 
@@ -517,5 +518,26 @@ describe('RequestPeopleSection', () => {
     for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
       expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
     }
+  });
+
+  it('cancels a pending validation when the section unmounts', async () => {
+    // The section debounces validation by 400ms. Without cleanup those timers outlive the
+    // component: closing the dialog inside that window still fires the request and then writes
+    // the result into an unmounted tree. In the suite the same leak let a timer from one test
+    // land inside another and fail an unrelated assertion.
+    const { unmount } = render(<RequestPeopleSection {...defaultProps} />);
+
+    await waitFor(() => screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('add-person-btn'));
+    fireEvent.click(screen.getByTestId('person-select'));
+
+    unmount();
+
+    // A wall-clock wait is right here, unlike the ones removed elsewhere in this file: it is
+    // longer than the 400ms window it bounds, so load can only stretch it and give a leaked timer
+    // *more* chance to fire. A sleep is unsafe when it is shorter than the window it waits on —
+    // the old 50ms one — not when it is longer.
+    await new Promise((r) => setTimeout(r, 500));
+    expect(validateAssignment).not.toHaveBeenCalled();
   });
 });
