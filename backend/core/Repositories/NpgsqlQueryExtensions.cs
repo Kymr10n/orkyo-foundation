@@ -200,6 +200,18 @@ public sealed class UpdateBuilder
         return this;
     }
 
+    /// <summary>
+    /// Apply a presence-aware field: absent leaves the column alone, present-and-null writes NULL.
+    /// This is the only way to erase a column whose type has no usable empty value, such as an id.
+    /// </summary>
+    public UpdateBuilder SetIfPresent<T>(string column, Optional<T> value)
+    {
+        if (!value.IsPresent) return this;
+        _sets.Add($"{column} = @{column}");
+        _params.Add((column, (object?)value.Value ?? DBNull.Value));
+        return this;
+    }
+
     public bool IsEmpty => _sets.Count == 0;
 
     /// <summary>The comma-joined <c>SET</c> body, e.g. <c>name = @name, code = @code</c>.</summary>

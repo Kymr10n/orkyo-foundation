@@ -302,7 +302,7 @@ public class ResourceRepository(
             update.Set("base_availability_percent", request.BaseAvailabilityPercent.Value);
         if (request.IsActive.HasValue)
             update.Set("is_active", request.IsActive.Value);
-        if (request.HomeSiteId.HasValue) update.Set("home_site_id", request.HomeSiteId.Value);
+        update.SetIfPresent("home_site_id", request.HomeSiteId);
         if (request.CrossSiteAllowed.HasValue) update.Set("cross_site_allowed", request.CrossSiteAllowed.Value);
         update.SetIfNotNull("code", request.Code);
         // Bound by hand rather than through the builder so the parameter carries its jsonb type.
@@ -311,8 +311,8 @@ public class ResourceRepository(
         if (customFieldsJson is not null) update.SetExpression("custom_fields = @customFields");
         if (request.Capacity.HasValue) update.Set("capacity", request.Capacity.Value);
         update.SetIfNotNull("email", request.Email);
-        if (request.JobTitleId.HasValue) update.Set("job_title_id", request.JobTitleId.Value);
-        if (request.DepartmentId.HasValue) update.Set("department_id", request.DepartmentId.Value);
+        update.SetIfPresent("job_title_id", request.JobTitleId);
+        update.SetIfPresent("department_id", request.DepartmentId);
         // Encrypted before it reaches the SET clause, so no write path can put plaintext in the
         // column even by accident.
         if (request.Notes is not null)

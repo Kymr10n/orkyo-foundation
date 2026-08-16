@@ -101,8 +101,8 @@ public class ResourceService(
                 throw new ArgumentException($"Resource type '{resourceType.Key}' cannot be placed, so it has no code, geometry, properties or capacity");
         }
 
-        if (request.Email is not null || request.JobTitleId is not null
-            || request.DepartmentId is not null || request.Notes is not null)
+        if (request.Email is not null || request.JobTitleId.IsPresent
+            || request.DepartmentId.IsPresent || request.Notes is not null)
         {
             var resourceType = await resourceTypeRepository.GetByIdAsync(existing.ResourceTypeId, ct)
                 ?? throw new InvalidOperationException($"Resource type {existing.ResourceTypeId} not found");

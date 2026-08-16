@@ -8,6 +8,18 @@ import type { CustomFieldValue } from './resource-custom-fields-api';
 import type { ResourceGeometry } from '../../types/geometry';
 
 /**
+ * Directory details — the fields a resource carries when its type declares a directory profile.
+ * On the generic contract rather than a person-specific one, and rejected by the backend for any
+ * type that has no directory. `null` clears; omitting leaves the stored value alone.
+ */
+interface ResourceDirectory {
+  email?: string | null;
+  jobTitleId?: string | null;
+  departmentId?: string | null;
+  notes?: string | null;
+}
+
+/**
  * Placement — the fields a resource carries when its type declares geometry. Present on the
  * generic contract rather than a space-specific one: a space is just the built-in placeable type,
  * and the backend rejects these fields for any type that cannot be placed.
@@ -23,7 +35,7 @@ interface ResourcePlacement {
   capacity: number;
 }
 
-export interface ResourceInfo extends ResourcePlacement {
+export interface ResourceInfo extends ResourcePlacement, ResourceDirectory {
   id: string;
   resourceTypeId: string;
   resourceTypeKey: string;
@@ -46,11 +58,13 @@ export interface ResourceInfo extends ResourcePlacement {
   customFields?: Record<string, CustomFieldValue> | null;
   /** Read-only: the group the resource belongs to, when its type is grouped. */
   groupId?: string | null;
+  /** Read-only: linking a user is its own operation with its own checks. */
+  linkedUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateResourceRequest extends Partial<ResourcePlacement> {
+export interface CreateResourceRequest extends Partial<ResourcePlacement>, ResourceDirectory {
   resourceTypeKey: string;
   name: string;
   description?: string;
@@ -69,7 +83,8 @@ export interface CreateResourceRequest extends Partial<ResourcePlacement> {
  * request names. `isPhysical` is deliberately absent: a resource cannot stop being physical, so
  * geometry can never be orphaned by an update.
  */
-export interface UpdateResourceRequest extends Partial<Omit<ResourcePlacement, 'isPhysical'>> {
+export interface UpdateResourceRequest
+  extends Partial<Omit<ResourcePlacement, 'isPhysical'>>, ResourceDirectory {
   name?: string;
   description?: string;
   externalReference?: string;

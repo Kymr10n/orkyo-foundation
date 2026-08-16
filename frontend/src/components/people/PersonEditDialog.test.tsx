@@ -63,6 +63,10 @@ const createdResource: ResourceInfo = {
   isPhysical: false,
   capacity: 1,
   isActive: true,
+  // Directory fields ride on the resource — the dialog no longer fetches a profile.
+  email: 'alice@example.com',
+  jobTitleId: 'jt-engineer',
+  departmentId: 'dept-platform',
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -130,7 +134,6 @@ describe('PersonEditDialog', () => {
     vi.mocked(updateResource).mockRejectedValue(new Error('Conflict'));
     renderDialog({ person: createdResource, onSaved: vi.fn() });
 
-    await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
     await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
@@ -153,7 +156,6 @@ describe('PersonEditDialog', () => {
     } as unknown as ResourceInfo;
     renderDialog({ person: partial, onSaved: vi.fn() });
 
-    await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
     expect(screen.getByLabelText(/Name/)).toHaveValue('');
     // Save stays disabled because the coalesced name is empty.
     expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
@@ -175,7 +177,7 @@ describe('PersonEditDialog', () => {
     expect(screen.queryByRole('tab', { name: 'Location' })).not.toBeInTheDocument();
   });
 
-  it('on create, calls createResource then upsertPersonProfile (with null FK ids when unselected)', async () => {
+  it('on create, sends the directory fields in the same request as the resource', async () => {
     const onSaved = vi.fn();
     renderDialog({ onSaved });
 
@@ -187,13 +189,12 @@ describe('PersonEditDialog', () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
 
+    // One write, not two: reference data left unselected is sent as null, which the generic
+    // update now reads as "no assignment" rather than "not editing".
     expect(createResource).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceTypeKey: 'person', name: 'Alice' }),
-    );
-    // Reference data omitted from the form -> sent as null (no assignment).
-    expect(upsertPersonProfile).toHaveBeenCalledWith(
-      'res-1',
       expect.objectContaining({
+        resourceTypeKey: 'person',
+        name: 'Alice',
         email: 'alice@example.com',
         jobTitleId: null,
         departmentId: null,
@@ -201,21 +202,13 @@ describe('PersonEditDialog', () => {
     );
   });
 
-  it('on edit, calls updateResource and upsertPersonProfile with the new ID-based request shape', async () => {
-    // This test verifies the wiring of PR 4: editing a person triggers
-    // getPersonProfile, then on Save calls updateResource + upsertPersonProfile.
-    // We assert the *shape* of the upsert call (jobTitleId/departmentId fields,
-    // never the legacy jobTitle/department strings) rather than the resolved
-    // values. The async chain (mocked getPersonProfile → loadProfileOrNull
-    // await → effect .then → setForm → re-render) is reliably testable in the
-    // Foundation backend integration tests with real data; in happy-dom + Radix
-    // Select + React Query, getting deterministic microtask ordering for the
-    // specific values has proven brittle. The values themselves are covered by
-    // PersonProfileEndpointsTests.UpsertPersonProfile_CreatesAndRetrievesProfile.
+  it('on edit, sends the directory fields as ids in the one resource request', async () => {
+    // The shape is what matters here: id-based fields, never the legacy jobTitle/department
+    // strings. Resolved values are covered backend-side; happy-dom plus Radix Select has proven
+    // brittle for pinning the specific values through the select's microtask ordering.
     const onSaved = vi.fn();
     renderDialog({ person: createdResource, onSaved });
 
-    await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
@@ -227,11 +220,13 @@ describe('PersonEditDialog', () => {
       expect.objectContaining({ name: 'Alice' }),
     );
 
-    const [, upsertBody] = vi.mocked(upsertPersonProfile).mock.calls[0];
-    expect(upsertBody).toHaveProperty('jobTitleId');
-    expect(upsertBody).toHaveProperty('departmentId');
-    expect(upsertBody).not.toHaveProperty('jobTitle');
-    expect(upsertBody).not.toHaveProperty('department');
+    const [, body] = vi.mocked(updateResource).mock.calls[0];
+    expect(body).toHaveProperty('jobTitleId');
+    expect(body).toHaveProperty('departmentId');
+    expect(body).not.toHaveProperty('jobTitle');
+    expect(body).not.toHaveProperty('department');
+    // The profile upsert is gone — one round trip, so a save cannot half-apply.
+    expect(upsertPersonProfile).not.toHaveBeenCalled();
   });
 
   it('disables Save until name is filled', async () => {
@@ -257,7 +252,6 @@ describe('PersonEditDialog', () => {
   it('shows a success toast with "Person updated" after a successful edit', async () => {
     renderDialog({ person: createdResource, onSaved: vi.fn() });
 
-    await waitFor(() => expect(getPersonProfile).toHaveBeenCalledWith('res-1'));
     await waitFor(() => expect(screen.getByRole('button', { name: /Save/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
@@ -333,11 +327,8 @@ describe('PersonEditDialog', () => {
       expect.objectContaining({
         description: 'A teammate',
         baseAvailabilityPercent: 80,
+        notes: 'Prefers mornings',
       }),
-    );
-    expect(upsertPersonProfile).toHaveBeenCalledWith(
-      'res-1',
-      expect.objectContaining({ notes: 'Prefers mornings' }),
     );
   });
 
@@ -361,7 +352,6 @@ describe('PersonEditDialog', () => {
 
     it('renders the Location fields only when the tenant is multi-site', async () => {
       renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
-      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
 
       expect(screen.getByRole('tab', { name: 'Location' })).toBeInTheDocument();
       expect(screen.getByLabelText('Home Site')).toBeInTheDocument();
@@ -374,7 +364,6 @@ describe('PersonEditDialog', () => {
     it('saves the home-site fields, toggling cross-site availability', async () => {
       const onSaved = vi.fn();
       renderDialog({ person: multiSitePerson, onSaved });
-      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
 
       // Wait for the form to sync from the person (checkbox starts checked),
       // then turn off "available for other sites".
@@ -406,7 +395,6 @@ describe('PersonEditDialog', () => {
       // The home site is only the administrative anchor / idle-time location now;
       // in-window location is derived from assignments, so there is nothing to lock.
       renderDialog({ person: multiSitePerson, onSaved: vi.fn() });
-      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
 
       expect(screen.getByLabelText('Home Site')).toBeEnabled();
       expect(screen.getByLabelText('Available for other sites')).toBeEnabled();
@@ -430,16 +418,9 @@ describe('PersonEditDialog', () => {
     });
 
     it('flags a deactivated job title/department assignment with an amber warning', async () => {
-      vi.mocked(getPersonProfile).mockResolvedValue({
-        resourceId: 'res-1',
-        jobTitleId: 'jt-removed',
-        departmentId: 'dept-removed',
-        jobTitleName: 'Removed',
-        departmentPath: 'Removed',
-        createdAt: '2026-01-01T00:00:00Z',
-        updatedAt: '2026-01-01T00:00:00Z',
-      });
-      renderDialog({ person: createdResource, onSaved: vi.fn() });
+      renderDialog({
+        // The deactivated assignment now arrives on the resource itself.
+        person: { ...createdResource, jobTitleId: 'jt-removed', departmentId: 'dept-removed' }, onSaved: vi.fn() });
 
       const banner = await screen.findByTestId('status-banner');
       expect(banner).toHaveTextContent(/job title is no longer active/i);
@@ -459,17 +440,9 @@ describe('PersonEditDialog', () => {
       // Profile points at FK ids that are no longer in the active lists; the
       // dialog injects a disabled "current assignment" option so the Select is
       // not blank. Opening the trigger mounts the SelectContent that holds it.
-      vi.mocked(getPersonProfile).mockResolvedValue({
-        resourceId: 'res-1',
-        jobTitleId: 'jt-removed',
-        departmentId: 'dept-removed',
-        jobTitleName: 'Removed',
-        departmentPath: 'Removed',
-        createdAt: '2026-01-01T00:00:00Z',
-        updatedAt: '2026-01-01T00:00:00Z',
-      });
-      renderDialog({ person: createdResource, onSaved: vi.fn() });
-      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+      renderDialog({
+        // The deactivated assignment now arrives on the resource itself.
+        person: { ...createdResource, jobTitleId: 'jt-removed', departmentId: 'dept-removed' }, onSaved: vi.fn() });
 
       fireEvent.click(screen.getByLabelText(/Job Title/));
       await waitFor(() =>
@@ -483,18 +456,12 @@ describe('PersonEditDialog', () => {
       // Regression for radix-select 2.3+: mounting SelectContent with a controlled
       // value that doesn't match any item fires onValueChange('') — our guard must
       // drop that call so the form value is NOT cleared before save.
-      vi.mocked(getPersonProfile).mockResolvedValue({
-        resourceId: 'res-1',
-        jobTitleId: 'jt-removed',
-        departmentId: 'dept-removed',
-        jobTitleName: 'Removed',
-        departmentPath: 'Removed',
-        createdAt: '2026-01-01T00:00:00Z',
-        updatedAt: '2026-01-01T00:00:00Z',
-      });
       const onSaved = vi.fn();
-      renderDialog({ person: createdResource, onSaved });
-      await waitFor(() => expect(getPersonProfile).toHaveBeenCalled());
+      // The deactivated assignment arrives on the resource itself now.
+      renderDialog({
+        person: { ...createdResource, jobTitleId: 'jt-removed', departmentId: 'dept-removed' },
+        onSaved,
+      });
 
       // Open job-title select — mounts SelectContent and triggers radix's spurious
       // onValueChange('') for the unmatched controlled value.
@@ -518,8 +485,10 @@ describe('PersonEditDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
       await waitFor(() => expect(onSaved).toHaveBeenCalled());
 
-      // Both deactivated IDs must be preserved — not cleared to null.
-      expect(upsertPersonProfile).toHaveBeenCalledWith(
+      // Both deactivated IDs must be preserved — not cleared to null. This matters more now
+      // that null genuinely erases: a spurious onValueChange('') would wipe the assignment
+      // rather than being harmlessly ignored.
+      expect(updateResource).toHaveBeenCalledWith(
         'res-1',
         expect.objectContaining({
           jobTitleId: 'jt-removed',

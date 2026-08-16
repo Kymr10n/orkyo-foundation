@@ -46,11 +46,6 @@ import {
   type CreateResourceRequest,
 } from '@foundation/src/lib/api/resources-api';
 import {
-  getPersonProfile,
-  upsertPersonProfile,
-  type PersonProfileInfo,
-} from '@foundation/src/lib/api/person-profiles-api';
-import {
   getJobTitles,
   type JobTitleInfo,
 } from '@foundation/src/lib/api/job-titles-api';
@@ -109,7 +104,7 @@ const emptyForm: FormState = {
 const UNASSIGNED = '__unassigned__';
 const CREATE_NEW = '__create_new__';
 
-function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo | null): FormState {
+function fromResource(person: ResourceInfo): FormState {
   // Defensive coalescing: form contract requires strings/numbers (never null/undefined),
   // otherwise form.name.trim() etc. would crash. The API normally returns populated
   // ResourceInfo, but a partial/stale shape would otherwise leak through.
@@ -120,22 +115,13 @@ function fromResourceAndProfile(person: ResourceInfo, profile: PersonProfileInfo
     baseAvailabilityPercent: person.baseAvailabilityPercent ?? emptyForm.baseAvailabilityPercent,
     homeSiteId: person.homeSiteId ?? '',
     crossSiteAllowed: person.crossSiteAllowed ?? true,
-    email: profile?.email ?? '',
-    jobTitleId: profile?.jobTitleId ?? '',
-    departmentId: profile?.departmentId ?? '',
-    notes: profile?.notes ?? '',
+    email: person.email ?? '',
+    jobTitleId: person.jobTitleId ?? '',
+    departmentId: person.departmentId ?? '',
+    notes: person.notes ?? '',
     // The whole stored document, so values for retired fields survive a save that replaces it.
     customFields: { ...(person.customFields ?? {}) },
   };
-}
-
-/** GET /person-profiles/{id} returns 404 when no row exists; treat that as "empty profile". */
-async function loadProfileOrNull(resourceId: string): Promise<PersonProfileInfo | null> {
-  try {
-    return await getPersonProfile(resourceId);
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -184,25 +170,18 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
   });
   const deptOptions = flattenForSelect(deptTree);
 
-  // Person profile — fetched via React Query for proper cancellation and caching
-  const { data: profile } = useQuery({
-    queryKey: qk.personProfiles.single(person?.id),
-    queryFn: () => loadProfileOrNull(person!.id),
-    enabled: isOpen && !!person?.id,
-  });
-
   // Sync server data into form state when it arrives or the dialog opens — a render-phase
-  // update, not an effect (see useEntityFormDialog.ts). Keyed on `profile` too, which lands after the person.
+  // update, not an effect (see useEntityFormDialog.ts). The directory fields ride on the resource
+  // now, so there is no second fetch to wait for.
   const [synced, setSynced] = useState<{
     isOpen: boolean;
     person: typeof person;
-    profile: typeof profile;
   } | null>(null);
-  if (synced?.isOpen !== isOpen || synced.person !== person || synced.profile !== profile) {
-    setSynced({ isOpen, person, profile });
+  if (synced?.isOpen !== isOpen || synced.person !== person) {
+    setSynced({ isOpen, person });
     if (isOpen) {
       setTab('details');
-      const next = person ? fromResourceAndProfile(person, profile ?? null) : emptyForm;
+      const next = person ? fromResource(person) : emptyForm;
       setForm(next);
       setBaseline(next);
     }
@@ -235,6 +214,9 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
 
   const saveMutation = useMutation({
     mutationFn: async (): Promise<ResourceInfo> => {
+      // One write. The directory fields live on the resource, and null now means "erase" rather
+      // than being indistinguishable from "not editing" — so Unset actually unsets, and a
+      // half-applied save is no longer possible between two round trips.
       const resourceFields = {
         resourceTypeKey: RESOURCE_TYPE_KEY.PERSON,
         name: form.name,
@@ -244,25 +226,20 @@ export function PersonEditDialog({ person, isOpen, onClose, onSaved }: PersonEdi
         homeSiteId: form.homeSiteId || null,
         crossSiteAllowed: form.crossSiteAllowed,
         customFields: customFields.forSave(form.customFields),
+        email: form.email || '',
+        jobTitleId: form.jobTitleId || null,
+        departmentId: form.departmentId || null,
+        notes: form.notes || '',
       };
 
-      const saved = person
+      return person
         ? await updateResource(person.id, resourceFields)
         : await createResource(resourceFields as CreateResourceRequest);
-
-      await upsertPersonProfile(saved.id, {
-        email: form.email || undefined,
-        jobTitleId: form.jobTitleId === '' ? null : form.jobTitleId,
-        departmentId: form.departmentId === '' ? null : form.departmentId,
-        notes: form.notes || undefined,
-      });
-
-      return saved;
     },
     meta: {
       successMessage: isEditing ? 'Person updated' : 'Person created',
       errorMessage: isEditing ? 'Failed to update person' : 'Failed to create person',
-      invalidates: [qk.resources.byType(RESOURCE_TYPE_KEY.PERSON), qk.personProfiles.all()],
+      invalidates: [qk.resources.all(), qk.personProfiles.all()],
     },
     onSettled: () => setIsSubmitting(false),
     onSuccess: () => onSaved(),

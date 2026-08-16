@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Api.Models;
 
@@ -169,7 +170,9 @@ public record UpdateResourceRequest
     public int? BaseAvailabilityPercent { get; init; }
     public bool? IsActive { get; init; }
 
-    public Guid? HomeSiteId { get; init; }
+    /// <summary>Absent leaves the home site alone; present-and-null unsets it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<Guid?> HomeSiteId { get; init; }
     public bool? CrossSiteAllowed { get; init; }
 
     // Placement — rejected unless the resource's type declares HasGeometry. IsPhysical is absent
@@ -186,10 +189,16 @@ public record UpdateResourceRequest
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
 
     // Directory details — rejected unless the resource's type declares HasDirectoryProfile.
-    // Null means "not editing this field", as everywhere else in a patch request.
+    //
+    // The two ids are Optional because there is no empty Guid that does not also mean a real
+    // value, so a plain nullable could never express "this person no longer has a job title".
+    // Email and Notes stay plain: the empty string is a usable "no value" for them, so absent
+    // still means "not editing" without costing the caller the ability to clear.
     public string? Email { get; init; }
-    public Guid? JobTitleId { get; init; }
-    public Guid? DepartmentId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<Guid?> JobTitleId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<Guid?> DepartmentId { get; init; }
     public string? Notes { get; init; }
 }
 
