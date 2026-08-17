@@ -9,11 +9,23 @@ import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 
+// No Groups tab: groups are typed, and every type — placeable or not — now owns its groups on
+// its own page (/resources/<key>/groups). A cross-type groups tab here would be a second place
+// to manage the same rows, differing only in which types it happened to include.
 const TABS: PageTab[] = [
   { value: 'floorplan', label: 'Floorplan' },
-  { value: 'list',      label: 'Stations' },
-  { value: 'groups',    label: 'Groups' },
+  { value: 'stations',  label: 'Stations' },
 ];
+
+/**
+ * The floorplan: a *site* surface, not a page about one resource type.
+ *
+ * That is why it survives the retirement of the dedicated space page while /people does not
+ * generalize: the plan holds every placeable type at once, and its Stations tab is the
+ * site-scoped cross-type list — a different axis from a type page, which lists one type across
+ * every site. Which type a drawn shape becomes is the toolbar's dropdown to answer, not the
+ * URL's, which is why this is not a tab on /resources/<key>.
+ */
 
 /**
  * Import/export for one placeable type. A component rather than a loop body, because
@@ -34,7 +46,7 @@ function PlaceableTransfer({
   return null;
 }
 
-export function SpacesPage() {
+export function FloorplanPage() {
   usePageTitle('Floorplan');
   const active = useActiveTab('floorplan');
   const navigate = useNavigate();
@@ -52,12 +64,12 @@ export function SpacesPage() {
       ))}
       <PageHeader
         title="Floorplan"
-        description="Manage the floorplan, the stations on it, and their groups"
+        description="Manage the floorplan and the stations on it"
       />
       <PageTabs
         tabs={TABS}
         value={active}
-        onChange={(v) => navigate(`/spaces/${v}`)}
+        onChange={(v) => navigate(`/floorplan/${v}`)}
       >
         <Outlet />
       </PageTabs>

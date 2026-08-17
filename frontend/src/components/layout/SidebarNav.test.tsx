@@ -69,7 +69,7 @@ describe('SidebarNav', () => {
     const links = screen.getAllByRole('link');
     const hrefs = links.map(l => l.getAttribute('href'));
     expect(hrefs).toContain('/');
-    expect(hrefs).toContain('/spaces');
+    expect(hrefs).toContain('/floorplan');
     expect(hrefs).toContain('/requests');
     expect(hrefs).toContain('/insights');
     expect(hrefs).toContain('/settings');
@@ -98,7 +98,7 @@ describe('SidebarNav', () => {
     // while the fixed Floorplan entry stays a site surface, not a type page. Person keeps its
     // purpose-built page rather than gaining a second entry.
     expect(hrefs).toContain('/resources/space');
-    expect(hrefs).toContain('/spaces');
+    expect(hrefs).toContain('/floorplan');
     expect(hrefs).not.toContain('/resources/person');
   });
 
@@ -157,8 +157,8 @@ describe('SidebarNav', () => {
         .find((l) => l.className.includes('bg-accent') && l.className.includes('font-medium'));
 
     it('highlights a section when on one of its index-redirect sub-tabs', () => {
-      renderSidebar('/spaces/floorplan');
-      expect(activeLink()?.getAttribute('href')).toBe('/spaces');
+      renderSidebar('/floorplan/floorplan');
+      expect(activeLink()?.getAttribute('href')).toBe('/floorplan');
     });
 
     it('highlights a section on its exact path', () => {
@@ -167,8 +167,8 @@ describe('SidebarNav', () => {
     });
 
     it('keeps the root item active only on exact "/" (not on sub-routes)', () => {
-      renderSidebar('/spaces/floorplan');
-      // Root item must NOT be the active one when we are under /spaces.
+      renderSidebar('/floorplan/floorplan');
+      // Root item must NOT be the active one when we are under /floorplan.
       expect(activeLink()?.getAttribute('href')).not.toBe('/');
     });
 

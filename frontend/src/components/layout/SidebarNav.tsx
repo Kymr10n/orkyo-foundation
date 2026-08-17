@@ -29,7 +29,7 @@ import { Link, useLocation } from "react-router";
 // beneath People, rather than trailing the whole core list.
 const resourceNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
-  { to: "/spaces", label: "Floorplan", icon: Box },
+  { to: "/floorplan", label: "Floorplan", icon: Box },
   { to: "/people", label: "People", icon: Users },
 ];
 
@@ -97,7 +97,7 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
       <div className="flex-1 py-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // Sections with index-redirect sub-tabs (e.g. Spaces → /spaces/floorplan)
+          // Sections with index-redirect sub-tabs (e.g. Floorplan → /floorplan/floorplan)
           // need a prefix match so the parent item stays highlighted. The root
           // item ('/') is special-cased to an exact match so it is not active
           // on every route.

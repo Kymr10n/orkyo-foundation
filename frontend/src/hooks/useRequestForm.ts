@@ -4,9 +4,9 @@
  * Following DRY/KISS principles for complex form management
  */
 
-import { useReducer } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
-import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT, DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from '@foundation/src/constants';
+import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@foundation/src/constants';
 import { formatDateForInput, formatTimeForInput } from '@foundation/src/lib/utils';
 import { getAssignmentOfType, getTargetResourceTypeKeys } from '@foundation/src/domain/scheduling/request-assignments';
 import type { Request, DurationUnit, PlanningMode } from '@foundation/src/types/requests';
@@ -70,7 +70,7 @@ const initialState: RequestFormState = {
   planningMode: 'leaf',
   parentRequestId: '',
   siteId: '',
-  targetResourceTypeKeys: [...DEFAULT_TARGET_RESOURCE_TYPE_KEYS],
+  targetResourceTypeKeys: [],
   selectedResourceIds: {},
   startDate: '',
   startTime: DEFAULT_START_TIME,
@@ -231,10 +231,20 @@ export function useRequestForm(request?: Request | null, parentRequestId?: strin
   // cache at mount; while it is cold, the shared constant covers the gap.
   const { data: resourceTypes = [], isSuccess: typesLoaded } = useResourceTypes(true);
   const placeable = resourceTypes.filter((t) => t.hasGeometry);
-  const defaultTargets = typesLoaded && placeable.length > 0
-    ? [(placeable.find((t) => t.key === 'space') ?? placeable[0]).key]
-    : [...DEFAULT_TARGET_RESOURCE_TYPE_KEYS];
-  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource, defaultTargets));
+  const defaultTargetKey = typesLoaded && placeable.length > 0
+    ? (placeable.find((t) => t.key === 'space') ?? placeable[0]).key
+    : null;
+  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource, defaultTargetKey ? [defaultTargetKey] : undefined));
+
+  // The types query can still be cold when the dialog mounts, and the reducer's initializer runs
+  // once — so without this the form would keep an empty target list for its whole life. Apply the
+  // default once, when the types arrive. There is no space fallback to lean on any more.
+  const defaultApplied = useRef(defaultTargetKey !== null);
+  useEffect(() => {
+    if (defaultApplied.current || request || defaultTargetKey === null) return;
+    defaultApplied.current = true;
+    dispatch({ type: 'SET_FIELD', field: 'targetResourceTypeKeys', value: [defaultTargetKey] });
+  }, [defaultTargetKey, request]);
 
   return {
     state,

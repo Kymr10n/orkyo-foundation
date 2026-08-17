@@ -67,7 +67,7 @@ const STEPS: TourStep[] = [
     description: "Organize resources into logical groups.",
     detail:
       "Groups let you cluster resources by site, team, or function. Use them to manage related spaces or people together and keep large catalogues navigable.",
-    path: "/spaces/groups",
+    path: "/resources/space/groups",
   },
   {
     icon: Box,
@@ -75,7 +75,7 @@ const STEPS: TourStep[] = [
     description: "Manage the spaces you schedule work into.",
     detail:
       "Spaces are one of Orkyo's resource types — a room, lab bench, or any area you schedule. People and tools are resources too. Attach criteria, assign groups, and describe each space's capabilities.",
-    path: "/spaces/list",
+    path: "/floorplan/stations",
   },
   {
     icon: Users,

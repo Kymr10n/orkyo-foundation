@@ -32,8 +32,8 @@ vi.mock("@foundation/src/pages/AccountPage", () => ({
 vi.mock("@foundation/src/pages/UtilizationPage", () => ({
   UtilizationPage: () => <div data-testid="utilization-page">Utilization</div>,
 }));
-vi.mock("@foundation/src/pages/SpacesPage", () => ({
-  SpacesPage: () => <div data-testid="spaces-page">Spaces</div>,
+vi.mock("@foundation/src/pages/FloorplanPage", () => ({
+  FloorplanPage: () => <div data-testid="floorplan-page">Floorplan</div>,
 }));
 vi.mock("@foundation/src/pages/InsightsPage", () => ({
   InsightsPage: () => <div data-testid="insights-page">Insights</div>,
@@ -113,7 +113,7 @@ describe("TenantApp", () => {
     ["/about",    "about-page"],
     ["/account",  "account-page"],
     ["/messages", "messages-page"],
-    ["/spaces",   "spaces-page"],
+    ["/floorplan", "floorplan-page"],
     ["/requests", "requests-page"],
     ["/insights", "insights-page"],
     ["/conflicts","insights-page"],

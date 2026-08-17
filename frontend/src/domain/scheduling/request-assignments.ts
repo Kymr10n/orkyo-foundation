@@ -1,13 +1,17 @@
 import type { Request, ResourceAssignment } from '@foundation/src/types/requests';
-import { DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from '@foundation/src/constants';
 import { randomId } from '@foundation/src/lib/core/ids';
 
 /**
- * The resource types a request needs, with the space default applied for payloads that
- * predate the field. The single place the default is spelled out on the read path.
+ * The resource types a request needs.
+ *
+ * No default is applied. The field used to fall back to `space` for payloads predating it, but
+ * migration 1720 backfilled every request and the read view COALESCEs to an empty array, so the
+ * API never omits it — the fallback could only fire for a hand-built object, and there it would
+ * invent a requirement the request never had. Empty means "needs no resource", which is a real
+ * state a request can be in.
  */
 export function getTargetResourceTypeKeys(r: Request): string[] {
-  return r.targetResourceTypeKeys ?? [...DEFAULT_TARGET_RESOURCE_TYPE_KEYS];
+  return r.targetResourceTypeKeys ?? [];
 }
 
 /**

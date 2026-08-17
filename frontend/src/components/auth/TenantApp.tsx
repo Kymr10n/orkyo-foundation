@@ -36,7 +36,7 @@ import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 const AccountPage = lazy(() => import('@foundation/src/pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m => ({ default: m.AboutPage })));
 const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
-const SpacesPage = lazy(() => import('@foundation/src/pages/SpacesPage').then(m => ({ default: m.SpacesPage })));
+const FloorplanPage = lazy(() => import('@foundation/src/pages/FloorplanPage').then(m => ({ default: m.FloorplanPage })));
 const PeoplePage = lazy(() => import('@foundation/src/pages/PeoplePage').then(m => ({ default: m.PeoplePage })));
 const InsightsPage = lazy(() => import('@foundation/src/pages/InsightsPage').then(m => ({ default: m.InsightsPage })));
 const OverviewTab = lazy(() => import('@foundation/src/components/insights/OverviewTab').then(m => ({ default: m.OverviewTab })));
@@ -73,10 +73,9 @@ const AuditLogTab = lazy(() => import('@foundation/src/components/admin/AuditLog
 const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
 const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
 const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
-const PlaceableGroupsView = lazy(() => import('@foundation/src/components/spaces/PlaceableGroupsView').then(m => ({ default: m.PlaceableGroupsView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
-const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/resources", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin", "/configuration"];
+const APP_LAYOUT_PREFIXES = ["/", "/floorplan", "/spaces", "/people", "/resources", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin", "/configuration"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -238,19 +237,26 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="job-titles" element={<JobTitleSettings />} />
           </Route>
 
-          {/* Spaces — nested sub-routes. Default = floorplan. */}
-          <Route path="spaces" element={<SpacesPage />}>
+          {/* Floorplan — a site surface holding every placeable type. Default = the plan. */}
+          <Route path="floorplan" element={<FloorplanPage />}>
             <Route index element={<Navigate to="floorplan" replace />} />
-            <Route path="list" element={<SpaceListView />} />
             <Route path="floorplan" element={<FloorplanView />} />
-            <Route path="groups" element={<PlaceableGroupsView />} />
+            <Route path="stations" element={<SpaceListView />} />
           </Route>
+
+          {/* /spaces was this page's address while `space` was a built-in type with a page of its
+              own. It is an ordinary type now, so its list and groups live on the generic type
+              page and only the plan itself keeps a fixed home. */}
+          <Route path="spaces" element={<Navigate to="/floorplan" replace />} />
+          <Route path="spaces/floorplan" element={<Navigate to="/floorplan" replace />} />
+          <Route path="spaces/list" element={<Navigate to="/floorplan/stations" replace />} />
+          <Route path="spaces/groups" element={<Navigate to="/resources/space/groups" replace />} />
 
           {/* Backward-compatible redirects: resource-domain master data moved
               out of Settings into the owning resource page. */}
           <Route path="settings/departments" element={<Navigate to="/people/departments" replace />} />
           <Route path="settings/job-titles"  element={<Navigate to="/people/job-titles" replace />} />
-          <Route path="settings/groups"      element={<Navigate to="/spaces/groups" replace />} />
+          <Route path="settings/groups"      element={<Navigate to="/resources/space/groups" replace />} />
 
           {/* Backward-compatible redirects: governance tabs moved out of Settings
               into the tenant-admin Administration page. */}

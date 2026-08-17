@@ -84,7 +84,9 @@ export interface Request {
   /**
    * The resource types this request needs, one assignment each. Always sent by the backend
    * (sorted); optional here only because older fixtures predate it — read it through
-   * `targetResourceTypeKeys()` so the space default is applied in one place.
+   * `getTargetResourceTypeKeys()`, which reads it in one place. Optional here only because
+   * payloads are built by hand in tests; there is no default any more, so an absent value
+   * means the request targets nothing.
    */
   targetResourceTypeKeys?: string[];
 

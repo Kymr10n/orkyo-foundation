@@ -252,7 +252,7 @@ describe('buildInitialState', () => {
     const state = buildInitialState(null, undefined, undefined, undefined, undefined, undefined, {
       typeKey: 'tool',
       resourceId: 'tool-3',
-    });
+    }, ['space']);
     expect(state.targetResourceTypeKeys).toEqual(['space', 'tool']);
     expect(state.selectedResourceIds.tool).toBe('tool-3');
   });
@@ -270,6 +270,7 @@ describe('buildInitialState', () => {
       planningMode: 'leaf',
       sortOrder: 0,
       assignments: [spaceAssignment('space-1')],
+      targetResourceTypeKeys: ['space'],
       startTs: '2026-04-17T09:00:00Z',
       endTs: '2026-04-17T17:00:00Z',
       minimalDurationValue: 8,
@@ -310,7 +311,9 @@ describe('buildInitialState', () => {
     const state = buildInitialState(request);
     expect(state.name).toBe('Minimal');
     expect(state.description).toBe('');
-    expect(state.selectedResourceIds).toEqual({ space: '' });
+    // The point of this case is that every optional field is absent, targets included. There is
+    // no space default any more, so a request naming no target types picks no resources.
+    expect(state.selectedResourceIds).toEqual({});
     expect(state.startDate).toBe('');
     expect(state.requirements.size).toBe(0);
   });
