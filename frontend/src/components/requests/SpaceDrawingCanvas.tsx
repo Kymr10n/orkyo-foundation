@@ -40,6 +40,8 @@ interface SpaceDrawingCanvasProps {
     code?: string | null;
     geometry?: ResourceGeometry | null;
   }[];
+  /** Right-click on a placed shape. Reports the pointer position so the caller can anchor a menu. */
+  onSpaceContextMenu?: (resourceId: string, position: { x: number; y: number }) => void;
   /** When true, spaces are interactive: single-click selects, drag moves, handles resize */
   editEnabled?: boolean;
   /** Selected space ID */
@@ -69,6 +71,7 @@ export function SpaceDrawingCanvas({
   onDrawingComplete,
   onDrawingCancel,
   existingSpaces = [],
+  onSpaceContextMenu,
   editEnabled = false,
   selectedResourceId,
   onSpaceClick,
@@ -261,6 +264,14 @@ export function SpaceDrawingCanvas({
         };
 
         onSpaceResize(resizingSpace.id, newGeometry);
+      } else if (space.geometry.type === "circle") {
+        // Deliberately not the generic `coords[handleIndex] = point` the other two use: writing
+        // the centre through explicitly makes "a resize never moves the centre" a property of the
+        // code rather than a consequence of index 1 happening to be the only handle.
+        onSpaceResize(resizingSpace.id, {
+          type: "circle",
+          coordinates: [resizingSpace.geometry.coordinates[0], mousePosition],
+        });
       }
 
       setResizingSpace(null);
@@ -330,9 +341,29 @@ export function SpaceDrawingCanvas({
         setDrawingPoints([]);
         setMousePosition(null);
       }
+    } else if (drawingMode === "circle") {
+      if (drawingPoints.length === 0) {
+        // The centre. The rim follows on the next click, and the radius is the gap.
+        setDrawingPoints([point]);
+      } else if (drawingPoints.length === 1) {
+        onDrawingComplete({ type: "circle", coordinates: [drawingPoints[0], point] });
+        setDrawingPoints([]);
+        setMousePosition(null);
+      }
     } else if (drawingMode === "polygon") {
       setDrawingPoints([...drawingPoints, point]);
     }
+  };
+
+  const handleContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onSpaceContextMenu) return;
+    const shape = (e.target as HTMLElement).closest("[data-space-id]");
+    const resourceId = shape?.getAttribute("data-space-id");
+    // Only swallow the browser menu over an actual shape. Suppressing it across the whole
+    // floorplan would take away reload, inspect and back for no gain.
+    if (!resourceId) return;
+    e.preventDefault();
+    onSpaceContextMenu(resourceId, { x: e.clientX, y: e.clientY });
   };
 
   const handleDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -359,7 +390,7 @@ export function SpaceDrawingCanvas({
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key !== "Escape") return;
-    if (drawingMode === "rectangle" || drawingMode === "polygon") {
+    if (drawingMode !== "none") {
       onDrawingCancel();
       setDrawingPoints([]);
       setMousePosition(null);
@@ -412,6 +443,7 @@ export function SpaceDrawingCanvas({
           }}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
           onMouseMove={handleMouseMove}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}

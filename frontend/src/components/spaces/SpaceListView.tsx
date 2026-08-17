@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { useAppStore } from '@foundation/src/store/app-store';
-import { usePlaceableResources, useDeletePlaceableResource } from '@foundation/src/hooks/usePlaceableResources';
+import {
+  usePlaceableResources,
+  useDeletePlaceableResource,
+  useCreatePlaceableResource,
+} from '@foundation/src/hooks/usePlaceableResources';
+import { duplicateResourceRequest } from '@foundation/src/lib/utils/duplicate-resource';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { EditSpaceDialog } from './EditSpaceDialog';
-import { SpaceCapabilitiesEditor } from './SpaceCapabilitiesEditor';
+import { ResourceCapabilitiesEditor } from '@foundation/src/components/resources/ResourceCapabilitiesEditor';
 import { logger } from '@foundation/src/lib/core/logger';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
-import { Edit, Trash2, Settings } from 'lucide-react';
+import { Edit, Trash2, Settings, Copy } from 'lucide-react';
 
 /**
  * Spaces tab content under /spaces/list — a focused, list-only view built on
@@ -20,6 +25,7 @@ export function SpaceListView() {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const { data: spaces = [], isLoading } = usePlaceableResources(selectedSiteId);
   const deleteSpaceMutation = useDeletePlaceableResource(selectedSiteId ?? '');
+  const createSpaceMutation = useCreatePlaceableResource(selectedSiteId ?? '');
 
   const [editingSpace, setEditingSpace] = useState<ResourceInfo | null>(null);
   const [capabilitiesSpace, setCapabilitiesSpace] = useState<ResourceInfo | null>(null);
@@ -49,6 +55,18 @@ export function SpaceListView() {
     </div>
   );
 
+  // The floorplan's right-click menu offers the same two actions, but an SVG shape is not
+  // focusable — this row is the keyboard-reachable path to them.
+  const handleDuplicate = async (space: ResourceInfo) => {
+    if (!selectedSiteId) return;
+    try {
+      await createSpaceMutation.mutateAsync(duplicateResourceRequest(space, selectedSiteId));
+    } catch (error) {
+      // Feedback owned by the create mutation's meta.errorMessage (central MutationCache).
+      logger.error('Failed to duplicate resource:', error);
+    }
+  };
+
   const renderActions = (space: ResourceInfo) => (
     <RowActions
       triggerLabel={`Actions for ${space.name}`}
@@ -63,6 +81,12 @@ export function SpaceListView() {
           label: 'Edit Space',
           icon: Edit,
           onSelect: () => setEditingSpace(space),
+          disabled: !canEdit,
+        },
+        {
+          label: 'Duplicate',
+          icon: Copy,
+          onSelect: () => void handleDuplicate(space),
           disabled: !canEdit,
         },
         {
@@ -149,11 +173,15 @@ export function SpaceListView() {
         />
       )}
       {capabilitiesSpace && (
-        <SpaceCapabilitiesEditor
+        // The generic editor, which the space-only one duplicated with less: this one filters
+        // the offered criteria to the row's type and can quick-create a missing criterion.
+        <ResourceCapabilitiesEditor
           open={!!capabilitiesSpace}
           onOpenChange={(open) => !open && setCapabilitiesSpace(null)}
           resourceId={capabilitiesSpace.id}
-          spaceName={capabilitiesSpace.name}
+          resourceName={capabilitiesSpace.name}
+          resourceTypeKey={capabilitiesSpace.resourceTypeKey}
+          entityLabel="station"
         />
       )}
 

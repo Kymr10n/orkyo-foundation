@@ -94,8 +94,11 @@ describe('SidebarNav', () => {
     const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
     expect(hrefs).toContain('/resources/tool');
     expect(hrefs).toContain('/resources/car');
-    // Space and person keep their purpose-built pages rather than gaining a second entry.
-    expect(hrefs).not.toContain('/resources/space');
+    // Space is an ordinary placeable type now: it gets a generic type entry like any other,
+    // while the fixed Floorplan entry stays a site surface, not a type page. Person keeps its
+    // purpose-built page rather than gaining a second entry.
+    expect(hrefs).toContain('/resources/space');
+    expect(hrefs).toContain('/spaces');
     expect(hrefs).not.toContain('/resources/person');
   });
 

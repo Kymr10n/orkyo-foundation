@@ -43,8 +43,14 @@ public class SchedulingServiceTests
                     UpdatedAt = DateTime.UtcNow,
                 }).ToList());
 
+        // Placement resolution asks which types are placeable; these tests schedule onto spaces.
+        var typeRepo = new Mock<IResourceTypeRepository>();
+        typeRepo.Setup(r => r.GetPlaceableKeysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(["space"]);
+
         _service = new SchedulingService(
-            _schedulingRepo.Object, _requestRepo.Object, _resourceRepo.Object, _resolver.Object,
+            _schedulingRepo.Object, _requestRepo.Object, typeRepo.Object,
+            _resourceRepo.Object, _resolver.Object,
             NullLogger<SchedulingService>.Instance);
     }
 

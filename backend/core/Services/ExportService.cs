@@ -65,7 +65,13 @@ public class ExportService : IExportService
         var criteria = await _criteriaRepo.GetAllAsync(ct);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => GenerateKey(c.Name));
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space, ct);
+        // Groups of every placeable type. The resources below come from GetPlaceableBySitesAsync
+        // (has_geometry), and a group section keyed to space alone disagreed with them the moment
+        // a second placeable type existed — machines in the export, their cells silently missing.
+        var placeableKeys = await _resourceTypeRepo.GetPlaceableKeysAsync(ct);
+        var groups = new List<ResourceGroupInfo>();
+        foreach (var key in placeableKeys)
+            groups.AddRange(await _resourceGroupRepo.GetByTypeKeyAsync(key, ct));
         var groupIdToKey = groups.ToDictionary(g => g.Id, g => GenerateKey(g.Name));
 
         var allSites = await _siteRepo.GetAllAsync(ct);
@@ -409,8 +415,9 @@ public class ExportService : IExportService
 
         var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true);
 
+        var placeableKeySet = (await _resourceTypeRepo.GetPlaceableKeysAsync(default)).ToHashSet();
         return allRequests
-            .Select(r => (Request: r, SpaceResourceId: r.GetResourceIdForType(ResourceTypeKeys.Space)))
+            .Select(r => (Request: r, SpaceResourceId: r.GetPlacementResourceId(placeableKeySet)))
             .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>

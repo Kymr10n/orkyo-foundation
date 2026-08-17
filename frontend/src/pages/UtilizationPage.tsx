@@ -37,7 +37,6 @@ import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-reque
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
-import { DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from "@foundation/src/constants";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -192,7 +191,16 @@ export function UtilizationPage() {
   // separate selector could only ever disagree with what is on screen, and keeping the two in
   // step needed an effect and a lock while a preview was open. Calendar has no type of its
   // own, so the controls do not appear there.
-  const autoScheduleTypeKey = isCalendarTab ? DEFAULT_TARGET_RESOURCE_TYPE_KEYS[0] : activeTab;
+  // One solver run solves one resource type. A grid tab names its type directly. The calendar
+  // and stations tabs do not — stations holds every placeable type at once, and its tab value
+  // ('stations') is a surface name, not a type key — so they resolve to the single placeable
+  // type when the tenant has exactly one, and to null otherwise, which disables the button
+  // rather than solving for a silently-guessed pool.
+  const autoScheduleTypeKey = isTypeGridTab
+    ? activeTab
+    : placeableTypes.length === 1
+      ? placeableTypes[0].key
+      : null;
 
   // Every type in tab order (Spaces, People, then the rest) — the PDF sections rows by type,
   // and reusing gridTypes keeps the export's order identical to the tab strip's.
@@ -400,7 +408,7 @@ export function UtilizationPage() {
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
-        resourceTypeKey: autoScheduleTypeKey,
+        resourceTypeKey: autoScheduleTypeKey ?? undefined,
       });
       setAutoSchedulePreview(result);
       setIsPreviewDialogOpen(true);
@@ -422,7 +430,7 @@ export function UtilizationPage() {
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
-        resourceTypeKey: autoScheduleTypeKey,
+        resourceTypeKey: autoScheduleTypeKey ?? undefined,
         previewFingerprint: autoSchedulePreview?.fingerprint,
       });
       setIsPreviewDialogOpen(false);
@@ -740,7 +748,7 @@ export function UtilizationPage() {
           <AutoScheduleButton
             onClick={handleAutoScheduleClick}
             loading={previewMutation.isPending}
-            disabled={!selectedSiteId}
+            disabled={!selectedSiteId || !autoScheduleTypeKey}
           />
         </>
       )}

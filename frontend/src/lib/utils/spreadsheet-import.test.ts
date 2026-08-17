@@ -119,6 +119,7 @@ describe('workstationToCreateSpace', () => {
     const space = workstationToCreateSpace(
       { row: 6, code: 'WS-01', name: 'Mill 1', standsThere: 'Haas VF-2', notes: 'Service Fri' },
       'site-1',
+      'space',
     );
     // The wizard now builds a generic create-request, so it supplies the placement defaults the
     // site-scoped space route used to hardcode server-side.

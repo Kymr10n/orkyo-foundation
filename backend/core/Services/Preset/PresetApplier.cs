@@ -264,18 +264,27 @@ public static class PresetApplier
     private static async Task<Guid> CreateSpaceGroupAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx, PresetSpaceGroup group)
     {
+        // A preset's groups are a curated floorplan layout, so they belong to a placeable type.
+        // Preferring `space` keeps the historical meaning wherever that type still exists; a
+        // tenant who deleted it gets their single remaining placeable type. Several placeable
+        // types and no space is genuinely ambiguous, so the LIMIT resolves it deterministically
+        // (space first, then key order) rather than failing an otherwise-applicable preset.
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO resource_groups (name, description, color, display_order, resource_type_id)
-            SELECT @name, @description, @color, @displayOrder, id FROM resource_types WHERE key = @spaceKey
+            SELECT @name, @description, @color, @displayOrder, id
+            FROM resource_types
+            WHERE has_geometry AND is_active
+            ORDER BY (key = @spaceKey) DESC, key
+            LIMIT 1
             RETURNING id", conn, tx);
-        // Identity, not behaviour: a preset is a curated floorplan of spaces. has_geometry would
-        // ask "any placeable type", which for a tenant with two of them has no single answer.
         cmd.Parameters.AddWithValue("spaceKey", ResourceTypeKeys.Space);
         cmd.Parameters.AddWithValue("name", group.Name);
         cmd.Parameters.AddNullable("description", group.Description);
         cmd.Parameters.AddNullable("color", group.Color);
         cmd.Parameters.AddWithValue("displayOrder", group.DisplayOrder);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
+        return (Guid)(await cmd.ExecuteScalarAsync()
+            ?? throw new InvalidOperationException(
+                "No placeable resource type exists to hold the preset's groups."));
     }
 
     private static async Task UpdateSpaceGroupAsync(

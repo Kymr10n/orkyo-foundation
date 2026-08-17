@@ -10,13 +10,23 @@ export interface Coordinate {
   y: number;
 }
 
-export type GeometryType = 'rectangle' | 'polygon';
+export type GeometryType = 'rectangle' | 'polygon' | 'circle';
 
-/** A rectangle is exactly two points (top-left, bottom-right); a polygon is three or more. */
+/**
+ * What the coordinates mean, per type — the only place this contract is written down:
+ *
+ * - `rectangle` — exactly two points, opposite corners.
+ * - `polygon` — three or more points, the outline in order.
+ * - `circle` — exactly two points: the centre, then any point on the rim. The radius is the
+ *   distance between them, so a resize moves the second point and leaves the first alone.
+ *
+ * Only the circle's points are not all on the outline, which is why anything deriving an extent
+ * has to special-case it.
+ */
 export interface ResourceGeometry {
   type: GeometryType;
   coordinates: Coordinate[];
 }
 
 /** What the floorplan canvas is currently letting the user draw. */
-export type DrawingMode = 'none' | 'rectangle' | 'polygon';
+export type DrawingMode = 'none' | 'rectangle' | 'polygon' | 'circle';

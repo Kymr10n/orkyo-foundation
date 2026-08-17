@@ -12,7 +12,6 @@
 
 import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router';
-import { Box } from 'lucide-react';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
 import { RequireTenantAdmin } from '@foundation/src/components/auth/RequireTenantAdmin';
@@ -74,6 +73,7 @@ const AuditLogTab = lazy(() => import('@foundation/src/components/admin/AuditLog
 const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
 const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
 const SpaceListView = lazy(() => import('@foundation/src/components/spaces/SpaceListView').then(m => ({ default: m.SpaceListView })));
+const PlaceableGroupsView = lazy(() => import('@foundation/src/components/spaces/PlaceableGroupsView').then(m => ({ default: m.PlaceableGroupsView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
 const APP_LAYOUT_PREFIXES = ["/", "/spaces", "/people", "/resources", "/requests", "/insights", "/conflicts", "/settings", "/tenant-admin", "/configuration"];
@@ -243,7 +243,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route index element={<Navigate to="floorplan" replace />} />
             <Route path="list" element={<SpaceListView />} />
             <Route path="floorplan" element={<FloorplanView />} />
-            <Route path="groups" element={<ResourceGroupList resourceTypeKey={RESOURCE_TYPE_KEY.SPACE} membersIcon={Box} />} />
+            <Route path="groups" element={<PlaceableGroupsView />} />
           </Route>
 
           {/* Backward-compatible redirects: resource-domain master data moved

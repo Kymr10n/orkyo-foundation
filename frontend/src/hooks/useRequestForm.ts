@@ -5,6 +5,7 @@
  */
 
 import { useReducer } from 'react';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT, DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from '@foundation/src/constants';
 import { formatDateForInput, formatTimeForInput } from '@foundation/src/lib/utils';
 import { getAssignmentOfType, getTargetResourceTypeKeys } from '@foundation/src/domain/scheduling/request-assignments';
@@ -173,7 +174,7 @@ function applyDefaultResource(state: RequestFormState, resource?: DefaultResourc
 }
 
 /** @internal Exported for unit testing */
-export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource): RequestFormState {
+export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource, defaultTargets?: string[]): RequestFormState {
   if (request) {
     const reqMap = new Map<string, RequirementEntry>();
     request.requirements?.forEach((r) => {
@@ -216,14 +217,24 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
   // scoped to where the user is working; fall back to the schedule slot's site, else '' = site-neutral.
   const createSiteId = (defaultSiteId ?? '') || (scheduleSiteId ?? '');
   if (parentRequestId) {
-    return applyDefaultResource(applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
+    return applyDefaultResource(applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultTargets ? { targetResourceTypeKeys: defaultTargets } : {}), ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
   }
 
-  return applyDefaultResource(applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
+  return applyDefaultResource(applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultTargets ? { targetResourceTypeKeys: defaultTargets } : {}), ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
 }
 
 export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource) {
-  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource));
+  // A new request defaults to needing ONE place. Every targeted type is a separate assignment
+  // the request waits for, so defaulting to all placeable types would mean needing a room *and* a
+  // mill *and* a drill. Prefer `space` where it still exists — the historical default, unchanged
+  // for anyone who never renamed it — else the tenant's first placeable type. Read from the query
+  // cache at mount; while it is cold, the shared constant covers the gap.
+  const { data: resourceTypes = [], isSuccess: typesLoaded } = useResourceTypes(true);
+  const placeable = resourceTypes.filter((t) => t.hasGeometry);
+  const defaultTargets = typesLoaded && placeable.length > 0
+    ? [(placeable.find((t) => t.key === 'space') ?? placeable[0]).key]
+    : [...DEFAULT_TARGET_RESOURCE_TYPE_KEYS];
+  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource, defaultTargets));
 
   return {
     state,

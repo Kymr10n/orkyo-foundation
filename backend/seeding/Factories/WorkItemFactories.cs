@@ -127,9 +127,9 @@ public static class WorkItemFactories
 
         // Declare what each request needs, or the scheduled predicate (migrations 1720/1730) reports
         // every one of them unscheduled forever. This path only ever books spaces (see
-        // SeedAssignmentsAsync), so 'space' is the whole target set — the same row 1720 backfilled
+        // SeedAssignmentsAsync), so 'room' is the whole target set — the same row 1720 backfilled
         // for every pre-existing request, summaries included.
-        await RequestTargetFactory.WriteAsync(conn, all.Select(r => (r.Id, "space")).ToList());
+        await RequestTargetFactory.WriteAsync(conn, all.Select(r => (r.Id, "room")).ToList());
 
         return all;
     }

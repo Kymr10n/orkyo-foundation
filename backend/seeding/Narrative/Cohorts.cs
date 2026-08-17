@@ -5,14 +5,17 @@ namespace Orkyo.Foundation.Seed.Narrative;
 
 /// <summary>
 /// A facility's working set: its site, the people working there (a slice of the global people),
-/// its tools, and its rooms-as-spaces keyed by room code. People and tools are tenant-global rows;
-/// this in-memory partition is what makes the demo's work facility-coherent.
+/// its tools, its machines, and its rooms-as-spaces keyed by room code. People and tools are
+/// tenant-global rows; this in-memory partition is what makes the demo's work facility-coherent.
+/// Machines are already site-bound (they are bolted to a floor), but are partitioned here too so
+/// the narrative reaches them the same way it reaches tools.
 /// </summary>
 public sealed record FacilityCohort(
     Facility Facility,
     Guid SiteId,
     IReadOnlyList<PeopleFactories.SeededPerson> People,
     IReadOnlyList<ToolFactory.SeededTool> Tools,
+    IReadOnlyList<MachineFactory.SeededMachine> Machines,
     IReadOnlyDictionary<string, SpaceFactories.SeededSpace> SpaceByRoomCode);
 
 public static class Cohorts
@@ -22,7 +25,8 @@ public static class Cohorts
         IReadOnlyList<SpaceFactories.SeededSite> sites,
         IReadOnlyList<SpaceFactories.SeededSpace> spaces,
         IReadOnlyList<PeopleFactories.SeededPerson> people,
-        IReadOnlyList<ToolFactory.SeededTool> tools)
+        IReadOnlyList<ToolFactory.SeededTool> tools,
+        IReadOnlyList<MachineFactory.SeededMachine> machines)
     {
         var floorplans = FloorplanCatalog.ForProfile("manufacturing");
         var per = Math.Max(1, people.Count / facilities.Count);
@@ -47,8 +51,9 @@ public static class Cohorts
             var count = i == facilities.Count - 1 ? people.Count - start : per;
             var cohortPeople = people.Skip(start).Take(Math.Max(0, count)).ToList();
             var cohortTools = tools.Where(t => t.SiteCode == f.SiteCode).ToList();
+            var cohortMachines = machines.Where(m => m.SiteCode == f.SiteCode).ToList();
 
-            cohorts.Add(new FacilityCohort(f, site.Id, cohortPeople, cohortTools, spaceByRoom));
+            cohorts.Add(new FacilityCohort(f, site.Id, cohortPeople, cohortTools, cohortMachines, spaceByRoom));
         }
         return cohorts;
     }

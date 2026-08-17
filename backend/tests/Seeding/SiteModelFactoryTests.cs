@@ -31,7 +31,7 @@ public class SiteModelFactoryTests
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
 
-        var spaceTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='space' LIMIT 1");
+        var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
         var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
         var suffix = Guid.NewGuid().ToString("N")[..8];

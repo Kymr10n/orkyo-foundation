@@ -16,7 +16,8 @@ public class AutoScheduleServiceTests
     private static AutoScheduleService CreateService(
         IFeatureGate? featureGate = null,
         TenantSettings? settings = null,
-        IEnumerable<ISchedulingSolver>? solvers = null)
+        IEnumerable<ISchedulingSolver>? solvers = null,
+        IReadOnlyList<string>? placeableKeys = null)
     {
         var mockProblemBuilder = new Mock<SchedulingProblemBuilder>(
             Mock.Of<IRequestRepository>(),
@@ -46,11 +47,17 @@ public class AutoScheduleServiceTests
         // Default: all features enabled (mirrors Community / foundation standalone behaviour)
         var gate = featureGate ?? new AllFeaturesEnabledGate();
 
+        // A single placeable type by default, so an omitted resourceTypeKey resolves cleanly.
+        var typeRepo = new Mock<IResourceTypeRepository>();
+        typeRepo.Setup(r => r.GetPlaceableKeysAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(placeableKeys ?? ["space"]);
+
         return new AutoScheduleService(
             mockProblemBuilder.Object,
             analyzer,
             resolvedSolvers,
             Mock.Of<IRequestRepository>(),
+            typeRepo.Object,
             gate,
             mockSettingsService.Object,
             NullLogger<AutoScheduleService>.Instance);
@@ -178,5 +185,52 @@ public class AutoScheduleServiceTests
         var result = await service.PreviewAsync(request, CancellationToken.None);
 
         result.SolverUsed.Should().Be(SolverKind.Greedy);
+    }
+
+    [Fact]
+    public async Task Preview_OmittedType_ResolvesTheSinglePlaceableType()
+    {
+        // The old behaviour was a hardcoded `?? space` applied twice, independently. Now it is
+        // one resolution: the tenant's only placeable type, whatever its key. The fingerprint is
+        // a hash namespaced by the resolved type, so the same solve under a different resolved
+        // type must fingerprint differently — that is what proves the resolution reached it.
+        var request = new AutoSchedulePreviewRequest(Guid.NewGuid(),
+            DateOnly.FromDateTime(DateTime.UtcNow),
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)));
+
+        var boothTenant = await CreateService(placeableKeys: ["booth"])
+            .PreviewAsync(request, CancellationToken.None);
+        var spaceTenant = await CreateService(placeableKeys: ["space"])
+            .PreviewAsync(request, CancellationToken.None);
+
+        Assert.NotEqual(spaceTenant.Fingerprint, boothTenant.Fingerprint);
+    }
+
+    [Fact]
+    public async Task Preview_OmittedType_WithSeveralPlaceableTypes_RefusesToGuess()
+    {
+        // "Which pool?" has no single answer for a tenant with two placeable types, and guessing
+        // one means silently solving for the wrong machines.
+        var service = CreateService(placeableKeys: ["space", "mill"]);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.PreviewAsync(
+            new AutoSchedulePreviewRequest(Guid.NewGuid(),
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))),
+            CancellationToken.None));
+
+        Assert.Contains("resourceTypeKey", ex.Message);
+    }
+
+    [Fact]
+    public async Task Preview_OmittedType_WithNoPlaceableTypes_SaysSo()
+    {
+        var service = CreateService(placeableKeys: []);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.PreviewAsync(
+            new AutoSchedulePreviewRequest(Guid.NewGuid(),
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))),
+            CancellationToken.None));
     }
 }

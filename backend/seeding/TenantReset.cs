@@ -46,6 +46,15 @@ public static class TenantReset
         "preset_applications",
         "preset_mappings",
         "assets",
+        // Tenant-defined shape, seeded alongside the machines. These are NOT swept by truncating
+        // `resources`: a shared list instance has no resource_id, and field/definition rows are
+        // parents rather than children. Left behind, a second `--mode reset` run dies on
+        // resource_custom_fields_key_unique / list_definitions_name_unique.
+        "resource_custom_fields",
+        "list_definitions",
+        "list_columns",
+        "list_instances",
+        "list_rows",
     ];
 
     public static async Task TruncateAllAsync(NpgsqlConnection conn, NpgsqlTransaction tx)
@@ -60,7 +69,28 @@ public static class TenantReset
         if (toTruncate.Length == 0) return;
 
         var sql = $"TRUNCATE TABLE {string.Join(", ", toTruncate)} RESTART IDENTITY CASCADE";
-        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        await using (var cmd = new NpgsqlCommand(sql, conn, tx))
+        {
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        await DeleteSeededResourceTypesAsync(conn, tx, existing);
+    }
+
+    /// <summary>
+    /// Removes the resource types the seed defines for itself, so re-seeding does not collide with
+    /// resource_types_key_unique. A DELETE rather than a TRUNCATE because the built-in types are in
+    /// the same table and belong to the migration, not to us — and everything referencing a seeded
+    /// type (resources, custom fields, criterion applicability) has just been truncated in this
+    /// same transaction.
+    /// </summary>
+    private static async Task DeleteSeededResourceTypesAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx, HashSet<string> existing)
+    {
+        if (!existing.Contains("resource_types")) return;
+
+        await using var cmd = new NpgsqlCommand(
+            "DELETE FROM public.resource_types WHERE is_system = false", conn, tx);
         await cmd.ExecuteNonQueryAsync();
     }
 

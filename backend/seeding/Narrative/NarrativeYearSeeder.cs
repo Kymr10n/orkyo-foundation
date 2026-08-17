@@ -108,6 +108,7 @@ public static class NarrativeYearSeeder
             var cohortJobs = jobs.GetRange(cohortStart, jobs.Count - cohortStart);
             var personIds = cohort.People.Select(p => p.ResourceId).ToHashSet();
             var toolIds = cohort.Tools.Select(t => t.Id).ToHashSet();
+            var machineIds = cohort.Machines.Select(m => m.Id).ToHashSet();
             var concurrentRooms = cohort.Facility.ConcurrentRoomCodes.ToHashSet();
 
             // Intentional capability conflicts: ~5 % of this cohort's skill-bearing jobs keep their
@@ -138,7 +139,9 @@ public static class NarrativeYearSeeder
                 // Keep only the room (and any non-person, non-tool placement); a tool could otherwise
                 // cover a tool-applicable skill (e.g. CNC). Then add the single incapable person.
                 var newAssignees = job.Assignees
-                    .Where(a => !personIds.Contains(a.ResId) && !toolIds.Contains(a.ResId))
+                    .Where(a => !personIds.Contains(a.ResId)
+                                && !toolIds.Contains(a.ResId)
+                                && !machineIds.Contains(a.ResId))
                     .Append((incapable, 100m))
                     .ToList();
                 jobs[cohortStart + cohortJobs.IndexOf(job)] = job with { Assignees = newAssignees };
@@ -197,9 +200,16 @@ public static class NarrativeYearSeeder
         // the request never received would leave it permanently unscheduled. Read from the final
         // Assignees, which is exactly what WriteAssignmentsAsync wrote.
         var allToolIds = cohorts.SelectMany(c => c.Tools).Select(t => t.Id).ToHashSet();
-        var targets = allIds.Select(id => (id, "space"))
+        // Machines follow the same rule, but each carries its own type key, so the target is the
+        // key of the machine that was actually booked rather than one blanket value.
+        var machineTypeById = cohorts.SelectMany(c => c.Machines).ToDictionary(m => m.Id, m => m.TypeKey);
+        var targets = allIds.Select(id => (id, "room"))
             .Concat(jobs.Where(j => j.Assignees.Any(a => allToolIds.Contains(a.ResId)))
                         .Select(j => (j.Id, "tool")))
+            .Concat(jobs.SelectMany(j => j.Assignees
+                        .Where(a => machineTypeById.ContainsKey(a.ResId))
+                        .Select(a => (j.Id, machineTypeById[a.ResId]))))
+            .Distinct()
             .ToList();
         await RequestTargetFactory.WriteAsync(conn, targets);
 
@@ -271,6 +281,17 @@ public static class NarrativeYearSeeder
             }
         }
 
+        // Machine. Always Exclusive — a mill runs one job at a time — so a null percent, the same
+        // shape the Exclusive-tool branch above writes.
+        if (arch.MachineRole is { } machineRole)
+        {
+            if (ctx.PickMachine(machineRole, start, end) is { } machine)
+            {
+                assignees.Add((machine.Id, (decimal?)null));
+                ctx.MarkBusy(machine.Id, start, end, 100m);
+            }
+        }
+
         var hours = (int)Math.Round((end - start).TotalHours);
         return new Job(Guid.NewGuid(), name, parentId, start, end, status, hours, requiredCriteria, arch, spaceId, assignees);
     }
@@ -330,6 +351,14 @@ public static class NarrativeYearSeeder
                 .ToList();
             foreach (var id in helpers) MarkBusy(id, s, e, 50m);
             return helpers;
+        }
+
+        public MachineFactory.SeededMachine? PickMachine(string role, DateTime s, DateTime e)
+        {
+            var pool = _cohort.Machines.Where(m => m.Role == role).OrderBy(_ => _faker.Random.Int()).ToList();
+            if (pool.Count == 0) return null;
+            // Machines are Exclusive without exception, so a free slot means the whole window.
+            return pool.FirstOrDefault(m => IsFree(m.Id, s, e, 100m));
         }
 
         public ToolFactory.SeededTool? PickTool(string role, DateTime s, DateTime e)

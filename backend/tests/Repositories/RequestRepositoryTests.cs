@@ -32,6 +32,8 @@ public class RequestRepositoryTests
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Hours,
             SchedulingSettingsApply = false,
+            // Explicit — omission means "every placeable type" now, which is another test's story.
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
         });
         resp.EnsureSuccessStatusCode();
         var created = await resp.Content.ReadFromJsonAsync<RequestInfo>();
@@ -357,10 +359,12 @@ public class RequestRepositoryTests
     }
 
     [Fact]
-    public async Task Create_WithoutTargetTypes_TargetsSpaces()
+    public async Task Create_WithoutTargetTypes_TargetsOnePlaceableType()
     {
-        // Every request meant "a space" before types could be named, and migration 1720
-        // backfilled exactly that; a caller who says nothing must land in the same place.
+        // A caller who says nothing means "this needs a place" — one place. Every targeted type
+        // is a separate assignment the request waits on, so defaulting to all placeable types
+        // would mean needing a room *and* a mill *and* a drill, which nothing could satisfy.
+        // `space` is preferred while it exists, so the historical meaning is unchanged.
         var resp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
         {
             Name = $"NoTarget-{Guid.NewGuid():N}"[..25],

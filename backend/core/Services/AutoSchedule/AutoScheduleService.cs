@@ -14,6 +14,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
     private readonly SchedulingFeasibilityAnalyzer _feasibilityAnalyzer;
     private readonly IEnumerable<ISchedulingSolver> _solvers;
     private readonly IRequestRepository _requestRepository;
+    private readonly IResourceTypeRepository _resourceTypeRepository;
     private readonly IFeatureGate _featureGate;
     private readonly ITenantSettingsService _settingsService;
     private readonly ILogger<AutoScheduleService> _logger;
@@ -23,6 +24,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         SchedulingFeasibilityAnalyzer feasibilityAnalyzer,
         IEnumerable<ISchedulingSolver> solvers,
         IRequestRepository requestRepository,
+        IResourceTypeRepository resourceTypeRepository,
         IFeatureGate featureGate,
         ITenantSettingsService settingsService,
         ILogger<AutoScheduleService> logger)
@@ -31,6 +33,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
         _feasibilityAnalyzer = feasibilityAnalyzer;
         _solvers = solvers;
         _requestRepository = requestRepository;
+        _resourceTypeRepository = resourceTypeRepository;
         _featureGate = featureGate;
         _settingsService = settingsService;
         _logger = logger;
@@ -42,6 +45,12 @@ public sealed class AutoScheduleService : IAutoScheduleService
     {
         await EnsureAutoScheduleAvailableAsync();
         Validate(request.HorizonStart, request.HorizonEnd);
+
+        // One run solves one resource type. When the caller does not say which, resolve it from
+        // what the tenant can place: a single placeable type is an unambiguous answer, several is
+        // a question only the caller can settle. Resolved once, here — the builder and the
+        // fingerprint used to each apply their own `?? space`, which agreed only by luck.
+        request = request with { ResourceTypeKey = await ResolveTargetTypeAsync(request.ResourceTypeKey, cancellationToken) };
 
         var problem = await _problemBuilder.BuildAsync(request, cancellationToken);
         var analyzed = _feasibilityAnalyzer.Analyze(problem);
@@ -66,7 +75,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                     x.ReasonCodes))
                 .ToList(),
             solution.Diagnostics,
-            solution.ComputeFingerprint(request.ResourceTypeKey ?? ResourceTypeKeys.Space));
+            solution.ComputeFingerprint(request.ResourceTypeKey!));
     }
 
     public async Task<AutoScheduleApplyResponse> ApplyAsync(
@@ -151,6 +160,22 @@ public sealed class AutoScheduleService : IAutoScheduleService
             throw new FeatureNotAvailableException(
                 "Auto-Schedule",
                 "Auto-scheduling is not enabled. A tenant administrator can enable it in Settings > Configuration.");
+    }
+
+    private async Task<string> ResolveTargetTypeAsync(string? requested, CancellationToken ct)
+    {
+        if (requested is not null) return requested;
+
+        var placeable = await _resourceTypeRepository.GetPlaceableKeysAsync(ct);
+        return placeable.Count switch
+        {
+            1 => placeable[0],
+            0 => throw new ArgumentException(
+                "No placeable resource types exist, so there is nothing to schedule onto."),
+            _ => throw new ArgumentException(
+                "Several placeable resource types exist "
+                + $"({string.Join(", ", placeable)}); specify resourceTypeKey."),
+        };
     }
 
     private static void Validate(DateOnly start, DateOnly end)

@@ -21,11 +21,9 @@ import {
   setResourceGroupMembers,
 } from "@foundation/src/lib/api/resource-groups-api";
 import { logger } from "@foundation/src/lib/core/logger";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
-
-// Spaces are 1:1 with groups; people and other types may belong to several.
-const SPACE_TYPE_KEY = "space";
 
 interface ResourceGroupMembersEditorProps {
   open: boolean;
@@ -69,7 +67,12 @@ export function ResourceGroupMembersEditor({
     return result;
   }, [allResources, search, showOnlySelected, selectedResourceIds]);
 
-  const isSpace = resourceTypeKey === SPACE_TYPE_KEY;
+  // Whether this type's resources belong to at most one group is a property of the type — the
+  // DB enforces it through a trigger keyed on the same flag — not of the space key. Keying on the
+  // key meant a machine cell's members were moved between cells without the warning this dialog
+  // exists to give.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const singleGroup = resourceTypes.find((t) => t.key === resourceTypeKey)?.singleGroupMembership ?? false;
 
   useEffect(() => {
     if (!open) return;
@@ -88,10 +91,10 @@ export function ResourceGroupMembersEditor({
         setAllResources(resourcesRes.data);
         setSelectedResourceIds(new Set(membersRes.members.map((m) => m.id)));
 
-        // Spaces are 1:1 with groups: map each space already in a *different* group so
-        // we can warn before moving it. Group count is small, so per-group fetch is cheap.
-        if (isSpace) {
-          const groups = await getResourceGroups(SPACE_TYPE_KEY);
+        // Single-group types are 1:1 with groups: map each resource already in a *different*
+        // group so we can warn before moving it. Group count is small, so per-group fetch is cheap.
+        if (singleGroup) {
+          const groups = await getResourceGroups(resourceTypeKey);
           const others = groups.filter((g) => g.id !== groupId);
           const memberLists = await Promise.all(others.map((g) => getResourceGroupMembers(g.id)));
           if (cancelled) return;
@@ -113,7 +116,7 @@ export function ResourceGroupMembersEditor({
     };
     load();
     return () => { cancelled = true; };
-  }, [open, groupId, resourceTypeKey, isSpace]);
+  }, [open, groupId, resourceTypeKey, singleGroup]);
 
   const handleToggle = (resourceId: string) => {
     const next = new Set(selectedResourceIds);
@@ -132,12 +135,12 @@ export function ResourceGroupMembersEditor({
 
   const handleSave = () => {
     setError(null);
-    // For spaces, warn before moving any selected space out of its current group.
-    if (isSpace) {
+    // For single-group types, warn before moving a selected resource out of its current group.
+    if (singleGroup) {
       const moves = Array.from(selectedResourceIds)
         .filter((id) => otherGroupByResource.has(id))
         .map((id) => ({
-          name: allResources.find((r) => r.id === id)?.name ?? "space",
+          name: allResources.find((r) => r.id === id)?.name ?? "resource",
           from: otherGroupByResource.get(id)!,
         }));
       if (moves.length > 0) {

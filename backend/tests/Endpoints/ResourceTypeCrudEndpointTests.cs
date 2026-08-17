@@ -202,16 +202,33 @@ public class ResourceTypeCrudEndpointTests
     public async Task SystemTypes_CannotBeDeactivatedOrDeleted()
     {
         // Naming is the tenant's (covered by UpdateType_SystemType_RejectsBehaviourChange_…);
-        // existence is not — every built-in page is written against these types.
+        // existence is not — the person directory (job titles, departments, user linking) is
+        // built against this type.
+        //
+        // Person, not space: migration 1800 demoted space to an ordinary tenant type, so asking
+        // it to refuse deletion would not only fail, it would *delete the type* and take every
+        // later test's spaces with it.
         var all = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        var space = all!.First(t => t.Key == "space");
+        var person = all!.First(t => t.Key == ResourceTypeKeys.Person);
 
-        var deactivate = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
+        var deactivate = await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
             new UpdateResourceTypeRequest { IsActive = false });
         Assert.Equal(HttpStatusCode.BadRequest, deactivate.StatusCode);
 
-        var delete = await _client.DeleteAsync($"/api/resource-types/{space.Id}");
+        var delete = await _client.DeleteAsync($"/api/resource-types/{person.Id}");
         Assert.Equal(HttpStatusCode.BadRequest, delete.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheSpaceType_IsAnOrdinaryTenantTypeNow()
+    {
+        // What migration 1800 bought: the built-in placeable type is the tenant's to shape. It is
+        // still seeded, still works, and is no longer protected — behaviour flags are editable and
+        // it can be retired like any type they defined themselves.
+        var all = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
+        var space = all!.First(t => t.Key == ResourceTypeKeys.Space);
+
+        Assert.False(space.IsSystem);
     }
 
     [Fact]
@@ -323,24 +340,25 @@ public class ResourceTypeCrudEndpointTests
     public async Task UpdateType_SystemType_RejectsBehaviourChange_ButAllowsRenaming()
     {
         var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        var space = types!.Single(t => t.Key == ResourceTypeKeys.Space);
+        // Person is the system type now; space was demoted by 1800.
+        var space = types!.Single(t => t.Key == ResourceTypeKeys.Person);
 
-        // Behaviour is locked: the product's own Spaces page is built on has_geometry, so a
-        // tenant could break a page they have no way to repair.
+        // Behaviour is locked on a system type: person's directory machinery is built on
+        // has_directory_profile, so a tenant could break a page they have no way to repair.
         var behaviour = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { HasGeometry = false });
+            new UpdateResourceTypeRequest { HasDirectoryProfile = false });
         behaviour.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        // Naming is theirs — "Space" may be "Room" in their vocabulary.
+        // Naming is theirs — "Person" may be "Colleague" in their vocabulary.
         var rename = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { DisplayName = "Room", DisplayNamePlural = "Rooms" });
+            new UpdateResourceTypeRequest { DisplayName = "Colleague", DisplayNamePlural = "Colleagues" });
         rename.EnsureSuccessStatusCode();
         (await rename.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.DisplayNamePlural
-            .Should().Be("Rooms");
+            .Should().Be("Colleagues");
 
         // Restore, so the rest of the suite sees the seeded vocabulary.
         await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { DisplayName = "Space", DisplayNamePlural = "Spaces" });
+            new UpdateResourceTypeRequest { DisplayName = "Person", DisplayNamePlural = "People" });
     }
 
     [Fact]

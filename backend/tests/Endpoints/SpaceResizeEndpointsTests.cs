@@ -120,6 +120,46 @@ public class SpaceResizeEndpointsTests
         Assert.Equal(50, updated.Geometry?.Coordinates[0].Y);
     }
 
+    [Fact]
+    public async Task ResizeCircle_MovesTheRimAndLeavesTheCentreWhereItWas()
+    {
+        // A circle resizes by its rim alone. If a resize ever wrote the centre, the shape would
+        // drift across the floorplan while the user thought they were only changing its size.
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var createResponse = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            Name = "Round Table",
+            Code = $"RT-{Guid.NewGuid():N}"[..10],
+            IsPhysical = true,
+            Geometry = new ResourceGeometry
+            {
+                Type = "circle",
+                Coordinates = [new() { X = 200, Y = 200 }, new() { X = 250, Y = 200 }],
+            },
+        });
+        createResponse.EnsureSuccessStatusCode();
+        var space = (await createResponse.Content.ReadFromJsonAsync<ResourceInfo>())!;
+
+        var response = await _client.PutAsJsonAsync($"/api/resources/{space.Id}", new UpdateResourceRequest
+        {
+            Geometry = new ResourceGeometry
+            {
+                Type = "circle",
+                Coordinates = [new() { X = 200, Y = 200 }, new() { X = 320, Y = 200 }],
+            },
+        });
+
+        response.EnsureSuccessStatusCode();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
+        Assert.Equal(200, updated!.Geometry?.Coordinates[0].X);
+        Assert.Equal(200, updated.Geometry?.Coordinates[0].Y);
+        Assert.Equal(320, updated.Geometry?.Coordinates[1].X);
+    }
+
     #endregion
 
     #region Polygon Resize Tests

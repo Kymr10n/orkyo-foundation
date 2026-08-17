@@ -131,6 +131,25 @@ describe('Export Handlers', () => {
       });
     });
 
+    it('round-trips a circle, centre and rim intact', async () => {
+      // The exporter writes whatever shape type it is given, so this pins that a circle survives
+      // the trip rather than being flattened into the two-point form a rectangle also uses.
+      await exportResources(
+        [{ ...placeable, geometry: { type: 'circle', coordinates: [{ x: 200, y: 200 }, { x: 250, y: 200 }] } }],
+        'csv',
+        'space',
+      );
+      const [content] = mockDownloadFile.mock.calls[0];
+      const file = createMockFile(content as string, 'stations.csv', 'text/csv');
+
+      const rows = await importResources(file, 'csv', 'space');
+
+      expect(rows[0].request.geometry).toEqual({
+        type: 'circle',
+        coordinates: [{ x: 200, y: 200 }, { x: 250, y: 200 }],
+      });
+    });
+
     it('drops a shape it cannot parse rather than guessing at one', async () => {
       // A resource placed at coordinates nobody drew is worse than one the server rejects by
       // name for being physical with no geometry.

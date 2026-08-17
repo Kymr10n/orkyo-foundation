@@ -21,6 +21,7 @@ import { useAppStore } from '@foundation/src/store/app-store';
 import { createResource, getResources } from '@foundation/src/lib/api/resources-api';
 import { createRequest } from '@foundation/src/lib/api/request-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { invalidateRequestData } from '@foundation/src/lib/core/invalidate-request-data';
 import { readWorkbook } from '@foundation/src/lib/utils/spreadsheet-file';
 import {
@@ -64,6 +65,14 @@ export function SpreadsheetImportWizard({
   onOpenChange,
   upgradeHref,
 }: SpreadsheetImportWizardProps) {
+  // The template's Workstations sheet becomes resources of the tenant's placeable type —
+  // `space` where it still exists (the template's historical meaning), else whatever placeable
+  // type the tenant kept. Not hardcoded: the built-in space type is deletable now.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const placeableTypes = resourceTypes.filter((t) => t.hasGeometry);
+  const workstationTypeKey =
+    placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? 'space';
+
   const available = useDataExportAvailable();
   const queryClient = useQueryClient();
   const { data: sites = [] } = useSites();
@@ -122,7 +131,8 @@ export function SpreadsheetImportWizard({
       // Workstations first, so a failure partway leaves a usable state — places
       // without jobs, rather than jobs pointing at places that don't exist.
       for (const workstation of toCreate) {
-        const space = await createResource(workstationToCreateSpace(workstation, effectiveSiteId));
+        const space = await createResource(
+          workstationToCreateSpace(workstation, effectiveSiteId, workstationTypeKey));
         codeToResourceId.set(workstation.code, space.id);
         createdWorkstations++;
         setStep({ kind: 'committing', done: ++done, total });

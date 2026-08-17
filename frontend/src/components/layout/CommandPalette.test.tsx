@@ -224,7 +224,7 @@ describe('CommandPalette', () => {
 
       expect(onOpenChange).toHaveBeenCalledWith(false);
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/spaces/floorplan?edit=space-123');
+        expect(mockNavigate).toHaveBeenCalledWith('/resources/space/list?edit=space-123');
       });
     });
   });
@@ -238,7 +238,7 @@ describe('CommandPalette', () => {
       path: string;
       extra?: Partial<SearchResult>;
     }[] = [
-      { type: 'resource', title: 'A Space', path: '/spaces/floorplan?edit=x-1', extra: { resourceTypeKey: 'space' } },
+      { type: 'resource', title: 'A Space', path: '/resources/space/list?edit=x-1', extra: { resourceTypeKey: 'space' } },
       { type: 'resource', title: 'A Person', path: '/people/list?edit=x-1', extra: { resourceTypeKey: 'person' } },
       { type: 'group', title: 'A Tool Group', path: '/resources/tool/groups?edit=x-1', extra: { resourceTypeKey: 'tool' } },
       { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
@@ -250,7 +250,7 @@ describe('CommandPalette', () => {
       { type: 'template', title: 'A Template', path: '/settings/templates?edit=x-1' },
       { type: 'criterion', title: 'A Criterion', path: '/settings/criteria?edit=x-1' },
       { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
-      { type: 'group', title: 'A Space Group', path: '/spaces/groups?edit=x-1', extra: { resourceTypeKey: 'space' } },
+      { type: 'group', title: 'A Space Group', path: '/resources/space/groups?edit=x-1', extra: { resourceTypeKey: 'space' } },
     ];
 
     it.each(cases)('routes a $type result to $path', async ({ type, title, path, extra }) => {

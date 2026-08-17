@@ -103,6 +103,20 @@ public static class CapabilityFactory
                     rows.Add((tool.Id, criteria[SkillCatalog.MaxLoadTons], load.ToString(CultureInfo.InvariantCulture)));
             }
 
+            // Machines carry the skill their work needs, the same way the tools above do — a job
+            // requiring CNC operation is satisfiable by the mill it is booked onto.
+            foreach (var machine in cohort.Machines)
+            {
+                var skill = machine.Role switch
+                {
+                    MachineCatalog.MillRole => SkillCatalog.CncOperation,
+                    MachineCatalog.DrillRole => SkillCatalog.Drilling,
+                    MachineCatalog.AssemblyRole => SkillCatalog.Assembly,
+                    _ => null,
+                };
+                if (skill is not null) rows.Add((machine.Id, criteria[skill], "true"));
+            }
+
             // Spaces: QC rooms are clean rooms; the paint booth is ventilated. Rooms carry only
             // their own space-specs — never person-skills — so applicability stays honest
             // (person-skills→person, space-specs→space) and capability conflicts are checked against
@@ -144,9 +158,13 @@ public static class CapabilityFactory
 
     private static string[] TypesFor(string key) => key switch
     {
-        SkillCatalog.CncOperation => ["person", "tool"],
-        SkillCatalog.CleanRoom or SkillCatalog.Ventilated => ["space"],
-        SkillCatalog.MaxLoadTons => ["tool", "space"],
+        // CNC operation applies to the lathes that stayed tools and to the mills that became
+        // machines, so a job requiring it can be covered by either.
+        SkillCatalog.CncOperation => ["person", "tool", "mill"],
+        SkillCatalog.Drilling => ["person", "drill"],
+        SkillCatalog.Assembly => ["person", "assembly_station"],
+        SkillCatalog.CleanRoom or SkillCatalog.Ventilated => ["room"],
+        SkillCatalog.MaxLoadTons => ["tool", "room"],
         _ => ["person"],
     };
 
@@ -154,7 +172,8 @@ public static class CapabilityFactory
     {
         var result = new Dictionary<string, Guid>();
         await using var cmd = new NpgsqlCommand(
-            "SELECT key, id FROM public.resource_types WHERE key IN ('space','person','tool')", conn);
+            "SELECT key, id FROM public.resource_types WHERE key IN " +
+            "('room','person','tool','mill','drill','assembly_station')", conn);
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync()) result[reader.GetString(0)] = reader.GetGuid(1);
         return result;

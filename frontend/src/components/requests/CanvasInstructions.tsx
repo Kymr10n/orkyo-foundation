@@ -31,6 +31,13 @@ export function CanvasInstructions({
             : "Double-click to complete polygon"}
         </p>
       )}
+      {drawingMode === "circle" && (
+        <p>
+          {drawingPoints.length === 0
+            ? "Click to place the centre"
+            : "Click to set the radius"}
+        </p>
+      )}
       <p className="text-xs text-muted-foreground mt-1">
         Press ESC to cancel
       </p>

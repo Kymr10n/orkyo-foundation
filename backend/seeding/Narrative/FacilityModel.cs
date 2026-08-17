@@ -14,10 +14,14 @@ public enum JobCadence { Campaign, Routine, MonthlyPm, QuarterlyQa }
 public sealed record ToolSpec(string Name, string Role, string AllocationMode, int Count, double? MaxLoadTons = null);
 
 /// <summary>One kind of work. The lead assignee must hold every skill in <paramref name="RequiredSkills"/>.
-/// <paramref name="ToolRole"/> (optional) selects a same-facility tool.</summary>
+/// <paramref name="ToolRole"/> (optional) selects a same-facility tool; <paramref name="MachineRole"/>
+/// (optional) selects a same-facility machine — a placed resource booked like a room rather than
+/// fetched like a tool. A job can name either, and the two are kept separate so converting one kind
+/// of work to machines leaves every tool-driven facility untouched.</summary>
 public sealed record JobArchetype(
     string Verb, string Noun, string RoomCode, string[] RequiredSkills,
-    string? ToolRole, int MinHours, int MaxHours, JobCadence Cadence, int Weight = 1, int TeamSize = 1);
+    string? ToolRole, int MinHours, int MaxHours, JobCadence Cadence, int Weight = 1, int TeamSize = 1,
+    string? MachineRole = null);
 
 public sealed record Facility(
     string SiteCode,
@@ -33,20 +37,21 @@ public static class FacilityModel
         new Facility("PMF",
             Tools:
             [
-                new ToolSpec("CNC Mill", "cnc", "Exclusive", 4),
+                // Mills and assembly stations are placed machines now, not tools — see MachineCatalog.
                 new ToolSpec("CNC Lathe", "cnc", "Exclusive", 2),
-                new ToolSpec("Assembly Station", "assembly", "Exclusive", 2),
                 new ToolSpec("CMM Gauge", "qa", "Exclusive", 1),
                 new ToolSpec("Forklift", "forklift", "Fractional", 1, MaxLoadTons: 2.5),
             ],
             Archetypes:
             [
-                new JobArchetype("Machine", "precision components", "CNC",  [SkillCatalog.CncOperation], "cnc", 4, 8, JobCadence.Campaign, Weight: 4, TeamSize: 2),
-                new JobArchetype("Assemble", "sub-assemblies",      "ASSY", [SkillCatalog.Assembly],     "assembly", 4, 8, JobCadence.Routine, Weight: 3, TeamSize: 3),
+                new JobArchetype("Machine", "precision components", "CNC",  [SkillCatalog.CncOperation], null, 4, 8, JobCadence.Campaign, Weight: 4, TeamSize: 2, MachineRole: MachineCatalog.MillRole),
+                new JobArchetype("Turn", "shaft components",        "CNC",  [SkillCatalog.CncOperation], "cnc", 3, 6, JobCadence.Routine, Weight: 2, TeamSize: 1),
+                new JobArchetype("Drill", "fixture holes",          "CNC",  [SkillCatalog.Drilling],     null, 2, 4, JobCadence.Routine, Weight: 2, MachineRole: MachineCatalog.DrillRole),
+                new JobArchetype("Assemble", "sub-assemblies",      "ASSY", [SkillCatalog.Assembly],     null, 4, 8, JobCadence.Routine, Weight: 3, TeamSize: 3, MachineRole: MachineCatalog.AssemblyRole),
                 new JobArchetype("Inspect", "first-article batch",  "QC",   [SkillCatalog.QaInspection], "qa", 2, 4, JobCadence.Routine, Weight: 2, TeamSize: 2),
                 new JobArchetype("Receive", "raw stock",            "RAW",  [SkillCatalog.ForkliftLicense], "forklift", 1, 2, JobCadence.Routine, Weight: 2),
                 new JobArchetype("Ship", "finished goods",          "FIN",  [SkillCatalog.ForkliftLicense], "forklift", 1, 2, JobCadence.Routine, Weight: 2),
-                new JobArchetype("Service", "CNC machine",          "CNC",  [SkillCatalog.Maintenance], "cnc", 2, 4, JobCadence.MonthlyPm, TeamSize: 2),
+                new JobArchetype("Service", "CNC machine",          "CNC",  [SkillCatalog.Maintenance], null, 2, 4, JobCadence.MonthlyPm, TeamSize: 2, MachineRole: MachineCatalog.MillRole),
                 new JobArchetype("Audit", "quality system",         "QC",   [SkillCatalog.QaInspection], null, 4, 6, JobCadence.QuarterlyQa, TeamSize: 2),
             ],
             ConcurrentRoomCodes: ["RAW", "FIN"],
@@ -100,4 +105,9 @@ public static class FacilityModel
     /// facility's people cohort covers its work.</summary>
     public static IReadOnlyList<string> RequiredPersonSkills(Facility f) =>
         f.Archetypes.SelectMany(a => a.RequiredSkills).Distinct().ToList();
+
+    /// <summary>Every machine role the facility's work needs, so a scaffold test can prove the
+    /// machine catalog actually covers what the archetypes ask for.</summary>
+    public static IReadOnlyList<string> RequiredMachineRoles(Facility f) =>
+        f.Archetypes.Where(a => a.MachineRole is not null).Select(a => a.MachineRole!).Distinct().ToList();
 }

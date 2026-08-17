@@ -36,6 +36,11 @@ public class RequestRepositoryPartialScheduleTests
             MinimalDurationValue = 1,
             MinimalDurationUnit = DurationUnit.Hours,
             SchedulingSettingsApply = false,
+            // Explicit: these tests are about scheduling buckets, and "fully scheduled" means
+            // every target satisfied. Omitting targets now means every placeable type, so on a
+            // DB where other suites committed extra placeable types a space assignment alone
+            // would no longer count as fully scheduled.
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
         });
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<RequestInfo>())!.Id;

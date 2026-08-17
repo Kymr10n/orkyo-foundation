@@ -18,6 +18,8 @@ public interface IResourceTypeRepository
     /// <summary>Number of resources (active or not) referencing this type.</summary>
     Task<int> CountResourcesAsync(Guid id, CancellationToken ct = default);
     Task<int> CountRequestTargetsAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Keys of every active type that declares geometry — what "needs a place" means.</summary>
+    Task<IReadOnlyList<string>> GetPlaceableKeysAsync(CancellationToken ct = default);
 }
 
 public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -26,6 +28,14 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
     private const string SelectColumns =
         "id, key, display_name, display_name_plural, description, icon, has_geometry, "
         + "has_directory_profile, single_group_membership, is_system, is_active, created_at, updated_at";
+
+    public async Task<IReadOnlyList<string>> GetPlaceableKeysAsync(CancellationToken ct = default)
+    {
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        return await db.QueryListAsync(
+            "SELECT key FROM resource_types WHERE has_geometry AND is_active ORDER BY key",
+            null, r => r.GetString(0), ct);
+    }
 
     public async Task<List<ResourceTypeInfo>> GetAllAsync(CancellationToken ct = default)
     {

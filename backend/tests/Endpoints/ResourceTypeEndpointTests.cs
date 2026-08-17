@@ -25,7 +25,9 @@ public class ResourceTypeEndpointTests
 
         var types = await response.Content.ReadFromJsonAsync<List<ResourceTypeInfo>>();
         Assert.NotNull(types);
-        Assert.Contains(types, t => t.Key == "space" && t.IsSystem);
+        // Space is still seeded, but as an ordinary tenant type since migration 1800 — the
+        // tenant's to rename, retire or delete. Person and tool stay built in.
+        Assert.Contains(types, t => t.Key == "space" && !t.IsSystem);
         Assert.Contains(types, t => t.Key == "person" && t.IsSystem);
         Assert.Contains(types, t => t.Key == "tool" && t.IsSystem);
     }

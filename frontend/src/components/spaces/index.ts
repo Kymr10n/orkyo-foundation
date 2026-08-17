@@ -3,5 +3,4 @@
  */
 
 export { EditSpaceDialog } from "./EditSpaceDialog";
-export { SpaceCapabilitiesEditor } from "./SpaceCapabilitiesEditor";
 export { SpaceManagementPanel } from "./SpaceManagementPanel";

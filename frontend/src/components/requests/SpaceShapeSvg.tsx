@@ -1,6 +1,12 @@
 import { memo } from "react";
 import type { Coordinate, ResourceGeometry } from "@foundation/src/types/geometry";
 import { cn } from "@foundation/src/lib/utils";
+import {
+  SPACE_CANVAS_DEFAULT,
+  SPACE_CANVAS_DRAGGING,
+  SPACE_CANVAS_LABEL,
+  SPACE_CANVAS_SELECTED,
+} from "@foundation/src/components/utilization/schedule-colors";
 
 interface SpaceShapeSvgProps {
   // Nullable to match the wire shape, where an absent code or geometry is null.
@@ -36,17 +42,16 @@ export const SpaceShapeSvg = memo(function SpaceShapeSvg({
     ? "pointer-events-none"
     : cn("hover:opacity-80", editEnabled ? "cursor-move" : "cursor-pointer");
 
-  const customColors = spaceColors?.[space.id];
-  const fillColor = isDragging
-    ? "rgba(59, 130, 246, 0.5)"
+  // Occupancy colours when the caller has them (the utilization floorplan), otherwise the shared
+  // default — which is what the Floorplan management page always gets, since a station there has
+  // no status to show. All four live beside the calendar and grid tokens so the surfaces cannot
+  // drift apart.
+  const colors = isDragging
+    ? SPACE_CANVAS_DRAGGING
     : isSelected
-      ? "rgba(59, 130, 246, 0.3)"
-      : customColors?.fill ?? "rgba(148, 163, 184, 0.2)";
-  const strokeColor = isDragging
-    ? "#2563eb"
-    : isSelected
-      ? "#3b82f6"
-      : customColors?.stroke ?? "#94a3b8";
+      ? SPACE_CANVAS_SELECTED
+      : spaceColors?.[space.id] ?? SPACE_CANVAS_DEFAULT;
+  const { fill: fillColor, stroke: strokeColor } = colors;
   const strokeDasharray = isDragging ? "5,5" : undefined;
 
   if (space.geometry.type === "rectangle") {
@@ -88,7 +93,7 @@ export const SpaceShapeSvg = memo(function SpaceShapeSvg({
           textAnchor="middle"
           dominantBaseline="middle"
           className="text-xs font-medium pointer-events-none"
-          fill="#1e293b"
+          fill={SPACE_CANVAS_LABEL}
         >
           {space.code || space.name}
         </text>
@@ -165,7 +170,7 @@ export const SpaceShapeSvg = memo(function SpaceShapeSvg({
           textAnchor="middle"
           dominantBaseline="middle"
           className="text-xs font-medium pointer-events-none"
-          fill="#1e293b"
+          fill={SPACE_CANVAS_LABEL}
         >
           {space.code || space.name}
         </text>
@@ -187,6 +192,53 @@ export const SpaceShapeSvg = memo(function SpaceShapeSvg({
               data-handle-index={i}
             />
           ))}
+      </g>
+    );
+  } else if (space.geometry.type === "circle") {
+    // Stored as [centre, rimPoint]. The centre is never substituted during a resize — dragging the
+    // rim changes the radius and nothing else, so the shape cannot drift while being resized.
+    const [centre, rim] = space.geometry.coordinates;
+    const livePoint = resizePreview?.handleIndex === 1 ? resizePreview.mousePosition : rim;
+    const radius = Math.hypot(livePoint.x - centre.x, livePoint.y - centre.y);
+
+    return (
+      <g key={space.id} data-space-id={space.id} className={shapeClassName}>
+        <circle
+          cx={centre.x}
+          cy={centre.y}
+          r={radius}
+          fill={fillColor}
+          stroke={strokeColor}
+          strokeWidth="2"
+          strokeDasharray={strokeDasharray}
+        />
+        <text
+          x={centre.x}
+          y={centre.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="text-xs font-medium pointer-events-none"
+          fill={SPACE_CANVAS_LABEL}
+        >
+          {space.code || space.name}
+        </text>
+
+        {/* One handle, sitting on the rim where the pointer left it rather than at a fixed
+            bearing, so the grab point stays under the cursor through the drag. */}
+        {showResizeHandles && (
+          <circle
+            cx={livePoint.x}
+            cy={livePoint.y}
+            r="6"
+            fill="#3b82f6"
+            stroke="white"
+            strokeWidth="2"
+            className="cursor-nwse-resize"
+            data-resize-handle="true"
+            data-space-id={space.id}
+            data-handle-index="1"
+          />
+        )}
       </g>
     );
   }

@@ -52,41 +52,6 @@ public class ResourceCustomFieldService(
     public const int MaxPickedRows = 100;
 
     /// <summary>
-    /// Rejects a required field on the one type whose resources cannot carry one: the built-in
-    /// space.
-    ///
-    /// foundation#110 landed the contract half — the generic create/update requests carry custom
-    /// field values and EditSpaceDialog renders them — so the *edit* path is covered. The guard
-    /// stays because of the create path: a space is created by drawing it on the floorplan, and
-    /// that flow sends no values, so a required field would make new spaces unsaveable. Lifting
-    /// this needs the drawing flow to carry them too; a test that made a space field required
-    /// proved the point by breaking every later test that created a space.
-    /// </summary>
-    /// <remarks>
-    /// Scoped to the system space type on purpose, not to placeable types in general: a
-    /// tenant-defined placeable type is created through /api/resources like everything else,
-    /// and that carries values fine. Nor is it extended to a type some *dialog* happens not to
-    /// ask on — that is a gap in the client, and the API would be the wrong place to encode it.
-    ///
-    /// The check runs on create and update rather than being a true invariant, but the one type
-    /// it covers cannot escape it: a system type's behaviour flags are immutable
-    /// (<see cref="ResourceTypeService"/>), so `space` can never stop being placeable, and no
-    /// other type can become the space endpoint's target.
-    /// </remarks>
-    private static void EnsureRequirable(ResourceTypeInfo resourceType, bool isRequired)
-    {
-        if (!isRequired) return;
-
-        if (resourceType is { IsSystem: true, HasGeometry: true })
-        {
-            throw new ArgumentException(
-                $"'{resourceType.DisplayName}' resources are created from the floorplan, on a form "
-                + "that does not ask for custom fields, so a field on this type cannot be required. "
-                + "Add it as optional instead.");
-        }
-    }
-
-    /// <summary>
     /// A list field is defined by what it points at, so the binding is checked here rather than
     /// left to the CHECK constraint: the constraint knows a binding is missing, this knows which
     /// one and whether it names something that exists and is still open for use.
@@ -188,7 +153,6 @@ public class ResourceCustomFieldService(
         var resourceType = await resourceTypeRepository.GetByIdAsync(resourceTypeId, ct);
         if (resourceType is null) return null;
 
-        EnsureRequirable(resourceType, request.IsRequired);
         await EnsureBindingAsync(request, ct);
 
         // The duplicate key is caught by the unique constraint rather than a read-then-insert,
@@ -201,12 +165,6 @@ public class ResourceCustomFieldService(
     {
         var existing = await repository.GetByIdAsync(fieldId, ct);
         if (existing is null || existing.ResourceTypeId != resourceTypeId) return null;
-
-        if (request.IsRequired == true
-            && await resourceTypeRepository.GetByIdAsync(resourceTypeId, ct) is { } resourceType)
-        {
-            EnsureRequirable(resourceType, isRequired: true);
-        }
 
         return await repository.UpdateAsync(fieldId, request, ct);
     }

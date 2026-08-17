@@ -106,14 +106,16 @@ public class SchedulingProblemBuilderTypeTests
     }
 
     [Fact]
-    public async Task OmittingTheTypeStillMeansSpaces()
+    public async Task OmittingTheType_Throws_ResolutionBelongsToTheService()
     {
-        // Every run meant spaces before the type was selectable; existing callers keep working.
-        var (builder, filters) = Build([], []);
+        // The builder used to guess `space` on its own; the guess and the fingerprint's separate
+        // guess agreed only by luck. AutoScheduleService now resolves the type from the tenant's
+        // placeable types before building, so a null reaching this far is a programming error and
+        // must say so rather than quietly solving for the wrong pool.
+        var (builder, _) = Build([], []);
 
-        await builder.BuildAsync(Preview(null), CancellationToken.None);
-
-        filters[0].ResourceTypeKey.Should().Be(ResourceTypeKeys.Space);
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => builder.BuildAsync(Preview(null), CancellationToken.None));
     }
 
     [Fact]

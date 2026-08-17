@@ -45,6 +45,14 @@ public class TenantResetTruncateListTests
     [InlineData("resource_capabilities")]   // skill/spec capabilities — narrative demo
     [InlineData("availability_events")]     // holidays / shutdowns — narrative demo
     [InlineData("resource_absences")]       // vacation / sickness / training — narrative demo
+    // Tenant-defined shape seeded alongside the machines. None of these is a child of a table
+    // already listed — a shared list instance has no resource_id — so leaving one out means the
+    // next `--mode reset` run dies on a unique constraint rather than starting clean.
+    [InlineData("resource_custom_fields")]
+    [InlineData("list_definitions")]
+    [InlineData("list_columns")]
+    [InlineData("list_instances")]
+    [InlineData("list_rows")]
     public void TablesToTruncate_ContainsExpectedTable(string tableName)
     {
         TablesToTruncate.Should().Contain(tableName,

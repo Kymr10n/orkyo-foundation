@@ -428,13 +428,19 @@ public class RequestRepository : IRequestRepository
 
             // Targets first: they are what the assignment write validates against.
             //
-            // A caller that says nothing means a space, which is what every request meant
-            // before types could be named. Stated explicitly rather than left empty: an empty
-            // target list is a real state (a request needing no resource) and must not be
+            // A caller that says nothing means "this needs a place" — ONE place. Targeting every
+            // placeable type would mean needing a room *and* a mill *and* a drill, which no
+            // request wants and nothing could satisfy. So: the tenant's single placeable type,
+            // preferring `space` where it still exists so the historical meaning is unchanged,
+            // and falling to the lowest key otherwise. Stated explicitly rather than left empty —
+            // an empty target list is a real state (a request needing no resource) and must not be
             // reachable by omission.
-            await WriteTargetResourceTypesAsync(
-                db, transaction, requestId,
-                request.TargetResourceTypeKeys ?? [ResourceTypeKeys.Space], ct);
+            var targets = request.TargetResourceTypeKeys
+                ?? await db.QueryListAsync(
+                    "SELECT key FROM resource_types WHERE has_geometry AND is_active "
+                    + "ORDER BY (key = 'space') DESC, key LIMIT 1",
+                    null, r => r.GetString(0), ct);
+            await WriteTargetResourceTypesAsync(db, transaction, requestId, targets, ct);
 
             // Create resource assignment if a resource + time window was provided.
             if (request.ResourceIds is { Count: > 0 } newResources

@@ -1,17 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CreateSpaceDialog } from './CreateSpaceDialog';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
+
+// The chosen type's custom fields — none by default, so submit stays enabled. The required-field
+// gate has its own case below.
+const mockGetResourceCustomFields = vi.fn();
+vi.mock('@foundation/src/lib/api/resource-custom-fields-api', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    getResourceCustomFields: (...args: unknown[]) => mockGetResourceCustomFields(...args),
+  };
+});
 import type { ResourceGeometry } from '@foundation/src/types/geometry';
 
-// The dialog reads the tenant's placeable types to decide whether to ask which one is being
-// drawn. One type by default, so the picker stays hidden and the key is implied.
-const mockResourceTypes = vi.fn(() => ({
-  data: [{ id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true }],
-  isSuccess: true,
-}));
-vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
-  useResourceTypes: (...args: unknown[]) => mockResourceTypes(...(args as [])),
-}));
 
 const mockGeometry: ResourceGeometry = {
   type: 'rectangle',
@@ -29,15 +32,23 @@ const defaultProps = {
   geometry: mockGeometry,
   onSubmit: vi.fn().mockResolvedValue(undefined),
   siteId: 'site-1',
+  // The toolbar decides the type before the shape is drawn; the dialog is only told.
+  resourceTypeKey: 'space',
+  resourceTypeId: 'type-space',
+  resourceTypeLabel: 'Space',
 };
 
 function renderDialog(props: Partial<React.ComponentProps<typeof CreateSpaceDialog>> = {}) {
-  return render(<CreateSpaceDialog {...defaultProps} {...props} />);
+  // The dialog asks for the chosen type's custom fields, so it needs a query client in scope.
+  return render(<CreateSpaceDialog {...defaultProps} {...props} />, {
+    wrapper: createTestQueryWrapper(),
+  });
 }
 
 describe('CreateSpaceDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetResourceCustomFields.mockResolvedValue([]);
   });
 
   it('renders dialog title and description', () => {
@@ -63,6 +74,7 @@ describe('CreateSpaceDialog', () => {
     fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
       target: { value: '   ' },
     });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
     expect(screen.getByText('Name is required')).toBeInTheDocument();
   });
@@ -78,6 +90,7 @@ describe('CreateSpaceDialog', () => {
     fireEvent.change(screen.getByPlaceholderText(/Optional description/), {
       target: { value: 'My zone' },
     });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
 
     await waitFor(() => {
@@ -93,6 +106,7 @@ describe('CreateSpaceDialog', () => {
         crossSiteAllowed: false,
         isPhysical: true,
         geometry: mockGeometry,
+        customFields: {},
       });
     });
   });
@@ -102,6 +116,7 @@ describe('CreateSpaceDialog', () => {
     fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
       target: { value: 'Zone B' },
     });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
 
     await waitFor(() => {
@@ -121,6 +136,7 @@ describe('CreateSpaceDialog', () => {
     fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
       target: { value: 'Zone A' },
     });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
 
     await waitFor(() => {
@@ -153,6 +169,7 @@ describe('CreateSpaceDialog', () => {
     fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
       target: { value: 'Zone A' },
     });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
 
     await waitFor(() => {
@@ -160,38 +177,56 @@ describe('CreateSpaceDialog', () => {
     });
   });
 
-  it('does not ask which type when only one thing can be placed', () => {
-    // A tenant with only the built-in space type is never asked a question with one answer.
-    renderDialog();
-    expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
+  it('shows the type it was told to create, as context rather than a choice', () => {
+    renderDialog({ resourceTypeLabel: 'Booth' });
+
+    expect(screen.getByText('Type: Booth')).toBeInTheDocument();
+    // The choice belongs to the toolbar now — the shape already means something when it is drawn.
+    expect(screen.queryByLabelText('Station type')).not.toBeInTheDocument();
   });
 
-  it('asks which type is being drawn when the tenant has more than one', async () => {
-    mockResourceTypes.mockReturnValue({
-      data: [
-        { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true },
-        { id: 'type-booth', key: 'booth', displayName: 'Booth', displayNamePlural: 'Booths', hasGeometry: true, isActive: true },
-      ],
-      isSuccess: true,
+  it('submits the type it was given', async () => {
+    renderDialog({ resourceTypeKey: 'booth' });
+    fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
+      target: { value: 'Booth 1' },
     });
-    renderDialog();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
 
-    expect(screen.getByLabelText('Type')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(defaultProps.onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceTypeKey: 'booth' }),
+      ),
+    );
   });
 
-  it('leaves non-placeable types out of the picker', () => {
-    // A person cannot be drawn on a floorplan, so offering the type would create a resource the
-    // backend rejects.
-    mockResourceTypes.mockReturnValue({
-      data: [
-        { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true },
-        { id: 'type-person', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, isActive: true },
-      ],
-      isSuccess: true,
-    });
+  it('holds the create until required custom fields are answered', async () => {
+    // The reason this dialog asks at all: it used to send no custom fields, which forced the API
+    // to refuse required fields on the built-in placeable type — the only create path could never
+    // satisfy them. With the form asking, that guard could be deleted.
+    mockGetResourceCustomFields.mockResolvedValue([
+      {
+        id: 'f-1', resourceTypeId: 'type-space', key: 'fire_rating', label: 'Fire rating',
+        dataType: 'text', isRequired: true, sortOrder: 0, isActive: true,
+      },
+    ]);
     renderDialog();
+    fireEvent.change(screen.getByPlaceholderText(/Assembly Zone/), {
+      target: { value: 'Zone A' },
+    });
 
-    // Only one placeable type remains, so there is still nothing to ask.
-    expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
+    await screen.findByLabelText(/Fire rating/);
+    expect(screen.getByRole('button', { name: 'Create Space' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Fire rating/), { target: { value: 'F30' } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create Space' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Create Space' }));
+
+    await waitFor(() =>
+      expect(defaultProps.onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ customFields: { fire_rating: 'F30' } }),
+      ),
+    );
   });
 });

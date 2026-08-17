@@ -9,20 +9,25 @@ vi.mock('@foundation/src/store/app-store', () => ({ useAppStore: vi.fn() }));
 vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
   usePlaceableResources: vi.fn(),
   useDeletePlaceableResource: vi.fn(),
+  useCreatePlaceableResource: vi.fn(),
 }));
 vi.mock('./EditSpaceDialog', () => ({
   EditSpaceDialog: ({ space }: { space: { name: string } }) => (
     <div data-testid="edit-dialog">edit:{space.name}</div>
   ),
 }));
-vi.mock('./SpaceCapabilitiesEditor', () => ({
-  SpaceCapabilitiesEditor: ({ spaceName }: { spaceName: string }) => (
-    <div data-testid="capabilities-editor">caps:{spaceName}</div>
+vi.mock('@foundation/src/components/resources/ResourceCapabilitiesEditor', () => ({
+  ResourceCapabilitiesEditor: ({ resourceName }: { resourceName: string }) => (
+    <div data-testid="capabilities-editor">caps:{resourceName}</div>
   ),
 }));
 
 import { useAppStore } from '@foundation/src/store/app-store';
-import { usePlaceableResources, useDeletePlaceableResource } from '@foundation/src/hooks/usePlaceableResources';
+import {
+  usePlaceableResources,
+  useDeletePlaceableResource,
+  useCreatePlaceableResource,
+} from '@foundation/src/hooks/usePlaceableResources';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
 
@@ -58,15 +63,21 @@ async function openRowMenu(user: ReturnType<typeof userEvent.setup>, name: strin
 
 describe('SpaceListView', () => {
   let mutateAsync: ReturnType<typeof vi.fn>;
+  let createMutateAsync: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     setSite('site-1');
     mutateAsync = vi.fn().mockResolvedValue(undefined);
+    createMutateAsync = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useDeletePlaceableResource).mockReturnValue({
       mutateAsync,
       isPending: false,
     } as unknown as ReturnType<typeof useDeletePlaceableResource>);
+    vi.mocked(useCreatePlaceableResource).mockReturnValue({
+      mutateAsync: createMutateAsync,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreatePlaceableResource>);
     vi.mocked(usePlaceableResources).mockReturnValue({
       data: spaces,
       isLoading: false,
@@ -105,7 +116,7 @@ describe('SpaceListView', () => {
     await waitFor(() => expect(screen.getByTestId('edit-dialog').textContent).toBe('edit:Lobby'));
   });
 
-  it('opens SpaceCapabilitiesEditor when the row Settings action fires', async () => {
+  it('opens the generic capabilities editor when the row Settings action fires', async () => {
     const user = userEvent.setup();
     render(<SpaceListView />, { wrapper: createWrapper() });
     await openRowMenu(user, 'Lobby');
@@ -130,5 +141,18 @@ describe('SpaceListView', () => {
     await user.click(screen.getByRole('menuitem', { name: /Delete Space/ }));
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('duplicates a station from the row menu, without its code', async () => {
+    // The floorplan offers the same action on right-click, but an SVG shape is not focusable —
+    // this row is how it is reached from the keyboard.
+    const user = userEvent.setup();
+    render(<SpaceListView />, { wrapper: createWrapper() });
+
+    await user.click(await screen.findByRole('button', { name: /Actions for Lobby/ }));
+    await user.click(await screen.findByRole('menuitem', { name: /Duplicate/ }));
+
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalled());
+    expect(createMutateAsync.mock.calls[0][0].code).toBeUndefined();
   });
 });

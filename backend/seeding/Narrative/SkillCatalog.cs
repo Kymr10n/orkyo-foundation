@@ -37,6 +37,7 @@ public static class SkillCatalog
     public const string Grinding = "grinding";
     public const string Maintenance = "maintenance";
     public const string WeldingCert = "welding_cert";
+    public const string Drilling = "drilling";
 
     // ── Space / tool specs (display-only) ─────────────────────────────────────
     public const string CleanRoom = "clean_room";
@@ -58,6 +59,7 @@ public static class SkillCatalog
         new(Grinding,         "Grinding & Finishing",  "Boolean", null, null, SkillKind.Person),
         new(Maintenance,      "Maintenance",           "Boolean", null, null, SkillKind.Person),
         new(WeldingCert,      "Welding Certification", "Enum",    WeldingCertValues, null, SkillKind.Person),
+        new(Drilling,         "Drilling",              "Boolean", null, null, SkillKind.Person),
 
         new(CleanRoom,        "Clean Room",            "Boolean", null, null, SkillKind.SpaceSpec),
         new(Ventilated,       "Ventilated",            "Boolean", null, null, SkillKind.SpaceSpec),

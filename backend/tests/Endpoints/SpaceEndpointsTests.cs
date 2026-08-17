@@ -124,6 +124,66 @@ public class SpaceEndpointsTests
     }
 
     [Fact]
+    public async Task CreateSpace_WithValidCircleGeometry_ReturnsCreatedSpace()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var uniqueCode = $"C-{Guid.NewGuid():N}".Substring(0, 10);
+        var request = new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            Name = "Round Table",
+            Code = uniqueCode,
+            IsPhysical = true,
+            Geometry = new ResourceGeometry
+            {
+                Type = "circle",
+                Coordinates = new List<Coordinate>
+                {
+                    new() { X = 200, Y = 200 },  // centre
+                    new() { X = 250, Y = 200 },  // rim -> r 50
+                }
+            }
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/resources", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var space = await response.Content.ReadFromJsonAsync<ResourceInfo>();
+        Assert.Equal("circle", space!.Geometry?.Type);
+        // Both points survive the round trip — the rim is data, not a derived value.
+        Assert.Equal(2, space.Geometry?.Coordinates.Count);
+        Assert.Equal(200, space.Geometry?.Coordinates[0].X);
+        Assert.Equal(250, space.Geometry?.Coordinates[1].X);
+    }
+
+    [Fact]
+    public async Task CreateSpace_CircleWithOneCoordinate_ReturnsBadRequest()
+    {
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var request = new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            Name = "Centre without a rim",
+            IsPhysical = true,
+            Geometry = new ResourceGeometry
+            {
+                Type = "circle",
+                Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 } }
+            }
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/resources", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateSpace_VirtualSpace_NoGeometryRequired()
     {
         // Arrange
@@ -252,8 +312,11 @@ public class SpaceEndpointsTests
             IsPhysical = true,
             Geometry = new ResourceGeometry
             {
-                Type = "circle", // Only rectangle and polygon are valid
-                Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 } }
+                // Must be a type the allow-list has never heard of. This fixture used to say
+                // "circle", which stopped testing what it means to test the day circles became
+                // valid — it would still have failed the request, but on the coordinate count.
+                Type = "hexagon",
+                Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 }, new() { X = 10, Y = 10 } }
             }
         };
 

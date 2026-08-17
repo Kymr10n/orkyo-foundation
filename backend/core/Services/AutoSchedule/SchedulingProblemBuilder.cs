@@ -48,7 +48,11 @@ public class SchedulingProblemBuilder
         // One run solves one resource type: the pool is a single type, and the solver's
         // no-overlap-per-node model has nothing to say about matching a room to a van. A request
         // needing both is scheduled by two runs, one per type, each filling its own slot.
-        var targetTypeKey = request.ResourceTypeKey ?? ResourceTypeKeys.Space;
+        // The type is resolved by AutoScheduleService before this is called; a null here means a
+        // caller skipped that resolution, and guessing a default would hide it.
+        var targetTypeKey = request.ResourceTypeKey
+            ?? throw new ArgumentException(
+                "ResourceTypeKey must be resolved before building the problem.", nameof(request));
 
         var eligibleRequests = unscheduled
             .Concat(partiallyScheduled)
