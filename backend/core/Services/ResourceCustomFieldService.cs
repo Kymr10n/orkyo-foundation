@@ -52,15 +52,10 @@ public class ResourceCustomFieldService(
     public const int MaxPickedRows = 100;
 
     /// <summary>
-    /// A list field is defined by what it points at, so the binding is checked here rather than
-    /// left to the CHECK constraint: the constraint knows a binding is missing, this knows which
-    /// one and whether it names something that exists and is still open for use.
-    /// </summary>
-    /// <summary>
     /// A lookup value is the set of rows the resource picked out of one shared instance: an array
-    /// of row ids, each of which has to still exist in that instance.
+    /// of row ids. Shape only — the ids' existence is checked in one batch by the caller.
     /// </summary>
-    private async Task ValidateLookupAsync(ResourceCustomFieldInfo field, JsonElement value, CancellationToken ct)
+    private static List<Guid> ParseLookupIds(ResourceCustomFieldInfo field, JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Array)
             throw new ArgumentException($"Custom field '{field.Label}' expects a list of selected rows");
@@ -80,13 +75,14 @@ public class ResourceCustomFieldService(
         if (ids.Distinct().Count() != ids.Count)
             throw new ArgumentException($"Custom field '{field.Label}' has the same row selected twice");
 
-        // One batched existence check rather than a query per id: a hundred picked rows would
-        // otherwise be a hundred round trips on every resource save.
-        var instanceId = field.ListInstanceId!.Value;
-        if (await listInstanceRepository.CountExistingRowsAsync(instanceId, ids, ct) != ids.Count)
-            throw new ArgumentException($"Custom field '{field.Label}' selects a row that no longer exists");
+        return ids;
     }
 
+    /// <summary>
+    /// A list field is defined by what it points at, so the binding is checked here rather than
+    /// left to the CHECK constraint: the constraint knows a binding is missing, this knows which
+    /// one and whether it names something that exists and is still open for use.
+    /// </summary>
     private async Task EnsureBindingAsync(CreateResourceCustomFieldRequest request, CancellationToken ct)
     {
         switch (request.DataType)
@@ -183,6 +179,11 @@ public class ResourceCustomFieldService(
         var definitions = await repository.GetByResourceTypeAsync(resourceTypeId, ct);
         var byKey = definitions.ToDictionary(f => f.Key, StringComparer.Ordinal);
 
+        // Existence checks are collected across the loop and run as one round trip below, so a
+        // save with several lookup fields pays one query instead of one per field. Shape errors
+        // therefore surface before existence errors — deliberate, and pinned by the tests.
+        var lookupChecks = new List<(ResourceCustomFieldInfo Field, List<Guid> Ids)>();
+
         foreach (var (key, value) in values)
         {
             if (!byKey.TryGetValue(key, out var field))
@@ -201,11 +202,23 @@ public class ResourceCustomFieldService(
 
             if (field.DataType == CustomFieldDataTypes.ListLookup)
             {
-                await ValidateLookupAsync(field, value, ct);
+                lookupChecks.Add((field, ParseLookupIds(field, value)));
                 continue;
             }
 
             CustomFieldValueRules.Validate($"Custom field '{field.Label}'", field.DataType, value);
+        }
+
+        if (lookupChecks.Count > 0)
+        {
+            var found = await listInstanceRepository.CountExistingRowsBatchAsync(
+                lookupChecks.Select(c => (c.Field.ListInstanceId!.Value, (IReadOnlyList<Guid>)c.Ids)).ToList(), ct);
+            for (var i = 0; i < lookupChecks.Count; i++)
+            {
+                if (found[i] != lookupChecks[i].Ids.Count)
+                    throw new ArgumentException(
+                        $"Custom field '{lookupChecks[i].Field.Label}' selects a row that no longer exists");
+            }
         }
 
         // Only active fields can be required: a field retired while resources still lack a value

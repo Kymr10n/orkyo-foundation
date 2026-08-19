@@ -13,6 +13,11 @@ public interface IListInstanceRepository
     /// <summary>The named instances of one definition, by name.</summary>
     Task<List<ListInstanceInfo>> GetSharedByDefinitionAsync(Guid definitionId, CancellationToken ct = default);
 
+    /// <summary>The named instances of many definitions, keyed by definition id, per-definition by
+    /// name. One round trip; a definition with no shared instances is absent from the result.</summary>
+    Task<Dictionary<Guid, List<ListInstanceInfo>>> GetSharedByDefinitionsAsync(
+        IReadOnlyList<Guid> definitionIds, CancellationToken ct = default);
+
     Task<ListInstanceInfo> CreateSharedAsync(Guid definitionId, CreateListInstanceRequest request, CancellationToken ct = default);
     Task<ListInstanceInfo?> UpdateSharedAsync(Guid id, UpdateListInstanceRequest request, CancellationToken ct = default);
 
@@ -34,6 +39,12 @@ public interface IListInstanceRepository
         Guid definitionId, Guid resourceId, Guid fieldId, CancellationToken ct = default);
 
     Task<List<ListRowInfo>> GetRowsAsync(Guid instanceId, CancellationToken ct = default);
+
+    /// <summary>The rows of many instances, keyed by instance id, per-instance in insertion order.
+    /// One round trip; an instance with no rows is absent from the result.</summary>
+    Task<Dictionary<Guid, List<ListRowInfo>>> GetRowsByInstancesAsync(
+        IReadOnlyList<Guid> instanceIds, CancellationToken ct = default);
+
     Task<ListRowInfo?> GetRowAsync(Guid rowId, CancellationToken ct = default);
     Task<ListRowInfo> CreateRowAsync(Guid instanceId, IReadOnlyDictionary<string, JsonElement> values, CancellationToken ct = default);
     Task<ListRowInfo?> UpdateRowAsync(Guid rowId, IReadOnlyDictionary<string, JsonElement> values, CancellationToken ct = default);
@@ -46,6 +57,12 @@ public interface IListInstanceRepository
 
     /// <summary>How many of <paramref name="rowIds"/> exist in one instance. Batched: one round trip.</summary>
     Task<int> CountExistingRowsAsync(Guid instanceId, IReadOnlyList<Guid> rowIds, CancellationToken ct = default);
+
+    /// <summary>Found-row count per check, one round trip for all of them. <c>checks[i]</c> pairs an
+    /// instance with the row ids picked from it; the result is index-aligned with the input, so two
+    /// checks against the same instance stay distinct.</summary>
+    Task<IReadOnlyList<int>> CountExistingRowsBatchAsync(
+        IReadOnlyList<(Guid InstanceId, IReadOnlyList<Guid> RowIds)> checks, CancellationToken ct = default);
 
     Task<int> CountRowsAsync(Guid instanceId, CancellationToken ct = default);
 }
@@ -78,6 +95,30 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             $"SELECT {InstanceColumns} FROM list_instances "
             + "WHERE list_definition_id = @id AND kind = 'shared' ORDER BY name",
             p => p.AddWithValue("id", definitionId), MapInstance, ct);
+    }
+
+    public async Task<Dictionary<Guid, List<ListInstanceInfo>>> GetSharedByDefinitionsAsync(
+        IReadOnlyList<Guid> definitionIds, CancellationToken ct = default)
+    {
+        if (definitionIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        var rows = await db.QueryListAsync(
+            $"SELECT {InstanceColumns} FROM list_instances "
+            + "WHERE list_definition_id = ANY(@ids) AND kind = 'shared' "
+            + "ORDER BY list_definition_id, name",
+            p => p.AddWithValue("ids", definitionIds.ToArray()), MapInstance, ct);
+
+        var map = new Dictionary<Guid, List<ListInstanceInfo>>();
+        foreach (var row in rows)
+        {
+            if (!map.TryGetValue(row.ListDefinitionId, out var list))
+            {
+                list = [];
+                map[row.ListDefinitionId] = list;
+            }
+            list.Add(row);
+        }
+        return map;
     }
 
     public async Task<ListInstanceInfo> CreateSharedAsync(
@@ -184,6 +225,29 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             p => p.AddWithValue("id", instanceId), MapRow, ct);
     }
 
+    public async Task<Dictionary<Guid, List<ListRowInfo>>> GetRowsByInstancesAsync(
+        IReadOnlyList<Guid> instanceIds, CancellationToken ct = default)
+    {
+        if (instanceIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        var rows = await db.QueryListAsync(
+            $"SELECT {RowColumns} FROM list_rows WHERE list_instance_id = ANY(@ids) "
+            + "ORDER BY list_instance_id, created_at, id",
+            p => p.AddWithValue("ids", instanceIds.ToArray()), MapRow, ct);
+
+        var map = new Dictionary<Guid, List<ListRowInfo>>();
+        foreach (var row in rows)
+        {
+            if (!map.TryGetValue(row.ListInstanceId, out var list))
+            {
+                list = [];
+                map[row.ListInstanceId] = list;
+            }
+            list.Add(row);
+        }
+        return map;
+    }
+
     public async Task<ListRowInfo?> GetRowAsync(Guid rowId, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
@@ -282,6 +346,43 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
                 p.AddWithValue("instanceId", instanceId);
                 p.AddWithValue("ids", rowIds.ToArray());
             }, r => r.GetInt32("n"), ct);
+    }
+
+    public async Task<IReadOnlyList<int>> CountExistingRowsBatchAsync(
+        IReadOnlyList<(Guid InstanceId, IReadOnlyList<Guid> RowIds)> checks, CancellationToken ct = default)
+    {
+        var results = new int[checks.Count];
+        // Flatten to three parallel arrays, one element per picked row id, keyed by the check's
+        // index rather than its instance — two checks may legally target the same instance.
+        var checkIdx = new List<int>();
+        var instanceIds = new List<Guid>();
+        var rowIds = new List<Guid>();
+        for (var i = 0; i < checks.Count; i++)
+        {
+            foreach (var rowId in checks[i].RowIds)
+            {
+                checkIdx.Add(i);
+                instanceIds.Add(checks[i].InstanceId);
+                rowIds.Add(rowId);
+            }
+        }
+        if (rowIds.Count == 0) return results;
+
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        await db.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            @"SELECT v.check_idx, COUNT(r.id)::int AS n
+              FROM unnest(@checkIdx, @instanceIds, @rowIds) AS v(check_idx, instance_id, row_id)
+              JOIN list_rows r ON r.id = v.row_id AND r.list_instance_id = v.instance_id
+              GROUP BY v.check_idx", db);
+        cmd.Parameters.AddWithValue("checkIdx", checkIdx.ToArray());
+        cmd.Parameters.AddWithValue("instanceIds", instanceIds.ToArray());
+        cmd.Parameters.AddWithValue("rowIds", rowIds.ToArray());
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            results[reader.GetInt32(0)] = reader.GetInt32(1);
+        return results;
     }
 
     public async Task<int> CountRowsAsync(Guid instanceId, CancellationToken ct = default)

@@ -91,9 +91,8 @@ public class PresetService : IPresetService
 
         // Export follows the same rule as apply: groups of every placeable type, since that is
         // what the floorplan the preset captures actually holds.
-        var groups = new List<ResourceGroupInfo>();
-        foreach (var key in await _resourceTypeRepo.GetPlaceableKeysAsync(ct))
-            groups.AddRange(await _resourceGroupRepo.GetByTypeKeyAsync(key, ct));
+        var groups = await _resourceGroupRepo.GetByTypeKeysAsync(
+            await _resourceTypeRepo.GetPlaceableKeysAsync(ct), ct);
         var presetGroups = groups.Select(g => new PresetSpaceGroup
         {
             Key = GenerateKey(g.Name),

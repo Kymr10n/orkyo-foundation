@@ -81,22 +81,26 @@ public class PersonProfileRepository(
         // A plain UPDATE: the row is the resource, which already exists, so there is no
         // insert-or-conflict case left. linked_user_id is untouched (link/unlink have their own
         // endpoints). No foreign keys are written here any more, so 23503 has nothing to catch.
-        await db.ExecuteAsync(@"
+        // RETURNING mirrors SelectSqlBody's column order, so Map applies; the BEFORE UPDATE
+        // trigger's updated_at is already visible in it. Notes come back as ciphertext — Dec
+        // decrypts, exactly as every read path does.
+        var saved = await db.QuerySingleOrDefaultAsync(@"
             UPDATE resources p SET
                 email = @email,
                 notes = @notes
             FROM resource_types rt
             WHERE rt.id = p.resource_type_id AND rt.has_directory_profile
-              AND p.id = @resourceId",
+              AND p.id = @resourceId
+            RETURNING p.id AS resource_id, p.email::text AS email,
+                      p.linked_user_id, p.notes, p.created_at, p.updated_at",
             p =>
             {
                 p.AddWithValue("resourceId", resourceId);
                 p.AddNullable("email", request.Email);
                 p.AddNullable("notes", encryption.ProtectString(request.Notes, orgContext.OrgId));
-            }, ct);
+            }, Map, ct);
 
-        var saved = await GetByResourceIdAsync(resourceId, ct);
-        return saved ?? throw new InvalidOperationException("Upsert failed");
+        return saved is null ? throw new InvalidOperationException("Upsert failed") : Dec(saved);
     }
 
     public async Task<bool> LinkUserAsync(Guid resourceId, Guid userId, CancellationToken ct = default)
