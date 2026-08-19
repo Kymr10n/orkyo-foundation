@@ -110,6 +110,32 @@ public sealed class MigrationHarnessSmokeTests
             "People Resources migration (1400) should add notes column to resource_assignments");
     }
 
+    // Unimplemented tables removal (migration 1860)
+    [Fact]
+    public async Task TestTenant_ShouldNotContain_TheUnimplementedTables()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "invites")).Should().BeFalse(
+            "1860 dropped invites; invitations live in the control-plane invitations table");
+        (await TableExistsAsync(conn, "request_templates")).Should().BeFalse(
+            "1860 dropped request_templates; the feature was never implemented");
+        (await TableExistsAsync(conn, "request_template_requirements")).Should().BeFalse(
+            "1860 dropped request_template_requirements with its parent");
+    }
+
+    // Custom-fields GIN index (migration 1840)
+    [Fact]
+    public async Task TestTenant_Resources_ShouldHave_CustomFieldsGinIndex()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT count(*) FROM pg_indexes " +
+            "WHERE tablename = 'resources' AND indexname = 'idx_resources_custom_fields_gin'";
+        Convert.ToInt32(await cmd.ExecuteScalarAsync()).Should().Be(1,
+            "1840 indexes custom_fields for the list-lookup delete and search paths");
+    }
+
     // Departments + Job Titles removal (migrations 1820/1830)
     [Fact]
     public async Task TestTenant_ShouldNotContain_JobTitlesTable()

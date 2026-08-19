@@ -14,7 +14,7 @@ public sealed record SeedReport(
     int Criteria,
     int Requests, int Assignments, TimeSpan Duration,
     int Tools = 0, int Capabilities = 0, int Requirements = 0,
-    int AvailabilityEvents = 0, int Absences = 0, int Templates = 0, int Conflicts = 0,
+    int AvailabilityEvents = 0, int Absences = 0, int Conflicts = 0,
     int Machines = 0, int MachineTypes = 0, int ListRows = 0, int CustomFields = 0,
     int MachineGroups = 0);
 
@@ -113,7 +113,7 @@ public static class SeedRunner
         var personGroupMemberCount = 0;
 
         int criteriaCount, requestCount, assignmentCount;
-        int tools = 0, capabilities = 0, requirements = 0, events = 0, absences = 0, templates = 0, conflicts = 0;
+        int tools = 0, capabilities = 0, requirements = 0, events = 0, absences = 0, conflicts = 0;
         int machines = 0, machineTypes = 0, listRows = 0, customFields = 0, machineGroups = 0;
 
         if (opts.UseFloorplans)
@@ -156,7 +156,6 @@ public static class SeedRunner
 
             var calendar = new Narrative.YearCalendar(opts.ReferenceDate);
             var avail = await AvailabilityFactory.SeedAsync(conn, calendar, sites, people, faker);
-            templates = await TemplateFactory.SeedAsync(conn, skillCriteria);
             var year = await Narrative.NarrativeYearSeeder.SeedAsync(
                 conn, cohorts, skillCriteria, caps.PersonSkills, calendar, scale, faker);
 
@@ -217,7 +216,6 @@ public static class SeedRunner
             Requirements: requirements,
             AvailabilityEvents: events,
             Absences: absences,
-            Templates: templates,
             Conflicts: conflicts,
             Machines: machines,
             MachineTypes: machineTypes,

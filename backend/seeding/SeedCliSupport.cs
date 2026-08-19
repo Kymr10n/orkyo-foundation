@@ -90,7 +90,7 @@ public static class SeedCliSupport
         Console.WriteLine($"  Criteria:           {report.Criteria,8}");
         Console.WriteLine($"  Requests:           {report.Requests,8}");
         Console.WriteLine($"  Assignments:        {report.Assignments,8}");
-        if (report.Tools + report.Capabilities + report.AvailabilityEvents + report.Templates > 0)
+        if (report.Tools + report.Capabilities + report.AvailabilityEvents > 0)
         {
             Console.WriteLine($"  Tools:              {report.Tools,8}");
             Console.WriteLine($"  Machine types:      {report.MachineTypes,8}");
@@ -102,7 +102,6 @@ public static class SeedCliSupport
             Console.WriteLine($"  Requirements:       {report.Requirements,8}");
             Console.WriteLine($"  Availability events:{report.AvailabilityEvents,8}");
             Console.WriteLine($"  Absences:           {report.Absences,8}");
-            Console.WriteLine($"  Templates:          {report.Templates,8}");
             Console.WriteLine($"  Conflicts (seeded): {report.Conflicts,8}");
         }
     }

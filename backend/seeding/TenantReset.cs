@@ -4,8 +4,8 @@ namespace Orkyo.Foundation.Seed;
 
 /// <summary>
 /// Wipes a tenant database to a clean slate before seeding. Preserves
-/// authentication-adjacent tables (users, memberships, invites,
-/// user_preferences) so a developer's local login keeps working.
+/// authentication-adjacent tables (users, memberships, user_preferences)
+/// so a developer's local login keeps working.
 ///
 /// CASCADE means listing the most-referenced tables is enough; PG will sweep
 /// up everything FK-dependent.
@@ -18,28 +18,21 @@ public static class TenantReset
     private static readonly string[] TablesToTruncate =
     [
         "sites",
-        "space_groups",          // alias of resource_groups in older schemas
         "resource_groups",
         "resource_group_members",
         "resources",             // also carries the folded spaces / person_profiles columns (1700)
         "criteria",
-        "space_capabilities",
         "resource_capabilities",
-        "resource_capabilities_phase1",
         "resource_group_capabilities",
         "availability_events",
         "availability_event_scopes",
         "resource_absences",
         "templates",
         "template_items",
-        "request_templates",
-        "request_template_requirements",
         "requests",
         "request_requirements",
         "resource_assignments",
         "scheduling_settings",
-        "off_times",
-        "off_time_spaces",
         "search_documents",
         "preset_applications",
         "preset_mappings",
@@ -47,7 +40,7 @@ public static class TenantReset
         // Tenant-defined shape, seeded alongside the machines. These are NOT swept by truncating
         // `resources`: a shared list instance has no resource_id, and field/definition rows are
         // parents rather than children. Left behind, a second `--mode reset` run dies on
-        // resource_custom_fields_key_unique / list_definitions_global_name_unique.
+        // resource_custom_fields_key_unique / ux_list_definitions_global_name.
         "resource_custom_fields",
         "list_definitions",
         "list_columns",
