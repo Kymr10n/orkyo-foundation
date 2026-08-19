@@ -154,6 +154,21 @@ describe("admin-api — Tenant Management", () => {
 
       await expect(getAdminTenants()).rejects.toThrow("Forbidden");
     });
+
+    it("sends page and pageSize only when paging is requested", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ tenants: [mockTenant], page: 2, pageSize: 25, totalCount: 60 }),
+      });
+
+      const result = await getAdminTenants("acme", { page: 2, pageSize: 25 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://localhost:5000/api/admin/tenants?search=acme&page=2&pageSize=25",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result.totalCount).toBe(60);
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -705,6 +720,28 @@ describe("admin-api — Membership Management", () => {
       await expect(getAdminTenantMembers(TENANT_ID)).rejects.toThrow(
         "Tenant not found",
       );
+    });
+
+    it("sends status with page and pageSize when paging is requested", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          tenantId: TENANT_ID,
+          tenantSlug: "acme",
+          members: [mockMember],
+          page: 1,
+          pageSize: 25,
+          totalCount: 40,
+        }),
+      });
+
+      const result = await getAdminTenantMembers(TENANT_ID, "active", { page: 1, pageSize: 25 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `http://localhost:5000/api/admin/tenants/${TENANT_ID}/members?status=active&page=1&pageSize=25`,
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result.totalCount).toBe(40);
     });
   });
 

@@ -116,10 +116,31 @@ export interface AdminTenantMember {
 // Tenant Management
 // ============================================================================
 
-export async function getAdminTenants(search?: string): Promise<{ tenants: AdminTenant[] }> {
+/** Server-side paging request for the admin lists. 1-based page; the server clamps pageSize. */
+export interface AdminListPaging {
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Without `paging` the server answers with the full unpaged list and no paging fields —
+ * the tenant-picker dropdown depends on that. With `paging` the response carries
+ * page/pageSize/totalCount for a server-paged table.
+ */
+export async function getAdminTenants(
+  search?: string,
+  paging?: AdminListPaging
+): Promise<{ tenants: AdminTenant[]; page?: number; pageSize?: number; totalCount?: number }> {
   const params: Record<string, string> = {};
   if (search) params.search = search;
-  return apiGet<{ tenants: AdminTenant[] }>(API_PATHS.ADMIN.TENANTS, { params });
+  if (paging) {
+    params.page = String(paging.page);
+    params.pageSize = String(paging.pageSize);
+  }
+  return apiGet<{ tenants: AdminTenant[]; page?: number; pageSize?: number; totalCount?: number }>(
+    API_PATHS.ADMIN.TENANTS,
+    { params }
+  );
 }
 
 export async function createAdminTenant(data: { slug: string; displayName: string }): Promise<AdminTenant> {
@@ -186,16 +207,33 @@ export async function revokeSiteAdmin(userId: string): Promise<void> {
 // Tenant Membership Management
 // ============================================================================
 
+/** Same opt-in paging contract as {@link getAdminTenants}: no `paging`, no paging fields. */
 export async function getAdminTenantMembers(
   tenantId: string,
-  status?: string
-): Promise<{ tenantId: string; tenantSlug: string; members: AdminTenantMember[] }> {
+  status?: string,
+  paging?: AdminListPaging
+): Promise<{
+  tenantId: string;
+  tenantSlug: string;
+  members: AdminTenantMember[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+}> {
   const params: Record<string, string> = {};
   if (status) params.status = status;
-  return apiGet<{ tenantId: string; tenantSlug: string; members: AdminTenantMember[] }>(
-    API_PATHS.ADMIN.tenantMembers(tenantId),
-    { params }
-  );
+  if (paging) {
+    params.page = String(paging.page);
+    params.pageSize = String(paging.pageSize);
+  }
+  return apiGet<{
+    tenantId: string;
+    tenantSlug: string;
+    members: AdminTenantMember[];
+    page?: number;
+    pageSize?: number;
+    totalCount?: number;
+  }>(API_PATHS.ADMIN.tenantMembers(tenantId), { params });
 }
 
 export async function addAdminTenantMember(
