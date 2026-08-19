@@ -67,6 +67,12 @@ export interface InsightsUtilization {
   resourceType: InsightsResourceType;
   bucket: InsightsBucket;
   series: UtilizationSeriesPoint[];
+  /**
+   * How many active resources of this type the site holds over the window. Zero says the type has
+   * nothing here, which is a different statement from "its capacity is zero" — and the two need
+   * different words, or none at all.
+   */
+  resourceCount: number;
   metadata: InsightsMetadata;
 }
 

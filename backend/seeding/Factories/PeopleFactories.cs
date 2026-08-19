@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Bogus;
 using Npgsql;
 using NpgsqlTypes;
@@ -8,19 +9,23 @@ using Orkyo.Foundation.Seed.Scales;
 namespace Orkyo.Foundation.Seed.Factories;
 
 /// <summary>
-/// Seeds the people side: job titles, departments, person resources, and
-/// person profiles.
+/// Seeds the people side: the two organization lists (job titles, departments), person
+/// resources, and person groups.
 ///
-/// MVP scope:
-///  - Departments are seeded flat (no hierarchy). Adding parent_department_id
-///    links is a follow-up.
-///  - Resources are created with allocation_mode='Fractional' and
-///    base_availability_percent=100, matching the production person default.
+/// Job titles and departments became organization-scoped lists in migration 1820, so this seeds
+/// list rows rather than table rows, and adopts what the migration already created rather than
+/// inserting a second copy. Resources are created with allocation_mode='Fractional' and
+/// base_availability_percent=100, matching the production person default.
 /// </summary>
 public static class PeopleFactories
 {
+    /// <summary>A job-title list row. <c>Id</c> is the row id a person's lookup value holds.</summary>
     public sealed record SeededJobTitle(Guid Id, string Name);
+    /// <summary>A department list row. <c>Id</c> is the row id a person's lookup value holds.</summary>
     public sealed record SeededDepartment(Guid Id, string Name);
+    public sealed record SeededOrgLists(
+        IReadOnlyList<SeededJobTitle> JobTitles,
+        IReadOnlyList<SeededDepartment> Departments);
     public sealed record SeededPerson(Guid ResourceId, string Name);
     public sealed record SeededPersonGroup(Guid Id, string Name);
 
@@ -34,54 +39,116 @@ public static class PeopleFactories
             "resource_types row with key='person' not found. Has the tenant DB been migrated?");
     }
 
-    public static async Task<IReadOnlyList<SeededJobTitle>> SeedJobTitlesAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx,
-        IProfile profile, IScale scale, Faker faker)
-    {
-        var pool = profile.JobTitlePool;
-        var titles = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; titles.Count < scale.JobTitles && i < scale.JobTitles * 5; i++)
-        {
-            // Generate a unique title — append a numeric suffix if pool exhausted.
-            var baseName = pool[i % pool.Count];
-            var candidate = i < pool.Count ? baseName : $"{baseName} {i / pool.Count + 1}";
-            if (seen.Add(candidate)) titles.Add(candidate);
-        }
-
-        var seeded = new List<SeededJobTitle>(titles.Count);
-        var now = DateTime.UtcNow;
-        using var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.job_titles (id, name, is_active, created_at, updated_at) FROM STDIN (FORMAT BINARY)");
-        _ = tx;
-
-        foreach (var name in titles)
-        {
-            var id = Guid.NewGuid();
-            await writer.StartRowAsync();
-            await writer.WriteAsync(id, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(name, NpgsqlDbType.Varchar);
-            await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            seeded.Add(new SeededJobTitle(id, name));
-        }
-        await writer.CompleteAsync();
-        _ = faker; // pool consumed deterministically; faker reserved for future shuffling
-        return seeded;
-    }
-
-    // Subdivision suffixes for child departments — generic enough to work across
-    // all profiles; combined with parent name (e.g. "Operations North").
+    /// <summary>
+    /// Job titles and departments, seeded as the two organization lists migration 1820 defines.
+    /// A reset truncates <c>list_definitions</c>, so the seed builds them rather than assuming the
+    /// migration's copies survived.
+    /// </summary>
+    /// <remarks>
+    /// Departments keep their two levels as a descriptive <c>parent</c> cell. The tree stopped
+    /// being a database relationship in 1820, so a child names its parent instead of pointing at it.
+    /// </remarks>
+    // Subdivision suffixes for child departments — generic enough to work across all profiles;
+    // combined with the parent name (for example "Operations North").
     private static readonly string[] DeptSubdivisions =
         ["North", "South", "East", "West", "Central", "Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
 
-    public static async Task<IReadOnlyList<SeededDepartment>> SeedDepartmentsAsync(
+    public static async Task<SeededOrgLists> SeedOrganizationListsAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx,
-        IProfile profile, IScale scale, Faker faker)
+        IProfile profile, IScale scale, Guid personResourceTypeId)
     {
-        // ── Root departments ──────────────────────────────────────────────────
-        // ux_departments_root_name enforces uniqueness at root level.
+        var now = DateTime.UtcNow;
+        _ = tx;
+
+        var jobTitles = await SeedOrgListAsync(
+            conn, now, "Job Titles", "Roles a person holds.",
+            [("description", "Description"), ("active", "Active")],
+            BuildJobTitleNames(profile, scale));
+
+        var departments = await SeedOrgListAsync(
+            conn, now, "Departments", "Organizational units.",
+            [("code", "Code"), ("description", "Description"), ("parent", "Parent"), ("active", "Active")],
+            BuildDepartmentRows(profile, scale));
+
+        // Bound to the directory type. DO NOTHING on conflict, because migration 1820 creates the
+        // same two fields — an append-mode seed runs over a database that already has them.
+        await ListSeedHelpers.InsertCustomFieldAsync(
+            conn, personResourceTypeId, "department", "Department", "list_lookup",
+            required: false, sort: 100, now, listInstanceId: departments.InstanceId);
+        await ListSeedHelpers.InsertCustomFieldAsync(
+            conn, personResourceTypeId, "job_title", "Job Title", "list_lookup",
+            required: false, sort: 101, now, listInstanceId: jobTitles.InstanceId);
+
+        return new SeededOrgLists(
+            jobTitles.Rows.Select(r => new SeededJobTitle(r.Id, r.Name)).ToList(),
+            departments.Rows.Select(r => new SeededDepartment(r.Id, r.Name)).ToList());
+    }
+
+    private sealed record SeededOrgList(Guid InstanceId, IReadOnlyList<(Guid Id, string Name)> Rows);
+
+    /// <summary>
+    /// Creates one organization list and fills it, or adopts the one migration 1820 already made.
+    /// The first column is always <c>name</c> and is the display column; the rest are declared by
+    /// the caller. A row is a dictionary keyed by column key.
+    /// </summary>
+    private static async Task<SeededOrgList> SeedOrgListAsync(
+        NpgsqlConnection conn, DateTime now, string name, string description,
+        IReadOnlyList<(string Key, string Label)> extraColumns,
+        IReadOnlyList<Dictionary<string, object>> rows)
+    {
+        const string scope = "organization";
+        var definitionId = await ListSeedHelpers.FindDefinitionAsync(conn, scope, name);
+
+        if (definitionId is null)
+        {
+            definitionId = await ListSeedHelpers.InsertDefinitionAsync(conn, name, description, now, scope);
+            var nameColumn = await ListSeedHelpers.InsertColumnAsync(
+                conn, definitionId.Value, "name", "Name", "text", required: true, sort: 0, now);
+            for (var i = 0; i < extraColumns.Count; i++)
+            {
+                var (key, label) = extraColumns[i];
+                await ListSeedHelpers.InsertColumnAsync(
+                    conn, definitionId.Value, key, label,
+                    key == "active" ? "boolean" : "text", required: false, sort: i + 1, now);
+            }
+            await ListSeedHelpers.SetDisplayColumnAsync(conn, definitionId.Value, nameColumn);
+        }
+
+        var instanceId = await ListSeedHelpers.FindSharedInstanceAsync(conn, definitionId.Value)
+            ?? await ListSeedHelpers.InsertSharedInstanceAsync(conn, definitionId.Value, name, now);
+
+        var seeded = new List<(Guid, string)>(rows.Count);
+        foreach (var values in rows)
+        {
+            var rowId = await ListSeedHelpers.InsertRowAsync(
+                conn, instanceId, JsonSerializer.Serialize(values), now);
+            seeded.Add((rowId, (string)values["name"]));
+        }
+
+        return new SeededOrgList(instanceId, seeded);
+    }
+
+    private static List<Dictionary<string, object>> BuildJobTitleNames(IProfile profile, IScale scale)
+    {
+        var pool = profile.JobTitlePool;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rows = new List<Dictionary<string, object>>();
+        for (var i = 0; rows.Count < scale.JobTitles && i < scale.JobTitles * 5; i++)
+        {
+            var baseName = pool[i % pool.Count];
+            var candidate = i < pool.Count ? baseName : $"{baseName} {i / pool.Count + 1}";
+            if (seen.Add(candidate))
+                rows.Add(new Dictionary<string, object> { ["name"] = candidate, ["active"] = true });
+        }
+        return rows;
+    }
+
+    /// <remarks>
+    /// Two levels, kept as a descriptive <c>parent</c> cell. The tree stopped being a database
+    /// relationship in 1820, so a child names its parent instead of pointing at it.
+    /// </remarks>
+    private static List<Dictionary<string, object>> BuildDepartmentRows(IProfile profile, IScale scale)
+    {
         var pool = profile.DepartmentRootPool;
         var rootCount = Math.Max(2, scale.Departments / 3);
         var childCount = scale.Departments - rootCount;
@@ -95,63 +162,23 @@ public static class PeopleFactories
             if (seen.Add(candidate)) rootNames.Add(candidate);
         }
 
-        var roots = rootNames.Select(n => new SeededDepartment(Guid.NewGuid(), n)).ToList();
+        var rows = rootNames
+            .Select(n => new Dictionary<string, object> { ["name"] = n, ["active"] = true })
+            .ToList();
 
-        // ── Child departments ─────────────────────────────────────────────────
-        // ux_departments_sibling_name enforces (parent_id, name) uniqueness, so
-        // suffixes only need to be unique within a single parent.
-        var childCounters = new int[roots.Count];
-        var children = new List<(SeededDepartment Dept, Guid ParentId)>(childCount);
+        var counters = new int[rootNames.Count];
         for (var i = 0; i < childCount; i++)
         {
-            var parentIdx = i % roots.Count;
-            var suffix = DeptSubdivisions[childCounters[parentIdx]++ % DeptSubdivisions.Length];
-            var childName = $"{roots[parentIdx].Name} {suffix}";
-            children.Add((new SeededDepartment(Guid.NewGuid(), childName), roots[parentIdx].Id));
-        }
-
-        var now = DateTime.UtcNow;
-        _ = tx;
-        _ = faker;
-        const string copySql =
-            "COPY public.departments (id, parent_department_id, name, is_active, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)";
-
-        // Write roots first — FK is ON DELETE RESTRICT, so parents must exist.
-        using (var writer = await conn.BeginBinaryImportAsync(copySql))
-        {
-            foreach (var root in roots)
+            var parentIdx = i % rootNames.Count;
+            var suffix = DeptSubdivisions[counters[parentIdx]++ % DeptSubdivisions.Length];
+            rows.Add(new Dictionary<string, object>
             {
-                await writer.StartRowAsync();
-                await writer.WriteAsync(root.Id, NpgsqlDbType.Uuid);
-                await writer.WriteNullAsync();                              // parent_department_id
-                await writer.WriteAsync(root.Name, NpgsqlDbType.Varchar);
-                await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            }
-            await writer.CompleteAsync();
+                ["name"] = $"{rootNames[parentIdx]} {suffix}",
+                ["parent"] = rootNames[parentIdx],
+                ["active"] = true,
+            });
         }
-
-        using (var writer = await conn.BeginBinaryImportAsync(copySql))
-        {
-            foreach (var (dept, parentId) in children)
-            {
-                await writer.StartRowAsync();
-                await writer.WriteAsync(dept.Id, NpgsqlDbType.Uuid);
-                await writer.WriteAsync(parentId, NpgsqlDbType.Uuid);      // parent_department_id
-                await writer.WriteAsync(dept.Name, NpgsqlDbType.Varchar);
-                await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            }
-            await writer.CompleteAsync();
-        }
-
-        var all = new List<SeededDepartment>(scale.Departments);
-        all.AddRange(roots);
-        all.AddRange(children.Select(c => c.Dept));
-        return all;
+        return rows;
     }
 
     public static async Task<IReadOnlyList<SeededPerson>> SeedPeopleAsync(
@@ -164,12 +191,13 @@ public static class PeopleFactories
         var now = DateTime.UtcNow;
         var people = new List<SeededPerson>(scale.People);
 
-        // Insert resources — the directory details (email, job title, department) are columns on
-        // resources since migration 1700.
+        // Email is a column on resources (migration 1700). Job title and department are list
+        // lookups since 1820, so they ride in custom_fields as arrays of row ids — the same shape
+        // the API validates and the resource form writes.
         _ = tx;
         using (var writer = await conn.BeginBinaryImportAsync(
             "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, " +
-            "email, job_title_id, department_id, created_at, updated_at) " +
+            "email, custom_fields, created_at, updated_at) " +
             "FROM STDIN (FORMAT BINARY)"))
         {
             for (var i = 0; i < scale.People; i++)
@@ -179,6 +207,9 @@ public static class PeopleFactories
                 var email = $"{Slugify(fullName)}@orkyo.example";
                 var jobTitleId = jobTitles.Count == 0 ? (Guid?)null : jobTitles[faker.Random.Int(0, jobTitles.Count - 1)].Id;
                 var deptId = departments.Count == 0 ? (Guid?)null : departments[faker.Random.Int(0, departments.Count - 1)].Id;
+                var customFields = new Dictionary<string, object>();
+                if (jobTitleId is not null) customFields["job_title"] = new[] { jobTitleId.Value.ToString() };
+                if (deptId is not null) customFields["department"] = new[] { deptId.Value.ToString() };
 
                 await writer.StartRowAsync();
                 await writer.WriteAsync(id, NpgsqlDbType.Uuid);
@@ -188,8 +219,8 @@ public static class PeopleFactories
                 await writer.WriteAsync(100, NpgsqlDbType.Integer);
                 await writer.WriteAsync(true, NpgsqlDbType.Boolean);
                 await writer.WriteAsync(email, NpgsqlDbType.Citext);
-                if (jobTitleId is null) await writer.WriteNullAsync(); else await writer.WriteAsync(jobTitleId.Value, NpgsqlDbType.Uuid);
-                if (deptId is null) await writer.WriteNullAsync(); else await writer.WriteAsync(deptId.Value, NpgsqlDbType.Uuid);
+                if (customFields.Count == 0) await writer.WriteNullAsync();
+                else await writer.WriteAsync(JsonSerializer.Serialize(customFields), NpgsqlDbType.Jsonb);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 people.Add(new SeededPerson(id, fullName));

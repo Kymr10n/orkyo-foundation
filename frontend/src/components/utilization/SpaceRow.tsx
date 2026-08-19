@@ -25,6 +25,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   validation,
   onRequestClick,
   onRequestDoubleClick,
+  onRequestContextMenu,
   onRequestResize,
   onEmptyCellClick,
   offTimeRanges = [],
@@ -39,6 +40,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   validation: ValidationResult;
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
+  onRequestContextMenu?: (requestId: string, position: { x: number; y: number }) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
   onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
@@ -140,6 +142,7 @@ export const SpaceRow = React.memo(function SpaceRow({
             validation={validation}
             onRequestClick={onRequestClick}
             onRequestDoubleClick={onRequestDoubleClick}
+            onRequestContextMenu={onRequestContextMenu}
             onRequestResize={onRequestResize}
             editable={editable}
           />

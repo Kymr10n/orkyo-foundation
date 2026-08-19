@@ -26,6 +26,7 @@ const meta = { calculatedAt: "2026-06-22T10:00:00Z", sourceMode: "live" };
 
 const util = (bucket: InsightsBucket): InsightsUtilization => ({
   resourceType: "space",
+  resourceCount: 2,
   bucket,
   series: [
     { bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", totalCapacityMinutes: 1000, usedCapacityMinutes: 500, availableCapacityMinutes: 500, utilizationPercent: 50, conflictCount: 1 },

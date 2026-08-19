@@ -66,24 +66,24 @@ const STEPS: TourStep[] = [
     title: "Groups",
     description: "Organize resources into logical groups.",
     detail:
-      "Groups let you cluster resources by site, team, or function. Use them to manage related spaces or people together and keep large catalogues navigable.",
-    path: "/resources/space/groups",
+      "Groups let you cluster resources by site, team, or function. Use them to manage related stations or people together and keep large catalogues navigable.",
+    path: "/stations",
   },
   {
     icon: Box,
-    title: "Spaces",
-    description: "Manage the spaces you schedule work into.",
+    title: "Stations",
+    description: "Manage the fixed places you schedule work into.",
     detail:
-      "Spaces are one of Orkyo's resource types — a room, lab bench, or any area you schedule. People and tools are resources too. Attach criteria, assign groups, and describe each space's capabilities.",
-    path: "/floorplan/stations",
+      "A station is a resource with a fixed location — a room, a mill, an assembly bay. Place them on the floorplan, attach criteria, assign groups, and describe what each one can do.",
+    path: "/stations",
   },
   {
     icon: Users,
-    title: "People",
-    description: "Manage the people you schedule.",
+    title: "Assets",
+    description: "Manage the mobile resources you schedule.",
     detail:
-      "People are resources with skills, working availability, and absences. Orkyo matches them to requests and tracks how their time is used — keep their profiles and availability up to date.",
-    path: "/people/list",
+      "An asset moves: a person, a tool, a vehicle. People carry skills, working availability and absences. Orkyo matches assets to requests and tracks how their time is used.",
+    path: "/assets/person/instances",
   },
   {
     icon: Package,

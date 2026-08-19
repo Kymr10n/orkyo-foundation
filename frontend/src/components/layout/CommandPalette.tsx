@@ -5,6 +5,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { typeRoute } from "@foundation/src/constants/resource-class";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
+import type { ResourceTypeInfo } from "@foundation/src/lib/api/resource-types-api";
 import {
   Building2,
   FileText,
@@ -26,7 +29,6 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
-import { DEDICATED_TYPE_ROUTES } from "@foundation/src/constants/resource-type-key";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -85,24 +87,31 @@ export function badgeVariantForResult(
   return result.type === "resource" ? "default" : typeBadgeVariants[result.type];
 }
 
-export function editPathForResult(result: SearchResult): string {
+/**
+ * Where a hit opens. `types` lets a resource hit go straight to its class page — a result carries
+ * the type key but not the class, so without them the only honest destination is the legacy route
+ * that resolves it, at the cost of a redirect and a loading flash per hit.
+ */
+export function editPathForResult(
+  result: SearchResult,
+  types: readonly ResourceTypeInfo[] = [],
+): string {
   const edit = `edit=${result.id}`;
+  const known = (key: string) => types.find((t) => t.key === key);
   switch (result.type) {
     case "resource": {
-      // Space and person keep their purpose-built pages; every other type — tool included,
-      // and anything a tenant defines — lands on its generic page.
       const key = result.resourceTypeKey ?? "";
-      const base = DEDICATED_TYPE_ROUTES[key]?.list ?? `/resources/${key}/list`;
-      return `${base}?${edit}`;
+      const type = known(key);
+      return type
+        ? `${typeRoute(type, "instances")}?${edit}`
+        : `/resources/${key}/list?${edit}`;
     }
     case "request":
       return `/requests?${edit}`;
     case "group": {
-      // Same rule as resources: the two dedicated pages, then the type's generic Groups tab.
-      // Falling back to /people/teams sent a tool group to a page that does not contain it.
       const key = result.resourceTypeKey ?? "";
-      const base = DEDICATED_TYPE_ROUTES[key]?.groups ?? `/resources/${key}/groups`;
-      return `${base}?${edit}`;
+      const type = known(key);
+      return type ? `${typeRoute(type, "groups")}?${edit}` : `/resources/${key}/groups?${edit}`;
     }
     case "site":
       return `${ROUTE_TENANT_ADMIN}/sites?${edit}`;
@@ -122,6 +131,9 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
+  // A result names its type but not the class it belongs to; these supply the difference so a hit
+  // opens its page directly instead of bouncing through the legacy route.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
   // Only surface results the current role can actually open: criteria/templates live on the
@@ -163,7 +175,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       const visible = response.results.filter((r) => {
         if (r.type === "site") return isTenantAdmin;
         if (r.type === "template" || r.type === "criterion") return canEdit;
-        return true; // spaces/requests/people/groups are viewable on core pages
+        return true; // stations/assets/requests/groups are viewable on core pages
       });
       setResults(visible);
       setSelectedIndex(0);
@@ -216,9 +228,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         setSelectedSiteId(result.siteId);
       }
 
-      setTimeout(() => navigate(editPathForResult(result)), 0);
+      setTimeout(() => navigate(editPathForResult(result, resourceTypes)), 0);
     },
-    [navigate, onOpenChange, selectedSiteId, setSelectedSiteId]
+    [navigate, onOpenChange, selectedSiteId, setSelectedSiteId, resourceTypes]
   );
 
   // Keyboard navigation

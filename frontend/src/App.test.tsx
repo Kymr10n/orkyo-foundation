@@ -22,7 +22,7 @@ vi.mock('@foundation/src/store/app-store', () => ({
 import { useLocation } from 'react-router';
 import { ThemeToggle } from '@foundation/src/components/layout/ThemeToggle';
 
-const APP_LAYOUT_ROUTES = ["/", "/spaces", "/requests", "/conflicts", "/settings", "/site-admin"];
+const APP_LAYOUT_ROUTES = ["/", "/stations", "/requests", "/conflicts", "/settings", "/site-admin"];
 
 function FloatingThemeToggle() {
   const { pathname } = useLocation();
@@ -47,8 +47,8 @@ describe('FloatingThemeToggle', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('should NOT render on "/spaces" (AppLayout route)', () => {
-    const { container } = renderAtRoute('/spaces');
+  it('should NOT render on "/stations" (AppLayout route)', () => {
+    const { container } = renderAtRoute('/stations');
     expect(container.innerHTML).toBe('');
   });
 

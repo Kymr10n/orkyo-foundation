@@ -24,6 +24,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   validation,
   onRequestClick,
   onRequestDoubleClick,
+  onRequestContextMenu,
   onRequestResize,
   editable = true,
 }: {
@@ -34,6 +35,9 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   validation: ValidationResult;
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
+  /** Right-click on the bar. Mouse-only by nature — clearing the dates in the request
+   *  editor is the keyboard path to the same result. */
+  onRequestContextMenu?: (requestId: string, position: { x: number; y: number }) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   /** Whether the caller can edit (= canEdit). Editors get drag-to-move + resize
    *  on every device (mouse-move / touch long-press; quick tap still opens via
@@ -182,6 +186,10 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
           : isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
       }`}
       onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); } }}
+      onContextMenu={onRequestContextMenu ? (e) => {
+        e.preventDefault();
+        onRequestContextMenu(request.id, { x: e.clientX, y: e.clientY });
+      } : undefined}
       title={tooltipText}
       aria-label={ariaLabel}
       {...(editable ? attributes : { role: 'button', tabIndex: 0 })}

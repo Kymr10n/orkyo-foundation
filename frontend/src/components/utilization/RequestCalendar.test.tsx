@@ -35,6 +35,7 @@ vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
   }),
 }));
 
+import userEvent from "@testing-library/user-event";
 import { RequestCalendar } from "./RequestCalendar";
 import type { CalendarEvent } from "./request-calendar-events";
 
@@ -241,5 +242,54 @@ describe("RequestCalendar", () => {
       event: { title: "Agenda Task", start: new Date(2026, 3, 17, 9, 0), extendedProps: { conflictSeverity: "error" } },
     });
     expect(result).toBe(true);
+  });
+
+  describe("search and filters", () => {
+    const weld: CalendarEvent = {
+      ...event,
+      id: "r2",
+      title: "Finish weld",
+      extendedProps: { requestId: "r2", status: "done", conflictSeverity: "error" },
+    };
+
+    it("narrows the events FullCalendar receives to the search", async () => {
+      renderCalendar({ events: [event, weld] });
+      expect(capturedProps.events).toHaveLength(2);
+
+      await userEvent.type(screen.getByLabelText("Search requests"), "weld");
+
+      expect(capturedProps.events).toHaveLength(1);
+      expect(capturedProps.events[0].title).toBe("Finish weld");
+    });
+
+    it("narrows by status", async () => {
+      renderCalendar({ events: [event, weld] });
+
+      await userEvent.click(screen.getByRole("button", { name: "Filter by status" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: "Done" }));
+
+      expect(capturedProps.events.map((e: CalendarEvent) => e.title)).toEqual(["Task"]);
+    });
+
+    it("keeps off-time shading regardless of the filter", async () => {
+      renderCalendar({
+        events: [event],
+        offTimeRanges: [{ id: "o1", startMs: 0, endMs: 1000, title: "Closed", resourceIds: null }],
+      });
+
+      await userEvent.type(screen.getByLabelText("Search requests"), "nothing matches");
+
+      // The week's shape is not a request; hiding it would redraw the calendar as open time.
+      expect(capturedProps.events).toHaveLength(1);
+      expect(capturedProps.events[0].display).toBe("background");
+    });
+
+    it("keeps the search on phones, where the legend is hidden", () => {
+      mockIsPhone = true;
+      renderCalendar();
+
+      expect(screen.getByLabelText("Search requests")).toBeInTheDocument();
+      expect(screen.queryByText("Conflicts")).not.toBeInTheDocument();
+    });
   });
 });

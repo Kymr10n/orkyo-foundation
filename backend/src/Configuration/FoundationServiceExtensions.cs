@@ -104,10 +104,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
         services.AddScoped<ICriteriaRepository, CriteriaRepository>();
         services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
-        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
-        services.AddScoped<IJobTitleRepository, JobTitleRepository>();
         services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
         services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();

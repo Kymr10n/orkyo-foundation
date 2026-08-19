@@ -97,9 +97,13 @@ public static class SeedRunner
                 conn, tx, faker, spaces, spaceGroups, spaceTypeId);
         }
 
-        var jobTitles = await PeopleFactories.SeedJobTitlesAsync(conn, tx, profile, scale, faker);
-        var departments = await PeopleFactories.SeedDepartmentsAsync(conn, tx, profile, scale, faker);
+        // The person type must be resolved first: the organization lists hang their lookup fields
+        // off it.
         var personTypeId = await PeopleFactories.ResolvePersonResourceTypeIdAsync(conn, tx);
+        var orgLists = await PeopleFactories.SeedOrganizationListsAsync(
+            conn, tx, profile, scale, personTypeId);
+        var jobTitles = orgLists.JobTitles;
+        var departments = orgLists.Departments;
         var people = await PeopleFactories.SeedPeopleAsync(
             conn, tx, profile, scale, faker, personTypeId, jobTitles, departments);
 

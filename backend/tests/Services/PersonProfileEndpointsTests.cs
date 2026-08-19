@@ -61,18 +61,11 @@ public class PersonProfileEndpointsTests
     {
         var person = await CreatePersonAsync($"P-{Guid.NewGuid():N}"[..20]);
 
-        // Set up reference data: a job title and a 2-level department tree, so
-        // we can prove that the upsert preserves the FKs and the GET resolves
-        // department_path correctly.
-        var jobTitleId = await CreateJobTitleAsync($"JT-{Guid.NewGuid():N}"[..20]);
-        var rootDeptId = await CreateDepartmentAsync($"D-{Guid.NewGuid():N}"[..20], parentId: null);
-        var childDeptId = await CreateDepartmentAsync($"D-{Guid.NewGuid():N}"[..20], parentId: rootDeptId);
-
+        // Job title and department left this contract in 1820 — they are organization lists
+        // reached through custom fields now. What the profile still owns is contact and notes.
         var profileRequest = new UpsertPersonProfileRequest
         {
             Email = "test@example.com",
-            JobTitleId = jobTitleId,
-            DepartmentId = childDeptId,
             Notes = "Test profile"
         };
 
@@ -82,12 +75,7 @@ public class PersonProfileEndpointsTests
         var profile = await upsertResp.Content.ReadFromJsonAsync<PersonProfileInfo>();
         Assert.NotNull(profile);
         Assert.Equal("test@example.com", profile.Email);
-        Assert.Equal(jobTitleId, profile.JobTitleId);
-        Assert.Equal(childDeptId, profile.DepartmentId);
         Assert.Equal("Test profile", profile.Notes);
-        // Resolved display fields
-        Assert.NotNull(profile.JobTitleName);
-        Assert.Contains(" / ", profile.DepartmentPath); // path includes both levels
 
         // Retrieve profile
         var getResp = await _client.GetAsync($"/api/person-profiles/{person.Id}");
@@ -96,42 +84,7 @@ public class PersonProfileEndpointsTests
         var retrievedProfile = await getResp.Content.ReadFromJsonAsync<PersonProfileInfo>();
         Assert.NotNull(retrievedProfile);
         Assert.Equal(profile.Email, retrievedProfile.Email);
-        Assert.Equal(profile.JobTitleId, retrievedProfile.JobTitleId);
-        Assert.Equal(profile.DepartmentId, retrievedProfile.DepartmentId);
-    }
-
-    [Fact]
-    public async Task UpsertPersonProfile_WithUnknownDepartmentId_Returns400()
-    {
-        var person = await CreatePersonAsync($"P-{Guid.NewGuid():N}"[..20]);
-        var bogusDeptId = Guid.NewGuid();
-
-        var profileRequest = new UpsertPersonProfileRequest
-        {
-            Email = "fkfail@example.com",
-            DepartmentId = bogusDeptId,
-        };
-
-        var resp = await _client.PutAsJsonAsync($"/api/person-profiles/{person.Id}", profileRequest);
-        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
-    }
-
-    private async Task<Guid> CreateJobTitleAsync(string name)
-    {
-        var resp = await _client.PostAsJsonAsync("/api/job-titles",
-            new CreateJobTitleRequest { Name = name });
-        resp.EnsureSuccessStatusCode();
-        var jt = await resp.Content.ReadFromJsonAsync<JobTitleInfo>();
-        return jt!.Id;
-    }
-
-    private async Task<Guid> CreateDepartmentAsync(string name, Guid? parentId)
-    {
-        var resp = await _client.PostAsJsonAsync("/api/departments",
-            new CreateDepartmentRequest { Name = name, ParentDepartmentId = parentId });
-        resp.EnsureSuccessStatusCode();
-        var d = await resp.Content.ReadFromJsonAsync<DepartmentInfo>();
-        return d!.Id;
+        Assert.Equal(profile.Notes, retrievedProfile.Notes);
     }
 
     [Fact]
@@ -193,47 +146,12 @@ public class PersonProfileEndpointsTests
     }
 
     [Fact]
-    public async Task GetPersonJobTitles_ReturnsLabelsForGivenResources()
-    {
-        var p1 = await CreatePersonAsync($"BP1-{Guid.NewGuid():N}"[..20]);
-        var p2 = await CreatePersonAsync($"BP2-{Guid.NewGuid():N}"[..20]);
-        var jobTitleId = await CreateJobTitleAsync($"JT-{Guid.NewGuid():N}"[..20]);
-        await _client.PutAsJsonAsync($"/api/person-profiles/{p1.Id}", new UpsertPersonProfileRequest { JobTitleId = jobTitleId });
-        await _client.PutAsJsonAsync($"/api/person-profiles/{p2.Id}", new UpsertPersonProfileRequest { Email = "bp2@example.com" });
-
-        // Include an unknown id — it should simply be omitted, not error.
-        var resp = await _client.PostAsJsonAsync(
-            "/api/person-profiles/job-titles", new[] { p1.Id, p2.Id, Guid.NewGuid() });
-        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-
-        var labels = await resp.Content.ReadFromJsonAsync<List<PersonJobTitleInfo>>();
-        Assert.NotNull(labels);
-        Assert.Equal(2, labels.Count);
-        Assert.Contains(labels, l => l.ResourceId == p1.Id && l.JobTitleName != null);
-        Assert.Contains(labels, l => l.ResourceId == p2.Id && l.JobTitleName == null);
-    }
-
-    [Fact]
-    public async Task GetPersonJobTitles_NoIds_ReturnsEmptyArray()
-    {
-        var resp = await _client.PostAsJsonAsync("/api/person-profiles/job-titles", Array.Empty<Guid>());
-        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-
-        var labels = await resp.Content.ReadFromJsonAsync<List<PersonJobTitleInfo>>();
-        Assert.NotNull(labels);
-        Assert.Empty(labels);
-    }
-
-    [Fact]
-    public async Task GetPersonProfilesBatch_ReturnsFullProfilesWithResolvedFields()
+    public async Task GetPersonProfilesBatch_ReturnsFullProfiles()
     {
         var p1 = await CreatePersonAsync($"BB1-{Guid.NewGuid():N}"[..20]);
         var p2 = await CreatePersonAsync($"BB2-{Guid.NewGuid():N}"[..20]);
-        var jobTitleId = await CreateJobTitleAsync($"JT-{Guid.NewGuid():N}"[..20]);
-        var rootDeptId = await CreateDepartmentAsync($"D-{Guid.NewGuid():N}"[..20], parentId: null);
-        var childDeptId = await CreateDepartmentAsync($"D-{Guid.NewGuid():N}"[..20], parentId: rootDeptId);
         await _client.PutAsJsonAsync($"/api/person-profiles/{p1.Id}",
-            new UpsertPersonProfileRequest { Email = "bb1@example.com", JobTitleId = jobTitleId, DepartmentId = childDeptId });
+            new UpsertPersonProfileRequest { Email = "bb1@example.com", Notes = "n" });
         await _client.PutAsJsonAsync($"/api/person-profiles/{p2.Id}",
             new UpsertPersonProfileRequest { Email = "bb2@example.com" });
 
@@ -247,8 +165,7 @@ public class PersonProfileEndpointsTests
         Assert.Equal(2, profiles.Count);
         var first = Assert.Single(profiles, p => p.ResourceId == p1.Id);
         Assert.Equal("bb1@example.com", first.Email);
-        Assert.NotNull(first.JobTitleName);
-        Assert.Contains(" / ", first.DepartmentPath); // resolved path includes both levels
+        Assert.Equal("n", first.Notes);
         Assert.Contains(profiles, p => p.ResourceId == p2.Id);
     }
 

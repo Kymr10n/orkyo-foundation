@@ -438,4 +438,192 @@ public class ListDefinitionEndpointsTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ListInstanceInfo>())!;
     }
+
+    // ---- Scopes (migration 1810) --------------------------------------------------------
+
+    [Fact]
+    public async Task CreateDefinition_DefaultsToTheCommonScope()
+    {
+        // Every definition predating 1810 became 'common', so an unstated scope must agree.
+        var definition = await CreateDefinitionAsync();
+
+        Assert.Equal(ListDefinitionScopes.Common, definition.Scope);
+        Assert.Null(definition.ResourceTypeId);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_AcceptsAResourceScopeWithItsType()
+    {
+        var type = await CreateResourceTypeAsync();
+
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Tooling"),
+                Scope = ListDefinitionScopes.Resource,
+                ResourceTypeId = type.Id,
+            });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var definition = (await response.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+        Assert.Equal(ListDefinitionScopes.Resource, definition.Scope);
+        Assert.Equal(type.Id, definition.ResourceTypeId);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_RejectsAResourceScopeWithNoType()
+    {
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Tooling"),
+                Scope = ListDefinitionScopes.Resource,
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(ListDefinitionScopes.Organization)]
+    [InlineData(ListDefinitionScopes.Common)]
+    public async Task CreateDefinition_RejectsATypeOnAScopeThatOwnsNone(string scope)
+    {
+        var type = await CreateResourceTypeAsync();
+
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Departments"),
+                Scope = scope,
+                ResourceTypeId = type.Id,
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_RejectsAnUnknownScope()
+    {
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest { Name = UniqueName("Odd"), Scope = "tenant" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_RejectsAResourceScopeNamingAMissingType()
+    {
+        var response = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Tooling"),
+                Scope = ListDefinitionScopes.Resource,
+                ResourceTypeId = Guid.NewGuid(),
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_AllowsTheSameNameUnderTwoResourceTypes()
+    {
+        // The point of scoping the namespace: "Certification" means different things on a mill
+        // and on a person, and both tenants of the name must be able to exist.
+        var first = await CreateResourceTypeAsync();
+        var second = await CreateResourceTypeAsync();
+        var name = UniqueName("Certification");
+
+        foreach (var type in new[] { first, second })
+        {
+            var response = await _client.PostAsJsonAsync("/api/list-definitions",
+                new CreateListDefinitionRequest
+                {
+                    Name = name,
+                    Scope = ListDefinitionScopes.Resource,
+                    ResourceTypeId = type.Id,
+                });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task CreateDefinition_StillRejectsADuplicateNameWithinOneType()
+    {
+        var type = await CreateResourceTypeAsync();
+        var name = UniqueName("Certification");
+        CreateListDefinitionRequest Request() => new()
+        {
+            Name = name,
+            Scope = ListDefinitionScopes.Resource,
+            ResourceTypeId = type.Id,
+        };
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await _client.PostAsJsonAsync("/api/list-definitions", Request())).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await _client.PostAsJsonAsync("/api/list-definitions", Request())).StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_RejectsTwoCommonListsSharingAName()
+    {
+        // Postgres treats NULLs as distinct in a unique constraint, so the owner-less scopes need
+        // a partial index rather than a plain UNIQUE. This is the test that would catch its loss.
+        var name = UniqueName("Countries");
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await _client.PostAsJsonAsync("/api/list-definitions",
+                new CreateListDefinitionRequest { Name = name })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await _client.PostAsJsonAsync("/api/list-definitions",
+                new CreateListDefinitionRequest { Name = name })).StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateDefinition_AllowsTheSameNameInCommonAndOrganization()
+    {
+        var name = UniqueName("Countries");
+
+        Assert.Equal(HttpStatusCode.Created,
+            (await _client.PostAsJsonAsync("/api/list-definitions",
+                new CreateListDefinitionRequest { Name = name })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created,
+            (await _client.PostAsJsonAsync("/api/list-definitions",
+                new CreateListDefinitionRequest
+                {
+                    Name = name,
+                    Scope = ListDefinitionScopes.Organization,
+                })).StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateDefinition_RenamingIntoAnExistingNameInTheSameScope_Returns409()
+    {
+        var first = await CreateDefinitionAsync();
+        var second = await CreateDefinitionAsync();
+
+        var response = await _client.PutAsJsonAsync($"/api/list-definitions/{second.Id}",
+            new UpdateListDefinitionRequest { Name = first.Name });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateDefinition_RenamingIntoANameUsedByAnotherScope_Succeeds()
+    {
+        // The namespace is per scope since 1810, so a common list and an organization list are
+        // free to share a name.
+        var common = await CreateDefinitionAsync();
+        var organization = (await (await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Org"),
+                Scope = ListDefinitionScopes.Organization,
+            })).Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+
+        var response = await _client.PutAsJsonAsync($"/api/list-definitions/{organization.Id}",
+            new UpdateListDefinitionRequest { Name = common.Name });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

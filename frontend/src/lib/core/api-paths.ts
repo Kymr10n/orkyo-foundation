@@ -88,21 +88,8 @@ export const API_PATHS = {
     `/api/resources/${resourceId}/capabilities/${capabilityId}`,
 
   // Person Profiles
-  PERSON_PROFILE_JOB_TITLES: '/api/person-profiles/job-titles',
-  PERSON_PROFILES_BATCH: '/api/person-profiles/batch',
-  personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
   calendarSubscriptions: '/api/calendar/subscriptions',
   calendarSubscription: (id: string) => `/api/calendar/subscriptions/${id}`,
-  personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
-
-  // Job Titles
-  JOB_TITLES: '/api/job-titles',
-  jobTitle: (id: string) => `/api/job-titles/${id}`,
-
-  // Departments
-  DEPARTMENTS: '/api/departments',
-  DEPARTMENTS_TREE: '/api/departments/tree',
-  department: (id: string) => `/api/departments/${id}`,
 
   // Templates
   TEMPLATES: '/api/templates',

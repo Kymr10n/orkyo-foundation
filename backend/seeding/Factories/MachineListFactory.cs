@@ -67,18 +67,19 @@ public static class MachineListFactory
         var now = DateTime.UtcNow;
 
         // ── Shared: the tooling catalogue every machine picks from ────────────────
-        var toolingDefId = await InsertDefinitionAsync(conn, "Tooling Catalog",
+        var toolingDefId = await ListSeedHelpers.InsertDefinitionAsync(conn, "Tooling Catalog",
             "Cutting tools available across the shop. Machines reference these rather than keeping their own copies.", now);
 
-        var toolingItem = await InsertColumnAsync(conn, toolingDefId, "item", "Item", "text", null, required: true, sort: 0, now);
-        await InsertColumnAsync(conn, toolingDefId, "diameter_mm", "Diameter (mm)", "number", null, required: false, sort: 1, now);
-        await InsertColumnAsync(conn, toolingDefId, "material", "Material", "select",
-            JsonSerializer.Serialize(new[] { "HSS", "Carbide", "Cobalt" }), required: false, sort: 2, now);
-        await InsertColumnAsync(conn, toolingDefId, "in_stock", "In stock", "boolean", null, required: false, sort: 3, now);
+        var toolingItem = await ListSeedHelpers.InsertColumnAsync(conn, toolingDefId, "item", "Item", "text", required: true, sort: 0, now);
+        await ListSeedHelpers.InsertColumnAsync(conn, toolingDefId, "diameter_mm", "Diameter (mm)", "number", required: false, sort: 1, now);
+        await ListSeedHelpers.InsertColumnAsync(conn, toolingDefId, "material", "Material", "select",
+            required: false, sort: 2, now,
+            optionsJson: JsonSerializer.Serialize(new[] { "HSS", "Carbide", "Cobalt" }));
+        await ListSeedHelpers.InsertColumnAsync(conn, toolingDefId, "in_stock", "In stock", "boolean", required: false, sort: 3, now);
         // The column that names a row wherever one is shown as a single value.
-        await SetDisplayColumnAsync(conn, toolingDefId, toolingItem);
+        await ListSeedHelpers.SetDisplayColumnAsync(conn, toolingDefId, toolingItem);
 
-        var toolingInstanceId = await InsertSharedInstanceAsync(conn, toolingDefId, "Standard Tooling", now);
+        var toolingInstanceId = await ListSeedHelpers.InsertSharedInstanceAsync(conn, toolingDefId, "Standard Tooling", now);
 
         var rowIds = new List<Guid>(ToolingRows.Length);
         foreach (var (item, diameter, material, inStock) in ToolingRows)
@@ -90,26 +91,26 @@ public static class MachineListFactory
                 ["material"] = material,
                 ["in_stock"] = inStock,
             });
-            rowIds.Add(await InsertRowAsync(conn, toolingInstanceId, values, now));
+            rowIds.Add(await ListSeedHelpers.InsertRowAsync(conn, toolingInstanceId, values, now));
         }
 
         // ── Per-resource: each machine keeps its own maintenance history ──────────
-        var maintenanceDefId = await InsertDefinitionAsync(conn, "Maintenance Log",
+        var maintenanceDefId = await ListSeedHelpers.InsertDefinitionAsync(conn, "Maintenance Log",
             "What was done to a machine and when. Each machine keeps its own entries.", now);
 
-        await InsertColumnAsync(conn, maintenanceDefId, "date", "Date", "date", null, required: true, sort: 0, now);
-        var workColumn = await InsertColumnAsync(conn, maintenanceDefId, "work", "Work", "select",
-            JsonSerializer.Serialize(new[] { "Inspection", "Repair", "Calibration", "Overhaul" }),
-            required: false, sort: 1, now);
-        await InsertColumnAsync(conn, maintenanceDefId, "technician", "Technician", "text", null, required: false, sort: 2, now);
-        await InsertColumnAsync(conn, maintenanceDefId, "downtime_h", "Downtime (h)", "number", null, required: false, sort: 3, now);
-        await InsertColumnAsync(conn, maintenanceDefId, "resolved", "Resolved", "boolean", null, required: false, sort: 4, now);
-        await SetDisplayColumnAsync(conn, maintenanceDefId, workColumn);
+        await ListSeedHelpers.InsertColumnAsync(conn, maintenanceDefId, "date", "Date", "date", required: true, sort: 0, now);
+        var workColumn = await ListSeedHelpers.InsertColumnAsync(conn, maintenanceDefId, "work", "Work", "select",
+            required: false, sort: 1, now,
+            optionsJson: JsonSerializer.Serialize(new[] { "Inspection", "Repair", "Calibration", "Overhaul" }));
+        await ListSeedHelpers.InsertColumnAsync(conn, maintenanceDefId, "technician", "Technician", "text", required: false, sort: 2, now);
+        await ListSeedHelpers.InsertColumnAsync(conn, maintenanceDefId, "downtime_h", "Downtime (h)", "number", required: false, sort: 3, now);
+        await ListSeedHelpers.InsertColumnAsync(conn, maintenanceDefId, "resolved", "Resolved", "boolean", required: false, sort: 4, now);
+        await ListSeedHelpers.SetDisplayColumnAsync(conn, maintenanceDefId, workColumn);
 
         // A second catalogue of the same shape. One definition, two instances — the split exists
         // precisely so the fabrication shop's consumables are not the machine shop's tooling, and a
         // demo with a single instance never shows why the two concepts are separate.
-        var consumablesInstanceId = await InsertSharedInstanceAsync(conn, toolingDefId, "Fabrication Consumables", now);
+        var consumablesInstanceId = await ListSeedHelpers.InsertSharedInstanceAsync(conn, toolingDefId, "Fabrication Consumables", now);
         var consumableRowIds = new List<Guid>(ConsumableRows.Length);
         foreach (var (item, diameter, material, inStock) in ConsumableRows)
         {
@@ -120,7 +121,7 @@ public static class MachineListFactory
                 ["material"] = material,
                 ["in_stock"] = inStock,
             });
-            consumableRowIds.Add(await InsertRowAsync(conn, consumablesInstanceId, values, now));
+            consumableRowIds.Add(await ListSeedHelpers.InsertRowAsync(conn, consumablesInstanceId, values, now));
         }
 
         return new SeededLists(toolingDefId, toolingInstanceId, rowIds, maintenanceDefId,
@@ -137,27 +138,14 @@ public static class MachineListFactory
         var now = DateTime.UtcNow;
         var ids = new Dictionary<(string, string), Guid>();
 
+        // Records the id so SeedMaintenanceHistoryAsync can find the per-resource field later.
         async Task Field(string typeKey, string key, string label, string dataType,
             bool required = false, int sort = 0, Guid? definitionId = null, Guid? instanceId = null)
         {
-            var id = Guid.NewGuid();
-            await using var cmd = new NpgsqlCommand(
-                "INSERT INTO public.resource_custom_fields " +
-                "(id, resource_type_id, key, label, data_type, is_required, sort_order, is_active, " +
-                " list_definition_id, list_instance_id, created_at, updated_at) " +
-                "VALUES (@id, @typeId, @key, @label, @dataType, @required, @sort, true, @defId, @instId, @now, @now)", conn);
-            cmd.Parameters.AddWithValue("id", id);
-            cmd.Parameters.AddWithValue("typeId", typeIds[typeKey]);
-            cmd.Parameters.AddWithValue("key", key);
-            cmd.Parameters.AddWithValue("label", label);
-            cmd.Parameters.AddWithValue("dataType", dataType);
-            cmd.Parameters.AddWithValue("required", required);
-            cmd.Parameters.AddWithValue("sort", sort);
-            cmd.Parameters.AddWithValue("defId", (object?)definitionId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("instId", (object?)instanceId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("now", now);
-            await cmd.ExecuteNonQueryAsync();
-            ids[(typeKey, key)] = id;
+            var id = await ListSeedHelpers.InsertCustomFieldAsync(
+                conn, typeIds[typeKey], key, label, dataType, required, sort, now,
+                definitionId, instanceId);
+            if (id is not null) ids[(typeKey, key)] = id.Value;
         }
 
         // Mill. spindle_max_rpm is required — legal on a tenant-defined placeable type, and worth
@@ -276,7 +264,7 @@ public static class MachineListFactory
                     ["downtime_h"] = faker.Random.Int(1, 12),
                     ["resolved"] = faker.Random.Bool(0.85f),
                 });
-                await InsertRowAsync(conn, instanceId, values, now);
+                await ListSeedHelpers.InsertRowAsync(conn, instanceId, values, now);
                 rows++;
             }
         }
@@ -289,87 +277,4 @@ public static class MachineListFactory
 
     private static List<string> PickTooling(IReadOnlyList<Guid> rowIds, Faker faker) =>
         faker.PickRandom(rowIds, faker.Random.Int(2, 4)).Select(id => id.ToString()).ToList();
-
-    // ── Small insert helpers ──────────────────────────────────────────────────
-
-    private static async Task<Guid> InsertDefinitionAsync(
-        NpgsqlConnection conn, string name, string description, DateTime now)
-    {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.list_definitions (id, name, description, is_active, created_at, updated_at) " +
-            "VALUES (@id, @name, @description, true, @now, @now)", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("description", description);
-        cmd.Parameters.AddWithValue("now", now);
-        await cmd.ExecuteNonQueryAsync();
-        return id;
-    }
-
-    private static async Task<Guid> InsertColumnAsync(
-        NpgsqlConnection conn, Guid definitionId, string key, string label, string dataType,
-        string? optionsJson, bool required, int sort, DateTime now)
-    {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.list_columns " +
-            "(id, list_definition_id, key, label, data_type, options, is_required, sort_order, is_active, created_at, updated_at) " +
-            "VALUES (@id, @definitionId, @key, @label, @dataType, @options, @required, @sort, true, @now, @now)", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("definitionId", definitionId);
-        cmd.Parameters.AddWithValue("key", key);
-        cmd.Parameters.AddWithValue("label", label);
-        cmd.Parameters.AddWithValue("dataType", dataType);
-        cmd.Parameters.Add(new NpgsqlParameter("options", NpgsqlTypes.NpgsqlDbType.Jsonb)
-        {
-            Value = (object?)optionsJson ?? DBNull.Value,
-        });
-        cmd.Parameters.AddWithValue("required", required);
-        cmd.Parameters.AddWithValue("sort", sort);
-        cmd.Parameters.AddWithValue("now", now);
-        await cmd.ExecuteNonQueryAsync();
-        return id;
-    }
-
-    /// <summary>Designated after the columns exist — the FK points at a column of this definition,
-    /// so it cannot be set in the same statement that creates the definition.</summary>
-    private static async Task SetDisplayColumnAsync(NpgsqlConnection conn, Guid definitionId, Guid columnId)
-    {
-        await using var cmd = new NpgsqlCommand(
-            "UPDATE public.list_definitions SET display_column_id = @columnId WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("columnId", columnId);
-        cmd.Parameters.AddWithValue("id", definitionId);
-        await cmd.ExecuteNonQueryAsync();
-    }
-
-    private static async Task<Guid> InsertSharedInstanceAsync(
-        NpgsqlConnection conn, Guid definitionId, string name, DateTime now)
-    {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.list_instances (id, list_definition_id, kind, name, created_at, updated_at) " +
-            "VALUES (@id, @definitionId, 'shared', @name, @now, @now)", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("definitionId", definitionId);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("now", now);
-        await cmd.ExecuteNonQueryAsync();
-        return id;
-    }
-
-    private static async Task<Guid> InsertRowAsync(
-        NpgsqlConnection conn, Guid instanceId, string valuesJson, DateTime now)
-    {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.list_rows (id, list_instance_id, values, created_at, updated_at) " +
-            "VALUES (@id, @instanceId, @values, @now, @now)", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("instanceId", instanceId);
-        cmd.Parameters.Add(new NpgsqlParameter("values", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = valuesJson });
-        cmd.Parameters.AddWithValue("now", now);
-        await cmd.ExecuteNonQueryAsync();
-        return id;
-    }
 }

@@ -85,8 +85,8 @@ public class InsightsService(
 
         foreach (var type in types)
         {
-            var series = await ComputeUtilizationSeriesAsync(
-                type.Key, filter.From, filter.To, "month", filter.SiteId, ct);
+            var series = (await ComputeUtilizationSeriesAsync(
+                type.Key, filter.From, filter.To, "month", filter.SiteId, ct)).Buckets;
             byType.Add(new ResourceTypeUtilization
             {
                 ResourceTypeKey = type.Key,
@@ -165,7 +165,8 @@ public class InsightsService(
     {
         var bucket = filter.Bucket!;
         var resourceType = filter.ResourceType!;
-        var series = await ComputeUtilizationSeriesAsync(resourceType, filter.From, filter.To, bucket, filter.SiteId, ct);
+        var computed = await ComputeUtilizationSeriesAsync(resourceType, filter.From, filter.To, bucket, filter.SiteId, ct);
+        var series = computed.Buckets;
         var rangeFrom = series.Count > 0 ? series[0].Start : filter.From;
         var rangeTo = series.Count > 0 ? series[^1].End : filter.To;
         var timeline = await LoadConflictTimelineAsync(rangeFrom, rangeTo, filter.SiteId, ct);
@@ -191,6 +192,7 @@ public class InsightsService(
             ResourceType = resourceType,
             Bucket = bucket,
             Series = points,
+            ResourceCount = computed.ResourceCount,
             Metadata = Metadata(),
         };
     }
@@ -330,6 +332,13 @@ public class InsightsService(
     private sealed record UtilBucket(DateTime Start, DateTime End, double CapMinutes, double UsedMinutes);
 
     /// <summary>
+    /// The series plus how many resources produced it. The count separates "this type has nothing at
+    /// this site" from "it has resources whose capacity nets to zero" — two situations that look
+    /// identical in the numbers and need different words on screen.
+    /// </summary>
+    private sealed record UtilSeries(List<UtilBucket> Buckets, int ResourceCount);
+
+    /// <summary>
     /// Per-bucket capacity/used minutes for one resource type, computed as *time-based occupancy* — the
     /// share of available time actually booked over the bucket. This deliberately differs from the
     /// scheduler grid's per-slot view (<see cref="IUtilizationService"/>), where an Exclusive resource
@@ -341,11 +350,11 @@ public class InsightsService(
     /// Resource selection (incl. site resolution) and blocked periods reuse the same repositories the
     /// grid uses, so only the metric — not the data sourcing — is bespoke.
     /// </summary>
-    private async Task<List<UtilBucket>> ComputeUtilizationSeriesAsync(
+    private async Task<UtilSeries> ComputeUtilizationSeriesAsync(
         string resourceType, DateTime from, DateTime to, string bucket, Guid? siteId, CancellationToken ct)
     {
         var buckets = InsightsBuckets.Generate(from, to, bucket);
-        if (buckets.Count == 0) return [];
+        if (buckets.Count == 0) return new UtilSeries([], 0);
         var rangeFrom = buckets[0].Start;
         var rangeTo = buckets[^1].End;
 
@@ -400,7 +409,7 @@ public class InsightsService(
         var result = new List<UtilBucket>(buckets.Count);
         for (var i = 0; i < buckets.Count; i++)
             result.Add(new UtilBucket(buckets[i].Start, buckets[i].End, cap[i], used[i]));
-        return result;
+        return new UtilSeries(result, resources.Count);
     }
 
     private static double OverlapMinutes(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)

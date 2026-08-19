@@ -1,6 +1,21 @@
 import { CollapsibleFloorplan } from "@foundation/src/components/utilization/CollapsibleFloorplan";
-import { RequestsPanel } from "@foundation/src/components/utilization/RequestsPanel";
 import { ScaleSelect } from "@foundation/src/components/utilization/ScaleSelect";
+import { TypeFilterSelect } from "@foundation/src/components/utilization/TypeFilterSelect";
+import { ScheduleFilterBar } from "@foundation/src/components/utilization/ScheduleFilterBar";
+import { StationGridLegend } from "@foundation/src/components/utilization/StationGridLegend";
+import { AssetGridLegend } from "@foundation/src/components/utilization/AssetGridLegend";
+import { ResourceGridFilterBar } from "@foundation/src/components/utilization/ResourceGridFilterBar";
+import {
+  EMPTY_RESOURCE_GRID_FILTER,
+  type ResourceGridFilter,
+} from "@foundation/src/components/utilization/resource-grid-filter";
+import {
+  ISSUE_FILTER_ORDER,
+  filterScheduledRequests,
+  type ScheduleFilter,
+} from "@foundation/src/components/utilization/schedule-filter";
+import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
+import { useTypeFilter } from "@foundation/src/hooks/useTypeFilter";
 import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerGrid";
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
@@ -30,8 +45,7 @@ import { ScheduleSlotDialog } from "@foundation/src/components/utilization/Sched
 import { requestsToCalendarEvents, scaleToCalendarView } from "@foundation/src/components/utilization/request-calendar-events";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
-import { createRequest, moveRequest, updateRequest } from "@foundation/src/lib/api/request-api";
-import { wouldCreateCycle, getNextSortOrder } from "@foundation/src/domain/request-tree";
+import { createRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
@@ -48,7 +62,6 @@ import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
 import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
 import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
 import { DropColumnIndicator } from "@foundation/src/components/utilization/DropColumnIndicator";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
@@ -57,6 +70,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { CalendarOff } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@foundation/src/components/ui/dropdown-menu";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
@@ -66,7 +86,15 @@ import { errorMessage } from "@foundation/src/hooks/mutation-utils";
  * the surface rather than by a resource type key — `space` would be wrong the moment a tenant
  * defines a second type that occupies area.
  */
+/** "Mills", "Mills and Drills", "Mills, Drills and Presses". */
+function joinNames(names: string[]): string {
+  if (names.length === 0) return 'resources';
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 const STATIONS_TAB = 'stations';
+const ASSETS_TAB = 'assets';
 
 export function UtilizationPage() {
   usePageTitle("Utilization");
@@ -137,6 +165,13 @@ export function UtilizationPage() {
   // original node (and its subtree) on every pointer move. Row-reorder drags
   // (type "space-row") don't get an overlay.
   const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
+
+  // Right-click target on a scheduled bar, in viewport coordinates. The menu anchors to a
+  // zero-size span at the pointer, the same way the floorplan's shape menu does.
+  const [requestMenu, setRequestMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const handleRequestContextMenu = useCallback((requestId: string, position: { x: number; y: number }) => {
+    setRequestMenu({ id: requestId, ...position });
+  }, []);
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const data = event.active.data.current as { type?: string; name?: string } | undefined;
     setActiveDragLabel(data && data.type !== "space-row" ? data.name ?? null : null);
@@ -164,14 +199,11 @@ export function UtilizationPage() {
     ];
   }, [resourceTypes]);
 
-  // Tab state — persisted in URL so the view is bookmarkable. A grid tab's value is its type
-  // key, so the valid set is only known once the types load; judge the URL after that rather
-  // than falling back early and flashing Calendar over a valid deep link.
+  // Tab state — persisted in URL so the view is bookmarkable. Three fixed values, so the set is
+  // known without waiting for the types.
   const [rawTab, handleTabChange] = useTabParam('calendar');
   const isKnownTab =
-    rawTab === 'calendar'
-    || rawTab === STATIONS_TAB
-    || gridTypes.some((t) => t.key === rawTab);
+    rawTab === 'calendar' || rawTab === STATIONS_TAB || rawTab === ASSETS_TAB;
   // Until the types load the valid set is unknown, so an unrecognised value is held rather
   // than replaced — otherwise a deep link to a real type tab flashes Calendar first.
   const activeTab = !resourceTypesLoaded || isKnownTab ? rawTab : 'calendar';
@@ -184,51 +216,49 @@ export function UtilizationPage() {
 
   const isCalendarTab = activeTab === 'calendar';
   const isSchedulerTab = activeTab === STATIONS_TAB;
-  /** Any derived per-type grid tab (person, tool, tenant-defined). */
-  const isTypeGridTab = !isCalendarTab && !isSchedulerTab;
+  const isAssetsTab = activeTab === ASSETS_TAB;
 
-  // Auto-schedule solves for the type whose tab you are on — the tab already names it, so a
-  // separate selector could only ever disagree with what is on screen, and keeping the two in
-  // step needed an effect and a lock while a preview was open. Calendar has no type of its
-  // own, so the controls do not appear there.
-  // One solver run solves one resource type. A grid tab names its type directly. The calendar
-  // and stations tabs do not — stations holds every placeable type at once, and its tab value
-  // ('stations') is a surface name, not a type key — so they resolve to the single placeable
-  // type when the tenant has exactly one, and to null otherwise, which disables the button
-  // rather than solving for a silently-guessed pool.
-  const autoScheduleTypeKey = isTypeGridTab
-    ? activeTab
-    : placeableTypes.length === 1
-      ? placeableTypes[0].key
-      : null;
+  // Which types each grid tab is showing. Held in the URL so a filtered view is shareable.
+  const [stationKeys, setStationKeys] = useTypeFilter('stationTypes', placeableTypes);
+  const [assetKeys, setAssetKeys] = useTypeFilter('assetTypes', gridTypes);
+  const selectedKeys = isSchedulerTab ? stationKeys : assetKeys;
+  const selectedAssetTypes = useMemo(
+    () => gridTypes.filter((t) => assetKeys.includes(t.key)),
+    [gridTypes, assetKeys],
+  );
 
-  // Every type in tab order (Spaces, People, then the rest) — the PDF sections rows by type,
-  // and reusing gridTypes keeps the export's order identical to the tab strip's.
+  // One solver run solves one type, and a grid tab now shows a set of them. So the button is
+  // live exactly when the filter names a single type, which generalizes the old rule (enabled
+  // when the tenant happened to have one placeable type) instead of guessing at a pool.
+  const autoScheduleTypeKey =
+    !isCalendarTab && selectedKeys.length === 1 ? selectedKeys[0] : null;
+
+  // Stations first, then assets with people at their head — the PDF sections rows by type, and
+  // this is the order the two grid tabs present them in.
   const orderedTypes = useMemo(
     () => [...placeableTypes, ...gridTypes],
     [placeableTypes, gridTypes],
   );
 
-  // The export follows the tab: a grid tab exports that type alone, and Calendar — which has no
-  // type of its own — exports every type, one section per type. Anything else would hand back a
-  // PDF that disagrees with what is on screen. The scheduler tab is one floorplan holding every
-  // placeable type, so it exports all of them; filtering to the tab's own key would drop
-  // resources that are visibly on the plan.
+  // The export follows what is on screen: Calendar has no type of its own and exports every
+  // type; a grid tab exports exactly the types its filter admits. Anything else hands back a PDF
+  // that disagrees with the screen it came from.
   const exportTypes = useMemo(
     () => {
       if (isCalendarTab) return orderedTypes;
-      if (isSchedulerTab) return placeableTypes;
-      return orderedTypes.filter((t) => t.key === activeTab);
+      return orderedTypes.filter((t) => selectedKeys.includes(t.key));
     },
-    [isCalendarTab, isSchedulerTab, orderedTypes, placeableTypes, activeTab],
+    [isCalendarTab, orderedTypes, selectedKeys],
   );
   // Names what the PDF will contain. The scheduler tab can span several placeable types, and
   // naming only the first would misdescribe the file.
-  const exportScopeLabel = isCalendarTab
-    ? 'all resources'
-    : exportTypes.length === 1
-      ? exportTypes[0].displayNamePlural
-      : (exportTypes.map((t) => t.displayNamePlural).join(' and ') || 'resources');
+  // Names what the PDF will contain. A filter that admits everything says so rather than
+  // enumerating the whole catalogue, and three or more types read as a list, not as a chain of
+  // "and"s.
+  const exportScopeLabel =
+    isCalendarTab || exportTypes.length === orderedTypes.length
+      ? 'all resources'
+      : joinNames(exportTypes.map((t) => t.displayNamePlural));
 
   // Floorplan height state
   const [floorplanHeight, setFloorplanHeight] = useState(280);
@@ -237,10 +267,7 @@ export function UtilizationPage() {
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   // On phone the drag-based scheduler grid is replaced by a drag-free agenda.
   const { isPhone } = useBreakpoint();
-  const [isCreateChildDialogOpen, setIsCreateChildDialogOpen] = useState(false);
-  const [createChildParent, setCreateChildParent] = useState<Request | null>(null);
   // Non-drag "Schedule to…" dialog target (keyboard-accessible scheduling path).
-  const [scheduleToRequest, setScheduleToRequest] = useState<Request | null>(null);
   const queryClient = useQueryClient();
 
   // Auto-schedule
@@ -255,7 +282,13 @@ export function UtilizationPage() {
   // Fetch data from API — scoped to the selected site + a buffered window for the grid bars, plus
   // the tenant-wide unscheduled backlog (drag source). The panel/lookups use the union; the grid
   // bars come from the scoped scheduled set.
-  const { data: spaces = [], isLoading: spacesLoading } = usePlaceableResources(selectedSiteId);
+  const { data: allSpaces = [], isLoading: spacesLoading } = usePlaceableResources(selectedSiteId);
+  // The plan itself keeps every station — a floorplan with half its shapes missing reads as a
+  // broken drawing — so the filter narrows the grid rows only.
+  const spaces = useMemo(
+    () => allSpaces.filter((r) => stationKeys.includes(r.resourceTypeKey)),
+    [allSpaces, stationKeys],
+  );
   const placeableKeys = usePlaceableTypeKeys();
   const handleToday = useCallback(() => {
     setAnchorTs(new Date());
@@ -352,9 +385,26 @@ export function UtilizationPage() {
   const { conflictsByRequest: conflicts } = useConflictRegistry({
     from: fetchWindow.from,
     to: fetchWindow.to,
-    enabled: !isTypeGridTab,
+    enabled: !isAssetsTab,
   });
   const conflictingRequestIds = useMemo(() => new Set(conflicts.keys()), [conflicts]);
+
+  // Search and filters for the stations grid. Local, like the calendar's: a query changes on every
+  // keystroke, and writing that to the address bar would bury real navigation under typing history.
+  const [stationFilter, setStationFilter] = useState<ScheduleFilter>({
+    query: '',
+    statuses: REQUEST_STATUS_ORDER,
+    issues: ISSUE_FILTER_ORDER,
+  });
+  const visibleScheduled = useMemo(
+    () => filterScheduledRequests(scheduled, stationFilter, conflicts),
+    [scheduled, stationFilter, conflicts],
+  );
+
+  // One search and one filter for the whole Assets tab. Each stacked type grid gets them as a
+  // prop: a box per grid would ask which of three identical boxes to type in, and could only ever
+  // be labelled after one of the types.
+  const [assetFilter, setAssetFilter] = useState<ResourceGridFilter>(EMPTY_RESOURCE_GRID_FILTER);
 
   // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
   // status + conflict severity. Reuses the same scoped `scheduled` set as the grid.
@@ -469,22 +519,6 @@ export function UtilizationPage() {
     if (request) openRequestEditor(request, conflicts.get(requestId) ?? []);
   }, [requests, openRequestEditor, conflicts]);
 
-  // Handle "Add child" from RequestsPanel
-  const handleCreateChild = useCallback((parentId: string) => {
-    const parent = requests.find(r => r.id === parentId);
-    if (!parent) return;
-    setCreateChildParent(parent);
-    setIsCreateChildDialogOpen(true);
-  }, [requests]);
-
-  // Handle save for create-child dialog
-  const handleSaveChildRequest = useCallback(async (data: RequestFormData) => {
-    await createRequest(buildCreatePayload(data));
-    invalidateRequestData(queryClient);
-    setIsCreateChildDialogOpen(false);
-    setCreateChildParent(null);
-  }, [queryClient]);
-
   // --- Drag-end sub-handlers (named for readability, not extracted) ---
 
   const handleSpaceReorder = useCallback((activeId: string | number, overId: string | number) => {
@@ -514,20 +548,6 @@ export function UtilizationPage() {
     setSelectedRequestId(null);
     // Conflicts refresh via the registry (invalidated on the schedule mutation) when the request loses its space assignment
   }, [scheduleMutation, setSelectedRequestId]);
-
-  const handleTreeReparent = useCallback(async (requestId: string, parentId: string) => {
-    if (wouldCreateCycle(requestId, parentId, requests)) return;
-    try {
-      await moveRequest(requestId, {
-        newParentRequestId: parentId,
-        sortOrder: getNextSortOrder(parentId, requests),
-      });
-      invalidateRequestData(queryClient);
-    } catch (error) {
-      logger.error("Failed to reparent request:", error);
-      toast.error("Couldn't move the request. Please try again.");
-    }
-  }, [requests, queryClient]);
 
   const handleScheduleToGrid = useCallback(async (
     draggedData: Request & { isScheduled?: boolean },
@@ -560,11 +580,6 @@ export function UtilizationPage() {
   // Non-drag scheduling: reuse the exact drag-drop handler (duration → endTs,
   // schedule mutation, conflict feedback) so the dialog and the drag path submit
   // identically.
-  const handleScheduleToSubmit = useCallback(async (resourceId: string, startTs: Date) => {
-    if (!scheduleToRequest) return;
-    await handleScheduleToGrid(scheduleToRequest, resourceId, startTs);
-  }, [scheduleToRequest, handleScheduleToGrid]);
-
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveDragLabel(null);
     const { active, over } = event;
@@ -579,14 +594,6 @@ export function UtilizationPage() {
     }
     if (!draggedData) return;
 
-    if (dropData?.type === "unschedule") {
-      handleUnschedule(draggedData);
-      return;
-    }
-    if (dropData?.type === "tree-reparent" && dropData.parentRequestId) {
-      await handleTreeReparent(draggedData.id, dropData.parentRequestId);
-      return;
-    }
     if (dropData?.type === "space-track" && dropData.resourceId && dropData.columnStartsMs && selectedSiteId) {
       // The whole row is one droppable; resolve the exact column from where the
       // pointer ended (activator position + accumulated drag delta) relative to
@@ -601,7 +608,7 @@ export function UtilizationPage() {
       );
       await handleScheduleToGrid(draggedData, dropData.resourceId, new Date(startMs));
     }
-  }, [selectedSiteId, handleSpaceReorder, handleUnschedule, handleTreeReparent, handleScheduleToGrid]);
+  }, [selectedSiteId, handleSpaceReorder, handleScheduleToGrid]);
 
   const handleResizeRequest = useCallback((requestId: string, startTs: string, endTs: string) => {
     const request = requests.find((r) => r.id === requestId);
@@ -694,7 +701,7 @@ export function UtilizationPage() {
     setIsSlotChooserOpen(false);
     if (slotSelection.resource) {
       // Grid click: schedule straight onto the clicked space at the cell's
-      // start — the exact path drag-drop and ScheduleToDialog use.
+      // start — the same path drag-to-reschedule uses.
       void handleScheduleToGrid(request, slotSelection.resource.id, slotSelection.start);
       return;
     }
@@ -734,7 +741,7 @@ export function UtilizationPage() {
   const tabs: PageTab[] = [
     { value: 'calendar', label: 'Calendar' },
     { value: STATIONS_TAB, label: 'Stations' },
-    ...gridTypes.map((t) => ({ value: t.key, label: t.displayNamePlural })),
+    { value: ASSETS_TAB, label: 'Assets' },
   ];
 
   // Scale + time navigation shared across every tab (the calendar is
@@ -751,6 +758,14 @@ export function UtilizationPage() {
             disabled={!selectedSiteId || !autoScheduleTypeKey}
           />
         </>
+      )}
+      {/* Which types the grid shows. Calendar spans every type, so it has nothing to filter. */}
+      {!isCalendarTab && (
+        <TypeFilterSelect
+          available={isSchedulerTab ? placeableTypes : gridTypes}
+          selected={selectedKeys}
+          onChange={isSchedulerTab ? setStationKeys : setAssetKeys}
+        />
       )}
       <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
       <TimeNavigator
@@ -782,7 +797,10 @@ export function UtilizationPage() {
 
         {/* Calendar tab — Outlook-style time view of scheduled requests */}
         <TabsContent value="calendar" className="h-full overflow-hidden m-0 data-[state=inactive]:hidden">
-          <div className="h-full rounded-xl border bg-background p-2 md:p-3">
+          {/* One outline, drawn here — the same container the stations and assets tabs use. The
+              padding this used to carry pushed FullCalendar's own outer border inward, so the tab
+              read as a box inside a box. */}
+          <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-background">
             <RequestCalendar
               events={calendarEvents}
               offTimeRanges={offTimeRanges}
@@ -830,18 +848,20 @@ export function UtilizationPage() {
                 />
               )}
 
-              {/* Scheduler + Requests Panel (backlog panel is desktop/tablet only) */}
-              <div className="flex-1 flex overflow-hidden rounded-xl border bg-background">
-                {!isPhone && (
-                  <RequestsPanel
-                    requests={requests}
-                    isLoading={requestsLoading}
-                    onCreateChild={canEdit ? handleCreateChild : undefined}
-                    onRequestClick={openRequestEditor}
-                    onScheduleTo={canEdit ? setScheduleToRequest : undefined}
+              {/* Scheduler — full width; the backlog reaches the grid by clicking an empty cell. */}
+              <div className="flex-1 flex flex-col overflow-hidden rounded-xl border bg-background">
+                {/* Key on the left, search and filters opposite it — the same bar the calendar
+                    carries, over this grid's own key. */}
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-3 py-2 text-xs text-muted-foreground shrink-0">
+                  {!isPhone && <StationGridLegend />}
+                  <ScheduleFilterBar
+                    value={stationFilter}
+                    onChange={(patch) => setStationFilter((current) => ({ ...current, ...patch }))}
+                    matchCount={visibleScheduled.length}
+                    totalCount={scheduled.length}
                   />
-                )}
-
+                </div>
+                <div className="flex flex-1 overflow-hidden">
                 {spacesLoading || requestsLoading ? (
                   <div className="flex-1">
                     <LoadingSpinner fullScreen={false} message="Loading requests…" />
@@ -849,7 +869,7 @@ export function UtilizationPage() {
                 ) : (
                   <SchedulerGrid
                     spaces={spaces}
-                    requests={scheduled}
+                    requests={visibleScheduled}
                     scale={scale}
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
@@ -861,6 +881,7 @@ export function UtilizationPage() {
                     // in the dialog's Timing tab — better on touch than 2px handles.
                     onRequestClick={isPhone ? handleRequestDoubleClick : setSelectedRequestId}
                     onRequestDoubleClick={handleRequestDoubleClick}
+                    onRequestContextMenu={canEdit && !isPhone ? handleRequestContextMenu : undefined}
                     onRequestResize={handleResizeRequest}
                     onEmptyCellClick={canEdit ? handleGridCellClick : undefined}
                     editable={canEdit}
@@ -873,6 +894,7 @@ export function UtilizationPage() {
                     workingDayEnd={schedulingSettings?.workingDayEnd}
                   />
                 )}
+                </div>
               </div>
             </div>
 
@@ -890,40 +912,72 @@ export function UtilizationPage() {
           </DndContext>
         </TabsContent>
 
-        {/* One grid per type without a purpose-built surface. Radix unmounts inactive
-            panels, so only the visible tab's grid fetches. */}
-        {gridTypes.map((type) => (
-          <TabsContent
-            key={type.key}
-            value={type.key}
-            className="h-full overflow-hidden m-0 data-[state=inactive]:hidden"
-          >
-            <ResourceUtilizationGrid
-              resourceType={type}
-              anchorTs={anchorTs}
-              scale={scale}
-              offTimeRanges={offTimeRanges}
-              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
-              siteId={selectedSiteId}
-            />
-          </TabsContent>
-        ))}
+        {/* Assets — one grid per selected type, stacked. Reuses the grid unchanged rather than
+            teaching it about several types, whose columns would have to mean different things. */}
+        <TabsContent
+          value={ASSETS_TAB}
+          className="h-full overflow-hidden m-0 data-[state=inactive]:hidden"
+        >
+          <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-background">
+            {/* Key on the left, search and filters opposite it — the same bar the calendar and the
+                stations grid carry, over the states these grids paint. One outline around the lot,
+                and no per-type heading: each grid's own row header already names its type. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-2 text-xs text-muted-foreground shrink-0">
+              {!isPhone && <AssetGridLegend />}
+              <ResourceGridFilterBar value={assetFilter} onChange={setAssetFilter} />
+            </div>
+            {/* One scroll region per grid, never two. The stack splits the height rather than
+                scrolling itself: a scrolling stack around grids that already scroll internally
+                gives nested scrollbars, where a wheel gesture lands in whichever region the
+                pointer happens to be over. The stations tab has the same shape — bar, then a grid
+                that owns its own scrolling with its header pinned. */}
+            <div className="flex flex-1 flex-col overflow-hidden divide-y">
+              {selectedAssetTypes.map((type) => (
+                <section key={type.key} className="flex min-h-0 flex-1 flex-col">
+                  <ResourceUtilizationGrid
+                    resourceType={type}
+                    anchorTs={anchorTs}
+                    scale={scale}
+                    offTimeRanges={offTimeRanges}
+                    weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+                    siteId={selectedSiteId}
+                    filter={assetFilter}
+                  />
+                </section>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
 
       </PageTabs>
 
       {/* Dialogs — rendered outside tabs; they portal to document.body */}
       {requestEditorDialogs}
 
-      <RequestFormDialog
-        key={`child-${createChildParent?.id ?? 'none'}`}
-        open={isCreateChildDialogOpen}
-        onOpenChange={(open) => {
-          setIsCreateChildDialogOpen(open);
-          if (!open) setCreateChildParent(null);
-        }}
-        parentRequest={createChildParent}
-        onSave={handleSaveChildRequest}
-      />
+      {/* Unschedule lives here rather than in the grid so the mutation stays on the page that
+          owns it. Double-click already opens the editor, so the menu does not repeat it. */}
+      {requestMenu && (
+        <DropdownMenu open onOpenChange={(open) => !open && setRequestMenu(null)}>
+          <DropdownMenuTrigger asChild>
+            <span
+              aria-hidden
+              style={{ position: "fixed", left: requestMenu.x, top: requestMenu.y, width: 0, height: 0 }}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              onSelect={() => {
+                const request = requests.find((r) => r.id === requestMenu.id);
+                setRequestMenu(null);
+                if (request) handleUnschedule({ ...request, isScheduled: true });
+              }}
+            >
+              <CalendarOff className="mr-2 h-4 w-4" />
+              Unschedule
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       {/* Empty-slot scheduling chooser (calendar slot select + Spaces-grid cell click) */}
       <ScheduleSlotDialog
@@ -946,16 +1000,6 @@ export function UtilizationPage() {
         defaultResource={calendarForm?.resource}
         scheduleSiteId={selectedSiteId ?? undefined}
         onSave={handleCalendarFormSave}
-      />
-
-      {/* Non-drag "Schedule to…" — keyboard-accessible scheduling for backlog cards */}
-      <ScheduleToDialog
-        open={!!scheduleToRequest}
-        onOpenChange={(open) => { if (!open) setScheduleToRequest(null); }}
-        request={scheduleToRequest}
-        spaces={spaces}
-        onSchedule={handleScheduleToSubmit}
-        isSubmitting={scheduleMutation.isPending}
       />
 
       <AutoSchedulePreviewDialog

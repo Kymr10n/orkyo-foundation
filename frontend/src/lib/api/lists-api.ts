@@ -62,10 +62,20 @@ export interface ListColumn {
   updatedAt: string;
 }
 
+/**
+ * Who owns a list definition (migration 1810). `resource` definitions belong to one resource type
+ * and are edited from its Lists tab; `organization` holds master data such as departments;
+ * `common` is shared reference data with no narrower owner.
+ */
+export type ListDefinitionScope = 'resource' | 'organization' | 'common';
+
 export interface ListDefinition {
   id: string;
   name: string;
   description?: string | null;
+  scope: ListDefinitionScope;
+  /** Set exactly when the scope is `resource`. */
+  resourceTypeId?: string | null;
   isActive: boolean;
   /**
    * The column that identifies a row wherever one is shown as a single value. Null falls back to
@@ -104,6 +114,10 @@ export interface ListRow {
 export interface CreateListDefinitionRequest {
   name: string;
   description?: string;
+  /** Server default is `common`, matching every definition that predates scoping. */
+  scope?: ListDefinitionScope;
+  /** Required for `resource`, rejected for the other two. */
+  resourceTypeId?: string | null;
 }
 
 export interface UpdateListDefinitionRequest {

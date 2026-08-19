@@ -52,8 +52,9 @@ describe('SidebarNav', () => {
   it('renders all navigation links', () => {
     renderSidebar();
     expect(screen.getByText('Utilization')).toBeInTheDocument();
-    // The nav names the surface — one floorplan holding every placeable type.
-    expect(screen.getByText('Floorplan')).toBeInTheDocument();
+    // The nav names the two resource classes, never a type.
+    expect(screen.getByText('Stations')).toBeInTheDocument();
+    expect(screen.getByText('Assets')).toBeInTheDocument();
     expect(screen.getByText('Requests')).toBeInTheDocument();
     expect(screen.getByText('Insights')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
@@ -69,50 +70,32 @@ describe('SidebarNav', () => {
     const links = screen.getAllByRole('link');
     const hrefs = links.map(l => l.getAttribute('href'));
     expect(hrefs).toContain('/');
-    expect(hrefs).toContain('/floorplan');
+    expect(hrefs).toContain('/stations');
+    expect(hrefs).toContain('/assets');
     expect(hrefs).toContain('/requests');
     expect(hrefs).toContain('/insights');
     expect(hrefs).toContain('/settings');
   });
 
-  it('lists every type without a purpose-built page, built-in or not', () => {
-    // The test used to be `!isSystem`, which withheld an entry from `tool` — a built-in type
-    // that has never had a page of its own, leaving it reachable only by typing the URL.
+  it('grows no entry when the tenant defines more types', () => {
+    // The whole point of the class pages: a type is reached through a selector, so the sidebar
+    // is the same size for a tenant with three types and one with three hundred.
+    resourceTypesState.data = [];
+    renderSidebar();
+    const before = screen.getAllByRole('link').length;
+
     resourceTypesState.data = [
       { key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', isSystem: true },
       { key: 'person', displayName: 'Person', displayNamePlural: 'People', isSystem: true },
       { key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', isSystem: true },
       { key: 'car', displayName: 'Car', displayNamePlural: 'Cars', isSystem: false },
     ];
-    renderSidebar();
+    const second = renderSidebar();
+    const links = Array.from(second.container.querySelectorAll('a'));
 
-    // A nav entry names a collection, so it uses the plural the type carries — deriving it
-    // would read "Persons", and tenants do not all name things in English.
-    expect(screen.getByText('Tools')).toBeInTheDocument();
-    expect(screen.getByText('Cars')).toBeInTheDocument();
-
-    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
-    expect(hrefs).toContain('/resources/tool');
-    expect(hrefs).toContain('/resources/car');
-    // Space is an ordinary placeable type now: it gets a generic type entry like any other,
-    // while the fixed Floorplan entry stays a site surface, not a type page. Person keeps its
-    // purpose-built page rather than gaining a second entry.
-    expect(hrefs).toContain('/resources/space');
-    expect(hrefs).toContain('/floorplan');
-    expect(hrefs).not.toContain('/resources/person');
-  });
-
-  it('places the derived type entries with the other resources, beneath People', () => {
-    resourceTypesState.data = [
-      { key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', isSystem: true },
-      { key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', isSystem: true },
-    ];
-    renderSidebar();
-
-    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
-    // Resources group together; Requests and Insights stay after them.
-    expect(hrefs.indexOf('/resources/tool')).toBeGreaterThan(hrefs.indexOf('/people'));
-    expect(hrefs.indexOf('/resources/tool')).toBeLessThan(hrefs.indexOf('/requests'));
+    expect(links.length).toBe(before);
+    const hrefs = links.map((l) => l.getAttribute('href'));
+    expect(hrefs.some((h) => h?.startsWith('/resources/'))).toBe(false);
   });
 
   it('hides the Administration item for non-admins', () => {
@@ -132,11 +115,11 @@ describe('SidebarNav', () => {
     expect(labels.indexOf('Administration')).toBe(labels.indexOf('Settings') + 1);
   });
 
-  it('shows the Resources item for tenant admins only', () => {
+  it('shows the Configuration item for tenant admins only', () => {
     authState.membership = { isTenantAdmin: true };
     renderSidebar();
 
-    expect(screen.getByText('Resources')).toBeInTheDocument();
+    expect(screen.getByText('Configuration')).toBeInTheDocument();
     expect(screen.getAllByRole('link').map((l) => l.getAttribute('href'))).toContain(
       '/configuration',
     );
@@ -147,7 +130,7 @@ describe('SidebarNav', () => {
     renderSidebar();
 
     // Same gate as Administration: it shapes tenant-wide data, so it is not an editor surface.
-    expect(screen.queryByText('Resources')).not.toBeInTheDocument();
+    expect(screen.queryByText('Configuration')).not.toBeInTheDocument();
   });
 
   describe('active state', () => {
@@ -157,8 +140,8 @@ describe('SidebarNav', () => {
         .find((l) => l.className.includes('bg-accent') && l.className.includes('font-medium'));
 
     it('highlights a section when on one of its index-redirect sub-tabs', () => {
-      renderSidebar('/floorplan/floorplan');
-      expect(activeLink()?.getAttribute('href')).toBe('/floorplan');
+      renderSidebar('/stations/mill/instances');
+      expect(activeLink()?.getAttribute('href')).toBe('/stations');
     });
 
     it('highlights a section on its exact path', () => {
@@ -167,8 +150,8 @@ describe('SidebarNav', () => {
     });
 
     it('keeps the root item active only on exact "/" (not on sub-routes)', () => {
-      renderSidebar('/floorplan/floorplan');
-      // Root item must NOT be the active one when we are under /floorplan.
+      renderSidebar('/stations/mill/instances');
+      // Root item must NOT be the active one when we are under /stations.
       expect(activeLink()?.getAttribute('href')).not.toBe('/');
     });
 
@@ -198,7 +181,7 @@ describe('SidebarNav', () => {
     it('calls onNavigate when a link is activated', async () => {
       const onNavigate = vi.fn();
       renderSidebar('/', { forceCollapsed: false, onNavigate });
-      await userEvent.click(screen.getByText('Floorplan'));
+      await userEvent.click(screen.getByText('Stations'));
       expect(onNavigate).toHaveBeenCalledTimes(1);
     });
   });

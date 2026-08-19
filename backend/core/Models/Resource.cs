@@ -81,12 +81,10 @@ public record ResourceInfo
 
     // Directory details. Only types declaring HasDirectoryProfile carry them; for every other
     // type they are null. The columns live on `resources` (migration 1700), so reading them here
-    // adds no join and no cost — the resolved display names (job title, department path) are the
-    // part that needs joins, and those stay on the person-profile projection.
+    // adds no join and no cost. Job title and department left this contract in 1820 — they are
+    // organization lists now, reached through `list_lookup` custom fields like any other list.
     /// <summary>Lookup and display address. Stored CITEXT, so comparisons are case-insensitive.</summary>
     public string? Email { get; init; }
-    public Guid? JobTitleId { get; init; }
-    public Guid? DepartmentId { get; init; }
     /// <summary>The user account this person signs in as, when one is linked.</summary>
     public Guid? LinkedUserId { get; init; }
     /// <summary>
@@ -154,8 +152,6 @@ public record CreateResourceRequest
     // purpose: linking a person to a user account is its own operation with its own checks, not
     // a field on a create form.
     public string? Email { get; init; }
-    public Guid? JobTitleId { get; init; }
-    public Guid? DepartmentId { get; init; }
     /// <summary>Confidential free text — encrypted before it is stored.</summary>
     public string? Notes { get; init; }
 
@@ -190,15 +186,11 @@ public record UpdateResourceRequest
 
     // Directory details — rejected unless the resource's type declares HasDirectoryProfile.
     //
-    // The two ids are Optional because there is no empty Guid that does not also mean a real
-    // value, so a plain nullable could never express "this person no longer has a job title".
-    // Email and Notes stay plain: the empty string is a usable "no value" for them, so absent
-    // still means "not editing" without costing the caller the ability to clear.
+    // Email and Notes are plain nullables: the empty string is a usable "no value" for both, so
+    // absent still means "not editing" without costing the caller the ability to clear. The two
+    // Optional ids that needed the distinction — job title and department — left this record in
+    // 1820 and are list lookups on custom_fields now.
     public string? Email { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Guid?> JobTitleId { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Guid?> DepartmentId { get; init; }
     public string? Notes { get; init; }
 }
 

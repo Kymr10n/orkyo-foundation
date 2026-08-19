@@ -11,11 +11,12 @@ import type { ResourceGeometry } from '../../types/geometry';
  * Directory details — the fields a resource carries when its type declares a directory profile.
  * On the generic contract rather than a person-specific one, and rejected by the backend for any
  * type that has no directory. `null` clears; omitting leaves the stored value alone.
+ *
+ * Job title and department left this contract in migration 1830, which dropped their columns; both
+ * are `list_lookup` custom fields now and ride in `customFields`.
  */
 interface ResourceDirectory {
   email?: string | null;
-  jobTitleId?: string | null;
-  departmentId?: string | null;
   notes?: string | null;
 }
 

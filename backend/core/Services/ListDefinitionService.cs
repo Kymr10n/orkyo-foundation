@@ -30,7 +30,8 @@ public interface IListDefinitionService
 
 public class ListDefinitionService(
     IListDefinitionRepository repository,
-    IListInstanceRepository instanceRepository) : IListDefinitionService
+    IListInstanceRepository instanceRepository,
+    IResourceTypeRepository resourceTypeRepository) : IListDefinitionService
 {
     public Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default)
         => repository.GetAllAsync(includeInactive, ct);
@@ -38,8 +39,18 @@ public class ListDefinitionService(
     public Task<ListDefinitionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => repository.GetByIdAsync(id, ct);
 
-    public Task<ListDefinitionInfo> CreateAsync(CreateListDefinitionRequest request, CancellationToken ct = default)
-        => repository.CreateAsync(request, ct);
+    public async Task<ListDefinitionInfo> CreateAsync(CreateListDefinitionRequest request, CancellationToken ct = default)
+    {
+        // Shape is the validator's job (CreateListDefinitionRequestValidator); existence is not,
+        // because it needs the database.
+        if (request.ResourceTypeId is { } typeId
+            && await resourceTypeRepository.GetByIdAsync(typeId, ct) is null)
+        {
+            throw new ArgumentException("Resource type not found");
+        }
+
+        return await repository.CreateAsync(request, ct);
+    }
 
     public async Task<ListDefinitionInfo?> UpdateAsync(
         Guid id, UpdateListDefinitionRequest request, CancellationToken ct = default)

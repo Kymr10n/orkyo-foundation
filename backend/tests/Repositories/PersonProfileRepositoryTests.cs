@@ -179,33 +179,4 @@ public class PersonProfileRepositoryTests
         Assert.Null(empty.Email);
         Assert.Null(empty.Notes);
     }
-
-    [Fact]
-    public async Task GetJobTitles_ReturnsEmpty_ForEmptyInput()
-    {
-        var result = await _repo.GetJobTitlesByResourceIdsAsync([]);
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public async Task GetJobTitles_ReturnsRowsForEveryPersonResource()
-    {
-        var r1 = await SeedPersonResourceAsync();
-        var r2 = await SeedPersonResourceAsync();
-        await _repo.UpsertAsync(r1, new UpsertPersonProfileRequest { Email = "bulk-a@example.com" });
-        await _repo.UpsertAsync(r2, new UpsertPersonProfileRequest { Email = "bulk-b@example.com" });
-
-        // Every person resource yields a label row now (see the batch-profile test above);
-        // the random id is no resource at all and still matches nothing.
-        var r3 = await SeedPersonResourceAsync();
-
-        var result = await _repo.GetJobTitlesByResourceIdsAsync([r1, r2, r3, Guid.NewGuid()]);
-
-        Assert.Equal(3, result.Count);
-        Assert.Contains(result, j => j.ResourceId == r1);
-        Assert.Contains(result, j => j.ResourceId == r2);
-        Assert.Contains(result, j => j.ResourceId == r3);
-        // No job title assigned → null label; real title resolution is covered in the endpoint test.
-        Assert.All(result, j => Assert.Null(j.JobTitleName));
-    }
 }

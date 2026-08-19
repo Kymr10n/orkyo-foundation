@@ -37,6 +37,22 @@ public static class ListInstanceKinds
         new HashSet<string>(StringComparer.Ordinal) { Shared, Resource };
 }
 
+/// <summary>Who owns a <see cref="ListDefinitionInfo"/>. See migration 1810.</summary>
+public static class ListDefinitionScopes
+{
+    /// <summary>Owned by one resource type; edited from that type's Lists tab.</summary>
+    public const string Resource = "resource";
+
+    /// <summary>Organization master data — departments, job titles, cost centres.</summary>
+    public const string Organization = "organization";
+
+    /// <summary>Shared reference data with no narrower owner — countries, units.</summary>
+    public const string Common = "common";
+
+    public static readonly IReadOnlySet<string> All =
+        new HashSet<string>(StringComparer.Ordinal) { Resource, Organization, Common };
+}
+
 /// <summary>
 /// The reusable half of a list: what columns it has and what they hold. Bound to a custom field
 /// (per-resource rows) or instantiated as a named shared instance.
@@ -46,6 +62,10 @@ public record ListDefinitionInfo
     public required Guid Id { get; init; }
     public required string Name { get; init; }
     public string? Description { get; init; }
+    /// <summary>One of <see cref="ListDefinitionScopes"/>. Immutable — see the service.</summary>
+    public required string Scope { get; init; }
+    /// <summary>Set exactly when <see cref="Scope"/> is <c>resource</c>; null otherwise.</summary>
+    public Guid? ResourceTypeId { get; init; }
     /// <summary>Deactivating retires a definition from new bindings; delete is RESTRICTed while in use.</summary>
     public required bool IsActive { get; init; }
     /// <summary>
@@ -116,6 +136,10 @@ public record CreateListDefinitionRequest
 {
     public required string Name { get; init; }
     public string? Description { get; init; }
+    /// <summary>Defaults to <c>common</c>, matching what every definition was before 1810.</summary>
+    public string Scope { get; init; } = ListDefinitionScopes.Common;
+    /// <summary>Required for the <c>resource</c> scope, rejected for the other two.</summary>
+    public Guid? ResourceTypeId { get; init; }
 }
 
 /// <summary>Partial update. Name and description only — columns have their own endpoints.</summary>

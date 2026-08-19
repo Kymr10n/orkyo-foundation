@@ -6,7 +6,7 @@
 
 > **Status (2026-07-06):** item 1 has landed — `ConfirmDialog` and `StatusBadge` now live in
 > Foundation, and the SaaS files are thin re-exports. Several cited paths have since moved
-> (e.g. `PersonList.tsx` is under `components/people/`, `ResourceGroupList.tsx` under
+> (e.g. `ResourceList.tsx` is under `components/people/`, `ResourceGroupList.tsx` under
 > `components/resource-groups/`). Still open: SaaS `UsersTab` does not use the shared
 > `FormDialog` (TenantsTab does). Verify against current code before acting on any item.
 
@@ -33,7 +33,7 @@ Destructive-action confirmation: "Are you sure you want to delete X?" with a Can
 |---|---|
 | `saas/src/components/admin/UsersTab.tsx:317` | Uses `ConfirmDialog` (SaaS-local) |
 | `saas/src/components/admin/ConfirmDialog.tsx` | Exists but scoped to SaaS |
-| `foundation/src/pages/PersonList.tsx:76` | `window.confirm()` |
+| `foundation/src/pages/ResourceList.tsx:76` | `window.confirm()` |
 | `saas/src/components/admin/MembershipsTab.tsx:90` | `window.confirm()` |
 | `foundation/src/components/settings/CriteriaSettings.tsx:76` | `window.confirm()` |
 | `saas/src/components/admin/TenantsTab.tsx:325` | Bespoke `<Dialog>` with slug-confirmation input |
@@ -79,7 +79,7 @@ Every list/table in every repo has the same three-branch conditional:
 | `saas/src/components/admin/TenantsTab.tsx:177` |
 | `saas/src/components/admin/UsersTab.tsx:164` |
 | `saas/src/components/admin/MembershipsTab.tsx:133` |
-| `foundation/src/pages/PersonList.tsx:109` |
+| `foundation/src/pages/ResourceList.tsx:109` |
 | `foundation/src/components/settings/ResourceGroupList.tsx:68` |
 | `foundation/src/components/settings/PersonAbsenceList.tsx:71` |
 | `foundation/src/components/settings/CriteriaSettings.tsx:125` |
@@ -235,7 +235,7 @@ Icon buttons in the last table column, wrapped in `<TooltipProvider>`, always `v
 |---|---|
 | `saas/src/components/admin/TenantsTab.tsx:241` | Enter, Suspend/Unsuspend, Delete |
 | `saas/src/components/admin/UsersTab.tsx:270` | View, Toggle active, Delete |
-| `foundation/src/components/settings/PersonList.tsx:128` | Edit, Skills, Absences, Delete |
+| `foundation/src/components/settings/ResourceList.tsx:128` | Edit, Skills, Absences, Delete |
 | `foundation/src/components/settings/ResourceGroupList.tsx:86` | Members, Edit, Delete |
 | `foundation/src/components/settings/PersonAbsenceList.tsx` | Edit, Delete |
 
@@ -264,7 +264,7 @@ The fetch params, mutation set, and dialog set are always different. The shared 
 Page-level `<h1>` or title + optional description + optional action button at the top of full-page views.
 
 ### Occurrences
-`RequestsPage`, `PeoplePage`, `UtilizationPage`, settings pages — each has a slightly different header structure. Inconsistent across Foundation pages. No pattern strong enough to extract yet.
+`RequestsPage`, `ResourceClassPage`, `UtilizationPage`, settings pages — each has a slightly different header structure. Inconsistent across Foundation pages. No pattern strong enough to extract yet.
 
 ---
 

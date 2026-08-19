@@ -38,6 +38,7 @@ const definition: ListDefinition = {
   id: 'd1',
   name: 'Components',
   isActive: true,
+  scope: 'common',
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
   columns: [column(), column({ id: 'c2', key: 'price', label: 'Price', dataType: 'number' })],

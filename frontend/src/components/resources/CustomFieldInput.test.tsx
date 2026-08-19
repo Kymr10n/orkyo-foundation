@@ -83,14 +83,15 @@ describe('CustomFieldInput — list fields', () => {
     // Nothing to hang rows off yet, so the editor is not offered at all rather than offered and
     // failing on the first click.
     expect(screen.getByText(/Rows can be added once this has been created/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /add row/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add maintenance log/i })).not.toBeInTheDocument();
   });
 
   it('offers the row editor once the resource exists', async () => {
     renderList('resource-1');
 
     expect(screen.queryByText(/Rows can be added once/)).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /add row/i })).toBeInTheDocument();
+    // The button is named after the field, not "Add row" — a per-resource list says what it holds.
+    expect(await screen.findByRole('button', { name: /add maintenance log/i })).toBeInTheDocument();
   });
 
   it('renders the field label, and no required marker — a list cannot be required', () => {

@@ -22,23 +22,9 @@ public static class PersonProfileEndpoints
             .RequireAuthorization()
             .RequireMemberReadEditorWrite();
 
-        // Bulk job-title labels for the utilization grid. POST (not GET) because a windowed grid can
-        // hold hundreds of people and a repeated-query-param GET URL would exceed the request-line
-        // limit; the body carries the id list. Returns only {resourceId, jobTitleName} — not the full
-        // profile. AllowMemberWrite keeps this non-mutating POST open to readers.
-        group.MapPost("/job-titles", async (
-            [FromBody] Guid[] resourceIds,
-            IPersonProfileRepository profileRepository,
-            CancellationToken ct) =>
-            Results.Ok(await profileRepository.GetJobTitlesByResourceIdsAsync(resourceIds, ct)))
-            .WithName("ListPersonJobTitles")
-            .WithSummary("Bulk job-title labels by resource IDs for the utilization grid")
-            .AllowMemberWrite();
-
-        // Bulk full profiles for the People list grid, replacing a per-row GET fan-out. POST (not GET)
-        // for the same reason as /job-titles: the id list rides in the body so a large grid can't blow
-        // the request-line limit. Resources without a profile row are simply absent from the result.
-        // AllowMemberWrite keeps this non-mutating POST open to readers.
+        // Bulk profiles, replacing a per-row GET fan-out. POST rather than GET so the id list rides
+        // in the body: a large set would otherwise blow the request-line limit. Resources without a
+        // profile row are simply absent. AllowMemberWrite keeps this non-mutating POST open to readers.
         group.MapPost("/batch", async (
             [FromBody] Guid[] resourceIds,
             IPersonProfileRepository profileRepository,

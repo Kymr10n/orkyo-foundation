@@ -37,14 +37,12 @@ public static class FoundationEndpointExtensions
         app.MapContactEndpoints();
         app.MapCriteriaEndpoints();
         app.MapCriterionApplicabilityEndpoints();
-        app.MapDepartmentEndpoints();
         app.MapExportEndpoints();
         app.MapCalendarFeedEndpoints();
         app.MapFeedbackEndpoints();
         app.MapFloorplanEndpoints();
         app.MapGroupCapabilityEndpoints();
         app.MapInsightsEndpoints();
-        app.MapJobTitleEndpoints();
         app.MapPersonProfileEndpoints();
         app.MapPresetEndpoints();
         app.MapRequestEndpoints();

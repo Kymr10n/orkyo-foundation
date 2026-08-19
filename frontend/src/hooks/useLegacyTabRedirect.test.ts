@@ -6,9 +6,9 @@ import { createElement } from 'react';
 import { useLegacyTabRedirect } from './useLegacyTabRedirect';
 
 const MAP: Record<string, string> = {
-  jobTitles: '/people/job-titles',
-  departments: '/people/departments',
-  groups: '/people/groups',
+  jobTitles: '/organization',
+  departments: '/organization',
+  groups: '/assets/person/groups',
 };
 
 function LocationProbe() {

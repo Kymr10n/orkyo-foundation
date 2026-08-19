@@ -188,7 +188,7 @@ export function CollapsibleFloorplan({
                   <MapPin className="h-8 w-8 text-muted-foreground/60" aria-hidden />
                   <p>No floorplan uploaded for this site</p>
                   <Button asChild variant="default" size="sm">
-                    <Link to="/floorplan">Upload floorplan</Link>
+                    <Link to="/stations/floorplan">Upload floorplan</Link>
                   </Button>
                 </div>
               </div>

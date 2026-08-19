@@ -298,29 +298,6 @@ public class ResourceEndpointTests
         Assert.Equal(siteId, after.HomeSiteId);
     }
 
-    [Fact]
-    public async Task UpdateResource_PresentNullJobTitle_UnsetsIt()
-    {
-        var person = await CreatePersonAsync($"JobTitle-{Guid.NewGuid():N}"[..20]);
-        var jobTitleResp = await _client.PostAsJsonAsync("/api/job-titles",
-            new CreateJobTitleRequest { Name = $"Fitter {Guid.NewGuid():N}"[..20] });
-        jobTitleResp.EnsureSuccessStatusCode();
-        var jobTitleId = (await jobTitleResp.Content.ReadFromJsonAsync<JobTitleInfo>())!.Id;
-
-        await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
-            new UpdateResourceRequest { JobTitleId = Optional<Guid?>.Of(jobTitleId) });
-        var assigned = await (await _client.GetAsync($"/api/resources/{person.Id}"))
-            .Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.Equal(jobTitleId, assigned!.JobTitleId);
-
-        await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
-            new UpdateResourceRequest { JobTitleId = Optional<Guid?>.Of(null) });
-
-        var cleared = await (await _client.GetAsync($"/api/resources/{person.Id}"))
-            .Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.Null(cleared!.JobTitleId);
-    }
-
     // ── Capabilities ──────────────────────────────────────────────────────────
 
     private async Task<CriterionInfo> GetSeedCriterionAsync(string name)
@@ -566,7 +543,6 @@ public class ResourceEndpointTests
         var tool = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
 
         Assert.Null(tool.Email);
-        Assert.Null(tool.JobTitleId);
         Assert.Null(tool.Notes);
     }
 

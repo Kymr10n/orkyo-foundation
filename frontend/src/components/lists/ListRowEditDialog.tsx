@@ -14,6 +14,8 @@ interface ListRowEditDialogProps {
   row: ListRow | null;
   columns: ListColumn[];
   instanceId: string | null;
+  /** What one row is called, so the title says "Add Department" rather than "Add row". */
+  entityLabel?: string;
   /**
    * Persists the row. The caller owns this because adding the first row to a per-resource list
    * has to create the instance first, which this dialog should not know about.
@@ -33,6 +35,7 @@ export function ListRowEditDialog({
   row,
   columns,
   instanceId,
+  entityLabel = 'row',
   save,
 }: ListRowEditDialogProps) {
   const activeColumns = columns.filter((c) => c.isActive);
@@ -66,7 +69,7 @@ export function ListRowEditDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={row ? 'Edit row' : 'Add row'}
+      title={row ? `Edit ${entityLabel}` : `Add ${entityLabel}`}
       error={error}
       onSubmit={submit}
       isSubmitting={isSubmitting}

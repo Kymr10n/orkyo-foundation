@@ -12,10 +12,5 @@ public class UpsertPersonProfileRequestValidator : AbstractValidator<UpsertPerso
             .MaximumLength(254) // RFC 5321
             .EmailAddress().WithMessage("Email must be a valid email address.")
             .When(x => !string.IsNullOrWhiteSpace(x.Email));
-
-        // JobTitleId / DepartmentId are GUID FKs. FK existence is enforced at the
-        // DB layer (PostgresException 23503) and surfaced as 400 by the repo.
-        // No FluentValidation-side existence check — the round-trip would just
-        // duplicate work and add a race window.
     }
 }

@@ -1,3 +1,9 @@
+> **Partly superseded.** Migration 1820 moved departments and job titles into organization
+> lists, 1830 dropped their tables, and the `/spaces` and `/people` surfaces this document
+> refers to are now `/stations` and `/assets`. Read
+> [resource-navigation-and-lists-spec.md](resource-navigation-and-lists-spec.md) for the
+> current model; what follows records how the lists feature itself was built.
+
 # Lists — tenant-defined list definitions and instances, linkable from custom fields
 
 Status: **phases A, B and C implemented 2026-08-15** on branch

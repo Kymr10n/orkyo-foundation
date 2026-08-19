@@ -17,7 +17,8 @@ import {
   useUpdateListDefinition,
 } from '@foundation/src/hooks/useListDefinitions';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import type { ListDefinition } from '@foundation/src/lib/api/lists-api';
+import type { ListDefinition, ListDefinitionScope } from '@foundation/src/lib/api/lists-api';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 
 interface ListDefinitionEditDialogProps {
   open: boolean;
@@ -29,6 +30,9 @@ interface ListDefinitionEditDialogProps {
 interface FormState {
   name: string;
   description: string;
+  scope: ListDefinitionScope;
+  /** Empty string means no owning type; only the `resource` scope uses it. */
+  resourceTypeId: string;
   isActive: boolean;
   /** Empty string means "no designation", which the request sends as clearDisplayColumn. */
   displayColumnId: string;
@@ -40,6 +44,7 @@ export function ListDefinitionEditDialog({
   onOpenChange,
   definition,
 }: ListDefinitionEditDialogProps) {
+  const { data: resourceTypes = [] } = useResourceTypes(true);
   const createDefinition = useCreateListDefinition();
   const updateDefinition = useUpdateListDefinition();
   // The collection response carries no columns, so the picker fetches the one definition. Only
@@ -55,10 +60,19 @@ export function ListDefinitionEditDialog({
     open,
     onOpenChange,
     entity: definition,
-    emptyForm: () => ({ name: '', description: '', isActive: true, displayColumnId: '' }),
+    emptyForm: () => ({
+      name: '',
+      description: '',
+      scope: 'common' as ListDefinitionScope,
+      resourceTypeId: '',
+      isActive: true,
+      displayColumnId: '',
+    }),
     toForm: (entity) => ({
       name: entity.name,
       description: entity.description ?? '',
+      scope: entity.scope,
+      resourceTypeId: entity.resourceTypeId ?? '',
       isActive: entity.isActive,
       displayColumnId: entity.displayColumnId ?? '',
     }),
@@ -78,6 +92,9 @@ export function ListDefinitionEditDialog({
         : createDefinition.mutateAsync({
             name: values.name.trim(),
             description: values.description.trim() || undefined,
+            scope: values.scope,
+            // The server rejects a type on any scope but `resource`, so it is sent only there.
+            ...(values.scope === 'resource' ? { resourceTypeId: values.resourceTypeId } : {}),
           }),
     entityLabel: 'List definition',
     invalidates: [qk.lists.all()],
@@ -88,12 +105,15 @@ export function ListDefinitionEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={definition ? 'Edit list definition' : 'New list definition'}
-      description="A list definition is the shape a list takes — its columns and their types. One definition can be used by many resource types."
+      description="A list definition is the shape a list takes — its columns and their types. Its scope says who owns it."
       error={error}
       onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel={definition ? 'Save' : 'Create'}
-      submitDisabled={form.name.trim().length === 0}
+      submitDisabled={
+        form.name.trim().length === 0 ||
+        (!definition && form.scope === 'resource' && !form.resourceTypeId)
+      }
       dirty={isDirty}
     >
       <div className="space-y-4">
@@ -109,6 +129,54 @@ export function ListDefinitionEditDialog({
             maxLength={100}
           />
         </div>
+
+        {/* Ownership is fixed at creation. Moving a definition between scopes would change which
+            names it must not collide with, and would orphan the surface it is edited from, so the
+            selector is create-only. */}
+        {!definition ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="list-definition-scope">Scope</Label>
+              <Select
+                value={form.scope}
+                onValueChange={(v) =>
+                  set({ scope: v as ListDefinitionScope, ...(v === 'resource' ? {} : { resourceTypeId: '' }) })
+                }
+              >
+                <SelectTrigger id="list-definition-scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="resource">Resource type</SelectItem>
+                  <SelectItem value="organization">Organization</SelectItem>
+                  <SelectItem value="common">Common</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.scope === 'resource' && (
+              <div className="space-y-2">
+                <Label htmlFor="list-definition-owner">
+                  Resource type<span className="text-destructive ml-1">*</span>
+                </Label>
+                <Select
+                  value={form.resourceTypeId || undefined}
+                  onValueChange={(v) => set({ resourceTypeId: v })}
+                >
+                  <SelectTrigger id="list-definition-owner">
+                    <SelectValue placeholder="Choose a type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {resourceTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.displayNamePlural}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="list-definition-description">Description</Label>

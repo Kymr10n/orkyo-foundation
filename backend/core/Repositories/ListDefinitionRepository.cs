@@ -42,7 +42,8 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
     : IListDefinitionRepository
 {
     private const string DefinitionColumns =
-        "id, name, description, is_active, display_column_id, created_at, updated_at";
+        "id, name, description, scope, resource_type_id, is_active, display_column_id, "
+        + "created_at, updated_at";
 
     private const string ColumnColumns =
         "id, list_definition_id, key, label, description, data_type, options, "
@@ -83,18 +84,21 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
         try
         {
             return (await db.QuerySingleOrDefaultAsync(
-                $@"INSERT INTO list_definitions (name, description)
-                   VALUES (@name, @description)
+                $@"INSERT INTO list_definitions (name, description, scope, resource_type_id)
+                   VALUES (@name, @description, @scope, @resource_type_id)
                    RETURNING {DefinitionColumns}",
                 p =>
                 {
                     p.AddWithValue("name", request.Name);
                     p.AddNullable("description", request.Description);
+                    p.AddWithValue("scope", request.Scope);
+                    p.AddNullable("resource_type_id", request.ResourceTypeId);
                 }, MapDefinition, ct))!;
         }
         catch (PostgresException pg) when (pg.SqlState == PostgresErrorCodes.UniqueViolation)
         {
-            throw new ConflictException($"A list definition named '{request.Name}' already exists");
+            throw new ConflictException(
+                $"A list definition named '{request.Name}' already exists in this scope");
         }
     }
 
@@ -120,7 +124,8 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
         }
         catch (PostgresException pg) when (pg.SqlState == PostgresErrorCodes.UniqueViolation)
         {
-            throw new ConflictException($"A list definition named '{request.Name}' already exists");
+            throw new ConflictException(
+                $"A list definition named '{request.Name}' already exists in this scope");
         }
     }
 
@@ -260,6 +265,8 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
         Id = r.GetGuid("id"),
         Name = r.GetString("name"),
         Description = r.GetNullableString("description"),
+        Scope = r.GetString("scope"),
+        ResourceTypeId = r.GetNullableGuid("resource_type_id"),
         IsActive = r.GetBoolean("is_active"),
         DisplayColumnId = r.GetNullableGuid("display_column_id"),
         CreatedAt = r.GetDateTime("created_at"),

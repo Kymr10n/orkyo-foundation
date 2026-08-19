@@ -12,21 +12,18 @@ export const RESOURCE_TYPE_KEY = {
 } as const;
 
 /**
- * Types whose resources are reached through a purpose-built page rather than the generic
- * `/resources/:typeKey` one. Identity, not behaviour — it names which pages exist, so it is
- * a key list and not a `resource_types` flag.
- *
- * Only person remains: its directory tabs (job titles, departments, teams) are genuinely more
- * than the generic page offers. Space left the set when the /spaces page became the Floorplan —
- * a *site* surface holding every placeable type — rather than a page about one type; the space
- * type now gets the same generic page any placeable type gets, and appears on the floorplan
- * exactly the way a mill does.
+ * What a group of this type is called. Person groups have always been "Teams", and that word is
+ * worth keeping. Everything else is a Group. A frontend map rather than a column on the type:
+ * one label does not justify a schema change, and a tenant can already rename the type itself.
  */
-export const TYPES_WITH_DEDICATED_PAGES: ReadonlySet<string> = new Set([
-  RESOURCE_TYPE_KEY.PERSON,
-]);
+export const GROUP_ENTITY_LABELS: Record<string, string> = {
+  [RESOURCE_TYPE_KEY.PERSON]: 'Team',
+};
 
-/** Where a search hit of each dedicated type opens. Generic types fall through to /resources. */
-export const DEDICATED_TYPE_ROUTES: Readonly<Record<string, { list: string; groups: string }>> = {
-  [RESOURCE_TYPE_KEY.PERSON]: { list: "/people/list", groups: "/people/teams" },
+/**
+ * What criterion values are called for this type. People call theirs "skills"; the mechanism is
+ * the shared one every type uses, so the difference is wording only.
+ */
+export const CAPABILITY_LABELS: Record<string, { plural: string; singular: string }> = {
+  [RESOURCE_TYPE_KEY.PERSON]: { plural: 'Skills', singular: 'Skill' },
 };

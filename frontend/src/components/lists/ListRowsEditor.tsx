@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
@@ -25,6 +25,17 @@ interface ListRowsEditorProps {
   /** Hides every write affordance — for a viewer, or a resource being created. */
   readOnly?: boolean;
   emptyMessage?: string;
+  /**
+   * Rendered in the action row beside the Add button, so a host joins the one toolbar instead of
+   * stacking a second row of chrome above it — the shared-list panel puts its selector here.
+   */
+  toolbar?: ReactNode;
+  /**
+   * What one row is called — "department", "Job Title", "Maintenance Log". Names the Add button,
+   * the dialog titles and the delete confirmation, so the surface says what it acts on rather
+   * than the generic "row".
+   */
+  entityLabel?: string;
 }
 
 /**
@@ -41,6 +52,8 @@ export function ListRowsEditor({
   ensureInstanceId,
   readOnly,
   emptyMessage,
+  toolbar,
+  entityLabel = 'row',
 }: ListRowsEditorProps) {
   const [editing, setEditing] = useState<ListRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,18 +95,15 @@ export function ListRowsEditor({
 
   return (
     <div className="space-y-3">
-      {!readOnly && (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={openAddDialog}
-            disabled={isPreparing}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Add row
-          </Button>
+      {(!readOnly || toolbar) && (
+        <div className="flex items-center justify-end gap-2">
+          {toolbar}
+          {!readOnly && (
+            <Button type="button" onClick={openAddDialog} disabled={isPreparing}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add {entityLabel}
+            </Button>
+          )}
         </div>
       )}
 
@@ -112,7 +122,7 @@ export function ListRowsEditor({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Edit row"
+                    aria-label={`Edit ${entityLabel}`}
                     onClick={(e) => {
                       // The row itself may be clickable in a host that wires onRowClick.
                       e.stopPropagation();
@@ -126,7 +136,7 @@ export function ListRowsEditor({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Delete row"
+                    aria-label={`Delete ${entityLabel}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setPendingDelete(row);
@@ -146,6 +156,7 @@ export function ListRowsEditor({
           row={editing}
           columns={columns}
           instanceId={effectiveInstanceId}
+          entityLabel={entityLabel}
           save={saveRow}
         />
       )}
@@ -153,7 +164,7 @@ export function ListRowsEditor({
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && setPendingDelete(null)}
-        title="Delete this row?"
+        title={`Delete this ${entityLabel.toLowerCase()}?`}
         description="The row is removed from this list. Anything that selected it drops the reference."
         confirmLabel="Delete"
         destructive

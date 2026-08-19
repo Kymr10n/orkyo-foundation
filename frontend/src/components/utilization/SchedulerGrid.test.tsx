@@ -886,7 +886,7 @@ describe('SchedulerGrid', () => {
         );
 
         // Verify it renders for each scale
-        expect(screen.getByText('Space')).toBeInTheDocument();
+        expect(screen.getByText('Name')).toBeInTheDocument();
         unmount();
       });
     });

@@ -136,6 +136,7 @@ function ListFieldInput({
           instanceId={instanceId}
           ensureInstanceId={ensureInstanceId}
           emptyMessage="No rows yet."
+          entityLabel={field.label}
         />
       )}
     </div>

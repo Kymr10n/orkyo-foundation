@@ -1,6 +1,8 @@
 import { ResourceGroupList } from '../resource-groups/ResourceGroupList';
 import { ResourceList } from './ResourceList';
+import { ResourceListsTab } from './ResourceListsTab';
 import { useResourceTypeTabContext } from './resourceTypeTabContext';
+import { GROUP_ENTITY_LABELS } from '@foundation/src/constants/resource-type-key';
 
 /**
  * Tab bodies for `/resources/:typeKey/*`. Both are thin: the components they mount are
@@ -18,7 +20,9 @@ export function ResourceGroupsTab() {
   return (
     <ResourceGroupList
       resourceTypeKey={resourceType.key}
-      entityLabel="Group"
+      entityLabel={GROUP_ENTITY_LABELS[resourceType.key] ?? 'Group'}
     />
   );
 }
+
+export { ResourceListsTab };

@@ -43,6 +43,7 @@ interface SchedulerGridProps {
   nowMs: number;
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
+  onRequestContextMenu?: (requestId: string, position: { x: number; y: number }) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
   onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
@@ -66,6 +67,7 @@ export function SchedulerGrid({
   nowMs,
   onRequestClick,
   onRequestDoubleClick,
+  onRequestContextMenu,
   onRequestResize,
   onEmptyCellClick,
   onTimeCursorClick,
@@ -449,18 +451,19 @@ export function SchedulerGrid({
         validation={validationBySpace.get(space.id) ?? EMPTY_VALIDATION}
         onRequestClick={onRequestClick}
         onRequestDoubleClick={onRequestDoubleClick}
+        onRequestContextMenu={onRequestContextMenu}
         onRequestResize={onRequestResize}
         onEmptyCellClick={onEmptyCellClick}
         offTimeRanges={offTimeRanges}
         editable={editable}
       />
     ),
-    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestResize, onEmptyCellClick, offTimeRanges, editable],
+    [columns, requestsBySpaceId, scheduleIndex, validationBySpace, onRequestClick, onRequestDoubleClick, onRequestContextMenu, onRequestResize, onEmptyCellClick, offTimeRanges, editable],
   );
 
   return (
     <TimelineGridShell<ResourceInfo>
-      labelHeader="Space"
+      labelHeader="Name"
       columns={columns}
       scale={scale}
       groups={shellGroups}

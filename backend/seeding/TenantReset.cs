@@ -22,8 +22,6 @@ public static class TenantReset
         "resource_groups",
         "resource_group_members",
         "resources",             // also carries the folded spaces / person_profiles columns (1700)
-        "departments",
-        "job_titles",
         "criteria",
         "space_capabilities",
         "resource_capabilities",
@@ -49,7 +47,7 @@ public static class TenantReset
         // Tenant-defined shape, seeded alongside the machines. These are NOT swept by truncating
         // `resources`: a shared list instance has no resource_id, and field/definition rows are
         // parents rather than children. Left behind, a second `--mode reset` run dies on
-        // resource_custom_fields_key_unique / list_definitions_name_unique.
+        // resource_custom_fields_key_unique / list_definitions_global_name_unique.
         "resource_custom_fields",
         "list_definitions",
         "list_columns",

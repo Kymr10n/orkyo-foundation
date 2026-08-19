@@ -94,7 +94,7 @@ public class ResourceRepository(
         "r.code, r.is_physical, r.geometry, r.properties, r.capacity, r.custom_fields, " +
         // Directory columns. email is CITEXT and Npgsql has no handler for it, so it is cast —
         // the same cast PersonProfileRepository makes.
-        "r.email::text AS email, r.job_title_id, r.department_id, r.linked_user_id, r.notes, " +
+        "r.email::text AS email, r.linked_user_id, r.notes, " +
         GroupIdExpr + " AS group_id, " +
         "r.is_active, r.created_at, r.updated_at";
 
@@ -217,13 +217,13 @@ public class ResourceRepository(
                  allocation_mode, base_availability_percent,
                  home_site_id, cross_site_allowed,
                  code, is_physical, geometry, properties, capacity, custom_fields,
-                 email, job_title_id, department_id, notes)
+                 email, notes)
             VALUES
                 (@id, @resourceTypeId, @name, @description, @externalReference,
                  @allocationMode, @baseAvailabilityPercent,
                  @homeSiteId, @crossSiteAllowed,
                  @code, @isPhysical, @geometry, @properties, @capacity, @customFields,
-                 @email, @jobTitleId, @departmentId, @notes)
+                 @email, @notes)
             RETURNING id, created_at, updated_at",
             p =>
             {
@@ -243,8 +243,6 @@ public class ResourceRepository(
                 p.AddWithValue("capacity", request.Capacity);
                 p.AddJsonb("customFields", customFieldsJson);
                 p.AddNullable("email", request.Email);
-                p.AddNullable("jobTitleId", request.JobTitleId);
-                p.AddNullable("departmentId", request.DepartmentId);
                 // Encrypted on the way in, exactly as PersonProfileRepository does it — the
                 // column holds ciphertext and nothing else may write plaintext into it.
                 p.AddNullable("notes", encryption.ProtectString(request.Notes, orgContext.OrgId));
@@ -271,8 +269,6 @@ public class ResourceRepository(
                 // Matches how Map reads it back: an empty document is reported as no values.
                 CustomFields = request.CustomFields is { Count: > 0 } ? request.CustomFields : null,
                 Email = request.Email,
-                JobTitleId = request.JobTitleId,
-                DepartmentId = request.DepartmentId,
                 // The plaintext the caller sent, not the ciphertext just stored.
                 Notes = request.Notes,
                 // Membership is managed by the resource-group members editor, never at create time.
@@ -311,8 +307,6 @@ public class ResourceRepository(
         if (customFieldsJson is not null) update.SetExpression("custom_fields = @customFields");
         if (request.Capacity.HasValue) update.Set("capacity", request.Capacity.Value);
         update.SetIfNotNull("email", request.Email);
-        update.SetIfPresent("job_title_id", request.JobTitleId);
-        update.SetIfPresent("department_id", request.DepartmentId);
         // Encrypted before it reaches the SET clause, so no write path can put plaintext in the
         // column even by accident.
         if (request.Notes is not null)
@@ -409,8 +403,6 @@ public class ResourceRepository(
                 ? null
                 : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(customFieldsJson),
             Email = r.GetNullableString("email"),
-            JobTitleId = r.GetNullableGuid("job_title_id"),
-            DepartmentId = r.GetNullableGuid("department_id"),
             LinkedUserId = r.GetNullableGuid("linked_user_id"),
             // Decrypted here rather than by the caller: every read path goes through this mapper,
             // so a caller that forgot would hand ciphertext to a client.

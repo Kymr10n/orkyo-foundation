@@ -13,8 +13,8 @@ import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect
 // migration. TODO 2026-09-07: remove after one release cycle.
 const LEGACY_TAB_TO_PATH: Record<string, string> = {
   // moved out of Settings into the owning resource page
-  jobTitles: '/people/job-titles',
-  departments: '/people/departments',
+  jobTitles: '/organization',
+  departments: '/organization',
   // editor-open settings tabs (query-param → path)
   criteria: '/settings/criteria',
   templates: '/settings/templates',

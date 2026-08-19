@@ -135,4 +135,35 @@ describe('ListRowsEditor', () => {
     expect(screen.queryByRole('button', { name: /add row/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit row' })).not.toBeInTheDocument();
   });
+
+  it('names the Add button after what one row is, when told', () => {
+    renderEditor({ entityLabel: 'Department' });
+
+    expect(screen.getByRole('button', { name: /add department/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add row/i })).not.toBeInTheDocument();
+  });
+
+  it('falls back to "row" when the host has no better word', () => {
+    renderEditor();
+
+    expect(screen.getByRole('button', { name: /add row/i })).toBeInTheDocument();
+  });
+
+  it('renders a host toolbar in the action row, beside the button', () => {
+    renderEditor({
+      entityLabel: 'Department',
+      toolbar: <button type="button">picker</button>,
+    });
+
+    // One toolbar rather than two stacked rows of chrome over the table.
+    const add = screen.getByRole('button', { name: /add department/i });
+    expect(add.parentElement).toContainElement(screen.getByRole('button', { name: 'picker' }));
+  });
+
+  it('keeps a host toolbar for a viewer, who has no Add button', () => {
+    renderEditor({ readOnly: true, toolbar: <button type="button">picker</button> });
+
+    expect(screen.getByRole('button', { name: 'picker' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add/i })).not.toBeInTheDocument();
+  });
 });

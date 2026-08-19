@@ -11,6 +11,22 @@ public class CreateListDefinitionRequestValidator : AbstractValidator<CreateList
 
         When(x => x.Description is not null, () =>
             RuleFor(x => x.Description!).MaximumLength(2000));
+
+        RuleFor(x => x.Scope)
+            .Must(ListDefinitionScopes.All.Contains)
+            .WithMessage($"Scope must be one of: {string.Join(", ", ListDefinitionScopes.All)}");
+
+        // The database pairs these two with a CHECK. Saying it here as well turns a constraint
+        // name into a message that names the field the caller got wrong.
+        RuleFor(x => x.ResourceTypeId)
+            .NotNull()
+            .When(x => x.Scope == ListDefinitionScopes.Resource)
+            .WithMessage("A resource-scoped list must name its resource type");
+
+        RuleFor(x => x.ResourceTypeId)
+            .Null()
+            .When(x => x.Scope != ListDefinitionScopes.Resource)
+            .WithMessage("Only a resource-scoped list belongs to a resource type");
     }
 }
 

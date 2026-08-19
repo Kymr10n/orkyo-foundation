@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -7,7 +7,15 @@ import listPlugin from "@fullcalendar/list";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
 import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
-import { SEVERITY_SWATCH } from "./request-calendar-events";
+import { SEVERITY_SWATCH, STATUS_SWATCH } from "./request-calendar-events";
+import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
+import { formatStatusLabel } from "@foundation/src/lib/utils/utils";
+import { ScheduleFilterBar } from "./ScheduleFilterBar";
+import {
+  ISSUE_FILTER_ORDER,
+  filterCalendarEvents,
+  type ScheduleFilter,
+} from "./schedule-filter";
 import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { cn } from "@foundation/src/lib/utils";
@@ -128,6 +136,15 @@ export function RequestCalendar({
     return { startTime: workingHours.start, endTime: workingHours.end };
   }, [workingHours]);
 
+  // Filter state is local and not in the URL: a search query changes on every keystroke, and
+  // writing that to the address bar would bury real navigation under typing history.
+  const [filter, setFilter] = useState<ScheduleFilter>({
+    query: "",
+    statuses: REQUEST_STATUS_ORDER,
+    issues: ISSUE_FILTER_ORDER,
+  });
+  const visibleEvents = useMemo(() => filterCalendarEvents(events, filter), [events, filter]);
+
   const allEvents = useMemo<EventInput[]>(() => {
     const bgEvents: EventInput[] = (offTimeRanges ?? []).map((r) => ({
       id: `offtime-${r.id}`,
@@ -135,8 +152,9 @@ export function RequestCalendar({
       end: new Date(r.endMs),
       display: "background",
     }));
-    return [...(events as EventInput[]), ...bgEvents];
-  }, [events, offTimeRanges]);
+    // Off-time shading is the week's shape, not a request, so the filter never hides it.
+    return [...(visibleEvents as EventInput[]), ...bgEvents];
+  }, [visibleEvents, offTimeRanges]);
 
   const handleEventClick = (arg: EventClickArg) => {
     onEventClick(arg.event.id);
@@ -174,20 +192,31 @@ export function RequestCalendar({
 
   return (
     <div className="orkyo-calendar flex flex-col h-full">
-      {/* Legend is hidden on phones: the list (agenda) view conveys status via
-          each row's background tint, so the 7-item key (which wraps to ~3 rows on
-          a narrow screen) is redundant there. Desktop/tablet keep it. */}
-      {!isPhone && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
-          <LegendItem className="bg-blue-500/15 dark:bg-blue-500/25 border-blue-500/40" label="New" />
-          <LegendItem className="bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/40" label="In Progress" />
-          <LegendItem className="bg-emerald-500/15 dark:bg-emerald-500/25 border-emerald-500/40" label="Done" />
-          <LegendItem className="bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40" label="Deferred" />
-          <LegendItem className="bg-muted border-muted-foreground/30" label="Canceled" />
-          <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
-          <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
-        </div>
-      )}
+      {/* Legend on the left, search and filters opposite it. The legend itself is hidden on
+          phones — the list (agenda) view tints each row by status, so the 7-item key (which wraps
+          to ~3 rows on a narrow screen) is redundant there — but the search stays, because a
+          narrow screen is where finding one request by name matters most. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
+        {!isPhone && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {REQUEST_STATUS_ORDER.map((status) => (
+              <LegendItem
+                key={status}
+                className={STATUS_SWATCH[status]}
+                label={formatStatusLabel(status)}
+              />
+            ))}
+            <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
+            <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
+          </div>
+        )}
+        <ScheduleFilterBar
+          value={filter}
+          onChange={(patch) => setFilter((current) => ({ ...current, ...patch }))}
+          matchCount={visibleEvents.length}
+          totalCount={events.length}
+        />
+      </div>
       <div className="flex-1 min-h-0">
       <FullCalendar
         ref={calendarRef}

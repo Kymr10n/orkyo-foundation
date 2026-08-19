@@ -39,7 +39,6 @@ public class TenantResetTruncateListTests
     [InlineData("resources")]       // spaces + person_profiles folded in here (migration 1700)
     [InlineData("requests")]
     [InlineData("resource_assignments")]
-    [InlineData("departments")]
     [InlineData("criteria")]
     [InlineData("templates")]
     [InlineData("resource_capabilities")]   // skill/spec capabilities — narrative demo

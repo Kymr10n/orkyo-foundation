@@ -168,21 +168,6 @@ export const qk = {
     unread: () => ["unread-announcements"] as const,
   },
 
-  departments: {
-    /** Broad prefix — every department query (use for invalidation). */
-    all: () => ["departments"] as const,
-    /** Department tree, scoped by the include-inactive toggle. */
-    tree: (includeInactive: boolean) =>
-      ["departments", "tree", { includeInactive }] as const,
-  },
-
-  jobTitles: {
-    /** Broad prefix — every job-title query (use for invalidation). */
-    all: () => ["job-titles"] as const,
-    /** Job-title list, scoped by the include-inactive toggle. */
-    list: (includeInactive: boolean) => ["job-titles", { includeInactive }] as const,
-  },
-
   /**
    * Templates for one entity type (request/space/group). The single-element
    * `templates-${entityType}` shape is historical — a future improvement is
@@ -224,20 +209,6 @@ export const qk = {
   userProfile: {
     /** The current user's identity-provider profile (also its own invalidation prefix). */
     all: () => ["user-profile"] as const,
-  },
-
-  personProfiles: {
-    /** Batched person profiles for a set of resource ids (People list). */
-    byIds: (resourceIds: string[]) => ["person-profiles", resourceIds] as const,
-    /** Broad prefix — every single person-profile query (use for invalidation). */
-    all: () => ["person-profile"] as const,
-    /** One person's profile. */
-    single: (resourceId: string | undefined) => ["person-profile", resourceId] as const,
-  },
-
-  personJobTitles: {
-    /** Job-title labels for a set of person resource ids (utilization grid). */
-    byIds: (resourceIds: string[]) => ["person-job-titles", resourceIds] as const,
   },
 
   presetApplications: {

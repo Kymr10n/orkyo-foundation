@@ -226,6 +226,11 @@ export async function importResources(
         request.crossSiteAllowed = cell(row.cross_site_allowed) === 'true';
       }
 
+      // Directory. Exported by resourceToRow for a type that has them, so they have to come back
+      // in or a round-trip through a spreadsheet quietly erases a person's contact details.
+      if (cell(row.email)) request.email = cell(row.email);
+      if (cell(row.notes)) request.notes = cell(row.notes);
+
       // Placement. Absent on a non-placeable type's file, and the server rejects any that turn
       // up on one — so they are read whenever present rather than gated on the type here.
       if (cell(row.code)) request.code = cell(row.code);
