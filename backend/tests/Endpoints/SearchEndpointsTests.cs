@@ -85,6 +85,59 @@ public class SearchEndpointsTests
     }
 
     [Fact]
+    public async Task RequestSearchDocument_CarriesSiteId_AndFollowsSiteChange()
+    {
+        // 1330 wrote site_id = NULL for every request document because requests had no site
+        // then; 1550 added requests.site_id and 1850 made the trigger carry it. This pins the
+        // repaired behaviour: the document tracks the request's site through create and update.
+        var siteCode = $"rqsd-{Guid.NewGuid():N}"[..10];
+        var siteResponse = await _client.PostAsJsonAsync("/api/sites", new { code = siteCode, name = "Request Search Site" });
+        siteResponse.EnsureSuccessStatusCode();
+        var site = await siteResponse.Content.ReadFromJsonAsync<SiteInfo>();
+
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"SiteDoc-{Guid.NewGuid():N}"[..20],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SiteId = site!.Id,
+        });
+        createResponse.EnsureSuccessStatusCode();
+        var requestId = (await createResponse.Content.ReadFromJsonAsync<RequestInfo>())!.Id;
+
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var connFactory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
+        var orgContext = scope.ServiceProvider.GetRequiredService<OrgContext>();
+
+        async Task<Guid?> DocumentSiteIdAsync()
+        {
+            await using var conn = connFactory.CreateOrgConnection(orgContext);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "SELECT site_id FROM search_documents WHERE entity_type='request' AND entity_id=@id",
+                conn);
+            cmd.Parameters.AddWithValue("id", requestId);
+            var value = await cmd.ExecuteScalarAsync();
+            return value is Guid g ? g : null;
+        }
+
+        (await DocumentSiteIdAsync()).Should().Be(site.Id);
+
+        // Clearing the site must clear the document's site too (trg_search_requests fires on
+        // every UPDATE, no column list).
+        await using (var conn = connFactory.CreateOrgConnection(orgContext))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "UPDATE requests SET site_id = NULL, updated_at = now() WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("id", requestId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        (await DocumentSiteIdAsync()).Should().BeNull();
+    }
+
+    [Fact]
     public async Task Search_WithTypeFilter_ReturnsOnlyFilteredTypes()
     {
         var response = await _client.GetAsync("/api/search?q=test&types=resource,request");
