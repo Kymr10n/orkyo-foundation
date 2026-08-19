@@ -1,9 +1,11 @@
 namespace Api.Constants;
 
 /// <summary>
-/// Keys of the <em>system</em> resource types seeded by migration 1300. Tenants may define
-/// additional types at runtime, so this set is NOT the universe of valid resource type keys —
-/// resolve arbitrary keys through <c>IResourceTypeRepository</c> instead.
+/// Keys of the resource types seeded by migration 1300. Since 1800 the "space" type is an
+/// ordinary tenant type (renamable, deletable), so membership here does not imply the type
+/// still exists or is a system type. Tenants define additional types at runtime, so this set
+/// is NOT the universe of valid resource type keys — resolve arbitrary keys through
+/// <c>IResourceTypeRepository</c> instead.
 /// </summary>
 public static class ResourceTypeKeys
 {

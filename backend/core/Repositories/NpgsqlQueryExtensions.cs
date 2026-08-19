@@ -27,7 +27,7 @@ public static class NpgsqlQueryExtensions
     private static readonly HashSet<string> AllowedExistsTables = new(StringComparer.Ordinal)
     {
         "sites", "resource_groups", "resources", "criteria", "requests",
-        "users", "tenants", "announcements", "presets", "templates"
+        "users", "tenants", "announcements", "templates"
     };
 
     private static async Task EnsureOpenAsync(NpgsqlConnection conn, CancellationToken ct)

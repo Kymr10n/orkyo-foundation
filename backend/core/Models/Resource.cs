@@ -47,10 +47,10 @@ public record ResourceInfo
     public required int BaseAvailabilityPercent { get; init; }
     public required bool IsActive { get; init; }
 
-    // Location model. Spaces resolve their site via spaces.site_id and leave HomeSiteId null;
-    // people/tools carry an administrative home site. CurrentSiteId is derived (read-only), not
-    // stored: it is where the resource actually is right now.
-    /// <summary>Administrative/owning site and idle-time anchor (null for spaces and un-remediated resources).</summary>
+    // Location model. Every resource carries an administrative home site on resources.home_site_id
+    // (stations got theirs from the folded spaces.site_id in 1700/1710). CurrentSiteId is derived
+    // (read-only), not stored: it is where the resource actually is right now.
+    /// <summary>Administrative/owning site and idle-time anchor (null for un-remediated resources).</summary>
     public Guid? HomeSiteId { get; init; }
     /// <summary>Derived (read-only): where the resource is right now — the site of the non-cancelled
     /// assignment overlapping the current time, else the home site (spaces always resolve to their own site).</summary>

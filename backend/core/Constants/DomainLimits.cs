@@ -6,7 +6,8 @@ namespace Api.Constants;
 /// </summary>
 public static class DomainLimits
 {
-    /// <summary>Maximum length for site codes</summary>
+    /// <summary>Maximum length for site codes. Stricter than sites.code VARCHAR(63) on purpose;
+    /// the column keeps headroom for imported data.</summary>
     public const int SiteCodeMaxLength = 50;
 
     /// <summary>Maximum length for a placeable resource's code — matches resources.code VARCHAR(63).</summary>
@@ -36,11 +37,11 @@ public static class DomainLimits
     /// <summary>Maximum length for template descriptions</summary>
     public const int TemplateDescriptionMaxLength = 1000;
 
-    /// <summary>Maximum length for space group names</summary>
-    public const int SpaceGroupNameMaxLength = 255;
+    /// <summary>Maximum length for resource group names</summary>
+    public const int ResourceGroupNameMaxLength = 255;
 
-    /// <summary>Maximum length for space group descriptions</summary>
-    public const int SpaceGroupDescriptionMaxLength = 1000;
+    /// <summary>Maximum length for resource group descriptions</summary>
+    public const int ResourceGroupDescriptionMaxLength = 1000;
 
     /// <summary>Maximum length for preset IDs</summary>
     public const int PresetIdMaxLength = 100;

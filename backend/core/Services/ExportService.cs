@@ -155,12 +155,6 @@ public class ExportService : IExportService
     }
 
     /// <summary>
-    /// Every active resource of a non-placeable type — people, tools and whatever
-    /// a tenant defined for itself. Placeable ones are exported under their site
-    /// (BuildSitesAsync); before this existed the payload simply omitted the rest,
-    /// so an "export my data" of a tools-and-people tenant returned neither.
-    /// </summary>
-    /// <summary>
     /// Every list definition with its columns, and the shared instances built from it with their
     /// rows.
     ///
@@ -216,6 +210,12 @@ public class ExportService : IExportService
         return exported;
     }
 
+    /// <summary>
+    /// Every active resource of a non-placeable type — people, tools and whatever
+    /// a tenant defined for itself. Placeable ones are exported under their site
+    /// (BuildSitesAsync); before this existed the payload simply omitted the rest,
+    /// so an "export my data" of a tools-and-people tenant returned neither.
+    /// </summary>
     private async Task<List<ExportResource>> BuildResourcesAsync(
         List<SiteInfo> sites,
         Dictionary<Guid, string> criterionIdToKey)
