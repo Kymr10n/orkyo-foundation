@@ -221,5 +221,5 @@ COMMIT;
 --
 -- CONCURRENTLY cannot run inside a transaction. The runner does not wrap scripts, so
 -- statements after COMMIT run in autocommit (the 1720 precedent).
-CREATE INDEX CONCURRENTLY IF NOT EXISTS list_rows_instance_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_list_rows_instance
     ON public.list_rows (list_instance_id);

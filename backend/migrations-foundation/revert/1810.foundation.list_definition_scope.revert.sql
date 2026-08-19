@@ -8,9 +8,9 @@
 
 BEGIN;
 
-DROP INDEX IF EXISTS public.list_definitions_scope_idx;
-DROP INDEX IF EXISTS public.list_definitions_global_name_unique;
-DROP INDEX IF EXISTS public.list_definitions_resource_name_unique;
+DROP INDEX IF EXISTS public.idx_list_definitions_scope;
+DROP INDEX IF EXISTS public.ux_list_definitions_global_name;
+DROP INDEX IF EXISTS public.ux_list_definitions_resource_name;
 
 ALTER TABLE public.list_definitions
     DROP CONSTRAINT IF EXISTS list_definitions_resource_type_fkey,

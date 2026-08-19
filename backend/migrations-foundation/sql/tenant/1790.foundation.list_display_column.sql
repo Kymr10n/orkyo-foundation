@@ -39,10 +39,12 @@ ALTER TABLE public.list_definitions
     ADD CONSTRAINT list_definitions_display_column_fkey
         FOREIGN KEY (display_column_id) REFERENCES public.list_columns(id) ON DELETE SET NULL;
 
+COMMIT;
+
 -- The service checks that the column belongs to this definition, which the database cannot
 -- express in a foreign key. This index is what makes that check, and the SET NULL above, cheap.
-CREATE INDEX IF NOT EXISTS idx_list_definitions_display_column
+-- CONCURRENTLY cannot run inside a transaction. The runner does not wrap scripts, so
+-- statements after COMMIT run in autocommit (the 1720 precedent).
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_list_definitions_display_column
     ON public.list_definitions (display_column_id)
     WHERE display_column_id IS NOT NULL;
-
-COMMIT;

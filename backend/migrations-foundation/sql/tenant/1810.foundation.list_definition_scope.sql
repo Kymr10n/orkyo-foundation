@@ -50,15 +50,17 @@ ALTER TABLE public.list_definitions
     ADD CONSTRAINT list_definitions_resource_type_fkey
         FOREIGN KEY (resource_type_id) REFERENCES public.resource_types(id) ON DELETE CASCADE;
 
-CREATE UNIQUE INDEX IF NOT EXISTS list_definitions_resource_name_unique
+COMMIT;
+
+-- CONCURRENTLY cannot run inside a transaction. The runner does not wrap scripts, so
+-- statements after COMMIT run in autocommit (the 1720 precedent).
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_list_definitions_resource_name
     ON public.list_definitions (resource_type_id, name)
     WHERE resource_type_id IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS list_definitions_global_name_unique
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_list_definitions_global_name
     ON public.list_definitions (scope, name)
     WHERE resource_type_id IS NULL;
 
-CREATE INDEX IF NOT EXISTS list_definitions_scope_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_list_definitions_scope
     ON public.list_definitions (scope);
-
-COMMIT;

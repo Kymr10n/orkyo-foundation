@@ -1,4 +1,4 @@
--- @migration-class: expand
+-- @migration-class: data
 
 -- The built-in space type stops being built in.
 --
