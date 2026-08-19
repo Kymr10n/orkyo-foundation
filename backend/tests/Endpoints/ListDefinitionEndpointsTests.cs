@@ -442,6 +442,58 @@ public class ListDefinitionEndpointsTests
     // ---- Scopes (migration 1810) --------------------------------------------------------
 
     [Fact]
+    public async Task GetAll_ScopeFilter_ReturnsOnlyThatScope()
+    {
+        var common = await CreateDefinitionAsync();
+        var orgResponse = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Cost centres"),
+                Scope = ListDefinitionScopes.Organization,
+            });
+        Assert.Equal(HttpStatusCode.Created, orgResponse.StatusCode);
+        var org = (await orgResponse.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+
+        var response = await _client.GetAsync("/api/list-definitions?scope=organization");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var definitions = (await response.Content.ReadFromJsonAsync<List<ListDefinitionInfo>>())!;
+
+        Assert.Contains(definitions, d => d.Id == org.Id);
+        Assert.DoesNotContain(definitions, d => d.Id == common.Id);
+        Assert.All(definitions, d => Assert.Equal(ListDefinitionScopes.Organization, d.Scope));
+    }
+
+    [Fact]
+    public async Task GetAll_ScopeAndIncludeInactive_Combine()
+    {
+        var org = (await (await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Retired org list"),
+                Scope = ListDefinitionScopes.Organization,
+            })).Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+        var deactivate = await _client.PutAsJsonAsync($"/api/list-definitions/{org.Id}",
+            new UpdateListDefinitionRequest { IsActive = false });
+        Assert.Equal(HttpStatusCode.OK, deactivate.StatusCode);
+
+        var activeOnly = (await (await _client.GetAsync("/api/list-definitions?scope=organization"))
+            .Content.ReadFromJsonAsync<List<ListDefinitionInfo>>())!;
+        var withInactive = (await (await _client.GetAsync(
+                "/api/list-definitions?scope=organization&includeInactive=true"))
+            .Content.ReadFromJsonAsync<List<ListDefinitionInfo>>())!;
+
+        Assert.DoesNotContain(activeOnly, d => d.Id == org.Id);
+        Assert.Contains(withInactive, d => d.Id == org.Id);
+    }
+
+    [Fact]
+    public async Task GetAll_UnknownScope_Returns400()
+    {
+        var response = await _client.GetAsync("/api/list-definitions?scope=galactic");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateDefinition_DefaultsToTheCommonScope()
     {
         // Every definition predating 1810 became 'common', so an unstated scope must agree.

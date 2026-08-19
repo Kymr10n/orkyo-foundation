@@ -8,8 +8,9 @@ namespace Api.Repositories;
 
 public interface IListDefinitionRepository
 {
-    /// <summary>Every definition, by name. Columns are not loaded — use <see cref="GetByIdAsync"/>.</summary>
-    Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default);
+    /// <summary>Every definition, by name, optionally narrowed to one scope. Columns are not
+    /// loaded — use <see cref="GetByIdAsync"/>.</summary>
+    Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, string? scope = null, CancellationToken ct = default);
 
     /// <summary>One definition with its columns in form order, or null.</summary>
     Task<ListDefinitionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
@@ -25,6 +26,11 @@ public interface IListDefinitionRepository
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     Task<List<ListColumnInfo>> GetColumnsAsync(Guid definitionId, CancellationToken ct = default);
+
+    /// <summary>The columns of many definitions, keyed by definition id, per-definition in form
+    /// order. One round trip; a definition with no columns is absent from the result.</summary>
+    Task<Dictionary<Guid, List<ListColumnInfo>>> GetColumnsByDefinitionsAsync(
+        IReadOnlyList<Guid> definitionIds, CancellationToken ct = default);
     Task<ListColumnInfo?> GetColumnAsync(Guid columnId, CancellationToken ct = default);
     Task<ListColumnInfo> CreateColumnAsync(Guid definitionId, CreateListColumnRequest request, CancellationToken ct = default);
     Task<ListColumnInfo?> UpdateColumnAsync(Guid columnId, UpdateListColumnRequest request, CancellationToken ct = default);
@@ -53,13 +59,16 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
     // places between requests.
     private const string FormOrder = "ORDER BY sort_order, label";
 
-    public async Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default)
+    public async Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, string? scope = null, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        var where = includeInactive ? "" : "WHERE is_active = true ";
+        var where = new List<string>();
+        if (!includeInactive) where.Add("is_active = true");
+        if (scope is not null) where.Add("scope = @scope");
+        var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) + " " : "";
         return await db.QueryListAsync(
-            $"SELECT {DefinitionColumns} FROM list_definitions {where}ORDER BY name",
-            _ => { }, MapDefinition, ct);
+            $"SELECT {DefinitionColumns} FROM list_definitions {whereClause}ORDER BY name",
+            p => { if (scope is not null) p.AddWithValue("scope", scope); }, MapDefinition, ct);
     }
 
     public async Task<ListDefinitionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -153,6 +162,29 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
         return await db.QueryListAsync(
             $"SELECT {ColumnColumns} FROM list_columns WHERE list_definition_id = @id {FormOrder}",
             p => p.AddWithValue("id", definitionId), MapColumn, ct);
+    }
+
+    public async Task<Dictionary<Guid, List<ListColumnInfo>>> GetColumnsByDefinitionsAsync(
+        IReadOnlyList<Guid> definitionIds, CancellationToken ct = default)
+    {
+        if (definitionIds.Count == 0) return [];
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        var rows = await db.QueryListAsync(
+            $"SELECT {ColumnColumns} FROM list_columns WHERE list_definition_id = ANY(@ids) "
+            + "ORDER BY list_definition_id, sort_order, label",
+            p => p.AddWithValue("ids", definitionIds.ToArray()), MapColumn, ct);
+
+        var map = new Dictionary<Guid, List<ListColumnInfo>>();
+        foreach (var row in rows)
+        {
+            if (!map.TryGetValue(row.ListDefinitionId, out var list))
+            {
+                list = [];
+                map[row.ListDefinitionId] = list;
+            }
+            list.Add(row);
+        }
+        return map;
     }
 
     public async Task<ListColumnInfo?> GetColumnAsync(Guid columnId, CancellationToken ct = default)

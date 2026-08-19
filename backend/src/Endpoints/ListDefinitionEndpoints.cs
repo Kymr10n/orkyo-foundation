@@ -31,9 +31,15 @@ public static class ListDefinitionEndpoints
 
         group.MapGet("/", async (
             [FromQuery] bool? includeInactive,
+            [FromQuery] string? scope,
             IListDefinitionService service,
             CancellationToken ct) =>
-            Results.Ok(await service.GetAllAsync(includeInactive ?? false, ct)))
+        {
+            if (scope is not null && !ListDefinitionScopes.All.Contains(scope))
+                return ErrorResponses.BadRequest(
+                    $"Unknown scope '{scope}'. Valid scopes: {string.Join(", ", ListDefinitionScopes.All)}");
+            return Results.Ok(await service.GetAllAsync(includeInactive ?? false, scope, ct));
+        })
             .WithName("GetListDefinitions")
             .WithSummary("Get the list definitions this tenant has defined");
 

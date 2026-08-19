@@ -169,12 +169,17 @@ const definitionsApi = createCrudApi<
   itemPath: (definitionId) => API_PATHS.listDefinition(definitionId),
 });
 
-/** Active definitions by name; pass true to include retired ones. */
-export function getListDefinitions(includeInactive = false): Promise<ListDefinition[]> {
+/** Active definitions by name; pass true to include retired ones, a scope to narrow to it. */
+export function getListDefinitions(
+  includeInactive = false,
+  scope?: ListDefinitionScope,
+): Promise<ListDefinition[]> {
+  const params = new URLSearchParams();
+  if (includeInactive) params.set('includeInactive', 'true');
+  if (scope) params.set('scope', scope);
+  const query = params.toString();
   return apiGet<ListDefinition[]>(
-    includeInactive
-      ? `${API_PATHS.LIST_DEFINITIONS}?includeInactive=true`
-      : API_PATHS.LIST_DEFINITIONS,
+    query ? `${API_PATHS.LIST_DEFINITIONS}?${query}` : API_PATHS.LIST_DEFINITIONS,
   );
 }
 

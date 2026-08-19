@@ -14,6 +14,7 @@ import {
   updateSharedListInstance,
   type CreateListColumnRequest,
   type CreateListDefinitionRequest,
+  type ListDefinitionScope,
   type UpdateListColumnRequest,
   type ListInstanceRequest,
   type UpdateListDefinitionRequest,
@@ -27,10 +28,10 @@ import { qk } from "@foundation/src/lib/api/query-keys";
  */
 const LIST_INVALIDATES = [qk.lists.all()] as const;
 
-export const useListDefinitions = (includeInactive = false) =>
+export const useListDefinitions = (includeInactive = false, scope?: ListDefinitionScope) =>
   useQuery({
-    queryKey: [...qk.lists.definitions(), includeInactive] as const,
-    queryFn: () => getListDefinitions(includeInactive),
+    queryKey: [...qk.lists.definitions(), includeInactive, scope ?? null] as const,
+    queryFn: () => getListDefinitions(includeInactive, scope),
   });
 
 /** One definition with its columns. Null id disables the query — nothing to fetch yet. */

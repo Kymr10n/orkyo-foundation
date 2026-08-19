@@ -1,12 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { OrganizationPage } from './OrganizationPage';
-import type { ListDefinition } from '@foundation/src/lib/api/lists-api';
+import type { ListDefinition, ListDefinitionScope } from '@foundation/src/lib/api/lists-api';
 
 let definitions: ListDefinition[] = [];
 
+// Scope and activity are filtered server-side now; the mock replays that filter so the
+// tests can assert the page asks for exactly the slice it renders.
+const useListDefinitionsMock = vi.fn((includeInactive: boolean = false, scope?: ListDefinitionScope) => ({
+  data: definitions.filter(
+    (d) => (includeInactive || d.isActive) && (scope === undefined || d.scope === scope),
+  ),
+  isLoading: false,
+  error: null,
+}));
+
 vi.mock('@foundation/src/hooks/useListDefinitions', () => ({
-  useListDefinitions: () => ({ data: definitions, isLoading: false, error: null }),
+  useListDefinitions: (includeInactive?: boolean, scope?: ListDefinitionScope) =>
+    useListDefinitionsMock(includeInactive, scope),
 }));
 
 // The panel has its own suite; here it only reports which entries it was handed.
@@ -36,6 +47,12 @@ beforeEach(() => {
 });
 
 describe('OrganizationPage', () => {
+  it('asks the server for active organization-scoped definitions only', () => {
+    render(<OrganizationPage />);
+
+    expect(useListDefinitionsMock).toHaveBeenCalledWith(false, 'organization');
+  });
+
   it('hands the panel every organization-scoped definition', () => {
     render(<OrganizationPage />);
 

@@ -20,13 +20,11 @@ import { useListDefinitions } from '@foundation/src/hooks/useListDefinitions';
  */
 export function OrganizationPage() {
   usePageTitle('Organization');
-  const { data: definitions = [], isLoading, error } = useListDefinitions();
+  // Scope is filtered server-side; the default excludes inactive definitions too.
+  const { data: definitions = [], isLoading, error } = useListDefinitions(false, 'organization');
 
   const entries = useMemo<SharedListEntry[]>(
-    () =>
-      definitions
-        .filter((d) => d.scope === 'organization' && d.isActive)
-        .map((d) => ({ id: d.id, label: d.name, definitionId: d.id })),
+    () => definitions.map((d) => ({ id: d.id, label: d.name, definitionId: d.id })),
     [definitions],
   );
 

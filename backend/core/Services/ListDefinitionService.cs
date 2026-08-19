@@ -11,7 +11,7 @@ namespace Api.Services;
 /// </summary>
 public interface IListDefinitionService
 {
-    Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default);
+    Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, string? scope = null, CancellationToken ct = default);
     Task<ListDefinitionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<ListDefinitionInfo> CreateAsync(CreateListDefinitionRequest request, CancellationToken ct = default);
     Task<ListDefinitionInfo?> UpdateAsync(Guid id, UpdateListDefinitionRequest request, CancellationToken ct = default);
@@ -33,8 +33,8 @@ public class ListDefinitionService(
     IListInstanceRepository instanceRepository,
     IResourceTypeRepository resourceTypeRepository) : IListDefinitionService
 {
-    public Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default)
-        => repository.GetAllAsync(includeInactive, ct);
+    public Task<List<ListDefinitionInfo>> GetAllAsync(bool includeInactive = false, string? scope = null, CancellationToken ct = default)
+        => repository.GetAllAsync(includeInactive, scope, ct);
 
     public Task<ListDefinitionInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => repository.GetByIdAsync(id, ct);
