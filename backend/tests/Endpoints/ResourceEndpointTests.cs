@@ -135,6 +135,92 @@ public class ResourceEndpointTests
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     }
 
+    private static async Task<(List<ResourceInfo> Data, int Total, int Page, int PageSize)> ReadEnvelopeAsync(
+        HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var data = envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        return (data,
+            envelope.GetProperty("total").GetInt32(),
+            envelope.GetProperty("page").GetInt32(),
+            envelope.GetProperty("pageSize").GetInt32());
+    }
+
+    // ── paging ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetResources_Unpaged_TotalIsRealCount()
+    {
+        var marker = $"EnvT-{Guid.NewGuid():N}"[..16];
+        for (var i = 0; i < 3; i++)
+            await CreatePersonAsync($"{marker}-{i}");
+
+        var (data, total, page, pageSize) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={marker}"));
+
+        Assert.Equal(3, total);
+        Assert.Equal(3, data.Count);
+        Assert.Equal(1, page);
+        Assert.Equal(1000, pageSize);
+    }
+
+    [Fact]
+    public async Task GetResources_Paged_ReturnsSliceWithRealTotal()
+    {
+        var marker = $"EnvP-{Guid.NewGuid():N}"[..16];
+        for (var i = 0; i < 5; i++)
+            await CreatePersonAsync($"{marker}-{i}");
+
+        var (data, total, page, pageSize) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={marker}&page=2&pageSize=2"));
+
+        Assert.Equal(5, total);
+        Assert.Equal(2, data.Count);
+        Assert.Equal(2, page);
+        Assert.Equal(2, pageSize);
+    }
+
+    [Fact]
+    public async Task GetResources_PageSizeAboveMax_IsClamped()
+    {
+        var marker = $"EnvC-{Guid.NewGuid():N}"[..16];
+        await CreatePersonAsync($"{marker}-0");
+
+        var (_, _, _, pageSize) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={marker}&pageSize=500"));
+
+        Assert.Equal(100, pageSize);
+    }
+
+    [Fact]
+    public async Task GetResources_PageBeyondEnd_ReturnsEmptyWithTotal()
+    {
+        var marker = $"EnvE-{Guid.NewGuid():N}"[..16];
+        await CreatePersonAsync($"{marker}-0");
+
+        var (data, total, _, _) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={marker}&page=50&pageSize=10"));
+
+        Assert.Empty(data);
+        Assert.Equal(1, total);
+    }
+
+    [Fact]
+    public async Task GetResources_Paged_ComposesWithTypeFilter()
+    {
+        var marker = $"EnvF-{Guid.NewGuid():N}"[..16];
+        await CreatePersonAsync($"{marker}-p");
+
+        var (data, total, _, _) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={marker}&resourceTypeKey=tool&page=1&pageSize=10"));
+
+        // The marker matches one person and no tool — the type filter still applies when paged.
+        Assert.Empty(data);
+        Assert.Equal(0, total);
+    }
+
     /// <summary>
     /// Creates a placeable resource the way the space route does — the defaults it hardcodes are
     /// supplied by the caller here, which is the point of the migration.

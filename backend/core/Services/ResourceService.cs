@@ -15,6 +15,9 @@ public interface IResourceService
 {
     /// <summary>Returns all resources matching the given filter.</summary>
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
+    /// <summary>Returns one page of the filtered list plus the unpaged total.</summary>
+    Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
+        ResourceListFilter filter, int limit, int offset, CancellationToken ct = default);
     /// <summary>Returns the resource with the given ID, or <c>null</c> if not found.</summary>
     Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     /// <summary>Creates a new resource. Validates allocation mode and availability percent.</summary>
@@ -37,6 +40,10 @@ public class ResourceService(
 {
     public Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
         => resourceRepository.GetAllAsync(filter, ct);
+
+    public Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
+        ResourceListFilter filter, int limit, int offset, CancellationToken ct = default)
+        => resourceRepository.GetPageAsync(filter, limit, offset, ct);
 
     public Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => resourceRepository.GetByIdAsync(id, ct);

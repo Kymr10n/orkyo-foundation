@@ -23,21 +23,40 @@ public static class ResourceEndpoints
 
         group.MapGet("/", async (
             IResourceService service,
+            CancellationToken ct,
             string? resourceTypeKey,
             bool? isActive,
             string? search,
             Guid? siteId,
-            bool? hasGeometry) =>
+            bool? hasGeometry,
+            int? page,
+            int? pageSize) =>
         {
-            var items = await service.GetAllAsync(new ResourceListFilter
+            var filter = new ResourceListFilter
             {
                 ResourceTypeKey = resourceTypeKey,
                 IsActive = isActive,
                 Search = search,
                 SiteId = siteId,
                 HasGeometry = hasGeometry,
-            });
-            return Results.Ok(new { data = items, total = items.Count, page = 1, pageSize = items.Count });
+            };
+
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var p = new PageRequest
+                {
+                    Page = page ?? 1,
+                    PageSize = pageSize ?? PageRequest.DefaultPageSize,
+                }.Sanitize();
+                var (pageItems, pageTotal) = await service.GetPageAsync(filter, p.PageSize, p.Offset, ct);
+                return Results.Ok(new { data = pageItems, total = pageTotal, page = p.Page, pageSize = p.PageSize });
+            }
+
+            // Legacy branch: the 1000-row safety cap stays, but total is the real count, so a
+            // truncated response is detectable (data.length < total). Not PageRequest/
+            // QueryPagedAsync — those clamp to 100 and would silently shrink the cap.
+            var (items, total) = await service.GetPageAsync(filter, limit: 1000, offset: 0, ct);
+            return Results.Ok(new { data = items, total, page = 1, pageSize = 1000 });
         })
             .WithName("GetResources")
             .WithSummary("Get all resources");

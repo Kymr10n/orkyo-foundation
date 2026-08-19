@@ -11,6 +11,10 @@ namespace Api.Repositories;
 public interface IResourceRepository
 {
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
+    /// <summary>One page of the filtered list plus the unpaged total, in one connection.
+    /// The caller clamps <paramref name="limit"/>/<paramref name="offset"/>.</summary>
+    Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
+        ResourceListFilter filter, int limit, int offset, CancellationToken ct = default);
     Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<List<ResourceInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default);
     /// <summary>
@@ -45,28 +49,32 @@ public class ResourceRepository(
     : IResourceRepository
 {
     // Derived "current site": where the resource is right now — wherever a non-cancelled
-    // assignment overlapping now() places it, else its home site. Read-only — never stored. On
-    // concurrent (fractional) assignments the most recently started one wins, so the value is
-    // deterministic.
+    // assignment overlapping now() places it, else its home site (the COALESCE lives in the
+    // projection). Read-only — never stored. On concurrent (fractional) assignments the most
+    // recently started one wins, so the value is deterministic.
     //
-    // The assignment arm applies only to resources allowed to travel. An immovable resource
-    // always reports its home site: it cannot be somewhere else, so an assignment to a request
-    // filed against another site says something about the request, not about the resource.
-    // This is what the spaces table used to express by keeping a space's site in its own
-    // column where no assignment could override it.
-    private const string CurrentSiteExpr =
-        $@"COALESCE(
-            CASE WHEN r.cross_site_allowed THEN
-            (SELECT req.site_id
-               FROM resource_assignments ra
-               JOIN requests req ON req.id = ra.request_id
-              WHERE ra.resource_id = r.id
-                AND ra.assignment_status <> '{AssignmentStatuses.Cancelled}'
-                AND ra.start_utc <= now() AND ra.end_utc > now()
-                AND req.site_id IS NOT NULL
-              ORDER BY ra.start_utc DESC
-              LIMIT 1) END,
-            r.home_site_id)";
+    // The assignment arm applies only to resources allowed to travel (the cross_site_allowed
+    // predicate inside the lateral). An immovable resource always reports its home site: it
+    // cannot be somewhere else, so an assignment to a request filed against another site says
+    // something about the request, not about the resource. This is what the spaces table used
+    // to express by keeping a space's site in its own column where no assignment could
+    // override it.
+    //
+    // A lateral rather than a scalar subquery in the SELECT list: the same value is needed by
+    // the site filter, and as a lateral it is computed once per row instead of once per
+    // reference. LIMIT 1 means it cannot multiply rows.
+    private const string CurrentSiteLateral =
+        $@" LEFT JOIN LATERAL (
+            SELECT req.site_id
+              FROM resource_assignments ra
+              JOIN requests req ON req.id = ra.request_id
+             WHERE r.cross_site_allowed
+               AND ra.resource_id = r.id
+               AND ra.assignment_status <> '{AssignmentStatuses.Cancelled}'
+               AND ra.start_utc <= now() AND ra.end_utc > now()
+               AND req.site_id IS NOT NULL
+             ORDER BY ra.start_utc DESC
+             LIMIT 1) cs ON TRUE";
 
     // Site membership over a window: home site matches, or a non-cancelled assignment to a request
     // at the site overlaps [@siteFrom, @siteTo). Mirrors the assignment→request→site join in
@@ -80,81 +88,97 @@ public class ResourceRepository(
                          AND ra.start_utc < @siteTo AND ra.end_utc > @siteFrom
                          AND req.site_id = @siteId))";
 
-    // Group membership lives in resource_group_members, and a scalar subquery rather than a LEFT
-    // JOIN because a join multiplies rows for any type that allows more than one group — which
-    // would inflate both a list and the COUNT beside it. Placeable types declare
+    // Group membership lives in resource_group_members. A LIMIT 1 lateral rather than a plain
+    // LEFT JOIN because a join multiplies rows for any type that allows more than one group —
+    // which would inflate both a list and the COUNT beside it. Placeable types declare
     // single_group_membership, so for them there is at most one row to pick from anyway.
-    private const string GroupIdExpr =
-        "(SELECT m.resource_group_id FROM resource_group_members m WHERE m.resource_id = r.id LIMIT 1)";
+    private const string GroupLateral =
+        @" LEFT JOIN LATERAL (
+            SELECT m.resource_group_id FROM resource_group_members m
+             WHERE m.resource_id = r.id LIMIT 1) gm ON TRUE";
 
     private const string SelectColumns =
         "r.id, r.resource_type_id, rt.key as resource_type_key, r.name, r.description, " +
         "r.external_reference, r.allocation_mode, r.base_availability_percent, " +
-        "r.home_site_id, " + CurrentSiteExpr + " AS current_site_id, r.cross_site_allowed, " +
+        "r.home_site_id, COALESCE(cs.site_id, r.home_site_id) AS current_site_id, r.cross_site_allowed, " +
         "r.code, r.is_physical, r.geometry, r.properties, r.capacity, r.custom_fields, " +
         // Directory columns. email is CITEXT and Npgsql has no handler for it, so it is cast —
         // the same cast PersonProfileRepository makes.
         "r.email::text AS email, r.linked_user_id, r.notes, " +
-        GroupIdExpr + " AS group_id, " +
+        "gm.resource_group_id AS group_id, " +
         "r.is_active, r.created_at, r.updated_at";
 
     private const string FromClause =
         "FROM resources r JOIN resource_types rt ON rt.id = r.resource_type_id";
 
+    // The FROM every SelectColumns read uses: base join plus the two laterals the projection
+    // references. Writes and counts that do not project SelectColumns keep FromClause.
+    private const string ReadFrom = FromClause + CurrentSiteLateral + GroupLateral;
+
     // What used to be `key = 'space'` plus the existence of a spaces row: deleting a space
     // deactivated its resource, so an inactive one was already invisible to these reads.
     private const string PlaceableScope = "rt.has_geometry AND r.is_active";
+
+    // Shared WHERE assembly for the list reads. UsesCurrentSite reports whether a fragment
+    // references the cs lateral — a COUNT over such a WHERE must use ReadFrom, not FromClause.
+    private static (List<string> Where, bool UsesCurrentSite) BuildFilter(
+        ResourceListFilter filter, NpgsqlParameterCollection p)
+    {
+        var where = new List<string>();
+        var usesCurrentSite = false;
+
+        if (filter.ResourceTypeKey is not null)
+        {
+            where.Add("rt.key = @typeKey");
+            p.AddWithValue("typeKey", filter.ResourceTypeKey);
+        }
+        if (filter.IsActive.HasValue)
+        {
+            where.Add("r.is_active = @isActive");
+            p.AddWithValue("isActive", filter.IsActive.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            where.Add("r.name ILIKE @search");
+            p.AddWithValue("search", $"%{filter.Search}%");
+        }
+        if (filter.HasGeometry.HasValue)
+        {
+            where.Add("rt.has_geometry = @hasGeometry");
+            p.AddWithValue("hasGeometry", filter.HasGeometry.Value);
+        }
+        if (filter.SiteId.HasValue)
+        {
+            p.AddWithValue("siteId", filter.SiteId.Value);
+            if (filter.SiteWindowFrom.HasValue && filter.SiteWindowTo.HasValue)
+            {
+                where.Add(SiteWindowMembershipExpr);
+                p.AddWithValue("siteFrom", filter.SiteWindowFrom.Value);
+                p.AddWithValue("siteTo", filter.SiteWindowTo.Value);
+            }
+            else
+            {
+                // No window → fall back to the as-of-now current site, via the cs lateral so
+                // the assignment scan runs once per row instead of once per reference.
+                where.Add("(r.home_site_id = @siteId OR COALESCE(cs.site_id, r.home_site_id) = @siteId)");
+                usesCurrentSite = true;
+            }
+        }
+
+        return (where, usesCurrentSite);
+    }
 
     public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         await db.OpenAsync(ct);
 
-        var where = new List<string>();
         var cmd = new NpgsqlCommand();
         cmd.Connection = db;
 
-        if (filter.ResourceTypeKey is not null)
-        {
-            where.Add("rt.key = @typeKey");
-            cmd.Parameters.AddWithValue("typeKey", filter.ResourceTypeKey);
-        }
-        if (filter.IsActive.HasValue)
-        {
-            where.Add("r.is_active = @isActive");
-            cmd.Parameters.AddWithValue("isActive", filter.IsActive.Value);
-        }
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-        {
-            where.Add("r.name ILIKE @search");
-            cmd.Parameters.AddWithValue("search", $"%{filter.Search}%");
-        }
-        if (filter.HasGeometry.HasValue)
-        {
-            where.Add("rt.has_geometry = @hasGeometry");
-            cmd.Parameters.AddWithValue("hasGeometry", filter.HasGeometry.Value);
-        }
-        if (filter.SiteId.HasValue)
-        {
-            cmd.Parameters.AddWithValue("siteId", filter.SiteId.Value);
-            if (filter.SiteWindowFrom.HasValue && filter.SiteWindowTo.HasValue)
-            {
-                where.Add(SiteWindowMembershipExpr);
-                cmd.Parameters.AddWithValue("siteFrom", filter.SiteWindowFrom.Value);
-                cmd.Parameters.AddWithValue("siteTo", filter.SiteWindowTo.Value);
-            }
-            else
-            {
-                // No window → fall back to the as-of-now current site.
-                where.Add($"(r.home_site_id = @siteId OR {CurrentSiteExpr} = @siteId)");
-            }
-        }
-
+        var (where, _) = BuildFilter(filter, cmd.Parameters);
         var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
-        cmd.CommandText =
-            $"SELECT {SelectColumns} FROM resources r " +
-            $"JOIN resource_types rt ON r.resource_type_id = rt.id " +
-            $"{whereClause} ORDER BY r.name LIMIT 1000";
+        cmd.CommandText = $"SELECT {SelectColumns} {ReadFrom} {whereClause} ORDER BY r.name LIMIT 1000";
 
         var result = new List<ResourceInfo>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -163,13 +187,45 @@ public class ResourceRepository(
         return result;
     }
 
+    // Hand-rolled count + page on one connection rather than QueryPagedAsync: PageRequest
+    // clamps page sizes to 100, and the endpoint's unpaged branch serves up to 1000 rows
+    // through this same method. The clamp belongs to the caller, not here.
+    public async Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
+        ResourceListFilter filter, int limit, int offset, CancellationToken ct = default)
+    {
+        await using var db = connectionFactory.CreateOrgConnection(orgContext);
+        await db.OpenAsync(ct);
+
+        var countCmd = new NpgsqlCommand();
+        countCmd.Connection = db;
+        var (where, usesCurrentSite) = BuildFilter(filter, countCmd.Parameters);
+        var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+        // The laterals cannot multiply rows (LIMIT 1), so counting over ReadFrom is exact;
+        // skipping them when nothing references cs is what makes the count cheap.
+        countCmd.CommandText = $"SELECT COUNT(*) {(usesCurrentSite ? ReadFrom : FromClause)} {whereClause}";
+        var total = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
+
+        var pageCmd = new NpgsqlCommand();
+        pageCmd.Connection = db;
+        BuildFilter(filter, pageCmd.Parameters);
+        pageCmd.Parameters.AddWithValue("limit", limit);
+        pageCmd.Parameters.AddWithValue("offset", offset);
+        // r.id tiebreak keeps pages stable when names repeat.
+        pageCmd.CommandText =
+            $"SELECT {SelectColumns} {ReadFrom} {whereClause} ORDER BY r.name, r.id LIMIT @limit OFFSET @offset";
+
+        var items = new List<ResourceInfo>();
+        await using var reader = await pageCmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            items.Add(Map(reader));
+        return (items, total);
+    }
+
     public async Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         return await db.QuerySingleOrDefaultAsync(
-            $"SELECT {SelectColumns} FROM resources r " +
-            "JOIN resource_types rt ON r.resource_type_id = rt.id " +
-            "WHERE r.id = @id",
+            $"SELECT {SelectColumns} {ReadFrom} WHERE r.id = @id",
             p => p.AddWithValue("id", id), Map, ct);
     }
 
@@ -178,9 +234,7 @@ public class ResourceRepository(
         if (ids.Count == 0) return [];
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         return await db.QueryListAsync(
-            $"SELECT {SelectColumns} FROM resources r " +
-            "JOIN resource_types rt ON r.resource_type_id = rt.id " +
-            "WHERE r.id = ANY(@ids)",
+            $"SELECT {SelectColumns} {ReadFrom} WHERE r.id = ANY(@ids)",
             p => p.AddWithValue("ids", ids.ToArray()), Map, ct);
     }
 
@@ -312,9 +366,19 @@ public class ResourceRepository(
         if (request.Notes is not null)
             update.Set("notes", encryption.ProtectString(request.Notes, orgContext.OrgId)!);
 
-        if (update.IsEmpty) return await GetByIdAsync(id, ct);
+        if (update.IsEmpty)
+            return await db.QuerySingleOrDefaultAsync(
+                $"SELECT {SelectColumns} {ReadFrom} WHERE r.id = @id",
+                p => p.AddWithValue("id", id), Map, ct);
 
-        await db.ExecuteAsync($"UPDATE resources SET {update.SetClause} WHERE id = @id",
+        // UPDATE and read-back in one statement, one connection: the CTE is aliased r so
+        // SelectColumns and the laterals apply verbatim, and the BEFORE UPDATE trigger's
+        // updated_at is already visible in RETURNING *. Zero CTE rows (unknown id) → null.
+        return await db.QuerySingleOrDefaultAsync(
+            $"WITH updated AS (UPDATE resources SET {update.SetClause} WHERE id = @id RETURNING *) " +
+            $"SELECT {SelectColumns} FROM updated r " +
+            "JOIN resource_types rt ON rt.id = r.resource_type_id" +
+            CurrentSiteLateral + GroupLateral,
             p =>
             {
                 p.AddWithValue("id", id);
@@ -322,9 +386,7 @@ public class ResourceRepository(
                 if (geometryJson is not null) p.AddJsonb("geometry", geometryJson);
                 if (propertiesJson is not null) p.AddJsonb("properties", propertiesJson);
                 if (customFieldsJson is not null) p.AddJsonb("customFields", customFieldsJson);
-            }, ct);
-
-        return await GetByIdAsync(id, ct);
+            }, Map, ct);
     }
 
     public async Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
@@ -345,7 +407,7 @@ public class ResourceRepository(
 
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         var rows = await db.QueryListAsync(
-            $"SELECT {SelectColumns} {FromClause} WHERE {PlaceableScope} " +
+            $"SELECT {SelectColumns} {ReadFrom} WHERE {PlaceableScope} " +
             "AND r.home_site_id = ANY(@siteIds) ORDER BY r.home_site_id, r.code, r.name",
             p => p.AddWithValue("siteIds", siteIds.ToArray()), Map, ct);
 
