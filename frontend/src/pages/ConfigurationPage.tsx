@@ -26,6 +26,7 @@ export function ConfigurationPage() {
   const tabs = useMemo<PageTab[]>(
     () => [
       { value: 'resource-types', label: 'Resource Types' },
+      { value: 'catalog', label: 'Type catalog' },
       { value: 'list-definitions', label: 'List definitions' },
     ],
     [],

@@ -61,6 +61,12 @@ export const API_PATHS = {
   resourceCustomField: (resourceTypeId: string, fieldId: string) =>
     `/api/resource-types/${resourceTypeId}/custom-fields/${fieldId}`,
 
+  // Resource type catalog (pre-configured manufacturing types)
+  RESOURCE_TYPE_CATALOG: '/api/resource-type-catalog',
+  resourceTypeCatalogActivate: (key: string) => `/api/resource-type-catalog/${key}/activate`,
+  resourceTypeCatalogDeactivate: (key: string) => `/api/resource-type-catalog/${key}/deactivate`,
+  resourceTypeCatalogEntry: (key: string) => `/api/resource-type-catalog/${key}`,
+
   LIST_DEFINITIONS: '/api/list-definitions',
   listDefinition: (definitionId: string) => `/api/list-definitions/${definitionId}`,
   listColumns: (definitionId: string) => `/api/list-definitions/${definitionId}/columns`,

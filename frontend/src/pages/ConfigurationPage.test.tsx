@@ -15,6 +15,7 @@ function renderAt(initialPath: string) {
         <Route path="/configuration" element={<ConfigurationPage />}>
           <Route index element={<Navigate to="resource-types" replace />} />
           <Route path="resource-types" element={<Stub id="resource-types" />} />
+          <Route path="catalog" element={<Stub id="catalog" />} />
           <Route path="list-definitions" element={<Stub id="list-definitions" />} />
         </Route>
       </Routes>
@@ -29,11 +30,21 @@ describe('ConfigurationPage', () => {
     expect(screen.getByTestId('resource-types')).toBeInTheDocument();
   });
 
-  it('offers both tabs of the section', () => {
+  it('offers all tabs of the section', () => {
     renderAt('/configuration/resource-types');
 
     expect(screen.getByRole('tab', { name: 'Resource Types' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Type catalog' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'List definitions' })).toBeInTheDocument();
+  });
+
+  it('switches to the type catalog', async () => {
+    const user = userEvent.setup();
+    renderAt('/configuration/resource-types');
+
+    await user.click(screen.getByRole('tab', { name: 'Type catalog' }));
+
+    expect(await screen.findByTestId('catalog')).toBeInTheDocument();
   });
 
   it('switches to list definitions', async () => {

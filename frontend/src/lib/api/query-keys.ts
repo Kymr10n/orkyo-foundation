@@ -104,6 +104,11 @@ export const qk = {
       ["lists", "resource-instance", resourceId, fieldId] as const,
   },
 
+  resourceTypeCatalog: {
+    /** The catalog with each entry's tenant state (also its own invalidation prefix). */
+    all: () => ["resource-type-catalog"] as const,
+  },
+
   resourceTypes: {
     /** The tenant's resource types (also its own invalidation prefix). */
     all: () => ["resource-types"] as const,

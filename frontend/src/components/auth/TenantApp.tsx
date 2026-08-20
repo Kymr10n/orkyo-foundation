@@ -50,6 +50,7 @@ const MessagesPage = lazy(() => import('@foundation/src/pages/MessagesPage').the
 const CriteriaSettings = lazy(() => import('@foundation/src/components/settings/CriteriaSettings').then(m => ({ default: m.CriteriaSettings })));
 const ResourceTypeSettings = lazy(() => import('@foundation/src/components/settings/ResourceTypeSettings').then(m => ({ default: m.ResourceTypeSettings })));
 const ListDefinitionSettings = lazy(() => import('@foundation/src/components/settings/ListDefinitionSettings').then(m => ({ default: m.ListDefinitionSettings })));
+const TypeCatalogSettings = lazy(() => import('@foundation/src/components/settings/TypeCatalogSettings').then(m => ({ default: m.TypeCatalogSettings })));
 const ConfigurationPage = lazy(() => import('@foundation/src/pages/ConfigurationPage').then(m => ({ default: m.ConfigurationPage })));
 const OrganizationPage = lazy(() => import('@foundation/src/pages/OrganizationPage').then(m => ({ default: m.OrganizationPage })));
 const LegacyTypeRedirect = lazy(() => import('@foundation/src/components/auth/LegacyTypeRedirect').then(m => ({ default: m.LegacyTypeRedirect })));
@@ -239,6 +240,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
           >
             <Route index element={<Navigate to="resource-types" replace />} />
             <Route path="resource-types" element={<ResourceTypeSettings />} />
+            <Route path="catalog" element={<TypeCatalogSettings />} />
             <Route path="list-definitions" element={<ListDefinitionSettings />} />
           </Route>
 
