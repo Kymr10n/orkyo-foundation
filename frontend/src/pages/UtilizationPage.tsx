@@ -762,14 +762,6 @@ export function UtilizationPage() {
           />
         </>
       )}
-      {/* Which types the grid shows. Calendar spans every type, so it has nothing to filter. */}
-      {!isCalendarTab && (
-        <TypeFilterSelect
-          available={isSchedulerTab ? placeableTypes : gridTypes}
-          selected={selectedKeys}
-          onChange={isSchedulerTab ? setStationKeys : setAssetKeys}
-        />
-      )}
       <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
       <TimeNavigator
         scale={scale}
@@ -862,6 +854,13 @@ export function UtilizationPage() {
                     onChange={(patch) => setStationFilter((current) => ({ ...current, ...patch }))}
                     matchCount={visibleScheduled.length}
                     totalCount={scheduled.length}
+                    typeFilter={
+                      <TypeFilterSelect
+                        available={placeableTypes}
+                        selected={stationKeys}
+                        onChange={setStationKeys}
+                      />
+                    }
                   />
                 </div>
                 <div className="flex flex-1 overflow-hidden">
@@ -927,7 +926,17 @@ export function UtilizationPage() {
                 and no per-type heading: each grid's own row header already names its type. */}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-2 text-xs text-muted-foreground shrink-0">
               {!isPhone && <AssetGridLegend />}
-              <ResourceGridFilterBar value={assetFilter} onChange={setAssetFilter} />
+              <ResourceGridFilterBar
+                value={assetFilter}
+                onChange={setAssetFilter}
+                typeFilter={
+                  <TypeFilterSelect
+                    available={gridTypes}
+                    selected={assetKeys}
+                    onChange={setAssetKeys}
+                  />
+                }
+              />
             </div>
             {/* One scroll region per grid, never two. The stack splits the height rather than
                 scrolling itself: a scrolling stack around grids that already scroll internally

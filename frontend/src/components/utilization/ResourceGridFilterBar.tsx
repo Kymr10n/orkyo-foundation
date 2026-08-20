@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
@@ -14,6 +14,8 @@ import type { BucketStatus } from './schedule-colors';
 interface ResourceGridFilterBarProps {
   value: ResourceGridFilter;
   onChange: (next: ResourceGridFilter) => void;
+  /** The tab's type filter, rendered alongside the rest. */
+  typeFilter?: ReactNode;
 }
 
 /** How the filter menu names each utilization state — the legend's wording, exactly. */
@@ -31,7 +33,7 @@ const UTILIZATION_LABELS: Record<BucketStatus, string> = {
  * One bar for the whole tab rather than one per stacked type grid: the search says "assets"
  * because it narrows every asset on screen, which a per-grid box could not honestly claim.
  */
-export function ResourceGridFilterBar({ value, onChange }: ResourceGridFilterBarProps) {
+export function ResourceGridFilterBar({ value, onChange, typeFilter }: ResourceGridFilterBarProps) {
   const stateItems = useMemo(
     () =>
       UTILIZATION_FILTER_ORDER.map((status) => ({
@@ -58,6 +60,8 @@ export function ResourceGridFilterBar({ value, onChange }: ResourceGridFilterBar
           className="h-8 w-40 pl-7 text-sm sm:w-56"
         />
       </div>
+
+      {typeFilter}
 
       <CheckableFilterMenu
         items={stateItems}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
@@ -15,6 +15,11 @@ interface ScheduleFilterBarProps {
   /** How many events survive the filter, for the cleared-everything hint. */
   matchCount: number;
   totalCount: number;
+  /**
+   * The tab's type filter, rendered alongside the rest. Absent on the calendar, which spans every
+   * type and so has nothing to narrow.
+   */
+  typeFilter?: ReactNode;
 }
 
 const ISSUE_LABELS: Record<IssueFilter, string> = {
@@ -37,7 +42,13 @@ const ISSUE_SWATCHES: Partial<Record<IssueFilter, string>> = {
  * paints occupancy rather than status, so its own legend differs — but what it *filters* by is the
  * request, and that is the same everywhere.
  */
-export function ScheduleFilterBar({ value, onChange, matchCount, totalCount }: ScheduleFilterBarProps) {
+export function ScheduleFilterBar({
+  value,
+  onChange,
+  matchCount,
+  totalCount,
+  typeFilter,
+}: ScheduleFilterBarProps) {
   const statusItems = useMemo(
     () =>
       REQUEST_STATUS_ORDER.map((status) => ({
@@ -84,6 +95,8 @@ export function ScheduleFilterBar({ value, onChange, matchCount, totalCount }: S
           className="h-8 w-40 pl-7 text-sm sm:w-56"
         />
       </div>
+
+      {typeFilter}
 
       <CheckableFilterMenu
         items={statusItems}
