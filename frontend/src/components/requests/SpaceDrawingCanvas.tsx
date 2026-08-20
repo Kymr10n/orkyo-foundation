@@ -64,6 +64,16 @@ interface SpaceDrawingCanvasProps {
   className?: string;
 }
 
+/**
+ * How far the pointer must travel, in screen pixels, before a press on a shape counts as a drag
+ * rather than a click.
+ *
+ * Screen pixels rather than canvas units: canvas units scale with zoom, so the same physical
+ * wobble is a fraction of a unit zoomed in and several units zoomed out. Roughly what a hand
+ * moves while clicking, and well under a deliberate drag.
+ */
+const DRAG_THRESHOLD_PX = 4;
+
 export function SpaceDrawingCanvas({
   floorplanUrl,
   floorplanDimensions,
@@ -91,6 +101,20 @@ export function SpaceDrawingCanvas({
   const [draggingSpace, setDraggingSpace] = useState<{
     id: string;
     startPos: Coordinate;
+    geometry: ResourceGeometry;
+  } | null>(null);
+  /**
+   * A press on a shape that has not become a drag yet.
+   *
+   * Pressing used to start the drag outright, which made every click a one-pixel move: the
+   * pointer never holds perfectly still between press and release, and the shape crept each time
+   * someone selected it. A press is only a drag once it travels far enough to mean one — until
+   * then it is a click, and a click only selects.
+   */
+  const [pendingDrag, setPendingDrag] = useState<{
+    id: string;
+    startPos: Coordinate;
+    startScreen: { x: number; y: number };
     geometry: ResourceGeometry;
   } | null>(null);
   const [resizingSpace, setResizingSpace] = useState<{
@@ -171,6 +195,26 @@ export function SpaceDrawingCanvas({
   const handleMouseMove = (e: ReactMouseEvent<HTMLDivElement>) => {
     const pos = screenToCanvas(e.clientX, e.clientY);
 
+    // A press becomes a drag here, once it has travelled far enough to be one. Measured on
+    // screen rather than on the canvas: canvas units scale with zoom, so a canvas-space
+    // threshold would be strict when zoomed in and useless when zoomed out.
+    if (pendingDrag && !draggingSpace) {
+      const travelled = Math.hypot(
+        e.clientX - pendingDrag.startScreen.x,
+        e.clientY - pendingDrag.startScreen.y,
+      );
+      if (travelled >= DRAG_THRESHOLD_PX) {
+        setDraggingSpace({
+          id: pendingDrag.id,
+          startPos: pendingDrag.startPos,
+          geometry: pendingDrag.geometry,
+        });
+        setPendingDrag(null);
+        setMousePosition(pos);
+      }
+      return;
+    }
+
     // For resize/drag/draw previews, mousePosition drives the render — just update it.
     if (resizingSpace || draggingSpace || !isPassiveMode) {
       setMousePosition(pos);
@@ -222,9 +266,11 @@ export function SpaceDrawingCanvas({
         if (selectedResourceId !== space.id) onSpaceClick?.(space.id);
         if (onSpaceMove) {
           const pos = screenToCanvas(e.clientX, e.clientY);
-          setDraggingSpace({
+          // Held, not yet moved. handleMouseMove decides whether this becomes a drag.
+          setPendingDrag({
             id: space.id,
             startPos: pos,
+            startScreen: { x: e.clientX, y: e.clientY },
             geometry: space.geometry,
           });
         }
@@ -279,30 +325,34 @@ export function SpaceDrawingCanvas({
       return;
     }
 
+    // A press that never travelled far enough to become a drag: that was a click, and the
+    // selection it made on press is all it does.
+    setPendingDrag(null);
+
     if (draggingSpace && onSpaceMove) {
       const pos = screenToCanvas(e.clientX, e.clientY);
       const deltaX = pos.x - draggingSpace.startPos.x;
       const deltaY = pos.y - draggingSpace.startPos.y;
 
-      // Only save if actually moved
-      if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
-        const newGeometry: ResourceGeometry = {
-          type: draggingSpace.geometry.type,
-          coordinates: draggingSpace.geometry.coordinates.map((coord) => ({
-            x: coord.x + deltaX,
-            y: coord.y + deltaY,
-          })),
-        };
+      // No distance check here any more: crossing DRAG_THRESHOLD_PX is what made this a drag,
+      // and the old canvas-space test would swallow a real drag when zoomed in — the shape had
+      // visibly followed the pointer and then snapped back on release.
+      const newGeometry: ResourceGeometry = {
+        type: draggingSpace.geometry.type,
+        coordinates: draggingSpace.geometry.coordinates.map((coord) => ({
+          x: coord.x + deltaX,
+          y: coord.y + deltaY,
+        })),
+      };
 
-        onSpaceMove(draggingSpace.id, newGeometry);
-      }
-
+      onSpaceMove(draggingSpace.id, newGeometry);
       setDraggingSpace(null);
     }
   };
 
   const handleMouseLeave = () => {
     setMousePosition(null);
+    setPendingDrag(null);
     // Cancel drag if mouse leaves canvas
     if (draggingSpace) {
       setDraggingSpace(null);
