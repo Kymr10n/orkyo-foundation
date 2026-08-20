@@ -341,6 +341,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IListRowService, ListRowService>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
         builder.Services.AddScoped<IResourceTypeService, ResourceTypeService>();
+        builder.Services.AddScoped<IResourceTypeCatalogService, ResourceTypeCatalogService>();
         builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         builder.Services.AddScoped<IConflictService, ConflictService>();
         builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();

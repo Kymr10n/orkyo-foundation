@@ -157,6 +157,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IListRowService, ListRowService>();
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<IResourceTypeService, ResourceTypeService>();
+        services.AddScoped<IResourceTypeCatalogService, ResourceTypeCatalogService>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserSessionService, UserSessionService>();
