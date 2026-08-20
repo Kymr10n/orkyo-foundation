@@ -1,4 +1,5 @@
 import { CreateSpaceDialog } from "@foundation/src/components/requests/CreateSpaceDialog";
+import { PlaceDrawnShapeDialog } from "@foundation/src/components/spaces/PlaceDrawnShapeDialog";
 import { FloorplanUploadDialog } from "@foundation/src/components/requests/FloorplanUploadDialog";
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
 import { Button } from "@foundation/src/components/ui/button";
@@ -106,6 +107,7 @@ export function SpaceManagementPanel({
     null,
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
   const [deleteFloorplanOpen, setDeleteFloorplanOpen] = useState(false);
   const [isDeletingFloorplan, setIsDeletingFloorplan] = useState(false);
   const [editingSpace, setEditingSpace] = useState<ResourceInfo | null>(null);
@@ -189,12 +191,47 @@ export function SpaceManagementPanel({
     setZoom(1);
   };
 
+  // Resources of the armed type that exist here but carry no shape — registered from an import
+  // or from their type's list page and never drawn. The floorplan query already reads them (it
+  // filters on the type's flag, not on the shape) and the canvas simply skips them, so this is a
+  // filter rather than a second fetch.
+  const unplacedOfActiveType = activeType
+    ? spaces.filter((s) => !s.geometry && s.resourceTypeKey === activeType.key)
+    : [];
+
   const handleDrawingComplete = (geometry: ResourceGeometry) => {
     setDrawnGeometry(geometry);
-    setCreateDialogOpen(true);
+    // Asked only when there is something to ask about. With nothing waiting to be placed the
+    // choice has one real answer, so the shape goes straight to the create form as it always did.
+    if (unplacedOfActiveType.length > 0) {
+      setPlaceDialogOpen(true);
+    } else {
+      setCreateDialogOpen(true);
+    }
     // The tool stays armed on purpose, so laying out a row of identical stations is
     // draw-name-save repeated rather than re-arming between each. Escape disarms, as does
     // clicking the active tool again; leaving edit mode forces it off.
+  };
+
+  /**
+   * Gives the drawn shape to a resource that had none.
+   *
+   * Geometry only, through the same mutation a drag uses: the candidates come from this site's
+   * own plan query, so their home site is already this one and there is nothing else to write.
+   * A resource belonging to another site is never offered — placing it here would move it, which
+   * is not what drawing a shape says.
+   */
+  const handleAssignDrawnShape = async (resourceId: string) => {
+    if (!drawnGeometry) return;
+    await moveSpaceMutation.mutateAsync({ resourceId, geometry: drawnGeometry });
+    setPlaceDialogOpen(false);
+    setDrawnGeometry(null);
+    setSelectedResourceId(resourceId);
+  };
+
+  const handleCreateNewInstead = () => {
+    setPlaceDialogOpen(false);
+    setCreateDialogOpen(true);
   };
 
   const handleCancelDrawing = () => {
@@ -545,6 +582,20 @@ export function SpaceManagementPanel({
 
         {/* Both conditions hold by construction — drawing requires an armed type — and gating on
             them here removes the dead space-key fallbacks the dialog used to carry. */}
+        {drawnGeometry && activeType && (
+          <PlaceDrawnShapeDialog
+            open={placeDialogOpen}
+            onOpenChange={(next) => {
+              setPlaceDialogOpen(next);
+              // Dismissing the choice discards the shape rather than leaving it half-committed.
+              if (!next) setDrawnGeometry(null);
+            }}
+            candidates={unplacedOfActiveType}
+            resourceTypeLabel={activeType.displayName}
+            onAssign={handleAssignDrawnShape}
+            onCreateNew={handleCreateNewInstead}
+          />
+        )}
         {drawnGeometry && activeType && (
           <CreateSpaceDialog
             open={createDialogOpen}

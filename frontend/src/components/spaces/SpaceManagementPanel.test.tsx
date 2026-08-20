@@ -438,6 +438,80 @@ describe('SpaceManagementPanel', () => {
     expect(screen.getByRole('button', { name: 'Draw rectangle' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  describe('what a finished shape becomes', () => {
+    // A resource of the armed type that exists but was never drawn — imported, or added from its
+    // type's list page. The floorplan query already returns it; the canvas just skips it.
+    const unplacedMill = {
+      id: 'space-9',
+      name: 'Mill 9',
+      code: 'M-09',
+      siteId: 'site-1',
+      resourceTypeKey: 'space',
+      geometry: null,
+    };
+
+    async function drawWith(spaces: unknown[]) {
+      mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
+      mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
+      mockUseSpaces.mockReturnValue({ data: spaces, isLoading: false });
+      const user = userEvent.setup();
+      render(<SpaceManagementPanel siteId="site-1" />);
+      await waitFor(() => screen.getByRole('button', { name: /Edit/i }));
+      await user.click(screen.getByRole('button', { name: /Edit/i }));
+      await user.click(screen.getByRole('button', { name: 'Draw rectangle' }));
+      await user.click(screen.getByTestId('finish-drawing'));
+      return user;
+    }
+
+    it('goes straight to the create form when nothing is waiting to be placed', async () => {
+      // The older behaviour, and still the right one: a choice with one real answer is friction.
+      await drawWith([mockSpace]);
+
+      expect(screen.getByTestId('create-dialog-save')).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Place Space' })).not.toBeInTheDocument();
+    });
+
+    it('offers the unplaced resources of the armed type instead', async () => {
+      await drawWith([mockSpace, unplacedMill]);
+
+      expect(await screen.findByRole('heading', { name: 'Place Space' })).toBeInTheDocument();
+      expect(screen.queryByTestId('create-dialog-save')).not.toBeInTheDocument();
+    });
+
+    it('gives the drawn shape to the resource that was picked', async () => {
+      const user = await drawWith([mockSpace, unplacedMill]);
+
+      await user.click(await screen.findByLabelText('Not yet on the plan'));
+      await user.click(await screen.findByRole('option', { name: 'M-09 — Mill 9' }));
+      await user.click(screen.getByRole('button', { name: 'Place here' }));
+
+      // The same write a drag makes: geometry only, because the candidate already belongs here.
+      await waitFor(() =>
+        expect(mockMoveMutateAsync).toHaveBeenCalledWith({
+          resourceId: 'space-9',
+          geometry: { type: 'rectangle', coordinates: [{ x: 0, y: 0 }, { x: 10, y: 10 }] },
+        }),
+      );
+      expect(mockCreateMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('falls through to the create form, carrying the same shape', async () => {
+      const user = await drawWith([mockSpace, unplacedMill]);
+
+      await user.click(await screen.findByRole('button', { name: /Create a new space instead/i }));
+
+      expect(screen.getByTestId('create-dialog-save')).toBeInTheDocument();
+      expect(mockMoveMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('offers nothing from another type than the one armed', async () => {
+      // The shape was drawn as a space; a drill with no place is not what it becomes.
+      await drawWith([{ ...unplacedMill, resourceTypeKey: 'drill' }]);
+
+      expect(screen.getByTestId('create-dialog-save')).toBeInTheDocument();
+    });
+  });
+
   it('forces the tool off when edit mode is left', async () => {
     // Newly load-bearing: with the tool staying armed, leaving edit mode is the other way out.
     const user = await enterEditMode();
