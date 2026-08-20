@@ -69,11 +69,11 @@ public static class TenantReset
     }
 
     /// <summary>
-    /// Removes the resource types the seed defines for itself, so re-seeding does not collide with
-    /// resource_types_key_unique. A DELETE rather than a TRUNCATE because the built-in types are in
-    /// the same table and belong to the migration, not to us — and everything referencing a seeded
-    /// type (resources, custom fields, criterion applicability) has just been truncated in this
-    /// same transaction.
+    /// Removes every resource type, so re-seeding does not collide with
+    /// resource_types_key_unique. No type is built in any more — types come from the catalog or
+    /// from the seed itself, so a reset sweeps them all; the seed recreates its own. Everything
+    /// referencing a type (resources, custom fields, criterion applicability) has just been
+    /// truncated in this same transaction.
     /// </summary>
     private static async Task DeleteSeededResourceTypesAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx, HashSet<string> existing)
@@ -81,7 +81,7 @@ public static class TenantReset
         if (!existing.Contains("resource_types")) return;
 
         await using var cmd = new NpgsqlCommand(
-            "DELETE FROM public.resource_types WHERE is_system = false", conn, tx);
+            "DELETE FROM public.resource_types", conn, tx);
         await cmd.ExecuteNonQueryAsync();
     }
 

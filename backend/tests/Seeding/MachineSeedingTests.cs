@@ -270,20 +270,19 @@ public class MachineSeedingTests
         await Orkyo.Foundation.Seed.TenantReset.TruncateAllAsync(conn, tx);
 
         await using var cmd = new NpgsqlCommand(
-            @"SELECT (SELECT count(*) FROM resource_types WHERE is_system = false),
-                     (SELECT count(*) FROM resource_types WHERE is_system),
+            @"SELECT (SELECT count(*) FROM resource_types),
                      (SELECT count(*) FROM resource_custom_fields),
                      (SELECT count(*) FROM list_definitions),
                      (SELECT count(*) FROM list_rows)", conn, tx);
         await using var r = await cmd.ExecuteReaderAsync();
         await r.ReadAsync();
 
+        // Nothing is built in any more, so a reset sweeps every type — the seed recreates
+        // its own on the next run.
         Assert.Equal(0, r.GetInt64(0));
-        // The built-ins belong to the migration, not to the seed.
-        Assert.True(r.GetInt64(1) > 0, "system resource types must survive a reset");
+        Assert.Equal(0, r.GetInt64(1));
         Assert.Equal(0, r.GetInt64(2));
         Assert.Equal(0, r.GetInt64(3));
-        Assert.Equal(0, r.GetInt64(4));
     }
 
     [Fact]

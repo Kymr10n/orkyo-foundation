@@ -72,7 +72,7 @@ public class InsightsServiceTests
         SingleGroupMembership = key == ResourceTypeKeys.Space,
         DisplayName = displayName,
         DisplayNamePlural = displayName + "s",
-        IsSystem = true,
+        IsSystem = false,
         IsActive = true,
         CreatedAt = DateTime.UtcNow,
         UpdatedAt = DateTime.UtcNow,

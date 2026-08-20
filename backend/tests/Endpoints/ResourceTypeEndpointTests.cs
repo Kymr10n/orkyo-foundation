@@ -18,18 +18,19 @@ public class ResourceTypeEndpointTests
     }
 
     [Fact]
-    public async Task GetResourceTypes_ReturnsThreeSeededTypes()
+    public async Task GetResourceTypes_ReturnsTheFixtureTypes_AllOrdinary()
     {
         var response = await _client.GetAsync("/api/resource-types");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var types = await response.Content.ReadFromJsonAsync<List<ResourceTypeInfo>>();
         Assert.NotNull(types);
-        // Space is still seeded, but as an ordinary tenant type since migration 1800 — the
-        // tenant's to rename, retire or delete. Person and tool stay built in.
-        Assert.Contains(types, t => t.Key == "space" && !t.IsSystem);
-        Assert.Contains(types, t => t.Key == "person" && t.IsSystem);
-        Assert.Contains(types, t => t.Key == "tool" && t.IsSystem);
+        // No type is built in any more: migrations seed nothing, the fixture creates the
+        // classic three for the suite, and every row is an ordinary tenant type.
+        Assert.Contains(types, t => t.Key == "space");
+        Assert.Contains(types, t => t.Key == "person");
+        Assert.Contains(types, t => t.Key == "tool");
+        Assert.All(types, t => Assert.False(t.IsSystem));
     }
 
     [Fact]

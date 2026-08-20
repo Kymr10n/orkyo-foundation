@@ -440,6 +440,12 @@ public class RequestRepository : IRequestRepository
                     "SELECT key FROM resource_types WHERE has_geometry AND is_active "
                     + "ORDER BY (key = 'space') DESC, key LIMIT 1",
                     null, r => r.GetString(0), ct);
+            // With no types activated yet the fallback finds nothing — refuse rather than
+            // write the empty list the comment above rules out.
+            if (request.TargetResourceTypeKeys is null && targets.Count == 0)
+                throw new ArgumentException(
+                    "No active placeable resource type exists. Activate one under Configuration, "
+                    + "or specify target resource types explicitly.");
             await WriteTargetResourceTypesAsync(db, transaction, requestId, targets, ct);
 
             // Create resource assignment if a resource + time window was provided.

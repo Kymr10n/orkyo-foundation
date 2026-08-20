@@ -386,13 +386,6 @@ public class ResourceCustomFieldEndpointsTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    /// <summary>The seeded space type — the one type created from a form that cannot carry values.</summary>
-    private async Task<ResourceTypeInfo> SpaceTypeAsync()
-    {
-        var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        return types!.Single(t => t is { IsSystem: true, HasGeometry: true });
-    }
-
     [Fact]
     public async Task CreateCustomField_AllowsRequiredOnATenantDefinedPlaceableType()
     {
