@@ -41,6 +41,17 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn(() => Promise.resolve([])),
 }));
 
+// usePlaceableTypeKeys derives the placeable set from the tenant's active types now —
+// nothing is built in, so the tests must provide the `space` type themselves.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({
+    data: [{ key: 'space', hasGeometry: true }],
+    isSuccess: true,
+  }),
+  RESOURCE_TYPE_INVALIDATES: [],
+  useDeleteResourceType: vi.fn(),
+}));
+
 // Mock the tenant-wide conflicts registry — the grid's source of truth for
 // committed bookings. Tests set `registryConflicts` to drive the badges.
 const registryMock = vi.hoisted(() => ({

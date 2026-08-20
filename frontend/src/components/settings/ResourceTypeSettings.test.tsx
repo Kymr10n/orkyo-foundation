@@ -44,7 +44,7 @@ const types: ResourceTypeInfo[] = [
     hasGeometry: false,
     hasDirectoryProfile: false,
     singleGroupMembership: false,
-    isSystem: true,
+    isSystem: false,
     isActive: true,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -87,15 +87,15 @@ describe('ResourceTypeSettings', () => {
     vi.mocked(deleteResourceType).mockResolvedValue(undefined);
   });
 
-  it('lists every type and marks the built-in ones', async () => {
+  it('lists every type without a built-in marker — nothing is built in', async () => {
     renderSettings();
 
     expect(await screen.findByText('Car')).toBeInTheDocument();
     expect(screen.getByText('Space')).toBeInTheDocument();
-    expect(screen.getByText('Built-in')).toBeInTheDocument();
+    expect(screen.queryByText('Built-in')).not.toBeInTheDocument();
   });
 
-  it('offers edit and remove only for user-defined types', async () => {
+  it('offers edit and remove on every type, formerly-seeded ones included', async () => {
     renderSettings();
 
     await openRowMenu('Car');
@@ -104,11 +104,11 @@ describe('ResourceTypeSettings', () => {
 
     await userEvent.keyboard('{Escape}');
 
-    // The built-in Space type is not editable or removable.
+    // The formerly-seeded Space type is an ordinary tenant type now.
     await openRowMenu('Space');
     expect(await screen.findByRole('menuitem', { name: /Custom fields/ })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /Edit/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /Remove/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Edit/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Remove/ })).toBeInTheDocument();
   });
 
   it('opens the create dialog from the header button', async () => {

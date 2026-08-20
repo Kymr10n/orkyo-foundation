@@ -84,7 +84,8 @@ export function SpaceManagementPanel({
 
   // What the next drawn shape becomes. Chosen before drawing rather than after, so the shape
   // means something the moment it exists. The resolution ladder is the one the create dialog used
-  // to own — prefer the built-in space, else whatever the tenant defined first.
+  // to own — prefer the historical `space` key where the tenant kept it, else whatever the
+  // tenant defined first.
   const { data: resourceTypes = [] } = useResourceTypes(true);
   const placeableTypes = resourceTypes.filter((t) => t.hasGeometry);
   const [typeKey, setTypeKey] = useState<string | null>(null);

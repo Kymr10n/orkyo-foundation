@@ -67,11 +67,12 @@ export function SpreadsheetImportWizard({
 }: SpreadsheetImportWizardProps) {
   // The template's Workstations sheet becomes resources of the tenant's placeable type —
   // `space` where it still exists (the template's historical meaning), else whatever placeable
-  // type the tenant kept. Not hardcoded: the built-in space type is deletable now.
+  // type the tenant kept. Null when no placeable type is active: nothing is built in, so the
+  // import blocks with a pointer at the catalog instead of inventing a key.
   const { data: resourceTypes = [] } = useResourceTypes(true);
   const placeableTypes = resourceTypes.filter((t) => t.hasGeometry);
   const workstationTypeKey =
-    placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? 'space';
+    placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? null;
 
   const available = useDataExportAvailable();
   const queryClient = useQueryClient();
@@ -98,7 +99,7 @@ export function SpreadsheetImportWizard({
   };
 
   const analyze = async () => {
-    if (!file || !effectiveSiteId) return;
+    if (!file || !effectiveSiteId || !workstationTypeKey) return;
     setBusy(true);
     setLoadError(null);
     try {
@@ -117,7 +118,7 @@ export function SpreadsheetImportWizard({
   };
 
   const commit = async (parsed: ParsedWorkbook, existingCodes: Map<string, string>) => {
-    if (!effectiveSiteId) return;
+    if (!effectiveSiteId || !workstationTypeKey) return;
     const toCreate = parsed.workstations.filter((w) => !existingCodes.has(w.code));
     const total = toCreate.length + parsed.jobs.length;
     setStep({ kind: 'committing', done: 0, total });
@@ -190,6 +191,9 @@ export function SpreadsheetImportWizard({
           />
         ) : step.kind === 'pick' ? (
           <>
+            {!workstationTypeKey && (
+              <ErrorAlert message="No placeable resource type is active. Activate one under Configuration → Type catalog before importing workstations." />
+            )}
             <div className="space-y-2">
               <Label htmlFor="spreadsheet-file">Template file</Label>
               <input
@@ -285,7 +289,7 @@ export function SpreadsheetImportWizard({
 
       <DialogFooter className="px-6 pb-6">
         {step.kind === 'pick' && available && (
-          <Button onClick={analyze} disabled={!file || !effectiveSiteId || busy}>
+          <Button onClick={analyze} disabled={!file || !effectiveSiteId || !workstationTypeKey || busy}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Review
           </Button>

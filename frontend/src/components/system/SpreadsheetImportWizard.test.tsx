@@ -10,6 +10,8 @@ const getSpaces = vi.fn();
 const createSpace = vi.fn();
 const createRequest = vi.fn();
 let dataExportAvailable = true;
+// The wizard resolves its workstation type from the tenant's active types; nothing is built in.
+let activeTypes: { key: string; hasGeometry: boolean }[] = [];
 
 vi.mock('@foundation/src/lib/utils/spreadsheet-file', () => ({
   readWorkbook: (file: File) => readWorkbook(file),
@@ -23,6 +25,10 @@ vi.mock('@foundation/src/lib/api/request-api', () => ({
 }));
 vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
   useDataExportAvailable: () => dataExportAvailable,
+}));
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({ data: activeTypes }),
+  RESOURCE_TYPE_INVALIDATES: [],
 }));
 vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: () => ({ data: [{ id: 'site-1', name: 'Main plant' }] }),
@@ -61,6 +67,7 @@ async function pickFileAndReview(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   dataExportAvailable = true;
+  activeTypes = [{ key: 'space', hasGeometry: true }];
   readWorkbook.mockReset().mockResolvedValue(TEMPLATE);
   getSpaces.mockReset().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0 });
   createSpace.mockReset().mockImplementation((req) =>
@@ -130,6 +137,19 @@ describe('SpreadsheetImportWizard', () => {
     await waitFor(() => expect(screen.getByText(/Import stopped: Quota exceeded/)).toBeInTheDocument());
     expect(screen.getByText(/1 workstations and 0 jobs — they remain in place/)).toBeInTheDocument();
     expect(createRequest).not.toHaveBeenCalled();
+  });
+
+  it('blocks the import when no placeable type is active', async () => {
+    activeTypes = [{ key: 'person', hasGeometry: false }];
+    const user = userEvent.setup();
+    renderWizard();
+
+    expect(
+      screen.getByText(/No placeable resource type is active/),
+    ).toBeInTheDocument();
+    const file = new File(['x'], 'template.xlsx');
+    await user.upload(screen.getByLabelText('Template file'), file);
+    expect(screen.getByRole('button', { name: 'Review' })).toBeDisabled();
   });
 
   it('shows the upsell instead of the form when the plan lacks data import', async () => {

@@ -83,7 +83,9 @@ const STEPS: TourStep[] = [
     description: "Manage the mobile resources you schedule.",
     detail:
       "An asset moves: a person, a tool, a vehicle. People carry skills, working availability and absences. Orkyo matches assets to requests and tracks how their time is used.",
-    path: "/assets/person/instances",
+    // No type key in the path: the page lands on the tenant's first mobile type, and
+    // `person` in particular is a catalog entry a tenant may not have activated.
+    path: "/assets",
   },
   {
     icon: Package,

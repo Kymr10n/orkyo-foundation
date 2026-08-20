@@ -44,6 +44,10 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
 }));
 
+vi.mock('@foundation/src/lib/api/resource-types-api', () => ({
+  getResourceTypes: vi.fn(),
+}));
+
 vi.mock('@foundation/src/lib/api/resource-assignments-api', async (importActual) => ({
   // Keep the real pure helpers (SOFT_BLOCKER_CODES, hardBlockers, …); mock only network calls.
   ...(await importActual<typeof ResourceAssignmentsApi>()),
@@ -54,6 +58,7 @@ vi.mock('@foundation/src/lib/api/resource-assignments-api', async (importActual)
 }));
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
+import { getResourceTypes } from '@foundation/src/lib/api/resource-types-api';
 import {
   getAssignmentsByRequest,
   validateAssignment,
@@ -105,6 +110,10 @@ const defaultProps = {
 describe('RequestPeopleSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The section derives "people" from the active directory-profile types, not a fixed key.
+    (getResourceTypes as Mock).mockResolvedValue([
+      { id: 'rt-1', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, hasDirectoryProfile: true, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
+    ]);
     (getResources as Mock).mockResolvedValue({ data: mockPeople, total: 2, page: 1, pageSize: 50 });
     (getAssignmentsByRequest as Mock).mockResolvedValue([]);
     (validateAssignment as Mock).mockResolvedValue({ severity: 'ok', blockers: [], warnings: [] });
@@ -539,5 +548,30 @@ describe('RequestPeopleSection', () => {
     // the old 50ms one — not when it is longer.
     await new Promise((r) => setTimeout(r, 500));
     expect(validateAssignment).not.toHaveBeenCalled();
+  });
+
+  it('loads people from every directory-profile type, not a fixed key', async () => {
+    (getResourceTypes as Mock).mockResolvedValue([
+      { id: 'rt-1', key: 'operator', displayName: 'Operator', displayNamePlural: 'Operators', hasGeometry: false, hasDirectoryProfile: true, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
+      { id: 'rt-2', key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', hasGeometry: false, hasDirectoryProfile: false, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
+    ]);
+    render(<RequestPeopleSection {...defaultProps} />);
+
+    await waitFor(() =>
+      expect(getResources).toHaveBeenCalledWith({ resourceTypeKey: 'operator', isActive: true }),
+    );
+    expect(getResources).not.toHaveBeenCalledWith({ resourceTypeKey: 'tool', isActive: true });
+    expect(getResources).not.toHaveBeenCalledWith({ resourceTypeKey: 'person', isActive: true });
+  });
+
+  it('points at the type catalog when no directory-profile type is active', async () => {
+    (getResourceTypes as Mock).mockResolvedValue([]);
+    render(<RequestPeopleSection {...defaultProps} />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/No people-like resource type is active/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('add-person-btn')).not.toBeInTheDocument();
+    expect(getResources).not.toHaveBeenCalled();
   });
 });

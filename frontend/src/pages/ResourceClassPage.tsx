@@ -81,7 +81,7 @@ export function ResourceClassPage({ resourceClass, surface }: ResourceClassPageP
         <PageHeader title={labels.plural} description={DESCRIPTIONS[resourceClass]} />
         <EmptyState
           icon={<Boxes className="h-8 w-8" />}
-          message={`No ${labels.plural.toLowerCase()} are defined yet. An administrator adds resource types under Configuration.`}
+          message={`No ${labels.plural.toLowerCase()} are defined yet. An administrator activates pre-configured types under Configuration → Type catalog, or adds custom ones under Resource Types.`}
         />
       </PageLayout>
     );

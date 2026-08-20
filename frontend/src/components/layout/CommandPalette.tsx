@@ -268,15 +268,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       >
         <VisuallyHidden>
           <DialogTitle>Search</DialogTitle>
-          <DialogDescription>Search spaces, requests, groups, and sites</DialogDescription>
+          <DialogDescription>Search resources, requests, groups, and sites</DialogDescription>
         </VisuallyHidden>
         {/* Search Input */}
         <div className="flex items-center border-b px-3">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
             ref={inputRef}
-            placeholder="Search spaces, requests, groups, sites..."
-            aria-label="Search spaces, requests, groups, sites"
+            placeholder="Search resources, requests, groups, sites..."
+            aria-label="Search resources, requests, groups, sites"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex h-12 w-full border-0 bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground focus-visible:ring-0"

@@ -11,7 +11,6 @@ import {
 } from "@foundation/src/lib/api/resources-api";
 import type { ResourceGeometry } from "@foundation/src/types/geometry";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from "@foundation/src/constants";
 import { useResourceTypes } from "./useResourceTypes";
 import { useMemo } from "react";
 import { errorMessage } from "./mutation-utils";
@@ -20,20 +19,20 @@ import { errorMessage } from "./mutation-utils";
  * The type keys that can be placed on a floorplan.
  *
  * Assignments are recorded under the resource's own type, so anything that asks "which resource
- * does this request occupy?" has to match against this set rather than the `space` key alone.
+ * does this request occupy?" has to match against this set rather than any single key.
  *
- * While the types are still loading this answers with the built-in placeable type rather than an
- * empty set. An empty set is not a neutral answer: it says "nothing is placeable", which makes
- * every existing placement invisible — an optimistic reschedule would fail to clear the old
- * assignment and write a blank type key over it. Falling back keeps the pre-generalization
- * behaviour for the one type that always exists, and the real set replaces it a tick later.
+ * While the types are still loading this answers with the empty set — the honest not-ready
+ * answer now that no type is built in. That is safe: nothing placement-mutating can fire
+ * before the set arrives, because the scheduler rows and floorplan shapes a drop needs are
+ * themselves derived from this set, and the resize/calendar handlers no-op when no placement
+ * resolves. Displays render placements a tick later, when the real set replaces it.
  */
 export function usePlaceableTypeKeys(): ReadonlySet<string> {
-  const { data: resourceTypes = [], isSuccess } = useResourceTypes(true);
-  return useMemo(() => {
-    if (!isSuccess) return new Set(DEFAULT_TARGET_RESOURCE_TYPE_KEYS);
-    return new Set(resourceTypes.filter((t) => t.hasGeometry).map((t) => t.key));
-  }, [resourceTypes, isSuccess]);
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  return useMemo(
+    () => new Set(resourceTypes.filter((t) => t.hasGeometry).map((t) => t.key)),
+    [resourceTypes],
+  );
 }
 
 /**
