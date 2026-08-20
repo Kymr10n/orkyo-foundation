@@ -18,6 +18,7 @@ const { authState, mockSetAppUser } = vi.hoisted(() => ({
   authState: {
     appUser: { hasSeenTour: false } as { hasSeenTour: boolean } | null,
     canEdit: true,
+    isAdmin: true,
   },
   mockSetAppUser: vi.fn(),
 }));
@@ -26,12 +27,18 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
 }));
 vi.mock("@foundation/src/hooks/usePermissions", () => ({
   useCanEdit: () => authState.canEdit,
+  useIsTenantAdmin: () => authState.isAdmin,
 }));
 
-const mockNavigate = vi.fn();
+// `navigateRef` is the indirection that lets a test swap the navigate identity mid-run, which
+// is what the router itself does on every pathname change — and what the loop fed on.
+const { mockNavigate, navigateRef } = vi.hoisted(() => {
+  const fn = vi.fn();
+  return { mockNavigate: fn, navigateRef: { current: fn } };
+});
 vi.mock("react-router", async () => {
   const actual = await vi.importActual<typeof ReactRouterDom>("react-router");
-  return { ...actual, useNavigate: () => mockNavigate };
+  return { ...actual, useNavigate: () => navigateRef.current };
 });
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -48,8 +55,20 @@ function renderTour(props: { open?: boolean; onClose?: () => void } = {}) {
 
 const next = () => fireEvent.click(screen.getByRole("button", { name: /next/i }));
 
-// Steps as an editor sees them (Welcome + 9). Viewers drop the two editor-only steps.
-const TOTAL_STEPS = 10;
+/** Renders and hands back `rerender`, for the tests that re-render deliberately. */
+function renderTourForRerender() {
+  return render(
+    <MemoryRouter>
+      <TourDialog open onClose={vi.fn()} />
+    </MemoryRouter>,
+  );
+}
+
+// Steps an administrator sees: Welcome + 10. An editor loses the admin-only Configuration
+// step; a viewer loses that and the two editor-only Settings steps.
+const TOTAL_STEPS = 11;
+const EDITOR_STEPS = 10;
+const VIEWER_STEPS = 8;
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +77,8 @@ describe("TourDialog", () => {
     vi.clearAllMocks();
     authState.appUser = { hasSeenTour: false };
     authState.canEdit = true;
+    authState.isAdmin = true;
+    navigateRef.current = mockNavigate;
   });
 
   // ── visibility ───────────────────────────────────────────────────────────────
@@ -80,10 +101,10 @@ describe("TourDialog", () => {
     expect(screen.getByRole("button", { name: /back/i })).toBeDisabled();
   });
 
-  it("Next advances to the Criteria step", () => {
+  it("Next advances to the resource-types step", () => {
     renderTour();
     next();
-    expect(screen.getByText("Criteria")).toBeInTheDocument();
+    expect(screen.getByText("Your resource types")).toBeInTheDocument();
     expect(screen.getByText(`2 / ${TOTAL_STEPS}`)).toBeInTheDocument();
   });
 
@@ -96,9 +117,9 @@ describe("TourDialog", () => {
 
   it("dot indicator jumps directly to a step", () => {
     renderTour();
-    // [Welcome, Criteria, Templates, Groups, ...] → dot index 3 = "Groups"
+    // [Welcome, Your resource types, Criteria, Templates, ...] → dot index 3 = "Templates"
     fireEvent.click(screen.getAllByRole("button", { name: /go to step/i })[3]);
-    expect(screen.getByText("Groups")).toBeInTheDocument();
+    expect(screen.getByText("Templates")).toBeInTheDocument();
     expect(screen.getByText(`4 / ${TOTAL_STEPS}`)).toBeInTheDocument();
   });
 
@@ -118,6 +139,8 @@ describe("TourDialog", () => {
 
   it("navigates the app to each step's page as you advance", () => {
     renderTour();
+    next(); // Your resource types
+    expect(mockNavigate).toHaveBeenLastCalledWith("/configuration/catalog");
     next(); // Criteria
     expect(mockNavigate).toHaveBeenLastCalledWith("/settings/criteria");
     next(); // Templates
@@ -131,17 +154,81 @@ describe("TourDialog", () => {
     expect(mockNavigate).toHaveBeenLastCalledWith("/insights/overview");
   });
 
+  it("navigates once per step, however often the router re-renders it", () => {
+    // The regression this pins. Under BrowserRouter `navigate` takes a new identity on every
+    // pathname change, and a step can point at a route that redirects on arrival (/stations
+    // sends you to the first station type's list). Re-running the effect on that new identity
+    // pushed the redirecting route again — an endless loop showing the blank half of the
+    // redirect. Here a fresh `navigate` identity stands in for the redirect having happened.
+    const { rerender } = renderTourForRerender();
+
+    next(); // Your resource types
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+
+    mockNavigate.mockClear();
+    const afterRedirect = vi.fn();
+    navigateRef.current = afterRedirect;
+    rerender(
+      <MemoryRouter>
+        <TourDialog open onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(afterRedirect).not.toHaveBeenCalled();
+
+    next(); // Criteria — a new step does navigate
+    expect(afterRedirect).toHaveBeenCalledTimes(1);
+    expect(afterRedirect).toHaveBeenCalledWith("/settings/criteria");
+  });
+
+  it("navigates again when the tour is reopened", () => {
+    // The guard remembers the step it navigated for; reopening has to forget it, or the tour
+    // reopens on a page the user has since navigated away from.
+    const { rerender } = renderTourForRerender();
+    next();
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <MemoryRouter>
+        <TourDialog open={false} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+    mockNavigate.mockClear();
+    rerender(
+      <MemoryRouter>
+        <TourDialog open onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    // Reopening restarts at Welcome, which has no path; the first Next navigates again.
+    next();
+    expect(mockNavigate).toHaveBeenCalledWith("/configuration/catalog");
+  });
+
   // ── permission-aware steps ───────────────────────────────────────────────────
 
-  it("hides editor-only steps (Criteria/Templates) for viewers and never navigates to Settings", () => {
+  it("hides editor-only steps for viewers and never navigates to Settings", () => {
     authState.canEdit = false;
+    authState.isAdmin = false;
     renderTour();
 
-    expect(screen.getByText(`1 / 8`)).toBeInTheDocument(); // Welcome + 7 viewer-visible steps
-    next(); // first step after Welcome is Groups, not Criteria
-    expect(screen.getByText("Groups")).toBeInTheDocument();
+    expect(screen.getByText(`1 / ${VIEWER_STEPS}`)).toBeInTheDocument();
+    next(); // first step after Welcome is Stations, not Criteria
+    expect(screen.getByText("Stations")).toBeInTheDocument();
     expect(screen.queryByText("Criteria")).not.toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalledWith("/settings/criteria");
+  });
+
+  it("hides the admin-only Configuration step from an editor", () => {
+    // Configuration is tenant-admin only, so an editor walked to it would be bounced.
+    authState.isAdmin = false;
+    renderTour();
+
+    expect(screen.getByText(`1 / ${EDITOR_STEPS}`)).toBeInTheDocument();
+    next();
+    expect(screen.getByText("Criteria")).toBeInTheDocument();
+    expect(screen.queryByText("Your resource types")).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalledWith("/configuration/catalog");
   });
 
   // ── close / markTourSeen ─────────────────────────────────────────────────────
